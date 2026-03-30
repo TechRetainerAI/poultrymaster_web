@@ -1,0 +1,50 @@
+# Cloud Build: PoultryFarmAPI → Artifact Registry → Cloud Run (second service)
+#
+# GCP defaults to THIS filename (`cloudbuild.yaml`). If you see
+# "File cloudbuild.yaml not found", ensure this file is at the repository root
+# and the trigger uses: Cloud Build configuration file → Location: Repository → cloudbuild.yaml
+#
+# Duplicate pipeline also lives in `cloudbuild.farm.yaml` — keep both in sync when editing.
+
+substitutions:
+  _REGION: europe-west1
+  _SERVICE_NAME: poultrymaster-farm-api-git
+  _AR_REPO_PATH: cloud-run-source-deploy/techretainerai-poultrymaster_api
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_AR_REPO_PATH/$_SERVICE_NAME:$COMMIT_SHA
+      - -t
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_AR_REPO_PATH/$_SERVICE_NAME:latest
+      - -f
+      - PoultryFarmAPI/Dockerfile
+      - PoultryFarmAPI
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_AR_REPO_PATH/$_SERVICE_NAME:$COMMIT_SHA
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_AR_REPO_PATH/$_SERVICE_NAME:latest
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - $_SERVICE_NAME
+      - --image=$_REGION-docker.pkg.dev/$PROJECT_ID/$_AR_REPO_PATH/$_SERVICE_NAME:$COMMIT_SHA
+      - --region=$_REGION
+      - --platform=managed
+      - --port=8080
+      - --allow-unauthenticated
+      - --quiet
+
+options:
+  logging: CLOUD_LOGGING_ONLY

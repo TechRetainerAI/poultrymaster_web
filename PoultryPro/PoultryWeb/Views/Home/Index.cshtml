@@ -1,0 +1,90 @@
+﻿@{
+    ViewBag.Title = "Poultry Farm Management - Home";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@section Styles {
+    <style>
+
+    </style>
+}
+
+<!-- HERO SECTION -->
+<div class="hero">
+    <h1>Welcome to PoultryWeb</h1>
+    <p>Streamline your poultry farm operations, from flock management to egg production, inventory, and sales—all in one place.</p>
+    <a href="@Url.Action("Index", "Flock")" class="btn btn-light hero-btn">Get Started</a>
+</div>
+
+<!-- MODULE CARDS -->
+<div class="container module-cards">
+    <div class="card module-card">
+        <div class="card-header">
+            Expenses
+        </div>
+        <div class="card-body">
+            <p>Record and categorize farm expenses—feed, labor, maintenance, and more.</p>
+            <a href="@Url.Action("Index", "Expense")" class="btn btn-primary">Log Expenses</a>
+        </div>
+    </div>
+
+    <div class="card module-card">
+        <div class="card-header">
+            Inventory
+        </div>
+        <div class="card-body">
+            <p>Keep track of stock levels, reorder points, and manage all supplies or equipment.</p>
+            <a href="@Url.Action("Index", "Inventory")" class="btn btn-primary">View Inventory</a>
+        </div>
+    </div>
+
+    <div class="card module-card">
+        <div class="card-header">
+            Flock Management
+        </div>
+        <div class="card-body">
+            <p>Manage all your flocks in one place. Create, update, and track their details with ease.</p>
+            <a href="@Url.Action("Index", "Flock")" class="btn btn-primary">Go to Flocks</a>
+        </div>
+    </div>
+
+    <div class="card module-card">
+        <div class="card-header">
+            Feed Usage
+        </div>
+        <div class="card-body">
+            <p>Monitor daily feed consumption, plan orders, and reduce wastage.</p>
+            <a href="@Url.Action("Index", "FeedUsage")" class="btn btn-primary">Manage Feed</a>
+        </div>
+    </div>
+
+    <div class="card module-card">
+        <div class="card-header">
+            Egg Production
+        </div>
+        <div class="card-body">
+            <p>Record daily egg production, track broken eggs, and see productivity stats for each flock.</p>
+            <a href="@Url.Action("Index", "EggProduction")" class="btn btn-primary">Track Eggs</a>
+        </div>
+    </div>
+
+    <div class="card module-card">
+        <div class="card-header">
+            Sales
+        </div>
+        <div class="card-body">
+            <p>Track eggs or live-bird sales, manage revenue, and stay on top of your cash flow.</p>
+            <a href="@Url.Action("Index", "Sale")" class="btn btn-primary">Check Sales</a>
+        </div>
+    </div>
+
+    <div class="card module-card">
+        <div class="card-header">
+            Customers
+        </div>
+        <div class="card-body">
+            <p>Keep a record of all your buyers, their contacts, and easily manage repeat orders.</p>
+            <a href="@Url.Action("Index", "Customer")" class="btn btn-primary">Manage Customers</a>
+        </div>
+    </div>
+</div>

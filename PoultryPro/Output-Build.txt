@@ -1,0 +1,321 @@
+﻿Build started...
+1>------ Build started: Project: Crypto, Configuration: Debug Any CPU ------
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Crypto.csproj : warning NU1701: Package 'BouncyCastle 1.8.9' was restored using '.NETFramework,Version=v4.6.1, .NETFramework,Version=v4.6.2, .NETFramework,Version=v4.7, .NETFramework,Version=v4.7.1, .NETFramework,Version=v4.7.2, .NETFramework,Version=v4.8' instead of the project target framework 'net6.0'. This package may not be fully compatible with your project.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Crypto.csproj : warning NU1701: Package 'DynamicPDF 8.0.0' was restored using '.NETFramework,Version=v4.6.1, .NETFramework,Version=v4.6.2, .NETFramework,Version=v4.7, .NETFramework,Version=v4.7.1, .NETFramework,Version=v4.7.2, .NETFramework,Version=v4.8' instead of the project target framework 'net6.0'. This package may not be fully compatible with your project.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Crypto.csproj : warning NU1701: Package 'EntityFramework 6.0.0' was restored using '.NETFramework,Version=v4.6.1, .NETFramework,Version=v4.6.2, .NETFramework,Version=v4.7, .NETFramework,Version=v4.7.1, .NETFramework,Version=v4.7.2, .NETFramework,Version=v4.8' instead of the project target framework 'net6.0'. This package may not be fully compatible with your project.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Crypto.csproj : warning NU1701: Package 'iTextSharp 5.5.13.3' was restored using '.NETFramework,Version=v4.6.1, .NETFramework,Version=v4.6.2, .NETFramework,Version=v4.7, .NETFramework,Version=v4.7.1, .NETFramework,Version=v4.7.2, .NETFramework,Version=v4.8' instead of the project target framework 'net6.0'. This package may not be fully compatible with your project.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Crypto.csproj : warning NU1701: Package 'Microsoft.AspNet.Providers.Core 2.0.0' was restored using '.NETFramework,Version=v4.6.1, .NETFramework,Version=v4.6.2, .NETFramework,Version=v4.7, .NETFramework,Version=v4.7.1, .NETFramework,Version=v4.7.2, .NETFramework,Version=v4.8' instead of the project target framework 'net6.0'. This package may not be fully compatible with your project.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\TransactionPairIdentifier.cs(18,30,18,36): warning CS8765: Nullability of type of parameter 'obj' doesn't match overridden member (possibly because of nullability attributes).
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Controllers\WalletController.cs(27,42,27,47): warning CS1998: This async method lacks 'await' operators and will run synchronously. Consider using the 'await' operator to await non-blocking API calls, or 'await Task.Run(...)' to do CPU-bound work on a background thread.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\FileService.cs(60,30,60,32): warning CS0168: The variable 'ex' is declared but never used
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Controllers\WalletController.cs(39,42,39,59): warning CS1998: This async method lacks 'await' operators and will run synchronously. Consider using the 'await' operator to await non-blocking API calls, or 'await Task.Run(...)' to do CPU-bound work on a background thread.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\FileService.cs(86,30,86,32): warning CS0168: The variable 'ex' is declared but never used
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Controllers\WalletController.cs(64,30,64,32): warning CS0168: The variable 'ex' is declared but never used
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Controllers\WalletController.cs(71,42,71,52): warning CS1998: This async method lacks 'await' operators and will run synchronously. Consider using the 'await' operator to await non-blocking API calls, or 'await Task.Run(...)' to do CPU-bound work on a background thread.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Controllers\WalletController.cs(92,30,92,32): warning CS0168: The variable 'ex' is declared but never used
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Controllers\CoinbaseController.cs(68,30,68,32): warning CS0168: The variable 'ex' is declared but never used
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\FileService.cs(119,30,119,32): warning CS0168: The variable 'ex' is declared but never used
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\FileService.cs(154,30,154,32): warning CS0168: The variable 'ex' is declared but never used
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Controllers\CoinbaseController.cs(128,30,128,32): warning CS0168: The variable 'ex' is declared but never used
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\WalletAddressDisplay.cs(8,36,8,51): warning CS8618: Non-nullable property 'WalletAddresses' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\WalletAddressDisplay.cs(9,31,9,40): warning CS8618: Non-nullable property 'Exchanges' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\WalletAddress.cs(8,23,8,31): warning CS8618: Non-nullable property 'Exchange' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\WalletAddress.cs(9,23,9,30): warning CS8618: Non-nullable property 'Address' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\WalletDAL.cs(41,40,41,65): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\WalletDAL.cs(42,40,42,65): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\WalletDAL.cs(43,50,43,85): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\WalletDAL.cs(44,40,44,65): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\WalletDAL.cs(45,41,45,67): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\WalletDAL.cs(46,47,46,79): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\WalletDAL.cs(78,30,78,32): warning CS0168: The variable 'ex' is declared but never used
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\TaxService.cs(41,20,41,24): warning CS8603: Possible null reference return.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\WalletDAL.cs(106,40,106,65): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\WalletDAL.cs(107,40,107,65): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\WalletDAL.cs(108,43,108,71): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\WalletDAL.cs(109,50,109,85): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\WalletDAL.cs(110,41,110,67): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\WalletDAL.cs(111,40,111,65): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\WalletDAL.cs(112,53,112,91): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\WalletDAL.cs(113,47,113,79): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Wallet.cs(9,23,9,27): warning CS8618: Non-nullable property 'Code' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Wallet.cs(10,23,10,27): warning CS8618: Non-nullable property 'Name' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Wallet.cs(11,23,11,27): warning CS8618: Non-nullable property 'Type' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Wallet.cs(12,23,12,37): warning CS8618: Non-nullable property 'ControllerName' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Wallet.cs(13,23,13,35): warning CS8618: Non-nullable property 'CurrencyType' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Wallet.cs(17,23,17,30): warning CS8618: Non-nullable property 'Address' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Wallet.cs(19,23,19,28): warning CS8618: Non-nullable property 'Image' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Wallet.cs(21,23,21,34): warning CS8618: Non-nullable property 'Description' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Wallet.cs(24,23,24,40): warning CS8618: Non-nullable property 'TotalTransactions' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\FileService.cs(169,38,169,61): warning CS8602: Dereference of a possibly null reference.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\FileService.cs(172,32,172,55): warning CS8600: Converting null literal or possible null value to non-nullable type.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\TaxService.cs(105,30,105,32): warning CS0168: The variable 'ex' is declared but never used
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\TransactionModel.cs(9,23,9,29): warning CS8618: Non-nullable property 'TxHash' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\TransactionModel.cs(11,23,11,34): warning CS8618: Non-nullable property 'TxBlockHash' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\TransactionModel.cs(14,23,14,29): warning CS8618: Non-nullable property 'TxFrom' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\TransactionModel.cs(15,23,15,27): warning CS8618: Non-nullable property 'TxTo' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\TransactionModel.cs(19,23,19,30): warning CS8618: Non-nullable property 'TxInput' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\TransactionModel.cs(21,23,21,29): warning CS8618: Non-nullable property 'UserId' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\TransactionDisplay.cs(9,34,9,46): warning CS8618: Non-nullable property 'Transactions' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\TransactionDisplay.cs(10,29,10,36): warning CS8618: Non-nullable property 'Wallets' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\TaxService.cs(142,30,142,32): warning CS0168: The variable 'ex' is declared but never used
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\WalletDAL.cs(169,44,169,80): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\WalletDAL.cs(170,43,170,78): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Transaction.cs(10,23,10,36): warning CS8618: Non-nullable property 'TransactionId' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Transaction.cs(11,23,11,48): warning CS8618: Non-nullable property 'TransactionPairIdentifier' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Transaction.cs(12,23,12,29): warning CS8618: Non-nullable property 'UserId' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Transaction.cs(14,23,14,27): warning CS8618: Non-nullable property 'Type' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Transaction.cs(15,23,15,29): warning CS8618: Non-nullable property 'TxHash' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Transaction.cs(16,23,16,35): warning CS8618: Non-nullable property 'CurrencyType' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Transaction.cs(17,23,17,33): warning CS8618: Non-nullable property 'WalletCode' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Transaction.cs(22,23,22,35): warning CS8618: Non-nullable property 'CurrencyCode' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Transaction.cs(25,23,25,31): warning CS8618: Non-nullable property 'Platform' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Transaction.cs(26,23,26,41): warning CS8618: Non-nullable property 'AdditionalMetadata' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Transaction.cs(27,23,27,31): warning CS8618: Non-nullable property 'Comments' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Transaction.cs(28,23,28,40): warning CS8618: Non-nullable property 'ConcatenatedValue' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Transaction.cs(29,23,29,49): warning CS8618: Non-nullable property 'ConcatenatedTransactionFee' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Transaction.cs(30,23,30,43): warning CS8618: Non-nullable property 'ConcatenatedValueUSD' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Transaction.cs(31,23,31,52): warning CS8618: Non-nullable property 'ConcatenatedTransactionFeeUSD' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Transaction.cs(44,23,44,34): warning CS8618: Non-nullable property 'HoldingType' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\TaxSetting.cs(5,23,5,31): warning CS8618: Non-nullable property 'TimeZone' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\TaxSetting.cs(6,23,6,38): warning CS8618: Non-nullable property 'TaxJurisdiction' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\TaxSetting.cs(7,23,7,35): warning CS8618: Non-nullable property 'BaseCurrency' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\TaxSetting.cs(8,23,8,38): warning CS8618: Non-nullable property 'CostBasisMethod' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\TaxSetting.cs(12,23,12,29): warning CS8618: Non-nullable property 'UserId' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\WalletDAL.cs(205,40,205,65): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\WalletDAL.cs(206,40,206,65): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Subscriber.cs(8,23,8,35): warning CS8618: Non-nullable property 'SubscriberId' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Subscriber.cs(9,23,9,33): warning CS8618: Non-nullable property 'CustomerId' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Subscriber.cs(10,23,10,28): warning CS8618: Non-nullable property 'Email' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Subscriber.cs(13,23,13,29): warning CS8618: Non-nullable property 'Status' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Subscriber.cs(17,23,17,38): warning CS8618: Non-nullable property 'LatestInvoiceId' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Subscriber.cs(21,23,21,29): warning CS8618: Non-nullable property 'PlanId' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Subscriber.cs(22,23,22,31): warning CS8618: Non-nullable property 'PlanName' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Session.cs(5,23,5,32): warning CS8618: Non-nullable property 'SessionId' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Session.cs(6,23,6,32): warning CS8618: Non-nullable property 'PublicKey' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Session.cs(7,23,7,26): warning CS8618: Non-nullable property 'Url' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\ReportInput.cs(5,23,5,29): warning CS8618: Non-nullable property 'Report' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\PlansDisplay.cs(8,27,8,42): warning CS8618: Non-nullable property 'MembershipPlans' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Plan.cs(7,23,7,30): warning CS8618: Non-nullable property 'PriceId' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Plan.cs(8,23,8,27): warning CS8618: Non-nullable property 'Name' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Plan.cs(9,23,9,28): warning CS8618: Non-nullable property 'Price' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Plan.cs(10,23,10,31): warning CS8618: Non-nullable property 'Features' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\KucoinTransaction.cs(10,23,10,30): warning CS8618: Non-nullable property 'OrderId' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\KucoinTransaction.cs(11,23,11,48): warning CS8618: Non-nullable property 'TransactionPairIdentifier' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\KucoinTransaction.cs(12,23,12,29): warning CS8618: Non-nullable property 'Symbol' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\KucoinTransaction.cs(13,23,13,27): warning CS8618: Non-nullable property 'Side' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\KucoinTransaction.cs(18,23,18,32): warning CS8618: Non-nullable property 'Liquidity' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\KucoinTransaction.cs(19,23,19,34): warning CS8618: Non-nullable property 'FeeCurrency' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\KucoinTransaction.cs(20,23,20,32): warning CS8618: Non-nullable property 'OrderType' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\HomeViewModel.cs(5,23,5,29): warning CS8618: Non-nullable property 'UserId' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\HomeViewModel.cs(6,23,6,31): warning CS8618: Non-nullable property 'Username' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\HomeViewModel.cs(7,23,7,28): warning CS8618: Non-nullable property 'Email' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Exchange.cs(9,23,9,27): warning CS8618: Non-nullable property 'Code' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\Exchange.cs(10,23,10,27): warning CS8618: Non-nullable property 'Name' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\BnbTransaction.cs(11,23,11,29): warning CS8618: Non-nullable property 'Txhash' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\BnbTransaction.cs(15,23,15,34): warning CS8618: Non-nullable property 'FromAddress' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\BnbTransaction.cs(16,23,16,32): warning CS8618: Non-nullable property 'ToAddress' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\BnbTransaction.cs(17,23,17,38): warning CS8618: Non-nullable property 'ContractAddress' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\BnbTransaction.cs(18,23,18,48): warning CS8618: Non-nullable property 'TransactionPairIdentifier' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\BnbTransaction.cs(26,23,26,29): warning CS8618: Non-nullable property 'Status' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\BnbTransaction.cs(27,23,27,30): warning CS8618: Non-nullable property 'ErrCode' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\BnbTransaction.cs(28,23,28,29): warning CS8618: Non-nullable property 'Method' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\BnbTransaction.cs(30,23,30,27): warning CS8618: Non-nullable property 'Type' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\BnbTransaction.cs(33,23,33,35): warning CS8618: Non-nullable property 'ParentTxFrom' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\BnbTransaction.cs(34,23,34,33): warning CS8618: Non-nullable property 'ParentTxTo' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Areas\Identity\Data\CryptoUser.cs(15,19,15,28): warning CS8618: Non-nullable property 'FirstName' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Areas\Identity\Data\CryptoUser.cs(19,19,19,27): warning CS8618: Non-nullable property 'LastName' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Areas\Identity\Data\CryptoUser.cs(27,19,27,29): warning CS8618: Non-nullable property 'CustomerId' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\EthTransaction.cs(64,23,64,29): warning CS8618: Non-nullable property 'Txhash' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\EthTransaction.cs(68,23,68,34): warning CS8618: Non-nullable property 'FromAddress' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\EthTransaction.cs(69,23,69,32): warning CS8618: Non-nullable property 'ToAddress' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\EthTransaction.cs(70,23,70,38): warning CS8618: Non-nullable property 'ContractAddress' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\EthTransaction.cs(71,23,71,48): warning CS8618: Non-nullable property 'TransactionPairIdentifier' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\EthTransaction.cs(79,23,79,29): warning CS8618: Non-nullable property 'Status' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\EthTransaction.cs(80,23,80,30): warning CS8618: Non-nullable property 'ErrCode' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\EthTransaction.cs(81,23,81,29): warning CS8618: Non-nullable property 'Method' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\EthTransaction.cs(83,23,83,27): warning CS8618: Non-nullable property 'Type' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\EthTransaction.cs(86,23,86,35): warning CS8618: Non-nullable property 'ParentTxFrom' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\EthTransaction.cs(87,23,87,33): warning CS8618: Non-nullable property 'ParentTxTo' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\CsvTransaction.cs(5,23,5,29): warning CS8618: Non-nullable property 'TxHash' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\CsvTransaction.cs(6,23,6,30): warning CS8618: Non-nullable property 'TxNonce' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\CsvTransaction.cs(7,23,7,34): warning CS8618: Non-nullable property 'TxBlockHash' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\CsvTransaction.cs(8,23,8,36): warning CS8618: Non-nullable property 'TxBlockNumber' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\CsvTransaction.cs(9,23,9,30): warning CS8618: Non-nullable property 'TxIndex' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\CsvTransaction.cs(10,23,10,29): warning CS8618: Non-nullable property 'TxFrom' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\CsvTransaction.cs(11,23,11,27): warning CS8618: Non-nullable property 'TxTo' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\CsvTransaction.cs(12,23,12,30): warning CS8618: Non-nullable property 'TxValue' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\CsvTransaction.cs(13,23,13,33): warning CS8618: Non-nullable property 'TxGasPrice' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\CsvTransaction.cs(14,23,14,30): warning CS8618: Non-nullable property 'TxInput' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\CsvTransaction.cs(16,23,16,28): warning CS8618: Non-nullable property 'TxGas' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\CreateCheckoutSessionRequest.cs(5,17,5,24): warning CS8618: Non-nullable property 'PriceId' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\CreateCheckoutSessionRequest.cs(6,17,6,27): warning CS8618: Non-nullable property 'SuccessUrl' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\CreateCheckoutSessionRequest.cs(7,17,7,27): warning CS8618: Non-nullable property 'FailureUrl' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\CoinbaseTransaction.cs(10,23,10,48): warning CS8618: Non-nullable property 'TransactionPairIdentifier' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\CoinbaseTransaction.cs(12,23,12,38): warning CS8618: Non-nullable property 'TransactionType' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\CoinbaseTransaction.cs(13,23,13,28): warning CS8618: Non-nullable property 'Asset' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\CoinbaseTransaction.cs(15,23,15,40): warning CS8618: Non-nullable property 'SpotPriceCurrency' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\CoinbaseTransaction.cs(20,23,20,28): warning CS8618: Non-nullable property 'Notes' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\CoinbaseTransaction.cs(21,23,21,41): warning CS8618: Non-nullable property 'AdditionalMetaData' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\CalculationSummaryDisplay.cs(8,41,8,61): warning CS8618: Non-nullable property 'CalculationSummaries' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\CalculationSummaryDisplay.cs(9,34,9,56): warning CS8618: Non-nullable property 'CalculatedTransactions' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Views\Shared\_Layout.cshtml(117,53,117,73): warning CS8602: Dereference of a possibly null reference.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Views\Shared\_Layout.cshtml(122,53,122,73): warning CS8602: Dereference of a possibly null reference.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Views\Shared\_Layout.cshtml(143,41,143,61): warning CS8602: Dereference of a possibly null reference.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Views\Shared\_Layout.cshtml(171,41,171,61): warning CS8602: Dereference of a possibly null reference.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\SubscriptionService.cs(23,16,23,35): warning CS8618: Non-nullable field '_transactionBll' must contain a non-null value when exiting constructor. Consider declaring the field as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\SubscriptionService.cs(143,39,143,86): warning CS8600: Converting null literal or possible null value to non-nullable type.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\SubscriptionService.cs(144,28,144,35): warning CS8603: Possible null reference return.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\SubscriptionService.cs(153,20,153,24): warning CS8603: Possible null reference return.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\SubscriptionService.cs(192,39,192,86): warning CS8600: Converting null literal or possible null value to non-nullable type.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\SubscriptionService.cs(193,28,193,35): warning CS8603: Possible null reference return.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\SubscriptionService.cs(202,20,202,24): warning CS8603: Possible null reference return.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Controllers\SubscriptionController.cs(84,34,84,78): warning CS8600: Converting null literal or possible null value to non-nullable type.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Controllers\SubscriptionController.cs(105,86,105,97): warning CS8604: Possible null reference argument for parameter 'accessToken' in 'Session ISubscriptionService.RequestCustomerPortalSession(string customerId, string accessToken)'.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Controllers\ReportController.cs(150,37,150,41): warning CS8600: Converting null literal or possible null value to non-nullable type.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Controllers\MetamaskEthController.cs(68,30,68,32): warning CS0168: The variable 'ex' is declared but never used
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Controllers\MetamaskEthController.cs(128,30,128,32): warning CS0168: The variable 'ex' is declared but never used
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(44,53,44,120): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(45,65,45,111): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(46,44,46,69): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(47,46,47,73): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(48,52,48,85): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(49,50,49,81): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(54,52,54,85): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(55,51,55,83): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(58,48,58,77): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(59,58,59,97): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(60,48,60,77): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(61,57,61,95): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(62,66,62,113): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(63,60,63,101): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(64,69,64,119): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Controllers\MetamaskBnbController.cs(76,30,76,32): warning CS0168: The variable 'ex' is declared but never used
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\CalculationSummary.cs(9,23,9,29): warning CS8618: Non-nullable property 'UserId' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\CalculationSummary.cs(10,23,10,33): warning CS8618: Non-nullable property 'WalletCode' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\CalculationSummary.cs(11,23,11,38): warning CS8618: Non-nullable property 'CostBasisMethod' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Models\CalculationSummary.cs(24,23,24,49): warning CS8618: Non-nullable property 'CostBasisMethodDescription' must contain a non-null value when exiting constructor. Consider declaring the property as nullable.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(106,40,106,44): warning CS8600: Converting null literal or possible null value to non-nullable type.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(153,20,153,32): warning CS8603: Possible null reference return.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Controllers\FileController.cs(71,30,71,32): warning CS0168: The variable 'ex' is declared but never used
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Controllers\KucoinController.cs(127,30,127,32): warning CS0168: The variable 'ex' is declared but never used
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Controllers\FileController.cs(137,30,137,32): warning CS0168: The variable 'ex' is declared but never used
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Controllers\FileController.cs(186,30,186,32): warning CS0168: The variable 'ex' is declared but never used
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(179,53,179,120): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(180,65,180,111): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(181,44,181,69): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(182,46,182,73): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(183,52,183,85): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(184,50,184,81): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(189,52,189,85): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(192,48,192,77): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(193,58,193,97): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(194,48,194,77): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(195,57,195,95): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(196,66,196,113): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(197,60,197,101): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(198,69,198,119): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TaxDAL.cs(44,49,44,76): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TaxDAL.cs(45,51,45,80): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TaxDAL.cs(46,58,46,94): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TaxDAL.cs(47,55,47,88): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TaxDAL.cs(48,58,48,94): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TaxDAL.cs(110,46,110,77): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TaxDAL.cs(111,51,111,87): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TaxDAL.cs(112,62,112,109): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\FileService.cs(251,42,251,65): warning CS8602: Dereference of a possibly null reference.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\FileService.cs(264,36,264,59): warning CS8600: Converting null literal or possible null value to non-nullable type.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\FileService.cs(501,137,501,144): warning CS8604: Possible null reference argument for parameter 'myAddress' in 'string TransactionClassifier.ClassifyTransaction(string fromAddress, string toAddress, string method, string myAddress, List<WalletAddress> personalWalletAddresses)'.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\FileService.cs(537,20,537,68): warning CS8619: Nullability of reference types in value of type '(List<EthTransaction> transactions, List<Transaction> transactionCommonFields, string? address)' doesn't match target type '(List<EthTransaction>, List<Transaction>, string)'.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\FileService.cs(467,30,467,32): warning CS0168: The variable 'ex' is declared but never used
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\SubscriptionDAL.cs(81,43,81,71): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\SubscriptionDAL.cs(82,40,82,65): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\SubscriptionDAL.cs(83,41,83,67): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\SubscriptionDAL.cs(84,44,84,73): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\ReportDAL.cs(44,53,44,120): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\ReportDAL.cs(45,65,45,111): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\ReportDAL.cs(46,44,46,69): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\ReportDAL.cs(47,46,47,73): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\ReportDAL.cs(48,52,48,85): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\ReportDAL.cs(49,50,49,81): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\ReportDAL.cs(54,52,54,85): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\ReportDAL.cs(57,48,57,77): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\ReportDAL.cs(58,58,58,97): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\ReportDAL.cs(59,48,59,77): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\ReportDAL.cs(60,57,60,95): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\ReportDAL.cs(61,66,61,113): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\ReportDAL.cs(62,60,62,101): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\ReportDAL.cs(63,69,63,119): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\SubscriptionDAL.cs(100,37,100,41): warning CS8600: Converting null literal or possible null value to non-nullable type.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\SubscriptionDAL.cs(121,52,121,85): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\SubscriptionDAL.cs(122,50,122,81): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\SubscriptionDAL.cs(123,45,123,112): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\SubscriptionDAL.cs(126,46,126,73): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\SubscriptionDAL.cs(130,55,130,91): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\SubscriptionDAL.cs(134,46,134,116): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\SubscriptionDAL.cs(135,48,135,122): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\SubscriptionDAL.cs(150,20,150,30): warning CS8603: Possible null reference return.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(401,27,401,55): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(402,26,402,53): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(403,24,403,49): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(408,29,408,59): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(409,31,409,63): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(410,29,410,59): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(304,32,304,36): warning CS8603: Possible null reference return.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(391,26,391,53): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(393,31,393,63): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(396,26,396,53): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(397,24,397,49): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\TransactionDAL.cs(401,27,401,55): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(575,26,575,53): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(579,31,579,63): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(580,29,580,59): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(581,35,581,71): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(589,26,589,53): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(590,27,590,55): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(591,26,591,53): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(592,45,592,91): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(593,24,593,49): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(594,32,594,65): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(595,30,595,61): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(665,45,665,91): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(667,35,667,71): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(668,25,668,51): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(670,38,670,76): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(675,25,675,51): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(676,38,676,77): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(684,26,684,53): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(688,31,688,63): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(689,29,689,59): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(690,35,690,71): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(698,26,698,53): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(699,27,699,55): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(700,26,700,53): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(701,45,701,91): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(702,24,702,49): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(703,32,703,65): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(704,30,704,61): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(790,26,790,53): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(792,31,792,63): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(795,26,795,53): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(796,24,796,49): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\DAL\FileDAL.cs(800,27,800,55): warning CS8601: Possible null reference assignment.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\FileService.cs(708,42,708,65): warning CS8602: Dereference of a possibly null reference.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\FileService.cs(721,36,721,59): warning CS8600: Converting null literal or possible null value to non-nullable type.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\FileService.cs(966,137,966,144): warning CS8604: Possible null reference argument for parameter 'myAddress' in 'string TransactionClassifier.ClassifyTransaction(string fromAddress, string toAddress, string method, string myAddress, List<WalletAddress> personalWalletAddresses)'.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\FileService.cs(1001,20,1001,68): warning CS8619: Nullability of reference types in value of type '(List<BnbTransaction> transactions, List<Transaction> transactionCommonFields, string? address)' doesn't match target type '(List<BnbTransaction>, List<Transaction>, string)'.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\FileService.cs(932,30,932,32): warning CS0168: The variable 'ex' is declared but never used
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\FileService.cs(1021,28,1021,42): warning CS8602: Dereference of a possibly null reference.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\FileService.cs(1027,29,1027,43): warning CS8602: Dereference of a possibly null reference.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\FileService.cs(1041,36,1041,59): warning CS8600: Converting null literal or possible null value to non-nullable type.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\FileService.cs(1141,30,1141,32): warning CS0168: The variable 'ex' is declared but never used
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\FileService.cs(1365,30,1365,32): warning CS0168: The variable 'ex' is declared but never used
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\FileService.cs(1381,38,1381,61): warning CS8602: Dereference of a possibly null reference.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\FileService.cs(1391,32,1391,55): warning CS8600: Converting null literal or possible null value to non-nullable type.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\FileService.cs(1377,17,1377,27): warning CS0219: The variable 'countdebug' is assigned but its value is never used
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\FileService.cs(1521,29,1521,67): warning CS8600: Converting null literal or possible null value to non-nullable type.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\FileService.cs(1552,29,1552,67): warning CS8600: Converting null literal or possible null value to non-nullable type.
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Business\SubscriptionService.cs(19,41,19,56): warning CS0169: The field 'SubscriptionService._transactionBll' is never used
+1>C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\Views\File\import_old.cshtml(29,8,29,37): warning MVC1000: Use of IHtmlHelper.Partial may result in application deadlocks. Consider using <partial> Tag Helper or IHtmlHelper.PartialAsync.
+1>Crypto -> C:\Users\Windows10\OneDrive\Desktop\Crypto\Crypto\bin\Debug\net6.0\Crypto.dll
+1>Done building project "Crypto.csproj".
+========== Build: 1 succeeded, 0 failed, 2 up-to-date, 0 skipped ==========

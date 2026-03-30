@@ -1,0 +1,55 @@
+﻿@model PoultryWeb.Models.InventoryTransactionModel
+
+@{
+    ViewBag.Title = "Add Inventory Transaction";
+    var itemId = ViewBag.ItemId as int?;
+}
+
+<h2>Add Transaction for Item @itemId</h2>
+
+@using (Html.BeginForm("AddTransaction", "Inventory", FormMethod.Post))
+{
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(m => m.ItemId)
+
+    <div class="form-horizontal">
+        <div class="form-group">
+            @Html.LabelFor(m => m.TransactionDate, new { @class = "control-label col-md-2" })
+            <div class="col-md-6">
+                @Html.TextBoxFor(m => m.TransactionDate, new { @class = "form-control", type = "date" })
+                @Html.ValidationMessageFor(m => m.TransactionDate)
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(m => m.QuantityChange, new { @class = "control-label col-md-2" })
+            <div class="col-md-6">
+                @Html.TextBoxFor(m => m.QuantityChange, new { @class = "form-control" })
+                @Html.ValidationMessageFor(m => m.QuantityChange)
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(m => m.TransactionType, new { @class = "control-label col-md-2" })
+            <div class="col-md-6">
+                @Html.TextBoxFor(m => m.TransactionType, new { @class = "form-control" })
+                @Html.ValidationMessageFor(m => m.TransactionType)
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(m => m.Remarks, new { @class = "control-label col-md-2" })
+            <div class="col-md-6">
+                @Html.TextAreaFor(m => m.Remarks, new { @class = "form-control", rows = 3 })
+                @Html.ValidationMessageFor(m => m.Remarks)
+            </div>
+        </div>
+
+        <div class="form-group">
+            <div class="col-md-offset-2 col-md-6">
+                <input type="submit" value="Add Transaction" class="btn btn-primary" />
+                @Html.ActionLink("Cancel", "Details", new { id = Model.ItemId }, new { @class = "btn btn-secondary" })
+            </div>
+        </div>
+    </div>
+}

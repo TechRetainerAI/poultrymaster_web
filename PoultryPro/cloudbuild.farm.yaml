@@ -1,0 +1,60 @@
+# Cloud Build: PoultryFarmAPI → Artifact Registry → Cloud Run (second service)
+#
+# Same pipeline as root `cloudbuild.yaml` (GCP’s default filename). If your trigger
+# says "cloudbuild.yaml not found", either use this path explicitly here or push
+# `cloudbuild.yaml` and point the trigger at that file.
+#
+# In GCP: Cloud Build → Triggers → Create trigger → Event: Push to branch
+#   Build configuration: Cloud Build configuration file (yaml)
+#   Location: Repository → `cloudbuild.yaml` (default) OR `cloudbuild.farm.yaml`
+#
+# Edit substitutions below if your region, repo slug, or service name differs.
+
+substitutions:
+  # Must match the region where you deploy Cloud Run
+  _REGION: europe-west1
+  # New Cloud Run service name (create empty service first, or let first deploy create it)
+  _SERVICE_NAME: poultrymaster-farm-api-git
+  # Copy the middle path from your Login API image (Artifact Registry → repository name / image path)
+  # Pattern: REGION-docker.pkg.dev/PROJECT_ID/REPO_NAME/GITHUB_OWNER_REPO/SERVICE_IMAGE_NAME
+  _AR_REPO_PATH: cloud-run-source-deploy/techretainerai-poultrymaster_api
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_AR_REPO_PATH/$_SERVICE_NAME:$COMMIT_SHA
+      - -t
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_AR_REPO_PATH/$_SERVICE_NAME:latest
+      - -f
+      - PoultryFarmAPI/Dockerfile
+      - PoultryFarmAPI
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_AR_REPO_PATH/$_SERVICE_NAME:$COMMIT_SHA
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_AR_REPO_PATH/$_SERVICE_NAME:latest
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - $_SERVICE_NAME
+      - --image=$_REGION-docker.pkg.dev/$PROJECT_ID/$_AR_REPO_PATH/$_SERVICE_NAME:$COMMIT_SHA
+      - --region=$_REGION
+      - --platform=managed
+      - --port=8080
+      - --allow-unauthenticated
+      - --quiet
+
+# No top-level `images:` here — pushes are explicit above so the image exists before `gcloud run deploy`.
+
+options:
+  logging: CLOUD_LOGGING_ONLY

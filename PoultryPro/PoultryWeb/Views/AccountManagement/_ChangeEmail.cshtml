@@ -1,0 +1,15 @@
+﻿@model PoultryWeb.Models.Account.ChangeEmail
+
+<h2>Change Email</h2>
+<form asp-action="ChangeEmail" method="post">
+    <div class="form-group">
+        <label asp-for="Email"></label>
+        <input asp-for="Email" class="form-control" />
+        <span asp-validation-for="Email" class="text-danger"></span>
+    </div>
+    <button type="submit" class="btn btn-primary">Change email</button>
+</form>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}

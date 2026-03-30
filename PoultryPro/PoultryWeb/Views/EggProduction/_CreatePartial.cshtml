@@ -1,0 +1,38 @@
+﻿@model PoultryWeb.Models.EggProductionModel
+
+@* <h4>Create Egg Production Record</h4> *@
+
+<form asp-action="Create" asp-controller="EggProduction" method="post">
+    @Html.AntiForgeryToken()
+
+    <!-- Hidden UserId field, preset to 0 -->
+    <input type="hidden" asp-for="UserId" value="0" />
+
+    <div class="mb-3">
+        <label asp-for="FlockId" class="form-label"></label>
+        <input asp-for="FlockId" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="ProductionDate" class="form-label"></label>
+        <input asp-for="ProductionDate" class="form-control" type="date" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="EggCount" class="form-label"></label>
+        <input asp-for="EggCount" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="BrokenEggs" class="form-label"></label>
+        <input asp-for="BrokenEggs" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Notes" class="form-label"></label>
+        <textarea asp-for="Notes" class="form-control"></textarea>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Create</button>
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+</form>

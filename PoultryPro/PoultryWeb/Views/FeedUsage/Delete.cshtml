@@ -1,0 +1,35 @@
+﻿@model PoultryWeb.Models.FeedUsageModel
+
+@{
+    ViewBag.Title = "Delete Feed Usage";
+}
+
+<h2>Delete Feed Usage</h2>
+
+<h3>Are you sure you want to delete this record?</h3>
+<hr />
+
+<dl class="dl-horizontal">
+    <dt>ID</dt>
+    <dd>@Model.FeedUsageId</dd>
+
+    <dt>Flock ID</dt>
+    <dd>@Model.FlockId</dd>
+
+    <dt>Usage Date</dt>
+    <dd>@Model.UsageDate.ToShortDateString()</dd>
+
+    <dt>Feed Type</dt>
+    <dd>@Model.FeedType</dd>
+
+    <dt>Quantity (Kg)</dt>
+    <dd>@Model.QuantityKg</dd>
+</dl>
+
+@using (Html.BeginForm("DeleteConfirmed", "FeedUsage", FormMethod.Post))
+{
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(m => m.FeedUsageId)
+    <input type="submit" value="Delete" class="btn btn-danger" />
+    @Html.ActionLink("Cancel", "Index")
+}

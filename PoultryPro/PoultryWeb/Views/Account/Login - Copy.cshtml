@@ -1,0 +1,115 @@
+﻿@model PoultryWeb.Models.Authentication.Login.LoginModel
+
+@{
+    ViewData["Title"] = "Login";
+    Layout = "_AuthLayout.cshtml";
+}
+
+<h2>Login</h2>
+
+<div class="alert alert-danger" data-bind="visible: loginFailed, text: errorMessage"></div>
+
+
+<form data-bind="submit: login">
+    <div class="form-group">
+        <label for="Username">Username</label>
+        <input type="text" id="Username" name="Username" class="form-control" data-bind="value: username, valueUpdate: 'input'" required>
+        <span class="text-danger" data-bind="visible: usernameError, text: usernameErrorMessage"></span>
+    </div>
+
+    <div class="form-group">
+        <label for="Password">Password</label>
+        <input type="password" id="Password" name="Password" class="form-control" data-bind="value: password, valueUpdate: 'input'" required>
+        <span class="text-danger" data-bind="visible: passwordError, text: passwordErrorMessage"></span>
+    </div>
+
+    <div class="form-group form-check">
+        <input type="checkbox" id="RememberMe" name="RememberMe" class="form-check-input" data-bind="checked: rememberMe">
+        <label for="RememberMe" class="form-check-label">Remember me</label>
+    </div>
+
+    <div class="form-group">
+        <button type="submit" class="btn btn-primary">Login</button>
+    </div>
+
+    <div class="form-group">
+        <a href="@Url.Action("ForgotPassword", "Account")" class="btn btn-link">Forgot Password?</a>
+    </div>
+
+    <div class="form-group">
+        <a href="@Url.Action("Register", "Account")" class="btn btn-link">Register New Account</a>
+    </div>
+</form>
+
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/knockout/3.5.1/knockout-min.js"></script>
+    <script>
+        function ViewModel() {
+            var self = this;
+
+            self.username = ko.observable('');
+            self.password = ko.observable('');
+            self.rememberMe = ko.observable(true);
+
+            self.loginFailed = ko.observable(false);
+            self.errorMessage = ko.observable('');
+
+            //self.emailError = ko.computed(function() {
+            //    var username = self.username();
+            //    var pattern = 
+            //    return !username || !pattern.test(username);
+            //});
+            
+            self.usernameError = ko.computed(function() {
+                var username = self.username();
+                return !username;
+            });
+
+            self.passwordError = ko.computed(function() {
+                return !self.password();
+            });
+
+            self.usernameErrorMessage = ko.observable('Please enter a valid username.');
+            self.passwordErrorMessage = ko.observable('Password is required.');
+
+            self.login = function(formElement) {
+    // Simple client-side validation check
+    if (!self.passwordError()) {
+        // Submit form or make AJAX call here
+        // Example AJAX POST
+        $.ajax({
+            url: '@Url.Action("Login", "Account")', // Ensure the URL is correctly targeted to your application's URL structure
+            type: 'POST',
+            contentType: 'application/json',
+            data: ko.toJSON({ username: self.username, password: self.password, rememberMe: self.rememberMe }),
+            success: function(result) {
+                if (result.isSuccess) {
+                    if (result.requiresTwoFactor) {
+                        // Redirect to OTP verification page
+                        var otpUrl = '@Url.Action("VerifyOtp", "Account")' + '?userId=' + result.userId + '&userName=' + result.userName;
+                        window.location.href = otpUrl;
+                    } else {
+                        // Redirect to home page on successful login
+                        window.location.href = '@Url.Action("Index", "Home")';
+                    }
+                } else {
+                    self.loginFailed(true);
+                    self.errorMessage(result.message || 'Invalid login attempt.');
+                }
+            },
+            error: function() {
+                self.loginFailed(true);
+                self.errorMessage('Error processing your login.');
+            }
+        });
+    } else {
+        self.loginFailed(true);
+        self.errorMessage('Please check your entries and try again.');
+    }
+};
+        }
+
+        ko.applyBindings(new ViewModel());
+    </script>
+}

@@ -1,0 +1,327 @@
+﻿@model IEnumerable<PoultryWeb.Models.FlockModel>
+
+@{
+    ViewBag.Title = "Flock List";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+@section Styles {
+
+    <style>
+        .dark-mode {
+            background-color: #1e1e2f !important;
+            color: #eee !important;
+        }
+
+            .dark-mode .form-control,
+            .dark-mode .btn,
+            .dark-mode .table,
+            .dark-mode .modal-content {
+                background-color: #2e2e40 !important;
+                color: #eee !important;
+            }
+
+            .dark-mode .btn-create {
+                background-color: #0d6efd;
+                color: white;
+            }
+    </style>
+    <style>
+        .dashboard-container {
+            display: flex;
+            height: calc(100vh - 80px);
+            overflow: hidden;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        .left-panel {
+            width: 55%;
+            padding: 2rem;
+            border-right: 1px solid #e0e0e0;
+            background-color: #fafafa;
+            overflow-y: auto;
+        }
+
+        .right-panel {
+            flex: 1;
+            padding: 2rem;
+            background-color: #fff;
+            overflow-y: auto;
+        }
+
+        .table-card {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+            table th, table td {
+                padding: 1rem;
+                border-bottom: 1px solid #eee;
+                text-align: left;
+            }
+
+            table tr:hover {
+                background-color: #f1f7ff;
+            }
+
+        .form-card {
+            background: #fff;
+            border-radius: 10px;
+            padding: 2rem;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        }
+
+            .form-card h3 {
+                margin-bottom: 1.5rem;
+                font-size: 1.4rem;
+                border-bottom: 1px solid #eee;
+                padding-bottom: 0.5rem;
+            }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.65rem;
+            font-size: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+        }
+
+        .btn {
+            padding: 0.5rem 1.2rem;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            margin-right: 0.5rem;
+        }
+
+        .btn-save {
+            background-color: #007bff;
+            color: white;
+            border: none;
+        }
+
+        .btn-cancel {
+            background-color: #6c757d;
+            color: white;
+            border: none;
+        }
+
+        .bottom-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #fff;
+            border-top: 1px solid #ddd;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: flex-end;
+            box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.06);
+        }
+
+        .btn-create {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 0.6rem 1.5rem;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+
+
+    </style>
+
+}
+<div class="split-container">
+    <!-- LEFT PANEL: Table of Flocks -->
+    <div class="left-panel">
+        <h2>Flock Management</h2>
+        <table class="flock-table" id="flockTable">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Breed</th>
+                    <th>Quantity</th>
+                    <th>Start Date</th>
+                    <th>Active</th>
+                    <th>Delete</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Model)
+                {
+                    <tr data-flock-id="@item.FlockId">
+                        <td>@item.Name</td>
+                        <td>@item.Breed</td>
+                        <td>@item.Quantity</td>
+                        <td>@item.StartDate.ToShortDateString()</td>
+                        <td>@(item.Active ? "Yes" : "No")</td>
+                        <td>
+                            <button class="btn btn-danger btn-sm"
+                                    onclick="event.stopPropagation(); confirmDeleteFlock(@item.FlockId)">
+                                Delete
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- RIGHT PANEL: partial container -->
+    <div class="right-panel">
+        <h4 id="defaultMessage">Select a row to edit or view details</h4>
+        <div id="editContainer"></div>
+    </div>
+</div>
+
+<!-- BOTTOM BAR: 'Create New' button -->
+<div class="bottom-bar">
+    <button class="btn btn-primary btn-create" onclick="openCreateFlock()">Create New Flock</button>
+    <button class="btn btn-outline-light" id="darkToggle" onclick="toggleDarkMode()">🌙</button>
+    <button class="btn btn-secondary" onclick="closeRightPanel()">Cancel</button>
+</div>
+
+<!-- Modal for Partial Views -->
+<div class="modal fade" id="formModal" tabindex="-1" aria-labelledby="formModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="formModalLabel">Flock</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="modalFormContent">
+                <!-- Loaded dynamically -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Custom Confirmation Modal -->
+<div id="customModalOverlay">
+    <div id="customModalBox">
+        <h4 id="modalTitle"></h4>
+        <p id="modalMessage"></p>
+        <div id="modalButtons"></div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var table = document.getElementById('flockTable');
+            if (table) {
+                table.addEventListener('click', function (e) {
+                    var row = e.target.closest('tr[data-flock-id]');
+                    if (row && !e.target.closest('button.btn-danger')) {
+                        var flockId = row.getAttribute('data-flock-id');
+                        loadEditPartial(flockId);
+                    }
+                });
+            }
+        });
+
+        function openCreateFlock() {
+            fetch('/Flock/CreatePartial')
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('modalFormContent').innerHTML = html;
+                    document.getElementById('formModalLabel').innerText = 'Create New Flock';
+                    new bootstrap.Modal(document.getElementById('formModal')).show();
+                });
+        }
+
+        function loadEditPartial(flockId) {
+            fetch('/Flock/EditPartial/' + flockId)
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('modalFormContent').innerHTML = html;
+                    document.getElementById('formModalLabel').innerText = `Edit Flock (${flockId})`;
+                    new bootstrap.Modal(document.getElementById('formModal')).show();
+                });
+        }
+
+        function loadDeletePartial(flockId) {
+            fetch('/Flock/DeletePartial/' + flockId)
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('modalFormContent').innerHTML = html;
+                    document.getElementById('formModalLabel').innerText = `Delete Flock (${flockId})`;
+                    new bootstrap.Modal(document.getElementById('formModal')).show();
+                });
+        }
+
+        function confirmDeleteFlock(flockId) {
+            openCustomDialog(
+                'Delete Flock',
+                'Are you sure you want to delete flock #' + flockId + '?',
+                'Yes, Delete',
+                function () {
+                    loadDeletePartial(flockId);
+                },
+                function () {
+                    // do nothing
+                }
+            );
+        }
+
+        function openCustomDialog(title, message, confirmText, confirmCallback, cancelCallback) {
+            document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalMessage').innerText = message;
+            let buttonsDiv = document.getElementById('modalButtons');
+            buttonsDiv.innerHTML = '';
+
+            let confirmBtn = document.createElement('button');
+            confirmBtn.classList.add('btn', 'btn-primary', 'me-2');
+            confirmBtn.innerText = confirmText || 'OK';
+            confirmBtn.onclick = function () {
+                closeCustomDialog();
+                if (confirmCallback) confirmCallback();
+            };
+            buttonsDiv.appendChild(confirmBtn);
+
+            let cancelBtn = document.createElement('button');
+            cancelBtn.classList.add('btn', 'btn-secondary');
+            cancelBtn.innerText = 'Cancel';
+            cancelBtn.onclick = function () {
+                closeCustomDialog();
+                if (cancelCallback) cancelCallback();
+            };
+            buttonsDiv.appendChild(cancelBtn);
+
+            document.getElementById('customModalOverlay').style.display = 'block';
+        }
+
+        function closeCustomDialog() {
+            document.getElementById('customModalOverlay').style.display = 'none';
+        }
+
+        function toggleDarkMode() {
+            document.body.classList.toggle("dark-mode");
+            const toggleBtn = document.getElementById('darkToggle');
+            toggleBtn.innerText = document.body.classList.contains("dark-mode") ? "☀️" : "🌙";
+
+            // Ensure table in dark mode has visible contrast
+            const table = document.querySelector('.flock-table');
+            if (document.body.classList.contains("dark-mode")) {
+                table.classList.add("dark-table");
+            } else {
+                table.classList.remove("dark-table");
+            }
+        }
+
+        function closeRightPanel() {
+            document.getElementById('editContainer').innerHTML = '';
+            document.getElementById('defaultMessage').style.display = '';
+        }
+    </script>
+}

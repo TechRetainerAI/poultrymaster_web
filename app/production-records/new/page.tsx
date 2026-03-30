@@ -1,0 +1,701 @@
+"use client"
+
+import { useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
+import { DashboardSidebar } from "@/components/dashboard/sidebar"
+import { DashboardHeader } from "@/components/dashboard/header"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { FileText, X } from "lucide-react"
+import { getFlocks } from "@/lib/api/flock"
+import { getUserContext } from "@/lib/utils/user-context"
+import {
+  createProductionRecord,
+  getProductionRecords,
+  type ProductionRecordInput,
+} from "@/lib/api/production-record"
+import {
+  createFeedUsage,
+  updateFeedUsage,
+  getFeedUsages,
+  type FeedUsageInput,
+} from "@/lib/api/feed-usage"
+import { getBirdsLeftFromRecord, getLatestRecordForFlock } from "@/lib/utils/production-records"
+
+export default function NewProductionRecordPage() {
+  const router = useRouter()
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
+  const [flocks, setFlocks] = useState<any[]>([])
+  const [flocksError, setFlocksError] = useState("")
+
+  const today = useMemo(() => new Date().toISOString().slice(0, 10), [])
+
+  const [form, setForm] = useState({
+    flockId: "",
+    date: today,
+    morning: "",
+    noon: "",
+    evening: "",
+    brokenEggs: "",
+    feedKg: "",
+    feedType: "",
+    mortality: "",
+    numBirds: "",
+    notes: "",
+    medication: "",
+  })
+
+  const feedTypes = [
+    "Starter Feed",
+    "Grower Feed",
+    "Layer Feed",
+    "Broiler Feed",
+    "Organic Feed",
+    "Custom Mix",
+  ]
+
+  const [manualAge, setManualAge] = useState(false)
+  const [manualWeeks, setManualWeeks] = useState("")
+  const [manualDays, setManualDays] = useState("")
+  const [manualYears, setManualYears] = useState("")
+
+  const [previousBirdsLeft, setPreviousBirdsLeft] = useState<number | null>(null)
+
+  // Crate-based egg entry state for each time slot
+  const EGGS_PER_CRATE = 30
+  const [morningCrates, setMorningCrates] = useState(0)
+  const [morningLoose, setMorningLoose] = useState(0)
+  const [noonCrates, setNoonCrates] = useState(0)
+  const [noonLoose, setNoonLoose] = useState(0)
+  const [eveningCrates, setEveningCrates] = useState(0)
+  const [eveningLoose, setEveningLoose] = useState(0)
+
+  const morningTotal = (morningCrates * EGGS_PER_CRATE) + morningLoose
+  const noonTotal = (noonCrates * EGGS_PER_CRATE) + noonLoose
+  const eveningTotal = (eveningCrates * EGGS_PER_CRATE) + eveningLoose
+
+  useEffect(() => {
+    setForm(prev => ({ ...prev, morning: String(morningTotal) }))
+  }, [morningTotal])
+  useEffect(() => {
+    setForm(prev => ({ ...prev, noon: String(noonTotal) }))
+  }, [noonTotal])
+  useEffect(() => {
+    setForm(prev => ({ ...prev, evening: String(eveningTotal) }))
+  }, [eveningTotal])
+
+  const total =
+    (parseInt(form.morning) || 0) +
+    (parseInt(form.noon) || 0) +
+    (parseInt(form.evening) || 0)
+  const totalCrates = Math.floor(total / EGGS_PER_CRATE)
+  const totalPieces = total % EGGS_PER_CRATE
+
+  // Birds left must always equal numBirds - mortality to keep data consistent
+  const birdsLeft = (parseInt(form.numBirds) || 0) - (parseInt(form.mortality) || 0)
+
+  const selectedFlock = useMemo(
+    () => flocks.find((f) => String(f.flockId) === form.flockId),
+    [flocks, form.flockId],
+  )
+
+  const { ageWeeks, ageDays, ageYears } = useMemo(() => {
+    try {
+      if (!selectedFlock?.startDate || !form.date)
+        return { ageWeeks: 0, ageDays: 0, ageYears: 0 }
+      // Normalize both dates to UTC date-only to avoid timezone off-by-one
+      const startStr = (selectedFlock.startDate || "").split("T")[0]
+      const currStr = form.date.split("T")[0]
+      const [sy, sm, sd] = startStr.split("-").map(Number)
+      const [cy, cm, cd] = currStr.split("-").map(Number)
+      const startUtc = Date.UTC(sy, sm - 1, sd)
+      const currUtc = Date.UTC(cy, cm - 1, cd)
+      const ms = Math.max(0, currUtc - startUtc)
+      const days = Math.floor(ms / (1000 * 60 * 60 * 24))
+      const weeks = Math.floor(days / 7)
+      const years = Math.floor(days / 365)
+      return { ageWeeks: weeks, ageDays: days, ageYears: years }
+    } catch {
+      return { ageWeeks: 0, ageDays: 0, ageYears: 0 }
+    }
+  }, [selectedFlock, form.date])
+
+  // Load flocks
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setFlocksError("")
+        const { userId, farmId } = getUserContext()
+        if (!userId || !farmId) return
+        const res = await getFlocks(userId, farmId)
+        if (res.success && Array.isArray(res.data)) setFlocks(res.data)
+        else {
+          setFlocks([])
+          setFlocksError(res.message || "Failed to load flocks.")
+        }
+      } catch (e) {
+        console.error(e)
+        setFlocks([])
+        setFlocksError("Unable to fetch flocks. Check API URL and CORS.")
+      }
+    }
+    load()
+  }, [])
+
+  // Load previous records to calculate birds left
+  useEffect(() => {
+    const loadPreviousRecords = async () => {
+      if (!form.flockId || !form.date) {
+        setPreviousBirdsLeft(null)
+        return
+      }
+
+      try {
+        const { userId, farmId } = getUserContext()
+        if (!userId || !farmId) return
+
+        const res = await getProductionRecords(userId, farmId)
+        if (res.success && res.data) {
+          const flockIdNum = parseInt(form.flockId)
+          const mostRecent = getLatestRecordForFlock(res.data, flockIdNum)
+
+          if (mostRecent) {
+            const lastBirdsLeft = getBirdsLeftFromRecord(mostRecent)
+            setPreviousBirdsLeft(lastBirdsLeft)
+
+            if (!form.numBirds && lastBirdsLeft > 0) {
+              setForm((prev) => ({
+                ...prev,
+                numBirds: String(lastBirdsLeft),
+              }))
+            }
+          } else {
+            const flock = flocks.find((f) => f.flockId === flockIdNum)
+            if (flock) {
+              setPreviousBirdsLeft(flock.quantity || 0)
+              if (!form.numBirds) {
+                setForm((prev) => ({
+                  ...prev,
+                  numBirds: String(flock.quantity || 0),
+                }))
+              }
+            } else {
+              setPreviousBirdsLeft(null)
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Error loading previous records:", e)
+        setPreviousBirdsLeft(null)
+      }
+    }
+
+    loadPreviousRecords()
+  }, [form.flockId, form.date, flocks])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      setSaving(true)
+      setError("")
+      const { userId, farmId } = getUserContext()
+      if (!userId || !farmId) throw new Error("Missing user/farm context")
+
+      const numBirds = parseInt(form.numBirds) || 0
+      const mortality = parseInt(form.mortality) || 0
+      // Always use numBirds - mortality to keep noOfBirds and noOfBirdsLeft consistent
+      const calculatedLeft = numBirds - mortality
+
+      if (mortality > numBirds) {
+        setError(
+          `Mortality (${mortality}) cannot be greater than number of birds (${numBirds})`,
+        )
+        setSaving(false)
+        return
+      }
+
+      if (calculatedLeft < 0) {
+        setError(
+          `Birds left cannot be negative. Check your mortality and number of birds.`,
+        )
+        setSaving(false)
+        return
+      }
+
+      if (!form.flockId) {
+        setError("Please select a flock")
+        setSaving(false)
+        return
+      }
+
+      const resolvedDays = manualAge
+        ? parseInt(manualDays) ||
+          (parseInt(manualYears) || 0) * 365 ||
+          (parseInt(manualWeeks) || 0) * 7
+        : ageDays
+      const resolvedWeeks = manualAge
+        ? parseInt(manualWeeks) ||
+          Math.floor((parseInt(manualDays) || 0) / 7) ||
+          (parseInt(manualYears) || 0) * 52
+        : ageWeeks
+
+      const input: ProductionRecordInput = {
+        farmId,
+        userId,
+        createdBy: userId,
+        updatedBy: userId,
+        ageInWeeks: resolvedWeeks,
+        ageInDays: resolvedDays,
+        date: form.date,
+        noOfBirds: numBirds,
+        mortality,
+        noOfBirdsLeft: calculatedLeft,
+        feedKg: parseFloat(form.feedKg) || 0,
+        medication: form.medication || "None",
+        production9AM: parseInt(form.morning) || 0,
+        production12PM: parseInt(form.noon) || 0,
+        production4PM: parseInt(form.evening) || 0,
+        brokenEggs: parseInt(form.brokenEggs) || 0,
+        totalProduction: total,
+        flockId: form.flockId ? parseInt(form.flockId) : null,
+      }
+
+      const createRes = await createProductionRecord(input)
+
+      if (!createRes.success) {
+        throw new Error(createRes.message || "Failed to save record")
+      }
+
+      // Sync feed usage if feedKg > 0 and feedType is provided
+      if (parseFloat(form.feedKg) > 0 && form.flockId && form.feedType) {
+        try {
+          const { userId, farmId } = getUserContext()
+          if (userId && farmId) {
+            const feedUsagesRes = await getFeedUsages(userId, farmId)
+            let existingFeedUsage: any = null
+
+            if (feedUsagesRes.success && feedUsagesRes.data) {
+              existingFeedUsage = feedUsagesRes.data.find(
+                (fu: any) =>
+                  fu.flockId === parseInt(form.flockId) &&
+                  new Date(fu.usageDate).toISOString().split("T")[0] === form.date,
+              )
+            }
+
+            const feedUsageData: FeedUsageInput = {
+              farmId,
+              userId,
+              flockId: parseInt(form.flockId),
+              usageDate: form.date + "T00:00:00Z",
+              feedType: form.feedType,
+              quantityKg: parseFloat(form.feedKg) || 0,
+            }
+
+            if (existingFeedUsage) {
+              await updateFeedUsage(existingFeedUsage.feedUsageId, feedUsageData)
+            } else {
+              await createFeedUsage(feedUsageData)
+            }
+          }
+        } catch (feedError) {
+          console.error("Error syncing feed usage:", feedError)
+        }
+      }
+
+      router.push("/production-records")
+    } catch (err: any) {
+      setError(err?.message || "Failed to save")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleLogout = () => {
+    localStorage.clear()
+    router.push("/login")
+  }
+
+  return (
+    <div className="flex min-h-screen bg-slate-50">
+      <DashboardSidebar onLogout={handleLogout} />
+      <div className="flex-1 flex flex-col">
+        <DashboardHeader />
+        <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
+          <div className="space-y-6">
+            {/* Page Header */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
+                  <FileText className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-slate-900">Add New Egg Production Record</h1>
+                  <p className="text-slate-600 text-sm">
+                    Record daily egg production data for a flock
+                  </p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                className="gap-1.5 bg-red-600 hover:bg-red-700 text-white"
+                onClick={() => router.push("/production-records")}
+              >
+                <X className="w-4 h-4" />
+                Cancel
+              </Button>
+            </div>
+
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Section 1: Flock & Date */}
+              <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
+                <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">
+                  Flock &amp; Date
+                </div>
+                <div className="grid grid-cols-12 gap-4 px-4 py-4">
+                  <div className="col-span-12 md:col-span-6 space-y-2">
+                    <Label>Flock</Label>
+                    <Select
+                      value={form.flockId}
+                      onValueChange={(v) => setForm({ ...form, flockId: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select flock" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {flocks.map((f) => (
+                          <SelectItem key={f.flockId} value={String(f.flockId)}>
+                            {f.name || `Flock ${f.flockId}`} (ID: {f.flockId})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {flocksError && (
+                      <div className="text-xs text-amber-600">{flocksError}</div>
+                    )}
+                  </div>
+
+                  <div className="col-span-12 md:col-span-6 space-y-2">
+                    <Label>Date</Label>
+                    <Input
+                      type="date"
+                      className="max-w-[220px]"
+                      value={form.date}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          date: e.target.value,
+                        })
+                      }
+                      required
+                    />
+                    <div className="text-xs text-slate-500">
+                      Defaults to today. Change only if you are logging for a different date.
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2: Egg Production */}
+              <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
+                <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">
+                  Egg Production
+                </div>
+                <div className="grid grid-cols-12 gap-4 px-4 py-4">
+                  {/* Morning (9am) - Crates + Loose */}
+                  <div className="col-span-12 p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
+                    <Label className="text-blue-800 font-semibold">Morning (9am) — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Crates ({EGGS_PER_CRATE} eggs)</Label>
+                        <Input type="number" min="0" value={morningCrates} onChange={(e) => setMorningCrates(parseInt(e.target.value) || 0)} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Loose Eggs</Label>
+                        <Input type="number" min="0" max="29" value={morningLoose} onChange={(e) => setMorningLoose(parseInt(e.target.value) || 0)} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Total</Label>
+                        <div className="h-10 px-3 py-2 bg-white border rounded-md flex items-center font-bold text-blue-700">{morningTotal.toLocaleString()}</div>
+                      </div>
+                    </div>
+                    <p className="text-xs text-blue-600">{morningCrates} crates × {EGGS_PER_CRATE} + {morningLoose} loose = {morningTotal.toLocaleString()} eggs</p>
+                  </div>
+
+                  {/* Noon (12pm) - Crates + Loose */}
+                  <div className="col-span-12 p-3 bg-orange-50 border border-orange-200 rounded-lg space-y-2">
+                    <Label className="text-orange-800 font-semibold">Noon (12pm) — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Crates ({EGGS_PER_CRATE} eggs)</Label>
+                        <Input type="number" min="0" value={noonCrates} onChange={(e) => setNoonCrates(parseInt(e.target.value) || 0)} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Loose Eggs</Label>
+                        <Input type="number" min="0" max="29" value={noonLoose} onChange={(e) => setNoonLoose(parseInt(e.target.value) || 0)} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Total</Label>
+                        <div className="h-10 px-3 py-2 bg-white border rounded-md flex items-center font-bold text-orange-700">{noonTotal.toLocaleString()}</div>
+                      </div>
+                    </div>
+                    <p className="text-xs text-orange-600">{noonCrates} crates × {EGGS_PER_CRATE} + {noonLoose} loose = {noonTotal.toLocaleString()} eggs</p>
+                  </div>
+
+                  {/* Evening (4pm) - Crates + Loose */}
+                  <div className="col-span-12 p-3 bg-purple-50 border border-purple-200 rounded-lg space-y-2">
+                    <Label className="text-purple-800 font-semibold">Evening (4pm) — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Crates ({EGGS_PER_CRATE} eggs)</Label>
+                        <Input type="number" min="0" value={eveningCrates} onChange={(e) => setEveningCrates(parseInt(e.target.value) || 0)} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Loose Eggs</Label>
+                        <Input type="number" min="0" max="29" value={eveningLoose} onChange={(e) => setEveningLoose(parseInt(e.target.value) || 0)} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Total</Label>
+                        <div className="h-10 px-3 py-2 bg-white border rounded-md flex items-center font-bold text-purple-700">{eveningTotal.toLocaleString()}</div>
+                      </div>
+                    </div>
+                    <p className="text-xs text-purple-600">{eveningCrates} crates × {EGGS_PER_CRATE} + {eveningLoose} loose = {eveningTotal.toLocaleString()} eggs</p>
+                  </div>
+
+                  {/* Broken Eggs */}
+                  <div className="col-span-12 md:col-span-6 p-3 bg-red-50 border border-red-200 rounded-lg space-y-2">
+                    <Label className="text-red-800 font-semibold">Broken Eggs</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={form.brokenEggs}
+                      onChange={(e) => setForm({ ...form, brokenEggs: e.target.value })}
+                      placeholder="0"
+                    />
+                  </div>
+
+                  {/* Total Eggs Summary */}
+                  <div className="col-span-12 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-emerald-800 font-semibold">Total Eggs</Label>
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-emerald-700">{total.toLocaleString()} eggs</div>
+                        <div className="text-xs text-emerald-600">{totalCrates} crates + {totalPieces} pieces</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 3: Birds & Age */}
+              <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
+                <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">
+                  Birds &amp; Age
+                </div>
+                <div className="grid grid-cols-12 gap-4 px-4 py-4">
+                  <div className="col-span-12 md:col-span-4 space-y-2">
+                    <Label>Num of Birds</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={form.numBirds}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          numBirds: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="col-span-12 md:col-span-4 space-y-2">
+                    <Label>Mortality</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={form.mortality}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          mortality: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="col-span-12 md:col-span-4 space-y-2">
+                    <Label>Birds Left</Label>
+                    <div className="pt-2 font-semibold">
+                      {previousBirdsLeft !== null && (
+                        <span className="text-xs text-slate-500 block">
+                          From previous: {previousBirdsLeft}
+                        </span>
+                      )}
+                      <span className={birdsLeft < 0 ? "text-red-600" : ""}>
+                        {birdsLeft}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="col-span-12 flex items-center gap-2 pt-2">
+                    <input
+                      id="manualAge"
+                      type="checkbox"
+                      checked={manualAge}
+                      onChange={(e) => setManualAge(e.target.checked)}
+                    />
+                    <Label htmlFor="manualAge">Enter age manually</Label>
+                  </div>
+
+                  {manualAge ? (
+                    <>
+                      <div className="col-span-12 md:col-span-4 space-y-2">
+                        <Label>Age (weeks)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={manualWeeks}
+                          onChange={(e) => setManualWeeks(e.target.value)}
+                          placeholder="e.g. 20"
+                        />
+                      </div>
+                      <div className="col-span-12 md:col-span-4 space-y-2">
+                        <Label>Age (years)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={manualYears}
+                          onChange={(e) => setManualYears(e.target.value)}
+                          placeholder="e.g. 1"
+                        />
+                      </div>
+                      <div className="col-span-12 md:col-span-4 space-y-2">
+                        <Label>Age (days)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          value={manualDays}
+                          onChange={(e) => setManualDays(e.target.value)}
+                          placeholder="e.g. 140"
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="col-span-12 md:col-span-4">
+                        <Label>Age (weeks)</Label>
+                        <div className="pt-2 font-semibold">{ageWeeks}</div>
+                      </div>
+                      <div className="col-span-12 md:col-span-4">
+                        <Label>Age (years)</Label>
+                        <div className="pt-2 font-semibold">{ageYears}</div>
+                      </div>
+                      <div className="col-span-12 md:col-span-4">
+                        <Label>Age (days)</Label>
+                        <div className="pt-2 font-semibold">{ageDays}</div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Section 4: Feed, Medication & Notes */}
+              <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
+                <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">
+                  Feed, Medication &amp; Notes
+                </div>
+                <div className="grid grid-cols-12 gap-4 px-4 py-4">
+                  <div className="col-span-12 md:col-span-4 space-y-2">
+                    <Label>Feed Type</Label>
+                    <Select
+                      value={form.feedType}
+                      onValueChange={(v) => setForm({ ...form, feedType: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select feed type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {feedTypes.map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {type}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="col-span-12 md:col-span-4 space-y-2">
+                    <Label>Feed (kg)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={form.feedKg}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          feedKg: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="col-span-12 md:col-span-4 space-y-2">
+                    <Label>Medication</Label>
+                    <Input
+                      value={form.medication}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          medication: e.target.value,
+                        })
+                      }
+                      placeholder="e.g., Free water"
+                    />
+                  </div>
+
+                  <div className="col-span-12 space-y-2">
+                    <Label>Notes</Label>
+                    <Textarea
+                      rows={3}
+                      value={form.notes}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          notes: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 justify-end pt-2">
+                <Button
+                  type="button"
+                  onClick={() => router.push("/production-records")}
+                  className="min-w-[120px] bg-red-600 hover:bg-red-700 text-white"
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={saving} className="min-w-[160px]">
+                  {saving ? "Saving..." : "Log Production"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </main>
+      </div>
+    </div>
+  )
+}
+
+

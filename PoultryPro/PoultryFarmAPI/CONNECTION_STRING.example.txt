@@ -1,0 +1,26 @@
+# Poultry Farm API — SQL Server connection string
+#
+# The app reads: ConnectionStrings:PoultryConn
+# On Google Cloud Run set ONE environment variable (double underscore between sections):
+#
+#   ConnectionStrings__PoultryConn
+#
+# Value = the full connection string on ONE line (no quotes in the console UI).
+#
+# Example (replace server, database, user, password, port as needed):
+
+Data Source=195.250.26.22,1433;Initial Catalog=YOUR_FARM_DATABASE;Persist Security Info=False;User ID=YOUR_SQL_LOGIN;Password=YOUR_PASSWORD;Pooling=True;MultipleActiveResultSets=True;Encrypt=True;TrustServerCertificate=True;Connect Timeout=30;
+
+# --- Common fixes (if you had errors) ---
+# - Remove spaces after catalog name: use "Initial Catalog=poultry2_Prod" NOT "poultry2_Prod " (trailing space breaks lookup).
+# - Remove "Command Timeout=..." from the string — invalid for SqlConnection; use "Connect Timeout=30" for open timeout only.
+# - Drop "Application Name=..." or use a short name without nested quotes, e.g. Application Name=PoultryFarmAPI;
+# - In Cloud Run, paste ONE line with no surrounding quotes on the whole string.
+
+# Notes:
+# - Use the database that contains Flock, House, MainFlockBatch, etc. (often different from the Login/User DB).
+# - If the variable name is wrong (single underscore) or the value is empty, you get:
+#   "The ConnectionString property has not been initialized" when calling the API.
+#
+# INVALID: "Command Timeout=30" — SqlConnection does NOT support this keyword (use SqlCommand.CommandTimeout in code).
+# VALID:   "Connect Timeout=30" or "Connection Timeout=30" — seconds to wait when opening the connection.

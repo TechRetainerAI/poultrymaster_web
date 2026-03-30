@@ -1,0 +1,162 @@
+﻿@model IEnumerable<PoultryWeb.Models.ExpenseModel>
+
+@{
+    ViewBag.Title = "Expense List";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@section Styles {
+    <style>
+
+    </style>
+}
+
+<div class="split-container">
+    <div class="left-panel">
+        <h2>Expense Management</h2>
+        <table class="expense-table" id="expenseTable">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Category</th>
+                    <th>Amount</th>
+                    <th>Payment</th>
+                    <th>Delete</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Model)
+                {
+                    <tr data-expense-id="@item.ExpenseId">
+                        <td>@item.ExpenseDate.ToShortDateString()</td>
+                        <td>@item.Category</td>
+                        <td>@item.Amount</td>
+                        <td>@item.PaymentMethod</td>
+                        <td>
+                            <button class="btn btn-danger btn-sm"
+                                    onclick="event.stopPropagation(); confirmDelete(@item.ExpenseId)">
+                                Delete
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="right-panel">
+        <h4 id="defaultMessage">Select a row to edit or view details</h4>
+        <div id="editContainer"></div>
+    </div>
+</div>
+
+<div class="bottom-bar">
+    <button class="btn btn-primary btn-create" onclick="openCreateExpense()">Create New Expense</button>
+</div>
+
+<!-- Optional custom modal for fancy confirmations -->
+<div id="customModalOverlay">
+    <div id="customModalBox">
+        <h4 id="modalTitle"></h4>
+        <p id="modalMessage"></p>
+        <div id="modalButtons"></div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var table = document.getElementById('expenseTable');
+            if (table) {
+                table.addEventListener('click', function(e) {
+                    // If user didn't click the 'delete' button, row-click loads the edit partial
+                    var row = e.target.closest('tr[data-expense-id]');
+                    if (row && !e.target.closest('.btn-danger')) {
+                        var expenseId = row.getAttribute('data-expense-id');
+                        loadEditPartial(expenseId);
+                    }
+                });
+            }
+        });
+
+        function openCreateExpense() {
+            fetch('/Expense/CreatePartial')
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('defaultMessage').style.display = 'none';
+                    document.getElementById('editContainer').innerHTML = html;
+                })
+                .catch(err => console.error('Error loading create partial:', err));
+        }
+
+        function loadEditPartial(expenseId) {
+            fetch('/Expense/EditPartial/' + expenseId)
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('defaultMessage').style.display = 'none';
+                    document.getElementById('editContainer').innerHTML = html;
+                })
+                .catch(err => console.error('Error loading edit partial:', err));
+        }
+
+        function loadDeletePartial(expenseId) {
+            fetch('/Expense/DeletePartial/' + expenseId)
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('defaultMessage').style.display = 'none';
+                    document.getElementById('editContainer').innerHTML = html;
+                })
+                .catch(err => console.error('Error loading delete partial:', err));
+        }
+
+        function closeRightPanel() {
+            document.getElementById('editContainer').innerHTML = '';
+            document.getElementById('defaultMessage').style.display = '';
+        }
+
+        // OPTIONAL: custom confirm dialog
+        function openCustomDialog(title, message, confirmText, confirmCallback, cancelCallback) {
+            document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalMessage').innerText = message;
+            let btnDiv = document.getElementById('modalButtons');
+            btnDiv.innerHTML = '';
+
+            let confirmBtn = document.createElement('button');
+            confirmBtn.classList.add('btn','btn-primary','me-2');
+            confirmBtn.innerText = confirmText || 'OK';
+            confirmBtn.onclick = function() {
+                closeCustomDialog();
+                if (confirmCallback) confirmCallback();
+            };
+            btnDiv.appendChild(confirmBtn);
+
+            let cancelBtn = document.createElement('button');
+            cancelBtn.classList.add('btn','btn-secondary');
+            cancelBtn.innerText = 'Cancel';
+            cancelBtn.onclick = function() {
+                closeCustomDialog();
+                if (cancelCallback) cancelCallback();
+            };
+            btnDiv.appendChild(cancelBtn);
+
+            document.getElementById('customModalOverlay').style.display = 'block';
+        }
+
+        function closeCustomDialog() {
+            document.getElementById('customModalOverlay').style.display = 'none';
+        }
+
+        // Called by the delete button
+        function confirmDelete(expenseId) {
+            openCustomDialog(
+                'Delete Expense',
+                'Are you sure you want to delete Expense #' + expenseId + '?',
+                'Yes, Delete',
+                function() {
+                    loadDeletePartial(expenseId); // load partial on right
+                },
+                function() {} // do nothing on cancel
+            );
+        }
+    </script>
+}

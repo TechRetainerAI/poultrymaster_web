@@ -1,0 +1,45 @@
+﻿@model PoultryWeb.Models.SaleModel
+
+@* <h4>Create New Sale</h4> *@
+
+<form asp-action="Create" asp-controller="Sale" method="post">
+    @Html.AntiForgeryToken()
+    
+    <!-- Hidden UserId field, preset to 0 -->
+    <input type="hidden" asp-for="UserId" value="0" />
+
+    <div class="mb-3">
+        <label asp-for="SaleDate" class="form-label"></label>
+        <input asp-for="SaleDate" class="form-control" type="date" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Product" class="form-label"></label>
+        <input asp-for="Product" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Quantity" class="form-label"></label>
+        <input asp-for="Quantity" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="UnitPrice" class="form-label"></label>
+        <input asp-for="UnitPrice" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="PaymentMethod" class="form-label"></label>
+        <input asp-for="PaymentMethod" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="CustomerName" class="form-label"></label>
+        <input asp-for="CustomerName" class="form-control" />
+    </div>
+
+    <!-- If you track FlockId or SaleDescription, add those fields as well -->
+
+    <button type="submit" class="btn btn-primary">Create</button>
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+</form>

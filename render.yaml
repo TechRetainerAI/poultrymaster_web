@@ -1,0 +1,34 @@
+# Frontend env: point at your Cloud Run services (GCP Console → Cloud Run → copy each service URL).
+# Farm = PoultryFarmAPI | Admin = Login / User Management API
+# If your Login service name differs, set NEXT_PUBLIC_ADMIN_API_URL (and ADMIN_API_URL) to that Cloud Run URL.
+# /api/proxy uses LOGIN_API_URL (optional), then ADMIN_API_URL, then NEXT_PUBLIC_* — point all at the same Login API URL.
+
+services:
+  - type: web
+    name: poultry-frontend
+    runtime: docker
+    plan: starter
+    region: oregon
+    branch: main
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: NEXT_PUBLIC_API_BASE_URL
+        sync: false
+        value: https://poultrymaster-farm-api-git-1024831506678.europe-west1.run.app
+      - key: NEXT_PUBLIC_ADMIN_API_URL
+        sync: false
+        value: https://poultrymaster-api-git-1024831506678.europe-west1.run.app
+      - key: ADMIN_API_URL
+        sync: false
+        value: https://poultrymaster-api-git-1024831506678.europe-west1.run.app
+      - key: NEXT_PUBLIC_ENABLE_ANALYTICS
+        value: false
+      - key: NEXT_PUBLIC_ENABLE_PWA
+        value: false
+    healthCheckPath: /
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeploy: true

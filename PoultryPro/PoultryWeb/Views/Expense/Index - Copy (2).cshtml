@@ -1,0 +1,162 @@
+﻿@model IEnumerable<PoultryWeb.Models.ExpenseModel>
+
+@{
+    ViewBag.Title = "Expense Management";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@section Styles {
+    <style>
+
+    </style>
+}
+
+<div class="expense-container">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card-table">
+                <h2>Expense Management</h2>
+                <div class="table-responsive">
+                    <table class="table expense-table" id="expenseTable">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Category</th>
+                                <th>Amount</th>
+                                <th>Payment</th>
+                                <th>Delete</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in Model)
+                            {
+                                <tr data-expense-id="@item.ExpenseId">
+                                    <td>@item.ExpenseDate.ToShortDateString()</td>
+                                    <td>@item.Category</td>
+                                    <td>@item.Amount.ToString("F2")</td>
+                                    <td>@item.PaymentMethod</td>
+                                    <td>
+                                        <button class="btn btn-danger btn-sm"
+                                                onclick="event.stopPropagation(); confirmDelete(@item.ExpenseId)">
+                                            <i class="bi bi-trash"></i> Delete
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4 right-panel">
+            <h4 id="defaultMessage">Select a row to edit or view details</h4>
+            <div id="editContainer"></div>
+        </div>
+    </div>
+
+    <div class="bottom-bar">
+        <button class="btn btn-primary btn-create" onclick="openCreateExpense()">
+            <i class="bi bi-plus-circle"></i> Create New Expense
+        </button>
+    </div>
+</div>
+
+<div id="customModalOverlay">
+    <div id="customModalBox">
+        <h4 id="modalTitle"></h4>
+        <p id="modalMessage"></p>
+        <div id="modalButtons"></div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var table = document.getElementById('expenseTable');
+            if (table) {
+                table.addEventListener('click', function (e) {
+                    var row = e.target.closest('tr[data-expense-id]');
+                    if (row && !e.target.closest('.btn-danger')) {
+                        var expenseId = row.getAttribute('data-expense-id');
+                        loadEditPartial(expenseId);
+                    }
+                });
+            }
+        });
+
+        function openCreateExpense() {
+            fetch('/Expense/CreatePartial')
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('defaultMessage').style.display = 'none';
+                    document.getElementById('editContainer').innerHTML = html;
+                });
+        }
+
+        function loadEditPartial(expenseId) {
+            fetch('/Expense/EditPartial/' + expenseId)
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('defaultMessage').style.display = 'none';
+                    document.getElementById('editContainer').innerHTML = html;
+                });
+        }
+
+        function loadDeletePartial(expenseId) {
+            fetch('/Expense/DeletePartial/' + expenseId)
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('defaultMessage').style.display = 'none';
+                    document.getElementById('editContainer').innerHTML = html;
+                });
+        }
+
+        function closeRightPanel() {
+            document.getElementById('editContainer').innerHTML = '';
+            document.getElementById('defaultMessage').style.display = '';
+        }
+
+        function openCustomDialog(title, message, confirmText, confirmCallback, cancelCallback) {
+            document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalMessage').innerText = message;
+            let btnDiv = document.getElementById('modalButtons');
+            btnDiv.innerHTML = '';
+
+            let confirmBtn = document.createElement('button');
+            confirmBtn.classList.add('btn', 'btn-primary', 'me-2');
+            confirmBtn.innerText = confirmText || 'OK';
+            confirmBtn.onclick = function () {
+                closeCustomDialog();
+                if (confirmCallback) confirmCallback();
+            };
+            btnDiv.appendChild(confirmBtn);
+
+            let cancelBtn = document.createElement('button');
+            cancelBtn.classList.add('btn', 'btn-secondary');
+            cancelBtn.innerText = 'Cancel';
+            cancelBtn.onclick = function () {
+                closeCustomDialog();
+                if (cancelCallback) cancelCallback();
+            };
+            btnDiv.appendChild(cancelBtn);
+
+            document.getElementById('customModalOverlay').style.display = 'block';
+        }
+
+        function closeCustomDialog() {
+            document.getElementById('customModalOverlay').style.display = 'none';
+        }
+
+        function confirmDelete(expenseId) {
+            openCustomDialog(
+                'Delete Expense',
+                'Are you sure you want to delete Expense #' + expenseId + '?',
+                'Yes, Delete',
+                function () {
+                    loadDeletePartial(expenseId);
+                }
+            );
+        }
+    </script>
+}

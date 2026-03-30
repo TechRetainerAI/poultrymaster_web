@@ -1,0 +1,58 @@
+﻿@model PoultryWeb.Models.FeedUsageModel
+
+@{
+    ViewBag.Title = "Edit Feed Usage";
+}
+
+<h2>Edit Feed Usage</h2>
+
+@using (Html.BeginForm("Edit", "FeedUsage", FormMethod.Post, new { id = Model.FeedUsageId }))
+{
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(m => m.FeedUsageId)
+
+    <div class="form-horizontal">
+        <div class="form-group">
+            @Html.LabelFor(m => m.FlockId, new { @class = "control-label col-md-2" })
+            <div class="col-md-10">
+                @Html.TextBoxFor(m => m.FlockId, new { @class = "form-control" })
+                @Html.ValidationMessageFor(m => m.FlockId)
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(m => m.UsageDate, new { @class = "control-label col-md-2" })
+            <div class="col-md-10">
+                @Html.TextBoxFor(m => m.UsageDate, "{0:yyyy-MM-dd}",
+                         new { @class = "form-control", type = "date" })
+                @Html.ValidationMessageFor(m => m.UsageDate)
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(m => m.FeedType, new { @class = "control-label col-md-2" })
+            <div class="col-md-10">
+                @Html.TextBoxFor(m => m.FeedType, new { @class = "form-control" })
+                @Html.ValidationMessageFor(m => m.FeedType)
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(m => m.QuantityKg, new { @class = "control-label col-md-2" })
+            <div class="col-md-10">
+                @Html.TextBoxFor(m => m.QuantityKg, new { @class = "form-control" })
+                @Html.ValidationMessageFor(m => m.QuantityKg)
+            </div>
+        </div>
+
+        <div class="form-group">
+            <div class="col-md-offset-2 col-md-10">
+                <input type="submit" value="Save" class="btn btn-primary" />
+            </div>
+        </div>
+    </div>
+}
+
+<p>
+    @Html.ActionLink("Back to List", "Index")
+</p>

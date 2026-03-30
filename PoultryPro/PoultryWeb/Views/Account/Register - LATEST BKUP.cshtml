@@ -1,0 +1,278 @@
+﻿@model PoultryWeb.Models.Authentication.SignUp.RegisterUser
+
+@{
+    ViewData["Title"] = "Register";
+    Layout = "_AuthLayout.cshtml";
+}
+
+<style>
+    body {
+        font-family: 'Roboto', sans-serif;
+        display: flex;
+        justify-content: center;
+        margin: 0;
+        /*background-color: #f5f5f5;*/
+        background-color: #e3f2fd; /* Light blue background */
+    }
+
+    .register-container {
+        background-color: #fff;
+        border: 1px solid #ddd;
+        padding: 15px;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        max-width: 430px;
+        width: 100%;
+        text-align: left;
+        margin: auto;
+        margin-bottom: 15%;
+    }
+
+    .register-container h2 {
+        margin-bottom: 15px;
+        font-size: 1.5rem;
+        color: #333;
+        text-align: center;
+    }
+
+    .form-control {
+        margin-bottom: 10px;
+    }
+
+    .register-container .form-group {
+        margin-bottom: 0px;
+    }
+
+    p {
+        margin-top: 0;
+        margin-bottom: 0px;
+    }
+
+    .register-container .form-group label {
+        display: block;
+        font-weight: bold;
+        margin-bottom: 5px;
+        /*font-size: 0.85rem;*/
+    }
+
+    .register-container .form-group input {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        font-size: 0.85rem;
+    }
+
+    .register-container .form-row {
+        display: flex;
+        justify-content: space-between;
+    }
+
+    .register-container .form-row .form-group {
+        flex: 1;
+        margin-right: 5px;
+    }
+
+    .register-container .form-row .form-group:last-child {
+        margin-right: 0;
+    }
+
+    .register-container .btn-primary {
+        background-color: #febd69;
+        border-color: #f0ad4e;
+        color: #333;
+        padding: 8px;
+        border-radius: 5px;
+        font-size: 1rem;
+        width: 100%;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+    }
+
+    .register-container .btn-primary:hover {
+        background-color: #e2a937;
+    }
+
+    .register-container .text-danger {
+        font-size: 0.75rem;
+    }
+
+    .register-container .footer-text {
+        margin-top: 10px;
+        font-size: 0.75rem;
+        color: #666;
+        text-align: center;
+    }
+
+    .register-container .footer-text a {
+        color: #007bff;
+        text-decoration: none;
+    }
+
+    .register-container .footer-text a:hover {
+        text-decoration: underline;
+    }
+</style>
+
+<div class="register-container">
+    <h3 style="text-align: center">Create account</h3>
+    <form>
+        <div class="form-row">
+            <div class="form-group">
+                <label for="FirstName">First Name</label>
+                <input type="text" id="FirstName" name="FirstName" class="form-control" data-bind="value: firstName, valueUpdate: 'input'" required>
+                <span class="text-danger" data-bind="visible: firstNameError, text: firstNameErrorMessage"></span>
+            </div>
+            <div class="form-group">
+                <label for="LastName">Last Name</label>
+                <input type="text" id="LastName" name="LastName" class="form-control" data-bind="value: lastName, valueUpdate: 'input'" required>
+                <span class="text-danger" data-bind="visible: lastNameError, text: lastNameErrorMessage"></span>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="Username">Username</label>
+            <input type="text" id="Username" name="Username" class="form-control" data-bind="value: username, valueUpdate: 'input'" required>
+            <span class="text-danger" data-bind="visible: usernameError, text: usernameErrorMessage"></span>
+        </div>
+
+        <div class="form-group">
+            <label for="Email">Email</label>
+            <input type="email" id="Email" name="Email" class="form-control" data-bind="value: email, valueUpdate: 'input'" required>
+            <span class="text-danger" data-bind="visible: emailError, text: emailErrorMessage"></span>
+        </div>
+        
+        <div class="form-group">
+            <label for="Password">Password</label>
+            <input type="password" id="Password" name="Password" class="form-control" data-bind="value: password, valueUpdate: 'input'" required>
+            <span class="text-danger" data-bind="visible: passwordError, text: passwordErrorMessage"></span>
+        </div>
+
+        <div class="form-group">
+            <label for="ConfirmPassword">Re-enter password</label>
+            <input type="password" id="ConfirmPassword" name="ConfirmPassword" class="form-control" data-bind="value: confirmPassword, valueUpdate: 'input'" required>
+            <span class="text-danger" data-bind="visible: confirmPasswordError, text: confirmPasswordErrorMessage"></span>
+        </div>
+
+        <div class="form-group">
+            <button type="button" class="btn btn-primary" data-bind="click: register">Create your account</button>
+            @* <button type="submit" class="btn btn-primary">Create your account</button> *@
+        </div>
+
+        <div class="footer-text">
+            <p>By creating an account, you agree to our <a href="@Url.Action("TermsOfService", "Home")">Terms of Service</a> and <a href="@Url.Action("Privacy", "Home")">Privacy</a>.</p>
+            <p>Already have an account? <a href="@Url.Action("Login", "Account")">Sign-in</a></p>
+        </div>
+    </form>
+</div>
+
+<script src="~/lib/jquery/dist/jquery.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/knockout/3.5.1/knockout-min.js"></script>
+
+@section Scripts {
+    <script>
+         document.addEventListener('DOMContentLoaded', function () {
+        function ViewModel() {
+            var self = this;
+
+            self.firstName = ko.observable('');
+            self.lastName = ko.observable('');
+            self.username = ko.observable('');
+            self.email = ko.observable('');
+            self.password = ko.observable('');
+            self.confirmPassword = ko.observable('');
+            self.registrationFailed = ko.observable(false);
+            self.errorMessage = ko.observable('');
+
+            self.firstNameError = ko.observable(false);
+            self.lastNameError = ko.observable(false);
+            self.usernameError = ko.observable(false);
+            self.emailError = ko.observable(false);
+            self.passwordError = ko.observable(false);
+            self.confirmPasswordError = ko.observable(false);
+
+
+            self.firstNameErrorMessage = ko.observable('First name is required.');
+            self.lastNameErrorMessage = ko.observable('Last name is required.');
+            self.usernameErrorMessage = ko.observable('Please enter a valid username.');
+            self.emailErrorMessage = ko.observable('Please enter a valid email.');
+            self.passwordErrorMessage = ko.observable('Password must be at least 6 characters long.');
+            self.confirmPasswordErrorMessage = ko.observable('Passwords must match.');
+
+            
+            self.validateFirstName = function() {
+                self.firstNameError(!self.firstName());
+            };
+
+            self.validateLastName = function() {
+                self.lastNameError(!self.lastName());
+            };
+
+            self.validateUsername = function() {
+                self.usernameError(!self.username());
+            };
+
+            self.validateEmail = function() {
+                self.emailError(!self.email());
+            };
+
+            self.validatePassword = function() {
+                self.passwordError(!self.password() || self.password().length < 6);
+            };
+
+            self.validateConfirmPassword = function() {
+                self.confirmPasswordError(!self.confirmPassword() || self.confirmPassword() !== self.password());
+            };
+
+            self.register = function(formElement,event) {
+                event.preventDefault();
+                alert("called");
+                self.validateFirstName();
+                self.validateLastName();
+                self.validateUsername();
+                self.validateEmail();
+                self.validatePassword();
+                self.validateConfirmPassword();
+
+                if (!self.firstNameError() && !self.lastNameError() && !self.usernameError() && !self.emailError() && !self.passwordError() && !self.confirmPasswordError()) {
+                    $.ajax({
+                        url: '@Url.Action("Register", "Account")',
+                        type: 'POST',
+                        contentType: 'application/json',
+                        //data: ko.toJSON({ firstName: self.firstName, lastName: self.lastName, username: self.username, email: self.email, password: self.password }),
+                        data: JSON.stringify({
+                            firstName: self.firstName(),
+                            lastName: self.lastName(),
+                            username: self.username(),
+                            email: self.email(),
+                            password: self.password(),
+                            confirmPassword: self.confirmPassword()
+                        }),
+
+                        success: function(result) {
+                            if (result.success) {
+                                window.location.href = '@Url.Action("ConfirmEmailPrompt", "Account")'; // Redirect on success
+                            } else {
+                                self.registrationFailed(true);
+                                self.errorMessage(result.message || 'Registration failed. Please try again.');
+                            }
+                        },
+                        error: function() {
+                            self.registrationFailed(true);
+                            self.errorMessage('Error processing your registration.');
+                        }
+                    });
+                } else {
+                    self.registrationFailed(true);
+                    self.errorMessage('Please check your entries and try again.');
+                }
+            };
+
+        }
+
+        ko.applyBindings(new ViewModel());
+        });
+    </script>
+}

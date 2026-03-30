@@ -1,0 +1,61 @@
+﻿@model PoultryWeb.Models.EggProductionModel
+@{
+    ViewBag.Title = "Record New Egg Production";
+}
+
+<h2>Record New Egg Production</h2>
+
+@using (Html.BeginForm("Create", "EggProduction", FormMethod.Post))
+{
+    @Html.AntiForgeryToken()
+
+    <div class="form-horizontal">
+        <div class="form-group">
+            @Html.LabelFor(m => m.FlockId, new { @class = "control-label col-md-2" })
+            <div class="col-md-10">
+                @Html.EditorFor(m => m.FlockId, new { htmlAttributes = new { @class = "form-control" } })
+                @Html.ValidationMessageFor(m => m.FlockId)
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(m => m.ProductionDate, new { @class = "control-label col-md-2" })
+            <div class="col-md-10">
+                @Html.EditorFor(m => m.ProductionDate, new { htmlAttributes = new { @class = "form-control", type = "date" } })
+                @Html.ValidationMessageFor(m => m.ProductionDate)
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(m => m.EggCount, new { @class = "control-label col-md-2" })
+            <div class="col-md-10">
+                @Html.EditorFor(m => m.EggCount, new { htmlAttributes = new { @class = "form-control" } })
+                @Html.ValidationMessageFor(m => m.EggCount)
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(m => m.BrokenEggs, new { @class = "control-label col-md-2" })
+            <div class="col-md-10">
+                @Html.EditorFor(m => m.BrokenEggs, new { htmlAttributes = new { @class = "form-control" } })
+                @Html.ValidationMessageFor(m => m.BrokenEggs)
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(m => m.Notes, new { @class = "control-label col-md-2" })
+            <div class="col-md-10">
+                @Html.TextAreaFor(m => m.Notes, new { @class = "form-control", rows = 3 })
+                @Html.ValidationMessageFor(m => m.Notes)
+            </div>
+        </div>
+
+        <div class="form-group">
+            <div class="col-md-offset-2 col-md-10">
+                <input type="submit" value="Save" class="btn btn-primary" />
+            </div>
+        </div>
+    </div>
+}
+
+<p>@Html.ActionLink("Back to List", "Index")</p>
