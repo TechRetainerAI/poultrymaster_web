@@ -186,7 +186,7 @@ export async function createFarmTierCheckoutSession(
 ): Promise<ApiResult<CreateCheckoutSessionResponse>> {
   try {
     const url = buildAdminProxyUrl("Payments/create-checkout-session")
-    const body: CreateCheckoutSessionBody = {
+    const requestBody: CreateCheckoutSessionBody = {
       totalBirds: Math.max(0, Math.floor(totalBirds)),
       successUrl,
       failureUrl: cancelUrl,
@@ -194,7 +194,7 @@ export async function createFarmTierCheckoutSession(
     const res = await fetch(url, {
       method: "POST",
       headers: getAuthHeaders(),
-      body: JSON.stringify(body),
+      body: JSON.stringify(requestBody),
     })
     const text = await res.text()
     let body: unknown = null
@@ -235,7 +235,7 @@ export async function createCheckoutSession(
   try {
     const url = buildAdminProxyUrl("Payments/create-checkout-session")
     const includeTrial = options?.includeTrialWithPriceId !== false
-    const body: CreateCheckoutSessionBody = {
+    const requestBody: CreateCheckoutSessionBody = {
       priceId: priceId.trim(),
       successUrl,
       failureUrl: cancelUrl,
@@ -244,7 +244,7 @@ export async function createCheckoutSession(
     const res = await fetch(url, {
       method: "POST",
       headers: getAuthHeaders(),
-      body: JSON.stringify(body),
+      body: JSON.stringify(requestBody),
     })
     const text = await res.text()
     let body: unknown = null
