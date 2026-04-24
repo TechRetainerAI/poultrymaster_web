@@ -174,7 +174,28 @@ export default function FeedUsagePage() {
             (pr: any) => pr.flockId === Number(createForm.flockId) && new Date(pr.date).toISOString().split('T')[0] === createForm.usageDate
           )
           if (matchingRecord) {
-            await updateProductionRecord(matchingRecord.id, { feedKg: Number(createForm.quantityKg) })
+            const syncPayload: ProductionRecordInput = {
+              farmId: matchingRecord.farmId ?? farmId,
+              userId: matchingRecord.userId ?? userId,
+              createdBy: matchingRecord.createdBy ?? userId,
+              updatedBy: userId,
+              ageInWeeks: Number(matchingRecord.ageInWeeks ?? 0),
+              ageInDays: Number(matchingRecord.ageInDays ?? 0),
+              date: matchingRecord.date,
+              noOfBirds: Number(matchingRecord.noOfBirds ?? 0),
+              mortality: Number(matchingRecord.mortality ?? 0),
+              noOfBirdsLeft: Number(matchingRecord.noOfBirdsLeft ?? 0),
+              feedKg: Number(createForm.quantityKg),
+              medication: matchingRecord.medication ?? "None",
+              production9AM: Number(matchingRecord.production9AM ?? 0),
+              production12PM: Number(matchingRecord.production12PM ?? 0),
+              production4PM: Number(matchingRecord.production4PM ?? 0),
+              brokenEggs: Number(matchingRecord.brokenEggs ?? 0),
+              totalProduction: Number(matchingRecord.totalProduction ?? 0),
+              flockId: matchingRecord.flockId ?? Number(createForm.flockId),
+              eggGrade: matchingRecord.eggGrade ?? null,
+            }
+            await updateProductionRecord(matchingRecord.id, syncPayload)
           } else {
             const flocksRes = await getValidFlocks()
             const flock = flocksRes.find((f: any) => f.flockId === Number(createForm.flockId))
@@ -193,7 +214,7 @@ export default function FeedUsagePage() {
                 date: createForm.usageDate + 'T00:00:00Z',
                 noOfBirds: flock.quantity || 0, mortality: 0, noOfBirdsLeft: flock.quantity || 0,
                 feedKg: Number(createForm.quantityKg), medication: "None",
-                production9AM: 0, production12PM: 0, production4PM: 0, totalProduction: 0,
+                production9AM: 0, production12PM: 0, production4PM: 0, brokenEggs: 0, totalProduction: 0,
                 flockId: Number(createForm.flockId),
               }
               await createProductionRecord(prodInput)
@@ -264,7 +285,28 @@ export default function FeedUsagePage() {
             (pr: any) => pr.flockId === Number(editForm.flockId) && new Date(pr.date).toISOString().split('T')[0] === editForm.usageDate
           )
           if (matchingRecord) {
-            await updateProductionRecord(matchingRecord.id, { feedKg: Number(editForm.quantityKg) })
+            const syncPayload: ProductionRecordInput = {
+              farmId: matchingRecord.farmId ?? farmId,
+              userId: matchingRecord.userId ?? userId,
+              createdBy: matchingRecord.createdBy ?? userId,
+              updatedBy: userId,
+              ageInWeeks: Number(matchingRecord.ageInWeeks ?? 0),
+              ageInDays: Number(matchingRecord.ageInDays ?? 0),
+              date: matchingRecord.date,
+              noOfBirds: Number(matchingRecord.noOfBirds ?? 0),
+              mortality: Number(matchingRecord.mortality ?? 0),
+              noOfBirdsLeft: Number(matchingRecord.noOfBirdsLeft ?? 0),
+              feedKg: Number(editForm.quantityKg),
+              medication: matchingRecord.medication ?? "None",
+              production9AM: Number(matchingRecord.production9AM ?? 0),
+              production12PM: Number(matchingRecord.production12PM ?? 0),
+              production4PM: Number(matchingRecord.production4PM ?? 0),
+              brokenEggs: Number(matchingRecord.brokenEggs ?? 0),
+              totalProduction: Number(matchingRecord.totalProduction ?? 0),
+              flockId: matchingRecord.flockId ?? Number(editForm.flockId),
+              eggGrade: matchingRecord.eggGrade ?? null,
+            }
+            await updateProductionRecord(matchingRecord.id, syncPayload)
           }
         }
       } catch (syncError) {
