@@ -163,7 +163,7 @@ export default function EditEggProductionPage() {
     }
 
     if (!formData.flockId || formData.flockId <= 0) {
-      setError("Please select a flock")
+      setError("Choose which flock this egg record is for.")
       return
     }
 

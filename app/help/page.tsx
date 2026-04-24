@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -23,9 +24,9 @@ import {
   ChevronDown,
   ChevronUp,
   BookOpen,
-  Mail,
-  Phone,
+  MessageCircle,
 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 interface FAQItem {
   question: string
@@ -200,7 +201,11 @@ export default function HelpPage() {
               </div>
               <h1 className="text-3xl font-bold text-slate-900">Help Center</h1>
               <p className="text-slate-600 max-w-xl mx-auto">
-                Find answers to common questions, learn how to use Poultry Master features, and get support.
+                Self‑service guides and FAQs. For billing, bugs, or the product team, use{" "}
+                <Link href="/support" className="text-indigo-600 font-medium hover:underline">
+                  Support — Talk to Poultry Master
+                </Link>
+                .
               </p>
             </div>
 
@@ -310,38 +315,21 @@ export default function HelpPage() {
               </div>
             </div>
 
-            {/* Contact Support */}
             <Card className="border-indigo-200 bg-indigo-50/50">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-indigo-900">
-                  <Mail className="w-5 h-5" />
-                  Need More Help?
+                  <MessageCircle className="w-5 h-5" />
+                  Need the Poultry Master team?
                 </CardTitle>
                 <CardDescription className="text-indigo-700">
-                  Can't find what you're looking for? Reach out to our support team.
+                  Help Center is documentation only. The blue floating chat is for people on your farm. Billing, privacy,
+                  and product questions go to Support.
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-wrap gap-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-                      <Mail className="w-5 h-5 text-indigo-600" />
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium text-slate-900">Email Support</div>
-                      <div className="text-sm text-slate-600">support@poultrymaster.com</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-                      <Phone className="w-5 h-5 text-indigo-600" />
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium text-slate-900">Phone Support</div>
-                      <div className="text-sm text-slate-600">Available Mon-Fri, 9am-5pm</div>
-                    </div>
-                  </div>
-                </div>
+                <Button asChild className="bg-indigo-600 hover:bg-indigo-700">
+                  <Link href="/support">Open Support — Talk to Poultry Master</Link>
+                </Button>
               </CardContent>
             </Card>
           </div>

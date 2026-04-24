@@ -19,6 +19,12 @@ import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { getBirdsLeftFromRecord, getLatestRecordForFlock } from "@/lib/utils/production-records"
+import {
+  EGG_GRADE_OPTIONS,
+  EGG_GRADE_SELECT_VALUE_NONE,
+  eggGradeFromApi,
+  eggGradeToApi,
+} from "@/lib/constants/egg-grade"
 
 interface ProductionFormProps {
   open: boolean
@@ -58,6 +64,7 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
     numBirds: "",
     notes: "",
     medication: "",
+    eggGrade: EGG_GRADE_SELECT_VALUE_NONE,
   })
 
   const feedTypes = [
@@ -199,7 +206,7 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
 
   useEffect(() => {
     if (!record) {
-      setForm({ flockId: "", date: today, morning: "", noon: "", evening: "", brokenEggs: "", feedKg: "", feedType: "", mortality: "", numBirds: "", notes: "", medication: "" })
+      setForm({ flockId: "", date: today, morning: "", noon: "", evening: "", brokenEggs: "", feedKg: "", feedType: "", mortality: "", numBirds: "", notes: "", medication: "", eggGrade: EGG_GRADE_SELECT_VALUE_NONE })
       setMorningCrates(0); setMorningLoose(0)
       setNoonCrates(0); setNoonLoose(0)
       setEveningCrates(0); setEveningLoose(0)
@@ -231,6 +238,7 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
       numBirds: String(record.noOfBirds ?? ""),
       notes: "",
       medication: record.medication || "",
+      eggGrade: eggGradeFromApi((record as ProductionRecord & { eggGrade?: string | null }).eggGrade),
     }
     
     setForm(baseFormData)
@@ -323,6 +331,7 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
         brokenEggs: parseInt(form.brokenEggs) || 0,
         totalProduction: total,
         flockId: form.flockId ? parseInt(form.flockId) : null,
+        eggGrade: eggGradeToApi(form.eggGrade),
       }
 
       let productionRecordId: number | null = null
@@ -412,16 +421,16 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl w-[95vw] sm:w-[1100px] max-h-[90vh] flex flex-col overflow-visible">
+      <DialogContent className="w-[95vw] max-w-[95vw] sm:max-w-6xl sm:w-[1100px] max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>{record ? "Edit Production Record" : "Log Production"}</DialogTitle>
           <DialogDescription>{record ? "Update production data" : "Record daily production data"}</DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto pr-1">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden pr-1">
         {error ? <div className="p-3 rounded border border-red-200 bg-red-50 text-red-700 mb-4">{error}</div> : null}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6 w-full min-w-0">
           {/* Section 1: Flock & Date */}
           <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
             <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">
@@ -475,7 +484,7 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
               {/* Morning (9am) - Crates + Loose */}
               <div className="col-span-12 p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
                 <Label className="text-blue-800 font-semibold">Morning (9am) — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Crates ({EGGS_PER_CRATE} eggs)</Label>
                     <Input type="number" min="0" value={morningCrates} onChange={(e) => setMorningCrates(parseInt(e.target.value) || 0)} />
@@ -495,7 +504,7 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
               {/* Noon (12pm) - Crates + Loose */}
               <div className="col-span-12 p-3 bg-orange-50 border border-orange-200 rounded-lg space-y-2">
                 <Label className="text-orange-800 font-semibold">Noon (12pm) — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Crates ({EGGS_PER_CRATE} eggs)</Label>
                     <Input type="number" min="0" value={noonCrates} onChange={(e) => setNoonCrates(parseInt(e.target.value) || 0)} />
@@ -515,7 +524,7 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
               {/* Evening (4pm) - Crates + Loose */}
               <div className="col-span-12 p-3 bg-purple-50 border border-purple-200 rounded-lg space-y-2">
                 <Label className="text-purple-800 font-semibold">Evening (4pm) — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Crates ({EGGS_PER_CRATE} eggs)</Label>
                     <Input type="number" min="0" value={eveningCrates} onChange={(e) => setEveningCrates(parseInt(e.target.value) || 0)} />
@@ -535,7 +544,7 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
               {/* Brokens - Crates + Loose */}
               <div className="col-span-12 p-3 bg-red-50 border border-red-200 rounded-lg space-y-2">
                 <Label className="text-red-800 font-semibold">Broken Eggs — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Crates ({EGGS_PER_CRATE} eggs)</Label>
                     <Input type="number" min="0" value={brokenCrates} onChange={(e) => setBrokenCrates(parseInt(e.target.value) || 0)} />
@@ -561,6 +570,26 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
                     <div className="text-xs text-emerald-600">{totalCrates} crates + {totalPieces} pieces</div>
                   </div>
                 </div>
+              </div>
+
+              <div className="col-span-12 md:col-span-6 space-y-2">
+                <Label>Egg grade</Label>
+                <Select
+                  value={form.eggGrade}
+                  onValueChange={(v) => setForm({ ...form, eggGrade: v })}
+                >
+                  <SelectTrigger className="bg-white">
+                    <SelectValue placeholder="Select grade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EGG_GRADE_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-slate-500">Quality band for this day’s eggs (e.g. P1, P2).</p>
               </div>
             </div>
           </div>
@@ -715,7 +744,7 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
           </div>
 
           {/* Actions */}
-          <div className="flex gap-3 justify-between pt-2">
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-between pt-2">
             {/* Delete button - Admin only, only when editing */}
             <div>
               {isAdmin && record && !showDeleteConfirm && (
@@ -757,15 +786,15 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
               )}
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <Button
                 type="button"
                 onClick={() => onOpenChange(false)}
-                className="min-w-[120px] bg-red-600 hover:bg-red-700 text-white"
+                className="w-full sm:w-auto sm:min-w-[120px] bg-red-600 hover:bg-red-700 text-white"
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={saving} className="min-w-[160px]">
+              <Button type="submit" disabled={saving} className="w-full sm:w-auto sm:min-w-[160px]">
                 {saving ? "Saving..." : record ? "Update" : "Log Production"}
               </Button>
             </div>

@@ -1,5 +1,5 @@
-
-import { getAuthHeaders } from './config'
+import { DEFAULT_LOGIN_API_ORIGIN } from "@/lib/api/default-api-hosts"
+import { getAuthHeaders } from "./config"
 
 
 function buildAdminApiUrl(endpoint: string): string {
@@ -11,7 +11,7 @@ function buildAdminApiUrl(endpoint: string): string {
   const backendAdminApiUrl =
     process.env.NEXT_PUBLIC_LOGIN_API_URL ||
     process.env.NEXT_PUBLIC_ADMIN_API_URL ||
-    "https://usermanagementapi.techretainer.com"
+    DEFAULT_LOGIN_API_ORIGIN
   
   if (IS_BROWSER) {
     // In the browser we always go through the Next.js proxy to avoid CORS
@@ -245,7 +245,7 @@ export async function getEmployees(): Promise<ApiResponse<Employee[]>> {
       const fallbackUrl =
         process.env.NEXT_PUBLIC_LOGIN_API_URL ||
         process.env.NEXT_PUBLIC_ADMIN_API_URL ||
-        'https://usermanagementapi.techretainer.com'
+        DEFAULT_LOGIN_API_ORIGIN
       return {
         success: false,
         message: `Unable to connect to the Admin API. Please ensure the server is running and accessible at ${fallbackUrl}.`,

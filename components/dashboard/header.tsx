@@ -52,7 +52,8 @@ export function DashboardHeader() {
     { path: '/audit-logs', keywords: ['audit logs', 'audit', 'logs', 'activity'] },
     { path: '/settings', keywords: ['settings', 'configuration', 'config'] },
     { path: '/resources', keywords: ['resources', 'resource', 'help'] },
-    { path: '/help', keywords: ['help center', 'help', 'support'] },
+    { path: '/help', keywords: ['help center', 'help', 'faq', 'how to', 'guide'] },
+    { path: '/support', keywords: ['support', 'contact', 'talk to poultry master', 'poultry master', 'email', 'billing help'] },
     { path: '/terms', keywords: ['terms', 'conditions', 'policy'] },
   ]
 

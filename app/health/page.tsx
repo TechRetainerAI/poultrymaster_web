@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast"
 import { getHealthRecords, createHealthRecord, updateHealthRecord, deleteHealthRecord, type HealthRecord, type HealthRecordInput } from "@/lib/api/health"
 import { format } from "date-fns"
 import { formatDateShort, cn } from "@/lib/utils"
+import { toastFormGuide } from "@/lib/utils/validation-toast"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -141,6 +142,8 @@ export default function HealthPage() {
           waterConsumption: hr.waterConsumption || hr.WaterConsumption,
           notes: hr.notes || hr.Notes,
         })))
+      } else if (!healthRes.success) {
+        setError(healthRes.message || "Could not load health records. If this persists, confirm the API and database are up to date.")
       }
     } catch (err) {
       console.error("Failed to load health records:", err)
@@ -242,16 +245,68 @@ export default function HealthPage() {
     return list
   }, [healthRecords, activeTab, search, selectedFlockId, selectedHouseId, selectedItemId, dateFrom, dateTo, sortField, sortDirection])
 
+  /** Records that belong to the current tab type (before search / date / dropdown filters). */
+  const tabBaseRecords = useMemo(() => {
+    if (activeTab === "flock") {
+      return healthRecords.filter((r) => r.flockId != null && r.houseId == null && r.itemId == null)
+    }
+    if (activeTab === "house") {
+      return healthRecords.filter((r) => r.houseId != null && r.flockId == null && r.itemId == null)
+    }
+    return healthRecords.filter((r) => r.itemId != null && r.flockId == null && r.houseId == null)
+  }, [healthRecords, activeTab])
+
+  const listCopy = useMemo(() => {
+    const filteredOut =
+      tabBaseRecords.length > 0 && filteredRecords.length === 0
+    if (activeTab === "flock") {
+      return {
+        cardTitle: "Flock health records",
+        cardDescription: "Vaccinations, medications, and treatments scoped to a flock.",
+        emptyTitle: filteredOut ? "No flock records match your filters" : "No flock health records yet",
+        emptyDescription: filteredOut
+          ? "Adjust search, dates, or flock filter, or open House / Inventory if the entry was saved under another type."
+          : "Track vaccinations and treatments for your flocks. Add your first flock health record to get started.",
+        addLabel: "Add flock health record",
+      }
+    }
+    if (activeTab === "house") {
+      return {
+        cardTitle: "House health records",
+        cardDescription: "Health entries tied to a house or barn.",
+        emptyTitle: filteredOut ? "No house records match your filters" : "No house health records yet",
+        emptyDescription: filteredOut
+          ? "Adjust search, dates, or house filter, or check Flock / Inventory for other entries."
+          : "Record house-level treatments and checks. Add your first house health record to get started.",
+        addLabel: "Add house health record",
+      }
+    }
+    return {
+      cardTitle: "Inventory health records",
+      cardDescription: "Treatments and notes for inventory items (e.g. feed or supplies).",
+      emptyTitle: filteredOut ? "No inventory records match your filters" : "No inventory health records yet",
+      emptyDescription: filteredOut
+        ? "Adjust search, dates, or item filter, or check Flock / House if the entry was saved there."
+        : "Log medications or issues for inventory items. Add your first inventory health record to get started.",
+      addLabel: "Add inventory health record",
+    }
+  }, [activeTab, tabBaseRecords.length, filteredRecords.length])
+
   const handleCreate = async () => {
     const { userId, farmId } = getUserContext()
     if (!userId || !farmId) return
     const hasTarget = activeTab === "flock" ? !!formData.flockId : activeTab === "house" ? !!formData.houseId : !!formData.itemId
     if (!hasTarget || !formData.recordDate) {
-      toast({
-        title: "Required fields missing",
-        description: "Please select a flock/house/item and provide a record date before saving.",
-        variant: "destructive",
-      })
+      const targetHint =
+        activeTab === "flock"
+          ? "Choose a flock"
+          : activeTab === "house"
+            ? "Choose a house"
+            : "Choose an inventory item"
+      toastFormGuide(
+        toast,
+        `${targetHint} for this record, and pick the record date — both are needed before saving.`,
+      )
       return
     }
 
@@ -290,11 +345,16 @@ export default function HealthPage() {
     if (!userId || !farmId) return
     const hasTarget = activeTab === "flock" ? !!formData.flockId : activeTab === "house" ? !!formData.houseId : !!formData.itemId
     if (!hasTarget || !formData.recordDate) {
-      toast({
-        title: "Required fields missing",
-        description: "Please select a flock/house/item and provide a record date before saving.",
-        variant: "destructive",
-      })
+      const targetHint =
+        activeTab === "flock"
+          ? "Choose a flock"
+          : activeTab === "house"
+            ? "Choose a house"
+            : "Choose an inventory item"
+      toastFormGuide(
+        toast,
+        `${targetHint} for this record, and pick the record date — both are needed before saving.`,
+      )
       return
     }
 
@@ -336,7 +396,7 @@ export default function HealthPage() {
     if (!deletingRecord?.id) return
     const { userId, farmId } = getUserContext()
     if (!userId || !farmId) {
-      toast({ title: "Error", description: "Farm ID or User ID not found.", variant: "destructive" })
+      toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" })
       return
     }
     setIsDeleting(true)
@@ -839,20 +899,22 @@ export default function HealthPage() {
             ) : filteredRecords.length === 0 ? (
               <Card className="bg-white">
                 <CardContent className="py-12 text-center">
-                  <Heart className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-slate-900 mb-2">No health records found</h3>
-                  <p className="text-slate-600 mb-6">Get started by adding your first health record</p>
+                  {activeTab === "flock" && <Heart className="w-12 h-12 text-slate-400 mx-auto mb-4" />}
+                  {activeTab === "house" && <Building2 className="w-12 h-12 text-slate-400 mx-auto mb-4" />}
+                  {activeTab === "inventory" && <Package className="w-12 h-12 text-slate-400 mx-auto mb-4" />}
+                  <h3 className="text-lg font-semibold text-slate-900 mb-2">{listCopy.emptyTitle}</h3>
+                  <p className="text-slate-600 mb-6 max-w-md mx-auto">{listCopy.emptyDescription}</p>
                   <Button className="gap-2 bg-blue-600 hover:bg-blue-700" onClick={() => setIsCreateDialogOpen(true)}>
                     <Plus className="w-4 h-4" />
-                    Add Health Record
+                    {listCopy.addLabel}
                   </Button>
                 </CardContent>
               </Card>
             ) : (
               <Card className="bg-white overflow-hidden">
                 <CardHeader>
-                  <CardTitle>Health Records</CardTitle>
-                  <CardDescription>Daily health tracking for your flocks</CardDescription>
+                  <CardTitle>{listCopy.cardTitle}</CardTitle>
+                  <CardDescription>{listCopy.cardDescription}</CardDescription>
                 </CardHeader>
                 <CardContent className="p-0">
                   {isMobile && !showAllColumnsMobile ? (

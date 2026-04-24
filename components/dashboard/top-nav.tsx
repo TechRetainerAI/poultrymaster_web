@@ -27,6 +27,7 @@ import {
   Wallet,
   Boxes,
   CreditCard,
+  MessageCircle,
 } from "lucide-react"
 
 interface NavItem {
@@ -250,6 +251,7 @@ export function TopNavigation() {
           <NavDropdown group={moreGroup} />
           <div className="ml-auto flex items-center gap-1">
             <NavLink item={{ href: "/terms", label: "Terms", icon: FileText }} />
+            <NavLink item={{ href: "/support", label: "Support", icon: MessageCircle }} />
             <NavLink item={{ href: "/help", label: "Help Center", icon: BookOpen }} />
           </div>
         </div>

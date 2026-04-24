@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
 import { HubConnectionBuilder, LogLevel } from "@microsoft/signalr"
 import { createOrGetThread, getMessages, getThreads, sendMessage, markRead, type ChatThread, type ChatMessage } from "@/lib/api/chat"
@@ -395,6 +396,7 @@ export function FloatingChatWidget() {
         onClick={() => setIsOpen(true)}
         className="fixed bottom-20 right-6 lg:bottom-6 h-14 w-14 rounded-full shadow-lg z-50 bg-blue-600 hover:bg-blue-700"
         size="icon"
+        aria-label="Open farm team chat"
       >
         <MessageCircle className="h-6 w-6" />
       </Button>
@@ -412,13 +414,18 @@ export function FloatingChatWidget() {
         <DialogContent className="w-[95vw] max-w-4xl h-[85vh] max-h-[800px] flex flex-col p-0">
           <DialogHeader className="px-6 py-4 border-b">
             <div className="flex items-center justify-between">
-              <div>
+              <div className="min-w-0 pr-2">
                 <DialogTitle className="flex items-center gap-2">
-                  <MessageCircle className="h-5 w-5" />
-                  Chat
+                  <MessageCircle className="h-5 w-5 shrink-0" />
+                  Farm team chat
                 </DialogTitle>
-                <DialogDescription className="sr-only">
-                  Chat with team members and administrators
+                <DialogDescription className="text-left text-slate-600 mt-1.5 text-sm leading-snug">
+                  Only people on your farm can see these threads. For the Poultry Master product team (billing, bugs,
+                  privacy), use{" "}
+                  <Link href="/support" className="text-teal-700 font-medium underline-offset-2 hover:underline">
+                    Support
+                  </Link>
+                  .
                 </DialogDescription>
               </div>
               <Button

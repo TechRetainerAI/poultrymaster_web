@@ -126,31 +126,31 @@ export default function EditExpensePage() {
     }
 
     if (!formData.flockId) {
-      setError("Please select a flock")
+      setError("Choose which flock this expense belongs to.")
       setLoading(false)
       return
     }
 
     if (!formData.category) {
-      setError("Please select a category")
+      setError("Pick an expense category.")
       setLoading(false)
       return
     }
 
     if (!formData.description.trim()) {
-      setError("Please enter a description")
+      setError("Add a short description of this expense.")
       setLoading(false)
       return
     }
 
     if (!formData.amount || Number(formData.amount) <= 0) {
-      setError("Please enter a valid amount")
+      setError("Enter the amount as a number greater than zero.")
       setLoading(false)
       return
     }
 
     if (!formData.paymentMethod) {
-      setError("Please select a payment method")
+      setError("Select how this was paid (cash, mobile money, bank, etc.).")
       setLoading(false)
       return
     }

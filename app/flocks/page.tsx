@@ -20,20 +20,31 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Plus, Pencil, Trash2, Calendar, Bird, Users, AlertCircle, Search, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Filter, Home, Loader2, Save, ChevronDown, ChevronUp } from "lucide-react"
 import { useIsMobile } from '@/hooks/use-mobile'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
+import {
+  MOBILE_FILTER_SHEET_CONTENT_CLASS,
+  MOBILE_FILTER_SELECT_CONTENT_CLASS,
+  MOBILE_FILTERS_TOOLBAR_ROW_CLASS,
+  MOBILE_FILTERS_TRIGGER_BUTTON_CLASS,
+  MobileFilterSheetBody,
+  MobileFilterSheetFooter,
+  MobileFilterSheetHeader,
+} from '@/components/dashboard/mobile-filters'
+import { toLocalDateKey } from '@/lib/utils/date-key'
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
+import { toastFormGuide } from "@/lib/utils/validation-toast"
 import { getFlocks, getFlock, createFlock, updateFlock, deleteFlock, type Flock, type FlockInput } from "@/lib/api/flock"
 import { getHouses, type House } from "@/lib/api/house"
 import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
 import { getProductionRecords, type ProductionRecord } from "@/lib/api/production-record"
+import { getBirdsLeftForFlockFromRecords } from "@/lib/utils/production-records"
 import { getUserContext } from "@/lib/utils/user-context"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useToast } from "@/hooks/use-toast"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useMemo } from "react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { SheetTrigger } from "@/components/ui/sheet"
 import { formatDateShort } from "@/lib/utils"
 
 export default function FlocksPage() {
@@ -61,6 +72,23 @@ export default function FlocksPage() {
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [showAllColumnsMobile, setShowAllColumnsMobile] = useState(false)
   const isMobile = useIsMobile()
+
+  const [draftStatus, setDraftStatus] = useState<string>("ALL")
+  const [draftHouseId, setDraftHouseId] = useState<string>("ALL")
+  const [draftBatchId, setDraftBatchId] = useState<string>("ALL")
+  const [draftDateFrom, setDraftDateFrom] = useState("")
+  const [draftDateTo, setDraftDateTo] = useState("")
+  const [draftQuantityMin, setDraftQuantityMin] = useState<string>("")
+  const [draftQuantityMax, setDraftQuantityMax] = useState<string>("")
+
+  const hasDraftChanges =
+    draftStatus !== selectedStatus ||
+    draftHouseId !== selectedHouseId ||
+    draftBatchId !== selectedBatchId ||
+    draftDateFrom !== dateFrom ||
+    draftDateTo !== dateTo ||
+    draftQuantityMin !== quantityMin ||
+    draftQuantityMax !== quantityMax
 
   const hasActiveFilters = !!search || selectedStatus !== "ALL" || selectedHouseId !== "ALL" || selectedBatchId !== "ALL" || !!dateFrom || !!dateTo || !!quantityMin || !!quantityMax
   
@@ -144,25 +172,17 @@ export default function FlocksPage() {
     try {
       const res = await getProductionRecords(userId, farmId)
       if (res.success && res.data && res.data.length > 0) {
-        // Group by flockId and find the most recent record for each flock
+        // Per flock: birds left = `noOfBirdsLeft` on the most recent production record for that flockId
         const map: Record<number, number> = {}
-        // Sort all records by date descending so the first one per flock is the most recent
-        const sorted = [...res.data]
-          .filter((r: ProductionRecord) => r.flockId != null)
-          .sort((a: ProductionRecord, b: ProductionRecord) => new Date(b.date).getTime() - new Date(a.date).getTime())
-
-        // Calculate cumulative mortality across ALL records
-        let totalMort = 0
-        for (const record of sorted) {
-          totalMort += record.mortality ?? 0
-          const fid = record.flockId!
-          // Only take the first (most recent) record per flock for the per-row display
-          if (!(fid in map)) {
-            const birds = record.noOfBirds ?? 0
-            const mortality = record.mortality ?? 0
-            map[fid] = birds - mortality
-          }
+        const flockIds = new Set<number>()
+        for (const r of res.data) {
+          if (r.flockId != null) flockIds.add(r.flockId)
         }
+        flockIds.forEach((fid) => {
+          map[fid] = getBirdsLeftForFlockFromRecords(res.data, fid)
+        })
+
+        const totalMort = res.data.reduce((s, r) => s + (r.mortality ?? 0), 0)
         console.log("[FlocksPage] Birds left map from production records:", map)
         setFlockBirdsLeftMap(map)
         setCumulativeMortality(totalMort)
@@ -181,6 +201,36 @@ export default function FlocksPage() {
     setDateTo("")
     setQuantityMin("")
     setQuantityMax("")
+    setDraftStatus("ALL")
+    setDraftHouseId("ALL")
+    setDraftBatchId("ALL")
+    setDraftDateFrom("")
+    setDraftDateTo("")
+    setDraftQuantityMin("")
+    setDraftQuantityMax("")
+  }
+
+  const syncDraftFromCommitted = () => {
+    setDraftStatus(selectedStatus)
+    setDraftHouseId(selectedHouseId)
+    setDraftBatchId(selectedBatchId)
+    setDraftDateFrom(dateFrom)
+    setDraftDateTo(dateTo)
+    setDraftQuantityMin(quantityMin)
+    setDraftQuantityMax(quantityMax)
+  }
+
+  const applyMobileFilters = () => {
+    setSelectedStatus(draftStatus)
+    setSelectedHouseId(draftHouseId)
+    setSelectedBatchId(draftBatchId)
+    setDateFrom(draftDateFrom)
+    setDateTo(draftDateTo)
+    setQuantityMin(draftQuantityMin)
+    setQuantityMax(draftQuantityMax)
+    setCurrentPage(1)
+    setFiltersOpen(false)
+    toast({ title: "Filters applied", description: "Flock list updated." })
   }
   
   const handleSort = (field: string) => {
@@ -349,11 +399,11 @@ export default function FlocksPage() {
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const { farmId, userId } = getUserContext()
-    if (!farmId || !userId) { toast({ title: "Validation error", description: "Farm ID or User ID not found.", variant: "destructive" }); return }
-    if (!createForm.name.trim() || !createForm.breed.trim() || !createForm.startDate) { toast({ title: "Validation error", description: "Name, breed, and start date are required.", variant: "destructive" }); return }
-    if (createForm.quantity <= 0) { toast({ title: "Validation error", description: "Quantity must be greater than 0.", variant: "destructive" }); return }
-    if (!createForm.batchId || createForm.batchId === 0) { toast({ title: "Validation error", description: "Please select a batch.", variant: "destructive" }); return }
-    if (createSelectedBatch && createForm.quantity > createSelectedBatch.numberOfBirds) { toast({ title: "Validation error", description: "Quantity exceeds available birds in the selected batch.", variant: "destructive" }); return }
+    if (!farmId || !userId) { toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" }); return }
+    if (!createForm.name.trim() || !createForm.breed.trim() || !createForm.startDate) { toastFormGuide(toast, "Add a flock name, breed, and the date the flock started."); return }
+    if (createForm.quantity <= 0) { toastFormGuide(toast, "Enter how many birds are in this flock — use a number greater than zero."); return }
+    if (!createForm.batchId || createForm.batchId === 0) { toastFormGuide(toast, "Link this flock to a batch so bird counts stay accurate."); return }
+    if (createSelectedBatch && createForm.quantity > createSelectedBatch.numberOfBirds) { toastFormGuide(toast, `That batch only has ${createSelectedBatch.numberOfBirds} birds available — lower the flock size or pick another batch.`); return }
 
     setCreateLoading(true)
     setCreateError("")
@@ -418,10 +468,10 @@ export default function FlocksPage() {
     e.preventDefault()
     if (!editingFlockId) return
     const { farmId, userId } = getUserContext()
-    if (!farmId || !userId) { toast({ title: "Validation error", description: "User context not found.", variant: "destructive" }); return }
-    if (!editForm.name.trim() || !editForm.breed.trim() || !editForm.startDate) { toast({ title: "Validation error", description: "Name, breed, and start date are required.", variant: "destructive" }); return }
-    if (editForm.quantity <= 0) { toast({ title: "Validation error", description: "Quantity must be greater than 0.", variant: "destructive" }); return }
-    if (editSelectedBatch && editForm.quantity > editSelectedBatch.numberOfBirds) { toast({ title: "Validation error", description: "Quantity exceeds available birds in the selected batch.", variant: "destructive" }); return }
+    if (!farmId || !userId) { toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" }); return }
+    if (!editForm.name.trim() || !editForm.breed.trim() || !editForm.startDate) { toastFormGuide(toast, "Add a flock name, breed, and the date the flock started."); return }
+    if (editForm.quantity <= 0) { toastFormGuide(toast, "Enter how many birds are in this flock — use a number greater than zero."); return }
+    if (editSelectedBatch && editForm.quantity > editSelectedBatch.numberOfBirds) { toastFormGuide(toast, `That batch only has ${editSelectedBatch.numberOfBirds} birds available — lower the flock size or pick another batch.`); return }
 
     setEditLoading(true)
     setEditError("")
@@ -459,7 +509,7 @@ export default function FlocksPage() {
     if (!deletingId) return
     const { farmId, userId } = getUserContext()
     if (!farmId || !userId) {
-      toast({ title: "Error", description: "Farm ID or User ID not found.", variant: "destructive" })
+      toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" })
       return
     }
     setIsDeleting(true)
@@ -573,11 +623,11 @@ export default function FlocksPage() {
     }
 
     if (dateFrom) {
-      currentList = currentList.filter(flock => flock.startDate?.split('T')[0] >= dateFrom)
+      currentList = currentList.filter((flock) => toLocalDateKey(flock.startDate) >= dateFrom)
     }
 
     if (dateTo) {
-      currentList = currentList.filter(flock => flock.startDate?.split('T')[0] <= dateTo)
+      currentList = currentList.filter((flock) => toLocalDateKey(flock.startDate) <= dateTo)
     }
 
     if (quantityMin) {
@@ -718,107 +768,159 @@ export default function FlocksPage() {
 
             {/* Filters: inline on desktop, sheet on mobile */}
             {isMobile ? (
-              <div className="space-y-3">
+              <div className="space-y-3 w-full min-w-0">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <Input placeholder="Search flocks..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 h-11" />
                 </div>
-                <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
-                  <SheetTrigger asChild>
-                    <Button variant="outline" className="w-full h-11 gap-2 justify-start">
-                      <Filter className="h-4 w-4" />
-                      Filters
-                      {hasActiveFilters && (
-                        <span className="ml-1 h-5 min-w-[20px] px-1.5 rounded-full bg-amber-500 text-white text-xs flex items-center justify-center">
-                          {[search, selectedStatus !== "ALL", selectedHouseId !== "ALL", selectedBatchId !== "ALL", dateFrom, dateTo, quantityMin, quantityMax].filter(Boolean).length}
-                        </span>
-                      )}
-                    </Button>
-                  </SheetTrigger>
-                  <SheetContent side="bottom" className="h-[75vh] rounded-t-2xl">
-                    <SheetHeader>
-                      <SheetTitle>Filters</SheetTitle>
-                    </SheetHeader>
-                    <div className="space-y-4 overflow-y-auto pb-8 px-1">
-                      <div>
-                        <label className="text-sm font-medium text-slate-700 mb-1 block">Status</label>
-                        <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ALL">All Statuses</SelectItem>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="inactive">Inactive</SelectItem>
-                        </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div>
-                        <label className="text-sm font-medium text-slate-700 mb-1 block">House</label>
-                        <Select value={selectedHouseId} onValueChange={setSelectedHouseId}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="House" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ALL">All Houses</SelectItem>
-                          {houses.map(h => (
-                            <SelectItem key={h.houseId} value={String(h.houseId)}>{(h as any).houseName || (h as any).name || `House ${h.houseId}`}</SelectItem>
-                          ))}
-                        </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div>
-                        <label className="text-sm font-medium text-slate-700 mb-1 block">Batch</label>
-                        <Select value={selectedBatchId} onValueChange={setSelectedBatchId}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Batch" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ALL">All Batches</SelectItem>
-                          {flockBatches.map(b => (
-                            <SelectItem key={b.batchId} value={String(b.batchId)}>{b.batchName}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      </div>
-
-                      <div>
-                        <label className="text-sm font-medium text-slate-700 mb-1 block">Date range</label>
-                        <div className="grid grid-cols-2 gap-2">
-                          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-                          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+                <div className={MOBILE_FILTERS_TOOLBAR_ROW_CLASS}>
+                  <Sheet
+                    open={filtersOpen}
+                    onOpenChange={(open) => {
+                      setFiltersOpen(open)
+                      syncDraftFromCommitted()
+                    }}
+                  >
+                    <SheetTrigger asChild>
+                      <Button variant="outline" className={MOBILE_FILTERS_TRIGGER_BUTTON_CLASS}>
+                        <Filter className="h-4 w-4" />
+                        <span className="truncate">Filters</span>
+                        {hasActiveFilters && (
+                          <span className="ml-1 h-5 min-w-[20px] px-1.5 rounded-full bg-orange-500 text-white text-xs flex items-center justify-center">
+                            {[search, selectedStatus !== "ALL", selectedHouseId !== "ALL", selectedBatchId !== "ALL", dateFrom, dateTo, quantityMin, quantityMax].filter(Boolean).length}
+                          </span>
+                        )}
+                      </Button>
+                    </SheetTrigger>
+                    <SheetContent side="bottom" className={MOBILE_FILTER_SHEET_CONTENT_CLASS}>
+                      <MobileFilterSheetHeader />
+                      <MobileFilterSheetBody>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-slate-700">Status</label>
+                          <Select value={draftStatus} onValueChange={setDraftStatus}>
+                            <SelectTrigger className="h-12 text-base">
+                              <SelectValue placeholder="Status" />
+                            </SelectTrigger>
+                            <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
+                              <SelectItem value="ALL">All Statuses</SelectItem>
+                              <SelectItem value="active">Active</SelectItem>
+                              <SelectItem value="inactive">Inactive</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
-                      </div>
 
-                      <div>
-                        <label className="text-sm font-medium text-slate-700 mb-1 block">Quantity range</label>
-                        <div className="grid grid-cols-2 gap-2">
-                        <Input
-                          type="number"
-                          placeholder="Min Quantity"
-                          value={quantityMin}
-                          onChange={(e) => handleQuantityMinChange(e.target.value)}
-                          className="flex-1"
-                        />
-
-                        <Input
-                          type="number"
-                          placeholder="Max Quantity"
-                          value={quantityMax}
-                          onChange={(e) => handleQuantityMaxChange(e.target.value)}
-                        />
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-slate-700">House</label>
+                          <Select value={draftHouseId} onValueChange={setDraftHouseId}>
+                            <SelectTrigger className="h-12 text-base">
+                              <SelectValue placeholder="House" />
+                            </SelectTrigger>
+                            <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
+                              <SelectItem value="ALL">All Houses</SelectItem>
+                              {houses.map((h) => (
+                                <SelectItem key={h.houseId} value={String(h.houseId)}>
+                                  {(h as any).houseName || (h as any).name || `House ${h.houseId}`}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
-                      </div>
 
-                      <div className="flex gap-2 pt-4">
-                        <Button variant="outline" className="flex-1" onClick={clearFilters}>Clear all</Button>
-                        <Button className="flex-1" onClick={() => setFiltersOpen(false)}>Apply</Button>
-                      </div>
-                    </div>
-                  </SheetContent>
-                </Sheet>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-slate-700">Batch</label>
+                          <Select value={draftBatchId} onValueChange={setDraftBatchId}>
+                            <SelectTrigger className="h-12 text-base">
+                              <SelectValue placeholder="Batch" />
+                            </SelectTrigger>
+                            <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
+                              <SelectItem value="ALL">All Batches</SelectItem>
+                              {flockBatches.map((b) => (
+                                <SelectItem key={b.batchId} value={String(b.batchId)}>
+                                  {b.batchName}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-3">
+                          <p className="text-sm font-medium text-slate-700">Start date range</p>
+                          <div className="flex flex-col gap-4">
+                            <div className="min-w-0 space-y-2">
+                              <label htmlFor="flock-filter-from" className="text-xs font-medium text-slate-500">
+                                From
+                              </label>
+                              <Input
+                                id="flock-filter-from"
+                                type="date"
+                                value={draftDateFrom}
+                                onChange={(e) => setDraftDateFrom(e.target.value)}
+                                className="h-12 min-w-0 w-full text-base"
+                              />
+                            </div>
+                            <div className="min-w-0 space-y-2">
+                              <label htmlFor="flock-filter-to" className="text-xs font-medium text-slate-500">
+                                To
+                              </label>
+                              <Input
+                                id="flock-filter-to"
+                                type="date"
+                                value={draftDateTo}
+                                onChange={(e) => setDraftDateTo(e.target.value)}
+                                className="h-12 min-w-0 w-full text-base"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          <p className="text-sm font-medium text-slate-700">Quantity range</p>
+                          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <div className="space-y-2">
+                              <label className="text-xs font-medium text-slate-500">Min</label>
+                              <Input
+                                type="number"
+                                placeholder="Min"
+                                value={draftQuantityMin}
+                                onChange={(e) => setDraftQuantityMin(e.target.value || "")}
+                                className="h-12 text-base"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-xs font-medium text-slate-500">Max</label>
+                              <Input
+                                type="number"
+                                placeholder="Max"
+                                value={draftQuantityMax}
+                                onChange={(e) => setDraftQuantityMax(e.target.value || "")}
+                                className="h-12 text-base"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </MobileFilterSheetBody>
+                      <MobileFilterSheetFooter>
+                        <div className="flex gap-3">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="h-12 flex-1"
+                            onClick={() => {
+                              clearFilters()
+                              setFiltersOpen(false)
+                              toast({ title: "Filters cleared" })
+                            }}
+                          >
+                            Clear all
+                          </Button>
+                          <Button type="button" className="h-12 flex-1" onClick={applyMobileFilters} disabled={!hasDraftChanges}>
+                            Apply
+                          </Button>
+                        </div>
+                      </MobileFilterSheetFooter>
+                    </SheetContent>
+                  </Sheet>
+                </div>
               </div>
             ) : (
               <div className="flex flex-wrap items-center gap-2 p-2 bg-white rounded border">

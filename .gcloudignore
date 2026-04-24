@@ -1,0 +1,7 @@
+# Used by: gcloud run deploy --source ...
+# Run gcloud from THIS folder (same directory as package.json + Dockerfile), or the tarball may miss app code.
+# Start from .gitignore rules, then add Cloud-specific excludes.
+#!include:.gitignore
+
+# Backend & other trees — not part of this Next.js Docker image (much faster upload + build context)
+poultrycore/

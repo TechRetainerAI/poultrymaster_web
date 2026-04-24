@@ -5,6 +5,7 @@ export interface CashTransaction {
   type: string
   description: string
   in: number
+  owed?: number
   out: number
   balance: number
   sortKey?: string
@@ -55,7 +56,15 @@ export async function getCashSummary(userId: string, farmId: string): Promise<Ap
       data: {
         currentCash: Number(data.currentCash ?? 0),
         lastUpdated: data.lastUpdated ?? new Date().toISOString(),
-        transactions: Array.isArray(data.transactions) ? data.transactions : [],
+        transactions: Array.isArray(data.transactions)
+          ? data.transactions.map((t: any) => ({
+              ...t,
+              in: Number(t.in ?? 0),
+              owed: Number(t.owed ?? 0),
+              out: Number(t.out ?? 0),
+              balance: Number(t.balance ?? 0),
+            }))
+          : [],
       },
     }
   } catch (error: unknown) {

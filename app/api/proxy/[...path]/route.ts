@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import {
+  DEFAULT_FARM_API_HOST,
+  DEFAULT_LOGIN_API_HOST,
+} from '@/lib/api/default-api-hosts'
 
 // Never cache — each request must hit the live backend
 export const dynamic = 'force-dynamic'
@@ -23,18 +27,39 @@ function getApiBaseUrl(pathSegments: string[]): string {
     pathSegments[0] === 'Payments' ||
     pathSegments[0] === 'UserProfile'
 
-  // ADMIN_API_URL = server-only override (Render secrets). Else NEXT_PUBLIC_* from build/runtime.
+  // Login API: optional ADMIN_API_URL overrides (server-only). Otherwise same URL as the client:
+  // NEXT_PUBLIC_LOGIN_API_URL or NEXT_PUBLIC_ADMIN_API_URL (no separate LOGIN_API_URL).
+  // Defaults: Cloud Run URLs when env is unset (custom domains may lag or point at old revisions).
+  // Override with ADMIN_API_URL / FARM_API_URL / NEXT_PUBLIC_* for other environments.
   const apiBase = isAdminApi
-    ? process.env.LOGIN_API_URL ||
+    ? process.env.ADMIN_API_URL ||
       process.env.NEXT_PUBLIC_LOGIN_API_URL ||
-      process.env.ADMIN_API_URL ||
       process.env.NEXT_PUBLIC_ADMIN_API_URL ||
-      'usermanagementapi.techretainer.com'
+      DEFAULT_LOGIN_API_HOST
     : process.env.FARM_API_URL ||
       process.env.NEXT_PUBLIC_API_BASE_URL ||
-      'farmapi.techretainer.com'
+      DEFAULT_FARM_API_HOST
 
   return normalizeBaseUrl(apiBase)
+}
+
+/** If Login API env points at this same Next.js host:port, /api/Payments/* hits the web app and returns HTML 404. */
+function isAdminProxyMisconfiguredAsSameOrigin(
+  request: NextRequest,
+  adminBaseUrl: string
+): boolean {
+  try {
+    const upstream = new URL(adminBaseUrl)
+    const inc = request.nextUrl
+    const incPort = inc.port || (inc.protocol === 'https:' ? '443' : '80')
+    const upPort = upstream.port || (upstream.protocol === 'https:' ? '443' : '80')
+    return (
+      upstream.hostname.toLowerCase() === inc.hostname.toLowerCase() &&
+      upPort === incPort
+    )
+  } catch {
+    return false
+  }
 }
 
 /** Shown when the proxy gives up waiting on Login/Admin Cloud Run (cold start, DB hang). */
@@ -43,7 +68,7 @@ function loginAdminTimeoutHelp(apiBaseUrl: string): string {
     `Login flow: browser → this site’s /api/proxy/Authentication/* → forwards to:\n${apiBaseUrl}\n\n` +
     `Checks:\n` +
     `• Redeploy the frontend after code/env changes (Next must serve /api/proxy).\n` +
-    `• On Render/hosting: set NEXT_PUBLIC_ADMIN_API_URL and ADMIN_API_URL to your Login Cloud Run URL (full https://….run.app).\n` +
+    `• On Render/hosting: set NEXT_PUBLIC_ADMIN_API_URL to your Login Cloud Run URL (full https://….run.app); optional ADMIN_API_URL if the server needs a different base.\n` +
     `• GCP → Cloud Run → Login service → Logs: fix startup if the container crashes (DB connection string, JWT, etc.).\n` +
     `• From your PC: curl -sI "${apiBaseUrl}/" — expect HTTP 200 or 404 from the app, not timeout.`
   )
@@ -96,6 +121,24 @@ async function handleRequest(
 ) {
   try {
     const apiBaseUrl = getApiBaseUrl(pathSegments)
+    const isAdminPath =
+      pathSegments[0] === 'Admin' ||
+      pathSegments[0] === 'Authentication' ||
+      pathSegments[0] === 'Payments' ||
+      pathSegments[0] === 'UserProfile'
+
+    if (isAdminPath && isAdminProxyMisconfiguredAsSameOrigin(request, apiBaseUrl)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            `Login API URL is set to this same website. Set NEXT_PUBLIC_ADMIN_API_URL (or NEXT_PUBLIC_LOGIN_API_URL) and ADMIN_API_URL to your User Management API (e.g. ${DEFAULT_LOGIN_API_ORIGIN}), not the Next.js app URL. Payments routes live on the Login API only.`,
+          errorCode: 'PROXY_ADMIN_SAME_ORIGIN',
+        },
+        { status: 502 }
+      )
+    }
+
     const path = pathSegments.join('/')
     
     // Get the full URL with query parameters
@@ -154,11 +197,6 @@ async function handleRequest(
     }
 
     // Forward the request to the backend API
-    const isAdminPath =
-      pathSegments[0] === 'Admin' ||
-      pathSegments[0] === 'Authentication' ||
-      pathSegments[0] === 'Payments' ||
-      pathSegments[0] === 'UserProfile'
     console.log(
       `[Proxy API] ${isAdminPath ? 'Login/Admin' : 'Farm'} API → ${method} ${targetUrl}`
     )
@@ -255,6 +293,35 @@ async function handleRequest(
     } catch (error) {
       console.error('[Proxy API] Error reading response body:', error)
       body = { error: 'Failed to read response body', details: error instanceof Error ? error.message : String(error) }
+    }
+
+    // Upstream returned HTML (e.g. Next/Vercel "Page not found") — replace with JSON so clients never show raw markup
+    const textForHtmlCheck =
+      body &&
+      typeof body === 'object' &&
+      (typeof (body as { message?: string }).message === 'string'
+        ? (body as { message: string }).message
+        : typeof (body as { raw?: string }).raw === 'string'
+          ? (body as { raw: string }).raw
+          : '')
+    if (response.status >= 400 && textForHtmlCheck && /<\s*html[\s>]/i.test(textForHtmlCheck)) {
+      let upstreamHost = ''
+      try {
+        upstreamHost = new URL(targetUrl).hostname
+      } catch {
+        /* ignore */
+      }
+      const apiPath = `/api/${path}`
+      body = {
+        success: false,
+        message: isAdminPath
+          ? `Login API host "${upstreamHost}" returned an HTML page (HTTP ${response.status}) for ${apiPath}, not JSON. Fix: set NEXT_PUBLIC_ADMIN_API_URL and ADMIN_API_URL on this Next.js service to that Login API hostname — not your marketing/Next site. Then redeploy User.Management.API so ${apiPath} exists (e.g. open https://${upstreamHost}${apiPath} and confirm JSON).`
+          : `Farm API host "${upstreamHost}" returned an HTML page (HTTP ${response.status}) for ${apiPath}, not JSON. Check FARM_API_URL / NEXT_PUBLIC_API_BASE_URL and the Farm API deployment.`,
+        errorCode: 'UPSTREAM_HTML_RESPONSE',
+        upstreamHost,
+        upstreamStatus: response.status,
+        attemptedPath: apiPath,
+      }
     }
 
     // NextResponse.json sets application/json; never forward upstream Content-Type (ASP.NET 500 HTML would break the client)

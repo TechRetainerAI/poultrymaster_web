@@ -64,6 +64,7 @@ export interface Sale {
   customerName: string
   flockId: number
   saleDescription: string
+  paid?: boolean
   createdDate: string
 }
 
@@ -80,6 +81,7 @@ export interface SaleInput {
   customerName: string
   flockId: number
   saleDescription: string
+  paid?: boolean
   createdDate?: string
 }
 

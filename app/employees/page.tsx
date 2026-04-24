@@ -16,6 +16,7 @@ import { getUserContext } from "@/lib/utils/user-context"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useToast } from "@/hooks/use-toast"
+import { toastFormGuide } from "@/lib/utils/validation-toast"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -266,7 +267,7 @@ export default function EmployeesPage() {
     if (!createForm.firstName.trim() || !createForm.lastName.trim() || !createForm.phoneNumber.trim() || !createForm.email.trim()) {
       const msg = "First name, last name, phone number, and email are required."
       setCreateError(msg)
-      toast({ title: "Required fields missing", description: msg, variant: "destructive" })
+      toastFormGuide(toast, "Fill in first name, last name, phone number, and email — they are required to create an employee account.")
       setCreateLoading(false)
       return
     }
@@ -365,7 +366,7 @@ export default function EmployeesPage() {
     if (!editForm.firstName.trim() || !editForm.lastName.trim() || !editForm.phoneNumber.trim() || !editForm.email.trim()) {
       const msg = "First name, last name, phone number, and email are required."
       setEditError(msg)
-      toast({ title: "Required fields missing", description: msg, variant: "destructive" })
+      toastFormGuide(toast, "Fill in first name, last name, phone number, and email — they are required to save this profile.")
       setEditLoading(false)
       return
     }

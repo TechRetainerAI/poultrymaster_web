@@ -30,6 +30,8 @@ export interface ProductionRecord {
   updatedAt: string
   flockId?: number | null
   flockName?: string
+  /** Egg quality grade (e.g. P1, P2). */
+  eggGrade?: string | null
 }
 
 export interface ProductionRecordInput {
@@ -51,6 +53,7 @@ export interface ProductionRecordInput {
   brokenEggs: number
   totalProduction: number
   flockId?: number | null
+  eggGrade?: string | null
 }
 
 // Mock data for development
@@ -235,6 +238,7 @@ export async function createProductionRecord(record: ProductionRecordInput) {
       totalProduction: record.totalProduction,
     }
     if (record.flockId !== undefined) payload.FlockId = record.flockId
+    payload.eggGrade = record.eggGrade?.trim() ? record.eggGrade.trim() : null
 
     const response = await fetch(url, {
       method: "POST",
@@ -309,6 +313,9 @@ export async function updateProductionRecord(id: number, record: ProductionRecor
       totalProduction: record.totalProduction,
     }
     if (record.flockId !== undefined) payload.FlockId = record.flockId
+    if (Object.prototype.hasOwnProperty.call(record, "eggGrade")) {
+      payload.eggGrade = record.eggGrade?.trim() ? record.eggGrade.trim() : null
+    }
 
     const response = await fetch(url, {
       method: "PUT",

@@ -114,19 +114,19 @@ export default function EditFeedUsagePage() {
     }
 
     if (!formData.flockId) {
-      setError("Please select a flock")
+      setError("Choose which flock this feed was used for.")
       setLoading(false)
       return
     }
 
     if (!formData.feedType) {
-      setError("Please select a feed type")
+      setError("Pick a feed type so usage stays organized in reports.")
       setLoading(false)
       return
     }
 
     if (!formData.quantityKg || Number(formData.quantityKg) <= 0) {
-      setError("Please enter a valid quantity")
+      setError("Enter kilograms used as a number greater than zero.")
       setLoading(false)
       return
     }

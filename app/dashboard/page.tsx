@@ -7,6 +7,7 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { MetricsCards } from "@/components/dashboard/metrics-cards"
 import { DashboardCharts } from "@/components/dashboard/charts"
 import { Setup2FADialog } from "@/components/auth/setup-2fa-dialog"
+import { DEFAULT_LOGIN_API_HOST } from "@/lib/api/default-api-hosts"
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -35,7 +36,7 @@ export default function DashboardPage() {
       const token = localStorage.getItem("auth_token")
       
       // Call the API to enable 2FA
-      const rawAdmin = process.env.NEXT_PUBLIC_ADMIN_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'usermanagementapi.techretainer.com'
+      const rawAdmin = process.env.NEXT_PUBLIC_ADMIN_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || DEFAULT_LOGIN_API_HOST
       const baseUrl = rawAdmin.startsWith('http://') || rawAdmin.startsWith('https://') ? rawAdmin : `https://${rawAdmin}`
       const response = await fetch(`${baseUrl}/api/Authentication/enable-2fa`, {
         method: "POST",

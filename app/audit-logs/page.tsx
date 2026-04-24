@@ -55,18 +55,17 @@ export default function AuditLogsPage() {
 
   	useEffect(() => {
     const fetchLogs = async () => {
+       // Farm proxy uses a 30s upstream timeout; allow headroom so we surface API errors instead of a false "timeout".
+       const clientDeadlineMs = 45000
+       const ac = new AbortController()
+       const timeoutId = setTimeout(() => ac.abort(), clientDeadlineMs)
+       const clearDeadline = () => clearTimeout(timeoutId)
+
        try {
          setLoading(true)
          setError("")
          
          console.log("Starting to fetch audit logs...")
-         
-         // Set a timeout to prevent infinite loading
-         const timeoutId = setTimeout(() => {
-           setLoading(false)
-           setError("Request timeout. The audit logs API may not be responding.")
-           setLogs([])
-         }, 10000) // 10 second timeout
          
          // Ensure apiClient has the token
          const token = localStorage.getItem("auth_token")
@@ -79,23 +78,26 @@ export default function AuditLogsPage() {
          }
          
          // Get farmId from user context
-         const { farmId, userId } = getUserContext()
+        const { farmId } = getUserContext()
          
          if (!farmId) {
+           clearDeadline()
            setError("Farm ID not found. Please log in again.")
            setLoading(false)
            return
          }
          
          console.log("Calling AuditLogsService.getAll with farmId:", farmId)
-         const data = await AuditLogsService.getAll({
-           farmId,
-           userId,
-           page: 1,
-           pageSize: 200,
-         })
+         const data = await AuditLogsService.getAll(
+           {
+             farmId,
+             page: 1,
+             pageSize: 200,
+           },
+           ac.signal
+         )
          
-         clearTimeout(timeoutId)
+         clearDeadline()
          console.log("Audit logs data received:", data)
          
          if (data && Array.isArray(data)) {
@@ -105,10 +107,19 @@ export default function AuditLogsPage() {
            console.warn("Received non-array data:", data)
            setLogs([])
          }
-       } catch (err: any) {
+       } catch (err: unknown) {
+         clearDeadline()
          console.error("Error loading audit logs:", err)
-         const errorMsg = err?.message || "Failed to load audit logs. Please check your connection."
-         setError(errorMsg)
+         const name = err instanceof Error ? err.name : ""
+         if (name === "AbortError") {
+           setError(
+             "Request timed out after 45s. The Farm API may be cold-starting or the network is slow. Wait a moment and refresh, or check Cloud Run logs for poultrymaster-farm-api-git."
+           )
+         } else {
+           const errorMsg =
+             err instanceof Error ? err.message : "Failed to load audit logs. Please check your connection."
+           setError(errorMsg)
+         }
          setLogs([])
        } finally {
          setLoading(false)

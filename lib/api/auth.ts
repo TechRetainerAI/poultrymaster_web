@@ -1,11 +1,13 @@
-// API utility functions for authentication 
+// API utility functions for authentication
+
+import { DEFAULT_LOGIN_API_HOST } from "@/lib/api/default-api-hosts"
 
 // Use Admin API URL for authentication endpoints
 // For local development with ngrok, you may need to:
 // 1. Run the backend locally and set NEXT_PUBLIC_ADMIN_API_URL to http://localhost:PORT
 // 2. Or update the production backend CORS to allow your ngrok domain
 // Example: NEXT_PUBLIC_ADMIN_API_URL=http://localhost:7010
-function normalizeAdminBase(raw?: string, fallback = 'usermanagementapi.techretainer.com') {
+function normalizeAdminBase(raw?: string, fallback = DEFAULT_LOGIN_API_HOST) {
   const val = raw || fallback
   return val.startsWith('http://') || val.startsWith('https://') ? val : `https://${val}`
 }

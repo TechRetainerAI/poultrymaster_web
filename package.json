@@ -3,10 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "prebuild": "node scripts/stamp-deploy.mjs",
     "build": "next build",
     "dev": "next dev",
     "dev:webpack": "next dev --webpack",
-    "lint": "next lint",
+    "verify": "next build",
+    "lint": "npm run verify",
     "start": "node server.js",
     "start:standalone": "node .next/standalone/server.js",
     "start:plesk": "NODE_ENV=production node server-plesk.js",

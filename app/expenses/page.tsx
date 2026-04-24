@@ -24,7 +24,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { formatCurrency as fmtCurrency } from "@/lib/utils/currency"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import {
+  MOBILE_FILTER_SHEET_CONTENT_CLASS,
+  MOBILE_FILTER_SELECT_CONTENT_CLASS,
+  MOBILE_FILTERS_TOOLBAR_ROW_CLASS,
+  MOBILE_FILTERS_TRIGGER_BUTTON_CLASS,
+  MobileFilterSheetBody,
+  MobileFilterSheetFooter,
+  MobileFilterSheetHeader,
+} from "@/components/dashboard/mobile-filters"
+import { toLocalDateKey } from "@/lib/utils/date-key"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { formatDateShort, cn } from "@/lib/utils"
 
@@ -42,6 +52,17 @@ export default function ExpensesPage() {
   const [selectedMonth, setSelectedMonth] = useState<string>("all")
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [draftFromDate, setDraftFromDate] = useState("")
+  const [draftToDate, setDraftToDate] = useState("")
+  const [draftFlock, setDraftFlock] = useState<string>("all")
+  const [draftMonth, setDraftMonth] = useState<string>("all")
+  const [draftCategory, setDraftCategory] = useState<string>("all")
+  const hasDraftChanges =
+    draftFromDate !== fromDate ||
+    draftToDate !== toDate ||
+    draftFlock !== selectedFlock ||
+    draftMonth !== selectedMonth ||
+    draftCategory !== selectedCategory
   const [showAllColumnsMobile, setShowAllColumnsMobile] = useState(false)
   const isMobile = useIsMobile()
   const [allFlocks, setAllFlocks] = useState<Flock[]>([])
@@ -273,6 +294,24 @@ export default function ExpensesPage() {
     router.push("/login")
   }
 
+  const syncDraftFromCommitted = () => {
+    setDraftFromDate(fromDate)
+    setDraftToDate(toDate)
+    setDraftFlock(selectedFlock)
+    setDraftMonth(selectedMonth)
+    setDraftCategory(selectedCategory)
+  }
+
+  const applyMobileFilters = () => {
+    setFromDate(draftFromDate)
+    setToDate(draftToDate)
+    setSelectedFlock(draftFlock)
+    setSelectedMonth(draftMonth)
+    setSelectedCategory(draftCategory)
+    setFiltersOpen(false)
+    toast({ title: "Filters applied", description: "Expense list updated." })
+  }
+
   const filteredExpenses = expenses.filter(expense => {
     const q = searchQuery.trim().toLowerCase()
     const matchesSearch = q === "" || (() => {
@@ -286,8 +325,8 @@ export default function ExpensesPage() {
       const hitsNumeric = Number.isFinite(qNum) && qNum > 0 && (flockStr === String(qNum) || expIdStr === String(qNum))
       return desc.includes(q) || cat.includes(q) || pay.includes(q) || paidTo.includes(q) || flockStr.includes(q) || expIdStr.includes(q) || hitsNumeric
     })()
-    const matchesFromDate = fromDate === "" || new Date(expense.expenseDate) >= new Date(fromDate)
-    const matchesToDate = toDate === "" || new Date(expense.expenseDate) <= new Date(toDate)
+    const matchesFromDate = fromDate === "" || toLocalDateKey(expense.expenseDate) >= fromDate
+    const matchesToDate = toDate === "" || toLocalDateKey(expense.expenseDate) <= toDate
     const d = new Date(expense.expenseDate)
     const flockOk = selectedFlock === "all" || String(expense.flockId || "") === selectedFlock
     const monthOk = selectedMonth === "all" || (d.getMonth() + 1) === Number(selectedMonth)
@@ -461,76 +500,157 @@ export default function ExpensesPage() {
 
             {/* Filters */}
             {isMobile ? (
-              <div className="space-y-3">
+              <div className="space-y-3 w-full min-w-0">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <Input placeholder="Search expenses..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10 h-11" />
                 </div>
-                <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
-                  <SheetTrigger asChild>
-                    <Button variant="outline" className="w-full h-11 gap-2 justify-start">
-                      <Filter className="h-4 w-4" />
-                      Filters
-                      {(!!searchQuery || !!fromDate || !!toDate || selectedFlock !== "all" || selectedMonth !== "all" || selectedCategory !== "all") && (
-                        <span className="ml-1 h-5 min-w-[20px] px-1.5 rounded-full bg-amber-500 text-white text-xs flex items-center justify-center">
-                          {[searchQuery, fromDate, toDate, selectedFlock !== "all", selectedMonth !== "all", selectedCategory !== "all"].filter(Boolean).length}
-                        </span>
-                      )}
-                    </Button>
-                  </SheetTrigger>
-                  <SheetContent side="bottom" className="h-[75vh] rounded-t-2xl">
-                    <SheetHeader>
-                      <SheetTitle>Filters</SheetTitle>
-                    </SheetHeader>
-                    <div className="space-y-4 overflow-y-auto pb-8">
-                      <div>
-                        <label className="text-sm font-medium text-slate-700 mb-1 block">Date range</label>
-                        <div className="grid grid-cols-2 gap-2">
-                          <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-                          <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+                <div className={MOBILE_FILTERS_TOOLBAR_ROW_CLASS}>
+                  <Sheet
+                    open={filtersOpen}
+                    onOpenChange={(open) => {
+                      setFiltersOpen(open)
+                      syncDraftFromCommitted()
+                    }}
+                  >
+                    <SheetTrigger asChild>
+                      <Button variant="outline" className={MOBILE_FILTERS_TRIGGER_BUTTON_CLASS}>
+                        <Filter className="h-4 w-4" />
+                        <span className="truncate">Filters</span>
+                        {(!!searchQuery || !!fromDate || !!toDate || selectedFlock !== "all" || selectedMonth !== "all" || selectedCategory !== "all") && (
+                          <span className="ml-1 h-5 min-w-[20px] px-1.5 rounded-full bg-orange-500 text-white text-xs flex items-center justify-center">
+                            {[searchQuery, fromDate, toDate, selectedFlock !== "all", selectedMonth !== "all", selectedCategory !== "all"].filter(Boolean).length}
+                          </span>
+                        )}
+                      </Button>
+                    </SheetTrigger>
+                    <SheetContent side="bottom" className={MOBILE_FILTER_SHEET_CONTENT_CLASS}>
+                      <MobileFilterSheetHeader />
+                      <MobileFilterSheetBody>
+                        <div className="space-y-3">
+                          <p className="text-sm font-medium text-slate-700">Date range</p>
+                          <div className="flex flex-col gap-4">
+                            <div className="min-w-0 space-y-2">
+                              <label htmlFor="exp-filter-from" className="text-xs font-medium text-slate-500">
+                                Start date
+                              </label>
+                              <Input
+                                id="exp-filter-from"
+                                type="date"
+                                value={draftFromDate}
+                                onChange={(e) => setDraftFromDate(e.target.value)}
+                                className="h-12 min-w-0 w-full text-base"
+                              />
+                            </div>
+                            <div className="min-w-0 space-y-2">
+                              <label htmlFor="exp-filter-to" className="text-xs font-medium text-slate-500">
+                                End date
+                              </label>
+                              <Input
+                                id="exp-filter-to"
+                                type="date"
+                                value={draftToDate}
+                                onChange={(e) => setDraftToDate(e.target.value)}
+                                className="h-12 min-w-0 w-full text-base"
+                              />
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-slate-700 mb-1 block">Flock</label>
-                        <Select value={selectedFlock} onValueChange={setSelectedFlock}>
-                          <SelectTrigger><SelectValue placeholder="Flock" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Flocks</SelectItem>
-                            {allFlocks.map(f => <SelectItem key={f.flockId} value={String(f.flockId)}>{f.name}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-slate-700 mb-1 block">Month</label>
-                        <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                          <SelectTrigger><SelectValue placeholder="Month" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Months</SelectItem>
-                            {["January","February","March","April","May","June","July","August","September","October","November","December"].map((m,i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-slate-700 mb-1 block">Category</label>
-                        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                          <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Category</SelectItem>
-                            {Array.from(new Set(expenses.map(e => e.category))).filter(Boolean).map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="flex gap-2 pt-4">
-                        <Button variant="outline" className="flex-1" onClick={() => { setSearchQuery(""); setFromDate(""); setToDate(""); setSelectedFlock("all"); setSelectedMonth("all"); setSelectedCategory("all") }}>Clear all</Button>
-                        <Button className="flex-1" onClick={() => setFiltersOpen(false)}>Apply</Button>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button variant="outline" className="flex-1" onClick={handleExportPDF}><FileTextIcon className="w-4 h-4 mr-2" />PDF</Button>
-                        <Button variant="outline" className="flex-1" onClick={handleExportCSV}><Download className="w-4 h-4 mr-2" />CSV</Button>
-                      </div>
-                    </div>
-                  </SheetContent>
-                </Sheet>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-slate-700">Flock</label>
+                          <Select value={draftFlock} onValueChange={setDraftFlock}>
+                            <SelectTrigger className="h-12 text-base">
+                              <SelectValue placeholder="Flock" />
+                            </SelectTrigger>
+                            <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
+                              <SelectItem value="all">All Flocks</SelectItem>
+                              {allFlocks.map((f) => (
+                                <SelectItem key={f.flockId} value={String(f.flockId)}>
+                                  {f.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-slate-700">Month</label>
+                          <Select value={draftMonth} onValueChange={setDraftMonth}>
+                            <SelectTrigger className="h-12 text-base">
+                              <SelectValue placeholder="Month" />
+                            </SelectTrigger>
+                            <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
+                              <SelectItem value="all">All Months</SelectItem>
+                              {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m, i) => (
+                                <SelectItem key={i + 1} value={String(i + 1)}>
+                                  {m}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-slate-700">Category</label>
+                          <Select value={draftCategory} onValueChange={setDraftCategory}>
+                            <SelectTrigger className="h-12 text-base">
+                              <SelectValue placeholder="Category" />
+                            </SelectTrigger>
+                            <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
+                              <SelectItem value="all">All Category</SelectItem>
+                              {Array.from(new Set(expenses.map((e) => e.category)))
+                                .filter(Boolean)
+                                .map((c) => (
+                                  <SelectItem key={c} value={c}>
+                                    {c}
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </MobileFilterSheetBody>
+                      <MobileFilterSheetFooter>
+                        <div className="flex flex-col gap-3">
+                          <div className="flex gap-2">
+                            <Button variant="outline" className="h-11 flex-1" onClick={handleExportPDF}>
+                              <FileTextIcon className="w-4 h-4 mr-2" />
+                              PDF
+                            </Button>
+                            <Button variant="outline" className="h-11 flex-1" onClick={handleExportCSV}>
+                              <Download className="w-4 h-4 mr-2" />
+                              CSV
+                            </Button>
+                          </div>
+                          <div className="flex gap-3">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="h-12 flex-1"
+                              onClick={() => {
+                                setSearchQuery("")
+                                setFromDate("")
+                                setToDate("")
+                                setSelectedFlock("all")
+                                setSelectedMonth("all")
+                                setSelectedCategory("all")
+                                setDraftFromDate("")
+                                setDraftToDate("")
+                                setDraftFlock("all")
+                                setDraftMonth("all")
+                                setDraftCategory("all")
+                                setFiltersOpen(false)
+                                toast({ title: "Filters cleared" })
+                              }}
+                            >
+                              Clear all
+                            </Button>
+                            <Button type="button" className="h-12 flex-1" onClick={applyMobileFilters} disabled={!hasDraftChanges}>
+                              Apply
+                            </Button>
+                          </div>
+                        </div>
+                      </MobileFilterSheetFooter>
+                    </SheetContent>
+                  </Sheet>
+                </div>
               </div>
             ) : (
             <div className="flex flex-wrap items-center gap-2 p-2 bg-white rounded border">

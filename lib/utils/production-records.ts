@@ -44,10 +44,24 @@ export function getBirdsLeftFromRecord(record: ProductionRecord | Record<string,
   if (!record) return 0
   const birds = toNumber((record as any).noOfBirds ?? (record as any).NoOfBirds)
   const left = toNumber((record as any).noOfBirdsLeft ?? (record as any).NoOfBirdsLeft)
+  const mort = toNumber((record as any).mortality ?? (record as any).Mortality)
+
+  if (birds <= 0) return Math.max(0, left)
+
+  // Same-day sanity: some rows store noOfBirdsLeft === noOfBirds while mortality > 0.
+  const sameDayLeft = Math.max(0, birds - mort)
+  if (mort > 0 && left >= birds) return Math.min(sameDayLeft, birds)
 
   // Guard against legacy/bad data where left can exceed birds.
-  if (birds <= 0) return Math.max(0, left)
   return Math.max(0, Math.min(left, birds))
+}
+
+/** Birds left from the most recent production row for this flock (uses stored `noOfBirdsLeft`). */
+export function getBirdsLeftForFlockFromRecords(
+  records: Array<ProductionRecord | Record<string, unknown>>,
+  flockId: number,
+): number {
+  return getBirdsLeftFromRecord(getLatestRecordForFlock(records, flockId))
 }
 
 export function sumLatestBirdsLeftByFlock(

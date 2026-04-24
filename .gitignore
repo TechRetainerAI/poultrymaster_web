@@ -7,6 +7,9 @@
 /.next/
 /out/
 
+# generated each production build (Cloud Run / Docker)
+public/deploy-stamp.txt
+
 # production
 /build
 

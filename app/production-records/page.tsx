@@ -26,11 +26,22 @@ import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/comp
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import {
+  MOBILE_FILTER_SHEET_CONTENT_CLASS,
+  MOBILE_FILTER_SELECT_CONTENT_CLASS,
+  MOBILE_FILTERS_TOOLBAR_ROW_CLASS,
+  MOBILE_FILTERS_TRIGGER_BUTTON_CLASS,
+  MobileFilterSheetBody,
+  MobileFilterSheetFooter,
+  MobileFilterSheetHeader,
+} from "@/components/dashboard/mobile-filters"
+import { toLocalDateKey } from "@/lib/utils/date-key"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import { sumLatestBirdsByFlock, sumLatestBirdsLeftByFlock } from "@/lib/utils/production-records"
+import { formatEggGradeLabel } from "@/lib/constants/egg-grade"
 
 export default function ProductionRecordsPage() {
   const router = useRouter()
@@ -69,7 +80,20 @@ export default function ProductionRecordsPage() {
   const [showAllColumnsMobile, setShowAllColumnsMobile] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
 
+  /** Mobile sheet: draft values until Apply (fixes iOS + Radix Select in Sheet). */
+  const [draftDateFrom, setDraftDateFrom] = useState("")
+  const [draftDateTo, setDraftDateTo] = useState("")
+  const [draftFlockId, setDraftFlockId] = useState<string>("ALL")
+  const [draftMonth, setDraftMonth] = useState<string>("ALL")
+  const [draftYear, setDraftYear] = useState<string>("ALL")
+
   const hasActiveFilters = search || dateFrom || dateTo || selectedFlockId !== "ALL" || selectedMonth !== "ALL" || selectedYear !== "ALL"
+  const hasDraftChanges =
+    draftDateFrom !== dateFrom ||
+    draftDateTo !== dateTo ||
+    draftFlockId !== selectedFlockId ||
+    draftMonth !== selectedMonth ||
+    draftYear !== selectedYear
 
   const handleSort = (key: string) => {
     const result = toggleSort(key, sortKey, sortDirection)
@@ -90,8 +114,10 @@ export default function ProductionRecordsPage() {
       getProductionRecords(userId, farmId),
       getFlocks(userId, farmId),
     ])
-    if (res.success && res.data) setRecords(res.data)
-    else setError(res.message || "Failed to load records")
+    if (res.success && res.data) {
+      setRecords(res.data)
+      setError("")
+    } else setError(res.message || "Failed to load records")
     if (flocksRes.success && flocksRes.data) setFlocks(flocksRes.data)
     setLoading(false)
   }
@@ -105,7 +131,7 @@ export default function ProductionRecordsPage() {
     if (!deletingId) return
     const { userId, farmId } = getUserContext()
     if (!userId || !farmId) {
-      toast({ title: "Error", description: "Farm ID or User ID not found.", variant: "destructive" })
+      toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" })
       return
     }
     setIsDeleting(true)
@@ -157,11 +183,12 @@ export default function ProductionRecordsPage() {
       list = list.filter((r: any) => (
         r.flockName?.toLowerCase().includes(q) ||
         r.medication?.toLowerCase().includes(q) ||
+        String(r.eggGrade ?? "").toLowerCase().includes(q) ||
         new Date(r.date).toLocaleDateString().toLowerCase().includes(q)
       ))
     }
-    if (dateFrom) list = list.filter(r => r.date?.split('T')[0] >= dateFrom)
-    if (dateTo) list = list.filter(r => r.date?.split('T')[0] <= dateTo)
+    if (dateFrom) list = list.filter((r) => toLocalDateKey(r.date) >= dateFrom)
+    if (dateTo) list = list.filter((r) => toLocalDateKey(r.date) <= dateTo)
     if (selectedFlockId !== "ALL") list = list.filter((r: any) => String(r.flockId) === selectedFlockId)
     if (selectedMonth !== "ALL") list = list.filter(r => {
       const d = new Date(r.date); const m = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; return m === selectedMonth
@@ -179,11 +206,55 @@ export default function ProductionRecordsPage() {
   const total4PM = useMemo(() => filtered.reduce((s, r) => s + (Number(r.production4PM) || 0), 0), [filtered])
   const totalBrokens = useMemo(() => filtered.reduce((s, r) => s + (Number((r as any).brokenEggs) || 0), 0), [filtered])
 
-  // Use the same latest-per-flock selector for both totals, so cards stay consistent.
-  const totalBirds = useMemo(() => sumLatestBirdsByFlock(filtered), [filtered])
+  // Headline bird counts: latest row **per flock** from all loaded records (not date-filtered),
+  // so "Total birds" / "Birds left" stay current while Deaths/Eggs still respect filters.
+  /** Latest row per flock from full load (ignore date/month filters) so birds left ≠ birds when DB is stale in-range. */
+  const recordsForBirdHeadlines = useMemo(() => {
+    if (selectedFlockId === "ALL") return records
+    return records.filter((r) => String(r.flockId) === selectedFlockId)
+  }, [records, selectedFlockId])
 
-  // Birds Left: sum latest noOfBirdsLeft per flock (James's rule).
-  const totalBirdsLeft = useMemo(() => sumLatestBirdsLeftByFlock(filtered), [filtered])
+  const headlineTotalBirds = useMemo(() => sumLatestBirdsByFlock(recordsForBirdHeadlines), [recordsForBirdHeadlines])
+  const headlineTotalBirdsLeft = useMemo(() => sumLatestBirdsLeftByFlock(recordsForBirdHeadlines), [recordsForBirdHeadlines])
+
+  /** Cumulative deaths in loaded history for the same flocks as the bird headline (all dates). */
+  const headlineCumulativeDeaths = useMemo(
+    () => recordsForBirdHeadlines.reduce((s, r) => s + (Number((r as any).mortality) || 0), 0),
+    [recordsForBirdHeadlines],
+  )
+
+  const narrowTimeFilter =
+    Boolean(dateFrom) ||
+    Boolean(dateTo) ||
+    selectedMonth !== "ALL" ||
+    selectedYear !== "ALL"
+
+  /**
+   * When latest rows still have birds left === birds (often mortality only on older rows, or bad copies),
+   * approximate running stock as headcount minus deaths. With a date/month/year filter, subtract the same
+   * total as the "Deaths" card (`totalDeaths`); otherwise subtract all deaths in loaded rows for those flocks.
+   */
+  const headlineBirdsLeftDisplay = useMemo(() => {
+    if (headlineTotalBirds <= 0) return 0
+    if (headlineTotalBirdsLeft < headlineTotalBirds) return headlineTotalBirdsLeft
+    const mort = narrowTimeFilter ? totalDeaths : headlineCumulativeDeaths
+    if (mort <= 0) return headlineTotalBirdsLeft
+    return Math.max(0, headlineTotalBirds - mort)
+  }, [headlineTotalBirds, headlineTotalBirdsLeft, headlineCumulativeDeaths, narrowTimeFilter, totalDeaths])
+
+  /** Table footer "Totals" row: same rules but only over the filtered set (matches eggs/deaths in view). */
+  const footerTotalBirds = useMemo(() => sumLatestBirdsByFlock(filtered), [filtered])
+  const footerTotalBirdsLeft = useMemo(() => sumLatestBirdsLeftByFlock(filtered), [filtered])
+  const footerCumulativeDeaths = useMemo(
+    () => filtered.reduce((s, r) => s + (Number((r as any).mortality) || 0), 0),
+    [filtered],
+  )
+  const footerBirdsLeftDisplay = useMemo(() => {
+    if (footerTotalBirds <= 0) return 0
+    if (footerTotalBirdsLeft < footerTotalBirds) return footerTotalBirdsLeft
+    if (footerCumulativeDeaths <= 0) return footerTotalBirdsLeft
+    return Math.max(0, footerTotalBirds - footerCumulativeDeaths)
+  }, [footerTotalBirds, footerTotalBirdsLeft, footerCumulativeDeaths])
   const avgEggsPerRecord = useMemo(() => filtered.length ? Math.round(totalEggs / filtered.length) : 0, [filtered, totalEggs])
   const EGGS_PER_CRATE = 30
   const totalEggsCrates = Math.floor(totalEggs / EGGS_PER_CRATE)
@@ -201,6 +272,7 @@ export default function ProductionRecordsPage() {
         case "production4PM": return Number(item.production4PM) || 0
         case "brokenEggs": return Number(item.brokenEggs) || 0
         case "totalProduction": return Number(item.totalProduction) || 0
+        case "eggGrade": return String(item.eggGrade ?? "").toLowerCase()
         case "eggPercent": {
           const b = Number(item.noOfBirds) || 0
           const t = Number(item.totalProduction) || 0
@@ -286,11 +358,34 @@ export default function ProductionRecordsPage() {
     setSelectedFlockId("ALL")
     setSelectedMonth("ALL")
     setSelectedYear("ALL")
+    setDraftDateFrom("")
+    setDraftDateTo("")
+    setDraftFlockId("ALL")
+    setDraftMonth("ALL")
+    setDraftYear("ALL")
+  }
+
+  const syncDraftFromCommitted = () => {
+    setDraftDateFrom(dateFrom)
+    setDraftDateTo(dateTo)
+    setDraftFlockId(selectedFlockId)
+    setDraftMonth(selectedMonth)
+    setDraftYear(selectedYear)
+  }
+
+  const applyMobileFilters = () => {
+    setDateFrom(draftDateFrom)
+    setDateTo(draftDateTo)
+    setSelectedFlockId(draftFlockId)
+    setSelectedMonth(draftMonth)
+    setSelectedYear(draftYear)
+    setFiltersOpen(false)
+    toast({ title: "Filters applied", description: "Production list updated." })
   }
 
   const exportCsv = () => {
     const headers = [
-      "Date","FlockId","Age","9am","12pm","4pm","Total","EggPercent","FeedKg","Birds","Deaths","Left","Medication"
+      "Date","FlockId","Age","9am","12pm","4pm","Total","Grade","EggPercent","FeedKg","Birds","Deaths","Left","Medication"
     ]
     const rows = filtered.map((r: any) => [
       new Date(r.date).toLocaleDateString(),
@@ -300,6 +395,7 @@ export default function ProductionRecordsPage() {
       r.production12PM ?? 0,
       r.production4PM ?? 0,
       r.totalProduction ?? 0,
+      r.eggGrade ?? "",
       (() => { const b = Number(r.noOfBirds)||0; const t = Number(r.totalProduction)||0; return b? ((t/b)*100).toFixed(1):"" })(),
       r.feedKg ?? 0,
       r.noOfBirds ?? 0,
@@ -338,13 +434,13 @@ export default function ProductionRecordsPage() {
     // Summary row
     doc.setFontSize(9)
     doc.text(
-      `Total Eggs: ${totalEggs.toLocaleString()} (${totalEggsCrates} crates + ${totalEggsPieces} pcs)  |  Feed: ${totalFeed.toFixed(2)} kg  |  Deaths: ${totalDeaths}  |  Birds: ${totalBirds}  |  Left: ${totalBirdsLeft}`,
+      `Total Eggs: ${totalEggs.toLocaleString()} (${totalEggsCrates} crates + ${totalEggsPieces} pcs)  |  Feed: ${totalFeed.toFixed(2)} kg  |  Deaths: ${totalDeaths}  |  Birds: ${headlineTotalBirds}  |  Left: ${headlineBirdsLeftDisplay}`,
       14, 31
     )
 
     // Table
     const headers = [
-      "Date", "Flock", "Age", "9am", "12pm", "4pm", "Total", "Egg%", "Feed(kg)", "Birds", "Deaths", "Left", "Medication"
+      "Date", "Flock", "Age", "9am", "12pm", "4pm", "Total", "Grade", "Egg%", "Feed(kg)", "Birds", "Deaths", "Left", "Medication"
     ]
 
     const rows = filtered.map((r: any) => {
@@ -360,6 +456,7 @@ export default function ProductionRecordsPage() {
         r.production12PM ?? 0,
         r.production4PM ?? 0,
         r.totalProduction ?? 0,
+        formatEggGradeLabel(r.eggGrade),
         eggPct,
         (r.feedKg ?? 0).toFixed ? Number(r.feedKg).toFixed(2) : r.feedKg,
         b,
@@ -374,8 +471,9 @@ export default function ProductionRecordsPage() {
       "TOTALS", "", "",
       total9AM, total12PM, total4PM,
       `${totalEggs} (${totalEggsCrates}c+${totalEggsPieces}p)`,
+      "",
       "", totalFeed.toFixed(2),
-      totalBirds, totalDeaths, totalBirdsLeft, ""
+      headlineTotalBirds, totalDeaths, headlineBirdsLeftDisplay, ""
     ])
 
     autoTable(doc, {
@@ -389,7 +487,8 @@ export default function ProductionRecordsPage() {
       columnStyles: {
         0: { cellWidth: 22 },
         2: { cellWidth: 28 },
-        12: { cellWidth: 22 },
+        7: { cellWidth: 16 },
+        13: { cellWidth: 22 },
       },
       didParseCell: (data: any) => {
         // Bold the last (totals) row
@@ -438,10 +537,21 @@ export default function ProductionRecordsPage() {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <Input placeholder="Search records..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 h-11" />
                 </div>
-                <div className="flex gap-2 items-stretch min-w-0 w-full">
-                  <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+                <div className={MOBILE_FILTERS_TOOLBAR_ROW_CLASS}>
+                  <Sheet
+                    open={filtersOpen}
+                    onOpenChange={(open) => {
+                      setFiltersOpen(open)
+                      if (open) {
+                        syncDraftFromCommitted()
+                      } else {
+                        // Dismissing the sheet should NOT silently apply pending edits.
+                        syncDraftFromCommitted()
+                      }
+                    }}
+                  >
                     <SheetTrigger asChild>
-                      <Button variant="outline" className="flex-1 min-w-0 h-11 gap-2 justify-start">
+                      <Button variant="outline" className={MOBILE_FILTERS_TRIGGER_BUTTON_CLASS}>
                         <Filter className="h-4 w-4" />
                         <span className="truncate">Filters</span>
                         {hasActiveFilters && (
@@ -451,68 +561,133 @@ export default function ProductionRecordsPage() {
                         )}
                       </Button>
                     </SheetTrigger>
-                    <SheetContent side="bottom" className="h-[85vh] rounded-t-2xl">
-                      <SheetHeader>
-                        <SheetTitle>Filters</SheetTitle>
-                      </SheetHeader>
-                      <div className="space-y-4 overflow-y-auto pb-8">
-                        <div>
-                          <label className="text-sm font-medium text-slate-700 mb-1 block">Date range</label>
-                          <div className="grid grid-cols-2 gap-2">
-                            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-                            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+                    <SheetContent side="bottom" className={MOBILE_FILTER_SHEET_CONTENT_CLASS}>
+                      <MobileFilterSheetHeader />
+                      <MobileFilterSheetBody>
+                        <div className="space-y-3">
+                          <p className="text-sm font-medium text-slate-700">Date range</p>
+                          <div className="flex flex-col gap-4">
+                            <div className="min-w-0 space-y-2">
+                              <label htmlFor="prod-filter-from" className="text-xs font-medium text-slate-500">
+                                Start date
+                              </label>
+                              <Input
+                                id="prod-filter-from"
+                                type="date"
+                                value={draftDateFrom}
+                                onChange={(e) => setDraftDateFrom(e.target.value)}
+                                className="h-12 min-w-0 w-full text-base"
+                              />
+                            </div>
+                            <div className="min-w-0 space-y-2">
+                              <label htmlFor="prod-filter-to" className="text-xs font-medium text-slate-500">
+                                End date
+                              </label>
+                              <Input
+                                id="prod-filter-to"
+                                type="date"
+                                value={draftDateTo}
+                                onChange={(e) => setDraftDateTo(e.target.value)}
+                                className="h-12 min-w-0 w-full text-base"
+                              />
+                            </div>
                           </div>
                         </div>
-                        <div>
-                          <label className="text-sm font-medium text-slate-700 mb-1 block">Flock</label>
-                          <Select value={selectedFlockId} onValueChange={setSelectedFlockId}>
-                            <SelectTrigger><SelectValue placeholder="All Flocks" /></SelectTrigger>
-                            <SelectContent>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-slate-700">Flock</label>
+                          <Select value={draftFlockId} onValueChange={setDraftFlockId}>
+                            <SelectTrigger className="h-12 text-base">
+                              <SelectValue placeholder="All Flocks" />
+                            </SelectTrigger>
+                            <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
                               <SelectItem value="ALL">All Flocks</SelectItem>
-                              {flocks.map(f => (
-                                <SelectItem key={f.flockId} value={String(f.flockId)}>{f.name} ({f.quantity} birds)</SelectItem>
+                              {flocks.map((f) => (
+                                <SelectItem key={f.flockId} value={String(f.flockId)}>
+                                  {f.name} ({f.quantity} birds)
+                                </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="text-sm font-medium text-slate-700 mb-1 block">Month</label>
-                            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                              <SelectTrigger><SelectValue placeholder="All" /></SelectTrigger>
-                              <SelectContent>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-700">Month</label>
+                            <Select value={draftMonth} onValueChange={setDraftMonth}>
+                              <SelectTrigger className="h-12 text-base">
+                                <SelectValue placeholder="All months" />
+                              </SelectTrigger>
+                              <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
                                 <SelectItem value="ALL">All Months</SelectItem>
                                 {distinctMonths.map((m) => {
-                                  const [y, mm] = m.split('-'); const d = new Date(parseInt(y), parseInt(mm) - 1)
-                                  return <SelectItem key={m} value={m}>{d.toLocaleDateString('en-US', { month: 'short' })}</SelectItem>
+                                  const [y, mm] = m.split("-")
+                                  const d = new Date(parseInt(y, 10), parseInt(mm, 10) - 1)
+                                  return (
+                                    <SelectItem key={m} value={m}>
+                                      {d.toLocaleDateString("en-US", { month: "short", year: "numeric" })}
+                                    </SelectItem>
+                                  )
                                 })}
                               </SelectContent>
                             </Select>
                           </div>
-                          <div>
-                            <label className="text-sm font-medium text-slate-700 mb-1 block">Year</label>
-                            <Select value={selectedYear} onValueChange={setSelectedYear}>
-                              <SelectTrigger><SelectValue placeholder="All" /></SelectTrigger>
-                              <SelectContent>
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-700">Year</label>
+                            <Select value={draftYear} onValueChange={setDraftYear}>
+                              <SelectTrigger className="h-12 text-base">
+                                <SelectValue placeholder="All years" />
+                              </SelectTrigger>
+                              <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
                                 <SelectItem value="ALL">All</SelectItem>
                                 {distinctYears.map((y) => (
-                                  <SelectItem key={y} value={y}>{y}</SelectItem>
+                                  <SelectItem key={y} value={y}>
+                                    {y}
+                                  </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
                           </div>
                         </div>
-                        <div className="flex gap-2 pt-4">
-                          <Button variant="outline" className="flex-1" onClick={clearFilters}>Clear all</Button>
-                          <Button className="flex-1" onClick={() => setFiltersOpen(false)}>Apply</Button>
+                        <p className="text-xs text-slate-500">
+                          Choose options, then tap Apply. Month/year filter records that fall in that calendar month/year.
+                        </p>
+                      </MobileFilterSheetBody>
+                      <MobileFilterSheetFooter>
+                        <div className="flex gap-3">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="h-12 flex-1"
+                            onClick={() => {
+                              setDraftDateFrom("")
+                              setDraftDateTo("")
+                              setDraftFlockId("ALL")
+                              setDraftMonth("ALL")
+                              setDraftYear("ALL")
+                              setDateFrom("")
+                              setDateTo("")
+                              setSelectedFlockId("ALL")
+                              setSelectedMonth("ALL")
+                              setSelectedYear("ALL")
+                              setFiltersOpen(false)
+                              toast({ title: "Filters cleared" })
+                            }}
+                          >
+                            Clear all
+                          </Button>
+                          <Button
+                            type="button"
+                            className="h-12 flex-1"
+                            onClick={applyMobileFilters}
+                            disabled={!hasDraftChanges}
+                          >
+                            Apply
+                          </Button>
                         </div>
-                      </div>
+                      </MobileFilterSheetFooter>
                     </SheetContent>
                   </Sheet>
-                  <div className="flex gap-2 flex-1 min-w-0">
-                    <Button variant="outline" size="sm" onClick={exportCsv} className="flex-1 min-w-0 h-11">CSV</Button>
-                    <Button size="sm" onClick={exportPdf} className="flex-1 min-w-0 h-11">PDF</Button>
-                  </div>
+                  <Button variant="outline" size="sm" onClick={exportCsv} className="h-11 px-4 min-w-[72px]">CSV</Button>
+                  <Button size="sm" onClick={exportPdf} className="h-11 px-4 min-w-[72px]">PDF</Button>
                 </div>
               </div>
             ) : (
@@ -584,11 +759,17 @@ export default function ProductionRecordsPage() {
                 </div>
                 <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
                   <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Birds</div>
-                  <div className={cn("font-bold text-slate-900", isMobile ? "text-lg mt-0.5" : "text-xl mt-1")}>{totalBirds.toLocaleString()}</div>
+                  <div className={cn("font-bold text-slate-900", isMobile ? "text-lg mt-0.5" : "text-xl mt-1")}>{headlineTotalBirds.toLocaleString()}</div>
+                  <div className="text-xs text-slate-400 mt-0.5">Latest log per flock{hasActiveFilters ? " (all dates)" : ""}</div>
                 </div>
                 <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
                   <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">Birds Left</div>
-                  <div className={cn("font-bold text-emerald-700", isMobile ? "text-lg mt-0.5" : "text-xl mt-1")}>{totalBirdsLeft.toLocaleString()}</div>
+                  <div className={cn("font-bold text-emerald-700", isMobile ? "text-lg mt-0.5" : "text-xl mt-1")}>{headlineBirdsLeftDisplay.toLocaleString()}</div>
+                  <div className="text-xs text-slate-400 mt-0.5">
+                    {headlineBirdsLeftDisplay !== headlineTotalBirdsLeft
+                      ? `Adjusted: headcount minus ${(narrowTimeFilter ? totalDeaths : headlineCumulativeDeaths).toLocaleString()} deaths${narrowTimeFilter ? " (same scope as Deaths card)" : " in loaded history for these flocks"}.`
+                      : `From stored birds left${hasActiveFilters ? " (all dates)" : ""}.`}
+                  </div>
                 </div>
               </div>
             )}
@@ -624,8 +805,8 @@ export default function ProductionRecordsPage() {
                           >
                             <div className={cn("px-2.5 py-3 transition-colors", idx % 2 === 1 && "active:bg-black/5", idx % 2 === 0 && "active:bg-black/10")}>
                               <CollapsibleTrigger asChild>
-                                <div className="flex items-start justify-between gap-3 cursor-pointer">
-                                  <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between gap-2 cursor-pointer">
+                                  <div className="min-w-0 flex-1 pr-1">
                                     <div className="flex items-center gap-2">
                                       <span className="font-semibold text-slate-900">{formatDateShort(r.date)}</span>
                                       <span className="text-slate-500">•</span>
@@ -635,6 +816,9 @@ export default function ProductionRecordsPage() {
                                       <div className="rounded-lg bg-emerald-100 border border-emerald-300 px-3 py-2 shadow-sm">
                                         <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-900">Eggs</p>
                                         <p className="text-xl font-extrabold text-emerald-800 leading-tight">{(r.totalProduction ?? 0).toLocaleString()}</p>
+                                        {(r as any).eggGrade ? (
+                                          <p className="text-[11px] font-medium text-emerald-900 mt-1">Grade: {formatEggGradeLabel((r as any).eggGrade)}</p>
+                                        ) : null}
                                       </div>
                                       <div className="rounded-lg bg-blue-100 border border-blue-300 px-3 py-2 shadow-sm">
                                         <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-900">Birds Left</p>
@@ -648,7 +832,7 @@ export default function ProductionRecordsPage() {
                                       )}
                                     </div>
                                   </div>
-                                  <ChevronDown className="h-5 w-5 text-slate-400 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
+                                  <ChevronDown className="h-4 w-4 text-slate-400 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
                                 </div>
                               </CollapsibleTrigger>
                               <CollapsibleContent>
@@ -657,6 +841,7 @@ export default function ProductionRecordsPage() {
                                     <div><span className="text-slate-500">9am</span> <span className="font-medium text-blue-700">{r.production9AM ?? 0}</span></div>
                                     <div><span className="text-slate-500">12pm</span> <span className="font-medium text-orange-700">{r.production12PM ?? 0}</span></div>
                                     <div><span className="text-slate-500">4pm</span> <span className="font-medium text-purple-700">{r.production4PM ?? 0}</span></div>
+                                    <div><span className="text-slate-500">Grade</span> <span className="font-medium text-slate-800">{formatEggGradeLabel((r as any).eggGrade)}</span></div>
                                     <div><span className="text-slate-500">Feed</span> <span className="font-medium">{(r.feedKg ?? 0).toFixed ? (r.feedKg ?? 0).toFixed(2) : r.feedKg} kg</span></div>
                                     <div><span className="text-slate-500">Deaths</span> <span className={cn("font-medium", (r.mortality ?? 0) > 0 ? "text-red-600" : "")}>{r.mortality ?? 0}</span></div>
                                     <div><span className="text-slate-500">Age</span> <span className="text-slate-700 truncate">{formatAge(r)}</span></div>
@@ -697,7 +882,7 @@ export default function ProductionRecordsPage() {
                         </div>
                       </>
                     )}
-                    <Table className={cn("min-w-[1400px]", isMobile && "min-w-[1200px]")}>
+                    <Table className={cn("min-w-[1480px]", isMobile && "min-w-[1280px]")}>
                       <TableHeader className="sticky top-0 bg-blue-50 z-10">
                         <TableRow className="border-b border-blue-200">
                           <SortableHeader label="Date" sortKey="date" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className={cn("min-w-[100px] px-3 py-2", isMobile && "sticky-col-date bg-blue-50")} />
@@ -708,6 +893,7 @@ export default function ProductionRecordsPage() {
                           <SortableHeader label="4pm" sortKey="production4PM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-purple-100 text-purple-900 font-semibold" />
                           <SortableHeader label="Brokens" sortKey="brokenEggs" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-red-50 text-red-800 font-semibold" />
                           <SortableHeader label="Total" sortKey="totalProduction" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
+                          <SortableHeader label="Grade" sortKey="eggGrade" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[72px] px-3 py-2 whitespace-nowrap" />
                           <SortableHeader label="Egg%" sortKey="eggPercent" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
                           <SortableHeader label="Feed" sortKey="feedKg" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
                           <SortableHeader label="Birds" sortKey="noOfBirds" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
@@ -720,7 +906,7 @@ export default function ProductionRecordsPage() {
                       <TableBody>
                         {paginatedRecords.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={15} className="py-12 text-center text-slate-500">
+                            <TableCell colSpan={16} className="py-12 text-center text-slate-500">
                               No records found for the selected filters.
                               <Button variant="link" className="ml-1" onClick={() => { setEditing(null); setFormOpen(true) }}>Log one now</Button>
                             </TableCell>
@@ -741,6 +927,11 @@ export default function ProductionRecordsPage() {
                             <TableCell className="text-right px-3 py-2 text-purple-700 bg-purple-50/40 rounded-sm">{r.production4PM ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2 text-red-700 bg-red-50/40 rounded-sm">{(r as any).brokenEggs ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2 font-semibold text-slate-900">{r.totalProduction ?? 0}</TableCell>
+                            <TableCell className="px-3 py-2">
+                              <span className={cn("text-sm font-medium", (r as any).eggGrade ? "text-slate-800" : "text-slate-400")}>
+                                {formatEggGradeLabel((r as any).eggGrade)}
+                              </span>
+                            </TableCell>
                             <TableCell className="text-right px-3 py-2">{(() => { const b = Number(r.noOfBirds)||0; const t = Number(r.totalProduction)||0; return b? ((t/b)*100).toFixed(1)+"%":"-" })()}</TableCell>
                             <TableCell className="text-right px-3 py-2">{(r.feedKg ?? 0).toFixed ? r.feedKg.toFixed(2) : r.feedKg}</TableCell>
                             <TableCell className="text-right px-3 py-2">{r.noOfBirds ?? 0}</TableCell>
@@ -770,10 +961,11 @@ export default function ProductionRecordsPage() {
                             <TableCell className="text-right font-semibold px-3 py-2 text-red-700 bg-red-50 border border-red-100 rounded">{totalBrokens.toLocaleString()}<div className="text-xs font-normal text-red-500">{Math.floor(totalBrokens / EGGS_PER_CRATE)}c + {totalBrokens % EGGS_PER_CRATE}p</div></TableCell>
                             <TableCell className="text-right font-semibold px-3 py-2 text-emerald-700">{totalEggs.toLocaleString()}<div className="text-xs font-normal text-slate-500">{totalEggsCrates}c + {totalEggsPieces}p</div></TableCell>
                             <TableCell></TableCell>
+                            <TableCell></TableCell>
                             <TableCell className="text-right font-semibold px-3 py-2">{totalFeed.toFixed(2)}</TableCell>
-                            <TableCell className="text-right font-semibold px-3 py-2 text-slate-700">{totalBirds.toLocaleString()}</TableCell>
+                            <TableCell className="text-right font-semibold px-3 py-2 text-slate-700">{footerTotalBirds.toLocaleString()}</TableCell>
                             <TableCell className="text-right font-semibold px-3 py-2 text-red-700">{totalDeaths.toLocaleString()}</TableCell>
-                            <TableCell className="text-right font-semibold px-3 py-2 text-emerald-700">{totalBirdsLeft.toLocaleString()}</TableCell>
+                            <TableCell className="text-right font-semibold px-3 py-2 text-emerald-700">{footerBirdsLeftDisplay.toLocaleString()}</TableCell>
                             <TableCell></TableCell>
                             <TableCell className={cn("bg-slate-50", isMobile && "sticky-col-actions")}></TableCell>
                           </TableRow>

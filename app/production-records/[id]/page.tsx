@@ -7,6 +7,8 @@ import { useRouter, useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { EGG_GRADE_OPTIONS, eggGradeFromApi, eggGradeToApi } from "@/lib/constants/egg-grade"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { FileText, X } from "lucide-react"
@@ -33,6 +35,7 @@ export default function EditProductionRecordPage() {
     production12PM: "",
     production4PM: "",
     brokenEggs: "",
+    eggGrade: "",
   })
 
   useEffect(() => {
@@ -57,6 +60,7 @@ export default function EditProductionRecordPage() {
         production12PM: String(record.production12PM),
         production4PM: String(record.production4PM),
         brokenEggs: String((record as any).brokenEggs ?? 0),
+        eggGrade: eggGradeFromApi((record as any).eggGrade),
       })
     } else {
       setError(result.message)
@@ -99,6 +103,7 @@ export default function EditProductionRecordPage() {
       production4PM: Number(formData.production4PM),
       brokenEggs: Number(formData.brokenEggs) || 0,
       totalProduction,
+      eggGrade: eggGradeToApi(formData.eggGrade),
     }
 
     const result = await updateProductionRecord(id, record)
@@ -300,6 +305,25 @@ export default function EditProductionRecordPage() {
                         disabled={loading}
                         className="h-11 border-red-200 focus:border-red-500 focus:ring-red-500"
                       />
+                    </div>
+                    <div className="space-y-2 md:col-span-3">
+                      <Label className="text-sm font-medium text-slate-700">Egg grade</Label>
+                      <Select
+                        value={formData.eggGrade}
+                        onValueChange={(v) => setFormData((prev) => ({ ...prev, eggGrade: v }))}
+                        disabled={loading}
+                      >
+                        <SelectTrigger className="h-11 max-w-md">
+                          <SelectValue placeholder="Select grade" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {EGG_GRADE_OPTIONS.map((o) => (
+                            <SelectItem key={o.value} value={o.value}>
+                              {o.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                 </div>

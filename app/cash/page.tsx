@@ -27,6 +27,7 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { formatDateShort, cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
+import { toastFormGuide } from "@/lib/utils/validation-toast"
 import { SortableHeader, type SortDirection, sortData } from "@/components/ui/sortable-header"
 
 const ADJUSTMENT_TYPES = [
@@ -111,11 +112,11 @@ export default function CashPage() {
   const handleSaveAdjustment = async () => {
     const amount = parseFloat(adjustmentForm.amount)
     if (!Number.isFinite(amount) || amount === 0) {
-      toast({ title: "Invalid amount", description: "Enter a valid non-zero amount.", variant: "destructive" })
+      toastFormGuide(toast, "Enter the adjustment amount as a number — any value except zero is fine.")
       return
     }
     if (!userId || !farmId) {
-      toast({ title: "Error", description: "User context not found.", variant: "destructive" })
+      toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" })
       return
     }
 
@@ -225,7 +226,7 @@ export default function CashPage() {
 
   const handleDeleteTransaction = async (transaction: CashTransaction) => {
     if (!farmId) {
-      toast({ title: "Error", description: "User context not found.", variant: "destructive" })
+      toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" })
       return
     }
     if (isSystemTransaction(transaction)) {
@@ -310,7 +311,7 @@ export default function CashPage() {
     const text = askInput.trim()
     if (!text) return
     if (!userId || !farmId) {
-      toast({ title: "Error", description: "Please log in again.", variant: "destructive" })
+      toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" })
       return
     }
 
@@ -357,6 +358,10 @@ export default function CashPage() {
 
   const currency = getSelectedCurrency()
   const transactions = summary?.transactions ?? []
+  const totalOwed = useMemo(
+    () => transactions.reduce((sum, t) => sum + Math.max(0, Number(t.owed) || 0), 0),
+    [transactions],
+  )
   const distinctTypes = useMemo(
     () => Array.from(new Set(transactions.map((t) => t.type).filter(Boolean))).sort(),
     [transactions]
@@ -400,6 +405,8 @@ export default function CashPage() {
             return item.description || ""
           case "in":
             return Number(item.in) || 0
+          case "owed":
+            return Number(item.owed) || 0
           case "out":
             return Number(item.out) || 0
           case "balance":
@@ -538,27 +545,38 @@ export default function CashPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl font-bold text-slate-900">
-                      {formatCurrency(summary?.currentCash ?? 0, currency)}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-slate-500 hover:text-slate-700"
-                      onClick={handleCopyBalance}
-                      aria-label="Copy balance"
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
+                <div className={cn("flex gap-4", isMobile ? "flex-col" : "items-start justify-between")}>
+                  <div className={cn("grid gap-4", isMobile ? "grid-cols-1" : "grid-cols-2")}>
+                    <div>
+                      <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Cash at hand</div>
+                      <div className="mt-1 flex items-center gap-2">
+                        <span className="text-2xl font-bold text-slate-900">
+                          {formatCurrency(summary?.currentCash ?? 0, currency)}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-slate-500 hover:text-slate-700"
+                          onClick={handleCopyBalance}
+                          aria-label="Copy balance"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total owed</div>
+                      <div className="mt-1 text-2xl font-bold text-amber-700">
+                        {formatCurrency(totalOwed, currency)}
+                      </div>
+                    </div>
                   </div>
                   <div className="text-sm text-slate-500">
                     Last Updated: {lastUpdated ? lastUpdated.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "—"}
                   </div>
                 </div>
                 <p className="text-xs text-slate-500 mt-2">
-                  Computed: Opening Balance + Sales + Other Income − Expenses
+                  Computed: Opening Balance + Paid Sales + Other Income − Expenses
                 </p>
               </CardContent>
             </Card>
@@ -614,6 +632,11 @@ export default function CashPage() {
                                   <span className={cn("font-bold", t.in > 0 ? "text-emerald-600" : "text-red-600")}>
                                     {t.in > 0 ? `+${formatCurrency(t.in, currency)}` : t.out > 0 ? `-${formatCurrency(t.out, currency)}` : "—"}
                                   </span>
+                                  {(Number(t.owed) || 0) > 0 && (
+                                    <span className="font-bold text-amber-700">
+                                      Owed: {formatCurrency(Number(t.owed), currency)}
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                               <div className="font-medium shrink-0">{formatCurrency(t.balance, currency)}</div>
@@ -664,6 +687,7 @@ export default function CashPage() {
                         <SortableHeader label="Type" sortKey="type" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} />
                         <SortableHeader label="Description" sortKey="description" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} />
                         <SortableHeader label="In" sortKey="in" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right" />
+                        <SortableHeader label="Owed" sortKey="owed" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right" />
                         <SortableHeader label="Out" sortKey="out" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right" />
                         <SortableHeader label="Balance" sortKey="balance" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className={cn("text-right", isMobile && "sticky-col-actions bg-slate-50")} />
                         <TableHead className="text-right">Actions</TableHead>
@@ -679,6 +703,9 @@ export default function CashPage() {
                           <TableCell>{t.description}</TableCell>
                           <TableCell className="text-right text-emerald-600">
                             {t.in > 0 ? t.in.toLocaleString(undefined, { minimumFractionDigits: 2 }) : "-"}
+                          </TableCell>
+                          <TableCell className="text-right text-amber-600">
+                            {(Number(t.owed) || 0) > 0 ? Number(t.owed).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "-"}
                           </TableCell>
                           <TableCell className="text-right text-red-600">
                             {t.out > 0 ? t.out.toLocaleString(undefined, { minimumFractionDigits: 2 }) : "-"}

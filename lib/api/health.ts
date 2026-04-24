@@ -2,7 +2,9 @@
 
 import { buildApiUrl, getAuthHeaders } from './config'
 
-function normalizeApiBase(raw?: string, fallback = 'farmapi.techretainer.com') {
+import { DEFAULT_FARM_API_HOST } from '@/lib/api/default-api-hosts'
+
+function normalizeApiBase(raw?: string, fallback = DEFAULT_FARM_API_HOST) {
   const val = raw || fallback
   return val.startsWith('http://') || val.startsWith('https://') ? val : `https://${val}`
 }

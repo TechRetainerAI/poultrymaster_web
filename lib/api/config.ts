@@ -1,7 +1,8 @@
 // API Configuration
 // PoultryFarmAPI is the main .NET backend API
 // Default: localhost:7190 (HTTPS) or localhost:5142 (HTTP) for local development
-// Production: farmapi.techretainer.com or your production URL
+// Production: set NEXT_PUBLIC_* or rely on default-api-hosts (Cloud Run)
+import { DEFAULT_LOGIN_API_HOST } from "@/lib/api/default-api-hosts"
 function normalizeApiBase(raw?: string, fallback = 'localhost:7190') {
   const val = raw || fallback
   if (val.startsWith('http://') || val.startsWith('https://')) {
@@ -34,7 +35,7 @@ const API_BASE_URL = getApiBaseUrl()
 
 // Helper function to construct API URLs correctly
 // When using proxy: /api/proxy/MainFlockBatch (no /api/ prefix needed)
-// When using direct: https://farmapi.techretainer.com/api/MainFlockBatch
+// When using direct: https://<farm-host>/api/MainFlockBatch
 export function buildApiUrl(endpoint: string): string {
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
   

@@ -1,5 +1,8 @@
 import { getAuthHeaders } from "./config"
 
+// Temporary business override: keep trial at 150 days in UI/app flow.
+const TEMP_FREE_TRIAL_DAYS = 150
+
 function buildAdminProxyUrl(endpoint: string): string {
   const clean = endpoint.startsWith("/") ? endpoint : `/${endpoint}`
   const proxyPath = clean.replace(/^\/api\//, "/")
@@ -41,8 +44,10 @@ export interface StripeProductList {
 }
 
 export interface CreateCheckoutSessionResponse {
-  sessionId: string
-  publicKey: string
+  sessionId?: string
+  publicKey?: string
+  checkoutUrl?: string
+  reference?: string
 }
 
 export interface ApiResult<T> {
@@ -164,7 +169,7 @@ export async function getSubscriptionTiers(): Promise<ApiResult<SubscriptionTier
         }))
       : []
     const data: SubscriptionTiersResponse = {
-      trialDays: Number(raw.trialDays ?? raw.TrialDays ?? 0),
+      trialDays: TEMP_FREE_TRIAL_DAYS,
       currency: String(raw.currency ?? raw.Currency ?? "ghs"),
       note: typeof raw.note === "string" ? raw.note : typeof raw.Note === "string" ? raw.Note : undefined,
       tiers,
@@ -178,14 +183,14 @@ export async function getSubscriptionTiers(): Promise<ApiResult<SubscriptionTier
   }
 }
 
-/** Farm plan: 7-day trial (server default) then monthly tier from total birds in active flocks. */
+/** Farm plan: temporary 150-day trial in app copy, then monthly tier from total birds in active flocks. */
 export async function createFarmTierCheckoutSession(
   totalBirds: number,
   successUrl: string,
   cancelUrl: string
 ): Promise<ApiResult<CreateCheckoutSessionResponse>> {
   try {
-    const url = buildAdminProxyUrl("Payments/create-checkout-session")
+    const url = buildAdminProxyUrl("Payments/initialize-paystack")
     const requestBody: CreateCheckoutSessionBody = {
       totalBirds: Math.max(0, Math.floor(totalBirds)),
       successUrl,
@@ -212,12 +217,10 @@ export async function createFarmTierCheckoutSession(
       }
     }
     const o = body as Record<string, unknown>
-    const sessionId = (o.sessionId ?? o.SessionId) as string | undefined
-    const publicKey = (o.publicKey ?? o.PublicKey) as string | undefined
-    if (!sessionId || !publicKey) {
-      return { success: false, message: "Invalid checkout response from server" }
-    }
-    return { success: true, data: { sessionId, publicKey } }
+    const checkoutUrl = (o.checkoutUrl ?? o.authorizationUrl ?? o.CheckoutUrl ?? o.AuthorizationUrl) as string | undefined
+    const reference = (o.reference ?? o.Reference) as string | undefined
+    if (!checkoutUrl) return { success: false, message: "Invalid Paystack response from server" }
+    return { success: true, data: { checkoutUrl, reference } }
   } catch (e) {
     return {
       success: false,
@@ -226,6 +229,7 @@ export async function createFarmTierCheckoutSession(
   }
 }
 
+/** Stripe Checkout Session (catalog `priceId`). Do not send `totalBirds` — the API treats any `totalBirds` as farm-tier mode. */
 export async function createCheckoutSession(
   priceId: string,
   successUrl: string,
@@ -262,12 +266,10 @@ export async function createCheckoutSession(
       }
     }
     const o = body as Record<string, unknown>
-    const sessionId = (o.sessionId ?? o.SessionId) as string | undefined
-    const publicKey = (o.publicKey ?? o.PublicKey) as string | undefined
-    if (!sessionId || !publicKey) {
-      return { success: false, message: "Invalid checkout response from server" }
-    }
-    return { success: true, data: { sessionId, publicKey } }
+    const checkoutUrl = (o.checkoutUrl ?? o.authorizationUrl ?? o.CheckoutUrl ?? o.AuthorizationUrl) as string | undefined
+    const reference = (o.reference ?? o.Reference) as string | undefined
+    if (!checkoutUrl) return { success: false, message: "Invalid Paystack response from server" }
+    return { success: true, data: { checkoutUrl, reference } }
   } catch (e) {
     return {
       success: false,

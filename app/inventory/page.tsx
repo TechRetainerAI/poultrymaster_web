@@ -20,9 +20,19 @@ import { getUserContext } from "@/lib/utils/user-context"
 import { useToast } from "@/hooks/use-toast"
 import { getSupplies, createSupply, updateSupply, deleteSupply, type SupplyInput } from "@/lib/api/supply"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import {
+  MOBILE_FILTER_SHEET_CONTENT_CLASS,
+  MOBILE_FILTER_SELECT_CONTENT_CLASS,
+  MOBILE_FILTERS_TOOLBAR_ROW_CLASS,
+  MOBILE_FILTERS_TRIGGER_BUTTON_CLASS,
+  MobileFilterSheetBody,
+  MobileFilterSheetFooter,
+  MobileFilterSheetHeader,
+} from "@/components/dashboard/mobile-filters"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { formatDateShort, cn } from "@/lib/utils"
+import { toastFormGuide } from "@/lib/utils/validation-toast"
 
 interface InventoryItem {
   id?: number
@@ -61,6 +71,14 @@ export default function InventoryPage() {
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [showAllColumnsMobile, setShowAllColumnsMobile] = useState(false)
   const isMobile = useIsMobile()
+
+  const [draftCategory, setDraftCategory] = useState<string>("ALL")
+  const [draftEntryDateFrom, setDraftEntryDateFrom] = useState("")
+  const [draftExpiryDateFrom, setDraftExpiryDateFrom] = useState("")
+  const hasDraftChanges =
+    draftCategory !== selectedCategory ||
+    draftEntryDateFrom !== entryDateFrom ||
+    draftExpiryDateFrom !== expiryDateFrom
 
   // Sorting
   const [sortField, setSortField] = useState<string | null>(null)
@@ -202,17 +220,16 @@ export default function InventoryPage() {
 
   const handleCreate = async () => {
     if (!formData.name.trim() || !formData.category.trim() || !formData.unit.trim() || !formData.entryDate || !Number.isFinite(formData.quantity) || formData.quantity <= 0) {
-      toast({
-        title: "Required fields missing",
-        description: "Item name, category, quantity (> 0), unit, and entry date are required before saving inventory item.",
-        variant: "destructive",
-      })
+      toastFormGuide(
+        toast,
+        "Add item name, category, unit, entry date, and a quantity greater than zero — then you can save.",
+      )
       return
     }
 
     const { userId, farmId } = getUserContext()
     if (!userId || !farmId) {
-      toast({ title: "Error", description: "User context not found. Please log in again.", variant: "destructive" })
+      toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" })
       return
     }
 
@@ -243,17 +260,16 @@ export default function InventoryPage() {
   const handleUpdate = async () => {
     if (!editingItem?.id) return
     if (!formData.name.trim() || !formData.category.trim() || !formData.unit.trim() || !formData.entryDate || !Number.isFinite(formData.quantity) || formData.quantity <= 0) {
-      toast({
-        title: "Required fields missing",
-        description: "Item name, category, quantity (> 0), unit, and entry date are required before saving inventory item.",
-        variant: "destructive",
-      })
+      toastFormGuide(
+        toast,
+        "Add item name, category, unit, entry date, and a quantity greater than zero — then you can save.",
+      )
       return
     }
 
     const { userId, farmId } = getUserContext()
     if (!userId || !farmId) {
-      toast({ title: "Error", description: "User context not found. Please log in again.", variant: "destructive" })
+      toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" })
       return
     }
 
@@ -291,7 +307,7 @@ export default function InventoryPage() {
     if (!deletingItem?.id) return
     const { userId, farmId } = getUserContext()
     if (!userId || !farmId) {
-      toast({ title: "Error", description: "User context not found. Please log in again.", variant: "destructive" })
+      toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" })
       return
     }
     const res = await deleteSupply(deletingItem.id, userId, farmId)
@@ -333,6 +349,23 @@ export default function InventoryPage() {
     setSelectedCategory("ALL")
     setEntryDateFrom("")
     setExpiryDateFrom("")
+    setDraftCategory("ALL")
+    setDraftEntryDateFrom("")
+    setDraftExpiryDateFrom("")
+  }
+
+  const syncDraftFromCommitted = () => {
+    setDraftCategory(selectedCategory)
+    setDraftEntryDateFrom(entryDateFrom)
+    setDraftExpiryDateFrom(expiryDateFrom)
+  }
+
+  const applyMobileFilters = () => {
+    setSelectedCategory(draftCategory)
+    setEntryDateFrom(draftEntryDateFrom)
+    setExpiryDateFrom(draftExpiryDateFrom)
+    setFiltersOpen(false)
+    toast({ title: "Filters applied", description: "Inventory list updated." })
   }
 
   const totalValue = useMemo(() => {
@@ -499,53 +532,101 @@ export default function InventoryPage() {
 
             {/* Filters */}
             {isMobile ? (
-              <div className="space-y-3">
+              <div className="space-y-3 w-full min-w-0">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <Input placeholder="Search inventory..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 h-11" />
                 </div>
-                <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
-                  <SheetTrigger asChild>
-                    <Button variant="outline" className="w-full h-11 gap-2 justify-start">
-                      <Filter className="h-4 w-4" />
-                      Filters
-                      {(!!search || selectedCategory !== "ALL" || !!entryDateFrom || !!expiryDateFrom) && (
-                        <span className="ml-1 h-5 min-w-[20px] px-1.5 rounded-full bg-amber-500 text-white text-xs flex items-center justify-center">
-                          {[search, selectedCategory !== "ALL", entryDateFrom, expiryDateFrom].filter(Boolean).length}
-                        </span>
-                      )}
-                    </Button>
-                  </SheetTrigger>
-                  <SheetContent side="bottom" className="h-[75vh] rounded-t-2xl">
-                    <SheetHeader>
-                      <SheetTitle>Filters</SheetTitle>
-                    </SheetHeader>
-                    <div className="space-y-4 overflow-y-auto pb-8">
-                      <div>
-                        <label className="text-sm font-medium text-slate-700 mb-1 block">Category</label>
-                        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                          <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="ALL">All Categories</SelectItem>
-                            {categories.map(cat => <SelectItem key={cat} value={cat}>{cat}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-slate-700 mb-1 block">Entry date from</label>
-                        <Input type="date" value={entryDateFrom} onChange={(e) => setEntryDateFrom(e.target.value)} />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-slate-700 mb-1 block">Expiry date from</label>
-                        <Input type="date" value={expiryDateFrom} onChange={(e) => setExpiryDateFrom(e.target.value)} />
-                      </div>
-                      <div className="flex gap-2 pt-4">
-                        <Button variant="outline" className="flex-1" onClick={clearFilters}>Clear all</Button>
-                        <Button className="flex-1" onClick={() => setFiltersOpen(false)}>Apply</Button>
-                      </div>
-                    </div>
-                  </SheetContent>
-                </Sheet>
+                <div className={MOBILE_FILTERS_TOOLBAR_ROW_CLASS}>
+                  <Sheet
+                    open={filtersOpen}
+                    onOpenChange={(open) => {
+                      setFiltersOpen(open)
+                      syncDraftFromCommitted()
+                    }}
+                  >
+                    <SheetTrigger asChild>
+                      <Button variant="outline" className={MOBILE_FILTERS_TRIGGER_BUTTON_CLASS}>
+                        <Filter className="h-4 w-4" />
+                        <span className="truncate">Filters</span>
+                        {(!!search || selectedCategory !== "ALL" || !!entryDateFrom || !!expiryDateFrom) && (
+                          <span className="ml-1 h-5 min-w-[20px] px-1.5 rounded-full bg-orange-500 text-white text-xs flex items-center justify-center">
+                            {[search, selectedCategory !== "ALL", entryDateFrom, expiryDateFrom].filter(Boolean).length}
+                          </span>
+                        )}
+                      </Button>
+                    </SheetTrigger>
+                    <SheetContent side="bottom" className={MOBILE_FILTER_SHEET_CONTENT_CLASS}>
+                      <MobileFilterSheetHeader />
+                      <MobileFilterSheetBody>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-slate-700">Category</label>
+                          <Select value={draftCategory} onValueChange={setDraftCategory}>
+                            <SelectTrigger className="h-12 text-base">
+                              <SelectValue placeholder="Category" />
+                            </SelectTrigger>
+                            <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
+                              <SelectItem value="ALL">All Categories</SelectItem>
+                              {categories.map((cat) => (
+                                <SelectItem key={cat} value={cat}>
+                                  {cat}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-3">
+                          <p className="text-sm font-medium text-slate-700">Dates</p>
+                          <div className="flex flex-col gap-4">
+                            <div className="min-w-0 space-y-2">
+                              <label htmlFor="inv-entry-from" className="text-xs font-medium text-slate-500">
+                                Entry date from
+                              </label>
+                              <Input
+                                id="inv-entry-from"
+                                type="date"
+                                value={draftEntryDateFrom}
+                                onChange={(e) => setDraftEntryDateFrom(e.target.value)}
+                                className="h-12 min-w-0 w-full text-base"
+                              />
+                            </div>
+                            <div className="min-w-0 space-y-2">
+                              <label htmlFor="inv-expiry-from" className="text-xs font-medium text-slate-500">
+                                Expiry date from
+                              </label>
+                              <Input
+                                id="inv-expiry-from"
+                                type="date"
+                                value={draftExpiryDateFrom}
+                                onChange={(e) => setDraftExpiryDateFrom(e.target.value)}
+                                className="h-12 min-w-0 w-full text-base"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </MobileFilterSheetBody>
+                      <MobileFilterSheetFooter>
+                        <div className="flex gap-3">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="h-12 flex-1"
+                            onClick={() => {
+                              clearFilters()
+                              setFiltersOpen(false)
+                              toast({ title: "Filters cleared" })
+                            }}
+                          >
+                            Clear all
+                          </Button>
+                          <Button type="button" className="h-12 flex-1" onClick={applyMobileFilters} disabled={!hasDraftChanges}>
+                            Apply
+                          </Button>
+                        </div>
+                      </MobileFilterSheetFooter>
+                    </SheetContent>
+                  </Sheet>
+                </div>
               </div>
             ) : (
             <div className="flex flex-wrap items-center gap-2 p-2 bg-white rounded border">

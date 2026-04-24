@@ -25,6 +25,11 @@ import {
   type FeedUsageInput,
 } from "@/lib/api/feed-usage"
 import { getBirdsLeftFromRecord, getLatestRecordForFlock } from "@/lib/utils/production-records"
+import {
+  EGG_GRADE_OPTIONS,
+  EGG_GRADE_SELECT_VALUE_NONE,
+  eggGradeToApi,
+} from "@/lib/constants/egg-grade"
 
 export default function NewProductionRecordPage() {
   const router = useRouter()
@@ -48,6 +53,7 @@ export default function NewProductionRecordPage() {
     numBirds: "",
     notes: "",
     medication: "",
+    eggGrade: EGG_GRADE_SELECT_VALUE_NONE,
   })
 
   const feedTypes = [
@@ -263,6 +269,7 @@ export default function NewProductionRecordPage() {
         brokenEggs: parseInt(form.brokenEggs) || 0,
         totalProduction: total,
         flockId: form.flockId ? parseInt(form.flockId) : null,
+        eggGrade: eggGradeToApi(form.eggGrade),
       }
 
       const createRes = await createProductionRecord(input)
@@ -494,6 +501,26 @@ export default function NewProductionRecordPage() {
                         <div className="text-xs text-emerald-600">{totalCrates} crates + {totalPieces} pieces</div>
                       </div>
                     </div>
+                  </div>
+
+                  <div className="col-span-12 md:col-span-6 space-y-2">
+                    <Label>Egg grade</Label>
+                    <Select
+                      value={form.eggGrade}
+                      onValueChange={(v) => setForm({ ...form, eggGrade: v })}
+                    >
+                      <SelectTrigger className="bg-white">
+                        <SelectValue placeholder="Select grade" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {EGG_GRADE_OPTIONS.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>
+                            {o.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-slate-500">Quality band for this day’s eggs (e.g. P1, P2).</p>
                   </div>
                 </div>
               </div>

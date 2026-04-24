@@ -24,6 +24,7 @@ import { usePermissions } from "@/hooks/use-permissions"
 import { useToast } from "@/hooks/use-toast"
 import { format } from "date-fns"
 import { formatDateShort, cn } from "@/lib/utils"
+import { toastFormGuide } from "@/lib/utils/validation-toast"
 import { Calendar } from "@/components/ui/calendar"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -117,18 +118,18 @@ export default function FlockBatchesPage() {
     const { farmId, userId } = getUserContext()
     if (!farmId || !userId) {
       setCreateError("Farm ID or User ID not found")
-      toast({ title: "Validation error", description: "Farm ID or User ID not found.", variant: "destructive" })
+      toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" })
       return
     }
 
     if (!createForm.batchName.trim() || !createForm.batchCode.trim() || !createForm.breed.trim() || !createForm.startDate) {
       setCreateError("Please fill in all required fields")
-      toast({ title: "Validation error", description: "Batch name, batch code, breed, and start date are required.", variant: "destructive" })
+      toastFormGuide(toast, "Fill in batch name, batch code, breed, and start date — they help track birds from arrival.")
       return
     }
     if (createForm.numberOfBirds <= 0) {
       setCreateError("Number of birds must be greater than 0")
-      toast({ title: "Validation error", description: "Number of birds must be greater than 0.", variant: "destructive" })
+      toastFormGuide(toast, "Enter how many birds arrived in this batch — use a number greater than zero.")
       return
     }
 
@@ -192,18 +193,18 @@ export default function FlockBatchesPage() {
     const { farmId, userId } = getUserContext()
     if (!farmId || !userId) {
       setEditError("User context not found.")
-      toast({ title: "Validation error", description: "User context not found.", variant: "destructive" })
+      toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" })
       return
     }
 
     if (!editForm.batchName.trim() || !editForm.batchCode.trim() || !editForm.breed.trim() || !editForm.startDate) {
       setEditError("Please fill in all required fields")
-      toast({ title: "Validation error", description: "Batch name, batch code, breed, and start date are required.", variant: "destructive" })
+      toastFormGuide(toast, "Fill in batch name, batch code, breed, and start date — they help track birds from arrival.")
       return
     }
     if (editForm.numberOfBirds <= 0) {
       setEditError("Number of birds must be greater than 0")
-      toast({ title: "Validation error", description: "Number of birds must be greater than 0.", variant: "destructive" })
+      toastFormGuide(toast, "Enter how many birds arrived in this batch — use a number greater than zero.")
       return
     }
 
@@ -241,7 +242,7 @@ export default function FlockBatchesPage() {
     if (!deletingId) return
     const { farmId, userId } = getUserContext()
     if (!farmId || !userId) {
-      toast({ title: "Error", description: "Farm ID or User ID not found.", variant: "destructive" })
+      toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" })
       return
     }
     setIsDeleting(true)

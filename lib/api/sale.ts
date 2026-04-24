@@ -22,6 +22,7 @@ export interface Sale {
   customerName: string
   flockId: number
   saleDescription: string
+  paid?: boolean
   createdDate: string
 }
 
@@ -38,6 +39,7 @@ export interface SaleInput {
   customerName: string
   flockId: number
   saleDescription: string
+  paid?: boolean
   createdDate?: string
 }
 
@@ -63,6 +65,7 @@ const mockSales: Sale[] = [
     customerName: "Local Market",
     flockId: 1,
     saleDescription: "Regular weekly egg delivery",
+    paid: true,
     createdDate: "2024-01-15T08:30:00.000Z",
   },
   {
@@ -78,6 +81,7 @@ const mockSales: Sale[] = [
     customerName: "Restaurant ABC",
     flockId: 2,
     saleDescription: "Whole chicken sale",
+    paid: true,
     createdDate: "2024-01-20T14:15:00.000Z",
   },
   {
@@ -93,6 +97,7 @@ const mockSales: Sale[] = [
     customerName: "Grocery Store XYZ",
     flockId: 1,
     saleDescription: "Bulk egg order",
+    paid: true,
     createdDate: "2024-02-01T10:45:00.000Z",
   },
   // Add some current month sales for dashboard display
@@ -109,6 +114,7 @@ const mockSales: Sale[] = [
     customerName: "Farmers Market",
     flockId: 1,
     saleDescription: "Weekly farmers market sale",
+    paid: true,
     createdDate: new Date().toISOString(),
   },
   {
@@ -124,6 +130,7 @@ const mockSales: Sale[] = [
     customerName: "Local Butcher",
     flockId: 2,
     saleDescription: "Processed chicken meat",
+    paid: true,
     createdDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
   },
 ]
@@ -450,6 +457,7 @@ export async function createSale(sale: SaleInput): Promise<ApiResponse<Sale>> {
       customerName: sale.customerName,
       flockId: sale.flockId,
       saleDescription: sale.saleDescription,
+      paid: sale.paid ?? true,
       createdDate: new Date().toISOString(),
     }
 
@@ -475,7 +483,7 @@ export async function createSale(sale: SaleInput): Promise<ApiResponse<Sale>> {
       // All data operations must go through backend for proper validation and security
       return {
         success: false,
-        message: errorText || "Failed to create sale. Backend validation required.",
+        message: responseText || "Failed to create sale. Backend validation required.",
         data: null as any,
       }
     }
@@ -550,6 +558,7 @@ export async function updateSale(id: number, sale: Partial<SaleInput>): Promise<
     if (sale.customerName) requestBody.customerName = sale.customerName
     if (sale.flockId !== undefined) requestBody.flockId = sale.flockId
     if (sale.saleDescription) requestBody.saleDescription = sale.saleDescription
+    if (sale.paid !== undefined) requestBody.paid = sale.paid
     if (sale.createdDate) requestBody.createdDate = sale.createdDate
 
     console.log("[v0] Sale update request body:", requestBody)

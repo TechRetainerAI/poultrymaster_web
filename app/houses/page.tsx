@@ -14,6 +14,7 @@ import { Home, Plus, Pencil, Trash2, Loader2 } from "lucide-react"
 import { getHouses, createHouse, updateHouse, deleteHouse } from "@/lib/api/house"
 import { getUserContext } from "@/lib/utils/user-context"
 import { useToast } from "@/hooks/use-toast"
+import { toastFormGuide } from "@/lib/utils/validation-toast"
 
 export default function HousesPage() {
   const router = useRouter()
@@ -77,7 +78,7 @@ export default function HousesPage() {
     try {
       setSaving(true)
       if (!name.trim()) {
-        toast({ title: "Required fields missing", description: "House name is required before saving.", variant: "destructive" })
+        toastFormGuide(toast, "Give this house a name so you can find it later in lists and reports.")
         setSaving(false)
         return
       }
@@ -105,7 +106,7 @@ export default function HousesPage() {
     if (!deletingHouse) return
     const { userId, farmId } = getUserContext()
     if (!userId || !farmId) {
-      toast({ title: "Error", description: "Missing user/farm context. Please log in again.", variant: "destructive" })
+      toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" })
       return
     }
     setIsDeleting(true)

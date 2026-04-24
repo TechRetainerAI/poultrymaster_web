@@ -21,11 +21,22 @@ import { getValidFlocks, getFlocksForSelect } from "@/lib/utils/flock-utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useToast } from "@/hooks/use-toast"
+import { toastFormGuide } from "@/lib/utils/validation-toast"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { useMemo } from "react"
 import { getProductionRecords, createProductionRecord, updateProductionRecord, type ProductionRecordInput } from "@/lib/api/production-record"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import {
+  MOBILE_FILTER_SHEET_CONTENT_CLASS,
+  MOBILE_FILTER_SELECT_CONTENT_CLASS,
+  MOBILE_FILTERS_TOOLBAR_ROW_CLASS,
+  MOBILE_FILTERS_TRIGGER_BUTTON_CLASS,
+  MobileFilterSheetBody,
+  MobileFilterSheetFooter,
+  MobileFilterSheetHeader,
+} from "@/components/dashboard/mobile-filters"
+import { toLocalDateKey } from "@/lib/utils/date-key"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { formatDateShort, cn } from "@/lib/utils"
 
@@ -56,6 +67,19 @@ export default function FeedUsagePage() {
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [showAllColumnsMobile, setShowAllColumnsMobile] = useState(false)
   const isMobile = useIsMobile()
+
+  const [draftDateFrom, setDraftDateFrom] = useState("")
+  const [draftDateTo, setDraftDateTo] = useState("")
+  const [draftFlockId, setDraftFlockId] = useState("ALL")
+  const [draftMonth, setDraftMonth] = useState("ALL")
+  const [draftYear, setDraftYear] = useState("ALL")
+
+  const hasDraftChanges =
+    draftDateFrom !== dateFrom ||
+    draftDateTo !== dateTo ||
+    draftFlockId !== selectedFlockId ||
+    draftMonth !== selectedMonth ||
+    draftYear !== selectedYear
 
   // Create dialog state
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
@@ -130,10 +154,10 @@ export default function FeedUsagePage() {
     setCreateLoading(true)
     setCreateError("")
     const { userId, farmId } = getUserContext()
-    if (!userId || !farmId) { setCreateError("User context not found."); toast({ title: "Validation error", description: "User context not found.", variant: "destructive" }); setCreateLoading(false); return }
-    if (!createForm.flockId) { setCreateError("Please select a flock"); toast({ title: "Validation error", description: "Please select a flock.", variant: "destructive" }); setCreateLoading(false); return }
-    if (!createForm.feedType) { setCreateError("Please select a feed type"); toast({ title: "Validation error", description: "Please select a feed type.", variant: "destructive" }); setCreateLoading(false); return }
-    if (!createForm.quantityKg || Number(createForm.quantityKg) <= 0) { setCreateError("Please enter a valid quantity"); toast({ title: "Validation error", description: "Quantity is required and must be greater than 0.", variant: "destructive" }); setCreateLoading(false); return }
+    if (!userId || !farmId) { setCreateError("User context not found."); toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" }); setCreateLoading(false); return }
+    if (!createForm.flockId) { setCreateError("Choose a flock"); toastFormGuide(toast, "Pick which flock this feed was used for from the Flock list."); setCreateLoading(false); return }
+    if (!createForm.feedType) { setCreateError("Choose a feed type"); toastFormGuide(toast, "Select the feed type (starter, grower, etc.) so records stay accurate."); setCreateLoading(false); return }
+    if (!createForm.quantityKg || Number(createForm.quantityKg) <= 0) { setCreateError("Enter quantity"); toastFormGuide(toast, "Enter how many kilograms were used — use a number greater than zero."); setCreateLoading(false); return }
 
     const usage: FeedUsageInput = {
       farmId, userId, flockId: Number(createForm.flockId),
@@ -220,10 +244,10 @@ export default function FeedUsagePage() {
     setEditLoading(true)
     setEditError("")
     const { userId, farmId } = getUserContext()
-    if (!userId || !farmId) { setEditError("User context not found."); toast({ title: "Validation error", description: "User context not found.", variant: "destructive" }); setEditLoading(false); return }
-    if (!editForm.flockId) { setEditError("Please select a flock"); toast({ title: "Validation error", description: "Please select a flock.", variant: "destructive" }); setEditLoading(false); return }
-    if (!editForm.feedType) { setEditError("Please select a feed type"); toast({ title: "Validation error", description: "Please select a feed type.", variant: "destructive" }); setEditLoading(false); return }
-    if (!editForm.quantityKg || Number(editForm.quantityKg) <= 0) { setEditError("Please enter a valid quantity"); toast({ title: "Validation error", description: "Quantity is required and must be greater than 0.", variant: "destructive" }); setEditLoading(false); return }
+    if (!userId || !farmId) { setEditError("User context not found."); toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" }); setEditLoading(false); return }
+    if (!editForm.flockId) { setEditError("Choose a flock"); toastFormGuide(toast, "Pick which flock this feed was used for from the Flock list."); setEditLoading(false); return }
+    if (!editForm.feedType) { setEditError("Choose a feed type"); toastFormGuide(toast, "Select the feed type (starter, grower, etc.) so records stay accurate."); setEditLoading(false); return }
+    if (!editForm.quantityKg || Number(editForm.quantityKg) <= 0) { setEditError("Enter quantity"); toastFormGuide(toast, "Enter how many kilograms were used — use a number greater than zero."); setEditLoading(false); return }
 
     const usage: Partial<FeedUsageInput> = {
       farmId, userId, flockId: Number(editForm.flockId),
@@ -260,7 +284,7 @@ export default function FeedUsagePage() {
   const handleDelete = async () => {
     if (!deletingId) return
     const { userId, farmId } = getUserContext()
-    if (!userId || !farmId) { toast({ title: "Error", description: "Farm ID or User ID not found.", variant: "destructive" }); return }
+    if (!userId || !farmId) { toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" }); return }
     setIsDeleting(true)
     const result = await deleteFeedUsage(deletingId, userId, farmId)
     if (result.success) {
@@ -280,6 +304,25 @@ export default function FeedUsagePage() {
     localStorage.removeItem("farmId"); localStorage.removeItem("farmName")
     localStorage.removeItem("isStaff"); localStorage.removeItem("isSubscriber")
     router.push("/login")
+  }
+
+  const syncDraftFromCommitted = () => {
+    setDraftDateFrom(dateFrom)
+    setDraftDateTo(dateTo)
+    setDraftFlockId(selectedFlockId)
+    setDraftMonth(selectedMonth)
+    setDraftYear(selectedYear)
+  }
+
+  const applyMobileFilters = () => {
+    setDateFrom(draftDateFrom)
+    setDateTo(draftDateTo)
+    setSelectedFlockId(draftFlockId)
+    setSelectedMonth(draftMonth)
+    setSelectedYear(draftYear)
+    setCurrentPage(1)
+    setFiltersOpen(false)
+    toast({ title: "Filters applied", description: "Feed usage list updated." })
   }
 
   const distinctYears = useMemo(() => {
@@ -305,8 +348,8 @@ export default function FeedUsagePage() {
         new Date(u.usageDate).toLocaleDateString().toLowerCase().includes(q)
       )
     }
-    if (dateFrom) list = list.filter(u => new Date(u.usageDate) >= new Date(dateFrom))
-    if (dateTo) list = list.filter(u => new Date(u.usageDate) <= new Date(dateTo))
+    if (dateFrom) list = list.filter((u) => toLocalDateKey(u.usageDate) >= dateFrom)
+    if (dateTo) list = list.filter((u) => toLocalDateKey(u.usageDate) <= dateTo)
     if (selectedFlockId !== "ALL") list = list.filter(u => String(u.flockId) === selectedFlockId)
     if (selectedMonth !== "ALL") list = list.filter(u => (new Date(u.usageDate).getMonth() + 1) === Number(selectedMonth))
     if (selectedYear !== "ALL") list = list.filter(u => new Date(u.usageDate).getFullYear().toString() === selectedYear)
@@ -412,72 +455,146 @@ export default function FeedUsagePage() {
 
             {/* Filters */}
             {isMobile ? (
-              <div className="space-y-3">
+              <div className="space-y-3 w-full min-w-0">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <Input placeholder="Search feed usage..." value={search} onChange={(e) => { setSearch(e.target.value); setCurrentPage(1) }} className="pl-10 h-11" />
                 </div>
-                <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
-                  <SheetTrigger asChild>
-                    <Button variant="outline" className="w-full h-11 gap-2 justify-start">
-                      <Filter className="h-4 w-4" />
-                      Filters
-                      {(!!search || !!dateFrom || !!dateTo || selectedFlockId !== "ALL" || selectedMonth !== "ALL" || selectedYear !== "ALL") && (
-                        <span className="ml-1 h-5 min-w-[20px] px-1.5 rounded-full bg-amber-500 text-white text-xs flex items-center justify-center">
-                          {[search, dateFrom, dateTo, selectedFlockId !== "ALL", selectedMonth !== "ALL", selectedYear !== "ALL"].filter(Boolean).length}
-                        </span>
-                      )}
-                    </Button>
-                  </SheetTrigger>
-                  <SheetContent side="bottom" className="h-[75vh] rounded-t-2xl">
-                    <SheetHeader>
-                      <SheetTitle>Filters</SheetTitle>
-                    </SheetHeader>
-                    <div className="space-y-4 overflow-y-auto pb-8">
-                      <div>
-                        <label className="text-sm font-medium text-slate-700 mb-1 block">Date range</label>
-                        <div className="grid grid-cols-2 gap-2">
-                          <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setCurrentPage(1) }} />
-                          <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setCurrentPage(1) }} />
+                <div className={MOBILE_FILTERS_TOOLBAR_ROW_CLASS}>
+                  <Sheet
+                    open={filtersOpen}
+                    onOpenChange={(open) => {
+                      setFiltersOpen(open)
+                      syncDraftFromCommitted()
+                    }}
+                  >
+                    <SheetTrigger asChild>
+                      <Button variant="outline" className={MOBILE_FILTERS_TRIGGER_BUTTON_CLASS}>
+                        <Filter className="h-4 w-4" />
+                        <span className="truncate">Filters</span>
+                        {(!!search || !!dateFrom || !!dateTo || selectedFlockId !== "ALL" || selectedMonth !== "ALL" || selectedYear !== "ALL") && (
+                          <span className="ml-1 h-5 min-w-[20px] px-1.5 rounded-full bg-orange-500 text-white text-xs flex items-center justify-center">
+                            {[search, dateFrom, dateTo, selectedFlockId !== "ALL", selectedMonth !== "ALL", selectedYear !== "ALL"].filter(Boolean).length}
+                          </span>
+                        )}
+                      </Button>
+                    </SheetTrigger>
+                    <SheetContent side="bottom" className={MOBILE_FILTER_SHEET_CONTENT_CLASS}>
+                      <MobileFilterSheetHeader />
+                      <MobileFilterSheetBody>
+                        <div className="space-y-3">
+                          <p className="text-sm font-medium text-slate-700">Date range</p>
+                          <div className="flex flex-col gap-4">
+                            <div className="min-w-0 space-y-2">
+                              <label htmlFor="feed-filter-from" className="text-xs font-medium text-slate-500">
+                                Start date
+                              </label>
+                              <Input
+                                id="feed-filter-from"
+                                type="date"
+                                value={draftDateFrom}
+                                onChange={(e) => setDraftDateFrom(e.target.value)}
+                                className="h-12 min-w-0 w-full text-base"
+                              />
+                            </div>
+                            <div className="min-w-0 space-y-2">
+                              <label htmlFor="feed-filter-to" className="text-xs font-medium text-slate-500">
+                                End date
+                              </label>
+                              <Input
+                                id="feed-filter-to"
+                                type="date"
+                                value={draftDateTo}
+                                onChange={(e) => setDraftDateTo(e.target.value)}
+                                className="h-12 min-w-0 w-full text-base"
+                              />
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-slate-700 mb-1 block">Flock</label>
-                        <Select value={selectedFlockId} onValueChange={(v) => { setSelectedFlockId(v); setCurrentPage(1) }}>
-                          <SelectTrigger><SelectValue placeholder="Flock" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="ALL">All Flocks</SelectItem>
-                            {allFlocks.map(f => <SelectItem key={f.flockId} value={String(f.flockId)}>{f.name}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-slate-700 mb-1 block">Month</label>
-                        <Select value={selectedMonth} onValueChange={(v) => { setSelectedMonth(v); setCurrentPage(1) }}>
-                          <SelectTrigger><SelectValue placeholder="Month" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="ALL">All Months</SelectItem>
-                            {months.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-slate-700 mb-1 block">Year</label>
-                        <Select value={selectedYear} onValueChange={(v) => { setSelectedYear(v); setCurrentPage(1) }}>
-                          <SelectTrigger><SelectValue placeholder="Year" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="ALL">All Years</SelectItem>
-                            {distinctYears.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="flex gap-2 pt-4">
-                        <Button variant="outline" className="flex-1" onClick={() => { setSearch(""); setDateFrom(""); setDateTo(""); setSelectedFlockId("ALL"); setSelectedMonth("ALL"); setSelectedYear("ALL"); setCurrentPage(1) }}>Clear all</Button>
-                        <Button className="flex-1" onClick={() => setFiltersOpen(false)}>Apply</Button>
-                      </div>
-                    </div>
-                  </SheetContent>
-                </Sheet>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-slate-700">Flock</label>
+                          <Select value={draftFlockId} onValueChange={setDraftFlockId}>
+                            <SelectTrigger className="h-12 text-base">
+                              <SelectValue placeholder="Flock" />
+                            </SelectTrigger>
+                            <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
+                              <SelectItem value="ALL">All Flocks</SelectItem>
+                              {allFlocks.map((f) => (
+                                <SelectItem key={f.flockId} value={String(f.flockId)}>
+                                  {f.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-700">Month</label>
+                            <Select value={draftMonth} onValueChange={setDraftMonth}>
+                              <SelectTrigger className="h-12 text-base">
+                                <SelectValue placeholder="Month" />
+                              </SelectTrigger>
+                              <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
+                                <SelectItem value="ALL">All Months</SelectItem>
+                                {months.map((m) => (
+                                  <SelectItem key={m.value} value={m.value}>
+                                    {m.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-700">Year</label>
+                            <Select value={draftYear} onValueChange={setDraftYear}>
+                              <SelectTrigger className="h-12 text-base">
+                                <SelectValue placeholder="Year" />
+                              </SelectTrigger>
+                              <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
+                                <SelectItem value="ALL">All Years</SelectItem>
+                                {distinctYears.map((y) => (
+                                  <SelectItem key={y} value={String(y)}>
+                                    {y}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      </MobileFilterSheetBody>
+                      <MobileFilterSheetFooter>
+                        <div className="flex gap-3">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="h-12 flex-1"
+                            onClick={() => {
+                              setSearch("")
+                              setDateFrom("")
+                              setDateTo("")
+                              setSelectedFlockId("ALL")
+                              setSelectedMonth("ALL")
+                              setSelectedYear("ALL")
+                              setDraftDateFrom("")
+                              setDraftDateTo("")
+                              setDraftFlockId("ALL")
+                              setDraftMonth("ALL")
+                              setDraftYear("ALL")
+                              setCurrentPage(1)
+                              setFiltersOpen(false)
+                              toast({ title: "Filters cleared" })
+                            }}
+                          >
+                            Clear all
+                          </Button>
+                          <Button type="button" className="h-12 flex-1" onClick={applyMobileFilters} disabled={!hasDraftChanges}>
+                            Apply
+                          </Button>
+                        </div>
+                      </MobileFilterSheetFooter>
+                    </SheetContent>
+                  </Sheet>
+                </div>
               </div>
             ) : (
             <div className="flex flex-wrap items-center gap-2 p-3 bg-white rounded-lg border">

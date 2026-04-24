@@ -14,6 +14,8 @@ export type FarmSummary = {
   farmName?: string | null;
   totalUsers: number;
   staffCount: number;
+  /** True if at least one user on the farm has a paid subscription flag (Login API / Identity). */
+  hasPaidSubscription?: boolean;
 };
 
 async function json<T>(res: Response): Promise<T> {

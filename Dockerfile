@@ -46,9 +46,11 @@ RUN chown -R nextjs:nodejs /app
 
 USER nextjs
 
-EXPOSE 3000
+# Listen on process.env.PORT (Cloud Run, Render, etc. inject this). Next standalone defaults to 3000 if PORT is unset.
+# Cloud Run: use container port 8080 (gcloud default) — not 300 (typo). Example:
+#   gcloud run deploy poultrymaster-web --source . --region europe-west1 --port 8080 --allow-unauthenticated
+EXPOSE 8080
 
-ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
 # Use the standalone server from Next.js

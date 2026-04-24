@@ -26,7 +26,17 @@ import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { Calendar } from "@/components/ui/calendar"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import {
+  MOBILE_FILTER_SHEET_CONTENT_CLASS,
+  MOBILE_FILTER_SELECT_CONTENT_CLASS,
+  MOBILE_FILTERS_TOOLBAR_ROW_CLASS,
+  MOBILE_FILTERS_TRIGGER_BUTTON_CLASS,
+  MobileFilterSheetBody,
+  MobileFilterSheetFooter,
+  MobileFilterSheetHeader,
+} from "@/components/dashboard/mobile-filters"
+import { toLocalDateKey } from "@/lib/utils/date-key"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 
 export default function EggProductionsPage() {
@@ -59,7 +69,15 @@ export default function EggProductionsPage() {
   const [showAllColumnsMobile, setShowAllColumnsMobile] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
 
+  const [draftDateFrom, setDraftDateFrom] = useState("")
+  const [draftDateTo, setDraftDateTo] = useState("")
+  const [draftSelectedFlock, setDraftSelectedFlock] = useState<string>("ALL")
+
   const hasActiveFilters = !!search || !!dateFrom || !!dateTo || selectedFlock !== "ALL"
+  const hasDraftChanges =
+    draftDateFrom !== dateFrom ||
+    draftDateTo !== dateTo ||
+    draftSelectedFlock !== selectedFlock
 
   useEffect(() => {
     loadData()
@@ -102,7 +120,7 @@ export default function EggProductionsPage() {
 
     const { farmId, userId } = getUserContext()
     if (!farmId || !userId) {
-      toast({ title: "Error", description: "Farm ID or User ID not found. Please log in again.", variant: "destructive" })
+      toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" })
       return
     }
 
@@ -147,6 +165,24 @@ export default function EggProductionsPage() {
     setDateFrom("")
     setDateTo("")
     setSelectedFlock("ALL")
+    setDraftDateFrom("")
+    setDraftDateTo("")
+    setDraftSelectedFlock("ALL")
+  }
+
+  const syncDraftFromCommitted = () => {
+    setDraftDateFrom(dateFrom)
+    setDraftDateTo(dateTo)
+    setDraftSelectedFlock(selectedFlock)
+  }
+
+  const applyMobileFilters = () => {
+    setDateFrom(draftDateFrom)
+    setDateTo(draftDateTo)
+    setSelectedFlock(draftSelectedFlock)
+    setCurrentPage(1)
+    setFiltersOpen(false)
+    toast({ title: "Filters applied", description: "Egg production list updated." })
   }
 
   const formatDateShort = (d: string | Date) => {
@@ -172,10 +208,10 @@ export default function EggProductionsPage() {
     }
 
     if (dateFrom) {
-      currentList = currentList.filter(prod => prod.productionDate?.split('T')[0] >= dateFrom)
+      currentList = currentList.filter((prod) => toLocalDateKey(prod.productionDate) >= dateFrom)
     }
     if (dateTo) {
-      currentList = currentList.filter(prod => prod.productionDate?.split('T')[0] <= dateTo)
+      currentList = currentList.filter((prod) => toLocalDateKey(prod.productionDate) <= dateTo)
     }
     if (selectedFlock !== "ALL") {
       currentList = currentList.filter(prod => prod.flockId === parseInt(selectedFlock))
@@ -286,54 +322,101 @@ export default function EggProductionsPage() {
 
             {/* Filters - Mobile: Sheet; Desktop: Inline */}
             {isMobile ? (
-              <div className="space-y-3">
+              <div className="space-y-3 w-full min-w-0">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <Input placeholder="Search by flock or notes..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 h-11" />
                 </div>
-                <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
-                  <SheetTrigger asChild>
-                    <Button variant="outline" className="w-full h-11 gap-2 justify-start">
-                      <Filter className="h-4 w-4" />
-                      Filters
-                      {hasActiveFilters && (
-                        <span className="ml-1 h-5 min-w-[20px] px-1.5 rounded-full bg-amber-500 text-white text-xs flex items-center justify-center">
-                          {[search, dateFrom, dateTo, selectedFlock !== "ALL"].filter(Boolean).length}
-                        </span>
-                      )}
-                    </Button>
-                  </SheetTrigger>
-                  <SheetContent side="bottom" className="h-[75vh] rounded-t-2xl">
-                    <SheetHeader>
-                      <SheetTitle>Filters</SheetTitle>
-                    </SheetHeader>
-                    <div className="space-y-4 overflow-y-auto pb-8">
-                      <div>
-                        <label className="text-sm font-medium text-slate-700 mb-1 block">Date range</label>
-                        <div className="grid grid-cols-2 gap-2">
-                          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-                          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+                <div className={MOBILE_FILTERS_TOOLBAR_ROW_CLASS}>
+                  <Sheet
+                    open={filtersOpen}
+                    onOpenChange={(open) => {
+                      setFiltersOpen(open)
+                      syncDraftFromCommitted()
+                    }}
+                  >
+                    <SheetTrigger asChild>
+                      <Button variant="outline" className={MOBILE_FILTERS_TRIGGER_BUTTON_CLASS}>
+                        <Filter className="h-4 w-4" />
+                        <span className="truncate">Filters</span>
+                        {hasActiveFilters && (
+                          <span className="ml-1 h-5 min-w-[20px] px-1.5 rounded-full bg-orange-500 text-white text-xs flex items-center justify-center">
+                            {[search, dateFrom, dateTo, selectedFlock !== "ALL"].filter(Boolean).length}
+                          </span>
+                        )}
+                      </Button>
+                    </SheetTrigger>
+                    <SheetContent side="bottom" className={MOBILE_FILTER_SHEET_CONTENT_CLASS}>
+                      <MobileFilterSheetHeader />
+                      <MobileFilterSheetBody>
+                        <div className="space-y-3">
+                          <p className="text-sm font-medium text-slate-700">Date range</p>
+                          <div className="flex flex-col gap-4">
+                            <div className="min-w-0 space-y-2">
+                              <label htmlFor="egg-filter-from" className="text-xs font-medium text-slate-500">
+                                Start date
+                              </label>
+                              <Input
+                                id="egg-filter-from"
+                                type="date"
+                                value={draftDateFrom}
+                                onChange={(e) => setDraftDateFrom(e.target.value)}
+                                className="h-12 min-w-0 w-full text-base"
+                              />
+                            </div>
+                            <div className="min-w-0 space-y-2">
+                              <label htmlFor="egg-filter-to" className="text-xs font-medium text-slate-500">
+                                End date
+                              </label>
+                              <Input
+                                id="egg-filter-to"
+                                type="date"
+                                value={draftDateTo}
+                                onChange={(e) => setDraftDateTo(e.target.value)}
+                                className="h-12 min-w-0 w-full text-base"
+                              />
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-slate-700 mb-1 block">Flock</label>
-                        <Select value={selectedFlock} onValueChange={setSelectedFlock}>
-                          <SelectTrigger><SelectValue placeholder="All Flocks" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="ALL">All Flocks</SelectItem>
-                            {flocks.map(f => (
-                              <SelectItem key={f.flockId} value={f.flockId.toString()}>{f.name} ({f.quantity} birds)</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="flex gap-2 pt-4">
-                        <Button variant="outline" className="flex-1" onClick={clearFilters}>Clear all</Button>
-                        <Button className="flex-1" onClick={() => setFiltersOpen(false)}>Apply</Button>
-                      </div>
-                    </div>
-                  </SheetContent>
-                </Sheet>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-slate-700">Flock</label>
+                          <Select value={draftSelectedFlock} onValueChange={setDraftSelectedFlock}>
+                            <SelectTrigger className="h-12 text-base">
+                              <SelectValue placeholder="All Flocks" />
+                            </SelectTrigger>
+                            <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
+                              <SelectItem value="ALL">All Flocks</SelectItem>
+                              {flocks.map((f) => (
+                                <SelectItem key={f.flockId} value={f.flockId.toString()}>
+                                  {f.name} ({f.quantity} birds)
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </MobileFilterSheetBody>
+                      <MobileFilterSheetFooter>
+                        <div className="flex gap-3">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="h-12 flex-1"
+                            onClick={() => {
+                              clearFilters()
+                              setFiltersOpen(false)
+                              toast({ title: "Filters cleared" })
+                            }}
+                          >
+                            Clear all
+                          </Button>
+                          <Button type="button" className="h-12 flex-1" onClick={applyMobileFilters} disabled={!hasDraftChanges}>
+                            Apply
+                          </Button>
+                        </div>
+                      </MobileFilterSheetFooter>
+                    </SheetContent>
+                  </Sheet>
+                </div>
               </div>
             ) : (
               <div className="flex flex-wrap items-center gap-2 p-2 bg-white rounded-lg border">

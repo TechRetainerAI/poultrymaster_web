@@ -17,6 +17,7 @@ import { getUserContext } from "@/lib/utils/user-context"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useToast } from "@/hooks/use-toast"
+import { toastFormGuide } from "@/lib/utils/validation-toast"
 import { Input } from "@/components/ui/input"
 import { useMemo } from "react"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
@@ -128,7 +129,7 @@ export default function CustomersPage() {
     if (!createForm.name.trim() || !createForm.contactPhone.trim() || !createForm.city.trim() || !createForm.address.trim()) {
       const msg = "Name, phone, city, and address are required."
       setCreateError(msg)
-      toast({ title: "Required fields missing", description: msg, variant: "destructive" })
+      toastFormGuide(toast, "Add the customer name, phone, city, and address — those fields keep deliveries and invoices accurate.")
       setCreateLoading(false)
       return
     }
@@ -196,7 +197,7 @@ export default function CustomersPage() {
     if (!editForm.name.trim() || !editForm.contactPhone.trim() || !editForm.city.trim() || !editForm.address.trim()) {
       const msg = "Name, phone, city, and address are required."
       setEditError(msg)
-      toast({ title: "Required fields missing", description: msg, variant: "destructive" })
+      toastFormGuide(toast, "Add the customer name, phone, city, and address — those fields keep deliveries and invoices accurate.")
       setEditLoading(false)
       return
     }
@@ -224,7 +225,7 @@ export default function CustomersPage() {
     if (!deletingId) return
     const { userId, farmId } = getUserContext()
     if (!userId || !farmId) {
-      toast({ title: "Error", description: "Farm ID or User ID not found.", variant: "destructive" })
+      toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" })
       return
     }
     setIsDeleting(true)

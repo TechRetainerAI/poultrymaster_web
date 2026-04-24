@@ -30,6 +30,7 @@ import {
   Menu,
   X,
   HelpCircle,
+  MessageCircle,
   Activity,
   Wallet,
   Boxes,
@@ -359,6 +360,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
           {permissions.featureAccess.canViewActivityLog && renderNavItem({ href: "/audit-logs", label: "Activity Log", icon: Activity })}
           {permissions.featureAccess.canViewSettings && renderNavItem({ href: "/settings", label: "Settings", icon: Settings })}
           {renderNavItem({ href: "/help", label: "Help Center", icon: HelpCircle })}
+          {renderNavItem({ href: "/support", label: "Support", icon: MessageCircle })}
           {renderNavItem({ href: "/terms", label: "Terms & Conditions", icon: ListTodo })}
         </div>
       </nav>

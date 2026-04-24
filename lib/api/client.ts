@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios'
+import { DEFAULT_FARM_API_ORIGIN } from '@/lib/api/default-api-hosts'
 
 export class ApiError extends Error {
   constructor(
@@ -181,14 +182,14 @@ class ApiClient {
 }
 
 // Singleton instance
-function normalizeBaseUrl(raw?: string, fallback = 'https://farmapi.techretainer.com') {
+function normalizeBaseUrl(raw?: string, fallback = DEFAULT_FARM_API_ORIGIN) {
   const val = raw || fallback
   if (val.startsWith('http://') || val.startsWith('https://')) return val
   return `https://${val}`
 }
 
 export const apiClient = new ApiClient(
-  normalizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL, 'https://farmapi.techretainer.com')
+  normalizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL, DEFAULT_FARM_API_ORIGIN)
 )
 
 // Initialize token from localStorage on client side

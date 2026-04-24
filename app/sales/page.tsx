@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -22,9 +23,26 @@ import { getUserContext } from "@/lib/utils/user-context"
 import { formatCurrency, getSelectedCurrency, setSelectedCurrency } from "@/lib/utils/currency"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import {
+  MOBILE_FILTER_SHEET_CONTENT_CLASS,
+  MOBILE_FILTER_SELECT_CONTENT_CLASS,
+  MOBILE_FILTERS_TOOLBAR_ROW_CLASS,
+  MOBILE_FILTERS_TRIGGER_BUTTON_CLASS,
+  MobileFilterSheetBody,
+  MobileFilterSheetFooter,
+  MobileFilterSheetHeader,
+} from "@/components/dashboard/mobile-filters"
+import { toLocalDateKey } from "@/lib/utils/date-key"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { formatDateShort, cn } from "@/lib/utils"
+import { toastFormGuide } from "@/lib/utils/validation-toast"
+import {
+  SaleInvoiceDocument,
+  saleInvoiceNumber,
+  formatSaleInvoiceDate,
+  SALE_INVOICE_PRINT_STYLES,
+} from "@/components/sales/sale-invoice-document"
 
 export default function SalesPage() {
   const router = useRouter()
@@ -67,6 +85,7 @@ export default function SalesPage() {
     customerName: "",
     flockId: 0,
     saleDescription: "",
+    paid: true,
   })
 
   const productOptions = ["Fresh Eggs", "Chicken", "Manure", "Other"]
@@ -80,6 +99,11 @@ export default function SalesPage() {
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [draftDateFrom, setDraftDateFrom] = useState("")
+  const [draftDateTo, setDraftDateTo] = useState("")
+  const [draftCurrencyCode, setDraftCurrencyCode] = useState(() => getSelectedCurrency())
+  const hasDraftChanges =
+    draftDateFrom !== dateFrom || draftDateTo !== dateTo || draftCurrencyCode !== currencyCode
   const [showAllColumnsMobile, setShowAllColumnsMobile] = useState(false)
   const isMobile = useIsMobile()
   const [crates, setCrates] = useState(0)
@@ -156,8 +180,8 @@ export default function SalesPage() {
       
       if (!userId || !farmId) {
         toast({
-          title: "Error",
-          description: "User context not found. Please log in again.",
+          title: "Session issue",
+          description: "We could not confirm your farm or user. Please sign in again.",
           variant: "destructive",
         })
         return
@@ -190,8 +214,8 @@ export default function SalesPage() {
       
       if (!userId || !farmId) {
         toast({
-          title: "Error",
-          description: "User context not found. Please log in again.",
+          title: "Session issue",
+          description: "We could not confirm your farm or user. Please sign in again.",
           variant: "destructive",
         })
         return
@@ -216,6 +240,7 @@ export default function SalesPage() {
         customerName: (formData.customerName ?? "").toString(),
         flockId: formData.flockId ?? 0,
         saleDescription: formData.saleDescription ?? "",
+        paid: formData.paid ?? true,
       }
       
       const response = await createSale(saleData)
@@ -251,8 +276,8 @@ export default function SalesPage() {
       
       if (!userId || !farmId) {
         toast({
-          title: "Error",
-          description: "User context not found. Please log in again.",
+          title: "Session issue",
+          description: "We could not confirm your farm or user. Please sign in again.",
           variant: "destructive",
         })
         return
@@ -277,6 +302,7 @@ export default function SalesPage() {
         customerName: (formData.customerName ?? "").toString(),
         flockId: formData.flockId ?? 0,
         saleDescription: formData.saleDescription ?? "",
+        paid: formData.paid ?? true,
       }
       
       const response = await updateSale(editingSale.saleId, payload)
@@ -353,6 +379,7 @@ export default function SalesPage() {
       customerName: "",
       flockId: 0,
       saleDescription: "",
+      paid: true,
     })
     setProductSelection(undefined)
     setProductOther("")
@@ -423,6 +450,25 @@ export default function SalesPage() {
     setSearchCustomer("")
     setDateFrom("")
     setDateTo("")
+    setDraftDateFrom("")
+    setDraftDateTo("")
+    setDraftCurrencyCode(currencyCode)
+  }
+
+  const syncDraftFromCommitted = () => {
+    setDraftDateFrom(dateFrom)
+    setDraftDateTo(dateTo)
+    setDraftCurrencyCode(currencyCode)
+  }
+
+  const applyMobileFilters = () => {
+    setDateFrom(draftDateFrom)
+    setDateTo(draftDateTo)
+    setCurrencyCode(draftCurrencyCode)
+    setSelectedCurrency(draftCurrencyCode)
+    setCurrentPage(1)
+    setFiltersOpen(false)
+    toast({ title: "Filters applied", description: "Sales list updated." })
   }
 
   const validateSaleForm = () => {
@@ -434,19 +480,15 @@ export default function SalesPage() {
 
     let message = ""
 
-    if (!formData.saleDate) message = "Sale date is required."
-    else if (!product) message = "Product is required."
-    else if (!customerName) message = "Customer name is required."
-    else if (!Number.isFinite(quantity) || quantity <= 0) message = "Quantity is required and must be greater than zero."
-    else if (!Number.isFinite(unitPrice) || unitPrice <= 0) message = "Unit price is required and must be greater than zero."
-    else if (!paymentMethod) message = "Payment method is required."
+    if (!formData.saleDate) message = "Pick the date this sale happened."
+    else if (!product) message = "Choose what was sold (eggs, chicken, manure, or other)."
+    else if (!customerName) message = "Enter or select who bought from you."
+    else if (!Number.isFinite(quantity) || quantity <= 0) message = "Enter how many units were sold — use a number greater than zero."
+    else if (!Number.isFinite(unitPrice) || unitPrice <= 0) message = "Enter the price per unit — it must be greater than zero."
+    else if (!paymentMethod) message = "Select how the customer paid (cash, mobile money, bank, etc.)."
 
     if (message) {
-      toast({
-        title: "Required field missing",
-        description: message,
-        variant: "destructive",
-      })
+      toastFormGuide(toast, message)
       return false
     }
 
@@ -471,6 +513,7 @@ export default function SalesPage() {
       customerName: sale.customerName,
       flockId: sale.flockId,
       saleDescription: sale.saleDescription,
+      paid: sale.paid ?? true,
     })
     const selection = productOptions.includes(sale.product) ? sale.product : "Other"
     setProductSelection(selection)
@@ -510,18 +553,6 @@ export default function SalesPage() {
     }
   }
 
-  const generateInvoiceNumber = (saleId: number) => {
-    return `INV-${saleId.toString().padStart(6, "0")}`
-  }
-
-  const formatInvoiceDate = (date: string) => {
-    return new Date(date).toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    })
-  }
-
   const handlePrintInvoice = () => {
     if (!selectedSale || typeof window === "undefined") return
     const invoiceContent = invoicePrintRef.current?.innerHTML
@@ -548,20 +579,8 @@ export default function SalesPage() {
     printWindow.document.write(`
       <html>
         <head>
-          <title>Invoice ${generateInvoiceNumber(selectedSale.saleId)}</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 32px; color: #0f172a; }
-            h1, h2, h3, h4 { margin: 0; }
-            .invoice-header { display: flex; justify-content: space-between; margin-bottom: 24px; }
-            .invoice-section { margin-bottom: 24px; }
-            .invoice-box { border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; }
-            .invoice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
-            .muted { color: #64748b; }
-            table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-            th, td { padding: 12px 16px; border-bottom: 1px solid #e2e8f0; text-align: left; }
-            .total-row td { font-weight: bold; }
-            .badge { display: inline-block; padding: 4px 12px; border-radius: 9999px; border: 1px solid #cbd5f5; background: #eef2ff; color: #3730a3; font-size: 12px; }
-          </style>
+          <title>Invoice ${saleInvoiceNumber(selectedSale.saleId)}</title>
+          <style>${SALE_INVOICE_PRINT_STYLES}</style>
         </head>
         <body>
           ${invoiceContent}
@@ -594,15 +613,8 @@ export default function SalesPage() {
         const matchesProduct = sale.product?.toLowerCase().includes(query)
         if (!matchesCustomer && !matchesProduct) return false
       }
-      if (dateFrom) {
-        if (new Date(sale.saleDate) < new Date(dateFrom)) return false
-      }
-      if (dateTo) {
-        const saleDate = new Date(sale.saleDate)
-        const to = new Date(dateTo)
-        to.setHours(23, 59, 59, 999)
-        if (saleDate > to) return false
-      }
+      if (dateFrom && toLocalDateKey(sale.saleDate) < dateFrom) return false
+      if (dateTo && toLocalDateKey(sale.saleDate) > dateTo) return false
       return true
     })
   }, [sales, searchCustomer, dateFrom, dateTo])
@@ -850,6 +862,17 @@ export default function SalesPage() {
                       </Select>
                     </div>
                   </div>
+                  <div className="flex items-center gap-3 rounded-md border bg-white px-3 py-2">
+                    <Checkbox
+                      id="salePaid"
+                      checked={Boolean(formData.paid ?? true)}
+                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, paid: checked === true }))}
+                    />
+                    <div className="space-y-0.5">
+                      <Label htmlFor="salePaid" className="cursor-pointer">Paid</Label>
+                      <p className="text-xs text-slate-500">Uncheck if customer has not paid yet (records as owed).</p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -956,53 +979,100 @@ export default function SalesPage() {
 
             {/* Filters */}
             {isMobile ? (
-              <div className="space-y-3">
+              <div className="space-y-3 w-full min-w-0">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <Input placeholder="Search customer or product" value={searchCustomer} onChange={(e) => setSearchCustomer(e.target.value)} className="pl-10 h-11" />
                 </div>
-                <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
-                  <SheetTrigger asChild>
-                    <Button variant="outline" className="w-full h-11 gap-2 justify-start">
-                      <Filter className="h-4 w-4" />
-                      Filters
-                      {(!!searchCustomer || !!dateFrom || !!dateTo) && (
-                        <span className="ml-1 h-5 min-w-[20px] px-1.5 rounded-full bg-amber-500 text-white text-xs flex items-center justify-center">
-                          {[searchCustomer, dateFrom, dateTo].filter(Boolean).length}
-                        </span>
-                      )}
-                    </Button>
-                  </SheetTrigger>
-                  <SheetContent side="bottom" className="h-[75vh] rounded-t-2xl">
-                    <SheetHeader>
-                      <SheetTitle>Filters</SheetTitle>
-                    </SheetHeader>
-                    <div className="space-y-4 overflow-y-auto pb-8">
-                      <div>
-                        <label className="text-sm font-medium text-slate-700 mb-1 block">Date range</label>
-                        <div className="grid grid-cols-2 gap-2">
-                          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-                          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+                <div className={MOBILE_FILTERS_TOOLBAR_ROW_CLASS}>
+                  <Sheet
+                    open={filtersOpen}
+                    onOpenChange={(open) => {
+                      setFiltersOpen(open)
+                      syncDraftFromCommitted()
+                    }}
+                  >
+                    <SheetTrigger asChild>
+                      <Button variant="outline" className={MOBILE_FILTERS_TRIGGER_BUTTON_CLASS}>
+                        <Filter className="h-4 w-4" />
+                        <span className="truncate">Filters</span>
+                        {(!!searchCustomer || !!dateFrom || !!dateTo) && (
+                          <span className="ml-1 h-5 min-w-[20px] px-1.5 rounded-full bg-orange-500 text-white text-xs flex items-center justify-center">
+                            {[searchCustomer, dateFrom, dateTo].filter(Boolean).length}
+                          </span>
+                        )}
+                      </Button>
+                    </SheetTrigger>
+                    <SheetContent side="bottom" className={MOBILE_FILTER_SHEET_CONTENT_CLASS}>
+                      <MobileFilterSheetHeader />
+                      <MobileFilterSheetBody>
+                        <div className="space-y-3">
+                          <p className="text-sm font-medium text-slate-700">Date range</p>
+                          <div className="flex flex-col gap-4">
+                            <div className="min-w-0 space-y-2">
+                              <label htmlFor="sales-filter-from" className="text-xs font-medium text-slate-500">
+                                Start date
+                              </label>
+                              <Input
+                                id="sales-filter-from"
+                                type="date"
+                                value={draftDateFrom}
+                                onChange={(e) => setDraftDateFrom(e.target.value)}
+                                className="h-12 min-w-0 w-full text-base"
+                              />
+                            </div>
+                            <div className="min-w-0 space-y-2">
+                              <label htmlFor="sales-filter-to" className="text-xs font-medium text-slate-500">
+                                End date
+                              </label>
+                              <Input
+                                id="sales-filter-to"
+                                type="date"
+                                value={draftDateTo}
+                                onChange={(e) => setDraftDateTo(e.target.value)}
+                                className="h-12 min-w-0 w-full text-base"
+                              />
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-slate-700 mb-1 block">Currency</label>
-                        <Select value={currencyCode} onValueChange={handleCurrencyChange}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {currencyOptions.map((code) => (
-                              <SelectItem key={code} value={code}>{code}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="flex gap-2 pt-4">
-                        <Button variant="outline" className="flex-1" onClick={clearFilters}>Clear all</Button>
-                        <Button className="flex-1" onClick={() => setFiltersOpen(false)}>Apply</Button>
-                      </div>
-                    </div>
-                  </SheetContent>
-                </Sheet>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-slate-700">Currency</label>
+                          <Select value={draftCurrencyCode} onValueChange={setDraftCurrencyCode}>
+                            <SelectTrigger className="h-12 text-base">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
+                              {currencyOptions.map((code) => (
+                                <SelectItem key={code} value={code}>
+                                  {code}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </MobileFilterSheetBody>
+                      <MobileFilterSheetFooter>
+                        <div className="flex gap-3">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="h-12 flex-1"
+                            onClick={() => {
+                              clearFilters()
+                              setFiltersOpen(false)
+                              toast({ title: "Filters cleared" })
+                            }}
+                          >
+                            Clear all
+                          </Button>
+                          <Button type="button" className="h-12 flex-1" onClick={applyMobileFilters} disabled={!hasDraftChanges}>
+                            Apply
+                          </Button>
+                        </div>
+                      </MobileFilterSheetFooter>
+                    </SheetContent>
+                  </Sheet>
+                </div>
               </div>
             ) : (
             <div className="p-3 bg-white rounded border flex flex-wrap gap-3 items-end">
@@ -1158,6 +1228,7 @@ export default function SalesPage() {
                                 <div className="grid grid-cols-2 gap-2">
                                   <div><span className="text-slate-500">Quantity</span> <span className="font-medium">{sale.quantity}</span></div>
                                   <div><span className="text-slate-500">Payment</span> <span className="font-medium">{sale.paymentMethod}</span></div>
+                                  <div><span className="text-slate-500">Status</span> <span className={cn("font-medium", sale.paid === false ? "text-amber-700" : "text-emerald-700")}>{sale.paid === false ? "Unpaid" : "Paid"}</span></div>
                                   <div><span className="text-slate-500">Flock</span> <span className="font-medium">{getFlockLabel(sale.flockId)}</span></div>
                                 </div>
                                 <div className="flex gap-2 pt-2">
@@ -1226,7 +1297,12 @@ export default function SalesPage() {
                           <TableCell>{formatCurrency(sale.unitPrice, currencyCode)}</TableCell>
                           <TableCell className="font-medium">{formatCurrency(sale.totalAmount, currencyCode)}</TableCell>
                           <TableCell>
-                            <Badge variant="outline">{sale.paymentMethod}</Badge>
+                            <div className="flex flex-col gap-1">
+                              <Badge variant="outline" className="w-fit">{sale.paymentMethod}</Badge>
+                              <span className={cn("text-xs font-medium", sale.paid === false ? "text-amber-700" : "text-emerald-700")}>
+                                {sale.paid === false ? "Unpaid" : "Paid"}
+                              </span>
+                            </div>
                           </TableCell>
                           <TableCell className={cn("whitespace-nowrap bg-white", isMobile && "sticky-col-actions")}>
                             <div className="flex items-center gap-1 min-w-[100px]">
@@ -1476,6 +1552,17 @@ export default function SalesPage() {
                           </Select>
                         </div>
                       </div>
+                      <div className="flex items-center gap-3 rounded-md border bg-white px-3 py-2">
+                        <Checkbox
+                          id="edit-salePaid"
+                          checked={Boolean(formData.paid ?? true)}
+                          onCheckedChange={(checked) => setFormData(prev => ({ ...prev, paid: checked === true }))}
+                        />
+                        <div className="space-y-0.5">
+                          <Label htmlFor="edit-salePaid" className="cursor-pointer">Paid</Label>
+                          <p className="text-xs text-slate-500">Uncheck if this sale is still owed by customer.</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -1583,173 +1670,60 @@ export default function SalesPage() {
             <Dialog open={isInvoiceDialogOpen} onOpenChange={closeInvoiceDialog}>
               <DialogContent className={cn("w-[95vw] max-h-[90vh] overflow-y-auto", isMobile ? "p-4" : "max-w-3xl")}>
                 <DialogHeader>
-                  <DialogTitle>Sale Invoice</DialogTitle>
+                  <DialogTitle>Sale invoice</DialogTitle>
                   <DialogDescription>
-                    Review the invoice details and print a copy for the customer.
+                    Review the tax invoice and print or save a PDF for your customer.
                   </DialogDescription>
                 </DialogHeader>
 
                 {selectedSale ? (
-                  <div className="space-y-6">
-                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div className="space-y-5">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                       <div>
-                        <p className="text-sm text-muted-foreground">Invoice Number</p>
-                        <p className="text-xl font-semibold">
-                          {generateInvoiceNumber(selectedSale.saleId)}
+                        <p className="text-sm text-muted-foreground">Invoice number</p>
+                        <p className="font-mono text-xl font-semibold text-teal-900">
+                          {saleInvoiceNumber(selectedSale.saleId)}
                         </p>
                       </div>
-                      <Button onClick={handlePrintInvoice} className="gap-2 self-start md:self-auto">
+                      <Button onClick={handlePrintInvoice} className={cn("gap-2 self-start md:self-auto", isMobile && "w-full justify-center h-11")}>
                         <Printer className="h-4 w-4" />
-                        Print Invoice
+                        Print invoice
                       </Button>
                     </div>
-
-                    <div
-                      ref={invoicePrintRef}
-                      id="invoice-print-area"
-                      className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6 text-slate-900"
-                    >
-                      <div className="flex flex-col gap-6">
-                        <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
-                          <div>
-                            <h2 className="text-xl sm:text-2xl font-bold break-words">{farmInfo.name}</h2>
-                            {farmInfo.address && (
-                              <p className="mt-1 text-sm text-slate-500">{farmInfo.address}</p>
-                            )}
-                            <div className="mt-2 space-y-1 text-sm text-slate-500">
-                              {farmInfo.phone && <p>Phone: {farmInfo.phone}</p>}
-                              {farmInfo.email && <p>Email: {farmInfo.email}</p>}
-                            </div>
-                          </div>
-                          <div className="space-y-1 text-left md:text-right text-sm text-slate-500">
-                            <p>
-                              <span className="font-semibold text-slate-700">Invoice Date:</span>{" "}
-                              {formatInvoiceDate(selectedSale.saleDate)}
-                            </p>
-                            <p>
-                              <span className="font-semibold text-slate-700">Created:</span>{" "}
-                              {formatInvoiceDate(selectedSale.createdDate)}
-                            </p>
-                            <p>
-                              <span className="font-semibold text-slate-700">Payment Method:</span>{" "}
-                              {selectedSale.paymentMethod}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="grid gap-4 md:grid-cols-2">
-                          <div className="rounded-lg border border-slate-200 p-4">
-                            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">
-                              Bill To
-                            </h3>
-                            <p className="mt-2 text-lg font-medium">{selectedSale.customerName}</p>
-                            <p className="text-sm text-slate-500">
-                              {selectedSale.saleDescription || "Customer invoice"}
-                            </p>
-                          </div>
-                          <div className="rounded-lg border border-slate-200 p-4">
-                            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">
-                              Sale Reference
-                            </h3>
-                            <div className="mt-2 space-y-1 text-sm text-slate-500">
-                              <p>
-                                <span className="font-semibold text-slate-700">Product:</span>{" "}
-                                {selectedSale.product}
-                              </p>
-                              <p>
-                                <span className="font-semibold text-slate-700">Flock:</span>{" "}
-                                {getFlockLabel(selectedSale.flockId)}
-                              </p>
-                              <p>
-                                <span className="font-semibold text-slate-700">Recorded By:</span>{" "}
-                                {selectedSale.userId}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-
-                        {isMobile ? (
-                          <div className="rounded-lg border border-slate-200 p-4 space-y-3">
-                            <p className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Invoice Item</p>
-                            <div className="space-y-2 text-sm">
-                              <div className="flex items-start justify-between gap-3">
-                                <span className="text-slate-500">Description</span>
-                                <span className="font-medium text-slate-800 text-right break-words">{selectedSale.product}</span>
-                              </div>
-                              <div className="flex items-start justify-between gap-3">
-                                <span className="text-slate-500">Quantity</span>
-                                <span className="text-right">
-                                  {selectedSale.quantity}
-                                  {selectedSale.product && selectedSale.product.toLowerCase().includes("egg") && (
-                                    <span className="block text-xs text-slate-500 mt-0.5">
-                                      {Math.floor(selectedSale.quantity / 30)} crates + {selectedSale.quantity % 30} loose
-                                    </span>
-                                  )}
-                                </span>
-                              </div>
-                              <div className="flex items-start justify-between gap-3">
-                                <span className="text-slate-500">Unit Price</span>
-                                <span className="font-medium whitespace-nowrap">{formatCurrency(selectedSale.unitPrice, currencyCode)}</span>
-                              </div>
-                              <div className="flex items-start justify-between gap-3 border-t border-slate-200 pt-2">
-                                <span className="text-slate-700 font-semibold">Amount</span>
-                                <span className="font-semibold whitespace-nowrap">{formatCurrency(selectedSale.totalAmount, currencyCode)}</span>
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="overflow-x-auto rounded-lg border border-slate-200">
-                            <table className="w-full min-w-[640px]">
-                              <thead className="bg-slate-50 text-left text-sm uppercase tracking-wide text-slate-500">
-                                <tr>
-                                  <th className="px-3 py-3 sm:px-6 whitespace-nowrap">Description</th>
-                                  <th className="px-3 py-3 sm:px-6 whitespace-nowrap">Quantity</th>
-                                  <th className="px-3 py-3 sm:px-6 whitespace-nowrap">Unit Price</th>
-                                  <th className="px-3 py-3 sm:px-6 whitespace-nowrap">Amount</th>
-                                </tr>
-                              </thead>
-                              <tbody className="text-sm">
-                                <tr className="border-t border-slate-200">
-                                  <td className="px-3 py-4 sm:px-6">
-                                    <p className="font-medium text-slate-800">{selectedSale.product}</p>
-                                    {selectedSale.saleDescription && (
-                                      <p className="mt-1 text-slate-500">
-                                        {selectedSale.saleDescription}
-                                      </p>
-                                    )}
-                                  </td>
-                                  <td className="px-3 py-4 sm:px-6">
-                                    {selectedSale.quantity}
-                                    {selectedSale.product && selectedSale.product.toLowerCase().includes("egg") && (
-                                      <span className="block text-xs text-slate-500 mt-0.5">
-                                        {Math.floor(selectedSale.quantity / 30)} crates + {selectedSale.quantity % 30} loose
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td className="px-3 py-4 sm:px-6 whitespace-nowrap">
-                                    {formatCurrency(selectedSale.unitPrice, currencyCode)}
-                                  </td>
-                                  <td className="px-3 py-4 sm:px-6 font-semibold whitespace-nowrap">
-                                    {formatCurrency(selectedSale.totalAmount, currencyCode)}
-                                  </td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-
-                        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                          <p className="text-sm text-slate-500">
-                            Thank you for your business! Please contact us if you have any questions about this invoice.
-                          </p>
-                          <div className="self-start md:self-auto rounded-lg border border-slate-200 px-4 sm:px-6 py-4 text-left md:text-right">
-                            <p className="text-sm text-slate-500">Total Due</p>
-                            <p className="text-2xl font-bold text-slate-900">
-                              {formatCurrency(selectedSale.totalAmount, currencyCode)}
-                            </p>
-                          </div>
-                        </div>
+                    <div className={cn("grid gap-2", isMobile ? "grid-cols-2" : "grid-cols-4")}>
+                      <div className="rounded-lg border bg-slate-50 px-3 py-2">
+                        <p className="text-xs text-slate-500">Date</p>
+                        <p className="text-sm font-semibold">{formatSaleInvoiceDate(selectedSale.saleDate)}</p>
                       </div>
+                      <div className="rounded-lg border bg-slate-50 px-3 py-2">
+                        <p className="text-xs text-slate-500">Customer</p>
+                        <p className="text-sm font-semibold truncate">{selectedSale.customerName}</p>
+                      </div>
+                      <div className="rounded-lg border bg-slate-50 px-3 py-2">
+                        <p className="text-xs text-slate-500">Payment</p>
+                        <p className="text-sm font-semibold truncate">{selectedSale.paymentMethod}</p>
+                      </div>
+                      <div className="rounded-lg border bg-slate-50 px-3 py-2">
+                        <p className="text-xs text-slate-500">Status</p>
+                        <p className={cn("text-sm font-semibold", selectedSale.paid === false ? "text-amber-700" : "text-emerald-700")}>
+                          {selectedSale.paid === false ? "Unpaid" : "Paid"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div ref={invoicePrintRef} id="invoice-print-area" className="bg-slate-100/80 p-2 sm:p-3 rounded-md">
+                      <SaleInvoiceDocument
+                        sale={selectedSale}
+                        farm={{
+                          name: farmInfo.name,
+                          address: farmInfo.address || undefined,
+                          phone: farmInfo.phone || undefined,
+                          email: farmInfo.email || undefined,
+                        }}
+                        currencyCode={currencyCode}
+                        formatMoney={formatCurrency}
+                        flockLabel={getFlockLabel(selectedSale.flockId)}
+                      />
                     </div>
                   </div>
                 ) : (

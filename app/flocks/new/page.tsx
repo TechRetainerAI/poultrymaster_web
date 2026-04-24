@@ -113,7 +113,7 @@ export default function NewFlockPage() {
     }
 
     if (!formData.batchId || formData.batchId === 0) {
-      setError("Please select a batch")
+      setError("Link this flock to a batch — pick one from the list.")
       return
     }
 

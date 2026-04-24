@@ -15,6 +15,7 @@ import { SuccessModal } from "@/components/auth/success-modal"
 import { AuthService } from "@/lib/services/auth.service"
 import { useAuth } from "@/lib/hooks/use-auth"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { DEFAULT_LOGIN_API_HOST } from "@/lib/api/default-api-hosts"
 
 export default function ProfilePage() {
   const router = useRouter()
@@ -169,7 +170,7 @@ export default function ProfilePage() {
 
     try {
       const token = localStorage.getItem("auth_token")
-      const rawAdmin = process.env.NEXT_PUBLIC_ADMIN_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'usermanagementapi.techretainer.com'
+      const rawAdmin = process.env.NEXT_PUBLIC_ADMIN_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || DEFAULT_LOGIN_API_HOST
       const baseUrl = rawAdmin.startsWith('http://') || rawAdmin.startsWith('https://') ? rawAdmin : `https://${rawAdmin}`
       const response = await fetch(`${baseUrl}/api/Authentication/update-profile`, {
         method: "PUT",
@@ -243,7 +244,7 @@ export default function ProfilePage() {
 
     try {
       const token = localStorage.getItem("auth_token")
-      const rawAdmin = process.env.NEXT_PUBLIC_ADMIN_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'usermanagementapi.techretainer.com'
+      const rawAdmin = process.env.NEXT_PUBLIC_ADMIN_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || DEFAULT_LOGIN_API_HOST
       const baseUrl = rawAdmin.startsWith('http://') || rawAdmin.startsWith('https://') ? rawAdmin : `https://${rawAdmin}`
       
       const endpoint = enabled 

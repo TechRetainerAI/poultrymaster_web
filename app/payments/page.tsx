@@ -1,29 +1,20 @@
 "use client"
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
+import { Suspense, useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { loadStripe } from "@stripe/stripe-js"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { PageHeader } from "@/components/ui/info-section"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2, CreditCard, ExternalLink } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useToast } from "@/hooks/use-toast"
 import {
-  getStripeProducts,
-  createCheckoutSession,
   createFarmTierCheckoutSession,
   getSubscriptionTiers,
-  openCustomerPortal,
-  priceIdFromProduct,
   tierForBirdCount,
-  type StripeProductLike,
   type SubscriptionTiersResponse,
 } from "@/lib/api/payments"
 import { getFlocks, type Flock } from "@/lib/api/flock"
@@ -46,23 +37,29 @@ function formatTierAmount(currencyCode: string, amount: number): string {
   }
 }
 
+function cleanApiError(message?: string): string {
+  if (!message) return "Could not start Paystack checkout."
+  // Backend sometimes returns full HTML for 404/400 pages; show a user-friendly message.
+  if (message.includes("<html") || message.includes("<body")) {
+    return (
+      "Payment API returned a web page instead of JSON. Usually: (1) NEXT_PUBLIC_ADMIN_API_URL / ADMIN_API_URL points at this website instead of the Login API host, or " +
+      "(2) the deployed Login API is an old build without GET /api/Payments/subscription-tiers. Fix env on Cloud Run/Vercel, then redeploy User.Management.API from the repo that includes Paystack routes."
+    )
+  }
+  return message
+}
+
 function PaymentsPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const permissions = usePermissions()
   const { toast } = useToast()
 
-  const [products, setProducts] = useState<StripeProductLike[]>([])
-  const [loadError, setLoadError] = useState("")
-  const [loadingProducts, setLoadingProducts] = useState(true)
-  const [manualPriceId, setManualPriceId] = useState("")
-  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
-  const [portalLoading, setPortalLoading] = useState(false)
   const [tiersInfo, setTiersInfo] = useState<SubscriptionTiersResponse | null>(null)
   const [tiersError, setTiersError] = useState("")
   const [totalBirds, setTotalBirds] = useState<number | null>(null)
   const [farmCheckoutLoading, setFarmCheckoutLoading] = useState(false)
-  const [includeTrialForPriceCheckout, setIncludeTrialForPriceCheckout] = useState(true)
+  const [checkoutError, setCheckoutError] = useState("")
 
   const appliedTier = useMemo(() => {
     if (totalBirds === null || !tiersInfo?.tiers?.length) return null
@@ -72,23 +69,9 @@ function PaymentsPageInner() {
   const baseUrl =
     typeof window !== "undefined" ? `${window.location.origin}/payments` : "/payments"
 
-  const refreshProducts = useCallback(async () => {
-    setLoadingProducts(true)
-    setLoadError("")
-    const result = await getStripeProducts()
-    if (result.success && result.data) {
-      setProducts(result.data)
-    } else {
-      setLoadError(result.message || "Could not load subscription plans")
-    }
-    setLoadingProducts(false)
-  }, [])
-
   const canAccessPayments =
     permissions.isAdmin || permissions.featureAccess.canViewFinancial
   const canStartCheckout = permissions.isAdmin
-  const canUseBillingPortal =
-    permissions.isAdmin || permissions.featureAccess.canViewFinancial
 
   useEffect(() => {
     if (permissions.isLoading) return
@@ -96,8 +79,7 @@ function PaymentsPageInner() {
       router.push("/dashboard")
       return
     }
-    refreshProducts()
-  }, [canAccessPayments, permissions.isLoading, router, refreshProducts])
+  }, [canAccessPayments, permissions.isLoading, router])
 
   useEffect(() => {
     if (permissions.isLoading || !canAccessPayments) return
@@ -106,7 +88,7 @@ function PaymentsPageInner() {
       const t = await getSubscriptionTiers()
       if (cancelled) return
       if (t.success && t.data) setTiersInfo(t.data)
-      else setTiersError(t.message || "Could not load farm subscription tiers")
+      else setTiersError(cleanApiError(t.message) || "Could not load farm subscription tiers")
     })()
     return () => {
       cancelled = true
@@ -160,6 +142,7 @@ function PaymentsPageInner() {
       return
     }
     setFarmCheckoutLoading(true)
+    setCheckoutError("")
     try {
       const result = await createFarmTierCheckoutSession(
         totalBirds,
@@ -167,81 +150,22 @@ function PaymentsPageInner() {
         `${baseUrl}?checkout=cancel`
       )
       if (!result.success || !result.data) {
+        const msg = cleanApiError(result.message)
+        setCheckoutError(msg)
         toast({
           variant: "destructive",
           title: "Checkout failed",
-          description: result.message || "Could not start Stripe Checkout.",
+          description: msg,
         })
         return
       }
-      const stripe = await loadStripe(result.data.publicKey)
-      if (!stripe) {
-        toast({ variant: "destructive", title: "Stripe error", description: "Could not load Stripe." })
+      if (!result.data.checkoutUrl) {
+        toast({ variant: "destructive", title: "Paystack error", description: "Missing checkout URL." })
         return
       }
-      const { error } = await stripe.redirectToCheckout({ sessionId: result.data.sessionId })
-      if (error) {
-        toast({ variant: "destructive", title: "Redirect failed", description: error.message })
-      }
+      window.location.href = result.data.checkoutUrl
     } finally {
       setFarmCheckoutLoading(false)
-    }
-  }
-
-  const startCheckout = async (priceId: string) => {
-    if (!priceId.trim()) {
-      toast({ variant: "destructive", title: "Missing price", description: "Select a plan or enter a Stripe price ID." })
-      return
-    }
-    setCheckoutLoading(priceId)
-    try {
-      const result = await createCheckoutSession(
-        priceId.trim(),
-        `${baseUrl}?checkout=success`,
-        `${baseUrl}?checkout=cancel`,
-        { includeTrialWithPriceId: includeTrialForPriceCheckout }
-      )
-      if (!result.success || !result.data) {
-        toast({
-          variant: "destructive",
-          title: "Checkout failed",
-          description: result.message || "Could not start Stripe Checkout.",
-        })
-        return
-      }
-      const stripe = await loadStripe(result.data.publicKey)
-      if (!stripe) {
-        toast({ variant: "destructive", title: "Stripe error", description: "Could not load Stripe." })
-        return
-      }
-      const { error } = await stripe.redirectToCheckout({ sessionId: result.data.sessionId })
-      if (error) {
-        toast({
-          variant: "destructive",
-          title: "Redirect failed",
-          description: error.message,
-        })
-      }
-    } finally {
-      setCheckoutLoading(null)
-    }
-  }
-
-  const handlePortal = async () => {
-    setPortalLoading(true)
-    try {
-      const result = await openCustomerPortal(`${typeof window !== "undefined" ? window.location.origin : ""}/payments`)
-      if (!result.success || !result.data) {
-        toast({
-          variant: "destructive",
-          title: "Billing portal",
-          description: result.message || "Could not open the billing portal.",
-        })
-        return
-      }
-      window.location.href = result.data
-    } finally {
-      setPortalLoading(false)
     }
   }
 
@@ -267,18 +191,13 @@ function PaymentsPageInner() {
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
         <main className="overflow-y-auto overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4">
-          <div className="space-y-6 max-w-3xl">
+          <div className="space-y-6 w-full max-w-6xl mx-auto">
             <PageHeader
               title="Subscription & billing"
               subtitle={
                 permissions.isAdmin
-                  ? "Stripe plans and billing. Users with financial access can view plans and use the billing portal; only admins can start checkout."
-                  : "View subscription plans and billing. New subscriptions and custom price checkout are limited to administrators."
-              }
-              action={
-                <Button type="button" variant="outline" size="sm" onClick={refreshProducts} disabled={loadingProducts}>
-                  {loadingProducts ? <Loader2 className="h-4 w-4 animate-spin" /> : "Refresh plans"}
-                </Button>
+                  ? "Paystack subscription checkout. Tier is based on total birds in active flocks."
+                  : "View-only access. Subscription checkout is limited to administrators."
               }
             />
 
@@ -290,6 +209,11 @@ function PaymentsPageInner() {
                 </AlertDescription>
               </Alert>
             )}
+            {checkoutError && (
+              <Alert variant="destructive">
+                <AlertDescription>{checkoutError}</AlertDescription>
+              </Alert>
+            )}
 
             <Card>
               <CardHeader>
@@ -299,28 +223,56 @@ function PaymentsPageInner() {
                     "After a free trial, you are billed monthly. Tier is based on total birds across active flocks (sum of flock sizes)."}
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-5">
                 {tiersError && (
                   <Alert variant="destructive">
                     <AlertDescription>{tiersError}</AlertDescription>
                   </Alert>
                 )}
                 {tiersInfo && (
-                  <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm space-y-2">
-                    <p className="font-medium text-slate-900">
-                      {tiersInfo.trialDays}-day free trial, then monthly ({String(tiersInfo.currency || "").toUpperCase() || "—"})
-                    </p>
-                    <ul className="list-disc list-inside text-slate-600 space-y-1">
-                      {tiersInfo.tiers.map((t) => (
-                        <li key={t.id}>
-                          {t.label}:{" "}
-                          <strong>
-                            {formatTierAmount(tiersInfo.currency, t.monthlyAmount)}
-                          </strong>
-                          /mo
-                        </li>
-                      ))}
-                    </ul>
+                  <div className="space-y-5">
+                    <div className="text-center space-y-1">
+                      <p className="text-xl font-semibold tracking-tight text-slate-900">Upgrade your plan</p>
+                      <p className="text-sm text-slate-600">
+                        {tiersInfo.trialDays}-day free trial, then billed monthly
+                      </p>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-3">
+                      {tiersInfo.tiers.map((t) => {
+                        const isCurrent = appliedTier?.id === t.id && totalBirds !== null
+                        const isPopular = t.id === "tier2"
+                        return (
+                          <div
+                            key={t.id}
+                            className={`rounded-xl border p-4 transition-colors ${
+                              isCurrent
+                                ? "border-indigo-300 bg-indigo-50/70 shadow-sm"
+                                : "border-slate-200 bg-white shadow-sm"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2 min-h-[24px]">
+                              <div className="flex flex-wrap gap-1.5">
+                                {isPopular ? (
+                                  <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700">
+                                    Popular
+                                  </span>
+                                ) : null}
+                                {isCurrent ? (
+                                  <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-700">
+                                    Current
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
+                            <p className="mt-2 text-sm font-semibold text-slate-900">{t.label}</p>
+                            <p className="mt-3 text-3xl font-bold text-slate-900 leading-none">
+                              {formatTierAmount(tiersInfo.currency, t.monthlyAmount)}
+                            </p>
+                            <p className="mt-2 text-xs text-slate-500">per month after trial</p>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
                 )}
                 {appliedTier && totalBirds !== null && tiersInfo && (
@@ -331,7 +283,7 @@ function PaymentsPageInner() {
                     {tiersInfo.trialDays}-day trial.
                   </p>
                 )}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-5">
                   <div>
                     <p className="text-sm font-medium text-slate-900">Your farm (active flocks)</p>
                     <p className="text-sm text-slate-600">
@@ -341,9 +293,8 @@ function PaymentsPageInner() {
                         </span>
                       ) : (
                         <>
-                          <strong>{totalBirds.toLocaleString()}</strong> birds total — sent as{" "}
-                          <code className="text-xs bg-slate-100 px-1 rounded">totalBirds</code> to Login API checkout
-                          (dynamic <code className="text-xs bg-slate-100 px-1 rounded">price_data</code> + trial).
+                          <strong>{totalBirds.toLocaleString()}</strong> birds total. Your monthly price is based on
+                          this count after your free trial.
                         </>
                       )}
                     </p>
@@ -353,9 +304,9 @@ function PaymentsPageInner() {
                       type="button"
                       onClick={startFarmTierCheckout}
                       disabled={farmCheckoutLoading || totalBirds === null}
-                      className="shrink-0"
+                      className="shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white"
                     >
-                      {farmCheckoutLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Start subscription (Stripe)"}
+                      {farmCheckoutLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Start subscription (Paystack)"}
                     </Button>
                   ) : (
                     <span className="text-xs text-slate-500 self-center">Admins only</span>
@@ -364,130 +315,6 @@ function PaymentsPageInner() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <CreditCard className="h-5 w-5" />
-                  Customer billing portal
-                </CardTitle>
-                <CardDescription>
-                  Update payment method, invoices, or cancel in Stripe. Requires a subscriber record on your account.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button
-                  type="button"
-                  onClick={handlePortal}
-                  disabled={portalLoading || !canUseBillingPortal}
-                  className="gap-2"
-                >
-                  {portalLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
-                  Open billing portal
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Plans</CardTitle>
-                <CardDescription>
-                  Stripe catalog from the Login API. Each checkout sends <code className="text-xs bg-slate-100 px-1 rounded">priceId</code>
-                  {canStartCheckout ? ", optional trial, or a manual price ID below." : "."}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {canStartCheckout && (
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="trial-catalog"
-                      checked={includeTrialForPriceCheckout}
-                      onCheckedChange={(v) => setIncludeTrialForPriceCheckout(v === true)}
-                    />
-                    <Label htmlFor="trial-catalog" className="text-sm font-normal cursor-pointer">
-                      Apply farm trial ({tiersInfo?.trialDays ?? "…"} days) when subscribing with a Stripe price ID
-                    </Label>
-                  </div>
-                )}
-                {loadingProducts && (
-                  <div className="flex items-center gap-2 text-slate-600 text-sm">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading plans…
-                  </div>
-                )}
-                {loadError && (
-                  <Alert variant="destructive">
-                    <AlertDescription className="whitespace-pre-line">{loadError}</AlertDescription>
-                  </Alert>
-                )}
-                {!loadingProducts && !loadError && products.length === 0 && (
-                  <p className="text-sm text-slate-600">No products returned. Check Stripe keys on Login API.</p>
-                )}
-                <ul className="space-y-3">
-                  {products.map((p) => {
-                    const pid = priceIdFromProduct(p)
-                    return (
-                      <li
-                        key={p.id}
-                        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-slate-200 bg-white p-4"
-                      >
-                        <div>
-                          <p className="font-medium text-slate-900">{p.name || p.id}</p>
-                          {p.description ? (
-                            <p className="text-sm text-slate-600 mt-1">{p.description}</p>
-                          ) : null}
-                          {!pid && (
-                            <p className="text-xs text-amber-700 mt-2">
-                              No default price — set one in Stripe
-                              {canStartCheckout ? " or use price ID below." : "."}
-                            </p>
-                          )}
-                        </div>
-                        {canStartCheckout ? (
-                          <Button
-                            type="button"
-                            disabled={!pid || checkoutLoading !== null}
-                            onClick={() => pid && startCheckout(pid)}
-                            className="shrink-0"
-                          >
-                            {checkoutLoading === pid ? <Loader2 className="h-4 w-4 animate-spin" /> : "Subscribe"}
-                          </Button>
-                        ) : (
-                          <span className="text-xs text-slate-500 shrink-0 self-center">View only</span>
-                        )}
-                      </li>
-                    )
-                  })}
-                </ul>
-
-                {canStartCheckout && (
-                  <div className="pt-4 border-t border-slate-200 space-y-2">
-                    <Label htmlFor="manual-price">Stripe price ID</Label>
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <Input
-                        id="manual-price"
-                        placeholder="price_…"
-                        value={manualPriceId}
-                        onChange={(e) => setManualPriceId(e.target.value)}
-                        className="font-mono text-sm"
-                      />
-                      <Button
-                        type="button"
-                        disabled={!manualPriceId.trim() || checkoutLoading !== null}
-                        onClick={() => startCheckout(manualPriceId)}
-                        variant="secondary"
-                        className="shrink-0"
-                      >
-                        {checkoutLoading && checkoutLoading === manualPriceId.trim() ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          "Checkout with this price"
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
           </div>
         </main>
       </div>

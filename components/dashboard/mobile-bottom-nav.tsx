@@ -25,6 +25,7 @@ import {
   UserCog,
   CreditCard,
   LucideIcon,
+  MessageCircle,
 } from "lucide-react"
 import {
   Sheet,
@@ -88,6 +89,7 @@ export function MobileBottomNav() {
   const moreItems: NavItem[] = [
     { href: "/inventory", label: "Inventory", icon: Package },
     { href: "/help", label: "Help Center", icon: BookOpen },
+    { href: "/support", label: "Support", icon: MessageCircle },
     { href: "/health", label: "Health Records", icon: AlertTriangle },
     { href: "/cash", label: "Cash", icon: Wallet },
     { href: "/expenses", label: "Expenses", icon: DollarSign },
