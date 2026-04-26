@@ -1,0 +1,15 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/login-2fa/layout,_N_T_/login-2fa/page,_N_T_/login-2fa"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/login-2fa/__PAGE__",
+    "/login-2fa",
+    "/_index",
+    "/_head"
+  ]
+}

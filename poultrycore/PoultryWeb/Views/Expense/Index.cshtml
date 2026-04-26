@@ -1,0 +1,302 @@
+﻿@model IEnumerable<PoultryWeb.Models.ExpenseModel>
+
+@{
+    ViewBag.Title = "Expense Management";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<style>
+    .expense-container {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+    }
+
+    .table-section {
+        flex: 1 1 100%;
+        min-width: 300px;
+        padding: 20px;
+    }
+
+    .bottom-bar {
+        text-align: center;
+        padding: 15px;
+        border-top: 1px solid #ddd;
+    }
+
+    .modal-lg {
+        max-width: 800px;
+    }
+
+    /* .filter-form {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        align-items: end;
+    } */
+
+    .filter-form {
+        display: flex;
+        flex-wrap: wrap;
+        /* gap: 1rem; */
+        margin-bottom: 1rem;
+        align-items: flex-end;
+        width: 100%;
+    }
+
+        .filter-form label {
+            display: inline-block;
+            margin-right: 0.5rem;
+            white-space: nowrap;
+        }
+
+        .filter-form .form-control {
+            display: inline-block;
+            width: auto;
+        }
+
+    .dataTables_wrapper .dataTables_length,
+    .dataTables_wrapper .dataTables_filter {
+        display: inline-block;
+        margin-right: 1rem;
+    }
+
+    .dataTables_wrapper .dataTables_length {
+        float: left;
+    }
+
+    .dataTables_wrapper .dataTables_filter {
+        float: right;
+    }
+
+    .table-responsive {
+        max-height: 500px;
+        overflow-y: auto;
+    }
+</style>
+
+<div class="expense-container">
+    <div class="table-section">
+        @* <h2>Expense Management</h2> *@
+
+        <form id="filterForm" class="filter-form row w-100">
+            <div class="col-md-2 d-flex align-items-center">
+                <label for="startDate" class="me-2">From:</label>
+                <input type="date" id="startDate" class="form-control" />
+            </div>
+            <div class="col-md-2 d-flex align-items-center">
+                <label for="endDate" class="me-2">To:</label>
+                <input type="date" id="endDate" class="form-control" />
+            </div>
+            <div class="col-md-3 d-flex align-items-center">
+                <label for="categoryFilter" class="me-2">Category</label>
+                <input type="text" id="categoryFilter" class="form-control" placeholder="Enter category" />
+            </div>
+            <div class="col-md-1 d-flex align-items-center">
+                <button type="button" class="btn btn-primary me-2" onclick="applyFilter()">View</button>
+            </div>
+            <div class="col-md-4 d-flex justify-content-end align-items-center">
+                <button class="btn btn-success me-2" onclick="exportCSV()">Export CSV</button>
+                <button class="btn btn-danger" onclick="exportPDF()">Export PDF</button>
+            </div>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-striped expense-table" id="expenseTable">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" class="toggle-col" data-col="0" checked /> Date</th>
+                        <th><input type="checkbox" class="toggle-col" data-col="1" checked /> Category</th>
+                        <th><input type="checkbox" class="toggle-col" data-col="2" checked /> Amount</th>
+                        <th><input type="checkbox" class="toggle-col" data-col="3" checked /> Payment</th>
+                        <th><input type="checkbox" class="toggle-col" data-col="4" checked /> Delete</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model)
+                    {
+                        <tr data-expense-id="@item.ExpenseId">
+                            <td>@item.ExpenseDate.ToShortDateString()</td>
+                            <td>@item.Category</td>
+                            <td>@item.Amount.ToString("F2")</td>
+                            <td>@item.PaymentMethod</td>
+                            <td>
+                                <button class="btn btn-danger btn-sm"
+                                        onclick="event.stopPropagation(); confirmDelete(@item.ExpenseId)">
+                                    <i class="bi bi-trash"></i> Delete
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <th colspan="2" class="text-end">Total:</th>
+                        <th id="totalAmount">0.00</th>
+                        <th colspan="2"></th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="bottom-bar">
+    <button class="btn btn-primary btn-create" onclick="openCreateExpense()">
+        <i class="bi bi-plus-circle"></i> Create New Expense
+    </button>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="expenseModal" tabindex="-1" aria-labelledby="expenseModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="expenseModalLabel">Expense</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="editContainer">
+                <!-- Partial content will be loaded here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+    <script>
+        let expenseTable;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            expenseTable = new DataTable('#expenseTable', {
+                pageLength: 10,
+                scrollY: '300px',
+                scrollCollapse: true,
+                ordering: true,
+                drawCallback: function () {
+                    updateTotal();
+                }
+            });
+
+            document.querySelectorAll('.toggle-col').forEach(cb => {
+                cb.addEventListener('change', function () {
+                    const column = expenseTable.column(this.dataset.col);
+                    column.visible(this.checked);
+                });
+            });
+
+            document.getElementById('expenseTable').addEventListener('click', function (e) {
+                var row = e.target.closest('tr[data-expense-id]');
+                if (row && !e.target.closest('.btn-danger')) {
+                    var expenseId = row.getAttribute('data-expense-id');
+                    loadEditPartial(expenseId);
+                }
+            });
+        });
+
+        function applyFilter() {
+            const start = document.getElementById('startDate').value;
+            const end = document.getElementById('endDate').value;
+            const category = document.getElementById('categoryFilter').value.toLowerCase();
+
+            const rows = document.querySelectorAll('#expenseTable tbody tr');
+            rows.forEach(row => {
+                const date = row.children[0].textContent;
+                const cat = row.children[1].textContent.toLowerCase();
+                const show = (!start || new Date(date) >= new Date(start)) &&
+                             (!end || new Date(date) <= new Date(end)) &&
+                             (!category || cat.includes(category));
+                row.style.display = show ? '' : 'none';
+            });
+
+            updateTotal();
+        }
+
+        function updateTotal() {
+            let total = 0.0;
+            document.querySelectorAll('#expenseTable tbody tr').forEach(row => {
+                if (row.style.display !== 'none') {
+                    total += parseFloat(row.children[2].textContent) || 0;
+                }
+            });
+            document.getElementById('totalAmount').innerText = total.toFixed(2);
+        }
+
+        function openCreateExpense() {
+            fetch('/Expense/CreatePartial')
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('expenseModalLabel').innerText = 'Create Expense';
+                    document.getElementById('editContainer').innerHTML = html;
+                    var modal = new bootstrap.Modal(document.getElementById('expenseModal'));
+                    modal.show();
+                });
+        }
+
+        function loadEditPartial(expenseId) {
+            fetch('/Expense/EditPartial/' + expenseId)
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('expenseModalLabel').innerText = 'Edit Expense (ID: ' + expenseId + ')';
+                    document.getElementById('editContainer').innerHTML = html;
+                    var modal = new bootstrap.Modal(document.getElementById('expenseModal'));
+                    modal.show();
+                });
+        }
+
+        function loadDeletePartial(expenseId) {
+            fetch('/Expense/DeletePartial/' + expenseId)
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('expenseModalLabel').innerText = 'Delete Expense';
+                    document.getElementById('editContainer').innerHTML = html;
+                    var modal = new bootstrap.Modal(document.getElementById('expenseModal'));
+                    modal.show();
+                });
+        }
+
+        function confirmDelete(expenseId) {
+            loadDeletePartial(expenseId);
+        }
+
+        function exportCSV() {
+            let csvContent = "data:text/csv;charset=utf-8,Date,Category,Amount,Payment\n";
+            document.querySelectorAll('#expenseTable tbody tr').forEach(row => {
+                if (row.style.display !== 'none') {
+                    const cols = Array.from(row.children).slice(0, 4).map(td => td.textContent.trim());
+                    csvContent += cols.join(",") + "\n";
+                }
+            });
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "Expense_Report.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function exportPDF() {
+            const doc = new jspdf.jsPDF();
+            doc.text("Expense Report", 20, 10);
+
+            let rowData = [];
+            document.querySelectorAll('#expenseTable tbody tr').forEach(row => {
+                if (row.style.display !== 'none') {
+                    const cols = Array.from(row.children).slice(0, 4).map(td => td.textContent.trim());
+                    rowData.push(cols);
+                }
+            });
+
+            doc.autoTable({
+                head: [["Date", "Category", "Amount", "Payment"]],
+                body: rowData
+            });
+
+            doc.save("Expense_Report.pdf");
+        }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+}

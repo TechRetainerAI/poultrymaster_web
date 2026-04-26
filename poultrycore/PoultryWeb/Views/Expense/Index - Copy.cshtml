@@ -1,0 +1,39 @@
+﻿@model IEnumerable<PoultryWeb.Models.ExpenseModel>
+
+@{
+    ViewBag.Title = "Expenses - Index";
+}
+
+<h2>Expense List</h2>
+
+<p>
+    @Html.ActionLink("Create New Expense", "Create", "Expense", null, new { @class = "btn btn-primary" })
+</p>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Expense Date</th>
+            <th>Category</th>
+            <th>Amount</th>
+            <th>Description</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var e in Model)
+        {
+            <tr>
+                <td>@e.ExpenseDate.ToShortDateString()</td>
+                <td>@e.Category</td>
+                <td>@e.Amount</td>
+                <td>@e.Description</td>
+                <td>
+                    @Html.ActionLink("Details", "Details", new { id = e.ExpenseId }) |
+                    @Html.ActionLink("Edit", "Edit", new { id = e.ExpenseId }) |
+                    @Html.ActionLink("Delete", "Delete", new { id = e.ExpenseId })
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

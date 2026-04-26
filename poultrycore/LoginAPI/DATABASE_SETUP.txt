@@ -1,0 +1,53 @@
+Login API (User.Management.API) — database and first login
+============================================================
+
+1) SQL Server connection
+   - Local (default in appsettings.Development.json):
+     Server=(localdb)\mssqllocaldb; Database=PoultryMasterLoginDev; Trusted_Connection=True; ...
+   - Change ConnectionStrings:ConnStr (or env ConnectionStrings__ConnStr on Cloud Run / Cloud SQL) to your server.
+
+2) Create / update the schema
+   Option A — automatic on startup (Development only, already enabled in appsettings.Development.json):
+     - DatabaseBootstrap:ApplyMigrations = true
+     - Run the API once: dotnet run --project User.Management.API
+     - EF applies all migrations in User.Management.Data/Migrations.
+
+   Option B — manual CLI (from repo folder poultrycore/LoginAPI):
+     dotnet ef database update --project User.Management.Data --startup-project User.Management.API
+
+   Requirements: stored procedure sp_CreateFarm must exist on the same database (used when registering farms and when seeding the system admin).
+
+3) Development platform owner (farm registry / System/farms)
+   When ASPNETCORE_ENVIRONMENT=Development and appsettings.Development.json is used:
+     - DatabaseBootstrap:SeedIdentity = true
+     - A user is created on first successful run (only if that username does not exist yet).
+     - That user gets both SystemAdmin and PlatformOwner (cross-farm directory for the CEO / platform owner).
+
+   Default credentials (CHANGE after first login on any shared machine):
+     Username:  systemadmin
+     Password: DevSystemAdmin!23
+     Email:     systemadmin@localhost
+
+   Login uses the normal endpoint:
+     POST /api/Authentication/login
+     Body JSON: { "username": "systemadmin", "password": "DevSystemAdmin!23", "rememberMe": true }
+
+4) Production / Cloud Run
+   - Keep DatabaseBootstrap:SeedIdentity = false (default in appsettings.Production.json).
+   - Do NOT commit real passwords. To create systemadmin once on Cloud Run, set (then remove after success):
+       DatabaseBootstrap__SeedIdentity=true
+       DatabaseBootstrap__SystemAdminPassword=YourStrongUniquePassword
+   - Do NOT set DatabaseBootstrap__ApplyMigrations=true on a database that already has AspNetUsers
+     (from an older install or manual SQL). EF Migrate will fail with "already an object named AspNetRoles".
+     Use ApplyMigrations only on empty / brand-new databases, or run "dotnet ef database update" from CI.
+   - After you can log in as systemadmin, set DatabaseBootstrap__SeedIdentity=false (or remove the env var).
+
+5) Normal farm owners
+   - Register via POST /api/Authentication/Register (see RegisterUser model: farmName, username, email, password, firstName, lastName, phoneNumber).
+   - Those users are not platform owners; they cannot call /api/System/farms until you assign SystemAdmin and/or PlatformOwner in AspNetUserRoles (see Scripts/GrantPlatformOwnerRole.sql).
+
+6) Developer-only farm registry (separate website, not the farm app)
+   - The farm-registry-portal is for you (the platform developer) to see every registered farm and paid vs unpaid. It uses the same Login API URL but is not part of any single farm’s product UI.
+   - Authentication is still Identity: login rows live in dbo.AspNetUsers; access to /api/System/farms is dbo.AspNetUserRoles (SystemAdmin and/or PlatformOwner). There is no second secret “developer login table” for passwords.
+   - Run Scripts/DeveloperPortal_Setup_SqlServer.sql on the Login database to ensure roles, optional DeveloperPortalOperator row, view vw_DeveloperPortalEligibleUsers, and attach roles to your chosen developer username.
+   - To create a dedicated portal login **developerlogin** (not in your list yet), run Scripts/CreateDeveloperPortalUser_SqlServer.sql once on the Login database. Default password is documented at the top of that script — change it after first use.

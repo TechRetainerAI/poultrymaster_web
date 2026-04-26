@@ -1,0 +1,254 @@
+﻿@model PoultryWeb.Models.Authentication.Login.LoginModel
+
+@{
+    ViewData["Title"] = "Login";
+    Layout = "_AuthLayout.cshtml";
+}
+
+<style>
+    body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        margin: 0;
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        color: #1e293b;
+    }
+
+    /* Removed card container styling - no border, box-shadow, or background */
+    .login-container {
+        max-width: 400px;
+        width: 100%;
+        padding: 2rem;
+        text-align: center;
+    }
+
+        .login-container h3 {
+            margin-bottom: 2rem;
+            font-size: 2rem;
+            font-weight: 600;
+            color: #0f172a;
+            text-align: center;
+            letter-spacing: -0.025em;
+        }
+
+        .login-container .form-group {
+            margin-bottom: 1.5rem;
+            text-align: left;
+        }
+
+            .login-container .form-group label {
+                display: block;
+                font-weight: 500;
+                margin-bottom: 0.5rem;
+                color: #374151;
+                font-size: 0.875rem;
+            }
+
+            .login-container .form-group input {
+                width: 100%;
+                padding: 0.75rem 1rem;
+                border: 2px solid #e5e7eb;
+                border-radius: 0.5rem;
+                font-family: inherit;
+                font-size: 1rem;
+                transition: all 0.2s ease;
+                background-color: #ffffff;
+                box-sizing: border-box;
+            }
+
+                .login-container .form-group input:focus {
+                    outline: none;
+                    border-color: #3b82f6;
+                    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+                }
+
+            .login-container .form-group a {
+                color: #3b82f6;
+                text-decoration: none;
+                font-size: 0.875rem;
+                font-weight: 500;
+            }
+
+                .login-container .form-group a:hover {
+                    color: #2563eb;
+                    text-decoration: underline;
+                }
+
+        .login-container .form-check {
+            display: flex;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            text-align: left;
+        }
+
+            .login-container .form-check input {
+                margin-right: 0.75rem;
+                width: auto;
+                accent-color: #3b82f6;
+            }
+
+            .login-container .form-check label {
+                margin-bottom: 0;
+                font-size: 0.875rem;
+                color: #6b7280;
+                cursor: pointer;
+            }
+
+        /* Updated button styling to be more modern and professional */
+        .login-container .btn-primary {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            border: none;
+            color: white;
+            padding: 0.875rem 1.5rem;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            width: 100%;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-bottom: 1rem;
+        }
+
+            .login-container .btn-primary:hover {
+                background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+                transform: translateY(-1px);
+                box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+            }
+
+        .login-container .btn-secondary {
+            background-color: transparent;
+            border: 2px solid #e5e7eb;
+            color: #374151;
+            padding: 0.875rem 1.5rem;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            font-weight: 500;
+            width: 100%;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 0.5rem;
+        }
+
+            .login-container .btn-secondary:hover {
+                background-color: #f9fafb;
+                border-color: #d1d5db;
+                transform: translateY(-1px);
+            }
+
+        .login-container .btn-link {
+            color: #3b82f6;
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            display: block;
+            margin: 1rem 0;
+        }
+
+            .login-container .btn-link:hover {
+                color: #2563eb;
+                text-decoration: underline;
+            }
+
+        .login-container .footer-text {
+            margin-top: 2rem;
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
+
+            .login-container .footer-text a {
+                color: #3b82f6;
+                text-decoration: none;
+                font-weight: 500;
+            }
+
+                .login-container .footer-text a:hover {
+                    color: #2563eb;
+                    text-decoration: underline;
+                }
+
+    .text-danger {
+        color: #ef4444;
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+        display: block;
+    }
+
+    /* Added responsive design for better mobile experience */
+   
+
+        .login-container h3 {
+            font-size: 1.75rem;
+        }
+    }
+</style>
+
+ 
+<div class="login-container">
+    <h3>Sign In</h3>
+
+    
+    <form asp-action="Login" asp-controller="Account" method="post">
+        
+        @Html.AntiForgeryToken()
+
+        <div class="form-group">
+            <label asp-for="Username"></label>
+            <input asp-for="Username" class="form-control" />
+            <span class="text-danger" asp-validation-for="Username"></span>
+        </div>
+
+        <div class="form-group">
+            <label asp-for="Password"></label>
+            <input asp-for="Password" class="form-control" type="password" id="Password" />
+            <span class="text-danger" asp-validation-for="Password"></span>
+        </div>
+
+        <div class="form-check">
+           
+            <input type="checkbox" id="ShowPassword" class="form-check-input" />
+            <label for="ShowPassword" class="form-check-label">Show password</label>
+        </div>
+
+        <div class="form-check">
+           
+            <input asp-for="RememberMe" class="form-check-input" />
+            <label asp-for="RememberMe" class="form-check-label"></label>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Sign In</button>
+
+        <a href="@Url.Action("ForgotPassword", "Account")" class="btn-link">Forgot password?</a>
+
+        <button type="button" class="btn btn-secondary"
+                onclick="location.href='@Url.Action("Register", "Account")'">
+            Don't have an account? Register Now!
+        </button>
+    </form>
+
+    <div class="footer-text">
+        <p>
+            <a href="@Url.Action("TermsOfService", "Home")">Terms of Service</a> |
+            <a href="@Url.Action("Privacy", "Home")">Privacy</a>
+        </p>
+    </div>
+</div>
+
+@section Scripts {
+   
+    <partial name="_ValidationScriptsPartial" />
+
+    <script>
+        // Toggle show/hide password
+        document.getElementById("ShowPassword").addEventListener("change", function () {
+            var pwdInput = document.getElementById("Password");
+            if (this.checked) {
+                pwdInput.type = "text";
+            } else {
+                pwdInput.type = "password";
+            }
+        });
+    </script>
+}

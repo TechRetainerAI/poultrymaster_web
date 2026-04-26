@@ -1,0 +1,9 @@
+# Use only for Farm API Cloud Build (smaller/faster upload than full poultrycore tree):
+#   gcloud builds submit . --config=cloudbuild.farm.yaml --ignore-file=.gcloudignore.farm
+#
+# Login API builds must keep using the default .gcloudignore (do not use this file).
+
+*
+!cloudbuild.farm.yaml
+!PoultryFarmAPI/
+!PoultryFarmAPI/**

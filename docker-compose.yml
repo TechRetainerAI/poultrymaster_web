@@ -1,0 +1,35 @@
+# Production API endpoints - override via .env.production or environment variables
+# Inside Docker containers, use production URLs (not localhost)
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: poultry-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-https://poultrymaster-farm-api-git-1024831506678.europe-west1.run.app}
+      - NEXT_PUBLIC_ADMIN_API_URL=${NEXT_PUBLIC_ADMIN_API_URL:-https://poultrymaster-api-git-1024831506678.europe-west1.run.app}
+      - FARM_API_URL=${FARM_API_URL:-https://poultrymaster-farm-api-git-1024831506678.europe-west1.run.app}
+      - ADMIN_API_URL=${ADMIN_API_URL:-https://poultrymaster-api-git-1024831506678.europe-west1.run.app}
+      - NEXT_PUBLIC_ENABLE_ANALYTICS=${NEXT_PUBLIC_ENABLE_ANALYTICS:-false}
+      - NEXT_PUBLIC_ENABLE_PWA=${NEXT_PUBLIC_ENABLE_PWA:-false}
+    env_file:
+      - .env.production
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - poultry-network
+
+networks:
+  poultry-network:
+    driver: bridge
+

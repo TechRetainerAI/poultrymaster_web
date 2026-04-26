@@ -1,0 +1,185 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - PoultryWeb</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/PoultryWeb.styles.css" asp-append-version="true" />
+    @RenderSection("Styles", required: false)
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <nav class="col-12 col-md-3 col-xl-2 px-0 sidebar min-vh-100">
+                <div class="d-flex flex-column align-items-center align-items-md-start px-3 pt-3 text-white">
+                    <a href="@Url.Action("Index", "Home")" class="d-flex align-items-center pb-3 mb-md-0 me-md-auto text-white text-decoration-none">
+                        <span class="fs-5 d-none d-md-inline">🐔 PoultryWeb</span>
+                    </a>
+                    <ul class="nav nav-pills flex-column mb-sm-auto mb-0 align-items-center align-items-md-start w-100">
+                        @if (User.Identity.IsAuthenticated)
+                        {
+                            <li class="nav-item w-100"><a class="nav-link text-white" href="@Url.Action("Index", "Dashboard")">📊 Dashboard</a></li>
+                            
+                            @* Admin Only - Employee Management *@
+                            @if (User.IsInRole("Admin") || User.IsInRole("FarmAdmin"))
+                            {
+                                <li class="nav-item w-100">
+                                    <a class="nav-link text-white" style="background-color: rgba(40, 167, 69, 0.2); border-left: 3px solid #28a745;" href="@Url.Action("Index", "Employee")">
+                                        👥 Employees
+                                    </a>
+                                </li>
+                            }
+                            
+                            <li class="nav-item w-100"><a class="nav-link text-white" href="@Url.Action("Index", "ProductionRecord")">📋 Production Record</a></li>
+                            <li class="nav-item w-100"><a class="nav-link text-white" href="@Url.Action("Index", "Flock")">🐣 Flocks</a></li>
+                            <li class="nav-item w-100"><a class="nav-link text-white" href="@Url.Action("Index", "EggProduction")">🥚 Egg Production</a></li>
+                            <li class="nav-item w-100"><a class="nav-link text-white" href="@Url.Action("Index", "FeedUsage")">🌾 Feed Usage</a></li>
+                            <li class="nav-item w-100"><a class="nav-link text-white" href="@Url.Action("Index", "Inventory")">📦 Inventory</a></li>
+                            <li class="nav-item w-100"><a class="nav-link text-white" href="@Url.Action("Index", "Expense")">🧾 Expenses</a></li>
+                            <li class="nav-item w-100"><a class="nav-link text-white" href="@Url.Action("Index", "Sale")">💰 Sales</a></li>
+                            <li class="nav-item w-100"><a class="nav-link text-white" href="@Url.Action("Index", "Customer")">👤 Customers</a></li>
+
+                            <li class="nav-item w-100"><a class="nav-link text-danger" href="/Account/LogoutView">🚪 Logout</a></li>
+                            <li class="nav-item">
+                                <a class="nav-link" id="profile" asp-area="" asp-controller="AccountManagement" asp-action="Index">👤 Profile</a>
+                            </li>
+                        }
+                        else
+                        {
+                            <li class="nav-item w-100"><a class="nav-link text-danger" href="/Account/Register">🚪 Register</a></li>
+                            <li class="nav-item w-100"><a class="nav-link text-danger" href="/Account/Login">🚪 Login</a></li>
+                        }
+                        
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Main content -->
+            <main class="col-12 col-md-9 col-xl-10 py-3">
+                <div class="row mb-3 align-items-center">
+                    <!-- Left: Page Title -->
+                    <div class="col text-start">
+                        <h5>@ViewData["Title"]</h5>
+                    </div>
+
+                    <!-- Center: Farm Name -->
+                    <div class="col text-center text-muted">
+                        @if (User.Identity.IsAuthenticated)
+                        {
+                            var farmName = User.Claims.FirstOrDefault(c => c.Type == "FarmName")?.Value;
+                            if (!string.IsNullOrEmpty(farmName))
+                            {
+                                <span class="fw-semibold">@farmName</span>
+                            }
+                        }
+                    </div>
+
+                    <!-- Right: Logged-in Role -->
+                    <div class="col text-end text-muted">
+                        Logged in as
+                        <strong>
+                            @{
+                                var roleClaim = User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Role);
+                                @roleClaim?.Value
+                                ;
+                            }
+                        </strong>
+                    </div>
+                </div>
+
+                @RenderBody()
+
+                <footer class="footer text-center py-3 mt-4 border-top">
+                    <span>&copy; 2025 - PoultryWeb - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a></span>
+                </footer>
+            </main>
+
+            @* <main class="col-12 col-md-9 col-xl-10 py-3">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5>@ViewData["Title"]</h5>
+
+                    <div class="user-info text-muted">
+                        @if (User.Identity.IsAuthenticated)
+                        {
+                            var farmName = User.Claims.FirstOrDefault(c => c.Type == "FarmName")?.Value;
+                            if (!string.IsNullOrEmpty(farmName))
+                            {
+                                <span class="ms-2">(@farmName)</span>
+                            }
+                        }
+
+                        Logged in as
+                        <strong>
+                            @{
+                                var roleClaim = User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Role);
+                                @roleClaim?.Value;
+                            }
+                        </strong>
+                    </div>
+                </div>
+
+                @RenderBody()
+
+                <footer class="footer text-center py-3 mt-4 border-top">
+                    <span>&copy; 2025 - PoultryWeb - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a></span>
+                </footer>
+            </main> *@
+        </div>
+    </div>
+
+    <!-- Custom Confirmation Modal -->
+    <div id="customModalOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); z-index:2000;">
+        <div id="customModalBox" style="background:#fff; width:400px; margin:100px auto; padding:20px; border-radius:8px; position:relative;">
+            <h4 id="modalTitle"></h4>
+            <p id="modalMessage"></p>
+            <div id="modalButtons" style="text-align:right;"></div>
+        </div>
+    </div>
+
+    <script>
+        function openCustomDialog(title, message, confirmButtonText, confirmCallback, cancelCallback) {
+            document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalMessage').innerText = message;
+
+            let buttons = document.getElementById('modalButtons');
+            buttons.innerHTML = '';
+
+            let confirmBtn = document.createElement('button');
+            confirmBtn.classList.add('btn', 'btn-primary', 'me-2');
+            confirmBtn.innerText = confirmButtonText || 'OK';
+            confirmBtn.onclick = function() {
+                closeCustomDialog();
+                if (confirmCallback) confirmCallback();
+            };
+
+            let cancelBtn = document.createElement('button');
+            cancelBtn.classList.add('btn', 'btn-secondary');
+            cancelBtn.innerText = 'Cancel';
+            cancelBtn.onclick = function() {
+                closeCustomDialog();
+                if (cancelCallback) cancelCallback();
+            };
+
+            buttons.appendChild(confirmBtn);
+            buttons.appendChild(cancelBtn);
+            document.getElementById('customModalOverlay').style.display = 'block';
+        }
+
+        function closeCustomDialog() {
+            document.getElementById('customModalOverlay').style.display = 'none';
+        }
+    </script>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/knockout/3.5.1/knockout-min.js"></script>
+
+
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+    @RenderSection("dialogs", required: false)
+</body>
+</html>

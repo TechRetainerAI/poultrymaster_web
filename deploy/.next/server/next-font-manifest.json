@@ -1,0 +1,207 @@
+{
+  "app": {
+    "[project]/app/_not-found/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/audit-logs/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/cash/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/chat/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/customers/[id]/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/customers/new/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/customers/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/dashboard/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/egg-production/[id]/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/egg-production/new/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/egg-production/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/employees/[id]/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/employees/new/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/employees/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/expenses/[id]/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/expenses/new/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/expenses/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/feed-usage/[id]/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/feed-usage/new/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/feed-usage/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/flock-batch/[id]/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/flock-batch/new/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/flock-batch/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/flocks/[id]/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/flocks/new/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/flocks/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/forgot-password/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/health/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/help/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/houses/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/inventory/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/login-2fa/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/login/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/payments/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/production-records/[id]/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/production-records/new/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/production-records/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/profile/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/register/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/reports/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/reset-password/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/resources/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/sales/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/settings/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/supplies/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/system-farms/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/terms/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/test-email-confirmation/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ],
+    "[project]/app/verify-account/page": [
+      "static/media/Geist_Variable-s.p.f19e4721.woff2",
+      "static/media/GeistMono_Variable.p.73882635.woff2"
+    ]
+  },
+  "appUsingSizeAdjust": true,
+  "pages": {},
+  "pagesUsingSizeAdjust": false
+}

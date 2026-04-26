@@ -1,0 +1,38 @@
+﻿@model PoultryWeb.Models.FlockModel
+
+@* <h4>Create New Flock</h4> *@
+
+<form asp-action="Create" asp-controller="Flock" method="post">
+    @Html.AntiForgeryToken()
+    
+    <!-- Hidden UserId field, preset to 0 -->
+    <input type="hidden" asp-for="UserId" value="0" />
+
+    <div class="mb-3">
+        <label asp-for="Name" class="form-label"></label>
+        <input asp-for="Name" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Breed" class="form-label"></label>
+        <input asp-for="Breed" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Quantity" class="form-label"></label>
+        <input asp-for="Quantity" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="StartDate" class="form-label"></label>
+        <input asp-for="StartDate" type="date" class="form-control" />
+    </div>
+
+    <div class="form-check mb-3">
+        <input asp-for="Active" class="form-check-input" />
+        <label asp-for="Active" class="form-check-label"></label>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Create</button>
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+</form>

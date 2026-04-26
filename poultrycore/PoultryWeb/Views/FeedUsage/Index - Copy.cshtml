@@ -1,0 +1,41 @@
+﻿@model IEnumerable<PoultryWeb.Models.FeedUsageModel>
+
+@{
+    ViewBag.Title = "Feed Usage - Index";
+}
+
+<h2>Feed Usage List</h2>
+
+<p>
+    @Html.ActionLink("Create New Feed Usage", "Create")
+</p>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Flock ID</th>
+            <th>Date</th>
+            <th>Feed Type</th>
+            <th>Quantity (Kg)</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+        {
+            <tr>
+                <td>@item.FeedUsageId</td>
+                <td>@item.FlockId</td>
+                <td>@item.UsageDate.ToShortDateString()</td>
+                <td>@item.FeedType</td>
+                <td>@item.QuantityKg</td>
+                <td>
+                    @Html.ActionLink("Details", "Details", new { id = item.FeedUsageId }) |
+                    @Html.ActionLink("Edit", "Edit", new { id = item.FeedUsageId }) |
+                    @Html.ActionLink("Delete", "Delete", new { id = item.FeedUsageId })
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

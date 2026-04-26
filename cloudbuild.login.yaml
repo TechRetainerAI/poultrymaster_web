@@ -1,0 +1,56 @@
+# Monorepo root: build Login API from poultrycore/ (same as Poultrymaster_api repo layout).
+#
+# From poultrycore-main (this folder). Root .gcloudignore excludes poultrycore/ for Next.js —
+# override it so the upload includes the backend:
+#   gcloud builds submit --config cloudbuild.login.yaml --ignore-file=.gcloudignore.login .
+#
+# Or submit only the backend folder (no ignore override):
+#   gcloud builds submit poultrycore --config poultrycore/cloudbuild.login.yaml
+#
+# Subtree repo Poultrymaster_api at repo root:
+#   gcloud builds submit --config cloudbuild.login.yaml .
+
+# Image tag: $BUILD_ID (always set). $COMMIT_SHA is empty for manual gcloud builds submit → docker 125.
+
+substitutions:
+  _REGION: europe-west1
+  _SERVICE_NAME: poultrymaster-api-git
+  _AR_REPO_PATH: cloud-run-source-deploy/techretainerai-poultrymaster_api
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_AR_REPO_PATH/$_SERVICE_NAME:$BUILD_ID
+      - -t
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_AR_REPO_PATH/$_SERVICE_NAME:latest
+      - -f
+      - poultrycore/Dockerfile
+      - poultrycore
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_AR_REPO_PATH/$_SERVICE_NAME:$BUILD_ID
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_AR_REPO_PATH/$_SERVICE_NAME:latest
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - $_SERVICE_NAME
+      - --image=$_REGION-docker.pkg.dev/$PROJECT_ID/$_AR_REPO_PATH/$_SERVICE_NAME:$BUILD_ID
+      - --region=$_REGION
+      - --platform=managed
+      - --port=8080
+      - --allow-unauthenticated
+      - --quiet
+
+options:
+  logging: CLOUD_LOGGING_ONLY

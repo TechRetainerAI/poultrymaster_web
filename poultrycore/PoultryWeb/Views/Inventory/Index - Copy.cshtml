@@ -1,0 +1,41 @@
+﻿@model IEnumerable<PoultryWeb.Models.InventoryItemModel>
+
+@{
+    ViewBag.Title = "Inventory - Index";
+}
+
+<h2>Inventory Items</h2>
+
+<p>
+    @Html.ActionLink("Create New Item", "Create", "Inventory", null, new { @class = "btn btn-primary" })
+</p>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Item ID</th>
+            <th>Item Name</th>
+            <th>Category</th>
+            <th>Quantity In Stock</th>
+            <th>Active?</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+        {
+            <tr>
+                <td>@item.ItemId</td>
+                <td>@item.ItemName</td>
+                <td>@item.Category</td>
+                <td>@item.QuantityInStock</td>
+                <td>@(item.IsActive ? "Yes" : "No")</td>
+                <td>
+                    @Html.ActionLink("Details", "Details", new { id = item.ItemId }) |
+                    @Html.ActionLink("Edit", "Edit", new { id = item.ItemId }) |
+                    @Html.ActionLink("Delete", "Delete", new { id = item.ItemId })
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

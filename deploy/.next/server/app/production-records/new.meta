@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/production-records/layout,_N_T_/production-records/new/layout,_N_T_/production-records/new/page,_N_T_/production-records/new"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/production-records/new/__PAGE__",
+    "/production-records/new",
+    "/production-records",
+    "/_index",
+    "/_head"
+  ]
+}

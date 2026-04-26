@@ -1,0 +1,103 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - PoultryWeb</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/PoultryWeb.styles.css" asp-append-version="true" />
+    @RenderSection("Styles", required: false)
+</head>
+<body>
+    <header>
+        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
+            <div class="container-fluid">
+                <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">PoultryWeb</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
+                        aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
+                    <ul class="navbar-nav flex-grow-1">
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Index">Home</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+    </header>
+    <div class="container">
+        <main role="main" class="pb-3">
+            @RenderBody()
+        </main>
+    </div>
+
+    <footer class="border-top footer text-muted">
+        <div class="container">
+            &copy; 2025 - PoultryWeb - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
+        </div>
+    </footer>
+
+    <!-- In _Layout.cshtml, near the bottom before </body> -->
+    <div id="customModalOverlay" style="display:none; position:fixed; top:0; left:0;
+     width:100%; height:100%; background:rgba(0,0,0,0.4); z-index:2000;">
+        <div id="customModalBox" style="background:#fff; width:400px; margin:100px auto;
+         padding:20px; border-radius:8px; position:relative;">
+            <h4 id="modalTitle"></h4>
+            <p id="modalMessage"></p>
+            <div id="modalButtons" style="text-align:right;"></div>
+        </div>
+    </div>
+
+    <script>
+        // Example custom function for opening a nice dialog
+        function openCustomDialog(title, message, confirmButtonText, confirmCallback, cancelCallback) {
+            document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalMessage').innerText = message;
+
+            let buttons = document.getElementById('modalButtons');
+            buttons.innerHTML = '';
+
+            // Confirm button
+            let confirmBtn = document.createElement('button');
+            confirmBtn.classList.add('btn', 'btn-primary', 'me-2');
+            confirmBtn.innerText = confirmButtonText || 'OK';
+            confirmBtn.onclick = function() {
+                closeCustomDialog();
+                if (confirmCallback) confirmCallback();
+            };
+
+            // Cancel button
+            let cancelBtn = document.createElement('button');
+            cancelBtn.classList.add('btn', 'btn-secondary');
+            cancelBtn.innerText = 'Cancel';
+            cancelBtn.onclick = function() {
+                closeCustomDialog();
+                if (cancelCallback) cancelCallback();
+            };
+
+            buttons.appendChild(confirmBtn);
+            buttons.appendChild(cancelBtn);
+
+            document.getElementById('customModalOverlay').style.display = 'block';
+        }
+
+        function closeCustomDialog() {
+            document.getElementById('customModalOverlay').style.display = 'none';
+        }
+    </script>
+
+
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+    @RenderSection("dialogs", required: false)
+</body>
+</html>

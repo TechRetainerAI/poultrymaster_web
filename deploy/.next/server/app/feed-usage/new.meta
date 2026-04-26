@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/feed-usage/layout,_N_T_/feed-usage/new/layout,_N_T_/feed-usage/new/page,_N_T_/feed-usage/new"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/feed-usage/new/__PAGE__",
+    "/feed-usage/new",
+    "/feed-usage",
+    "/_index",
+    "/_head"
+  ]
+}

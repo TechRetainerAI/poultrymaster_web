@@ -1,0 +1,160 @@
+﻿@model IEnumerable<PoultryWeb.Models.InventoryItemModel>
+
+@{
+    ViewBag.Title = "Inventory Items";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@section Styles {
+    <style>
+
+    </style>
+}
+
+<div class="split-container">
+    <div class="left-panel">
+        <h2>Inventory Items Management</h2>
+        <table class="inv-table" id="invTable">
+            <thead>
+                <tr>
+                    <th>Item Name</th>
+                    <th>Category</th>
+                    <th>Qty In Stock</th>
+                    <th>Active</th>
+                    <th>Delete</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Model)
+                {
+                    <tr data-item-id="@item.ItemId">
+                        <td>@item.ItemName</td>
+                        <td>@item.Category</td>
+                        <td>@item.QuantityInStock</td>
+                        <td>@(item.IsActive ? "Yes" : "No")</td>
+                        <td>
+                            <button class="btn btn-danger btn-sm"
+                                    onclick="event.stopPropagation(); confirmDeleteItem(@item.ItemId)">
+                                Delete
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <div class="right-panel">
+        <h4 id="defaultMessage">Select a row to edit or view details</h4>
+        <div id="editContainer"></div>
+    </div>
+</div>
+
+<div class="bottom-bar">
+    <button class="btn btn-primary btn-create" onclick="openCreateItem()">Create New Item</button>
+</div>
+
+<!-- optional confirm modal -->
+<div id="customModalOverlay">
+    <div id="customModalBox">
+        <h4 id="modalTitle"></h4>
+        <p id="modalMessage"></p>
+        <div id="modalButtons"></div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var table = document.getElementById('invTable');
+            if (table) {
+                table.addEventListener('click', function(e) {
+                    var row = e.target.closest('tr[data-item-id]');
+                    // if user didn't click the delete button
+                    if (row && !e.target.closest('.btn-danger')) {
+                        var itemId = row.getAttribute('data-item-id');
+                        loadEditPartial(itemId);
+                    }
+                });
+            }
+        });
+
+        function openCreateItem() {
+            fetch('/Inventory/CreatePartial')
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('defaultMessage').style.display = 'none';
+                    document.getElementById('editContainer').innerHTML = html;
+                })
+                .catch(err => console.error('Error loading create partial:', err));
+        }
+
+        function loadEditPartial(itemId) {
+            fetch('/Inventory/EditPartial/' + itemId)
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('defaultMessage').style.display = 'none';
+                    document.getElementById('editContainer').innerHTML = html;
+                })
+                .catch(err => console.error('Error loading edit partial:', err));
+        }
+
+        function loadDeletePartial(itemId) {
+            fetch('/Inventory/DeletePartial/' + itemId)
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('defaultMessage').style.display = 'none';
+                    document.getElementById('editContainer').innerHTML = html;
+                })
+                .catch(err => console.error('Error loading delete partial:', err));
+        }
+
+        function closeRightPanel() {
+            document.getElementById('editContainer').innerHTML = '';
+            document.getElementById('defaultMessage').style.display = '';
+        }
+
+        // optional fancy confirm
+        function openCustomDialog(title, message, confirmText, confirmCallback, cancelCallback) {
+            document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalMessage').innerText = message;
+            let btnDiv = document.getElementById('modalButtons');
+            btnDiv.innerHTML = '';
+
+            let confirmBtn = document.createElement('button');
+            confirmBtn.classList.add('btn','btn-primary','me-2');
+            confirmBtn.innerText = confirmText || 'OK';
+            confirmBtn.onclick = function() {
+                closeCustomDialog();
+                if (confirmCallback) confirmCallback();
+            };
+            btnDiv.appendChild(confirmBtn);
+
+            let cancelBtn = document.createElement('button');
+            cancelBtn.classList.add('btn','btn-secondary');
+            cancelBtn.innerText = 'Cancel';
+            cancelBtn.onclick = function() {
+                closeCustomDialog();
+                if (cancelCallback) cancelCallback();
+            };
+            btnDiv.appendChild(cancelBtn);
+
+            document.getElementById('customModalOverlay').style.display = 'block';
+        }
+
+        function closeCustomDialog() {
+            document.getElementById('customModalOverlay').style.display = 'none';
+        }
+
+        function confirmDeleteItem(itemId) {
+            openCustomDialog(
+                'Delete Item',
+                'Are you sure you want to delete item #' + itemId + '?',
+                'Yes, Delete',
+                function() {
+                    loadDeletePartial(itemId);
+                },
+                function() {}
+            );
+        }
+    </script>
+}

@@ -1,0 +1,159 @@
+@{
+    ViewBag.Title = "Admin Dashboard - Poultry Farm Management";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@section Styles {
+    <style>
+        .hero {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 60px 20px;
+            text-align: center;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+        
+        .hero h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .welcome-message {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .admin-badge {
+            background: #28a745;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            display: inline-block;
+            margin-left: 10px;
+        }
+    </style>
+}
+
+<!-- HERO SECTION -->
+<div class="hero">
+    <h1>👨‍💼 Admin Dashboard</h1>
+    <p>Full access to all farm management features</p>
+</div>
+
+<!-- WELCOME MESSAGE -->
+<div class="welcome-message">
+    <strong>Welcome back, @ViewBag.UserName!</strong> 
+    <span class="admin-badge">ADMIN</span>
+    <br />
+    <small>Farm: @ViewBag.FarmName</small>
+</div>
+
+<!-- MODULE CARDS -->
+<div class="container module-cards">
+    <!-- Employee Management Card (ADMIN ONLY) -->
+    <div class="card module-card" style="border: 2px solid #28a745;">
+        <div class="card-header" style="background-color: #28a745; color: white;">
+            👥 Employee Management
+        </div>
+        <div class="card-body">
+            <p><strong>Admin Feature:</strong> Create and manage employee accounts for your farm staff.</p>
+            <a href="@Url.Action("Index", "Employee")" class="btn btn-success">Manage Employees</a>
+        </div>
+    </div>
+
+    <div class="card module-card">
+        <div class="card-header">
+            📊 Dashboard & Reports
+        </div>
+        <div class="card-body">
+            <p>View analytics, statistics, and generate comprehensive reports.</p>
+            <a href="@Url.Action("Index", "Dashboard")" class="btn btn-primary">View Dashboard</a>
+        </div>
+    </div>
+
+    <div class="card module-card">
+        <div class="card-header">
+            🐔 Flock Management
+        </div>
+        <div class="card-body">
+            <p>Manage all your flocks. Create, update, delete, and track their details with ease.</p>
+            <a href="@Url.Action("Index", "Flock")" class="btn btn-primary">Go to Flocks</a>
+        </div>
+    </div>
+
+    <div class="card module-card">
+        <div class="card-header">
+            🥚 Egg Production
+        </div>
+        <div class="card-body">
+            <p>Record daily egg production, track broken eggs, and see productivity stats for each flock.</p>
+            <a href="@Url.Action("Index", "EggProduction")" class="btn btn-primary">Track Eggs</a>
+        </div>
+    </div>
+
+    <div class="card module-card">
+        <div class="card-header">
+            🌾 Feed Usage
+        </div>
+        <div class="card-body">
+            <p>Monitor daily feed consumption, plan orders, and reduce wastage.</p>
+            <a href="@Url.Action("Index", "FeedUsage")" class="btn btn-primary">Manage Feed</a>
+        </div>
+    </div>
+
+    <div class="card module-card">
+        <div class="card-header">
+            💰 Sales
+        </div>
+        <div class="card-body">
+            <p>Track eggs or live-bird sales, manage revenue, and stay on top of your cash flow.</p>
+            <a href="@Url.Action("Index", "Sale")" class="btn btn-primary">Check Sales</a>
+        </div>
+    </div>
+
+    <div class="card module-card">
+        <div class="card-header">
+            💵 Expenses
+        </div>
+        <div class="card-body">
+            <p>Record and categorize farm expenses—feed, labor, maintenance, and more.</p>
+            <a href="@Url.Action("Index", "Expense")" class="btn btn-primary">Log Expenses</a>
+        </div>
+    </div>
+
+    <div class="card module-card">
+        <div class="card-header">
+            📦 Inventory
+        </div>
+        <div class="card-body">
+            <p>Keep track of stock levels, reorder points, and manage all supplies or equipment.</p>
+            <a href="@Url.Action("Index", "Inventory")" class="btn btn-primary">View Inventory</a>
+        </div>
+    </div>
+
+    <div class="card module-card">
+        <div class="card-header">
+            👤 Customers
+        </div>
+        <div class="card-body">
+            <p>Keep a record of all your buyers, their contacts, and easily manage repeat orders.</p>
+            <a href="@Url.Action("Index", "Customer")" class="btn btn-primary">Manage Customers</a>
+        </div>
+    </div>
+
+    <div class="card module-card">
+        <div class="card-header">
+            📋 Production Records
+        </div>
+        <div class="card-body">
+            <p>Track daily production records including eggs, mortality, and health updates.</p>
+            <a href="@Url.Action("Index", "ProductionRecord")" class="btn btn-primary">View Records</a>
+        </div>
+    </div>
+</div>
+

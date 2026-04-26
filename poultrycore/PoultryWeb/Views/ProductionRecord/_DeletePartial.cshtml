@@ -1,0 +1,70 @@
+﻿@model PoultryWeb.Models.ProductionRecordViewModel
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+<h4>Delete Production Record (ID: @Model.Id)</h4>
+
+<p>Are you sure you want to delete this production record?</p>
+
+<ul class="mb-3">
+    <li><strong>Date:</strong> @Model.Date.ToShortDateString()</li>
+    <li><strong>Age (weeks):</strong> @Model.AgeInWeeks</li>
+    <li><strong>Birds / Mortality / Left:</strong> @Model.NoOfBirds / @Model.Mortality / @Model.NoOfBirdsLeft</li>
+    <li><strong>Feed (Kg):</strong> @Model.FeedKg.ToString("F2")</li>
+    <li><strong>Medication:</strong> @(string.IsNullOrWhiteSpace(Model.Medication) ? "-" : Model.Medication)</li>
+    <li><strong>Production (9AM / 12PM / 4PM):</strong> @Model.Production9AM / @Model.Production12PM / @Model.Production4PM</li>
+    <li><strong>Total Production:</strong> @Model.TotalProduction</li>
+</ul>
+
+<form asp-action="DeleteConfirmed" asp-controller="ProductionRecord" method="post" id="deleteProductionForm">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="Id" />
+
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-danger">Yes, Delete</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+    </div>
+</form>
+
+@section Scripts {
+    <script>
+        // AJAX-submit so we can stay on the index page and simply refresh the table after deletion.
+        (function () {
+            const form = document.getElementById('deleteProductionForm');
+            if (!form) return;
+
+            form.addEventListener('submit', async function (e) {
+                e.preventDefault();
+
+                const url = form.getAttribute('action'); // /ProductionRecord/DeleteConfirmed
+                const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value;
+                const formData = new FormData(form);
+
+                try {
+                    const res = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'RequestVerificationToken': token ?? '' },
+                        body: formData
+                    });
+
+                    if (!res.ok) {
+                        const text = await res.text();
+                        console.warn('Delete failed', res.status, text);
+                        alert('Delete failed. Please try again.');
+                        return;
+                    }
+
+                    // Close modal
+                    const modalEl = document.getElementById('prodModal');
+                    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                    modal.hide();
+
+                    // Refresh the page (or you could remove the row dynamically)
+                    window.location.reload();
+                } catch (err) {
+                    console.error(err);
+                    alert('An unexpected error occurred while deleting the record.');
+                }
+            });
+        })();
+    </script>
+}

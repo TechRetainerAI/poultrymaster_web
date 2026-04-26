@@ -1,0 +1,14 @@
+# Used by: gcloud run deploy --source ...
+# Start from .gitignore rules, then add Cloud-specific excludes.
+#!include:.gitignore
+
+# Exclude local build outputs / vendored folders from source upload.
+node_modules/
+.next/
+deploy/
+farm-registry-portal/node_modules/
+farm-registry-portal/dist/
+agent-transcripts/
+
+# Backend & other trees — not part of this Next.js Docker image (much faster upload + build context)
+poultrycore/

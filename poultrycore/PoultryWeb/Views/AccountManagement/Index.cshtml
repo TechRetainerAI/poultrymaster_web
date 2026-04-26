@@ -1,0 +1,100 @@
+﻿@model PoultryWeb.Models.Account.AccountManagement
+@{
+    ViewData["Title"] = "Manage Account";
+}
+
+<h2 style="text-align: center">Manage Account</h2>
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-3">
+            <ul class="nav flex-column nav-pills" id="account-tabs" role="tablist">
+                <li class="nav-item">
+                    <a class="nav-link  active" id="manage-account-tab" data-toggle="pill" href="#manage-account" role="tab">Manage Account</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="change-password-tab" data-toggle="pill" href="#change-password" role="tab">Change Password</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="change-email-tab" data-toggle="pill" href="#change-email" role="tab">Change Email</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="create-staff-tab" data-toggle="pill" href="#create-staff" role="tab">Staff Management</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="close-account-tab" data-toggle="pill" href="#close-account" role="tab">Close Account</a>
+                </li>
+            </ul>
+        </div>
+        <div class="col-md-9">
+            <div class="tab-content">
+                <div class="tab-pane fade show active" id="manage-account" role="tabpanel">
+                    <div id="manage-account-content">
+                        @await Html.PartialAsync("_ManageAccount", Model)
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="change-password" role="tabpanel">
+                    <div id="change-password-content">
+                        @await Html.PartialAsync("_ChangePassword", new PoultryWeb.Models.Account.ChangePassword())
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="change-email" role="tabpanel">
+                    <div id="change-email-content">
+                        @await Html.PartialAsync("_ChangeEmail", new PoultryWeb.Models.Account.ChangeEmail())
+                    </div>
+                </div>
+                <div class="tab-pane fade show" id="create-staff" role="tabpanel">
+                    <div id="create-staff-content">
+                        @await Html.PartialAsync("_CreateStaff", new PoultryWeb.Models.Account.Staff())
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="close-account" role="tabpanel">
+                    <div id="close-account-content">
+                        @await Html.PartialAsync("_CloseAccount")
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            function loadTabContent(tabId, url) {
+                $(tabId).load(url);
+            }
+
+            $('#create-staff-tab').on('click', function (e) {
+                e.preventDefault();
+                loadTabContent('#create-staff-content', '@Url.Action("CreateStaff", "AccountManagement")');
+            });
+
+            $('#manage-account-tab').on('click', function (e) {
+                e.preventDefault();
+                loadTabContent('#manage-account-content', '@Url.Action("Manage", "AccountManagement")');
+            });
+
+            $('#change-password-tab').on('click', function (e) {
+                e.preventDefault();
+                loadTabContent('#change-password-content', '@Url.Action("ChangePassword", "AccountManagement")');
+            });
+
+            $('#change-email-tab').on('click', function (e) {
+                e.preventDefault();
+                loadTabContent('#change-email-content', '@Url.Action("ChangeEmail", "AccountManagement")');
+            });
+
+            $('#close-account-tab').on('click', function (e) {
+                e.preventDefault();
+                loadTabContent('#close-account-content', '@Url.Action("CloseAccount", "AccountManagement")');
+            });
+
+            // Prevent the default behavior of the tab links
+            $('a[data-toggle="pill"]').on('click', function (e) {
+                e.preventDefault();
+                $(this).tab('show');
+            });
+        });
+    </script>
+}

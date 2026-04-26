@@ -1,0 +1,161 @@
+﻿@model PoultryWeb.Models.CustomerModel
+
+<div class="customer-form">
+    <div class="form-header mb-4">
+        <h5 class="form-title">Create New Customer</h5>
+        <p class="form-subtitle text-muted">Add a new customer to your system</p>
+    </div>
+
+    <form asp-action="Create" asp-controller="Customer" method="post" id="customerCreateForm">
+        @Html.AntiForgeryToken()
+
+        <!-- Hidden UserId field, preset to 0 -->
+        <input type="hidden" asp-for="UserId" value="0" />
+
+        <div class="row">
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label asp-for="Name" class="form-label required"></label>
+                    <input asp-for="Name" class="form-control" placeholder="Enter customer name" />
+                    <span asp-validation-for="Name" class="text-danger small"></span>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label asp-for="ContactEmail" class="form-label required"></label>
+                    <input asp-for="ContactEmail" class="form-control" placeholder="Enter email address" />
+                    <span asp-validation-for="ContactEmail" class="text-danger small"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label asp-for="ContactPhone" class="form-label required"></label>
+                    <input asp-for="ContactPhone" class="form-control" placeholder="Enter phone number" />
+                    <span asp-validation-for="ContactPhone" class="text-danger small"></span>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label asp-for="City" class="form-label"></label>
+                    <input asp-for="City" class="form-control" placeholder="Enter city" />
+                    <span asp-validation-for="City" class="text-danger small"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label asp-for="Address" class="form-label"></label>
+            <input asp-for="Address" class="form-control" placeholder="Enter full address" />
+            <span asp-validation-for="Address" class="text-danger small"></span>
+        </div>
+
+        <!-- If you have any other fields like CreatedDate or so, skip or set defaults here. -->
+
+        <div class="form-actions d-flex justify-content-end gap-2 pt-3 border-top">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-person-plus me-1"></i> Create Customer
+            </button>
+        </div>
+    </form>
+</div>
+
+<style>
+    .customer-form {
+        padding: 0.5rem;
+    }
+    
+    .form-header {
+        border-bottom: 1px solid #e9ecef;
+        padding-bottom: 1rem;
+    }
+    
+    .form-title {
+        font-weight: 600;
+        color: #343a40;
+        margin-bottom: 0.25rem;
+    }
+    
+    .form-subtitle {
+        font-size: 0.875rem;
+    }
+    
+    .form-label.required::after {
+        content: " *";
+        color: #dc3545;
+    }
+    
+    .form-control:focus {
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+    
+    .form-actions {
+        margin-top: 1.5rem;
+    }
+    
+    .text-danger.small {
+        font-size: 0.8rem;
+        margin-top: 0.25rem;
+        display: block;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Add form validation
+        const form = document.getElementById('customerCreateForm');
+        
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                // Basic client-side validation
+                const name = document.querySelector('#Name');
+                const email = document.querySelector('#ContactEmail');
+                const phone = document.querySelector('#ContactPhone');
+                
+                let isValid = true;
+                
+                // Clear previous error highlights
+                [name, email, phone].forEach(field => {
+                    field.classList.remove('is-invalid');
+                });
+                
+                // Validate required fields
+                if (!name.value.trim()) {
+                    name.classList.add('is-invalid');
+                    isValid = false;
+                }
+                
+                if (!email.value.trim()) {
+                    email.classList.add('is-invalid');
+                    isValid = false;
+                } else if (!isValidEmail(email.value)) {
+                    email.classList.add('is-invalid');
+                    isValid = false;
+                }
+                
+                if (!phone.value.trim()) {
+                    phone.classList.add('is-invalid');
+                    isValid = false;
+                }
+                
+                if (!isValid) {
+                    e.preventDefault();
+                    // Focus on first invalid field
+                    const firstInvalid = form.querySelector('.is-invalid');
+                    if (firstInvalid) {
+                        firstInvalid.focus();
+                    }
+                }
+            });
+        }
+        
+        function isValidEmail(email) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            return emailRegex.test(email);
+        }
+    });
+</script>

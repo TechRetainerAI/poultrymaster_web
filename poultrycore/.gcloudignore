@@ -1,0 +1,10 @@
+# Cloud Build / Run source when context is poultrycore/
+.git/
+**/bin/
+**/obj/
+**/node_modules/
+**/.vs/
+**/*.user
+**/*.suo
+**/TestResults/
+**/publish/

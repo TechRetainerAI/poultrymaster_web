@@ -1,0 +1,6 @@
+1:"$Sreact.fragment"
+2:I[97367,["/_next/static/chunks/ff1a16fafef87110.js","/_next/static/chunks/38f5eefb7658dd58.js"],"ViewportBoundary"]
+3:I[97367,["/_next/static/chunks/ff1a16fafef87110.js","/_next/static/chunks/38f5eefb7658dd58.js"],"MetadataBoundary"]
+4:"$Sreact.suspense"
+5:I[27201,["/_next/static/chunks/ff1a16fafef87110.js","/_next/static/chunks/38f5eefb7658dd58.js"],"IconMark"]
+0:{"buildId":"Mg8xhTCJvbSNCtLT9r-Im","rsc":["$","$1","h",{"children":[null,["$","$L2",null,{"children":[["$","meta","0",{"charSet":"utf-8"}],["$","meta","1",{"name":"viewport","content":"width=device-width, initial-scale=1"}]]}],["$","div",null,{"hidden":true,"children":["$","$L3",null,{"children":["$","$4",null,{"name":"Next.Metadata","children":[["$","title","0",{"children":"Poultry Master"}],["$","meta","1",{"name":"description","content":"Farm Management System"}],["$","meta","2",{"name":"generator","content":"Poultry Master"}],["$","link","3",{"rel":"icon","href":"/icon?f79afda8dedd70a4","type":"logo/png","sizes":"32x32"}],["$","link","4",{"rel":"apple-touch-icon","href":"/apple-icon?d84119f690b652d8","type":"image/png","sizes":"180x180"}],["$","$L5","5",{}]]}]}]}],["$","meta",null,{"name":"next-size-adjust","content":""}]]}],"loading":null,"isPartial":false}

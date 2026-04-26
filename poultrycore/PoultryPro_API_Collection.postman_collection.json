@@ -1,0 +1,1854 @@
+{
+	"info": {
+		"_postman_id": "poultry-pro-api-collection",
+		"name": "PoultryPro API Collection",
+		"description": "Complete API collection for PoultryPro backend endpoints. Includes Authentication, User Management, and Farm Management APIs.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Authentication (LoginAPI)",
+			"item": [
+				{
+					"name": "Register",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"string\",\n  \"email\": \"string\",\n  \"password\": \"string\",\n  \"firstName\": \"string\",\n  \"lastName\": \"string\",\n  \"roles\": [\"User\"],\n  \"farmName\": \"string\",\n  \"farmId\": \"string\"\n}"
+						},
+						"url": {
+							"raw": "{{loginApiBaseUrl}}/api/Authentication/Register",
+							"host": ["{{loginApiBaseUrl}}"],
+							"path": ["api", "Authentication", "Register"]
+						}
+					}
+				},
+				{
+					"name": "Login",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"string\",\n  \"password\": \"string\"\n}"
+						},
+						"url": {
+							"raw": "{{loginApiBaseUrl}}/api/Authentication/login",
+							"host": ["{{loginApiBaseUrl}}"],
+							"path": ["api", "Authentication", "login"]
+						}
+					}
+				},
+				{
+					"name": "Login with 2FA",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"otpCode\": \"string\",\n  \"userName\": \"string\"\n}"
+						},
+						"url": {
+							"raw": "{{loginApiBaseUrl}}/api/Authentication/login-2FA",
+							"host": ["{{loginApiBaseUrl}}"],
+							"path": ["api", "Authentication", "login-2FA"]
+						}
+					}
+				},
+				{
+					"name": "Confirm Email",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{loginApiBaseUrl}}/api/Authentication/ConfirmEmail?token={{token}}&email={{email}}",
+							"host": ["{{loginApiBaseUrl}}"],
+							"path": ["api", "Authentication", "ConfirmEmail"],
+							"query": [
+								{
+									"key": "token",
+									"value": "{{token}}"
+								},
+								{
+									"key": "email",
+									"value": "{{email}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Forgot Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"string\"\n}"
+						},
+						"url": {
+							"raw": "{{loginApiBaseUrl}}/api/Authentication/ForgotPassword",
+							"host": ["{{loginApiBaseUrl}}"],
+							"path": ["api", "Authentication", "ForgotPassword"]
+						}
+					}
+				},
+				{
+					"name": "Reset Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"string\",\n  \"token\": \"string\",\n  \"password\": \"string\",\n  \"confirmPassword\": \"string\"\n}"
+						},
+						"url": {
+							"raw": "{{loginApiBaseUrl}}/api/Authentication/ResetPassword",
+							"host": ["{{loginApiBaseUrl}}"],
+							"path": ["api", "Authentication", "ResetPassword"]
+						}
+					}
+				},
+				{
+					"name": "Get Current User",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{loginApiBaseUrl}}/api/Authentication/get-current-user",
+							"host": ["{{loginApiBaseUrl}}"],
+							"path": ["api", "Authentication", "get-current-user"]
+						}
+					}
+				},
+				{
+					"name": "Refresh Token",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"token\": \"string\",\n  \"refreshToken\": \"string\"\n}"
+						},
+						"url": {
+							"raw": "{{loginApiBaseUrl}}/api/Authentication/Refresh-Token",
+							"host": ["{{loginApiBaseUrl}}"],
+							"path": ["api", "Authentication", "Refresh-Token"]
+						}
+					}
+				},
+				{
+					"name": "Logout",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{loginApiBaseUrl}}/api/Authentication/logout",
+							"host": ["{{loginApiBaseUrl}}"],
+							"path": ["api", "Authentication", "logout"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "User Profile",
+			"item": [
+				{
+					"name": "Create User Profile",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"id\": \"string\",\n  \"userName\": \"string\",\n  \"email\": \"string\",\n  \"firstName\": \"string\",\n  \"lastName\": \"string\",\n  \"farmId\": \"string\",\n  \"farmName\": \"string\"\n}"
+						},
+						"url": {
+							"raw": "{{loginApiBaseUrl}}/api/UserProfile/create",
+							"host": ["{{loginApiBaseUrl}}"],
+							"path": ["api", "UserProfile", "create"]
+						}
+					}
+				},
+				{
+					"name": "Update User Profile",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"id\": \"string\",\n  \"userName\": \"string\",\n  \"email\": \"string\",\n  \"firstName\": \"string\",\n  \"lastName\": \"string\",\n  \"farmId\": \"string\",\n  \"farmName\": \"string\"\n}"
+						},
+						"url": {
+							"raw": "{{loginApiBaseUrl}}/api/UserProfile/update",
+							"host": ["{{loginApiBaseUrl}}"],
+							"path": ["api", "UserProfile", "update"]
+						}
+					}
+				},
+				{
+					"name": "Find User by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{loginApiBaseUrl}}/api/UserProfile/find?id={{userId}}",
+							"host": ["{{loginApiBaseUrl}}"],
+							"path": ["api", "UserProfile", "find"],
+							"query": [
+								{
+									"key": "id",
+									"value": "{{userId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Find User by Username",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{loginApiBaseUrl}}/api/UserProfile/findByUserName?normalizedUserName={{username}}",
+							"host": ["{{loginApiBaseUrl}}"],
+							"path": ["api", "UserProfile", "findByUserName"],
+							"query": [
+								{
+									"key": "normalizedUserName",
+									"value": "{{username}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Delete User",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{loginApiBaseUrl}}/api/UserProfile/{{userId}}",
+							"host": ["{{loginApiBaseUrl}}"],
+							"path": ["api", "UserProfile", "{{userId}}"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Test & Health",
+			"item": [
+				{
+					"name": "Ping",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Test/ping",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Test", "ping"]
+						}
+					}
+				},
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Test/health",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Test", "health"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Dashboard",
+			"item": [
+				{
+					"name": "Get Summary",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Dashboard/Summary?farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Dashboard", "Summary"],
+							"query": [
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Customers",
+			"item": [
+				{
+					"name": "Get All Customers",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Customer?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Customer"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Customer by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Customer/{{customerId}}?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Customer", "{{customerId}}"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Create Customer",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customerName\": \"string\",\n  \"contactNumber\": \"string\",\n  \"email\": \"string\",\n  \"address\": \"string\",\n  \"userId\": \"{{userId}}\",\n  \"farmId\": \"{{farmId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Customer",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Customer"]
+						}
+					}
+				},
+				{
+					"name": "Update Customer",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customerId\": {{customerId}},\n  \"customerName\": \"string\",\n  \"contactNumber\": \"string\",\n  \"email\": \"string\",\n  \"address\": \"string\",\n  \"userId\": \"{{userId}}\",\n  \"farmId\": \"{{farmId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Customer/{{customerId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Customer", "{{customerId}}"]
+						}
+					}
+				},
+				{
+					"name": "Delete Customer",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Customer/{{customerId}}?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Customer", "{{customerId}}"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Flock Batches",
+			"item": [
+				{
+					"name": "Get All Batches",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/MainFlockBatch?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "MainFlockBatch"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Batch by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/MainFlockBatch/{{batchId}}?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "MainFlockBatch", "{{batchId}}"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Create Batch",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"batchName\": \"string\",\n  \"numberOfBirds\": 0,\n  \"arrivalDate\": \"2024-01-01\",\n  \"breed\": \"string\",\n  \"userId\": \"{{userId}}\",\n  \"farmId\": \"{{farmId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/MainFlockBatch",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "MainFlockBatch"]
+						}
+					}
+				},
+				{
+					"name": "Update Batch",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"batchId\": {{batchId}},\n  \"batchName\": \"string\",\n  \"numberOfBirds\": 0,\n  \"arrivalDate\": \"2024-01-01\",\n  \"breed\": \"string\",\n  \"userId\": \"{{userId}}\",\n  \"farmId\": \"{{farmId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/MainFlockBatch/{{batchId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "MainFlockBatch", "{{batchId}}"]
+						}
+					}
+				},
+				{
+					"name": "Delete Batch",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/MainFlockBatch/{{batchId}}?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "MainFlockBatch", "{{batchId}}"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Flocks",
+			"item": [
+				{
+					"name": "Get All Flocks",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Flock?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Flock"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Flock by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Flock/{{flockId}}?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Flock", "{{flockId}}"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Create Flock",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"flockName\": \"string\",\n  \"batchId\": 0,\n  \"houseId\": 0,\n  \"quantity\": 0,\n  \"userId\": \"{{userId}}\",\n  \"farmId\": \"{{farmId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Flock",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Flock"]
+						}
+					}
+				},
+				{
+					"name": "Update Flock",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"flockId\": {{flockId}},\n  \"flockName\": \"string\",\n  \"batchId\": 0,\n  \"houseId\": 0,\n  \"quantity\": 0,\n  \"userId\": \"{{userId}}\",\n  \"farmId\": \"{{farmId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Flock/{{flockId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Flock", "{{flockId}}"]
+						}
+					}
+				},
+				{
+					"name": "Delete Flock",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Flock/{{flockId}}?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Flock", "{{flockId}}"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Houses",
+			"item": [
+				{
+					"name": "Get All Houses",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/House?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "House"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get House by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/House/{{houseId}}?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "House", "{{houseId}}"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Create House",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"houseName\": \"string\",\n  \"capacity\": 0,\n  \"location\": \"string\",\n  \"userId\": \"{{userId}}\",\n  \"farmId\": \"{{farmId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/House",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "House"]
+						}
+					}
+				},
+				{
+					"name": "Update House",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"houseId\": {{houseId}},\n  \"houseName\": \"string\",\n  \"capacity\": 0,\n  \"location\": \"string\",\n  \"userId\": \"{{userId}}\",\n  \"farmId\": \"{{farmId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/House/{{houseId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "House", "{{houseId}}"]
+						}
+					}
+				},
+				{
+					"name": "Delete House",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/House/{{houseId}}?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "House", "{{houseId}}"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Production Records",
+			"item": [
+				{
+					"name": "Get All Production Records",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/ProductionRecord?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "ProductionRecord"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Production Record by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/ProductionRecord/{{recordId}}?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "ProductionRecord", "{{recordId}}"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Create Production Record",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"flockId\": 0,\n  \"recordDate\": \"2024-01-01\",\n  \"birdCount\": 0,\n  \"mortality\": 0,\n  \"feedConsumed\": 0,\n  \"medication\": \"string\",\n  \"notes\": \"string\",\n  \"userId\": \"{{userId}}\",\n  \"farmId\": \"{{farmId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/ProductionRecord",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "ProductionRecord"]
+						}
+					}
+				},
+				{
+					"name": "Update Production Record",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"id\": {{recordId}},\n  \"flockId\": 0,\n  \"recordDate\": \"2024-01-01\",\n  \"birdCount\": 0,\n  \"mortality\": 0,\n  \"feedConsumed\": 0,\n  \"medication\": \"string\",\n  \"notes\": \"string\",\n  \"updatedBy\": \"{{userId}}\",\n  \"farmId\": \"{{farmId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/ProductionRecord/{{recordId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "ProductionRecord", "{{recordId}}"]
+						}
+					}
+				},
+				{
+					"name": "Delete Production Record",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/ProductionRecord/{{recordId}}?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "ProductionRecord", "{{recordId}}"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Egg Production",
+			"item": [
+				{
+					"name": "Get All Egg Production Records",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/EggProduction?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "EggProduction"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Egg Production by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/EggProduction/{{productionId}}?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "EggProduction", "{{productionId}}"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Create Egg Production Record",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"flockId\": 0,\n  \"productionDate\": \"2024-01-01\",\n  \"production9AM\": 0,\n  \"production12PM\": 0,\n  \"production4PM\": 0,\n  \"totalProduction\": 0,\n  \"brokenEggs\": 0,\n  \"userId\": \"{{userId}}\",\n  \"farmId\": \"{{farmId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/EggProduction",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "EggProduction"]
+						}
+					}
+				},
+				{
+					"name": "Update Egg Production Record",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"productionId\": {{productionId}},\n  \"flockId\": 0,\n  \"productionDate\": \"2024-01-01\",\n  \"production9AM\": 0,\n  \"production12PM\": 0,\n  \"production4PM\": 0,\n  \"totalProduction\": 0,\n  \"brokenEggs\": 0,\n  \"userId\": \"{{userId}}\",\n  \"farmId\": \"{{farmId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/EggProduction/{{productionId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "EggProduction", "{{productionId}}"]
+						}
+					}
+				},
+				{
+					"name": "Delete Egg Production Record",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/EggProduction/{{productionId}}?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "EggProduction", "{{productionId}}"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Feed Usage",
+			"item": [
+				{
+					"name": "Get All Feed Usage Records",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/FeedUsage?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "FeedUsage"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Feed Usage by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/FeedUsage/{{feedUsageId}}?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "FeedUsage", "{{feedUsageId}}"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Create Feed Usage Record",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"flockId\": 0,\n  \"feedType\": \"string\",\n  \"quantity\": 0,\n  \"usageDate\": \"2024-01-01\",\n  \"notes\": \"string\",\n  \"userId\": \"{{userId}}\",\n  \"farmId\": \"{{farmId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/FeedUsage",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "FeedUsage"]
+						}
+					}
+				},
+				{
+					"name": "Update Feed Usage Record",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"feedUsageId\": {{feedUsageId}},\n  \"flockId\": 0,\n  \"feedType\": \"string\",\n  \"quantity\": 0,\n  \"usageDate\": \"2024-01-01\",\n  \"notes\": \"string\",\n  \"userId\": \"{{userId}}\",\n  \"farmId\": \"{{farmId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/FeedUsage/{{feedUsageId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "FeedUsage", "{{feedUsageId}}"]
+						}
+					}
+				},
+				{
+					"name": "Delete Feed Usage Record",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/FeedUsage/{{feedUsageId}}?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "FeedUsage", "{{feedUsageId}}"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Expenses",
+			"item": [
+				{
+					"name": "Get All Expenses",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Expense?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Expense"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Expense by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Expense/{{expenseId}}?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Expense", "{{expenseId}}"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Expenses by Flock",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Expense/ByFlock/{{flockId}}?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Expense", "ByFlock", "{{flockId}}"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Create Expense",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"expenseDate\": \"2024-01-01\",\n  \"category\": \"string\",\n  \"description\": \"string\",\n  \"amount\": 0,\n  \"paymentMethod\": \"string\",\n  \"flockId\": 0,\n  \"userId\": \"{{userId}}\",\n  \"farmId\": \"{{farmId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Expense",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Expense"]
+						}
+					}
+				},
+				{
+					"name": "Update Expense",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"expenseId\": {{expenseId}},\n  \"expenseDate\": \"2024-01-01\",\n  \"category\": \"string\",\n  \"description\": \"string\",\n  \"amount\": 0,\n  \"paymentMethod\": \"string\",\n  \"flockId\": 0,\n  \"userId\": \"{{userId}}\",\n  \"farmId\": \"{{farmId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Expense/{{expenseId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Expense", "{{expenseId}}"]
+						}
+					}
+				},
+				{
+					"name": "Delete Expense",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Expense/{{expenseId}}?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Expense", "{{expenseId}}"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Sales",
+			"item": [
+				{
+					"name": "Get All Sales",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Sale?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Sale"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Sale by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Sale/{{saleId}}?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Sale", "{{saleId}}"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Sales by Flock",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Sale/ByFlock/{{flockId}}?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Sale", "ByFlock", "{{flockId}}"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Create Sale",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"saleDate\": \"2024-01-01\",\n  \"customerId\": 0,\n  \"flockId\": 0,\n  \"quantity\": 0,\n  \"unitPrice\": 0,\n  \"totalAmount\": 0,\n  \"paymentMethod\": \"string\",\n  \"notes\": \"string\",\n  \"userId\": \"{{userId}}\",\n  \"farmId\": \"{{farmId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Sale",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Sale"]
+						}
+					}
+				},
+				{
+					"name": "Update Sale",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"saleId\": {{saleId}},\n  \"saleDate\": \"2024-01-01\",\n  \"customerId\": 0,\n  \"flockId\": 0,\n  \"quantity\": 0,\n  \"unitPrice\": 0,\n  \"totalAmount\": 0,\n  \"paymentMethod\": \"string\",\n  \"notes\": \"string\",\n  \"userId\": \"{{userId}}\",\n  \"farmId\": \"{{farmId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Sale/{{saleId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Sale", "{{saleId}}"]
+						}
+					}
+				},
+				{
+					"name": "Delete Sale",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Sale/{{saleId}}?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Sale", "{{saleId}}"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Inventory",
+			"item": [
+				{
+					"name": "Get All Inventory Items",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/InventoryItem?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "InventoryItem"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Update Inventory Item",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"itemId\": {{itemId}},\n  \"itemName\": \"string\",\n  \"category\": \"string\",\n  \"quantity\": 0,\n  \"unit\": \"string\",\n  \"reorderLevel\": 0,\n  \"userId\": \"{{userId}}\",\n  \"farmId\": \"{{farmId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/InventoryItem/{{itemId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "InventoryItem", "{{itemId}}"]
+						}
+					}
+				},
+				{
+					"name": "Delete Inventory Item",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/InventoryItem/{{itemId}}?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "InventoryItem", "{{itemId}}"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Transactions by Item",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/InventoryTransaction/ByItem/{{itemId}}?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "InventoryTransaction", "ByItem", "{{itemId}}"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Create Inventory Transaction",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"itemId\": {{itemId}},\n  \"transactionType\": \"In\" or \"Out\",\n  \"quantity\": 0,\n  \"transactionDate\": \"2024-01-01\",\n  \"notes\": \"string\",\n  \"userId\": \"{{userId}}\",\n  \"farmId\": \"{{farmId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/InventoryTransaction",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "InventoryTransaction"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Reports",
+			"item": [
+				{
+					"name": "Export CSV",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"reportType\": \"string\",\n  \"farmId\": \"{{farmId}}\",\n  \"startDate\": \"2024-01-01\",\n  \"endDate\": \"2024-12-31\"\n}"
+						},
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Report/export/csv",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Report", "export", "csv"]
+						}
+					}
+				},
+				{
+					"name": "Export PDF",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"reportType\": \"string\",\n  \"farmId\": \"{{farmId}}\",\n  \"startDate\": \"2024-01-01\",\n  \"endDate\": \"2024-12-31\"\n}"
+						},
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Report/export/pdf",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Report", "export", "pdf"]
+						}
+					}
+				},
+				{
+					"name": "Export Excel",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"reportType\": \"string\",\n  \"farmId\": \"{{farmId}}\",\n  \"startDate\": \"2024-01-01\",\n  \"endDate\": \"2024-12-31\"\n}"
+						},
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Report/export/excel",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Report", "export", "excel"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Chat",
+			"item": [
+				{
+					"name": "Create or Get Thread",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"farmId\": \"{{farmId}}\",\n  \"userId\": \"{{userId}}\",\n  \"otherUserId\": \"string\"\n}"
+						},
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Chat/threads",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Chat", "threads"]
+						}
+					}
+				},
+				{
+					"name": "Get All Threads",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Chat/threads?userId={{userId}}&farmId={{farmId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Chat", "threads"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Messages",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Chat/threads/{{threadId}}/messages?take=50&before=",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Chat", "threads", "{{threadId}}", "messages"],
+							"query": [
+								{
+									"key": "take",
+									"value": "50"
+								},
+								{
+									"key": "before",
+									"value": ""
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Send Message",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"{{userId}}\",\n  \"content\": \"string\"\n}"
+						},
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Chat/threads/{{threadId}}/messages",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Chat", "threads", "{{threadId}}", "messages"]
+						}
+					}
+				},
+				{
+					"name": "Mark Thread as Read",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"{{userId}}\"\n}"
+						},
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/Chat/threads/{{threadId}}/read",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "Chat", "threads", "{{threadId}}", "read"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Audit Logs",
+			"item": [
+				{
+					"name": "Get All Audit Logs",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/AuditLogs?farmId={{farmId}}&userId={{userId}}&status=&startDate=&endDate=&page=1&pageSize=200",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "AuditLogs"],
+							"query": [
+								{
+									"key": "farmId",
+									"value": "{{farmId}}"
+								},
+								{
+									"key": "userId",
+									"value": "{{userId}}"
+								},
+								{
+									"key": "status",
+									"value": ""
+								},
+								{
+									"key": "startDate",
+									"value": ""
+								},
+								{
+									"key": "endDate",
+									"value": ""
+								},
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "pageSize",
+									"value": "200"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Audit Log by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/AuditLogs/{{logId}}",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "AuditLogs", "{{logId}}"]
+						}
+					}
+				},
+				{
+					"name": "Create Audit Log",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"{{userId}}\",\n  \"farmId\": \"{{farmId}}\",\n  \"action\": \"string\",\n  \"entityType\": \"string\",\n  \"entityId\": \"string\",\n  \"status\": \"Success\",\n  \"timestamp\": \"2024-01-01T00:00:00Z\"\n}"
+						},
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/AuditLogs",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "AuditLogs"]
+						}
+					}
+				},
+				{
+					"name": "Debug Info",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{farmApiBaseUrl}}/api/AuditLogs/debug/info",
+							"host": ["{{farmApiBaseUrl}}"],
+							"path": ["api", "AuditLogs", "debug", "info"]
+						}
+					}
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "loginApiBaseUrl",
+			"value": "farmapi.poultrycore.com",
+			"type": "string"
+		},
+		{
+			"key": "farmApiBaseUrl",
+			"value": "farmapi.poultrycore.com",
+			"type": "string"
+		},
+		{
+			"key": "userId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "farmId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "accessToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "username",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "email",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "token",
+			"value": "",
+			"type": "string"
+		}
+	]
+}

@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/flock-batch/layout,_N_T_/flock-batch/new/layout,_N_T_/flock-batch/new/page,_N_T_/flock-batch/new"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/flock-batch/new/__PAGE__",
+    "/flock-batch/new",
+    "/flock-batch",
+    "/_index",
+    "/_head"
+  ]
+}

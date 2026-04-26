@@ -1,0 +1,42 @@
+﻿@model IEnumerable<PoultryWeb.Models.EggProductionModel>
+@{
+    ViewBag.Title = "Egg Production - Index";
+}
+
+<h2>Egg Production Records</h2>
+
+<p>
+    @Html.ActionLink("Record New Production", "Create", "EggProduction")
+</p>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Production ID</th>
+            <th>Flock ID</th>
+            <th>Date</th>
+            <th>Egg Count</th>
+            <th>Broken Eggs</th>
+            <th>Notes</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+        {
+            <tr>
+                <td>@item.ProductionId</td>
+                <td>@item.FlockId</td>
+                <td>@item.ProductionDate.ToShortDateString()</td>
+                <td>@item.EggCount</td>
+                <td>@item.BrokenEggs</td>
+                <td>@item.Notes</td>
+                <td>
+                    @Html.ActionLink("Details", "Details", new { id = item.ProductionId }) |
+                    @Html.ActionLink("Edit", "Edit", new { id = item.ProductionId }) |
+                    @Html.ActionLink("Delete", "Delete", new { id = item.ProductionId })
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
