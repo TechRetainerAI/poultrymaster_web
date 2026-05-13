@@ -80,7 +80,7 @@ const faqData: FAQItem[] = [
     category: "Production",
     question: "Where can I see egg production trends?",
     answer:
-      "The Egg Production page shows detailed records with filtering by flock, date range, and time period. The Reports page provides charts and analytics for production trends over time.",
+      "Use Egg sorting for daily collection by flock and totals by size. Use Egg tracker (under Analytics) for the egg inventory ledger from production and sales. The Reports page provides charts for production trends over time.",
   },
   {
     category: "Feed & Inventory",

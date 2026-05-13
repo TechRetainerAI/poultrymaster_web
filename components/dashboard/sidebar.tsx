@@ -33,12 +33,16 @@ import {
   Activity,
   Wallet,
   Boxes,
-  CreditCard
+  CreditCard,
+  Wheat,
+  Pill,
+  Truck,
 } from "lucide-react"
 import { InventoryLogo } from "@/components/auth/logo"
 import { useAlertsStore, type AlertItem } from "@/lib/store/alerts-store"
 import { useSidebarStore } from "@/lib/store/sidebar-store"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
 
 interface SidebarProps {
   onLogout: () => void
@@ -56,6 +60,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     farm: true,
     production: true,
+    analytics: true,
     inventory: true,
     financial: true,
   })
@@ -116,8 +121,14 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
   const productionItems = [
     { href: "/production-records", label: "Production Records", icon: FileText },
-    { href: "/egg-production", label: "Egg Production", icon: Egg },
+    { href: "/egg-production", label: "Egg sorting", icon: Egg },
     { href: "/feed-usage", label: "Feed Usage", icon: Package },
+  ]
+
+  const analyticsItems = [
+    { href: "/egg-tracker", label: "Egg tracker", icon: BarChart3 },
+    { href: "/feed-tracker", label: "Feed at hand", icon: Wheat },
+    { href: "/medication-tracker", label: "Medication at hand", icon: Pill },
   ]
 
   const inventoryItems = [
@@ -126,19 +137,19 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/supplies", label: "Supplies", icon: ShoppingCart },
   ]
 
+  const TEMP_SHOW_PAYMENTS_LINK = true
   const financialItems = [
     { href: "/cash", label: "Cash", icon: Wallet },
     { href: "/sales", label: "Sales", icon: ShoppingCart },
     { href: "/expenses", label: "Expenses", icon: DollarSign },
     { href: "/customers", label: "Customers", icon: Users },
+    { href: "/suppliers", label: "Suppliers", icon: Truck },
     { href: "/payments", label: "Payments", icon: CreditCard },
-  ].filter((item) => {
-    if (!permissions.featureAccess.canViewFinancial) return false
-    if (item.href === "/sales") return permissions.featureAccess.canEnterSales
-    if (item.href === "/expenses") return permissions.featureAccess.canEnterExpenses
-    if (item.href === "/cash") return permissions.featureAccess.canViewCashLedger
-    return true
-  })
+  ].filter((item) =>
+    isFinancialNavItemVisible(item.href, permissions.featureAccess, permissions.isAdmin, {
+      tempShowPayments: TEMP_SHOW_PAYMENTS_LINK,
+    })
+  )
 
   // Single items (no group)
   const renderNavItem = (
@@ -147,7 +158,8 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     onClick?: () => void,
     badge?: number
   ) => {
-    const isActive = pathname === item.href
+    const isActive =
+      pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`))
     const Icon = item.icon
 
     const content = (
@@ -248,9 +260,9 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   }
 
   const sidebarContent = (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full min-h-0 w-full flex-col">
       {/* Logo Header */}
-      <div className="flex h-16 shrink-0 items-center px-3 gap-1 border-b border-slate-800">
+      <div className="flex h-16 shrink-0 items-center border-b border-slate-800 px-3 gap-1">
         {(!isCollapsed || isMobile) && (
           <InventoryLogo dark />
         )}
@@ -295,7 +307,10 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto overscroll-contain py-3 px-2 space-y-4 scrollbar-hide">
+      <nav
+        className="sidebar-nav-scrollable min-h-0 flex-1 overflow-y-auto overscroll-y-contain py-3 px-2 space-y-4"
+        aria-label="Main navigation"
+      >
         {/* Dashboard */}
         <div>
           {renderNavItem({ href: "/dashboard", label: "Dashboard", icon: Home })}
@@ -312,6 +327,12 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
         {/* Production */}
         {renderGroup("Production", productionItems, "production")}
+
+        {/* Divider */}
+        <div className="border-t border-slate-800 mx-2" />
+
+        {/* Analytics */}
+        {renderGroup("Analytics", analyticsItems, "analytics")}
 
         {/* Divider */}
         <div className="border-t border-slate-800 mx-2" />
@@ -364,7 +385,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
       </nav>
 
       {/* Logout */}
-      <div className="border-t border-slate-800 p-3">
+      <div className="shrink-0 border-t border-slate-800 p-3">
         {isCollapsed && !isMobile ? (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -411,7 +432,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         
         <div
           className={cn(
-            "fixed top-0 left-0 h-full w-[85vw] max-w-[320px] bg-slate-900 shadow-xl transition-transform duration-300 ease-in-out",
+            "fixed top-0 left-0 flex h-full min-h-0 w-[85vw] max-w-[320px] flex-col overflow-hidden bg-slate-900 shadow-xl transition-transform duration-300 ease-in-out",
             isMobileOpen ? "translate-x-0" : "-translate-x-full"
           )}
           style={{
@@ -423,9 +444,9 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         </div>
       </div>
 
-      {/* Desktop sidebar */}
+      {/* Desktop sidebar — stretch with main column (min one viewport) so the rail always reaches the bottom */}
       <div className={cn(
-        "hidden lg:sticky lg:top-0 lg:h-screen lg:self-start lg:flex flex-col bg-slate-900 transition-all duration-300",
+        "hidden min-h-0 overflow-hidden lg:sticky lg:top-0 lg:min-h-screen lg:self-stretch lg:shrink-0 lg:flex lg:flex-col bg-slate-900 transition-all duration-300",
         isCollapsed ? "w-16" : "w-60"
       )}>
         {sidebarContent}

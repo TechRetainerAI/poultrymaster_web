@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using PoultryFarmAPIWeb.Models;
 using System.Data;
 using System.Data.SqlClient;
@@ -11,6 +11,26 @@ namespace PoultryFarmAPIWeb.Business
     {
         private readonly string _connectionString;
         private readonly ILogger<EggProductionService> _logger;
+
+        private static string? ReadOptionalString(SqlDataReader reader, string columnName)
+        {
+            for (var i = 0; i < reader.FieldCount; i++)
+            {
+                if (string.Equals(reader.GetName(i), columnName, StringComparison.OrdinalIgnoreCase))
+                    return reader.IsDBNull(i) ? null : reader.GetString(i);
+            }
+            return null;
+        }
+
+        private static int? ReadOptionalInt32(SqlDataReader reader, string columnName)
+        {
+            for (var i = 0; i < reader.FieldCount; i++)
+            {
+                if (string.Equals(reader.GetName(i), columnName, StringComparison.OrdinalIgnoreCase))
+                    return reader.IsDBNull(i) ? (int?)null : reader.GetInt32(i);
+            }
+            return null;
+        }
 
         public EggProductionService(string connectionString, ILogger<EggProductionService> logger)
         {
@@ -37,6 +57,7 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.Add("@Notes", SqlDbType.NVarChar, -1).Value = (object?)model.Notes ?? DBNull.Value;
                 cmd.Parameters.Add("@UserId", SqlDbType.NVarChar, -1).Value = model.UserId ?? (object)DBNull.Value;
                 cmd.Parameters.Add("@FarmId", SqlDbType.NVarChar, -1).Value = model.FarmId ?? (object)DBNull.Value;
+                cmd.Parameters.Add("@EggGrade", SqlDbType.NVarChar, 50).Value = (object?)model.EggGrade ?? DBNull.Value;
 
                 var sb = new StringBuilder();
                 sb.AppendLine("Executing spEggProduction_Insert with parameters:");
@@ -77,6 +98,7 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.AddWithValue("@Notes", (object?)model.Notes ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@UserId", model.UserId ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@FarmId", model.FarmId ?? (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@EggGrade", (object?)model.EggGrade ?? DBNull.Value);
 
                 await conn.OpenAsync();
                 await cmd.ExecuteNonQueryAsync();
@@ -119,6 +141,7 @@ namespace PoultryFarmAPIWeb.Business
                         Notes = reader.IsDBNull(reader.GetOrdinal("Notes"))
                             ? null
                             : reader.GetString(reader.GetOrdinal("Notes")),
+                        EggGrade = ReadOptionalString(reader, "EggGrade"),
                         UserId = reader.GetString(reader.GetOrdinal("UserId")),
                         FarmId = reader.IsDBNull(reader.GetOrdinal("FarmId")) ? null : reader.GetString(reader.GetOrdinal("FarmId"))
                     };
@@ -149,23 +172,28 @@ namespace PoultryFarmAPIWeb.Business
                 using var reader = await cmd.ExecuteReaderAsync();
                 while (await reader.ReadAsync())
                 {
+                    var p9 = reader.IsDBNull(reader.GetOrdinal("Production9AM")) ? 0 : reader.GetInt32(reader.GetOrdinal("Production9AM"));
+                    var p12 = reader.IsDBNull(reader.GetOrdinal("Production12PM")) ? 0 : reader.GetInt32(reader.GetOrdinal("Production12PM"));
+                    var p4 = reader.IsDBNull(reader.GetOrdinal("Production4PM")) ? 0 : reader.GetInt32(reader.GetOrdinal("Production4PM"));
+                    var totalFromRow = ReadOptionalInt32(reader, "TotalProduction");
                     var ep = new EggProductionModel
                     {
                         ProductionId = reader.GetInt32(reader.GetOrdinal("ProductionId")),
                         FlockId = reader.GetInt32(reader.GetOrdinal("FlockId")),
-                        FlockName = reader.IsDBNull(reader.GetOrdinal("FlockName")) ? "Unknown Flock" : reader.GetString(reader.GetOrdinal("FlockName")),
+                        FlockName = ReadOptionalString(reader, "FlockName") ?? "Unknown Flock",
                         ProductionDate = reader.GetDateTime(reader.GetOrdinal("ProductionDate")),
                         EggCount = reader.GetInt32(reader.GetOrdinal("EggCount")),
-                        Production9AM = reader.IsDBNull(reader.GetOrdinal("Production9AM")) ? 0 : reader.GetInt32(reader.GetOrdinal("Production9AM")),
-                        Production12PM = reader.IsDBNull(reader.GetOrdinal("Production12PM")) ? 0 : reader.GetInt32(reader.GetOrdinal("Production12PM")),
-                        Production4PM = reader.IsDBNull(reader.GetOrdinal("Production4PM")) ? 0 : reader.GetInt32(reader.GetOrdinal("Production4PM")),
-                        TotalProduction = reader.IsDBNull(reader.GetOrdinal("TotalProduction")) ? 0 : reader.GetInt32(reader.GetOrdinal("TotalProduction")),
+                        Production9AM = p9,
+                        Production12PM = p12,
+                        Production4PM = p4,
+                        TotalProduction = totalFromRow ?? p9 + p12 + p4,
                         BrokenEggs = reader.IsDBNull(reader.GetOrdinal("BrokenEggs"))
                             ? null
                             : reader.GetInt32(reader.GetOrdinal("BrokenEggs")),
                         Notes = reader.IsDBNull(reader.GetOrdinal("Notes"))
                             ? null
                             : reader.GetString(reader.GetOrdinal("Notes")),
+                        EggGrade = ReadOptionalString(reader, "EggGrade"),
                         UserId = reader.GetString(reader.GetOrdinal("UserId")),
                         FarmId = reader.IsDBNull(reader.GetOrdinal("FarmId")) ? null : reader.GetString(reader.GetOrdinal("FarmId"))
                     };
@@ -208,6 +236,7 @@ namespace PoultryFarmAPIWeb.Business
                         Notes = reader.IsDBNull(reader.GetOrdinal("Notes"))
                             ? null
                             : reader.GetString(reader.GetOrdinal("Notes")),
+                        EggGrade = ReadOptionalString(reader, "EggGrade"),
                         FarmId = reader.IsDBNull(reader.GetOrdinal("FarmId")) ? null : reader.GetString(reader.GetOrdinal("FarmId"))
                     };
                     list.Add(ep);

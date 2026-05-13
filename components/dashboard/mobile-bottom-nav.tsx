@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { usePermissions } from "@/hooks/use-permissions"
+import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
 import {
   Home,
   Bird,
@@ -25,6 +26,9 @@ import {
   UserCog,
   CreditCard,
   LucideIcon,
+  Wheat,
+  Pill,
+  Truck,
 } from "lucide-react"
 import {
   Sheet,
@@ -76,8 +80,7 @@ export function MobileBottomNav() {
   const [sheetOpen, setSheetOpen] = useState(false)
 
   const visibleMainTabs = mainTabs.filter((item) => {
-    if (item.href === "/sales")
-      return permissions.featureAccess.canViewFinancial && permissions.featureAccess.canEnterSales
+    if (item.href === "/sales") return permissions.featureAccess.canEnterSales
     return true
   })
 
@@ -90,13 +93,17 @@ export function MobileBottomNav() {
   const moreItems: NavItem[] = [
     { href: "/inventory", label: "Inventory", icon: Package },
     { href: "/help", label: "Help Center", icon: BookOpen },
+    { href: "/egg-production", label: "Egg sorting", icon: Egg },
+    { href: "/egg-tracker", label: "Egg tracker", icon: BarChart3 },
+    { href: "/feed-tracker", label: "Feed at hand", icon: Wheat },
+    { href: "/medication-tracker", label: "Medication at hand", icon: Pill },
     { href: "/health", label: "Health Records", icon: AlertTriangle },
     { href: "/cash", label: "Cash", icon: Wallet },
     { href: "/expenses", label: "Expenses", icon: DollarSign },
     { href: "/customers", label: "Customers", icon: Users },
+    { href: "/suppliers", label: "Suppliers", icon: Truck },
     { href: "/payments", label: "Payments", icon: CreditCard },
     { href: "/feed-usage", label: "Feed Usage", icon: Package },
-    { href: "/egg-production", label: "Egg Production", icon: Egg },
     { href: "/resources", label: "Resources", icon: BookOpen },
     { href: "/reports", label: "Reports", icon: BarChart3 },
     { href: "/profile", label: "Account", icon: User },
@@ -107,15 +114,11 @@ export function MobileBottomNav() {
       ? [{ href: "/employees", label: "Employees", icon: UserCog }]
       : []),
   ].filter((item) => {
-    if (item.href === "/payments") return TEMP_SHOW_PAYMENTS_LINK || permissions.featureAccess.canViewFinancial
-    if (
-      !permissions.featureAccess.canViewFinancial &&
-      ["/sales", "/expenses", "/cash", "/customers", "/payments"].includes(item.href)
-    )
-      return false
-    if (item.href === "/sales") return permissions.featureAccess.canEnterSales
-    if (item.href === "/expenses") return permissions.featureAccess.canEnterExpenses
-    if (item.href === "/cash") return permissions.featureAccess.canViewCashLedger
+    if (["/sales", "/expenses", "/cash", "/customers", "/suppliers", "/payments"].includes(item.href)) {
+      return isFinancialNavItemVisible(item.href, permissions.featureAccess, permissions.isAdmin, {
+        tempShowPayments: TEMP_SHOW_PAYMENTS_LINK,
+      })
+    }
     if (item.href === "/reports") return permissions.featureAccess.canViewReports
     if (item.href === "/audit-logs") return permissions.featureAccess.canViewActivityLog
     if (item.href === "/settings") return permissions.featureAccess.canViewSettings

@@ -27,6 +27,8 @@ export interface HealthRecord {
   medication?: string | null
   waterConsumption?: number | null
   notes?: string | null
+  /** From API when image is stored in DB (not the raw bytes). */
+  hasAttachmentImage?: boolean
 }
 
 export interface HealthRecordInput {
@@ -40,6 +42,11 @@ export interface HealthRecordInput {
   medication?: string | null
   waterConsumption?: number | null
   notes?: string | null
+  /** Base64 (no data: URL prefix). Stored as VARBINARY on the farm API. */
+  attachmentImageBase64?: string | null
+  attachmentContentType?: string | null
+  /** When true on PUT, attachment fields replace or clear the stored image. */
+  setAttachmentImage?: boolean
 }
 
 export interface ApiResponse<T = any> {
@@ -115,7 +122,7 @@ export async function getHealthRecord(
 
 // POST /api/Health
 export async function createHealthRecord(input: HealthRecordInput): Promise<ApiResponse<HealthRecord>> {
-  const payload = {
+  const payload: Record<string, unknown> = {
     UserId: input.userId,
     FarmId: input.farmId,
     FlockId: input.flockId ?? null,
@@ -127,6 +134,10 @@ export async function createHealthRecord(input: HealthRecordInput): Promise<ApiR
     WaterConsumption: input.waterConsumption ?? null,
     Notes: input.notes ?? null,
   }
+  if (input.attachmentImageBase64 && input.attachmentContentType) {
+    payload.AttachmentImage = input.attachmentImageBase64
+    payload.AttachmentContentType = input.attachmentContentType
+  }
   return request<HealthRecord>(`/Health`, {
     method: 'POST',
     body: JSON.stringify(payload),
@@ -135,7 +146,7 @@ export async function createHealthRecord(input: HealthRecordInput): Promise<ApiR
 
 // PUT /api/Health/{id}
 export async function updateHealthRecord(id: number, input: HealthRecordInput): Promise<ApiResponse<HealthRecord>> {
-  const payload = {
+  const payload: Record<string, unknown> = {
     Id: id,
     UserId: input.userId,
     FarmId: input.farmId,
@@ -147,6 +158,16 @@ export async function updateHealthRecord(id: number, input: HealthRecordInput): 
     Medication: input.medication ?? null,
     WaterConsumption: input.waterConsumption ?? null,
     Notes: input.notes ?? null,
+  }
+  if (input.setAttachmentImage === true) {
+    payload.SetAttachmentImage = true
+    if (input.attachmentImageBase64 && input.attachmentContentType) {
+      payload.AttachmentImage = input.attachmentImageBase64
+      payload.AttachmentContentType = input.attachmentContentType
+    } else {
+      payload.AttachmentImage = null
+      payload.AttachmentContentType = null
+    }
   }
   return request<HealthRecord>(`/Health/${id}`, {
     method: 'PUT',

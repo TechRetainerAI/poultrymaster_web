@@ -37,7 +37,7 @@ namespace PoultryFarmAPIWeb.Models
         public string? Notes { get; set; }
         public int EggCount { get; set; }
 
-        /// <summary>Egg quality grade for the daily collection (e.g. P1, P2).</summary>
+        /// <summary>Egg size for the daily collection (e.g. Small, Medium, Large, XLarge, Jumbo).</summary>
         [JsonPropertyName("eggGrade")]
         public string? EggGrade { get; set; }
     }

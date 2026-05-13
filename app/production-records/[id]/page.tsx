@@ -307,7 +307,7 @@ export default function EditProductionRecordPage() {
                       />
                     </div>
                     <div className="space-y-2 md:col-span-3">
-                      <Label className="text-sm font-medium text-slate-700">Egg grade</Label>
+                      <Label className="text-sm font-medium text-slate-700">Egg size</Label>
                       <Select
                         value={formData.eggGrade}
                         onValueChange={(v) => setFormData((prev) => ({ ...prev, eggGrade: v }))}
@@ -347,7 +347,7 @@ export default function EditProductionRecordPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="mortality" className="text-sm font-medium text-slate-700">Mortality *</Label>
+                      <Label htmlFor="mortality" className="text-sm font-medium text-slate-700">Deaths *</Label>
                       <Input
                         id="mortality"
                         name="mortality"

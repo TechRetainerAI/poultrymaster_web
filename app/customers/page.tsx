@@ -16,6 +16,7 @@ import { getCustomers, getCustomer, createCustomer, updateCustomer, deleteCustom
 import { getUserContext } from "@/lib/utils/user-context"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { usePermissions } from "@/hooks/use-permissions"
+import { canAccessCustomersPage } from "@/lib/utils/financial-nav-access"
 import { useToast } from "@/hooks/use-toast"
 import { toastFormGuide } from "@/lib/utils/validation-toast"
 import { Input } from "@/components/ui/input"
@@ -61,6 +62,16 @@ export default function CustomersPage() {
   const isMobile = useIsMobile()
 
   useEffect(() => {
+    if (!permissions.isLoading && !canAccessCustomersPage(permissions.featureAccess, permissions.isAdmin)) {
+      router.push("/dashboard")
+      return
+    }
+  }, [permissions.isLoading, permissions.featureAccess, permissions.isAdmin, router])
+
+  useEffect(() => {
+    if (permissions.isLoading) return
+    if (!canAccessCustomersPage(permissions.featureAccess, permissions.isAdmin)) return
+
     loadCustomers()
     
     if (typeof window !== 'undefined') {
@@ -80,7 +91,7 @@ export default function CustomersPage() {
         window.removeEventListener('globalSearch', handleGlobalSearch as EventListener)
       }
     }
-  }, [])
+  }, [permissions.isLoading, permissions.featureAccess, permissions.isAdmin])
 
   const loadCustomers = async () => {
     const { userId, farmId } = getUserContext()

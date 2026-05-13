@@ -219,6 +219,9 @@ namespace PoultryFarmAPIWeb.Filters
                 "InventoryItem" => "InventoryItem",
                 "House" => "House",
                 "Cash" => "CashAdjustment",
+                "EggInventoryAdjustment" => "EggInventoryAdjustment",
+                "FeedInventoryAdjustment" => "FeedInventoryAdjustment",
+                "Supplier" => "Supplier",
                 _ => controllerName
             };
         }

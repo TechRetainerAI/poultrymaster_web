@@ -9,5 +9,8 @@ namespace PoultryFarmAPIWeb.Business
         Task<HealthRecordModel?> GetById(int id, string userId, string farmId);
         Task<List<HealthRecordModel>> GetAll(string userId, string farmId, int? flockId = null, int? houseId = null, int? itemId = null);
         Task Delete(int id, string userId, string farmId);
+
+        /// <summary>Returns image bytes and content-type, or null when missing or not found.</summary>
+        Task<(byte[] Body, string ContentType)?> GetAttachment(int id, string userId, string farmId);
     }
 }

@@ -40,7 +40,7 @@
                     <div class="col-md-6">
                         <div class="form-group">
                             @Html.LabelFor(m => m.Email, new { @class = "control-label" })
-                            @Html.TextBoxFor(m => m.Email, new { @class = "form-control", type = "email", placeholder = "employee@example.com" })
+                            @Html.TextBoxFor(m => m.Email, new { @class = "form-control", type = "email", placeholder = "employee@@example.com" })
                             @Html.ValidationMessageFor(m => m.Email, "", new { @class = "text-danger" })
                         </div>
                     </div>
@@ -99,7 +99,7 @@
 </div>
 
 @section Scripts {
-    @Scripts.Render("~/bundles/jqueryval")
+    <partial name="_ValidationScriptsPartial" />
 }
 
 <style>

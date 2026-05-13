@@ -15,6 +15,8 @@ export interface Expense {
   createdDate: string
   notes?: string
   paidTo?: string
+  /** Receipt bytes stored on row; use GET …/attachment or /api/expense-image */
+  hasAttachmentImage?: boolean
 }
 
 export interface ExpenseInput {
@@ -28,6 +30,12 @@ export interface ExpenseInput {
   paymentMethod: string
   flockId: number
   createdDate?: string
+  supplier?: string
+  /** Base64 payload only (no data URL prefix). API maps to byte[]. */
+  attachmentImage?: string | null
+  attachmentContentType?: string | null
+  /** PUT only: when true, attachment columns are written (including clear when image omitted/null). */
+  setAttachmentImage?: boolean
 }
 
 export interface ApiResponse<T = any> {
@@ -53,6 +61,27 @@ async function parseJsonLenient<T>(response: Response): Promise<T | null> {
 
 // Mock data removed: all operations now rely strictly on the backend API
 
+function normalizeExpense(x: any, fallbackUserId?: string): Expense {
+  const rawHas = x?.hasAttachmentImage ?? x?.HasAttachmentImage
+  const hasAttachmentImage =
+    rawHas === true || rawHas === 1 || String(rawHas).toLowerCase() === "true"
+  return {
+    farmId: x.farmId ?? x.FarmId ?? "",
+    userId: x.userId ?? x.UserId ?? fallbackUserId ?? "",
+    expenseId: Number(x.expenseId ?? x.ExpenseId ?? x.id ?? x.Id ?? 0),
+    expenseDate: x.expenseDate ?? x.ExpenseDate,
+    category: x.category ?? x.Category ?? "",
+    description: x.description ?? x.Description ?? "",
+    amount: Number(x.amount ?? x.Amount ?? 0),
+    paymentMethod: x.paymentMethod ?? x.PaymentMethod ?? "",
+    flockId: Number(x.flockId ?? x.FlockId ?? 0),
+    createdDate: x.createdDate ?? x.CreatedDate,
+    notes: x.notes ?? x.Notes,
+    paidTo: x.paidTo ?? x.PaidTo ?? x.supplier ?? x.Supplier,
+    hasAttachmentImage,
+  }
+}
+
 // Get all expenses
 export async function getExpenses(userId?: string, farmId?: string): Promise<ApiResponse<Expense[]>> {
   try {
@@ -66,6 +95,7 @@ export async function getExpenses(userId?: string, farmId?: string): Promise<Api
     const response = await fetch(url, {
       method: "GET",
       headers: {
+        ...getAuthHeaders(),
         // Accept both JSON and text/plain (Swagger shows text/plain)
         Accept: "application/json, text/plain;q=0.9, */*;q=0.8",
       },
@@ -80,21 +110,7 @@ export async function getExpenses(userId?: string, farmId?: string): Promise<Api
 
     const data = await parseJsonLenient<any[]>(response)
     if (!data) return { success: false, message: "Failed to parse server response" }
-    // Normalize payload to expected shape
-    const normalized: Expense[] = data.map((x: any) => ({
-      farmId: x.farmId ?? x.FarmId ?? "",
-      userId: x.userId ?? x.UserId ?? "",
-      expenseId: Number(x.expenseId ?? x.ExpenseId ?? x.id ?? x.Id ?? 0),
-      expenseDate: x.expenseDate ?? x.ExpenseDate,
-      category: x.category ?? x.Category ?? "",
-      description: x.description ?? x.Description ?? "",
-      amount: Number(x.amount ?? x.Amount ?? 0),
-      paymentMethod: x.paymentMethod ?? x.PaymentMethod ?? "",
-      flockId: Number(x.flockId ?? x.FlockId ?? 0),
-      createdDate: x.createdDate ?? x.CreatedDate,
-      notes: x.notes ?? x.Notes,
-      paidTo: x.paidTo ?? x.PaidTo ?? x.supplier ?? x.Supplier,
-    }))
+    const normalized: Expense[] = data.map((x: any) => normalizeExpense(x, userId))
     console.log("[v0] Expenses data received:", data)
     console.log("[v0] Number of expenses:", Array.isArray(data) ? data.length : 'not an array')
 
@@ -128,6 +144,7 @@ export async function getExpense(id: number, userId?: string, farmId?: string): 
     const response = await fetch(url, {
       method: "GET",
       headers: {
+        ...getAuthHeaders(),
         Accept: "application/json, text/plain;q=0.9, */*;q=0.8",
       },
     })
@@ -156,20 +173,7 @@ export async function getExpense(id: number, userId?: string, farmId?: string): 
 
     const raw = await parseJsonLenient<any>(response)
     if (!raw) return { success: false, message: "Failed to parse server response", data: null }
-    const data: Expense = {
-      farmId: raw.farmId ?? raw.FarmId ?? "",
-      userId: raw.userId ?? raw.UserId ?? "",
-      expenseId: Number(raw.expenseId ?? raw.ExpenseId ?? raw.id ?? raw.Id ?? 0),
-      expenseDate: raw.expenseDate ?? raw.ExpenseDate,
-      category: raw.category ?? raw.Category ?? "",
-      description: raw.description ?? raw.Description ?? "",
-      amount: Number(raw.amount ?? raw.Amount ?? 0),
-      paymentMethod: raw.paymentMethod ?? raw.PaymentMethod ?? "",
-      flockId: Number(raw.flockId ?? raw.FlockId ?? 0),
-      createdDate: raw.createdDate ?? raw.CreatedDate,
-      notes: raw.notes ?? raw.Notes,
-      paidTo: raw.paidTo ?? raw.PaidTo ?? raw.supplier ?? raw.Supplier,
-    }
+    const data: Expense = normalizeExpense(raw, userId)
     console.log("[v0] Expense data received:", data)
 
     return {
@@ -195,6 +199,7 @@ export async function getExpensesByFlock(flockId: number, userId?: string, farmI
     const response = await fetch(url, {
       method: "GET",
       headers: {
+        ...getAuthHeaders(),
         Accept: "application/json, text/plain;q=0.9, */*;q=0.8",
       },
     })
@@ -206,18 +211,18 @@ export async function getExpensesByFlock(flockId: number, userId?: string, farmI
       return { success: false, message: errorText || `Failed to fetch expenses by flock (${response.status})` }
     }
 
-    const data = await parseJsonLenient<Expense[]>(response)
-    if (!data) return { success: false, message: "Failed to parse server response" }
-    console.log("[v0] Expenses by flock data received:", data)
+    const rawList = await parseJsonLenient<any[]>(response)
+    if (!rawList) return { success: false, message: "Failed to parse server response" }
+    console.log("[v0] Expenses by flock data received:", rawList)
 
-    if (!Array.isArray(data)) {
+    if (!Array.isArray(rawList)) {
       return { success: false, message: "Unexpected data format" }
     }
 
     return {
       success: true,
       message: "Expenses by flock fetched successfully",
-      data: data as Expense[],
+      data: rawList.map((x) => normalizeExpense(x, userId)),
     }
   } catch (error) {
     return { success: false, message: error instanceof Error ? error.message : "Failed to fetch expenses by flock" }
@@ -255,7 +260,7 @@ export async function createExpense(expense: ExpenseInput): Promise<ApiResponse<
     }
 
     // Create the request body with proper field names that match the API expectations
-    const requestBody = {
+    const requestBody: Record<string, unknown> = {
       farmId: farmId,
       userId: userId,
       // Don't include expenseId - server will assign the ID
@@ -267,13 +272,20 @@ export async function createExpense(expense: ExpenseInput): Promise<ApiResponse<
       paymentMethod: expense.paymentMethod,
       flockId: expense.flockId,
     }
+    if (expense.supplier !== undefined) {
+      requestBody.supplier = expense.supplier
+    }
+    if (expense.attachmentImage && expense.attachmentContentType) {
+      requestBody.attachmentImage = expense.attachmentImage
+      requestBody.attachmentContentType = expense.attachmentContentType
+    }
 
-    console.log("[v0] Expense request body:", requestBody)
+    console.log("[v0] Expense request body:", { ...requestBody, attachmentImage: requestBody.attachmentImage ? "[bytes]" : undefined })
 
     const response = await fetch(url, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
+        ...getAuthHeaders(),
         Accept: "application/json, text/plain;q=0.9, */*;q=0.8",
       },
       body: JSON.stringify(requestBody),
@@ -289,14 +301,14 @@ export async function createExpense(expense: ExpenseInput): Promise<ApiResponse<
       return { success: false, message: errorText || `Failed to create expense (${response.status})`, data: null as any }
     }
 
-    const data = await parseJsonLenient<Expense>(response)
+    const data = await parseJsonLenient<any>(response)
     if (!data) return { success: false, message: "Failed to parse server response", data: null as any }
     console.log("[v0] Created expense data:", data)
 
     return {
       success: true,
       message: "Expense created successfully",
-      data: data as Expense,
+      data: normalizeExpense(data, userId),
     }
   } catch (error) {
     return { success: false, message: error instanceof Error ? error.message : "Failed to create expense", data: null as any }
@@ -309,25 +321,36 @@ export async function updateExpense(id: number, expense: Partial<ExpenseInput>):
     const url = farmApiUrl(`Expense/${id}`)
     console.log("[v0] Updating expense:", url)
 
-    // Create the request body with proper field names that match the API expectations
-    const requestBody: any = {}
+    const requestBody: Record<string, unknown> = {}
     if (expense.farmId) requestBody.farmId = expense.farmId
     if (expense.userId) requestBody.userId = expense.userId
     if (expense.expenseId !== undefined) requestBody.expenseId = expense.expenseId
     if (expense.expenseDate) requestBody.expenseDate = expense.expenseDate
     if (expense.category) requestBody.category = expense.category
-    if (expense.description) requestBody.description = expense.description
+    if (expense.description !== undefined) requestBody.description = expense.description
     if (expense.amount !== undefined) requestBody.amount = expense.amount
     if (expense.paymentMethod) requestBody.paymentMethod = expense.paymentMethod
     if (expense.flockId !== undefined) requestBody.flockId = expense.flockId
     if (expense.createdDate) requestBody.createdDate = expense.createdDate
+    if (expense.supplier !== undefined) requestBody.supplier = expense.supplier
 
-    console.log("[v0] Expense update request body:", requestBody)
+    if (expense.setAttachmentImage === true) {
+      requestBody.setAttachmentImage = true
+      if (expense.attachmentImage && expense.attachmentContentType) {
+        requestBody.attachmentImage = expense.attachmentImage
+        requestBody.attachmentContentType = expense.attachmentContentType
+      } else {
+        requestBody.attachmentImage = null
+        requestBody.attachmentContentType = null
+      }
+    }
+
+    console.log("[v0] Expense update request body:", { ...requestBody, attachmentImage: requestBody.attachmentImage ? "[bytes]" : requestBody.attachmentImage })
 
     const response = await fetch(url, {
       method: "PUT",
       headers: {
-        "Content-Type": "application/json",
+        ...getAuthHeaders(),
         Accept: "application/json, text/plain;q=0.9, */*;q=0.8",
       },
       body: JSON.stringify(requestBody),
@@ -342,14 +365,54 @@ export async function updateExpense(id: number, expense: Partial<ExpenseInput>):
       return { success: false, message: errorText || `Failed to update expense (${response.status})`, data: null as any }
     }
 
-    const data = await parseJsonLenient<Expense>(response)
-    if (!data) return { success: false, message: "Failed to parse server response", data: null as any }
+    if (response.status === 204) {
+      const synthetic: Expense = {
+        expenseId: id,
+        farmId: expense.farmId ?? "",
+        userId: expense.userId ?? "",
+        expenseDate: expense.expenseDate ?? "",
+        category: expense.category ?? "",
+        description: expense.description ?? "",
+        amount: Number(expense.amount ?? 0),
+        paymentMethod: expense.paymentMethod ?? "",
+        flockId: Number(expense.flockId ?? 0),
+        createdDate: expense.createdDate ?? "",
+      }
+      if (expense.setAttachmentImage === true) {
+        synthetic.hasAttachmentImage = Boolean(expense.attachmentImage && expense.attachmentContentType)
+      }
+      return {
+        success: true,
+        message: "Expense updated successfully",
+        data: synthetic,
+      }
+    }
+
+    const data = await parseJsonLenient<any>(response)
+    if (!data) {
+      return {
+        success: true,
+        message: "Expense updated successfully",
+        data: {
+          expenseId: id,
+          farmId: expense.farmId ?? "",
+          userId: expense.userId ?? "",
+          expenseDate: expense.expenseDate ?? "",
+          category: expense.category ?? "",
+          description: expense.description ?? "",
+          amount: expense.amount ?? 0,
+          paymentMethod: expense.paymentMethod ?? "",
+          flockId: expense.flockId ?? 0,
+          createdDate: expense.createdDate ?? "",
+        } as Expense,
+      }
+    }
     console.log("[v0] Updated expense data:", data)
 
     return {
       success: true,
       message: "Expense updated successfully",
-      data: data as Expense,
+      data: normalizeExpense(data, expense.userId),
     }
   } catch (error) {
     return { success: false, message: error instanceof Error ? error.message : "Failed to update expense", data: null as any }

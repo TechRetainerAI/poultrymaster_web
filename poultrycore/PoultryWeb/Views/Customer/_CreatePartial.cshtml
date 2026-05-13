@@ -1,4 +1,4 @@
-﻿@model PoultryWeb.Models.CustomerModel
+@model PoultryWeb.Models.CustomerModel
 
 <div class="customer-form">
     <div class="form-header mb-4">
@@ -154,7 +154,7 @@
         }
         
         function isValidEmail(email) {
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            const emailRegex = /^[^\s@@]+@@[^\s@@]+\.[^\s@@]+$/;
             return emailRegex.test(email);
         }
     });

@@ -3,8 +3,8 @@ export function getUserContext() {
     return { userId: "", farmId: "" }
   }
 
-  const userId = localStorage.getItem("userId") || ""
-  const farmId = localStorage.getItem("farmId") || ""
+  const userId = (localStorage.getItem("userId") || "").trim()
+  const farmId = (localStorage.getItem("farmId") || "").trim()
 
   console.log("[v0] getUserContext:", { userId, farmId })
 

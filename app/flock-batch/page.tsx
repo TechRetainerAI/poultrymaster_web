@@ -30,6 +30,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { flockCountsTowardBirdTotals, getFlockLifecycleStatus } from "@/lib/utils/flock-eligibility"
 
 export default function FlockBatchesPage() {
   const router = useRouter()
@@ -697,19 +698,32 @@ export default function FlockBatchesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {batchFlocks.map((flock) => (
+                    {batchFlocks.map((flock) => {
+                      const life = getFlockLifecycleStatus(flock)
+                      return (
                       <TableRow key={flock.flockId}>
                         <TableCell className="font-medium">{flock.name}</TableCell>
                         <TableCell>{flock.breed}</TableCell>
                         <TableCell>{flock.quantity.toLocaleString()} birds</TableCell>
                         <TableCell>{new Date(flock.startDate).toLocaleDateString()}</TableCell>
                         <TableCell>
-                          <Badge variant={flock.active ? "default" : "secondary"} className={flock.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
-                            {flock.active ? "Active" : "Inactive"}
-                          </Badge>
+                          {life === "pending" ? (
+                            <Badge variant="secondary" className="bg-amber-100 text-amber-900 border border-amber-200">
+                              Pending
+                            </Badge>
+                          ) : life === "active" ? (
+                            <Badge variant="default" className="bg-green-100 text-green-800">
+                              Active
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="bg-gray-100 text-gray-800">
+                              Inactive
+                            </Badge>
+                          )}
                         </TableCell>
                       </TableRow>
-                    ))}
+                      )
+                    })}
                   </TableBody>
                 </Table>
               </div>
@@ -717,10 +731,19 @@ export default function FlockBatchesPage() {
                 <div className="text-sm text-slate-600">
                   Total Flocks: <span className="font-semibold">{batchFlocks.length}</span>
                 </div>
-                <div className="text-sm text-slate-600">
-                  Total Birds: <span className="font-semibold">
-                    {batchFlocks.reduce((sum, f) => sum + (f.quantity || 0), 0).toLocaleString()}
-                  </span>
+                <div className="text-sm text-slate-600 text-right">
+                  <div>
+                    Total Birds:{" "}
+                    <span className="font-semibold">
+                      {batchFlocks
+                        .filter((f) => flockCountsTowardBirdTotals(f))
+                        .reduce((sum, f) => sum + (f.quantity || 0), 0)
+                        .toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-500 font-normal mt-0.5">
+                    Active flocks past start date only
+                  </div>
                 </div>
               </div>
             </div>

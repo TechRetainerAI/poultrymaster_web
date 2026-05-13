@@ -124,26 +124,40 @@
   }
 }
 
-/* Hide scrollbars globally but keep scrolling enabled */
-html,
-body,
-* {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE/Edge legacy */
+/* Default: visible scrollbars so page and menus can scroll predictably (do not hide on *). */
+html {
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
-html::-webkit-scrollbar,
-body::-webkit-scrollbar,
-*::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-  display: none; /* Chrome/Safari/Opera */
-}
-
-/* Prevent horizontal viewport spill on mobile */
-html,
 body {
   overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* Desktop top nav rail: horizontal scroll with a visible thin bar when items overflow */
+.nav-rail-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.55) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.nav-rail-scroll::-webkit-scrollbar {
+  height: 8px;
+  display: block;
+}
+
+.nav-rail-scroll::-webkit-scrollbar-thumb {
+  background: rgb(255 255 255 / 0.45);
+  border-radius: 9999px;
+}
+
+.nav-rail-scroll::-webkit-scrollbar-track {
+  background: rgb(0 0 0 / 0.12);
+  border-radius: 9999px;
 }
 
 /* Dashboard pages: fit edge-to-edge better on phones */
@@ -168,6 +182,24 @@ body {
 
 .scrollbar-hide::-webkit-scrollbar {
   display: none;  /* Chrome, Safari and Opera */
+}
+
+/* Sidebar nav: thin scrollbar (global * rule above hides scrollbars elsewhere) */
+.sidebar-nav-scrollable {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(100 116 139 / 0.85) transparent;
+}
+.sidebar-nav-scrollable::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+  display: block;
+}
+.sidebar-nav-scrollable::-webkit-scrollbar-thumb {
+  background-color: rgb(100 116 139);
+  border-radius: 9999px;
+}
+.sidebar-nav-scrollable::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 /* Mobile table: sticky columns + scroll hint gradient */

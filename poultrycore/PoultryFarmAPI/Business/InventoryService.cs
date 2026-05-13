@@ -42,7 +42,8 @@ namespace PoultryFarmAPIWeb.Business
                         QuantityInStock = reader.GetDecimal(5),
                         UnitOfMeasure = reader.IsDBNull(6) ? "" : reader.GetString(6),
                         ReorderLevel = reader.IsDBNull(7) ? null : reader.GetDecimal(7),
-                        IsActive = reader.GetBoolean(8)
+                        SupplierId = reader.IsDBNull(8) ? null : reader.GetInt32(8),
+                        IsActive = reader.GetBoolean(9)
                     });
                 }
                 return list;
@@ -79,7 +80,8 @@ namespace PoultryFarmAPIWeb.Business
                         QuantityInStock = reader.GetDecimal(5),
                         UnitOfMeasure = reader.IsDBNull(6) ? "" : reader.GetString(6),
                         ReorderLevel = reader.IsDBNull(7) ? null : reader.GetDecimal(7),
-                        IsActive = reader.GetBoolean(8)
+                        SupplierId = reader.IsDBNull(8) ? null : reader.GetInt32(8),
+                        IsActive = reader.GetBoolean(9)
                     };
                 }
                 return null;
@@ -106,6 +108,7 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.AddWithValue("@QuantityInStock", model.QuantityInStock);
                 cmd.Parameters.AddWithValue("@UnitOfMeasure", (object?)model.UnitOfMeasure ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@ReorderLevel", (object?)model.ReorderLevel ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@SupplierId", (object?)model.SupplierId ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@IsActive", model.IsActive);
 
                 await conn.OpenAsync();
@@ -135,6 +138,7 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.AddWithValue("@QuantityInStock", model.QuantityInStock);
                 cmd.Parameters.AddWithValue("@UnitOfMeasure", (object?)model.UnitOfMeasure ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@ReorderLevel", (object?)model.ReorderLevel ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@SupplierId", (object?)model.SupplierId ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@IsActive", model.IsActive);
 
                 await conn.OpenAsync();

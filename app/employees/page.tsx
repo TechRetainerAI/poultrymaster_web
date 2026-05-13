@@ -69,6 +69,7 @@ type StaffFeaturePermissionKey =
   | "canSeeEmployees"
   | "canViewReports"
   | "canViewFinancial"
+  | "canViewCustomers"
   | "canViewActivityLog"
   | "canViewSettings"
 
@@ -79,6 +80,7 @@ const DEFAULT_STAFF_FEATURE_PERMISSIONS: Record<StaffFeaturePermissionKey, boole
   canSeeEmployees: false,
   canViewReports: true,
   canViewFinancial: true,
+  canViewCustomers: true,
   canViewActivityLog: true,
   canViewSettings: true,
 }
@@ -89,7 +91,8 @@ const STAFF_FEATURE_PERMISSION_OPTIONS: Array<{ key: StaffFeaturePermissionKey; 
   { key: "canViewCashLedger", label: "View Cash Ledger" },
   { key: "canSeeEmployees", label: "See Employees" },
   { key: "canViewReports", label: "View reports" },
-  { key: "canViewFinancial", label: "View Financial" },
+  { key: "canViewFinancial", label: "View Financial (Cash, Payments umbrella)" },
+  { key: "canViewCustomers", label: "View Customers" },
   { key: "canViewActivityLog", label: "View Activity Log" },
   { key: "canViewSettings", label: "View Settings" },
 ]

@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using System.Data.SqlClient;
 using PoultryFarmAPIWeb.Models;
 using System;
@@ -16,6 +16,20 @@ namespace PoultryFarmAPIWeb.Business
             _connectionString = connectionString;
         }
 
+        private static Guid FarmIdToGuid(string farmId)
+        {
+            if (Guid.TryParse(farmId?.Trim(), out var g)) return g;
+            return Guid.Empty;
+        }
+
+        private static string ReadFarmIdString(SqlDataReader reader)
+        {
+            if (!TryGetOrdinal(reader, "FarmId", out var ord)) return string.Empty;
+            if (reader.IsDBNull(ord)) return string.Empty;
+            var v = reader.GetValue(ord);
+            return v is Guid g ? g.ToString("D") : v.ToString() ?? string.Empty;
+        }
+
         public async Task<int> Insert(ExpenseModel model)
         {
             try
@@ -29,9 +43,18 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.AddWithValue("@Description", (object?)model.Description ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@Amount", model.Amount);
                 cmd.Parameters.AddWithValue("@PaymentMethod", (object?)model.PaymentMethod ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@Supplier", (object?)model.Supplier ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@FlockId", (object?)model.FlockId ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@UserId", model.UserId);
-                cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
+                cmd.Parameters.AddWithValue("@FarmId", FarmIdToGuid(model.FarmId ?? string.Empty));
+                cmd.Parameters.Add(new SqlParameter("@AttachmentImage", SqlDbType.VarBinary, -1)
+                {
+                    Value = (object?)model.AttachmentImage ?? DBNull.Value
+                });
+                cmd.Parameters.Add(new SqlParameter("@AttachmentContentType", SqlDbType.NVarChar, 64)
+                {
+                    Value = (object?)model.AttachmentContentType ?? DBNull.Value
+                });
 
                 await conn.OpenAsync();
                 var result = await cmd.ExecuteScalarAsync();
@@ -57,9 +80,19 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.AddWithValue("@Description", (object?)model.Description ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@Amount", model.Amount);
                 cmd.Parameters.AddWithValue("@PaymentMethod", (object?)model.PaymentMethod ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@Supplier", (object?)model.Supplier ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@FlockId", (object?)model.FlockId ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@UserId", model.UserId);
-                cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
+                cmd.Parameters.AddWithValue("@FarmId", FarmIdToGuid(model.FarmId ?? string.Empty));
+                cmd.Parameters.Add(new SqlParameter("@AttachmentImage", SqlDbType.VarBinary, -1)
+                {
+                    Value = (object?)model.AttachmentImage ?? DBNull.Value
+                });
+                cmd.Parameters.Add(new SqlParameter("@AttachmentContentType", SqlDbType.NVarChar, 64)
+                {
+                    Value = (object?)model.AttachmentContentType ?? DBNull.Value
+                });
+                cmd.Parameters.AddWithValue("@AttachmentImageSet", model.SetAttachmentImage);
 
                 await conn.OpenAsync();
                 await cmd.ExecuteNonQueryAsync();
@@ -78,32 +111,13 @@ namespace PoultryFarmAPIWeb.Business
                 using var cmd = new SqlCommand("spExpense_GetById", conn);
                 cmd.CommandType = CommandType.StoredProcedure;
                 cmd.Parameters.AddWithValue("@ExpenseId", expenseId);
-                //cmd.Parameters.AddWithValue("@UserId", userId);
-                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                cmd.Parameters.AddWithValue("@FarmId", FarmIdToGuid(farmId));
 
                 await conn.OpenAsync();
                 using var reader = await cmd.ExecuteReaderAsync();
                 if (await reader.ReadAsync())
                 {
-                    return new ExpenseModel
-                    {
-                        ExpenseId = ReadIntFlexible(reader, "ExpenseId", "ExpenseID", "Id", "EXPENSEID"),
-                        ExpenseDate = reader.GetDateTime(reader.GetOrdinal("ExpenseDate")),
-                        Category = reader.GetString(reader.GetOrdinal("Category")),
-                        Description = reader.IsDBNull(reader.GetOrdinal("Description"))
-                                      ? null
-                                      : reader.GetString(reader.GetOrdinal("Description")),
-                        Amount = reader.GetDecimal(reader.GetOrdinal("Amount")),
-                        PaymentMethod = reader.IsDBNull(reader.GetOrdinal("PaymentMethod"))
-                                      ? null
-                                      : reader.GetString(reader.GetOrdinal("PaymentMethod")),
-                        FlockId = reader.IsDBNull(reader.GetOrdinal("FlockId"))
-                                      ? (int?)null
-                                      : ReadIntFlexible(reader, "FlockId"),
-                        CreatedDate = reader.GetDateTime(reader.GetOrdinal("CreatedDate")),
-                        UserId = userId,
-                        FarmId = farmId
-                    };
+                    return MapExpense(reader, userId);
                 }
                 return null;
             }
@@ -121,33 +135,13 @@ namespace PoultryFarmAPIWeb.Business
                 using var conn = new SqlConnection(_connectionString);
                 using var cmd = new SqlCommand("spExpense_GetAll", conn);
                 cmd.CommandType = CommandType.StoredProcedure;
-                //cmd.Parameters.AddWithValue("@UserId", userId);
-                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                cmd.Parameters.AddWithValue("@FarmId", FarmIdToGuid(farmId));
 
                 await conn.OpenAsync();
                 using var reader = await cmd.ExecuteReaderAsync();
                 while (await reader.ReadAsync())
                 {
-                    var e = new ExpenseModel
-                    {
-                        ExpenseId = ReadIntFlexible(reader, "ExpenseId", "ExpenseID", "Id", "EXPENSEID"),
-                        ExpenseDate = reader.GetDateTime(reader.GetOrdinal("ExpenseDate")),
-                        Category = reader.GetString(reader.GetOrdinal("Category")),
-                        Description = reader.IsDBNull(reader.GetOrdinal("Description"))
-                                      ? null
-                                      : reader.GetString(reader.GetOrdinal("Description")),
-                        Amount = reader.GetDecimal(reader.GetOrdinal("Amount")),
-                        PaymentMethod = reader.IsDBNull(reader.GetOrdinal("PaymentMethod"))
-                                      ? null
-                                      : reader.GetString(reader.GetOrdinal("PaymentMethod")),
-                        FlockId = reader.IsDBNull(reader.GetOrdinal("FlockId"))
-                                      ? (int?)null
-                                      : ReadIntFlexible(reader, "FlockId"),
-                        CreatedDate = reader.GetDateTime(reader.GetOrdinal("CreatedDate")),
-                        UserId = userId, // Use parameter instead of reading from DB
-                        FarmId = farmId // Use parameter instead of reading from DB
-                    };
-                    list.Add(e);
+                    list.Add(MapExpense(reader, userId));
                 }
                 return list;
             }
@@ -165,8 +159,7 @@ namespace PoultryFarmAPIWeb.Business
                 using var cmd = new SqlCommand("spExpense_Delete", conn);
                 cmd.CommandType = CommandType.StoredProcedure;
                 cmd.Parameters.AddWithValue("@ExpenseId", expenseId);
-                //cmd.Parameters.AddWithValue("@UserId", userId);
-                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                cmd.Parameters.AddWithValue("@FarmId", FarmIdToGuid(farmId));
 
                 await conn.OpenAsync();
                 await cmd.ExecuteNonQueryAsync();
@@ -186,33 +179,13 @@ namespace PoultryFarmAPIWeb.Business
                 using var cmd = new SqlCommand("spExpense_GetByFlock", conn);
                 cmd.CommandType = CommandType.StoredProcedure;
                 cmd.Parameters.AddWithValue("@FlockId", flockId);
-                //cmd.Parameters.AddWithValue("@UserId", userId);
-                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                cmd.Parameters.AddWithValue("@FarmId", FarmIdToGuid(farmId));
 
                 await conn.OpenAsync();
                 using var reader = await cmd.ExecuteReaderAsync();
                 while (await reader.ReadAsync())
                 {
-                    var e = new ExpenseModel
-                    {
-                        ExpenseId = ReadIntFlexible(reader, "ExpenseId", "ExpenseID", "Id", "EXPENSEID"),
-                        ExpenseDate = reader.GetDateTime(reader.GetOrdinal("ExpenseDate")),
-                        Category = reader.GetString(reader.GetOrdinal("Category")),
-                        Description = reader.IsDBNull(reader.GetOrdinal("Description"))
-                                      ? null
-                                      : reader.GetString(reader.GetOrdinal("Description")),
-                        Amount = reader.GetDecimal(reader.GetOrdinal("Amount")),
-                        PaymentMethod = reader.IsDBNull(reader.GetOrdinal("PaymentMethod"))
-                                      ? null
-                                      : reader.GetString(reader.GetOrdinal("PaymentMethod")),
-                        FlockId = reader.IsDBNull(reader.GetOrdinal("FlockId"))
-                                      ? (int?)null
-                                      : ReadIntFlexible(reader, "FlockId"),
-                        CreatedDate = reader.GetDateTime(reader.GetOrdinal("CreatedDate")),
-                        UserId = userId, // Use parameter instead of reading from DB
-                        FarmId = farmId // Use parameter instead of reading from DB
-                    };
-                    list.Add(e);
+                    list.Add(MapExpense(reader, userId));
                 }
                 return list;
             }
@@ -222,7 +195,99 @@ namespace PoultryFarmAPIWeb.Business
             }
         }
 
-        private bool HasColumn(IDataRecord record, string columnName)
+        public async Task<(byte[] Body, string ContentType)?> GetAttachment(int expenseId, string userId, string farmId)
+        {
+            using var conn = new SqlConnection(_connectionString);
+            using var cmd = new SqlCommand("spExpense_GetAttachment", conn)
+            {
+                CommandType = CommandType.StoredProcedure
+            };
+            cmd.Parameters.AddWithValue("@ExpenseId", expenseId);
+            cmd.Parameters.AddWithValue("@FarmId", FarmIdToGuid(farmId));
+
+            await conn.OpenAsync();
+            using var reader = await cmd.ExecuteReaderAsync(CommandBehavior.SequentialAccess);
+            if (!await reader.ReadAsync()) return null;
+
+            var ordImg = reader.GetOrdinal("AttachmentImage");
+            var ordCt = reader.GetOrdinal("AttachmentContentType");
+            if (reader.IsDBNull(ordImg)) return null;
+
+            var len = reader.GetBytes(ordImg, 0, null, 0, 0);
+            if (len <= 0) return null;
+
+            var buf = new byte[len];
+            reader.GetBytes(ordImg, 0, buf, 0, (int)len);
+            var ct = reader.IsDBNull(ordCt) ? "application/octet-stream" : reader.GetString(ordCt);
+            return (buf, ct);
+        }
+
+        private static ExpenseModel MapExpense(SqlDataReader reader, string userId)
+        {
+            var hasAtt = TryGetOrdinal(reader, "HasAttachmentImage", out var ordHas)
+                && !reader.IsDBNull(ordHas)
+                && reader.GetBoolean(ordHas);
+
+            var expenseDate = TryGetOrdinal(reader, "ExpenseDate", out var ordEd) && !reader.IsDBNull(ordEd)
+                ? reader.GetDateTime(ordEd)
+                : default;
+            var category = TryGetOrdinal(reader, "Category", out var ordCat) && !reader.IsDBNull(ordCat)
+                ? reader.GetString(ordCat)
+                : string.Empty;
+            var descOrd = TryGetOrdinal(reader, "Description", out var ordDesc) && !reader.IsDBNull(ordDesc)
+                ? reader.GetString(ordDesc)
+                : null;
+            var amount = TryGetOrdinal(reader, "Amount", out var ordAmt) && !reader.IsDBNull(ordAmt)
+                ? reader.GetDecimal(ordAmt)
+                : 0m;
+            string? paymentMethod = null;
+            if (TryGetOrdinal(reader, "PaymentMethod", out var ordPm) && !reader.IsDBNull(ordPm))
+                paymentMethod = reader.GetString(ordPm);
+            string? supplier = null;
+            if (TryGetOrdinal(reader, "Supplier", out var ordSup) && !reader.IsDBNull(ordSup))
+                supplier = reader.GetString(ordSup);
+            int? flockId = null;
+            if (TryGetOrdinal(reader, "FlockId", out var ordFlock) && !reader.IsDBNull(ordFlock))
+                flockId = ReadIntFlexible(reader, "FlockId");
+            var createdDate = TryGetOrdinal(reader, "CreatedDate", out var ordCd) && !reader.IsDBNull(ordCd)
+                ? reader.GetDateTime(ordCd)
+                : default;
+            var resolvedUserId = userId;
+            if (TryGetOrdinal(reader, "UserId", out var ordUid) && !reader.IsDBNull(ordUid))
+                resolvedUserId = reader.GetString(ordUid);
+
+            return new ExpenseModel
+            {
+                ExpenseId = ReadIntFlexible(reader, "ExpenseId", "ExpenseID", "Id", "EXPENSEID"),
+                ExpenseDate = expenseDate,
+                Category = category,
+                Description = descOrd,
+                Amount = amount,
+                PaymentMethod = paymentMethod,
+                Supplier = supplier,
+                FlockId = flockId,
+                CreatedDate = createdDate,
+                UserId = resolvedUserId,
+                FarmId = ReadFarmIdString(reader),
+                HasAttachmentImage = hasAtt
+            };
+        }
+
+        private static bool TryGetOrdinal(SqlDataReader reader, string name, out int ordinal)
+        {
+            try
+            {
+                ordinal = reader.GetOrdinal(name);
+                return true;
+            }
+            catch (IndexOutOfRangeException)
+            {
+                ordinal = -1;
+                return false;
+            }
+        }
+
+        private static bool HasColumn(IDataRecord record, string columnName)
         {
             for (int i = 0; i < record.FieldCount; i++)
             {
@@ -234,7 +299,7 @@ namespace PoultryFarmAPIWeb.Business
             return false;
         }
 
-        private int ReadIntFlexible(SqlDataReader reader, params string[] columns)
+        private static int ReadIntFlexible(SqlDataReader reader, params string[] columns)
         {
             foreach (var column in columns)
             {
@@ -245,25 +310,21 @@ namespace PoultryFarmAPIWeb.Business
                 if (obj is int i) return i;
                 if (obj is decimal d) return (int)d;
                 if (obj is long l) return (int)l;
-                if (obj is Guid) continue; // not an int
+                if (obj is Guid) continue;
                 if (obj is string s)
                 {
                     if (int.TryParse(s, out var v)) return v;
-                    // String but not numeric (e.g., GUID FarmId) → try next column or default 0
                     continue;
                 }
-                // Fallback: try safe conversion, but guard against format issues
                 try
                 {
                     return Convert.ToInt32(obj);
                 }
                 catch
                 {
-                    // Not convertible, move on
                     continue;
                 }
             }
-            // Last resort: scan for first numeric-looking column > 0
             for (int idx = 0; idx < reader.FieldCount; idx++)
             {
                 var val = reader.GetValue(idx);
@@ -274,24 +335,6 @@ namespace PoultryFarmAPIWeb.Business
                 if (val is string ss && int.TryParse(ss, out var vv) && vv > 0) return vv;
             }
             return 0;
-        }
-        private int TryReadInt(SqlDataReader reader, string column)
-        {
-            try
-            {
-                var ordinal = reader.GetOrdinal(column);
-                var obj = reader.GetValue(ordinal);
-                if (obj == null || obj == DBNull.Value) return 0;
-                if (obj is int i) return i;
-                if (obj is decimal d) return (int)d;
-                if (obj is long l) return (int)l;
-                if (obj is string s && int.TryParse(s, out var v)) return v;
-                return Convert.ToInt32(obj);
-            }
-            catch
-            {
-                return 0;
-            }
         }
     }
 }

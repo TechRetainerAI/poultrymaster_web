@@ -1,4 +1,4 @@
-﻿namespace PoultryFarmAPIWeb.Models
+namespace PoultryFarmAPIWeb.Models
 {
     public class InventoryItemModel
     {
@@ -10,6 +10,7 @@
         public decimal QuantityInStock { get; set; }
         public string UnitOfMeasure { get; set; }
         public decimal? ReorderLevel { get; set; }
+        public int? SupplierId { get; set; }
         public bool IsActive { get; set; }
     }
 }

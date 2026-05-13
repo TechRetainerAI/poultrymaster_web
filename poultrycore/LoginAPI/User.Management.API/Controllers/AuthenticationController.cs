@@ -1,7 +1,8 @@
-﻿using Microsoft.AspNetCore.Authentication.OAuth;
+using Microsoft.AspNetCore.Authentication.OAuth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
@@ -27,17 +28,20 @@ namespace User.Management.API.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IEmailService _emailService;
         private readonly IUserManagement _user;
+        private readonly ILogger<AuthenticationController> _logger;
         private readonly string _webAppBaseUrl;
         private readonly string _frontendAppBaseUrl;
 
         public AuthenticationController(UserManager<ApplicationUser> userManager,
             IEmailService emailService,
             IUserManagement user,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            ILogger<AuthenticationController> logger)
         {
             _userManager = userManager;
             _emailService = emailService;
             _user= user;
+            _logger = logger;
             _webAppBaseUrl = configuration["WebApp:BaseUrl"];
             _frontendAppBaseUrl = configuration["FrontendApp:BaseUrl"] ?? "http://localhost:3000";
         }
@@ -506,7 +510,20 @@ namespace User.Management.API.Controllers
             ";
 
             var message = new Message(new string[] { model.Email! }, "Reset Your Password - Poultry Core", emailBody);
-            var responseMsg = _emailService.SendEmail(message);
+            try
+            {
+                _emailService.SendEmail(message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ForgotPassword: SMTP send failed for {Email}", model.Email);
+                return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                    new Response
+                    {
+                        Status = "Error",
+                        Message = "Unable to send reset email right now. Please try again later or contact support.",
+                    });
+            }
 
             return Ok();
         }

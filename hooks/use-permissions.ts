@@ -8,6 +8,8 @@ export interface FeatureAccessPermissions {
   canSeeEmployees: boolean
   canViewReports: boolean
   canViewFinancial: boolean
+  /** Customers page / CRM; independent of full financial umbrella when set from API */
+  canViewCustomers: boolean
   canViewActivityLog: boolean
   canViewSettings: boolean
 }
@@ -32,6 +34,7 @@ const DEFAULT_FEATURE_ACCESS: FeatureAccessPermissions = {
   canSeeEmployees: false,
   canViewReports: true,
   canViewFinancial: true,
+  canViewCustomers: true,
   canViewActivityLog: true,
   canViewSettings: true,
 }
@@ -44,6 +47,7 @@ const STAFF_FEATURE_BASE: FeatureAccessPermissions = {
   canSeeEmployees: false,
   canViewReports: false,
   canViewFinancial: false,
+  canViewCustomers: false,
   canViewActivityLog: false,
   canViewSettings: false,
 }
@@ -82,6 +86,16 @@ function normalizeFeatureAccess(raw: Record<string, unknown>): Partial<FeatureAc
 
   const financial = toBoolean(raw.canViewFinancial ?? raw.CanViewFinancial ?? raw.viewFinancial ?? raw.ViewFinancial ?? raw.financial ?? raw.Financial)
   if (financial !== undefined) normalized.canViewFinancial = financial
+
+  const customers = toBoolean(
+    raw.canViewCustomers ??
+      raw.CanViewCustomers ??
+      raw.viewCustomers ??
+      raw.ViewCustomers ??
+      raw.customers ??
+      raw.Customers
+  )
+  if (customers !== undefined) normalized.canViewCustomers = customers
 
   const activityLog = toBoolean(raw.canViewActivityLog ?? raw.CanViewActivityLog ?? raw.viewActivityLog ?? raw.ViewActivityLog ?? raw.activityLog ?? raw.ActivityLog)
   if (activityLog !== undefined) normalized.canViewActivityLog = activityLog

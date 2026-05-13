@@ -35,6 +35,7 @@ export function DashboardHeader() {
   const pageRoutes = [
     { path: '/dashboard', keywords: ['overview', 'dashboard', 'home', 'main'] },
     { path: '/customers', keywords: ['customers', 'customer', 'client'] },
+    { path: '/suppliers', keywords: ['suppliers', 'supplier', 'vendor', 'vendors'] },
     { path: '/flocks', keywords: ['flocks', 'flock', 'birds', 'chicken'] },
     { path: '/flock-batch', keywords: ['flock batch', 'batch', 'batches'] },
     { path: '/employees', keywords: ['employees', 'employee', 'staff', 'workers'] },
@@ -43,9 +44,14 @@ export function DashboardHeader() {
     { path: '/inventory', keywords: ['inventory', 'stock', 'items'] },
     { path: '/supplies', keywords: ['supplies', 'supply', 'materials'] },
     { path: '/production-records', keywords: ['production', 'records', 'production records'] },
-    { path: '/egg-production', keywords: ['egg production', 'eggs', 'egg'] },
+    { path: '/egg-production', keywords: ['egg sorting', 'egg collection', 'egg production', 'eggs', 'egg'] },
+    { path: '/egg-tracker', keywords: ['egg tracker', 'egg inventory', 'egg ledger', 'eggs at hand'] },
+    { path: '/feed-tracker', keywords: ['feed at hand', 'feed tracker', 'feed analytics', 'feed consumption'] },
+    { path: '/medication-tracker', keywords: ['medication at hand', 'medication tracker', 'medication log'] },
     { path: '/feed-usage', keywords: ['feed usage', 'feed', 'feeding'] },
+    { path: '/feed-tracker', keywords: ['feed tracker', 'feed totals', 'feed consumption'] },
     { path: '/health', keywords: ['health', 'vaccination', 'medication'] },
+    { path: '/medication-tracker', keywords: ['medication tracker', 'medication', 'drugs', 'treatment log'] },
     { path: '/houses', keywords: ['houses', 'house', 'poultry house'] },
     { path: '/reports', keywords: ['reports', 'report', 'analytics'] },
     { path: '/profile', keywords: ['profile', 'account', 'user', 'settings'] },
@@ -89,6 +95,7 @@ export function DashboardHeader() {
       // If already on a list page, trigger search immediately for data filtering
       if (currentPath.includes('/employees') || 
           currentPath.includes('/customers') || 
+          currentPath.includes('/suppliers') ||
           currentPath.includes('/flocks') ||
           currentPath.includes('/sales') ||
           currentPath.includes('/inventory') ||
@@ -126,6 +133,7 @@ export function DashboardHeader() {
       
       if (currentPath.includes('/employees') || 
           currentPath.includes('/customers') || 
+          currentPath.includes('/suppliers') ||
           currentPath.includes('/flocks') ||
           currentPath.includes('/sales') ||
           currentPath.includes('/inventory') ||

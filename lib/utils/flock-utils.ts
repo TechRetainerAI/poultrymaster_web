@@ -1,5 +1,6 @@
 import { getFlocks, type Flock } from "@/lib/api/flock"
 import { getUserContext } from "@/lib/utils/user-context"
+import { flockCountsTowardBirdTotals } from "@/lib/utils/flock-eligibility"
 
 // Cache for flocks to avoid repeated API calls
 let flocksCache: Flock[] | null = null
@@ -52,7 +53,7 @@ export function getFlocksForSelect(): { value: string; label: string }[] {
   }
   
   return flocksCache
-    .filter(flock => flock.active) // Only show active flocks
+    .filter((flock) => flockCountsTowardBirdTotals(flock))
     .map(flock => ({
       value: flock.flockId.toString(),
       label: `${flock.name} (${flock.breed}) - ${flock.quantity} birds`

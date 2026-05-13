@@ -531,7 +531,7 @@ export default function ReportsPage() {
                   </Card>
                   <Card className="bg-white">
                     <CardContent className="py-4">
-                      <div className="text-xs text-slate-500">Total Mortality</div>
+                      <div className="text-xs text-slate-500">Total Deaths</div>
                       <div className="text-2xl font-bold text-red-600">{totalMortality.toLocaleString()}</div>
                     </CardContent>
                   </Card>
@@ -883,7 +883,7 @@ export default function ReportsPage() {
                 <Card className="bg-white">
                   <CardHeader>
                     <CardTitle>Flock Performance Report</CardTitle>
-                    <CardDescription>Egg output, feed usage and mortality by flock.</CardDescription>
+                    <CardDescription>Egg output, feed usage and deaths by flock.</CardDescription>
                   </CardHeader>
                   <CardContent>
                     {flockProductionSummary.length === 0 ? (
@@ -898,7 +898,7 @@ export default function ReportsPage() {
                               <th className="px-3 py-2 font-semibold">Total Eggs</th>
                               <th className="px-3 py-2 font-semibold">Avg Eggs / Day</th>
                               <th className="px-3 py-2 font-semibold">Feed (kg)</th>
-                              <th className="px-3 py-2 font-semibold">Mortality</th>
+                              <th className="px-3 py-2 font-semibold">Deaths</th>
                             </tr>
                           </thead>
                           <tbody>

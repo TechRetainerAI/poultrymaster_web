@@ -393,7 +393,7 @@ export function FloatingChatWidget() {
       {/* Floating Chat Button */}
       <Button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-20 right-6 lg:bottom-6 h-14 w-14 rounded-full shadow-lg z-50 bg-blue-600 hover:bg-blue-700"
+        className="fixed z-50 h-14 w-14 rounded-full shadow-lg bg-blue-600 hover:bg-blue-700 max-lg:bottom-[calc(6.75rem+env(safe-area-inset-bottom,0px))] max-lg:right-4 lg:bottom-20 lg:right-8"
         size="icon"
       >
         <MessageCircle className="h-6 w-6" />
@@ -409,12 +409,15 @@ export function FloatingChatWidget() {
           setMessages([])
         }
       }}>
-        <DialogContent className="w-[95vw] max-w-4xl h-[85vh] max-h-[800px] flex flex-col p-0">
-          <DialogHeader className="px-6 py-4 border-b">
-            <div className="flex items-center justify-between">
-              <div>
-                <DialogTitle className="flex items-center gap-2">
-                  <MessageCircle className="h-5 w-5" />
+        <DialogContent
+          showCloseButton={false}
+          className="w-[95vw] max-w-4xl h-[85vh] max-h-[800px] flex flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"
+        >
+          <DialogHeader className="shrink-0 space-y-0 px-4 py-3 text-left sm:px-6 sm:py-4 border-b">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+                  <MessageCircle className="h-5 w-5 shrink-0" />
                   Chat
                 </DialogTitle>
                 <DialogDescription className="sr-only">
@@ -424,6 +427,7 @@ export function FloatingChatWidget() {
               <Button
                 variant="ghost"
                 size="icon"
+                className="shrink-0"
                 onClick={() => {
                   setIsOpen(false)
                   try { closeGlobal() } catch {}
@@ -437,9 +441,9 @@ export function FloatingChatWidget() {
             </div>
           </DialogHeader>
 
-          <div className="flex-1 flex overflow-hidden">
-            {/* Thread List Sidebar */}
-            <div className="w-1/4 min-w-[200px] border-r flex flex-col">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
+            {/* Thread list: full width on mobile, sidebar on md+ */}
+            <div className="flex max-h-[min(36vh,260px)] min-h-0 w-full min-w-0 shrink-0 flex-col border-b border-border md:h-auto md:max-h-none md:w-[min(280px,34vw)] md:shrink-0 md:border-b-0 md:border-r">
               <div className="p-3 border-b">
               <Button
                 variant="outline"
@@ -483,8 +487,8 @@ export function FloatingChatWidget() {
               </ScrollArea>
             </div>
 
-            {/* Main Chat Area */}
-            <div className="flex-1 flex flex-col">
+            {/* Main chat / user picker */}
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
               {showUserList ? (
                 /* User Selection */
                 <div className="flex-1 overflow-auto p-3">

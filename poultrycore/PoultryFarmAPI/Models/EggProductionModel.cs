@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace PoultryFarmAPIWeb.Models
 {
@@ -20,5 +20,9 @@ namespace PoultryFarmAPIWeb.Models
         public int TotalProduction { get; set; }
         public int? BrokenEggs { get; set; }
         public string? Notes { get; set; }
+
+        /// <summary>Egg size / sort (e.g. Small, Medium, Large). Same column as ProductionRecords.EggGrade.</summary>
+        [JsonPropertyName("eggGrade")]
+        public string? EggGrade { get; set; }
     }
 }

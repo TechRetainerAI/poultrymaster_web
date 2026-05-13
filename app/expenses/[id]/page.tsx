@@ -13,6 +13,13 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { DollarSign } from "lucide-react"
 import { getExpense, updateExpense, type ExpenseInput } from "@/lib/api/expense"
+import { uploadExpenseReceipt } from "@/lib/api/receipt-upload"
+import {
+  appendReceiptSuffix,
+  extractReceiptPathFromDescription,
+  stripReceiptSuffixFromDescription,
+} from "@/lib/utils/expense-receipt"
+import { ExpenseReceiptField } from "@/components/expense/expense-receipt-field"
 import { getUserContext } from "@/lib/utils/user-context"
 import { getValidFlocks, getFlocksForSelect } from "@/lib/utils/flock-utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -37,6 +44,15 @@ export default function EditExpensePage() {
     amount: "",
     paymentMethod: "",
   })
+  const [receiptFile, setReceiptFile] = useState<File | null>(null)
+  const [savedReceiptPath, setSavedReceiptPath] = useState<string | null>(null)
+  const [receiptRemoved, setReceiptRemoved] = useState(false)
+  /** For receipt URL resolution + DB attachment preview after load */
+  const [expenseReceiptContext, setExpenseReceiptContext] = useState<{
+    farmId: string
+    userId: string
+    hasDbAttachment: boolean
+  } | null>(null)
 
   const expenseCategories = [
     "Feed",
@@ -58,7 +74,7 @@ export default function EditExpensePage() {
   useEffect(() => {
     loadExpense()
     loadFlocks()
-  }, [])
+  }, [id])
 
   const loadExpense = async () => {
     const { userId, farmId } = getUserContext()
@@ -67,22 +83,37 @@ export default function EditExpensePage() {
     if (!Number.isFinite(id)) {
       setError("Invalid expense id in URL")
       setFetchLoading(false)
+      setExpenseReceiptContext(null)
       return
     }
     const result = await getExpense(id, userId, effectiveFarmId)
 
     if (result.success && result.data) {
       const expense = result.data
+      const rawDesc = expense.description || ""
+      setSavedReceiptPath(extractReceiptPathFromDescription(rawDesc))
+      setReceiptRemoved(false)
+      setReceiptFile(null)
+      setExpenseReceiptContext(
+        effectiveFarmId && userId
+          ? {
+              farmId: effectiveFarmId,
+              userId,
+              hasDbAttachment: Boolean(expense.hasAttachmentImage),
+            }
+          : null
+      )
       setFormData({
         flockId: String(expense.flockId),
         expenseDate: new Date(expense.expenseDate).toISOString().split("T")[0],
         category: expense.category,
-        description: expense.description,
+        description: stripReceiptSuffixFromDescription(rawDesc),
         amount: String(expense.amount),
         paymentMethod: expense.paymentMethod,
       })
     } else {
       setError(result.message)
+      setExpenseReceiptContext(null)
     }
 
     setFetchLoading(false)
@@ -155,13 +186,26 @@ export default function EditExpensePage() {
       return
     }
 
+    let descriptionOut = formData.description.trim()
+    if (receiptFile) {
+      const up = await uploadExpenseReceipt(receiptFile, effectiveFarmId!)
+      if (!up.success) {
+        setError(up.message || "Receipt upload failed")
+        setLoading(false)
+        return
+      }
+      descriptionOut = appendReceiptSuffix(descriptionOut, up.path!)
+    } else if (savedReceiptPath && !receiptRemoved) {
+      descriptionOut = appendReceiptSuffix(descriptionOut, savedReceiptPath)
+    }
+
     const expense: Partial<ExpenseInput> = {
       farmId: effectiveFarmId!,
       userId,
       flockId: Number(formData.flockId),
       expenseDate: formData.expenseDate + "T00:00:00Z",
       category: formData.category,
-      description: formData.description.trim(),
+      description: descriptionOut,
       amount: Number(formData.amount),
       paymentMethod: formData.paymentMethod,
     }
@@ -347,6 +391,26 @@ export default function EditExpensePage() {
                     rows={3}
                     required
                     className="w-full"
+                  />
+                  <ExpenseReceiptField
+                    existingPath={receiptRemoved ? null : savedReceiptPath}
+                    resolveReceiptFarmId={expenseReceiptContext?.farmId ?? null}
+                    dbAttachment={
+                      expenseReceiptContext?.hasDbAttachment
+                        ? {
+                            expenseId: id,
+                            userId: expenseReceiptContext.userId,
+                            farmId: expenseReceiptContext.farmId,
+                          }
+                        : null
+                    }
+                    pendingFile={receiptFile}
+                    onPendingFileChange={setReceiptFile}
+                    onRemoveExisting={() => {
+                      setReceiptRemoved(true)
+                      setSavedReceiptPath(null)
+                    }}
+                    disabled={loading}
                   />
                 </div>
               </div>

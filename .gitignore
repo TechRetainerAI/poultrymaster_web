@@ -28,6 +28,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# User-uploaded expense receipts (keep folder via .gitkeep)
+public/receipt-uploads/*
+!public/receipt-uploads/.gitkeep
+
 # backend publish folder
 PoultryPro/PoultryFarmAPI/publish/
 PoultryPro/PoultryFarmAPI/publish.zip

@@ -1,4 +1,4 @@
-﻿using PoultryFarmAPIWeb.Models;
+using PoultryFarmAPIWeb.Models;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -23,6 +23,8 @@ namespace PoultryFarmAPIWeb.Business
 
         // Get expenses for a specific flock, user, and farm.
         Task<List<ExpenseModel>> GetByFlock(int flockId, string userId, string farmId);
+
+        Task<(byte[] Body, string ContentType)?> GetAttachment(int expenseId, string userId, string farmId);
     }
 
 }

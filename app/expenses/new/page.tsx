@@ -13,6 +13,9 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { DollarSign, Loader2, ArrowLeft } from "lucide-react"
 import { createExpense, type ExpenseInput } from "@/lib/api/expense"
+import { uploadExpenseReceipt } from "@/lib/api/receipt-upload"
+import { appendReceiptSuffix } from "@/lib/utils/expense-receipt"
+import { ExpenseReceiptField } from "@/components/expense/expense-receipt-field"
 import { getUserContext } from "@/lib/utils/user-context"
 import { getValidFlocks, getFlocksForSelect } from "@/lib/utils/flock-utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -32,6 +35,7 @@ export default function NewExpensePage() {
     amount: "",
     paymentMethod: "",
   })
+  const [receiptFile, setReceiptFile] = useState<File | null>(null)
 
   const expenseCategories = [
     "Feed",
@@ -124,13 +128,24 @@ export default function NewExpensePage() {
       return
     }
 
+    let descriptionOut = formData.description.trim()
+    if (receiptFile) {
+      const up = await uploadExpenseReceipt(receiptFile, farmId)
+      if (!up.success) {
+        setError(up.message || "Receipt upload failed")
+        setLoading(false)
+        return
+      }
+      descriptionOut = appendReceiptSuffix(descriptionOut, up.path!)
+    }
+
     const expense: ExpenseInput = {
       farmId,
       userId,
       flockId: Number(formData.flockId),
       expenseDate: formData.expenseDate + "T00:00:00Z",
       category: formData.category,
-      description: formData.description.trim(),
+      description: descriptionOut,
       amount: Number(formData.amount),
       paymentMethod: formData.paymentMethod,
     }
@@ -277,7 +292,7 @@ export default function NewExpensePage() {
               {/* Section: Description */}
               <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
                 <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Description</div>
-                <div className="p-4">
+                <div className="p-4 space-y-4">
                   <Textarea
                     name="description"
                     value={formData.description}
@@ -285,6 +300,13 @@ export default function NewExpensePage() {
                     placeholder="Enter expense description..."
                     rows={3}
                     required
+                  />
+                  <ExpenseReceiptField
+                    existingPath={null}
+                    resolveReceiptFarmId={getUserContext().farmId}
+                    pendingFile={receiptFile}
+                    onPendingFileChange={setReceiptFile}
+                    disabled={loading}
                   />
                 </div>
               </div>

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 
@@ -8,6 +8,13 @@ namespace PoultryFarmAPIWeb.Controllers
     [Route("api/[controller]")]
     public class ExpenseController : ControllerBase
     {
+        private const int MaxAttachmentBytes = 4 * 1024 * 1024;
+
+        private static readonly HashSet<string> AllowedAttachmentContentTypes = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "image/jpeg", "image/png", "image/webp"
+        };
+
         private readonly IExpenseService _expenseService;
 
         public ExpenseController(IExpenseService expenseService)
@@ -28,8 +35,36 @@ namespace PoultryFarmAPIWeb.Controllers
             return Ok(allExpenses);
         }
 
+        // GET: api/Expense/ByFlock/{flockId}?userId=xxx&farmId=yyy
+        [HttpGet("ByFlock/{flockId:int}")]
+        public async Task<ActionResult<IEnumerable<ExpenseModel>>> GetByFlock(int flockId, [FromQuery] string userId, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrEmpty(userId))
+                return BadRequest("UserId is required.");
+            if (string.IsNullOrEmpty(farmId))
+                return BadRequest("FarmId is required.");
+
+            var records = await _expenseService.GetByFlock(flockId, userId, farmId);
+            return Ok(records);
+        }
+
+        [HttpGet("{id:int}/attachment")]
+        public async Task<IActionResult> GetAttachment(int id, [FromQuery] string userId, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrEmpty(userId))
+                return BadRequest("UserId is required.");
+            if (string.IsNullOrEmpty(farmId))
+                return BadRequest("FarmId is required.");
+
+            var blob = await _expenseService.GetAttachment(id, userId, farmId);
+            if (blob == null)
+                return NotFound();
+
+            return File(blob.Value.Body, blob.Value.ContentType);
+        }
+
         // GET: api/Expense/5?userId=xxx&farmId=yyy
-        [HttpGet("{id}")]
+        [HttpGet("{id:int}")]
         public async Task<ActionResult<ExpenseModel>> GetById(int id, [FromQuery] string userId, [FromQuery] string farmId)
         {
             if (string.IsNullOrEmpty(userId))
@@ -55,10 +90,12 @@ namespace PoultryFarmAPIWeb.Controllers
             if (string.IsNullOrEmpty(model.FarmId))
                 return BadRequest("FarmId is required in the expense model.");
 
+            var attErr = ValidateOptionalAttachment(model.AttachmentImage, model.AttachmentContentType);
+            if (attErr != null)
+                return BadRequest(attErr);
+
             var newId = await _expenseService.Insert(model);
-            
-            // Return the created expense with the new ID instead of fetching from DB
-            // (spExpense_GetById doesn't return FarmId and UserId)
+
             var createdExpense = new ExpenseModel
             {
                 ExpenseId = newId,
@@ -70,14 +107,16 @@ namespace PoultryFarmAPIWeb.Controllers
                 Amount = model.Amount,
                 PaymentMethod = model.PaymentMethod,
                 FlockId = model.FlockId,
-                CreatedDate = model.CreatedDate
+                CreatedDate = model.CreatedDate,
+                Supplier = model.Supplier,
+                HasAttachmentImage = model.AttachmentImage != null && model.AttachmentImage.Length > 0
             };
-            
+
             return CreatedAtAction(nameof(GetById), new { id = newId, userId = model.UserId, farmId = model.FarmId }, createdExpense);
         }
 
         // PUT: api/Expense/5
-        [HttpPut("{id}")]
+        [HttpPut("{id:int}")]
         public async Task<IActionResult> Update(int id, [FromBody] ExpenseModel model)
         {
             if (!ModelState.IsValid)
@@ -87,6 +126,13 @@ namespace PoultryFarmAPIWeb.Controllers
                 return BadRequest("UserId is required in the expense model.");
             if (string.IsNullOrEmpty(model.FarmId))
                 return BadRequest("FarmId is required in the expense model.");
+
+            if (model.SetAttachmentImage)
+            {
+                var attErr = ValidateAttachmentForUpdate(model);
+                if (attErr != null)
+                    return BadRequest(attErr);
+            }
 
             var existing = await _expenseService.GetById(id, model.UserId, model.FarmId);
             if (existing == null)
@@ -98,7 +144,7 @@ namespace PoultryFarmAPIWeb.Controllers
         }
 
         // DELETE: api/Expense/5?userId=xxx&farmId=yyy
-        [HttpDelete("{id}")]
+        [HttpDelete("{id:int}")]
         public async Task<IActionResult> Delete(int id, [FromQuery] string userId, [FromQuery] string farmId)
         {
             if (string.IsNullOrEmpty(userId))
@@ -114,17 +160,22 @@ namespace PoultryFarmAPIWeb.Controllers
             return NoContent();
         }
 
-        // GET: api/Expense/ByFlock/{flockId}?userId=xxx&farmId=yyy
-        [HttpGet("ByFlock/{flockId}")]
-        public async Task<ActionResult<IEnumerable<ExpenseModel>>> GetByFlock(int flockId, [FromQuery] string userId, [FromQuery] string farmId)
+        private static string? ValidateOptionalAttachment(byte[]? image, string? contentType)
         {
-            if (string.IsNullOrEmpty(userId))
-                return BadRequest("UserId is required.");
-            if (string.IsNullOrEmpty(farmId))
-                return BadRequest("FarmId is required.");
+            if (image == null || image.Length == 0)
+                return null;
+            if (image.Length > MaxAttachmentBytes)
+                return "Attachment too large (max 4 MB).";
+            if (string.IsNullOrWhiteSpace(contentType) || !AllowedAttachmentContentTypes.Contains(contentType.Trim()))
+                return "Attachment content type must be image/jpeg, image/png, or image/webp.";
+            return null;
+        }
 
-            var records = await _expenseService.GetByFlock(flockId, userId, farmId);
-            return Ok(records);
+        private static string? ValidateAttachmentForUpdate(ExpenseModel model)
+        {
+            if (model.AttachmentImage == null || model.AttachmentImage.Length == 0)
+                return null;
+            return ValidateOptionalAttachment(model.AttachmentImage, model.AttachmentContentType);
         }
     }
 }

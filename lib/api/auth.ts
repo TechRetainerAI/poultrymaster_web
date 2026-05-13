@@ -120,6 +120,14 @@ function extractFromFeatureRecord(src: Record<string, unknown>): Record<string, 
   const canSeeEmployees = pick(src.canSeeEmployees, src.CanSeeEmployees, src.seeEmployees, src.SeeEmployees, src.viewEmployees, src.ViewEmployees)
   const canViewReports = pick(src.canViewReports, src.CanViewReports, src.viewReports, src.ViewReports, src.reports, src.Reports)
   const canViewFinancial = pick(src.canViewFinancial, src.CanViewFinancial, src.viewFinancial, src.ViewFinancial, src.financial, src.Financial)
+  const canViewCustomers = pick(
+    src.canViewCustomers,
+    src.CanViewCustomers,
+    src.viewCustomers,
+    src.ViewCustomers,
+    src.customers,
+    src.Customers
+  )
   const canViewActivityLog = pick(src.canViewActivityLog, src.CanViewActivityLog, src.viewActivityLog, src.ViewActivityLog, src.activityLog, src.ActivityLog)
   const canViewSettings = pick(src.canViewSettings, src.CanViewSettings, src.viewSettings, src.ViewSettings, src.settings, src.Settings)
 
@@ -130,6 +138,7 @@ function extractFromFeatureRecord(src: Record<string, unknown>): Record<string, 
   if (canSeeEmployees !== undefined) normalized.canSeeEmployees = canSeeEmployees
   if (canViewReports !== undefined) normalized.canViewReports = canViewReports
   if (canViewFinancial !== undefined) normalized.canViewFinancial = canViewFinancial
+  if (canViewCustomers !== undefined) normalized.canViewCustomers = canViewCustomers
   if (canViewActivityLog !== undefined) normalized.canViewActivityLog = canViewActivityLog
   if (canViewSettings !== undefined) normalized.canViewSettings = canViewSettings
   return normalized
@@ -579,22 +588,32 @@ export async function forgotPassword(data: ForgotPasswordData): Promise<ApiRespo
     // Backend returns 200 OK even if user doesn't exist (security)
     if (!response.ok) {
       console.error("[Auth API] Forgot password error:", responseText)
-      
-      try {
-        const result = contentType?.includes("application/json") ? JSON.parse(responseText) : null
-        if (result) {
-          return {
-            success: false,
-            message: result.message || "Failed to send reset code",
-            errors: result.errors,
-          }
+
+      let parsed: { message?: string; errors?: string[] } | null = null
+      const looksJson =
+        contentType?.includes("application/json") ||
+        responseText.trimStart().startsWith("{")
+      if (looksJson && responseText.trim()) {
+        try {
+          parsed = JSON.parse(responseText)
+        } catch {
+          parsed = null
         }
-      } catch {
-        // Not JSON, return generic error
+      }
+      if (parsed?.message) {
+        return {
+          success: false,
+          message: parsed.message,
+          errors: parsed.errors,
+        }
       }
       return {
         success: false,
-        message: responseText || "Failed to send reset code. Please try again.",
+        message:
+          responseText.trim() ||
+          (response.status === 503
+            ? "Email service is temporarily unavailable. Please try again later."
+            : "Failed to send reset code. Please try again."),
       }
     }
 

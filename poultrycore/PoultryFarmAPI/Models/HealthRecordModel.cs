@@ -14,5 +14,16 @@ namespace PoultryFarmAPIWeb.Models
         public decimal? WaterConsumption { get; set; }
         public string? Notes { get; set; }
         public DateTime? CreatedDate { get; set; }
+
+        /// <summary>Optional image bytes (e.g. medication pack photo). JSON: base64 string.</summary>
+        public byte[]? AttachmentImage { get; set; }
+
+        public string? AttachmentContentType { get; set; }
+
+        /// <summary>True when a row has stored image bytes (list/detail queries; not stored in DB as a column).</summary>
+        public bool HasAttachmentImage { get; set; }
+
+        /// <summary>When true on PUT, <see cref="AttachmentImage"/> and <see cref="AttachmentContentType"/> replace or clear the stored image.</summary>
+        public bool SetAttachmentImage { get; set; }
     }
 }

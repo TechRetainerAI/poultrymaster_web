@@ -85,6 +85,34 @@ export {
   deleteCustomer
 } from './customer'
 
+// Supplier API
+export type { Supplier, SupplierInput } from './supplier'
+export {
+  getSuppliers,
+  getSupplier,
+  createSupplier,
+  updateSupplier,
+  deleteSupplier
+} from './supplier'
+
+// Egg inventory adjustments
+export type { EggInventoryAdjustment, EggInventoryAdjustmentInput } from './egg-inventory-adjustment'
+export {
+  getEggInventoryAdjustments,
+  createEggInventoryAdjustment,
+  updateEggInventoryAdjustment,
+  deleteEggInventoryAdjustment
+} from './egg-inventory-adjustment'
+
+// Feed inventory adjustments
+export type { FeedInventoryAdjustment, FeedInventoryAdjustmentInput } from './feed-inventory-adjustment'
+export {
+  getFeedInventoryAdjustments,
+  createFeedInventoryAdjustment,
+  updateFeedInventoryAdjustment,
+  deleteFeedInventoryAdjustment
+} from './feed-inventory-adjustment'
+
 // Flock API
 export {
   getFlocks,

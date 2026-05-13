@@ -147,7 +147,7 @@ export default function NewProductionRecordPage() {
       } catch (e) {
         console.error(e)
         setFlocks([])
-        setFlocksError("Unable to fetch flocks. Check API URL and CORS.")
+        setFlocksError("Unable to load flocks. Please try again.")
       }
     }
     load()
@@ -219,7 +219,7 @@ export default function NewProductionRecordPage() {
 
       if (mortality > numBirds) {
         setError(
-          `Mortality (${mortality}) cannot be greater than number of birds (${numBirds})`,
+          `Deaths (${mortality}) cannot be greater than number of birds (${numBirds})`,
         )
         setSaving(false)
         return
@@ -227,7 +227,7 @@ export default function NewProductionRecordPage() {
 
       if (calculatedLeft < 0) {
         setError(
-          `Birds left cannot be negative. Check your mortality and number of birds.`,
+          `Birds left cannot be negative. Check your deaths and number of birds.`,
         )
         setSaving(false)
         return
@@ -504,7 +504,7 @@ export default function NewProductionRecordPage() {
                   </div>
 
                   <div className="col-span-12 md:col-span-6 space-y-2">
-                    <Label>Egg grade</Label>
+                    <Label>Egg size</Label>
                     <Select
                       value={form.eggGrade}
                       onValueChange={(v) => setForm({ ...form, eggGrade: v })}
@@ -520,7 +520,7 @@ export default function NewProductionRecordPage() {
                         ))}
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-slate-500">Egg size for this day's eggs (e.g. Small, Medium).</p>
+                    <p className="text-xs text-slate-500">Egg size for this day’s collection (Small, Medium, Large, X-Large, Jumbo).</p>
                   </div>
                 </div>
               </div>
@@ -546,7 +546,8 @@ export default function NewProductionRecordPage() {
                     />
                   </div>
                   <div className="col-span-12 md:col-span-4 space-y-2">
-                    <Label>Mortality</Label>
+                    <Label>Deaths</Label>
+                    <p className="text-xs text-muted-foreground -mt-1 mb-1">Birds lost on this day.</p>
                     <Input
                       type="number"
                       min="0"

@@ -32,6 +32,7 @@ import {
 } from "@/components/dashboard/mobile-filters"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { formatDateShort, cn } from "@/lib/utils"
+import { toLocalDateKey } from "@/lib/utils/date-key"
 import { toastFormGuide } from "@/lib/utils/validation-toast"
 
 interface InventoryItem {
@@ -190,14 +191,26 @@ export default function InventoryPage() {
     }
 
     if (selectedCategory !== "ALL") {
-      list = list.filter(item => item.category === selectedCategory)
+      list = list.filter(
+        (item) =>
+          (item.category ?? "").trim().toLowerCase() === selectedCategory.trim().toLowerCase()
+      )
     }
 
+    // Only compare when the row has a date; API-backed rows often omit purchase/expiry so we must not hide them.
     if (entryDateFrom) {
-      list = list.filter(item => item.entryDate && item.entryDate >= entryDateFrom)
+      list = list.filter((item) => {
+        if (!item.entryDate?.trim()) return true
+        const key = toLocalDateKey(item.entryDate)
+        return key !== "" && key >= entryDateFrom
+      })
     }
     if (expiryDateFrom) {
-      list = list.filter(item => item.expiryDate && item.expiryDate >= expiryDateFrom)
+      list = list.filter((item) => {
+        if (!item.expiryDate?.trim()) return true
+        const key = toLocalDateKey(item.expiryDate)
+        return key !== "" && key >= expiryDateFrom
+      })
     }
 
     // Apply sorting
@@ -693,8 +706,22 @@ export default function InventoryPage() {
                 <CardContent className="py-12 text-center">
                   <Package className="w-12 h-12 text-slate-400 mx-auto mb-4" />
                   <h3 className="text-lg font-semibold text-slate-900 mb-2">No inventory items found</h3>
-                  <p className="text-slate-600 mb-6">Get started by adding your first inventory item</p>
-                  <Button className="gap-2 bg-blue-600 hover:bg-blue-700" onClick={() => setIsCreateDialogOpen(true)}>
+                  {inventory.length > 0 ? (
+                    <>
+                      <p className="text-slate-600 mb-2">
+                        You have {inventory.length} item{inventory.length === 1 ? "" : "s"}, but filters or search are hiding them.
+                      </p>
+                      <p className="text-sm text-slate-500 mb-6">
+                        Clear search and tap <span className="font-medium">Reset</span> (entry/expiry filters also hide rows when those dates are blank on the server).
+                      </p>
+                      <Button variant="outline" className="mr-2" onClick={clearFilters}>
+                        <RefreshCw className="h-4 w-4 mr-2" /> Reset filters
+                      </Button>
+                    </>
+                  ) : (
+                    <p className="text-slate-600 mb-6">Get started by adding your first inventory item</p>
+                  )}
+                  <Button className="gap-2 bg-blue-600 hover:bg-blue-700 mt-4" onClick={() => setIsCreateDialogOpen(true)}>
                     <Plus className="w-4 h-4" />
                     Add Item
                   </Button>

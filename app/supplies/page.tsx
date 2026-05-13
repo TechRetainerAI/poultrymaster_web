@@ -19,6 +19,8 @@ import { Plus, Edit, Trash2, ShoppingBag, Search, RefreshCw, ArrowUpDown, ArrowU
 import { getUserContext } from "@/lib/utils/user-context"
 import { useToast } from "@/hooks/use-toast"
 import { getSupplies, createSupply, updateSupply, deleteSupply, type SupplyInput, type Supply } from "@/lib/api/supply"
+import { getSuppliers, type Supplier } from "@/lib/api/supplier"
+import Link from "next/link"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import {
@@ -41,10 +43,13 @@ type SupplyFormData = {
   quantity: number
   unit: string
   cost: number
-  supplier: string
+  /** Selected supplier id as string, or "" for none */
+  supplierId: string
   purchaseDate: string
   notes: string
 }
+
+const SUPPLIER_SELECT_NONE = "__none__"
 
 const EMPTY_FORM_DATA: SupplyFormData = {
   name: "",
@@ -52,7 +57,7 @@ const EMPTY_FORM_DATA: SupplyFormData = {
   quantity: 0,
   unit: "",
   cost: 0,
-  supplier: "",
+  supplierId: "",
   purchaseDate: "",
   notes: "",
 }
@@ -62,6 +67,7 @@ export default function SuppliesPage() {
   const { toast } = useToast()
   const isMobile = useIsMobile()
   const [supplies, setSupplies] = useState<SupplyItem[]>([])
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
@@ -120,12 +126,14 @@ export default function SuppliesPage() {
     }
 
     try {
-      const res = await getSupplies(userId, farmId)
+      const [res, supRes] = await Promise.all([getSupplies(userId, farmId), getSuppliers(userId, farmId)])
       if (res.success && res.data) {
         setSupplies(res.data)
       } else {
         setError(res.message || "Failed to load supplies")
       }
+      if (supRes.success && supRes.data) setSuppliers(supRes.data)
+      else setSuppliers([])
     } catch (err) {
       console.error("[v0] Failed to load supplies:", err)
       setError("Failed to load supplies")
@@ -187,6 +195,9 @@ export default function SuppliesPage() {
       return
     }
 
+    const sid = formData.supplierId.trim() ? Number.parseInt(formData.supplierId, 10) : NaN
+    const supplierId = Number.isFinite(sid) && sid > 0 ? sid : null
+
     const input: SupplyInput = {
       userId,
       farmId,
@@ -195,7 +206,8 @@ export default function SuppliesPage() {
       quantity: formData.quantity,
       unit: formData.unit,
       cost: formData.cost,
-      supplier: formData.supplier.trim() ? formData.supplier : null,
+      supplierId,
+      supplier: null,
       purchaseDate: formData.purchaseDate.trim() ? formData.purchaseDate : null,
       notes: formData.notes.trim() ? formData.notes : null,
     }
@@ -227,6 +239,9 @@ export default function SuppliesPage() {
       return
     }
 
+    const sid = formData.supplierId.trim() ? Number.parseInt(formData.supplierId, 10) : NaN
+    const supplierId = Number.isFinite(sid) && sid > 0 ? sid : null
+
     const input: SupplyInput = {
       userId,
       farmId,
@@ -235,7 +250,8 @@ export default function SuppliesPage() {
       quantity: formData.quantity,
       unit: formData.unit,
       cost: formData.cost,
-      supplier: formData.supplier.trim() ? formData.supplier : null,
+      supplierId,
+      supplier: null,
       purchaseDate: formData.purchaseDate.trim() ? formData.purchaseDate : null,
       notes: formData.notes.trim() ? formData.notes : null,
     }
@@ -298,7 +314,7 @@ export default function SuppliesPage() {
       quantity: item.quantity,
       unit: item.unit,
       cost: item.cost,
-      supplier: item.supplier ?? "",
+      supplierId: item.supplierId != null && item.supplierId > 0 ? String(item.supplierId) : "",
       purchaseDate: item.purchaseDate ?? "",
       notes: item.notes ?? "",
     })
@@ -466,13 +482,30 @@ export default function SuppliesPage() {
                       <div className="p-4 space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label htmlFor="supplier" className="text-xs font-medium text-slate-600">Supplier</Label>
-                            <Input
-                              id="supplier"
-                              value={formData.supplier}
-                              onChange={(e) => setFormData(prev => ({ ...prev, supplier: e.target.value }))}
-                              className="bg-white"
-                            />
+                            <div className="flex items-center justify-between gap-2">
+                              <Label htmlFor="supplier" className="text-xs font-medium text-slate-600">Supplier</Label>
+                              <Link href="/suppliers" className="text-[11px] text-blue-600 hover:underline shrink-0">
+                                Manage list
+                              </Link>
+                            </div>
+                            <Select
+                              value={formData.supplierId ? formData.supplierId : SUPPLIER_SELECT_NONE}
+                              onValueChange={(v) =>
+                                setFormData((prev) => ({ ...prev, supplierId: v === SUPPLIER_SELECT_NONE ? "" : v }))
+                              }
+                            >
+                              <SelectTrigger id="supplier" className="bg-white">
+                                <SelectValue placeholder="Select supplier" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={SUPPLIER_SELECT_NONE}>No supplier</SelectItem>
+                                {suppliers.map((s) => (
+                                  <SelectItem key={s.supplierId} value={String(s.supplierId)}>
+                                    {s.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="purchaseDate" className="text-xs font-medium text-slate-600">Purchase Date</Label>
@@ -898,13 +931,30 @@ export default function SuppliesPage() {
                     <div className="p-4 space-y-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="edit-supplier" className="text-xs font-medium text-slate-600">Supplier</Label>
-                          <Input
-                            id="edit-supplier"
-                            value={formData.supplier}
-                            onChange={(e) => setFormData(prev => ({ ...prev, supplier: e.target.value }))}
-                            className="bg-white"
-                          />
+                          <div className="flex items-center justify-between gap-2">
+                            <Label htmlFor="edit-supplier" className="text-xs font-medium text-slate-600">Supplier</Label>
+                            <Link href="/suppliers" className="text-[11px] text-blue-600 hover:underline shrink-0">
+                              Manage list
+                            </Link>
+                          </div>
+                          <Select
+                            value={formData.supplierId ? formData.supplierId : SUPPLIER_SELECT_NONE}
+                            onValueChange={(v) =>
+                              setFormData((prev) => ({ ...prev, supplierId: v === SUPPLIER_SELECT_NONE ? "" : v }))
+                            }
+                          >
+                            <SelectTrigger id="edit-supplier" className="bg-white">
+                              <SelectValue placeholder="Select supplier" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={SUPPLIER_SELECT_NONE}>No supplier</SelectItem>
+                              {suppliers.map((s) => (
+                                <SelectItem key={s.supplierId} value={String(s.supplierId)}>
+                                  {s.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="edit-purchaseDate" className="text-xs font-medium text-slate-600">Purchase Date</Label>

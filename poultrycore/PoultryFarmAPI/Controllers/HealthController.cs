@@ -8,6 +8,13 @@ namespace PoultryFarmAPIWeb.Controllers
     [Route("api/[controller]")]
     public class HealthController : ControllerBase
     {
+        private const int MaxAttachmentBytes = 4 * 1024 * 1024;
+
+        private static readonly HashSet<string> AllowedAttachmentContentTypes = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "image/jpeg", "image/png", "image/webp"
+        };
+
         private readonly IHealthRecordService _healthService;
 
         public HealthController(IHealthRecordService healthService)
@@ -33,8 +40,24 @@ namespace PoultryFarmAPIWeb.Controllers
             return Ok(records);
         }
 
+        /// <summary>Binary image for a health row (Bearer auth). List endpoints omit bytes; use this URL for &lt;img&gt; after same-origin proxy.</summary>
+        [HttpGet("{id:int}/attachment")]
+        public async Task<IActionResult> GetAttachment(int id, [FromQuery] string userId, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+                return BadRequest("UserId is required.");
+            if (string.IsNullOrWhiteSpace(farmId))
+                return BadRequest("FarmId is required.");
+
+            var blob = await _healthService.GetAttachment(id, userId, farmId);
+            if (blob == null)
+                return NotFound();
+
+            return File(blob.Value.Body, blob.Value.ContentType);
+        }
+
         // GET: api/Health/5?userId=xxx&farmId=yyy
-        [HttpGet("{id}")]
+        [HttpGet("{id:int}")]
         public async Task<ActionResult<HealthRecordModel>> GetById(int id, [FromQuery] string userId, [FromQuery] string farmId)
         {
             if (string.IsNullOrWhiteSpace(userId))
@@ -61,13 +84,17 @@ namespace PoultryFarmAPIWeb.Controllers
             if (string.IsNullOrWhiteSpace(model.FarmId))
                 return BadRequest("FarmId is required in the model.");
 
+            var attErr = ValidateOptionalAttachment(model.AttachmentImage, model.AttachmentContentType);
+            if (attErr != null)
+                return BadRequest(attErr);
+
             var newId = await _healthService.Insert(model);
             var created = await _healthService.GetById(newId, model.UserId, model.FarmId!);
             return CreatedAtAction(nameof(GetById), new { id = newId, userId = model.UserId, farmId = model.FarmId }, created);
         }
 
         // PUT: api/Health/5
-        [HttpPut("{id}")]
+        [HttpPut("{id:int}")]
         public async Task<IActionResult> Update(int id, [FromBody] HealthRecordModel model)
         {
             if (!ModelState.IsValid)
@@ -77,6 +104,13 @@ namespace PoultryFarmAPIWeb.Controllers
                 return BadRequest("UserId is required in the model.");
             if (string.IsNullOrWhiteSpace(model.FarmId))
                 return BadRequest("FarmId is required in the model.");
+
+            if (model.SetAttachmentImage)
+            {
+                var attErr = ValidateAttachmentForUpdate(model);
+                if (attErr != null)
+                    return BadRequest(attErr);
+            }
 
             var existing = await _healthService.GetById(id, model.UserId, model.FarmId!);
             if (existing == null)
@@ -88,7 +122,7 @@ namespace PoultryFarmAPIWeb.Controllers
         }
 
         // DELETE: api/Health/5?userId=xxx&farmId=yyy
-        [HttpDelete("{id}")]
+        [HttpDelete("{id:int}")]
         public async Task<IActionResult> Delete(int id, [FromQuery] string userId, [FromQuery] string farmId)
         {
             if (string.IsNullOrWhiteSpace(userId))
@@ -102,6 +136,25 @@ namespace PoultryFarmAPIWeb.Controllers
 
             await _healthService.Delete(id, userId, farmId);
             return NoContent();
+        }
+
+        private static string? ValidateOptionalAttachment(byte[]? image, string? contentType)
+        {
+            if (image == null || image.Length == 0)
+                return null;
+            if (image.Length > MaxAttachmentBytes)
+                return "Attachment too large (max 4 MB).";
+            if (string.IsNullOrWhiteSpace(contentType) || !AllowedAttachmentContentTypes.Contains(contentType.Trim()))
+                return "Attachment content type must be image/jpeg, image/png, or image/webp.";
+            return null;
+        }
+
+        /// <summary>When <see cref="HealthRecordModel.SetAttachmentImage"/> is true and bytes are present, validate; clearing (null bytes) is allowed.</summary>
+        private static string? ValidateAttachmentForUpdate(HealthRecordModel model)
+        {
+            if (model.AttachmentImage == null || model.AttachmentImage.Length == 0)
+                return null;
+            return ValidateOptionalAttachment(model.AttachmentImage, model.AttachmentContentType);
         }
     }
 }

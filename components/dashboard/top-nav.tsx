@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from "react"
 import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
 import { usePermissions } from "@/hooks/use-permissions"
+import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
 import {
   Home,
   Bird,
@@ -27,6 +28,9 @@ import {
   Wallet,
   Boxes,
   CreditCard,
+  Wheat,
+  Pill,
+  Truck,
 } from "lucide-react"
 
 interface NavItem {
@@ -49,7 +53,7 @@ function NavDropdown({ group }: { group: NavGroup }) {
   const [position, setPosition] = useState({ top: 0, left: 0 })
   const [mounted, setMounted] = useState(false)
 
-  const isGroupActive = group.items.some((item) => pathname === item.href)
+  const isGroupActive = group.items.some((item) => navPathActive(pathname, item.href))
 
   useEffect(() => { setMounted(true) }, [])
 
@@ -117,13 +121,13 @@ function NavDropdown({ group }: { group: NavGroup }) {
         <div
           ref={dropdownRef}
           style={{ position: "fixed", top: position.top, left: position.left }}
-          className="w-52 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-[9999]"
+          className="w-52 rounded-lg bg-blue-600 py-1 shadow-lg border border-blue-500 z-[9999]"
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
           {group.items.map((item) => {
             const Icon = item.icon
-            const isActive = pathname === item.href
+            const isActive = navPathActive(pathname, item.href)
             return (
               <Link
                 key={item.href}
@@ -133,11 +137,11 @@ function NavDropdown({ group }: { group: NavGroup }) {
                 className={cn(
                   "flex items-center gap-2.5 px-3 py-2 text-sm transition-colors",
                   isActive
-                    ? "bg-orange-50 text-orange-700 font-medium"
-                    : "text-slate-600 hover:bg-orange-50 hover:text-orange-700"
+                    ? "bg-blue-700 text-white font-medium"
+                    : "text-blue-50 hover:bg-blue-700 hover:text-white"
                 )}
               >
-                <Icon className={cn("h-4 w-4", isActive ? "text-orange-600" : "text-slate-400")} />
+                <Icon className={cn("h-4 w-4", isActive ? "text-white" : "text-blue-100")} />
                 {item.label}
               </Link>
             )
@@ -149,9 +153,13 @@ function NavDropdown({ group }: { group: NavGroup }) {
   )
 }
 
+function navPathActive(pathname: string, href: string) {
+  return pathname === href || (href !== "/dashboard" && pathname.startsWith(`${href}/`))
+}
+
 function NavLink({ item }: { item: NavItem }) {
   const pathname = usePathname()
-  const isActive = pathname === item.href
+  const isActive = navPathActive(pathname, item.href)
   const Icon = item.icon
 
   return (
@@ -189,8 +197,17 @@ export function TopNavigation() {
     label: "Production",
     items: [
       { href: "/production-records", label: "Production Records", icon: FileText },
-      { href: "/egg-production", label: "Egg Production", icon: Egg },
+      { href: "/egg-production", label: "Egg sorting", icon: Egg },
       { href: "/feed-usage", label: "Feed Usage", icon: Package },
+    ],
+  }
+
+  const analyticsGroup: NavGroup = {
+    label: "Analytics",
+    items: [
+      { href: "/egg-tracker", label: "Egg tracker", icon: BarChart3 },
+      { href: "/feed-tracker", label: "Feed at hand", icon: Wheat },
+      { href: "/medication-tracker", label: "Medication at hand", icon: Pill },
     ],
   }
 
@@ -210,14 +227,11 @@ export function TopNavigation() {
       { href: "/sales", label: "Sales", icon: ShoppingCart },
       { href: "/expenses", label: "Expenses", icon: DollarSign },
       { href: "/customers", label: "Customers", icon: Users },
+      { href: "/suppliers", label: "Suppliers", icon: Truck },
       { href: "/payments", label: "Payments", icon: CreditCard },
-    ].filter((item) => {
-      if (!permissions.featureAccess.canViewFinancial) return false
-      if (item.href === "/sales") return permissions.featureAccess.canEnterSales
-      if (item.href === "/expenses") return permissions.featureAccess.canEnterExpenses
-      if (item.href === "/cash") return permissions.featureAccess.canViewCashLedger
-      return true
-    }),
+    ].filter((item) =>
+      isFinancialNavItemVisible(item.href, permissions.featureAccess, permissions.isAdmin)
+    ),
   }
 
   const moreGroup: NavGroup = {
@@ -239,11 +253,12 @@ export function TopNavigation() {
   return (
     <>
       <div className="hidden lg:block bg-orange-500 border-b border-orange-600">
-        <div className="flex items-center gap-1 px-4 py-1.5 overflow-x-auto scrollbar-hide">
+        <div className="flex items-center gap-1 px-4 py-1.5 nav-rail-scroll">
           <NavLink item={{ href: "/dashboard", label: "Dashboard", icon: Home }} />
           <div className="h-5 w-px bg-white/30 mx-1" />
           <NavDropdown group={farmGroup} />
           <NavDropdown group={productionGroup} />
+          <NavDropdown group={analyticsGroup} />
           <NavDropdown group={inventoryGroup} />
           {financialGroup.items.length > 0 && <NavDropdown group={financialGroup} />}
           <div className="h-5 w-px bg-white/30 mx-1" />

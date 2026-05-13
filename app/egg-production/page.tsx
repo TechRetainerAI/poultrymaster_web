@@ -6,25 +6,22 @@ import Link from "next/link"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from "@/components/ui/pagination"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Plus, Pencil, Trash2, Calendar as CalendarIcon, Egg, Search, RefreshCw, Loader2, ChevronDown, ChevronUp, Filter } from "lucide-react"
+import { Plus, Pencil, Trash2, Egg, Search, RefreshCw, Loader2, ChevronDown, ChevronUp, Filter } from "lucide-react"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { getEggProductions, deleteEggProduction, type EggProduction } from "@/lib/api/egg-production"
 import { getFlocks, type Flock } from "@/lib/api/flock"
 import { getUserContext } from "@/lib/utils/user-context"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useToast } from "@/hooks/use-toast"
-import { format } from "date-fns"
 import { cn } from "@/lib/utils"
-import { Calendar } from "@/components/ui/calendar"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import {
@@ -37,7 +34,16 @@ import {
   MobileFilterSheetHeader,
 } from "@/components/dashboard/mobile-filters"
 import { toLocalDateKey } from "@/lib/utils/date-key"
+import { resolveEggProductionFlockName } from "@/lib/utils/resolve-egg-flock-name"
+import {
+  EGG_GRADE_OPTIONS,
+  EGG_GRADE_SELECT_VALUE_NONE,
+  eggGradeFromApi,
+  formatEggGradeLabel,
+} from "@/lib/constants/egg-grade"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { createProductionRecord, getProductionRecords, updateProductionRecord, type ProductionRecordInput } from "@/lib/api/production-record"
 
 export default function EggProductionsPage() {
   const router = useRouter()
@@ -63,21 +69,28 @@ export default function EggProductionsPage() {
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [selectedFlock, setSelectedFlock] = useState<string>("ALL")
+  const [selectedEggGrade, setSelectedEggGrade] = useState<string>("ALL")
 
   // Mobile: card list by default, filters in sheet
   const isMobile = useIsMobile()
   const [showAllColumnsMobile, setShowAllColumnsMobile] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [syncScope, setSyncScope] = useState<"selected" | "all">("selected")
+  const [syncingToday, setSyncingToday] = useState(false)
+  const [syncCheckMessage, setSyncCheckMessage] = useState("")
 
   const [draftDateFrom, setDraftDateFrom] = useState("")
   const [draftDateTo, setDraftDateTo] = useState("")
   const [draftSelectedFlock, setDraftSelectedFlock] = useState<string>("ALL")
+  const [draftSelectedEggGrade, setDraftSelectedEggGrade] = useState<string>("ALL")
 
-  const hasActiveFilters = !!search || !!dateFrom || !!dateTo || selectedFlock !== "ALL"
+  const hasActiveFilters =
+    !!search || !!dateFrom || !!dateTo || selectedFlock !== "ALL" || selectedEggGrade !== "ALL"
   const hasDraftChanges =
     draftDateFrom !== dateFrom ||
     draftDateTo !== dateTo ||
-    draftSelectedFlock !== selectedFlock
+    draftSelectedFlock !== selectedFlock ||
+    draftSelectedEggGrade !== selectedEggGrade
 
   useEffect(() => {
     loadData()
@@ -94,8 +107,8 @@ export default function EggProductionsPage() {
 
     const [eggProductionsResult, flocksResult] = await Promise.all([
       getEggProductions(userId, farmId),
-      getFlocks(userId, farmId)
-    ]);
+      getFlocks(userId, farmId),
+    ])
     
     if (eggProductionsResult.success && eggProductionsResult.data) {
       setEggProductions(eggProductionsResult.data)
@@ -106,7 +119,7 @@ export default function EggProductionsPage() {
     if (flocksResult.success && flocksResult.data) {
       setFlocks(flocksResult.data)
     }
-    
+
     setLoading(false)
   }
 
@@ -168,21 +181,25 @@ export default function EggProductionsPage() {
     setDraftDateFrom("")
     setDraftDateTo("")
     setDraftSelectedFlock("ALL")
+    setSelectedEggGrade("ALL")
+    setDraftSelectedEggGrade("ALL")
   }
 
   const syncDraftFromCommitted = () => {
     setDraftDateFrom(dateFrom)
     setDraftDateTo(dateTo)
     setDraftSelectedFlock(selectedFlock)
+    setDraftSelectedEggGrade(selectedEggGrade)
   }
 
   const applyMobileFilters = () => {
     setDateFrom(draftDateFrom)
     setDateTo(draftDateTo)
     setSelectedFlock(draftSelectedFlock)
+    setSelectedEggGrade(draftSelectedEggGrade)
     setCurrentPage(1)
     setFiltersOpen(false)
-    toast({ title: "Filters applied", description: "Egg production list updated." })
+      toast({ title: "Filters applied", description: "Egg sorting list updated." })
   }
 
   const formatDateShort = (d: string | Date) => {
@@ -190,10 +207,187 @@ export default function EggProductionsPage() {
     return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
   }
 
-  const getFlockName = (prod: EggProduction) => {
-    if (prod.flockName) return prod.flockName
-    const flock = flocks.find(f => f.flockId === prod.flockId)
-    return flock?.name || `Flock #${prod.flockId}`
+  const getFlockName = (prod: EggProduction) => resolveEggProductionFlockName(prod, flocks)
+
+  useEffect(() => {
+    const evaluateDiscrepancies = async () => {
+      const { farmId, userId } = getUserContext()
+      if (!farmId || !userId) return
+
+      const todayKey = toLocalDateKey(new Date().toISOString())
+      const todaysEntries = eggProductions.filter((p) => toLocalDateKey(p.productionDate) === todayKey)
+      const scopedEntries =
+        syncScope === "selected" && selectedFlock !== "ALL"
+          ? todaysEntries.filter((p) => String(p.flockId) === selectedFlock)
+          : todaysEntries
+
+      if (scopedEntries.length === 0) {
+        setSyncCheckMessage("")
+        return
+      }
+
+      const groupedEgg = new Map<number, number>()
+      for (const row of scopedEntries) {
+        const fid = Number(row.flockId)
+        if (!fid) continue
+        const total = (Number(row.production9AM) || 0) + (Number(row.production12PM) || 0) + (Number(row.production4PM) || 0)
+        groupedEgg.set(fid, (groupedEgg.get(fid) || 0) + total)
+      }
+
+      const prodRes = await getProductionRecords(userId, farmId)
+      const prodData = prodRes.success && prodRes.data ? prodRes.data : []
+      const groupedProd = new Map<number, number>()
+      for (const r of prodData) {
+        if (toLocalDateKey((r as any).date) !== todayKey) continue
+        const fid = Number((r as any).flockId)
+        if (!fid) continue
+        if (syncScope === "selected" && selectedFlock !== "ALL" && String(fid) !== selectedFlock) continue
+        groupedProd.set(fid, (groupedProd.get(fid) || 0) + (Number((r as any).totalProduction) || 0))
+      }
+
+      const mismatches: string[] = []
+      groupedEgg.forEach((eggTotal, fid) => {
+        const prodTotal = groupedProd.get(fid) || 0
+        if (eggTotal !== prodTotal) {
+          mismatches.push(`Flock #${fid}: Egg Production ${eggTotal} vs Production Records ${prodTotal}`)
+        }
+      })
+
+      if (mismatches.length > 0) {
+        setSyncCheckMessage(`Discrepancy detected for today. ${mismatches.join(" | ")}`)
+      } else {
+        setSyncCheckMessage("")
+      }
+    }
+
+    void evaluateDiscrepancies()
+  }, [eggProductions, syncScope, selectedFlock])
+
+  const handleSyncTodaysTotals = async () => {
+    const { farmId, userId } = getUserContext()
+    if (!farmId || !userId) {
+      toast({ title: "Session issue", description: "Please log in again.", variant: "destructive" })
+      return
+    }
+
+    const todayKey = toLocalDateKey(new Date().toISOString())
+    const todaysEntries = eggProductions.filter((p) => toLocalDateKey(p.productionDate) === todayKey)
+    const scopedEntries =
+      syncScope === "selected" && selectedFlock !== "ALL"
+        ? todaysEntries.filter((p) => String(p.flockId) === selectedFlock)
+        : todaysEntries
+
+    if (scopedEntries.length === 0) {
+      toast({
+        title: "Nothing to sync",
+        description: "No egg-production entries found for today in this scope.",
+      })
+      return
+    }
+
+    setSyncingToday(true)
+    try {
+      const grouped = new Map<number, { p9: number; p12: number; p4: number; broken: number }>()
+      for (const row of scopedEntries) {
+        const fid = Number(row.flockId)
+        if (!fid) continue
+        const curr = grouped.get(fid) ?? { p9: 0, p12: 0, p4: 0, broken: 0 }
+        curr.p9 += Number(row.production9AM) || 0
+        curr.p12 += Number(row.production12PM) || 0
+        curr.p4 += Number(row.production4PM) || 0
+        curr.broken += Number(row.brokenEggs) || 0
+        grouped.set(fid, curr)
+      }
+
+      if (grouped.size === 0) {
+        toast({ title: "Nothing to sync", description: "No valid flock totals were found for today." })
+        return
+      }
+
+      const prodRes = await getProductionRecords(userId, farmId)
+      const existing = prodRes.success && prodRes.data ? prodRes.data : []
+      let updated = 0
+      let created = 0
+
+      for (const [flockId, sums] of grouped.entries()) {
+        const flock = flocks.find((f) => Number((f as any).flockId) === flockId)
+        if (!flock) continue
+
+        const total = sums.p9 + sums.p12 + sums.p4
+        const todayIso = `${todayKey}T00:00:00Z`
+        const matched = existing.find(
+          (r) => Number((r as any).flockId) === flockId && toLocalDateKey((r as any).date) === todayKey
+        )
+
+        if (matched) {
+          const updatePayload: ProductionRecordInput = {
+            farmId: (matched as any).farmId ?? farmId,
+            userId: (matched as any).userId ?? userId,
+            createdBy: (matched as any).createdBy ?? userId,
+            updatedBy: userId,
+            ageInDays: Number((matched as any).ageInDays) || 0,
+            ageInWeeks: Number((matched as any).ageInWeeks) || 0,
+            date: (matched as any).date ?? todayIso,
+            flockId,
+            noOfBirds: Number((matched as any).noOfBirds) || 0,
+            mortality: Number((matched as any).mortality) || 0,
+            noOfBirdsLeft: Number((matched as any).noOfBirdsLeft) || 0,
+            feedKg: Number((matched as any).feedKg) || 0,
+            medication: (matched as any).medication || "None",
+            production9AM: sums.p9,
+            production12PM: sums.p12,
+            production4PM: sums.p4,
+            brokenEggs: sums.broken,
+            totalProduction: total,
+          }
+          await updateProductionRecord((matched as any).id, updatePayload)
+          updated += 1
+        } else {
+          const startKey = toLocalDateKey((flock as any).startDate || todayIso)
+          const startDate = new Date(`${startKey}T00:00:00Z`)
+          const todayDate = new Date(todayIso)
+          const ageDays = Math.max(0, Math.floor((todayDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)))
+          const birds = Number((flock as any).quantity) || 0
+
+          const payload: ProductionRecordInput = {
+            farmId,
+            userId,
+            createdBy: userId,
+            updatedBy: userId,
+            date: todayIso,
+            flockId,
+            ageInDays: ageDays,
+            ageInWeeks: Math.floor(ageDays / 7),
+            noOfBirds: birds,
+            mortality: 0,
+            noOfBirdsLeft: birds,
+            feedKg: 0,
+            medication: "None",
+            production9AM: sums.p9,
+            production12PM: sums.p12,
+            production4PM: sums.p4,
+            brokenEggs: sums.broken,
+            totalProduction: total,
+          }
+          await createProductionRecord(payload)
+          created += 1
+        }
+      }
+
+      toast({
+        title: "Today's totals synced",
+        description: `Updated ${updated} and created ${created} production record(s) for ${todayKey}.`,
+      })
+    } catch (e) {
+      console.error("[EggProduction] Sync today's totals failed:", e)
+      toast({
+        title: "Sync failed",
+        description: "Could not sync today's totals. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setSyncingToday(false)
+    }
   }
 
   const filteredEggProductions = useMemo(() => {
@@ -201,10 +395,21 @@ export default function EggProductionsPage() {
 
     if (search) {
       const query = search.toLowerCase()
-      currentList = currentList.filter(prod => 
-        getFlockName(prod).toLowerCase().includes(query) ||
-        (prod.notes ?? '').toLowerCase().includes(query)
+      currentList = currentList.filter(
+        (prod) =>
+          getFlockName(prod).toLowerCase().includes(query) ||
+          (prod.notes ?? "").toLowerCase().includes(query) ||
+          (prod.eggGrade ?? "").toLowerCase().includes(query) ||
+          formatEggGradeLabel(prod.eggGrade).toLowerCase().includes(query)
       )
+    }
+
+    if (selectedEggGrade !== "ALL") {
+      if (selectedEggGrade === EGG_GRADE_SELECT_VALUE_NONE) {
+        currentList = currentList.filter((prod) => !(prod.eggGrade ?? "").trim())
+      } else {
+        currentList = currentList.filter((prod) => eggGradeFromApi(prod.eggGrade) === selectedEggGrade)
+      }
     }
 
     if (dateFrom) {
@@ -218,15 +423,36 @@ export default function EggProductionsPage() {
     }
 
     return currentList
-  }, [eggProductions, search, dateFrom, dateTo, selectedFlock])
+  }, [eggProductions, search, dateFrom, dateTo, selectedFlock, selectedEggGrade])
 
   const totalEggs = useMemo(() => filteredEggProductions.reduce((sum, p) => sum + p.totalProduction, 0), [filteredEggProductions]);
   const totalBroken = useMemo(() => filteredEggProductions.reduce((sum, p) => sum + (p.brokenEggs ?? 0), 0), [filteredEggProductions]);
   const avgProduction = useMemo(() => filteredEggProductions.length ? totalEggs / filteredEggProductions.length : 0, [totalEggs, filteredEggProductions.length]);
+
+  const gradeSlottingBreakdown = useMemo(() => {
+    const map = new Map<string, { records: number; eggs: number; broken: number }>()
+    for (const p of filteredEggProductions) {
+      const raw = (p.eggGrade ?? "").trim()
+      const key = raw ? eggGradeFromApi(p.eggGrade) : EGG_GRADE_SELECT_VALUE_NONE
+      const cur = map.get(key) ?? { records: 0, eggs: 0, broken: 0 }
+      cur.records += 1
+      cur.eggs += p.totalProduction
+      cur.broken += p.brokenEggs ?? 0
+      map.set(key, cur)
+    }
+    const rows = [...map.entries()].map(([gradeKey, v]) => ({
+      gradeKey,
+      label:
+        gradeKey === EGG_GRADE_SELECT_VALUE_NONE ? "Not specified" : formatEggGradeLabel(gradeKey),
+      ...v,
+    }))
+    rows.sort((a, b) => b.eggs - a.eggs || a.label.localeCompare(b.label))
+    return rows
+  }, [filteredEggProductions])
+
   const EGGS_PER_CRATE = 30
   const totalEggsCrates = Math.floor(totalEggs / EGGS_PER_CRATE)
   const totalEggsPieces = totalEggs % EGGS_PER_CRATE
-
 
   // Sort and paginate
   const sortedEggProductions = useMemo(() => sortData(filteredEggProductions, sortKey, sortDir, (item: any, key: string) => {
@@ -236,6 +462,7 @@ export default function EggProductionsPage() {
     if (key === "production9AM") return Number(item.production9AM) || 0
     if (key === "production12PM") return Number(item.production12PM) || 0
     if (key === "production4PM") return Number(item.production4PM) || 0
+    if (key === "eggGrade") return eggGradeFromApi((item as EggProduction).eggGrade).toLowerCase()
     return (item as any)[key]
   }), [filteredEggProductions, sortKey, sortDir])
   const totalPages = Math.ceil(sortedEggProductions.length / itemsPerPage)
@@ -308,8 +535,18 @@ export default function EggProductionsPage() {
                   <Egg className="w-5 h-5 text-yellow-600" />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Egg Production</h1>
-                  <p className="text-sm text-slate-600">Manage your egg production records</p>
+                  <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Egg sorting</h1>
+                  <p className="text-sm text-slate-600">
+                    Daily collection by flock (9am / 12pm / 4pm) and totals by egg size for the filters below.
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                    <Link href="/egg-tracker" className="text-blue-600 hover:underline font-medium">
+                      Egg tracker
+                    </Link>
+                    <Link href="/egg-production#totals-by-size" className="text-blue-600 hover:underline font-medium">
+                      Totals by size
+                    </Link>
+                  </div>
                 </div>
               </div>
               <Link href="/egg-production/new" prefetch={true} className="w-full sm:w-auto">
@@ -341,7 +578,11 @@ export default function EggProductionsPage() {
                         <span className="truncate">Filters</span>
                         {hasActiveFilters && (
                           <span className="ml-1 h-5 min-w-[20px] px-1.5 rounded-full bg-orange-500 text-white text-xs flex items-center justify-center">
-                            {[search, dateFrom, dateTo, selectedFlock !== "ALL"].filter(Boolean).length}
+                            {
+                              [search, dateFrom, dateTo, selectedFlock !== "ALL", selectedEggGrade !== "ALL"].filter(
+                                Boolean
+                              ).length
+                            }
                           </span>
                         )}
                       </Button>
@@ -394,6 +635,22 @@ export default function EggProductionsPage() {
                             </SelectContent>
                           </Select>
                         </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-slate-700">Egg size</label>
+                          <Select value={draftSelectedEggGrade} onValueChange={setDraftSelectedEggGrade}>
+                            <SelectTrigger className="h-12 text-base">
+                              <SelectValue placeholder="All sizes" />
+                            </SelectTrigger>
+                            <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
+                              <SelectItem value="ALL">All sizes</SelectItem>
+                              {EGG_GRADE_OPTIONS.map((o) => (
+                                <SelectItem key={o.value} value={o.value}>
+                                  {o.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </MobileFilterSheetBody>
                       <MobileFilterSheetFooter>
                         <div className="flex gap-3">
@@ -435,11 +692,104 @@ export default function EggProductionsPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                <Select value={selectedEggGrade} onValueChange={setSelectedEggGrade}>
+                  <SelectTrigger className="w-[160px]">
+                    <SelectValue placeholder="Size" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All sizes</SelectItem>
+                    {EGG_GRADE_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <div className="ml-auto">
                   <Button variant="outline" size="sm" onClick={clearFilters}><RefreshCw className="h-4 w-4 mr-2" /> Reset</Button>
                 </div>
               </div>
             )}
+
+            {!loading && (
+              <Card id="totals-by-size" className="bg-white border-violet-100">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">Totals by size</CardTitle>
+                  <CardDescription>Based on the filters above</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {gradeSlottingBreakdown.length === 0 ? (
+                    <p className="text-sm text-slate-600">No rows match these filters.</p>
+                  ) : (
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {gradeSlottingBreakdown.map((row) => (
+                        <div
+                          key={row.gradeKey}
+                          className="rounded-lg border border-violet-100 bg-violet-50/40 px-3 py-2.5"
+                        >
+                          <div className="text-xs font-medium uppercase tracking-wide text-violet-800">{row.label}</div>
+                          <div className="mt-1 text-lg font-bold text-slate-900 tabular-nums">
+                            {row.eggs.toLocaleString()}{" "}
+                            <span className="text-sm font-normal text-slate-500">eggs</span>
+                          </div>
+                          <div className="text-xs text-slate-600 mt-0.5">
+                            {row.records} record{row.records === 1 ? "" : "s"} · {row.broken.toLocaleString()} broken
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            <Card className="bg-white">
+              <CardContent className="p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-slate-900">Sync today's totals to Production Records</p>
+                  <p className="text-xs text-slate-500">
+                    Only syncs entries for today ({toLocalDateKey(new Date().toISOString())}), as discussed.
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    For egg inventory and the ledger, open{" "}
+                    <Link href="/egg-tracker" className="text-blue-600 font-medium hover:underline">
+                      Egg tracker
+                    </Link>
+                    . Totals by size are on this page above.
+                  </p>
+                  {syncCheckMessage && (
+                    <Alert variant="destructive" className="mt-2">
+                      <AlertDescription className="text-xs">{syncCheckMessage}</AlertDescription>
+                    </Alert>
+                  )}
+                  <RadioGroup
+                    className="flex flex-wrap gap-4"
+                    value={syncScope}
+                    onValueChange={(v) => setSyncScope(v as "selected" | "all")}
+                  >
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem value="selected" id="sync-selected-flock" />
+                      <Label htmlFor="sync-selected-flock" className="text-sm">
+                        Selected flock
+                      </Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem value="all" id="sync-all-flocks" />
+                      <Label htmlFor="sync-all-flocks" className="text-sm">
+                        All flocks
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+                <Button
+                  onClick={handleSyncTodaysTotals}
+                  disabled={syncingToday || eggProductions.length === 0 || (syncScope === "selected" && selectedFlock === "ALL")}
+                  className="sm:self-start"
+                >
+                  {syncingToday ? "Syncing..." : "Sync Today's Total"}
+                </Button>
+              </CardContent>
+            </Card>
 
             {/* Error Alert */}
             {error && (
@@ -503,16 +853,19 @@ export default function EggProductionsPage() {
                         <Collapsible key={prod.productionId} className={cn("group rounded-xl border shadow-sm overflow-hidden", idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}>
                           <div className={cn("p-4 active:bg-slate-50/80 transition-colors", idx % 2 === 1 && "bg-slate-50/20")}>
                             <CollapsibleTrigger asChild>
-                              <div className="flex items-start justify-between gap-3 cursor-pointer">
-                                <div className="min-w-0 flex-1">
+                              <div className="relative cursor-pointer">
+                                <div className="min-w-0 flex-1 pr-8">
                                   <div className="flex items-center gap-2">
                                     <span className="font-semibold text-slate-900">{formatDateShort(prod.productionDate)}</span>
                                     <span className="text-slate-500">•</span>
                                     <span className="text-slate-600 truncate">{getFlockName(prod)}</span>
                                   </div>
-                                  <div className="mt-1 flex items-baseline gap-3">
+                                  <div className="mt-1 flex items-baseline gap-3 flex-wrap">
                                     <span className="text-xl font-bold text-emerald-600">{prod.totalProduction}</span>
                                     <span className="text-xs text-slate-500">eggs</span>
+                                    <span className="text-xs font-medium text-violet-700 bg-violet-50 border border-violet-200 rounded px-1.5 py-0.5">
+                                      {formatEggGradeLabel(prod.eggGrade)}
+                                    </span>
                                     {(prod.brokenEggs ?? 0) > 0 && (
                                       <>
                                         <span className="text-slate-400">•</span>
@@ -521,7 +874,7 @@ export default function EggProductionsPage() {
                                     )}
                                   </div>
                                 </div>
-                                <ChevronDown className="h-5 w-5 text-slate-400 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
+                                <ChevronDown className="absolute right-0 top-0 h-5 w-5 text-slate-400 transition-transform group-data-[state=open]:rotate-180" />
                               </div>
                             </CollapsibleTrigger>
                             <CollapsibleContent>
@@ -531,6 +884,10 @@ export default function EggProductionsPage() {
                                   <div><span className="text-slate-500">12pm</span> <span className="font-medium text-orange-700">{prod.production12PM ?? '-'}</span></div>
                                   <div><span className="text-slate-500">4pm</span> <span className="font-medium text-purple-700">{prod.production4PM ?? '-'}</span></div>
                                   <div><span className="text-slate-500">Broken</span> <span className="font-medium text-red-600">{prod.brokenEggs ?? 0}</span></div>
+                                  <div className="col-span-2">
+                                    <span className="text-slate-500">Size</span>{" "}
+                                    <span className="font-medium text-violet-800">{formatEggGradeLabel(prod.eggGrade)}</span>
+                                  </div>
                                 </div>
                                 <div className="flex gap-2 pt-2">
                                   <Link href={`/egg-production/${prod.productionId}`} prefetch={true} className="flex-1">
@@ -567,11 +924,12 @@ export default function EggProductionsPage() {
                         </Button>
                       </div>
                     )}
-                    <Table className={cn("w-full", !isMobile && "min-w-[600px]")}>
+                    <Table className={cn("w-full", !isMobile && "min-w-[700px]")}>
                       <TableHeader>
                         <TableRow className="border-b">
                           <SortableHeader label="Date" sortKey="productionDate" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[100px]", isMobile && "sticky-col-date bg-slate-50")} />
                           <SortableHeader label="Flock" sortKey="flockId" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[120px]" />
+                          <SortableHeader label="Size" sortKey="eggGrade" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[88px] hidden sm:table-cell" />
                           <SortableHeader label="9 AM" sortKey="production9AM" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[80px] hidden lg:table-cell" />
                           <SortableHeader label="12 PM" sortKey="production12PM" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[80px] hidden lg:table-cell" />
                           <SortableHeader label="4 PM" sortKey="production4PM" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[80px] hidden lg:table-cell" />
@@ -587,6 +945,9 @@ export default function EggProductionsPage() {
                               {isMobile ? formatDateShort(prod.productionDate) : new Date(prod.productionDate).toLocaleDateString()}
                             </TableCell>
                             <TableCell>{getFlockName(prod)}</TableCell>
+                            <TableCell className="hidden sm:table-cell text-violet-900 font-medium">
+                              {formatEggGradeLabel(prod.eggGrade)}
+                            </TableCell>
                             <TableCell className="hidden lg:table-cell">{prod.production9AM ?? '-'}</TableCell>
                             <TableCell className="hidden lg:table-cell">{prod.production12PM ?? '-'}</TableCell>
                             <TableCell className="hidden lg:table-cell">{prod.production4PM ?? '-'}</TableCell>
@@ -614,7 +975,7 @@ export default function EggProductionsPage() {
                           </TableRow>
                         ))}
                          <TableRow className="bg-slate-50 font-semibold">
-                            <TableCell colSpan={2} className={cn("text-right", isMobile && "sticky-col-date bg-slate-50")}>Total</TableCell>
+                            <TableCell colSpan={3} className={cn("text-right", isMobile && "sticky-col-date bg-slate-50")}>Total</TableCell>
                             <TableCell className="hidden lg:table-cell"></TableCell>
                             <TableCell className="hidden lg:table-cell"></TableCell>
                             <TableCell className="hidden lg:table-cell"></TableCell>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -39,11 +39,16 @@ import { getHouses, type House } from "@/lib/api/house"
 import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
 import { getProductionRecords, type ProductionRecord } from "@/lib/api/production-record"
 import { getBirdsLeftForFlockFromRecords } from "@/lib/utils/production-records"
+import {
+  flockCountsTowardBirdTotals,
+  getFlockLifecycleStatus,
+  shouldAutoActivateFlock,
+} from "@/lib/utils/flock-eligibility"
+import { clearFlocksCache } from "@/lib/utils/flock-utils"
 import { getUserContext } from "@/lib/utils/user-context"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useToast } from "@/hooks/use-toast"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { useMemo } from "react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { formatDateShort } from "@/lib/utils"
 
@@ -102,8 +107,10 @@ export default function FlocksPage() {
 
   // Map of flockId -> noOfBirdsLeft from the most recent production record
   const [flockBirdsLeftMap, setFlockBirdsLeftMap] = useState<Record<number, number>>({})
-  // Cumulative mortality across ALL production records (for accurate totals)
-  const [cumulativeMortality, setCumulativeMortality] = useState(0)
+  /** Loaded once; mortality for the summary is derived in useMemo so it matches the same flocks as the other two cards. */
+  const [productionRecordsForFarm, setProductionRecordsForFarm] = useState<ProductionRecord[]>([])
+  const autoActivateAttemptedRef = useRef<Set<number>>(new Set())
+  const autoActivateSyncInFlightRef = useRef(false)
 
   // Create dialog state
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
@@ -150,6 +157,51 @@ export default function FlocksPage() {
     }
   }, [])
 
+  // When start date is reached, activate flocks that were only waiting for placement (safe reasons).
+  useEffect(() => {
+    if (loading || flocks.length === 0 || autoActivateSyncInFlightRef.current) return
+    const { userId, farmId } = getUserContext()
+    if (!userId || !farmId) return
+
+    const candidates = flocks.filter(
+      (f) => shouldAutoActivateFlock(f) && !autoActivateAttemptedRef.current.has(f.flockId)
+    )
+    if (candidates.length === 0) return
+
+    autoActivateSyncInFlightRef.current = true
+    void (async () => {
+      try {
+        for (const f of candidates) {
+          autoActivateAttemptedRef.current.add(f.flockId)
+          const payload: FlockInput = {
+            farmId: f.farmId,
+            userId: f.userId,
+            name: f.name,
+            startDate: f.startDate,
+            breed: f.breed,
+            quantity: f.quantity,
+            active: true,
+            houseId: f.houseId ?? null,
+            batchId: f.batchId ?? 0,
+            inactivationReason: "",
+            otherReason: f.otherReason ?? "",
+            notes: f.notes ?? "",
+          }
+          const res = await updateFlock(f.flockId, payload)
+          if (!res.success) {
+            autoActivateAttemptedRef.current.delete(f.flockId)
+            console.warn("[FlocksPage] Auto-activate failed", f.flockId, res.message)
+          }
+        }
+        clearFlocksCache()
+        await loadFlocks()
+        await loadProductionBirdsLeft()
+      } finally {
+        autoActivateSyncInFlightRef.current = false
+      }
+    })()
+  }, [loading, flocks])
+
   const loadFilterData = async () => {
     const { userId, farmId } = getUserContext()
     if (!userId || !farmId) return
@@ -182,13 +234,15 @@ export default function FlocksPage() {
           map[fid] = getBirdsLeftForFlockFromRecords(res.data, fid)
         })
 
-        const totalMort = res.data.reduce((s, r) => s + (r.mortality ?? 0), 0)
         console.log("[FlocksPage] Birds left map from production records:", map)
         setFlockBirdsLeftMap(map)
-        setCumulativeMortality(totalMort)
+        setProductionRecordsForFarm(res.data)
+      } else {
+        setProductionRecordsForFarm([])
       }
     } catch (e) {
       console.error("[FlocksPage] Error loading production records for birds left:", e)
+      setProductionRecordsForFarm([])
     }
   }
 
@@ -610,8 +664,11 @@ export default function FlocksPage() {
     }
 
     if (selectedStatus !== "ALL") {
-      const isActive = selectedStatus === "active"
-      currentList = currentList.filter(flock => flock.active === isActive)
+      const wantActive = selectedStatus === "active"
+      currentList = currentList.filter((flock) => {
+        const life = getFlockLifecycleStatus(flock)
+        return wantActive ? life === "active" : life !== "active"
+      })
     }
 
     if (selectedHouseId !== "ALL") {
@@ -726,26 +783,67 @@ export default function FlocksPage() {
   }
 
   const hasInactiveFlocks = useMemo(() => {
-    return flocks.some(flock => flock.active === false)
+    return flocks.some((flock) => getFlockLifecycleStatus(flock) !== "active")
   }, [flocks])
 
-  // Overall Total Birds: sum of Quantity from flock table for each flock
+  // Placed quantity only for flocks past start date and active (same rule as birds-left total)
   const overallTotalBirds = useMemo(() => {
-    return flocks.reduce((sum, flock) => sum + (flock.quantity || 0), 0)
+    return flocks
+      .filter((f) => flockCountsTowardBirdTotals(f))
+      .reduce((sum, flock) => sum + (flock.quantity || 0), 0)
   }, [flocks])
 
-  // Total Mortality: cumulative mortality from ALL production records
-  const totalMortality = cumulativeMortality
-
-  // Total birds left = sum of per-flock "current" birds (latest production noOfBirdsLeft, else placed quantity)
-  const totalBirdsLeft = useMemo(() => {
-    return flocks.reduce((sum, flock) => {
-      if (flock.flockId in flockBirdsLeftMap) {
-        return sum + flockBirdsLeftMap[flock.flockId]
-      }
-      return sum + (flock.quantity || 0)
+  // Same flock set as overallTotalBirds / totalBirdsLeft (not farm-wide), so the three cards are comparable.
+  const totalMortality = useMemo(() => {
+    const eligibleIds = new Set(
+      flocks.filter((f) => flockCountsTowardBirdTotals(f)).map((f) => f.flockId)
+    )
+    return productionRecordsForFarm.reduce((sum, r) => {
+      const fid = r.flockId
+      if (fid == null || !eligibleIds.has(fid)) return sum
+      return sum + (r.mortality ?? 0)
     }, 0)
+  }, [flocks, productionRecordsForFarm])
+
+  const totalMortalityAllRowsFarm = useMemo(
+    () => productionRecordsForFarm.reduce((sum, r) => sum + (Number(r.mortality) || 0), 0),
+    [productionRecordsForFarm],
+  )
+
+  // Total birds left = same flocks as overallTotalBirds; per-flock current count from production or placed qty
+  const totalBirdsLeft = useMemo(() => {
+    return flocks
+      .filter((f) => flockCountsTowardBirdTotals(f))
+      .reduce((sum, flock) => {
+        if (flock.flockId in flockBirdsLeftMap) {
+          return sum + flockBirdsLeftMap[flock.flockId]
+        }
+        return sum + (flock.quantity || 0)
+      }, 0)
   }, [flocks, flockBirdsLeftMap])
+
+  const flockLifecycleBadge = (flock: Flock) => {
+    const life = getFlockLifecycleStatus(flock)
+    if (life === "pending") {
+      return (
+        <Badge variant="secondary" className="bg-amber-100 text-amber-900 border border-amber-200">
+          Pending
+        </Badge>
+      )
+    }
+    if (life === "active") {
+      return (
+        <Badge variant="default" className="bg-green-100 text-green-800">
+          Active
+        </Badge>
+      )
+    }
+    return (
+      <Badge variant="secondary" className="bg-gray-100 text-gray-800">
+        Inactive
+      </Badge>
+    )
+  }
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -1003,6 +1101,97 @@ export default function FlocksPage() {
               </Alert>
             )}
 
+            {/* Farm totals — same placement as Production Records metrics */}
+            {!loading && flocks.length > 0 && (
+              <div
+                className={cn(
+                  "grid gap-3",
+                  isMobile ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-3"
+                )}
+              >
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                  <div
+                    className={cn(
+                      "flex gap-3",
+                      isMobile ? "flex-col items-stretch" : "items-center justify-between"
+                    )}
+                  >
+                    <div className="flex items-start gap-2 min-w-0">
+                      <Bird className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-slate-900">Overall Total Birds</div>
+                        <p className="text-xs text-slate-500 mt-0.5">Birds placed when each flock was created.</p>
+                      </div>
+                    </div>
+                    <div
+                      className={cn(
+                        "font-bold text-emerald-600 tabular-nums leading-tight shrink-0",
+                        isMobile ? "text-2xl" : "text-2xl sm:text-3xl sm:text-right"
+                      )}
+                    >
+                      {overallTotalBirds.toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                  <div
+                    className={cn(
+                      "flex gap-3",
+                      isMobile ? "flex-col items-stretch" : "items-center justify-between"
+                    )}
+                  >
+                    <div className="flex items-start gap-2 min-w-0">
+                      <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-slate-900">Total Deaths</div>
+                        <p className="text-xs text-slate-500 mt-0.5">Deaths on logs for active flocks; all days on the side.</p>
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div
+                        className={cn(
+                          "font-bold text-red-600 tabular-nums leading-tight",
+                          isMobile ? "text-2xl" : "text-2xl sm:text-3xl",
+                        )}
+                      >
+                        {totalMortality.toLocaleString()}
+                      </div>
+                      <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wide mt-0.5">All logs</div>
+                      <div className="text-sm font-semibold text-slate-800 tabular-nums">
+                        {totalMortalityAllRowsFarm.toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                  <div
+                    className={cn(
+                      "flex gap-3",
+                      isMobile ? "flex-col items-stretch" : "items-center justify-between"
+                    )}
+                  >
+                    <div className="flex items-start gap-2 min-w-0">
+                      <Users className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-slate-900">Total Birds Left</div>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Latest &ldquo;birds left&rdquo; per flock from logs, or placed if no log yet.
+                        </p>
+                      </div>
+                    </div>
+                    <div
+                      className={cn(
+                        "font-bold text-blue-700 tabular-nums leading-tight shrink-0",
+                        isMobile ? "text-2xl" : "text-2xl sm:text-3xl sm:text-right"
+                      )}
+                    >
+                      {totalBirdsLeft.toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Content */}
             {loading ? (
               <Card className="bg-white">
@@ -1037,9 +1226,7 @@ export default function FlocksPage() {
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <span className="font-semibold text-slate-900">{flock.name}</span>
-                                    <Badge variant={flock.active ? "default" : "secondary"} className={flock.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
-                                      {flock.active ? "Active" : "Inactive"}
-                                    </Badge>
+                                    {flockLifecycleBadge(flock)}
                                   </div>
                                   <div className="mt-1 flex items-baseline gap-3">
                                     <span className="text-lg font-bold text-emerald-600">{getCurrentBirds(flock).toLocaleString()}</span>
@@ -1164,29 +1351,29 @@ export default function FlocksPage() {
                               <div className="flex flex-col">
                                 <span>{flock.name}</span>
                                 <div className="flex items-center gap-2 text-xs text-slate-500 sm:hidden mt-1">
-                                  <Badge 
-                                    variant={flock.active ? "default" : "secondary"}
-                                    className={flock.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}
-                                  >
-                                    {flock.active ? "Active" : "Inactive"}
-                                  </Badge>
+                                  {flockLifecycleBadge(flock)}
                                 </div>
                               </div>
                             </TableCell>
                             <TableCell className="hidden sm:table-cell">
                               <TooltipProvider>
                                 <Tooltip>
-                                  <TooltipTrigger>
-                                    <Badge 
-                                      variant={flock.active ? "default" : "secondary"}
-                                      className={flock.active ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}
-                                    >
-                                      {flock.active ? "Active" : "Inactive"}
-                                    </Badge>
+                                  <TooltipTrigger asChild>
+                                    <span className="inline-flex">{flockLifecycleBadge(flock)}</span>
                                   </TooltipTrigger>
-                                  {!flock.active && (
+                                  {getFlockLifecycleStatus(flock) === "pending" && (
                                     <TooltipContent>
-                                      <p>{flock.inactivationReason}{flock.inactivationReason === 'other' && `: ${flock.otherReason}`}</p>
+                                      <p>Start date not reached — not counted in farm bird totals yet.</p>
+                                    </TooltipContent>
+                                  )}
+                                  {getFlockLifecycleStatus(flock) === "inactive" && flock.inactivationReason && (
+                                    <TooltipContent>
+                                      <p>
+                                        {flock.inactivationReason}
+                                        {flock.inactivationReason === "other" && flock.otherReason
+                                          ? `: ${flock.otherReason}`
+                                          : ""}
+                                      </p>
                                     </TooltipContent>
                                   )}
                                 </Tooltip>
@@ -1266,62 +1453,6 @@ export default function FlocksPage() {
               </Card>
             )}
 
-            {/* Flock Totals Summary */}
-            {!loading && flocks.length > 0 && (
-              <div className={cn("grid gap-3", isMobile ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-3")}>
-                <Card className="bg-white">
-                  <CardContent className={cn("p-4", isMobile && "p-3")}>
-                    <div className={cn("flex gap-3", isMobile ? "flex-col items-start" : "items-center justify-between")}>
-                      <div className="flex items-center gap-2">
-                        <Bird className="w-5 h-5 text-emerald-600" />
-                        <div>
-                          <span className="text-sm font-semibold text-slate-900">Overall Total Birds</span>
-                          <span className="text-xs text-slate-500 block">Sum of initial flock quantities</span>
-                        </div>
-                      </div>
-                      <span className={cn("font-bold text-emerald-700 leading-tight", isMobile ? "text-3xl" : "text-2xl")}>
-                        {overallTotalBirds.toLocaleString()}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="bg-white">
-                  <CardContent className={cn("p-4", isMobile && "p-3")}>
-                    <div className={cn("flex gap-3", isMobile ? "flex-col items-start" : "items-center justify-between")}>
-                      <div className="flex items-center gap-2">
-                        <AlertCircle className="w-5 h-5 text-red-600" />
-                        <div>
-                          <span className="text-sm font-semibold text-slate-900">Total Mortality</span>
-                          <span className="text-xs text-slate-500 block">Cumulative losses across all flocks</span>
-                        </div>
-                      </div>
-                      <span className={cn("font-bold text-red-600 leading-tight", isMobile ? "text-3xl" : "text-2xl")}>
-                        {totalMortality.toLocaleString()}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="bg-white">
-                  <CardContent className={cn("p-4", isMobile && "p-3")}>
-                    <div className={cn("flex gap-3", isMobile ? "flex-col items-start" : "items-center justify-between")}>
-                      <div className="flex items-center gap-2">
-                        <Users className="w-5 h-5 text-blue-600" />
-                        <div>
-                          <span className="text-sm font-semibold text-slate-900">Total Birds Left</span>
-                          <span className="text-xs text-slate-500 block">
-                            Sum of latest production &ldquo;birds left&rdquo; per flock, or placed quantity if none yet
-                          </span>
-                        </div>
-                      </div>
-                      <span className={cn("font-bold text-blue-700 leading-tight", isMobile ? "text-3xl" : "text-2xl")}>
-                        {totalBirdsLeft.toLocaleString()}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-            
             {/* Pagination */}
             {!loading && filteredFlocks.length > 0 && totalPages > 1 && (
               <div className="flex items-center justify-between mt-6">

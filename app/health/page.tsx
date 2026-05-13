@@ -21,6 +21,7 @@ import { getHouses, type House } from "@/lib/api/house"
 import { getUserContext } from "@/lib/utils/user-context"
 import { useToast } from "@/hooks/use-toast"
 import { getHealthRecords, createHealthRecord, updateHealthRecord, deleteHealthRecord, type HealthRecord, type HealthRecordInput } from "@/lib/api/health"
+import { getSupplies } from "@/lib/api/supply"
 import { format } from "date-fns"
 import { formatDateShort, cn } from "@/lib/utils"
 import { toastFormGuide } from "@/lib/utils/validation-toast"
@@ -30,6 +31,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { isMedicationPhotoReferenceRecord } from "@/lib/utils/medication-photo"
 
 type HealthType = "flock" | "house" | "inventory"
 
@@ -106,10 +108,11 @@ export default function HealthPage() {
     }
 
     try {
-      const [flocksRes, housesRes, healthRes] = await Promise.all([
+      const [flocksRes, housesRes, healthRes, suppliesRes] = await Promise.all([
         getFlocks(userId, farmId),
         getHouses(userId, farmId),
         getHealthRecords(userId, farmId),
+        getSupplies(userId, farmId),
       ])
 
       if (flocksRes.success && flocksRes.data) {
@@ -120,14 +123,15 @@ export default function HealthPage() {
         setHouses(housesRes.data)
       }
 
-      // Load inventory items from localStorage (since there's no API yet)
-      try {
-        const stored = localStorage.getItem("inventory_items")
-        if (stored) {
-          setInventoryItems(JSON.parse(stored))
-        }
-      } catch (e) {
-        console.warn("Failed to load inventory items from localStorage")
+      if (suppliesRes.success && suppliesRes.data?.length) {
+        setInventoryItems(
+          suppliesRes.data.map((s) => ({
+            id: s.id,
+            name: s.name || `Item #${s.id}`,
+          }))
+        )
+      } else {
+        setInventoryItems([])
       }
 
       if (healthRes.success && healthRes.data) {
@@ -141,6 +145,7 @@ export default function HealthPage() {
           medication: hr.medication || hr.Medication,
           waterConsumption: hr.waterConsumption || hr.WaterConsumption,
           notes: hr.notes || hr.Notes,
+          hasAttachmentImage: Boolean(hr.hasAttachmentImage ?? hr.HasAttachmentImage),
         })))
       } else if (!healthRes.success) {
         setError(healthRes.message || "Could not load health records. If this persists, confirm the API and database are up to date.")
@@ -167,11 +172,29 @@ export default function HealthPage() {
 
     // Filter by active tab type
     if (activeTab === "flock") {
-      list = list.filter(r => r.flockId != null && r.houseId == null && r.itemId == null)
+      list = list.filter(
+        (r) =>
+          r.flockId != null &&
+          r.houseId == null &&
+          r.itemId == null &&
+          !isMedicationPhotoReferenceRecord(r)
+      )
     } else if (activeTab === "house") {
-      list = list.filter(r => r.houseId != null && r.flockId == null && r.itemId == null)
+      list = list.filter(
+        (r) =>
+          r.houseId != null &&
+          r.flockId == null &&
+          r.itemId == null &&
+          !isMedicationPhotoReferenceRecord(r)
+      )
     } else if (activeTab === "inventory") {
-      list = list.filter(r => r.itemId != null && r.flockId == null && r.houseId == null)
+      list = list.filter(
+        (r) =>
+          r.itemId != null &&
+          r.flockId == null &&
+          r.houseId == null &&
+          !isMedicationPhotoReferenceRecord(r)
+      )
     }
 
     if (search) {
@@ -247,13 +270,20 @@ export default function HealthPage() {
 
   /** Records that belong to the current tab type (before search / date / dropdown filters). */
   const tabBaseRecords = useMemo(() => {
+    const notPhoto = (r: HealthRecord) => !isMedicationPhotoReferenceRecord(r)
     if (activeTab === "flock") {
-      return healthRecords.filter((r) => r.flockId != null && r.houseId == null && r.itemId == null)
+      return healthRecords.filter(
+        (r) => r.flockId != null && r.houseId == null && r.itemId == null && notPhoto(r)
+      )
     }
     if (activeTab === "house") {
-      return healthRecords.filter((r) => r.houseId != null && r.flockId == null && r.itemId == null)
+      return healthRecords.filter(
+        (r) => r.houseId != null && r.flockId == null && r.itemId == null && notPhoto(r)
+      )
     }
-    return healthRecords.filter((r) => r.itemId != null && r.flockId == null && r.houseId == null)
+    return healthRecords.filter(
+      (r) => r.itemId != null && r.flockId == null && r.houseId == null && notPhoto(r)
+    )
   }, [healthRecords, activeTab])
 
   const listCopy = useMemo(() => {

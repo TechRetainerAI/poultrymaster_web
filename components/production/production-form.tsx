@@ -283,7 +283,7 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
       const calculatedLeft = numBirds - mortality
 
       if (mortality > numBirds) {
-        const msg = `Mortality (${mortality}) cannot be greater than number of birds (${numBirds})`
+        const msg = `Deaths (${mortality}) cannot be greater than number of birds (${numBirds})`
         setError(msg)
         toastFormGuide(toast, msg, "Double-check numbers")
         setSaving(false)
@@ -291,7 +291,7 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
       }
 
       if (calculatedLeft < 0) {
-        const msg = "Birds left cannot be negative. Check your mortality and number of birds."
+        const msg = "Birds left cannot be negative. Check your deaths and number of birds."
         setError(msg)
         toastFormGuide(toast, msg, "Double-check numbers")
         setSaving(false)
@@ -574,7 +574,7 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
               </div>
 
               <div className="col-span-12 md:col-span-6 space-y-2">
-                <Label>Egg grade</Label>
+                <Label>Egg size</Label>
                 <Select
                   value={form.eggGrade}
                   onValueChange={(v) => setForm({ ...form, eggGrade: v })}
@@ -590,7 +590,7 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-slate-500">Egg size for this day's eggs (e.g. Small, Medium).</p>
+                <p className="text-xs text-slate-500">Egg size (Small, Medium, Large, X-Large, Jumbo).</p>
               </div>
             </div>
           </div>
@@ -611,7 +611,8 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
                 />
               </div>
               <div className="col-span-12 md:col-span-4 space-y-2">
-                <Label>Mortality</Label>
+                <Label>Deaths</Label>
+                <p className="text-xs text-muted-foreground -mt-1 mb-1">Birds lost on this day.</p>
                 <Input
                   type="number"
                   min="0"

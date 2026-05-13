@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Egg } from "lucide-react"
 import { getEggProduction, updateEggProduction, type EggProductionInput } from "@/lib/api/egg-production"
+import { EGG_GRADE_OPTIONS, EGG_GRADE_SELECT_VALUE_NONE, eggGradeFromApi, eggGradeToApi } from "@/lib/constants/egg-grade"
 import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
 import { getUserContext } from "@/lib/utils/user-context"
 import { getProductionRecords, createProductionRecord, updateProductionRecord, type ProductionRecordInput } from "@/lib/api/production-record"
@@ -37,6 +38,7 @@ export default function EditEggProductionPage() {
     production4PM: 0,
     brokenEggs: 0,
     notes: "",
+    eggGrade: EGG_GRADE_SELECT_VALUE_NONE,
   })
 
   // Crate-based egg entry state for each time slot
@@ -130,7 +132,8 @@ export default function EditEggProductionPage() {
       setFormData({
         ...eggProd,
         flockId: matchedFlockId,
-        productionDate: eggProd.productionDate.split('T')[0],
+        productionDate: eggProd.productionDate.split("T")[0],
+        eggGrade: eggGradeFromApi(eggProd.eggGrade),
       })
       // Decompose stored totals into crates + loose
       const m = eggProd.production9AM ?? 0
@@ -184,7 +187,14 @@ export default function EditEggProductionPage() {
     setSaving(true)
     setError("")
 
-    const result = await updateEggProduction(parseInt(productionId), { ...formData, eggCount: totalProduction, totalProduction, farmId, userId })
+    const result = await updateEggProduction(parseInt(productionId), {
+      ...formData,
+      eggCount: totalProduction,
+      totalProduction,
+      farmId,
+      userId,
+      eggGrade: eggGradeToApi((formData.eggGrade as string) ?? EGG_GRADE_SELECT_VALUE_NONE),
+    })
     
     if (result.success) {
       // Sync to production records
@@ -208,6 +218,7 @@ export default function EditEggProductionPage() {
               production12PM: formData.production12PM || 0,
               production4PM: formData.production4PM || 0,
               totalProduction: totalProduction,
+              eggGrade: eggGradeToApi((formData.eggGrade as string) ?? EGG_GRADE_SELECT_VALUE_NONE),
             }
             await updateProductionRecord(matchingRecord.id, updateData)
           }
@@ -347,6 +358,29 @@ export default function EditEggProductionPage() {
                       onChange={(e) => handleInputChange("brokenEggs", parseInt(e.target.value) || 0)}
                       disabled={saving}
                     />
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Egg size (slot / sort)</Label>
+                    <Select
+                      value={(formData.eggGrade as string) ?? EGG_GRADE_SELECT_VALUE_NONE}
+                      onValueChange={(v) => handleInputChange("eggGrade", v)}
+                      disabled={saving}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select grade" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {EGG_GRADE_OPTIONS.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>
+                            {o.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-slate-500">
+                      One grade per record. For another grade the same day, add a separate production row.
+                    </p>
                   </div>
                 </div>
 

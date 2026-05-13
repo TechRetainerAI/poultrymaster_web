@@ -1,5 +1,6 @@
 import type { ProductionRecord } from "@/lib/api/production-record"
 import type { Flock } from "@/lib/api/flock"
+import { flockCountsTowardBirdTotals } from "@/lib/utils/flock-eligibility"
 
 function toNumber(value: unknown): number {
   const n = Number(value)
@@ -84,16 +85,16 @@ export function sumLatestBirdsLeftByFlock(
 }
 
 /**
- * Birds left used for billing and farm-wide totals: for each **active** flock, use
- * `noOfBirdsLeft` from the latest production row, or placed `quantity` when there is no
- * production yet (same rule as the Flocks table `getCurrentBirds`).
+ * Birds left used for billing and farm-wide totals: for each flock that is **active**
+ * and whose **start date has been reached**, use `noOfBirdsLeft` from the latest production row,
+ * or placed `quantity` when there is no production yet (same rule as the Flocks table `getCurrentBirds`).
  */
 export function sumActiveFlocksBirdsLeft(
   flocks: Flock[],
   records: Array<ProductionRecord | Record<string, unknown>>,
 ): number {
   return flocks
-    .filter((f) => f.active)
+    .filter((f) => flockCountsTowardBirdTotals(f))
     .reduce((sum, flock) => {
       const latest = getLatestRecordForFlock(records, flock.flockId)
       if (!latest) return sum + Math.max(0, Number(flock.quantity) || 0)

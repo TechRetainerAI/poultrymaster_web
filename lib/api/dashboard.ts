@@ -1,4 +1,5 @@
 import { farmApiUrl, getAuthHeaders } from "./config"
+import { flockRowCountsTowardBirdTotals } from "@/lib/utils/flock-eligibility"
 
 export interface DashboardSummary {
   totalCustomers: number
@@ -125,7 +126,9 @@ async function getRealActiveFlocksCount(userId: string, farmId: string): Promise
 
     if (response.ok) {
       const data = await response.json()
-      const activeFlocks = data.filter((flock: any) => flock.active === true).length
+      const activeFlocks = data.filter((flock: Record<string, unknown>) =>
+        flockRowCountsTowardBirdTotals(flock)
+      ).length
       console.log("[v0] Active flocks count from API:", activeFlocks)
       return activeFlocks
     }

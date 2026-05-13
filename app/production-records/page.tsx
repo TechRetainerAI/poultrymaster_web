@@ -40,8 +40,13 @@ import { toLocalDateKey } from "@/lib/utils/date-key"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
-import { getBirdsLeftForFlockFromRecords, sumLatestBirdsByFlock, sumLatestBirdsLeftByFlock } from "@/lib/utils/production-records"
-import { formatEggGradeLabel } from "@/lib/constants/egg-grade"
+import {
+  sumLatestBirdsByFlock,
+  sumLatestBirdsLeftByFlock,
+  sumActiveFlocksBirdsLeft,
+} from "@/lib/utils/production-records"
+import { flockCountsTowardBirdTotals } from "@/lib/utils/flock-eligibility"
+import { eggGradeFromApi, formatEggGradeLabel } from "@/lib/constants/egg-grade"
 
 export default function ProductionRecordsPage() {
   const router = useRouter()
@@ -184,6 +189,7 @@ export default function ProductionRecordsPage() {
         r.flockName?.toLowerCase().includes(q) ||
         r.medication?.toLowerCase().includes(q) ||
         String(r.eggGrade ?? "").toLowerCase().includes(q) ||
+        formatEggGradeLabel((r as any).eggGrade).toLowerCase().includes(q) ||
         new Date(r.date).toLocaleDateString().toLowerCase().includes(q)
       ))
     }
@@ -197,42 +203,45 @@ export default function ProductionRecordsPage() {
     return list
   }, [records, search, dateFrom, dateTo, selectedFlockId, selectedMonth, selectedYear])
 
+  /** Active + start date reached — same flock rule as Flocks; deaths only count for these flocks. */
+  const eligibleFlockIds = useMemo(
+    () => new Set(flocks.filter((f) => flockCountsTowardBirdTotals(f)).map((f) => f.flockId)),
+    [flocks],
+  )
+
   // Summaries
   const totalEggs = useMemo(() => filtered.reduce((s, r) => s + (Number(r.totalProduction) || 0), 0), [filtered])
   const totalFeed = useMemo(() => filtered.reduce((s, r) => s + (Number(r.feedKg) || 0), 0), [filtered])
-  const totalDeaths = useMemo(() => filtered.reduce((s, r) => s + (Number(r.mortality) || 0), 0), [filtered])
+  const totalDeaths = useMemo(() => {
+    return filtered.reduce((sum, r) => {
+      const fid = r.flockId
+      if (fid == null || !eligibleFlockIds.has(fid)) return sum
+      return sum + (Number(r.mortality) || 0)
+    }, 0)
+  }, [filtered, eligibleFlockIds])
+  const totalDeathsAllRowsFarmWide = useMemo(
+    () => records.reduce((sum, r) => sum + (Number(r.mortality) || 0), 0),
+    [records],
+  )
   const total9AM = useMemo(() => filtered.reduce((s, r) => s + (Number(r.production9AM) || 0), 0), [filtered])
   const total12PM = useMemo(() => filtered.reduce((s, r) => s + (Number(r.production12PM) || 0), 0), [filtered])
   const total4PM = useMemo(() => filtered.reduce((s, r) => s + (Number(r.production4PM) || 0), 0), [filtered])
   const totalBrokens = useMemo(() => filtered.reduce((s, r) => s + (Number((r as any).brokenEggs) || 0), 0), [filtered])
 
-  // Headline bird totals: keep this aligned with Flocks page summary.
-  const flocksForBirdHeadlines = useMemo(() => {
-    if (selectedFlockId === "ALL") return flocks
-    return flocks.filter((f) => String(f.flockId) === selectedFlockId)
-  }, [flocks, selectedFlockId])
-
-  const headlineTotalBirds = useMemo(
-    () => flocksForBirdHeadlines.reduce((sum, flock) => sum + (Number(flock.quantity) || 0), 0),
-    [flocksForBirdHeadlines],
+  // Farm-wide bird headlines: same definitions as the Flocks page (eligible flocks only; ignores table date/search filters).
+  const farmOverallTotalBirds = useMemo(
+    () =>
+      flocks
+        .filter((f) => flockCountsTowardBirdTotals(f))
+        .reduce((sum, flock) => sum + (flock.quantity || 0), 0),
+    [flocks],
   )
 
-  const headlineBirdsLeftDisplay = useMemo(() => {
-    return flocksForBirdHeadlines.reduce((sum, flock) => {
-      const flockId = flock.flockId
-      const hasRecord = records.some((r) => Number((r as any).flockId) === flockId)
-      if (!hasRecord) return sum + (Number(flock.quantity) || 0)
-      return sum + getBirdsLeftForFlockFromRecords(records, flockId)
-    }, 0)
-  }, [flocksForBirdHeadlines, records])
+  const farmTotalBirdsLeft = useMemo(() => sumActiveFlocksBirdsLeft(flocks, records), [flocks, records])
 
-  /** Table footer "Totals" row: same rules but only over the filtered set (matches eggs/deaths in view). */
   const footerTotalBirds = useMemo(() => sumLatestBirdsByFlock(filtered), [filtered])
   const footerTotalBirdsLeft = useMemo(() => sumLatestBirdsLeftByFlock(filtered), [filtered])
-  const footerBirdsLeftDisplay = useMemo(
-    () => footerTotalBirdsLeft,
-    [footerTotalBirdsLeft],
-  )
+  const footerBirdsLeftDisplay = footerTotalBirdsLeft
   const avgEggsPerRecord = useMemo(() => filtered.length ? Math.round(totalEggs / filtered.length) : 0, [filtered, totalEggs])
   const EGGS_PER_CRATE = 30
   const totalEggsCrates = Math.floor(totalEggs / EGGS_PER_CRATE)
@@ -250,7 +259,7 @@ export default function ProductionRecordsPage() {
         case "production4PM": return Number(item.production4PM) || 0
         case "brokenEggs": return Number(item.brokenEggs) || 0
         case "totalProduction": return Number(item.totalProduction) || 0
-        case "eggGrade": return String(item.eggGrade ?? "").toLowerCase()
+        case "eggGrade": return eggGradeFromApi(item.eggGrade).toLowerCase()
         case "eggPercent": {
           const b = Number(item.noOfBirds) || 0
           const t = Number(item.totalProduction) || 0
@@ -363,7 +372,7 @@ export default function ProductionRecordsPage() {
 
   const exportCsv = () => {
     const headers = [
-      "Date","FlockId","Age","9am","12pm","4pm","Total","Grade","EggPercent","FeedKg","Birds","Deaths","Left","Medication"
+      "Date","FlockId","Age","9am","12pm","4pm","Total","Size","EggPercent","FeedKg","Birds","Deaths","Left","Medication"
     ]
     const rows = filtered.map((r: any) => [
       new Date(r.date).toLocaleDateString(),
@@ -412,13 +421,13 @@ export default function ProductionRecordsPage() {
     // Summary row
     doc.setFontSize(9)
     doc.text(
-      `Total Eggs: ${totalEggs.toLocaleString()} (${totalEggsCrates} crates + ${totalEggsPieces} pcs)  |  Feed: ${totalFeed.toFixed(2)} kg  |  Deaths: ${totalDeaths}  |  Birds: ${headlineTotalBirds}  |  Left: ${headlineBirdsLeftDisplay}`,
+      `Total Eggs: ${totalEggs.toLocaleString()} (${totalEggsCrates} crates + ${totalEggsPieces} pcs)  |  Feed: ${totalFeed.toFixed(2)} kg  |  Deaths (active flocks): ${totalDeaths}  |  Deaths (all logs): ${totalDeathsAllRowsFarmWide}  |  Placed birds: ${farmOverallTotalBirds}  |  Birds left: ${farmTotalBirdsLeft}`,
       14, 31
     )
 
     // Table
     const headers = [
-      "Date", "Flock", "Age", "9am", "12pm", "4pm", "Total", "Grade", "Egg%", "Feed(kg)", "Birds", "Deaths", "Left", "Medication"
+      "Date", "Flock", "Age", "9am", "12pm", "4pm", "Total", "Size", "Egg%", "Feed(kg)", "Birds", "Deaths", "Left", "Medication"
     ]
 
     const rows = filtered.map((r: any) => {
@@ -451,7 +460,7 @@ export default function ProductionRecordsPage() {
       `${totalEggs} (${totalEggsCrates}c+${totalEggsPieces}p)`,
       "",
       "", totalFeed.toFixed(2),
-      headlineTotalBirds, totalDeaths, headlineBirdsLeftDisplay, ""
+      footerTotalBirds, totalDeaths, footerBirdsLeftDisplay, ""
     ])
 
     autoTable(doc, {
@@ -732,20 +741,40 @@ export default function ProductionRecordsPage() {
                   <div className={cn("font-bold text-slate-900", isMobile ? "text-lg mt-0.5" : "text-xl mt-1")}>{totalFeed.toFixed(2)}</div>
                 </div>
                 <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
-                  <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">Deaths</div>
-                  <div className={cn("font-bold text-red-600", isMobile ? "text-lg mt-0.5" : "text-xl mt-1")}>{totalDeaths.toLocaleString()}</div>
-                </div>
-                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
-                  <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Birds</div>
-                  <div className={cn("font-bold text-slate-900", isMobile ? "text-lg mt-0.5" : "text-xl mt-1")}>{headlineTotalBirds.toLocaleString()}</div>
-                  <div className="text-xs text-slate-400 mt-0.5">Sum of initial flock quantities</div>
-                </div>
-                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
-                  <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">Birds Left</div>
-                  <div className={cn("font-bold text-emerald-700", isMobile ? "text-lg mt-0.5" : "text-xl mt-1")}>{headlineBirdsLeftDisplay.toLocaleString()}</div>
-                  <div className="text-xs text-slate-400 mt-0.5">
-                    Sum of latest birds-left per flock, or placed quantity if no production yet
+                  <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Deaths</div>
+                  <div
+                    className={cn(
+                      "mt-0.5 flex flex-wrap items-end justify-between gap-x-2 gap-y-1",
+                      isMobile ? "min-h-[2rem]" : "min-h-[2.25rem]",
+                    )}
+                  >
+                    <div className={cn("font-bold text-red-600 tabular-nums leading-tight", isMobile ? "text-lg" : "text-xl")}>
+                      {totalDeaths.toLocaleString()}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">All logs</div>
+                      <div className="text-sm font-semibold text-slate-800 tabular-nums leading-tight">
+                        {totalDeathsAllRowsFarmWide.toLocaleString()}
+                      </div>
+                    </div>
                   </div>
+                  <div className="text-xs text-slate-400 mt-0.5">
+                    Active flocks (left). Every day logged, including old flocks (right).
+                  </div>
+                </div>
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">Overall Total Birds</div>
+                  <div className={cn("font-bold text-slate-900", isMobile ? "text-lg mt-0.5" : "text-xl mt-1")}>
+                    {farmOverallTotalBirds.toLocaleString()}
+                  </div>
+                  <div className="text-xs text-slate-400 mt-0.5">Birds placed when each flock was created.</div>
+                </div>
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Birds Left</div>
+                  <div className={cn("font-bold text-emerald-700", isMobile ? "text-lg mt-0.5" : "text-xl mt-1")}>
+                    {farmTotalBirdsLeft.toLocaleString()}
+                  </div>
+                  <div className="text-xs text-slate-400 mt-0.5">Latest count still alive per flock (from your last entry).</div>
                 </div>
               </div>
             )}
@@ -794,7 +823,7 @@ export default function ProductionRecordsPage() {
                                         <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-900">Eggs</p>
                                         <p className="text-xl font-extrabold text-emerald-800 leading-tight">{(r.totalProduction ?? 0).toLocaleString()}</p>
                                         {(r as any).eggGrade ? (
-                                          <p className="text-[11px] font-medium text-emerald-900 mt-1">Grade: {formatEggGradeLabel((r as any).eggGrade)}</p>
+                                          <p className="text-[11px] font-medium text-emerald-900 mt-1">Size: {formatEggGradeLabel((r as any).eggGrade)}</p>
                                         ) : null}
                                       </div>
                                       <div className="rounded-lg bg-blue-100 border border-blue-300 px-3 py-2 shadow-sm">
@@ -817,7 +846,7 @@ export default function ProductionRecordsPage() {
                                     <div><span className="text-slate-500">9am</span> <span className="font-medium text-blue-700">{r.production9AM ?? 0}</span></div>
                                     <div><span className="text-slate-500">12pm</span> <span className="font-medium text-orange-700">{r.production12PM ?? 0}</span></div>
                                     <div><span className="text-slate-500">4pm</span> <span className="font-medium text-purple-700">{r.production4PM ?? 0}</span></div>
-                                    <div><span className="text-slate-500">Grade</span> <span className="font-medium text-slate-800">{formatEggGradeLabel((r as any).eggGrade)}</span></div>
+                                    <div><span className="text-slate-500">Size</span> <span className="font-medium text-slate-800">{formatEggGradeLabel((r as any).eggGrade)}</span></div>
                                     <div><span className="text-slate-500">Feed</span> <span className="font-medium">{(r.feedKg ?? 0).toFixed ? (r.feedKg ?? 0).toFixed(2) : r.feedKg} kg</span></div>
                                     <div><span className="text-slate-500">Deaths</span> <span className={cn("font-medium", (r.mortality ?? 0) > 0 ? "text-red-600" : "")}>{r.mortality ?? 0}</span></div>
                                     <div><span className="text-slate-500">Age</span> <span className="text-slate-700 truncate">{formatAge(r)}</span></div>
@@ -869,7 +898,7 @@ export default function ProductionRecordsPage() {
                           <SortableHeader label="4pm" sortKey="production4PM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-purple-100 text-purple-900 font-semibold" />
                           <SortableHeader label="Brokens" sortKey="brokenEggs" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-red-50 text-red-800 font-semibold" />
                           <SortableHeader label="Total" sortKey="totalProduction" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
-                          <SortableHeader label="Grade" sortKey="eggGrade" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[72px] px-3 py-2 whitespace-nowrap" />
+                          <SortableHeader label="Size" sortKey="eggGrade" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[72px] px-3 py-2 whitespace-nowrap" />
                           <SortableHeader label="Egg%" sortKey="eggPercent" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
                           <SortableHeader label="Feed" sortKey="feedKg" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
                           <SortableHeader label="Birds" sortKey="noOfBirds" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
@@ -1014,7 +1043,12 @@ export default function ProductionRecordsPage() {
               <div className="hidden md:grid grid-cols-1 md:grid-cols-5 gap-2 mt-2">
                 <div className="p-2 bg-muted/30 rounded border"><div className="text-xs">Average Egg %:</div><div className="text-lg font-bold text-emerald-700">{(() => { const percents = filtered.map((r: any)=>{const b=Number(r.noOfBirds)||0;const t=Number(r.totalProduction)||0;return b? (t/b)*100:null}).filter(Boolean) as number[]; const v = percents.length? percents.reduce((a,b)=>a+b,0)/percents.length:0; return v.toFixed(1)+'%'; })()}</div></div>
                 <div className="p-2 bg-muted/30 rounded border"><div className="text-xs">Avg Total Eggs:</div><div className="text-lg font-bold">{avgEggsPerRecord}</div></div>
-                <div className="p-2 bg-muted/30 rounded border"><div className="text-xs">Total Deaths:</div><div className="text-lg font-bold text-red-600">{totalDeaths.toLocaleString()}</div></div>
+                <div className="p-2 bg-muted/30 rounded border">
+                  <div className="text-xs">Deaths (active flocks)</div>
+                  <div className="text-lg font-bold text-red-600">{totalDeaths.toLocaleString()}</div>
+                  <div className="text-[10px] text-slate-500 mt-1">All logs</div>
+                  <div className="text-sm font-semibold text-slate-800">{totalDeathsAllRowsFarmWide.toLocaleString()}</div>
+                </div>
                 <div className="p-2 bg-muted/30 rounded border"><div className="text-xs">Total Eggs:</div><div className="text-lg font-bold">{totalEggs.toLocaleString()}</div></div>
                 <div className="p-2 bg-muted/30 rounded border"><div className="text-xs">Total Crates:</div><div className="text-lg font-bold">{Math.floor(totalEggs/30).toLocaleString()}</div></div>
               </div>

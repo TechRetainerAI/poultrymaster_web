@@ -23,15 +23,13 @@ function normalizeLoginAdminBase(raw?: string, fallback = DEFAULT_LOGIN_API_HOST
   if (val.startsWith('http://') || val.startsWith('https://')) {
     return val
   }
-  if (val.includes('localhost')) {
-    return `http://${val}`
-  }
   return `https://${val}`
 }
 
 const LOGIN_ADMIN_DIRECT = normalizeLoginAdminBase(
-  process.env.NEXT_PUBLIC_LOGIN_API_URL || process.env.NEXT_PUBLIC_ADMIN_API_URL,
+  process.env.NEXT_PUBLIC_LOGIN_API_URL || process.env.NEXT_PUBLIC_ADMIN_API_URL
 )
+
 // Check if we should use proxy (browser) or direct URL (server)
 const IS_BROWSER = typeof window !== 'undefined'
 
@@ -64,22 +62,16 @@ export function buildApiUrl(endpoint: string): string {
   }
 }
 
-/**
- * Backward-compatible alias used by older API clients.
- * Farm endpoints should pass values like "Sales", "FeedUsage", etc.
- */
+// Backward-compatible helper used across existing API modules.
 export function farmApiUrl(endpoint: string): string {
   return buildApiUrl(endpoint)
 }
 
-/**
- * Backward-compatible Login/Admin URL helper.
- * Uses same-origin proxy in browser and direct Login API base on server.
- */
 export function loginApiUrl(endpoint: string): string {
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
   if (IS_BROWSER) {
-    return `/api/proxy${cleanEndpoint}`
+    const proxyPath = cleanEndpoint.replace(/^\/api\//, '/')
+    return `/api/proxy${proxyPath}`
   }
   const apiPath = cleanEndpoint.startsWith('/api/') ? cleanEndpoint : `/api${cleanEndpoint}`
   return `${LOGIN_ADMIN_DIRECT}${apiPath}`

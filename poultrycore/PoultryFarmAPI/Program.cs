@@ -15,6 +15,11 @@ using System.Collections.Generic;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = 10 * 1024 * 1024;
+});
+
 // Set license mode
 QuestPDF.Settings.License = LicenseType.Community;
 
@@ -64,6 +69,12 @@ builder.Services.AddScoped<ICashAdjustmentService>(sp => new CashAdjustmentServi
 
 // register ICustomerService
 builder.Services.AddScoped<ICustomerService>(sp => new CustomerService(connectionString));
+
+builder.Services.AddScoped<ISupplierService>(sp => new SupplierService(connectionString));
+
+builder.Services.AddScoped<IEggInventoryAdjustmentService>(sp => new EggInventoryAdjustmentService(connectionString));
+
+builder.Services.AddScoped<IFeedInventoryAdjustmentService>(sp => new FeedInventoryAdjustmentService(connectionString));
 
 builder.Services.AddScoped<IDashboardService>(sp => new DashboardService(connectionString));
 builder.Services.AddScoped<IReportService>(sp => new ReportService(connectionString));
@@ -118,7 +129,7 @@ builder.Services.AddAuthentication(cfg =>
         ValidIssuer = builder.Configuration["JWT:ValidIssuer"],
         ValidateIssuer = true,
         ValidateAudience = false,
-oleClaimType = System.Security.Claims.ClaimTypes.Role,
+        RoleClaimType = System.Security.Claims.ClaimTypes.Role,
         NameClaimType = System.Security.Claims.ClaimTypes.NameIdentifier,
     };
 });

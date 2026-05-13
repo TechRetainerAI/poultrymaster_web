@@ -31,6 +31,14 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Medication", (object?)model.Medication ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@WaterConsumption", (object?)model.WaterConsumption ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Notes", (object?)model.Notes ?? DBNull.Value);
+            cmd.Parameters.Add(new SqlParameter("@AttachmentImage", SqlDbType.VarBinary, -1)
+            {
+                Value = (object?)model.AttachmentImage ?? DBNull.Value
+            });
+            cmd.Parameters.Add(new SqlParameter("@AttachmentContentType", SqlDbType.NVarChar, 64)
+            {
+                Value = (object?)model.AttachmentContentType ?? DBNull.Value
+            });
 
             await conn.OpenAsync();
             var result = await cmd.ExecuteScalarAsync();
@@ -56,6 +64,15 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Medication", (object?)model.Medication ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@WaterConsumption", (object?)model.WaterConsumption ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Notes", (object?)model.Notes ?? DBNull.Value);
+            cmd.Parameters.Add(new SqlParameter("@AttachmentImage", SqlDbType.VarBinary, -1)
+            {
+                Value = (object?)model.AttachmentImage ?? DBNull.Value
+            });
+            cmd.Parameters.Add(new SqlParameter("@AttachmentContentType", SqlDbType.NVarChar, 64)
+            {
+                Value = (object?)model.AttachmentContentType ?? DBNull.Value
+            });
+            cmd.Parameters.AddWithValue("@AttachmentImageSet", model.SetAttachmentImage);
 
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
@@ -122,8 +139,38 @@ namespace PoultryFarmAPIWeb.Business
             await cmd.ExecuteNonQueryAsync();
         }
 
+        public async Task<(byte[] Body, string ContentType)?> GetAttachment(int id, string userId, string farmId)
+        {
+            using var conn = new SqlConnection(_connectionString);
+            using var cmd = new SqlCommand("spHealth_GetAttachment", conn)
+            {
+                CommandType = CommandType.StoredProcedure
+            };
+
+            cmd.Parameters.AddWithValue("@Id", id);
+            cmd.Parameters.AddWithValue("@UserId", userId);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+
+            await conn.OpenAsync();
+            using var reader = await cmd.ExecuteReaderAsync(CommandBehavior.SequentialAccess);
+            if (!await reader.ReadAsync()) return null;
+
+            var ordImg = reader.GetOrdinal("AttachmentImage");
+            var ordCt = reader.GetOrdinal("AttachmentContentType");
+            if (reader.IsDBNull(ordImg)) return null;
+
+            var len = reader.GetBytes(ordImg, 0, null, 0, 0);
+            if (len <= 0) return null;
+
+            var buf = new byte[len];
+            reader.GetBytes(ordImg, 0, buf, 0, (int)len);
+            var ct = reader.IsDBNull(ordCt) ? "application/octet-stream" : reader.GetString(ordCt);
+            return (buf, ct);
+        }
+
         private static HealthRecordModel MapHealthRecord(SqlDataReader reader)
         {
+            var hasOrd = TryGetOrdinal(reader, "HasAttachmentImage", out var hasAttOrd);
             return new HealthRecordModel
             {
                 Id = reader.GetInt32(reader.GetOrdinal("Id")),
@@ -137,8 +184,23 @@ namespace PoultryFarmAPIWeb.Business
                 Medication = reader.GetNullableString("Medication"),
                 WaterConsumption = reader.IsDBNull(reader.GetOrdinal("WaterConsumption")) ? (decimal?)null : reader.GetDecimal(reader.GetOrdinal("WaterConsumption")),
                 Notes = reader.GetNullableString("Notes"),
-                CreatedDate = reader.GetNullableDateTime("CreatedDate")
+                CreatedDate = reader.GetNullableDateTime("CreatedDate"),
+                HasAttachmentImage = hasOrd && !reader.IsDBNull(hasAttOrd) && reader.GetBoolean(hasAttOrd)
             };
+        }
+
+        private static bool TryGetOrdinal(SqlDataReader reader, string name, out int ordinal)
+        {
+            try
+            {
+                ordinal = reader.GetOrdinal(name);
+                return true;
+            }
+            catch (IndexOutOfRangeException)
+            {
+                ordinal = -1;
+                return false;
+            }
         }
     }
 }

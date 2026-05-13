@@ -22,6 +22,8 @@ export interface Supply {
   quantity: number
   unit: string
   cost: number
+  /** Set when inventory is linked to a supplier record */
+  supplierId?: number | null
   supplier?: string | null
   purchaseDate?: string | null
   notes?: string | null
@@ -35,6 +37,7 @@ export interface SupplyInput {
   quantity: number
   unit: string
   cost: number
+  supplierId?: number | null
   supplier?: string | null
   purchaseDate?: string | null
   notes?: string | null
@@ -48,6 +51,7 @@ export interface ApiResponse<T = any> {
 }
 
 function mapSupply(raw: any): Supply {
+  const sid = raw.supplierId ?? raw.SupplierId
   return {
     id: Number(raw.itemId ?? raw.ItemId ?? raw.id ?? raw.Id ?? 0),
     userId: raw.userId ?? raw.UserId ?? "",
@@ -59,6 +63,7 @@ function mapSupply(raw: any): Supply {
     ),
     unit: raw.unit ?? raw.Unit ?? raw.unitOfMeasure ?? raw.UnitOfMeasure ?? "",
     cost: Number(raw.cost ?? raw.Cost ?? 0),
+    supplierId: sid != null && sid !== "" ? Number(sid) : null,
     supplier: raw.supplier ?? raw.Supplier ?? null,
     purchaseDate: raw.purchaseDate ?? raw.PurchaseDate ?? null,
     notes: raw.notes ?? raw.Notes ?? null,
@@ -81,14 +86,52 @@ export async function getSupplies(userId: string, farmId: string): Promise<ApiRe
 
     if (!response.ok) {
       const text = await response.text()
+      let detail = text || ""
+      try {
+        const j = JSON.parse(text)
+        if (j?.message) detail = String(j.message)
+        else if (j?.title) detail = String(j.title)
+      } catch {
+        /* keep text */
+      }
       return {
         success: false,
-        message: text || `Failed to fetch supplies (${response.status})`,
+        message:
+          detail.slice(0, 500) ||
+          `Failed to fetch inventory (${response.status}). Check Farm API logs and DB connection.`,
       }
     }
 
-    const data = await response.json()
-    const supplies = Array.isArray(data) ? data.map(mapSupply) : []
+    const textBody = await response.text()
+    let data: unknown = null
+    try {
+      data = textBody?.trim() ? JSON.parse(textBody) : null
+    } catch {
+      return {
+        success: false,
+        message: `Inventory API returned non-JSON (${response.status}). First bytes: ${textBody.slice(0, 120)}`,
+      }
+    }
+
+    const rawList = Array.isArray(data)
+      ? data
+      : Array.isArray((data as any)?.data)
+        ? (data as any).data
+        : Array.isArray((data as any)?.value)
+          ? (data as any).value
+          : []
+
+    if (!Array.isArray(data) && rawList.length === 0 && data && typeof data === "object") {
+      const o = data as Record<string, unknown>
+      if (o.title || o.errors || o.detail) {
+        return {
+          success: false,
+          message: [o.title, o.detail, o.errors ? JSON.stringify(o.errors) : ""].filter(Boolean).join(" — ").slice(0, 500),
+        }
+      }
+    }
+
+    const supplies = rawList.map(mapSupply)
 
     return {
       success: true,
@@ -120,8 +163,8 @@ export async function createSupply(input: SupplyInput): Promise<ApiResponse<Supp
         Category: input.type,
         QuantityInStock: input.quantity,
         UnitOfMeasure: input.unit,
-        // ReorderLevel/IsActive can be extended later as needed
         ReorderLevel: null,
+        SupplierId: input.supplierId ?? null,
         IsActive: true,
       }),
     })
@@ -166,6 +209,7 @@ export async function updateSupply(id: number, input: SupplyInput): Promise<ApiR
         QuantityInStock: input.quantity,
         UnitOfMeasure: input.unit,
         ReorderLevel: null,
+        SupplierId: input.supplierId ?? null,
         IsActive: true,
       }),
     })
