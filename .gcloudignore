@@ -2,6 +2,14 @@
 # Start from .gitignore rules, then add Cloud-specific excludes.
 #!include:.gitignore
 
+# Explicitly RE-INCLUDE .env.production for Cloud Build.
+# .gitignore excludes all .env* (except .env.example) so nobody commits secrets,
+# but a per-environment .env.production dropped next to the Dockerfile at deploy
+# time IS the supported way to bake NEXT_PUBLIC_* into the client bundle for
+# dev/staging deploys. Without this override, the file would be silently dropped
+# from the build context and the client bundle would fall back to production URLs.
+!.env.production
+
 # Exclude VCS metadata (prevents uploading full git history to Cloud Build).
 .git/
 
