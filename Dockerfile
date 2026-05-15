@@ -23,15 +23,24 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
 # Next.js inlines NEXT_PUBLIC_* into the client bundle at build time.
-# Cloud Run / docker build pass these in with --build-arg (or --build-env-vars-file).
-# Without these, the client bundle falls back to DEFAULT_LOGIN_API_HOST /
-# DEFAULT_FARM_API_HOST (the production hosts) — dangerous for dev/staging.
+# The two supported ways to supply them are:
+#   1. A .env.production file in the build context (preferred for Cloud Run
+#      `--source .` deploys — `gcloud builds submit` does NOT translate
+#      `--build-env-vars-file` to docker `--build-arg`, so ARG-based wiring
+#      below silently bakes empty strings if you only set runtime env vars).
+#   2. docker build --build-arg NEXT_PUBLIC_*=... (for manual builds).
+# Without either, the client bundle falls back to DEFAULT_LOGIN_API_HOST /
+# DEFAULT_FARM_API_HOST (the PRODUCTION hosts) — dangerous for dev/staging.
 ARG NEXT_PUBLIC_API_BASE_URL
 ARG NEXT_PUBLIC_ADMIN_API_URL
 ARG NEXT_PUBLIC_LOGIN_API_URL
-ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
-ENV NEXT_PUBLIC_ADMIN_API_URL=$NEXT_PUBLIC_ADMIN_API_URL
-ENV NEXT_PUBLIC_LOGIN_API_URL=$NEXT_PUBLIC_LOGIN_API_URL
+# Only export ARG values as ENV when they are non-empty, otherwise an empty
+# ENV would clobber whatever .env.production provides.
+RUN if [ -n "$NEXT_PUBLIC_API_BASE_URL"   ]; then printf 'NEXT_PUBLIC_API_BASE_URL=%s\n'   "$NEXT_PUBLIC_API_BASE_URL"   >> .env.production; fi && \
+    if [ -n "$NEXT_PUBLIC_ADMIN_API_URL"  ]; then printf 'NEXT_PUBLIC_ADMIN_API_URL=%s\n'  "$NEXT_PUBLIC_ADMIN_API_URL"  >> .env.production; fi && \
+    if [ -n "$NEXT_PUBLIC_LOGIN_API_URL"  ]; then printf 'NEXT_PUBLIC_LOGIN_API_URL=%s\n'  "$NEXT_PUBLIC_LOGIN_API_URL"  >> .env.production; fi && \
+    echo "--- .env.production used for this build ---" && \
+    cat .env.production 2>/dev/null || echo "(none — using DEFAULT_*_HOST fallbacks; OK only for production)"
 
 # Build the application
 RUN npm run build
