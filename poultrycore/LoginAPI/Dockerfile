@@ -21,5 +21,7 @@ FROM base AS final
 WORKDIR /app
 COPY --from=build /app/publish .
 ENTRYPOINT ["/bin/sh", "-c"]
-# $$ → $ in image JSON so the shell expands PORT at container start (not at docker build).
-CMD ["export ASPNETCORE_URLS=http://0.0.0.0:$${PORT:-8080} && exec dotnet User.Management.API.dll"]
+# Docker JSON-form CMD passes the string to /bin/sh -c verbatim with no Docker substitution.
+# Use a single `$` so the shell itself expands ${PORT:-8080} at container start.
+# (`$$` here is a shell PID expansion, not a Docker escape — that was the Cloud Run port-binding bug.)
+CMD ["export ASPNETCORE_URLS=http://0.0.0.0:${PORT:-8080} && exec dotnet User.Management.API.dll"]
