@@ -19,6 +19,10 @@ dist
 # Production
 .env*.local
 .env.production
+# Re-include .env.production so Cloud Run dev/staging deploys can bake
+# NEXT_PUBLIC_* into the Next.js client bundle at build time.
+# (.gcloudignore has the matching !.env.production override.)
+!.env.production
 
 # Debug
 *.log
