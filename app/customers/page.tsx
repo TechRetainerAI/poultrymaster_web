@@ -10,7 +10,8 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Plus, Pencil, Trash2, Mail, Phone, MapPin, Users, Search, RefreshCw, Loader2, UserPlus, ChevronDown, ChevronUp } from "lucide-react"
+import { Plus, Pencil, Trash2, Mail, Phone, MapPin, Users, Search, RefreshCw, Loader2, UserPlus, ChevronDown, ChevronUp, Download } from "lucide-react"
+import { exportTableToPdf } from "@/lib/utils/pdf-export"
 import { Label } from "@/components/ui/label"
 import { getCustomers, getCustomer, createCustomer, updateCustomer, deleteCustomer, type Customer, type CustomerInput } from "@/lib/api/customer"
 import { getUserContext } from "@/lib/utils/user-context"
@@ -284,6 +285,40 @@ export default function CustomersPage() {
   const endIndex = startIndex + itemsPerPage
   const currentCustomers = sortedCustomers.slice(startIndex, endIndex)
 
+  const handleExportPdf = async () => {
+    if (filteredCustomers.length === 0) {
+      toast({ title: "Nothing to export", description: "No customers match the current filters.", variant: "destructive" })
+      return
+    }
+    const rows = sortedCustomers.map((c: any) => [
+      c.customerId ?? c.CustomerId ?? "",
+      c.name ?? "",
+      c.contactEmail ?? "",
+      c.contactPhone ?? "",
+      c.city ?? "",
+      c.address ?? "",
+    ])
+    try {
+      await exportTableToPdf({
+        title: "Customers Report",
+        filename: "customers",
+        columns: [
+          { header: "ID" },
+          { header: "Name" },
+          { header: "Email" },
+          { header: "Phone" },
+          { header: "City" },
+          { header: "Address" },
+        ],
+        rows,
+        summaryLines: [`Total customers: ${filteredCustomers.length}`],
+        headFillColor: [99, 102, 241],
+      })
+    } catch (err) {
+      toast({ title: "PDF export failed", description: "Could not generate PDF. Please try again.", variant: "destructive" })
+    }
+  }
+
   const clearFilters = () => { setSearchQuery(""); setCurrentPage(1) }
 
   const handlePageChange = (page: number) => setCurrentPage(page)
@@ -359,6 +394,9 @@ export default function CustomersPage() {
                         <RefreshCw className="h-4 w-4 mr-2" /> Clear search
                       </Button>
                     )}
+                    <Button variant="outline" className="w-full h-11 gap-2" onClick={handleExportPdf}>
+                      <Download className="h-4 w-4" /> Export PDF
+                    </Button>
                   </>
                 ) : (
                   <>
@@ -371,6 +409,9 @@ export default function CustomersPage() {
                         <RefreshCw className="h-4 w-4 mr-2" /> Clear
                       </Button>
                     )}
+                    <Button variant="outline" size="sm" onClick={handleExportPdf} className="gap-2">
+                      <Download className="h-4 w-4" /> Export PDF
+                    </Button>
                   </>
                 )}
               </div>

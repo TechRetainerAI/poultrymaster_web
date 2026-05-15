@@ -10,6 +10,7 @@ CREATE TABLE [dbo].[AuditLogs] (
     [Resource] [nvarchar](100) NULL,
     [ResourceId] [nvarchar](450) NULL,
     [Details] [nvarchar](max) NULL,
+    [Data] [nvarchar](max) NULL,
     [IpAddress] [nvarchar](45) NULL,
     [UserAgent] [nvarchar](500) NULL,
     [Timestamp] [datetime2](7) NOT NULL DEFAULT GETDATE(),

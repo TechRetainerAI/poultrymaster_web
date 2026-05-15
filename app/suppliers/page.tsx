@@ -27,7 +27,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Plus, Pencil, Trash2, Mail, Phone, MapPin, Truck, Search, RefreshCw, Loader2, ChevronDown, ChevronUp } from "lucide-react"
+import { Plus, Pencil, Trash2, Mail, Phone, MapPin, Truck, Search, RefreshCw, Loader2, ChevronDown, ChevronUp, Download } from "lucide-react"
+import { exportTableToPdf } from "@/lib/utils/pdf-export"
 import { Label } from "@/components/ui/label"
 import {
   getSuppliers,
@@ -320,6 +321,40 @@ export default function SuppliersPage() {
     setCurrentPage(1)
   }
 
+  const handleExportPdf = async () => {
+    if (filteredSuppliers.length === 0) {
+      toast({ title: "Nothing to export", description: "No suppliers match the current filters.", variant: "destructive" })
+      return
+    }
+    const rows = sortedSuppliers.map((s: any) => [
+      s.supplierId ?? s.SupplierId ?? "",
+      s.name ?? "",
+      s.contactEmail ?? "",
+      s.contactPhone ?? "",
+      s.city ?? "",
+      s.address ?? "",
+    ])
+    try {
+      await exportTableToPdf({
+        title: "Suppliers Report",
+        filename: "suppliers",
+        columns: [
+          { header: "ID" },
+          { header: "Name" },
+          { header: "Email" },
+          { header: "Phone" },
+          { header: "City" },
+          { header: "Address" },
+        ],
+        rows,
+        summaryLines: [`Total suppliers: ${filteredSuppliers.length}`],
+        headFillColor: [13, 148, 136],
+      })
+    } catch (err) {
+      toast({ title: "PDF export failed", description: "Could not generate PDF. Please try again.", variant: "destructive" })
+    }
+  }
+
   const handlePageChange = (page: number) => setCurrentPage(page)
   const handlePreviousPage = () => {
     if (currentPage > 1) setCurrentPage(currentPage - 1)
@@ -403,6 +438,9 @@ export default function SuppliersPage() {
                         <RefreshCw className="h-4 w-4 mr-2" /> Clear search
                       </Button>
                     )}
+                    <Button variant="outline" className="w-full h-11 gap-2" onClick={handleExportPdf}>
+                      <Download className="h-4 w-4" /> Export PDF
+                    </Button>
                   </>
                 ) : (
                   <>
@@ -423,6 +461,9 @@ export default function SuppliersPage() {
                         <RefreshCw className="h-4 w-4 mr-2" /> Clear
                       </Button>
                     )}
+                    <Button variant="outline" size="sm" onClick={handleExportPdf} className="gap-2">
+                      <Download className="h-4 w-4" /> Export PDF
+                    </Button>
                   </>
                 )}
               </div>

@@ -15,7 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Plus, Edit, Trash2, Package, Search, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Filter, ChevronDown, ChevronUp } from "lucide-react"
+import { Plus, Edit, Trash2, Package, Search, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Filter, ChevronDown, ChevronUp, Download } from "lucide-react"
+import { exportTableToPdf } from "@/lib/utils/pdf-export"
 import { getUserContext } from "@/lib/utils/user-context"
 import { useToast } from "@/hooks/use-toast"
 import { getSupplies, createSupply, updateSupply, deleteSupply, type SupplyInput } from "@/lib/api/supply"
@@ -367,6 +368,55 @@ export default function InventoryPage() {
     setDraftExpiryDateFrom("")
   }
 
+  const handleExportPdf = async () => {
+    if (filteredItems.length === 0) {
+      toast({ title: "Nothing to export", description: "No inventory items match the current filters.", variant: "destructive" })
+      return
+    }
+    const fmt = (n: number) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    let totalValue = 0
+    const rows = filteredItems.map((it) => {
+      const qty = Number(it.quantity || 0)
+      const price = Number(it.unitPrice || 0)
+      const value = qty * price
+      totalValue += value
+      return [
+        it.name ?? "",
+        it.category ?? "",
+        qty.toLocaleString(),
+        it.unit ?? "",
+        fmt(price),
+        fmt(value),
+        it.supplier ?? "",
+        it.location ?? "",
+        it.expiryDate ? new Date(it.expiryDate).toLocaleDateString() : "",
+      ]
+    })
+    try {
+      await exportTableToPdf({
+        title: "Inventory Report",
+        filename: "inventory",
+        columns: [
+          { header: "Item" },
+          { header: "Category" },
+          { header: "Qty", align: "right" },
+          { header: "Unit" },
+          { header: "Unit price", align: "right" },
+          { header: "Value", align: "right" },
+          { header: "Supplier" },
+          { header: "Location" },
+          { header: "Expires" },
+        ],
+        rows,
+        totalsRow: ["TOTAL", "", "", "", "", fmt(totalValue), "", "", ""],
+        summaryLines: [`Items: ${filteredItems.length}  |  Total value: ${fmt(totalValue)}`],
+        headFillColor: [234, 88, 12],
+      })
+    } catch (err) {
+      toast({ title: "PDF export failed", description: "Could not generate PDF. Please try again.", variant: "destructive" })
+    }
+  }
+
   const syncDraftFromCommitted = () => {
     setDraftCategory(selectedCategory)
     setDraftEntryDateFrom(entryDateFrom)
@@ -639,6 +689,9 @@ export default function InventoryPage() {
                       </MobileFilterSheetFooter>
                     </SheetContent>
                   </Sheet>
+                  <Button variant="outline" size="sm" onClick={handleExportPdf} className="gap-2 h-11 px-4">
+                    <Download className="h-4 w-4" /> PDF
+                  </Button>
                 </div>
               </div>
             ) : (
@@ -656,7 +709,10 @@ export default function InventoryPage() {
               </Select>
               <Input type="date" placeholder="Entry date from" value={entryDateFrom} onChange={(e) => setEntryDateFrom(e.target.value)} className="w-[160px]" />
               <Input type="date" placeholder="Expiry date from" value={expiryDateFrom} onChange={(e) => setExpiryDateFrom(e.target.value)} className="w-[160px]" />
-              <div className="ml-auto">
+              <div className="ml-auto flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={handleExportPdf} className="gap-2">
+                  <Download className="h-4 w-4" /> Export PDF
+                </Button>
                 <Button variant="outline" size="sm" onClick={clearFilters}><RefreshCw className="h-4 w-4 mr-2" /> Reset</Button>
               </div>
             </div>

@@ -46,6 +46,7 @@ import {
 import { toLocalDateKey } from "@/lib/utils/date-key"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { formatDateShort, cn } from "@/lib/utils"
+import { exportTableToPdf } from "@/lib/utils/pdf-export"
 
 export default function ExpensesPage() {
   const router = useRouter()
@@ -427,13 +428,39 @@ export default function ExpensesPage() {
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url)
   }
 
-  const handleExportPDF = () => {
-    const printWindow = window.open('', '_blank', 'noopener,noreferrer')
-    if (!printWindow) return
-    const styles = `body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; padding: 24px; } h1 { font-size: 18px; margin-bottom: 12px; } table { width: 100%; border-collapse: collapse; } th, td { border: 1px solid #e5e7eb; padding: 8px; font-size: 12px; } th { background: #f8fafc; text-align: left; } tfoot td { font-weight: 600; }`
-    const rowsHtml = filteredExpenses.map((e: any) => `<tr><td>${(e.expenseId ?? e.ExpenseId ?? e.id ?? e.Id ?? '')}</td><td>${new Date(e.expenseDate).toLocaleDateString()}</td><td>${e.category ?? ''}</td><td>${stripReceiptSuffixFromDescription((e.description ?? '').toString()).replace(/</g, '&lt;')}</td><td style="text-align:right;">${(e.amount ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td>${e.paymentMethod ?? ''}</td></tr>`).join('')
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Expenses</title><style>${styles}</style></head><body><h1>Expenses Report</h1><table><thead><tr><th>ExpenseId</th><th>Date</th><th>Category</th><th>Description</th><th style="text-align:right;">Amount</th><th>Payment</th></tr></thead><tbody>${rowsHtml}</tbody><tfoot><tr><td colspan="4">Total (Filtered)</td><td style="text-align:right;">${filteredTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td></td></tr></tfoot></table><script>window.onload = function(){ window.print(); setTimeout(() => window.close(), 300); };</script></body></html>`
-    printWindow.document.open(); printWindow.document.write(html); printWindow.document.close()
+  const handleExportPDF = async () => {
+    if (filteredExpenses.length === 0) {
+      toast({ title: "Nothing to export", description: "No expenses match the current filters.", variant: "destructive" })
+      return
+    }
+    const fmt = (n: number) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    const rows = filteredExpenses.map((e: any) => [
+      e.expenseId ?? e.ExpenseId ?? e.id ?? e.Id ?? '',
+      new Date(e.expenseDate).toLocaleDateString(),
+      e.category ?? '',
+      stripReceiptSuffixFromDescription((e.description ?? '').toString()),
+      fmt(Number(e.amount ?? 0)),
+      e.paymentMethod ?? '',
+    ])
+    try {
+      await exportTableToPdf({
+        title: "Expenses Report",
+        filename: "expenses",
+        columns: [
+          { header: "ID" },
+          { header: "Date" },
+          { header: "Category" },
+          { header: "Description" },
+          { header: "Amount", align: "right" },
+          { header: "Payment" },
+        ],
+        rows,
+        totalsRow: ["", "", "", "Total (Filtered)", fmt(filteredTotal), ""],
+        summaryLines: [`Total (Filtered): ${fmt(filteredTotal)}`],
+      })
+    } catch (err) {
+      toast({ title: "PDF export failed", description: "Could not generate PDF. Please try again.", variant: "destructive" })
+    }
   }
 
   // Expense form fields component (reused for create and edit)

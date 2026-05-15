@@ -43,6 +43,8 @@ import {
   formatSaleInvoiceDate,
   SALE_INVOICE_PRINT_STYLES,
 } from "@/components/sales/sale-invoice-document"
+import { exportTableToPdf } from "@/lib/utils/pdf-export"
+import { Download } from "lucide-react"
 
 export default function SalesPage() {
   const router = useRouter()
@@ -550,6 +552,64 @@ export default function SalesPage() {
     setIsInvoiceDialogOpen(open)
     if (!open) {
       setSelectedSale(null)
+    }
+  }
+
+  const handleExportSalesPdf = async () => {
+    if (filteredSales.length === 0) {
+      toast({ title: "Nothing to export", description: "No sales match the current filters.", variant: "destructive" })
+      return
+    }
+    const rows = filteredSales.map((s) => [
+      formatDateShort(s.saleDate),
+      s.customerName ?? "",
+      s.product ?? "",
+      s.quantity ?? 0,
+      formatCurrency(s.unitPrice ?? 0, currencyCode),
+      formatCurrency(s.totalAmount ?? 0, currencyCode),
+      s.paymentMethod ?? "",
+      s.paid === false ? "Unpaid" : "Paid",
+      getFlockLabel(s.flockId),
+    ])
+    const periodLabel = dateFrom || dateTo
+      ? `Period: ${dateFrom || "—"} to ${dateTo || "—"}`
+      : "Period: All time"
+    try {
+      await exportTableToPdf({
+        title: "Sales Report",
+        filename: "sales",
+        farmName: farmInfo.name,
+        columns: [
+          { header: "Date" },
+          { header: "Customer" },
+          { header: "Product" },
+          { header: "Qty", align: "right" },
+          { header: "Unit price", align: "right" },
+          { header: "Total", align: "right" },
+          { header: "Payment" },
+          { header: "Status" },
+          { header: "Flock" },
+        ],
+        rows,
+        totalsRow: [
+          "",
+          "",
+          "TOTALS",
+          totalQuantity.toLocaleString(),
+          "",
+          formatCurrency(totalSales, currencyCode),
+          "",
+          "",
+          "",
+        ],
+        summaryLines: [
+          periodLabel,
+          `Total sales: ${formatCurrency(totalSales, currencyCode)}  |  Total quantity: ${totalQuantity.toLocaleString()}  |  Transactions: ${filteredSales.length}`,
+        ],
+        headFillColor: [22, 163, 74],
+      })
+    } catch (err) {
+      toast({ title: "PDF export failed", description: "Could not generate PDF. Please try again.", variant: "destructive" })
     }
   }
 
@@ -1072,6 +1132,10 @@ export default function SalesPage() {
                       </MobileFilterSheetFooter>
                     </SheetContent>
                   </Sheet>
+                  <Button variant="outline" size="sm" onClick={handleExportSalesPdf} className="gap-2 h-11 px-4">
+                    <Download className="h-4 w-4" />
+                    PDF
+                  </Button>
                 </div>
               </div>
             ) : (
@@ -1099,7 +1163,11 @@ export default function SalesPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="ml-auto">
+              <div className="ml-auto flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={handleExportSalesPdf} className="gap-2">
+                  <Download className="h-4 w-4" />
+                  Export PDF
+                </Button>
                 <Button variant="outline" onClick={clearFilters}>Reset filters</Button>
               </div>
             </div>

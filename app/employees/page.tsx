@@ -10,7 +10,8 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Plus, Pencil, Trash2, Mail, Phone, UserCog, Users, Calendar, LogIn, Search, RefreshCw, Loader2, Save, User, ChevronDown, ChevronUp } from "lucide-react"
+import { Plus, Pencil, Trash2, Mail, Phone, UserCog, Users, Calendar, LogIn, Search, RefreshCw, Loader2, Save, User, ChevronDown, ChevronUp, Download } from "lucide-react"
+import { exportTableToPdf } from "@/lib/utils/pdf-export"
 import { getEmployees, getEmployee, createEmployee, updateEmployee, deleteEmployee, getTodayLogins, type Employee, type CreateEmployeeData, type UpdateEmployeeData } from "@/lib/api/admin"
 import { getUserContext } from "@/lib/utils/user-context"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -444,6 +445,40 @@ export default function EmployeesPage() {
   const currentEmployees = sortedEmployees.slice(startIndex, endIndex)
 
   const clearFilters = () => { setSearchQuery(""); setCurrentPage(1) }
+
+  const handleExportPdf = async () => {
+    if (filteredEmployees.length === 0) {
+      toast({ title: "Nothing to export", description: "No employees match the current filters.", variant: "destructive" })
+      return
+    }
+    const rows = sortedEmployees.map((e: any) => [
+      `${e.firstName ?? ""} ${e.lastName ?? ""}`.trim(),
+      e.userName ?? "",
+      e.email ?? "",
+      e.phoneNumber ?? "",
+      e.isAdmin ? "Admin" : "Staff",
+      e.isActive === false ? "Inactive" : "Active",
+    ])
+    try {
+      await exportTableToPdf({
+        title: "Employees Report",
+        filename: "employees",
+        columns: [
+          { header: "Name" },
+          { header: "Username" },
+          { header: "Email" },
+          { header: "Phone" },
+          { header: "Role" },
+          { header: "Status" },
+        ],
+        rows,
+        summaryLines: [`Total employees: ${filteredEmployees.length}`],
+        headFillColor: [59, 130, 246],
+      })
+    } catch (err) {
+      toast({ title: "PDF export failed", description: "Could not generate PDF. Please try again.", variant: "destructive" })
+    }
+  }
   const handlePageChange = (page: number) => setCurrentPage(page)
   const handlePreviousPage = () => { if (currentPage > 1) setCurrentPage(currentPage - 1) }
   const handleNextPage = () => { if (currentPage < totalPages) setCurrentPage(currentPage + 1) }
@@ -503,6 +538,9 @@ export default function EmployeesPage() {
                   <Input placeholder="Search by name, username, email, or phone..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1) }} className="pl-9" />
                 </div>
                 {searchQuery && <Button variant="outline" size="sm" onClick={clearFilters}><RefreshCw className="h-4 w-4 mr-2" />Clear</Button>}
+                <Button variant="outline" size="sm" onClick={handleExportPdf} className="gap-2">
+                  <Download className="h-4 w-4" /> Export PDF
+                </Button>
               </div>
             )}
 
