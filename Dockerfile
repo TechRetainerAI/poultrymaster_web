@@ -22,6 +22,17 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
+# Next.js inlines NEXT_PUBLIC_* into the client bundle at build time.
+# Cloud Run / docker build pass these in with --build-arg (or --build-env-vars-file).
+# Without these, the client bundle falls back to DEFAULT_LOGIN_API_HOST /
+# DEFAULT_FARM_API_HOST (the production hosts) — dangerous for dev/staging.
+ARG NEXT_PUBLIC_API_BASE_URL
+ARG NEXT_PUBLIC_ADMIN_API_URL
+ARG NEXT_PUBLIC_LOGIN_API_URL
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+ENV NEXT_PUBLIC_ADMIN_API_URL=$NEXT_PUBLIC_ADMIN_API_URL
+ENV NEXT_PUBLIC_LOGIN_API_URL=$NEXT_PUBLIC_LOGIN_API_URL
+
 # Build the application
 RUN npm run build
 
