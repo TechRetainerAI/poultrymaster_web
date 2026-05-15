@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.Filters;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 using System.Security.Claims;
+using System.Text.Json;
 
 namespace PoultryFarmAPIWeb.Filters
 {
@@ -68,6 +69,7 @@ namespace PoultryFarmAPIWeb.Filters
 
                 // Build more descriptive details
                 var details = BuildDetails(context, executedContext, controllerName, actionName, resourceId);
+                var data = BuildDataPayload(context, executedContext);
 
                 // Use a cleaner resource name (just the controller name, not controller/action)
                 var resourceName = GetResourceName(controllerName);
@@ -80,6 +82,7 @@ namespace PoultryFarmAPIWeb.Filters
                     Resource = resourceName,
                     ResourceId = resourceId,
                     Details = details,
+                    Data = data,
                     IpAddress = context.HttpContext.Connection.RemoteIpAddress?.ToString(),
                     UserAgent = context.HttpContext.Request.Headers["User-Agent"].FirstOrDefault(),
                     Timestamp = DateTime.UtcNow,
@@ -258,6 +261,56 @@ namespace PoultryFarmAPIWeb.Filters
             }
 
             return details;
+        }
+
+        private const int MaxDataChars = 32000;
+
+        private static string? BuildDataPayload(ActionExecutingContext context, ActionExecutedContext executedContext)
+        {
+            try
+            {
+                var payload = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["method"] = context.HttpContext.Request.Method,
+                    ["path"] = context.HttpContext.Request.Path.Value,
+                };
+
+                if (context.ActionArguments.Count > 0)
+                {
+                    var request = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var kv in context.ActionArguments)
+                    {
+                        if (kv.Value == null) continue;
+                        request[kv.Key] = kv.Value;
+                    }
+                    if (request.Count > 0)
+                        payload["request"] = request;
+                }
+
+                if (executedContext.Exception != null)
+                {
+                    payload["error"] = executedContext.Exception.Message;
+                }
+                else if (executedContext.Result is ObjectResult objectResult && objectResult.Value != null)
+                {
+                    payload["response"] = objectResult.Value;
+                }
+
+                var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions
+                {
+                    WriteIndented = false,
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                });
+
+                if (json.Length > MaxDataChars)
+                    return json[..MaxDataChars] + "…[truncated]";
+
+                return json;
+            }
+            catch
+            {
+                return null;
+            }
         }
     }
 }

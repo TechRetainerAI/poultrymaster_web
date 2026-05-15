@@ -612,7 +612,9 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
               </div>
               <div className="col-span-12 md:col-span-4 space-y-2">
                 <Label>Deaths</Label>
-                <p className="text-xs text-muted-foreground -mt-1 mb-1">Birds lost on this day.</p>
+                <p className="text-xs text-muted-foreground -mt-1 mb-1">
+                  Birds lost on this day only (not total deaths since placement).
+                </p>
                 <Input
                   type="number"
                   min="0"

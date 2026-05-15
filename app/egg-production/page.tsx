@@ -6,7 +6,7 @@ import Link from "next/link"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from "@/components/ui/pagination"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -429,27 +429,6 @@ export default function EggProductionsPage() {
   const totalBroken = useMemo(() => filteredEggProductions.reduce((sum, p) => sum + (p.brokenEggs ?? 0), 0), [filteredEggProductions]);
   const avgProduction = useMemo(() => filteredEggProductions.length ? totalEggs / filteredEggProductions.length : 0, [totalEggs, filteredEggProductions.length]);
 
-  const gradeSlottingBreakdown = useMemo(() => {
-    const map = new Map<string, { records: number; eggs: number; broken: number }>()
-    for (const p of filteredEggProductions) {
-      const raw = (p.eggGrade ?? "").trim()
-      const key = raw ? eggGradeFromApi(p.eggGrade) : EGG_GRADE_SELECT_VALUE_NONE
-      const cur = map.get(key) ?? { records: 0, eggs: 0, broken: 0 }
-      cur.records += 1
-      cur.eggs += p.totalProduction
-      cur.broken += p.brokenEggs ?? 0
-      map.set(key, cur)
-    }
-    const rows = [...map.entries()].map(([gradeKey, v]) => ({
-      gradeKey,
-      label:
-        gradeKey === EGG_GRADE_SELECT_VALUE_NONE ? "Not specified" : formatEggGradeLabel(gradeKey),
-      ...v,
-    }))
-    rows.sort((a, b) => b.eggs - a.eggs || a.label.localeCompare(b.label))
-    return rows
-  }, [filteredEggProductions])
-
   const EGGS_PER_CRATE = 30
   const totalEggsCrates = Math.floor(totalEggs / EGGS_PER_CRATE)
   const totalEggsPieces = totalEggs % EGGS_PER_CRATE
@@ -537,14 +516,11 @@ export default function EggProductionsPage() {
                 <div className="min-w-0">
                   <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Egg sorting</h1>
                   <p className="text-sm text-slate-600">
-                    Daily collection by flock (9am / 12pm / 4pm) and totals by egg size for the filters below.
+                    Daily collection by flock (9am / 12pm / 4pm) for the filters below.
                   </p>
-                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                  <div className="mt-2 text-sm">
                     <Link href="/egg-tracker" className="text-blue-600 hover:underline font-medium">
                       Egg tracker
-                    </Link>
-                    <Link href="/egg-production#totals-by-size" className="text-blue-600 hover:underline font-medium">
-                      Totals by size
                     </Link>
                   </div>
                 </div>
@@ -711,37 +687,6 @@ export default function EggProductionsPage() {
               </div>
             )}
 
-            {!loading && (
-              <Card id="totals-by-size" className="bg-white border-violet-100">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Totals by size</CardTitle>
-                  <CardDescription>Based on the filters above</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {gradeSlottingBreakdown.length === 0 ? (
-                    <p className="text-sm text-slate-600">No rows match these filters.</p>
-                  ) : (
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      {gradeSlottingBreakdown.map((row) => (
-                        <div
-                          key={row.gradeKey}
-                          className="rounded-lg border border-violet-100 bg-violet-50/40 px-3 py-2.5"
-                        >
-                          <div className="text-xs font-medium uppercase tracking-wide text-violet-800">{row.label}</div>
-                          <div className="mt-1 text-lg font-bold text-slate-900 tabular-nums">
-                            {row.eggs.toLocaleString()}{" "}
-                            <span className="text-sm font-normal text-slate-500">eggs</span>
-                          </div>
-                          <div className="text-xs text-slate-600 mt-0.5">
-                            {row.records} record{row.records === 1 ? "" : "s"} · {row.broken.toLocaleString()} broken
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
 
             <Card className="bg-white">
               <CardContent className="p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -755,7 +700,7 @@ export default function EggProductionsPage() {
                     <Link href="/egg-tracker" className="text-blue-600 font-medium hover:underline">
                       Egg tracker
                     </Link>
-                    . Totals by size are on this page above.
+                    .
                   </p>
                   {syncCheckMessage && (
                     <Alert variant="destructive" className="mt-2">

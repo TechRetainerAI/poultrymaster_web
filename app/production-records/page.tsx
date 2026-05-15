@@ -239,6 +239,11 @@ export default function ProductionRecordsPage() {
 
   const farmTotalBirdsLeft = useMemo(() => sumActiveFlocksBirdsLeft(flocks, records), [flocks, records])
 
+  const birdsLostPlacedMinusLeft = useMemo(
+    () => Math.max(0, farmOverallTotalBirds - farmTotalBirdsLeft),
+    [farmOverallTotalBirds, farmTotalBirdsLeft],
+  )
+
   const footerTotalBirds = useMemo(() => sumLatestBirdsByFlock(filtered), [filtered])
   const footerTotalBirdsLeft = useMemo(() => sumLatestBirdsLeftByFlock(filtered), [filtered])
   const footerBirdsLeftDisplay = footerTotalBirdsLeft
@@ -759,7 +764,8 @@ export default function ProductionRecordsPage() {
                     </div>
                   </div>
                   <div className="text-xs text-slate-400 mt-0.5">
-                    Active flocks (left). Every day logged, including old flocks (right).
+                    Active flocks (left). Every day logged, including old flocks (right). Placed − left:{" "}
+                    {birdsLostPlacedMinusLeft.toLocaleString()}.
                   </div>
                 </div>
                 <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">

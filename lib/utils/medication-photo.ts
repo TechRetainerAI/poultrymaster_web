@@ -45,7 +45,8 @@ export function listMedicationPhotoInfos(records: HealthRecord[]): MedicationPho
     if (!isMedicationPhotoReferenceRecord(r)) continue
     const hasDb = Boolean(r.hasAttachmentImage)
     const path = extractReceiptPathFromDescription(r.notes || "")
-    if (!hasDb && !path) continue
+    // List row whenever this is a medication-photo note row; UI loads bytes via /api/health-image even if
+    // list endpoint omitted HasAttachmentImage or legacy path was never embedded in notes.
     const med = (r.medication || "").trim()
     if (!med) continue
     const productLabel = primaryLabelFromText(med)

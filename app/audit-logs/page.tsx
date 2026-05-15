@@ -27,6 +27,7 @@ interface AuditLog {
   resource: string
   resourceId: string
   details: string
+  data?: string | null
   ipAddress: string
   userAgent: string
   timestamp: string
@@ -287,6 +288,12 @@ export default function AuditLogsPage() {
                                 <div><span className="text-slate-500">Resource</span> <span className="font-medium">{log.resource}</span></div>
                                 <div><span className="text-slate-500">IP</span> <span className="font-medium font-mono text-xs">{log.ipAddress}</span></div>
                                 {log.details && <div className="col-span-2"><span className="text-slate-500">Details</span> <span className="font-medium block truncate">{log.details}</span></div>}
+                                {log.data && (
+                                  <div className="col-span-2">
+                                    <span className="text-slate-500">Data</span>
+                                    <span className="font-medium block truncate">{log.data}</span>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </CollapsibleContent>
@@ -319,6 +326,7 @@ export default function AuditLogsPage() {
                         <SortableHeader label="IP Address" sortKey="ipAddress" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
                         <SortableHeader label="Status" sortKey="status" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
                         <TableHead className={cn(isMobile && "sticky-col-actions bg-slate-50")}>Details</TableHead>
+                        <TableHead>Data</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -337,6 +345,7 @@ export default function AuditLogsPage() {
                             </Badge>
                           </TableCell>
                           <TableCell className={cn("max-w-xs truncate bg-white", isMobile && "sticky-col-actions")}>{log.details}</TableCell>
+                          <TableCell className="max-w-xs truncate bg-white">{log.data ?? "—"}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

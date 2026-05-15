@@ -12,6 +12,12 @@ type AuthenticatedHealthImageProps = {
   className?: string
   /** Shown while loading or on error */
   fallbackClassName?: string
+  /**
+   * If the DB attachment fetch fails (or list API omitted hasAttachmentImage), try this URL next
+   * (e.g. legacy `/api/receipt-file/receipt-uploads/...` from notes). Avoids a broken `<img>` when
+   * the file was never on disk but bytes exist in SQL.
+   */
+  legacyFallbackSrc?: string | null
 }
 
 /**
@@ -24,8 +30,10 @@ export function AuthenticatedHealthImage({
   alt = "",
   className,
   fallbackClassName,
+  legacyFallbackSrc,
 }: AuthenticatedHealthImageProps) {
   const [src, setSrc] = useState<string | null>(null)
+  const [legacySrc, setLegacySrc] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
 
   useEffect(() => {
@@ -35,8 +43,13 @@ export function AuthenticatedHealthImage({
     const run = async () => {
       setFailed(false)
       setSrc(null)
+      setLegacySrc(null)
       const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null
       if (!token || !userId || !farmId) {
+        if (legacyFallbackSrc?.trim()) {
+          if (!cancelled) setLegacySrc(legacyFallbackSrc.trim())
+          return
+        }
         setFailed(true)
         return
       }
@@ -44,16 +57,25 @@ export function AuthenticatedHealthImage({
       const url = `/api/health-image/${healthRecordId}?${q}`
       try {
         const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-        if (!res.ok || cancelled) {
-          if (!cancelled) setFailed(true)
+        const blob = res.ok ? await res.blob() : null
+        if (cancelled) return
+        if (res.ok && blob && blob.size > 0) {
+          blobUrl = URL.createObjectURL(blob)
+          setSrc(blobUrl)
           return
         }
-        const blob = await res.blob()
-        if (cancelled) return
-        blobUrl = URL.createObjectURL(blob)
-        setSrc(blobUrl)
+        if (legacyFallbackSrc?.trim()) {
+          setLegacySrc(legacyFallbackSrc.trim())
+          return
+        }
+        setFailed(true)
       } catch {
-        if (!cancelled) setFailed(true)
+        if (cancelled) return
+        if (legacyFallbackSrc?.trim()) {
+          setLegacySrc(legacyFallbackSrc.trim())
+          return
+        }
+        setFailed(true)
       }
     }
 
@@ -63,7 +85,22 @@ export function AuthenticatedHealthImage({
       cancelled = true
       if (blobUrl) URL.revokeObjectURL(blobUrl)
     }
-  }, [healthRecordId, userId, farmId])
+  }, [healthRecordId, userId, farmId, legacyFallbackSrc])
+
+  if (legacySrc && !src) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={legacySrc}
+        alt={alt}
+        className={className}
+        onError={() => {
+          setLegacySrc(null)
+          setFailed(true)
+        }}
+      />
+    )
+  }
 
   if (failed || !src) {
     return (

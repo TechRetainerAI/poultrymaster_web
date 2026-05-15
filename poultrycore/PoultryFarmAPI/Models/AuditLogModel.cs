@@ -9,6 +9,8 @@ namespace PoultryFarmAPIWeb.Models
         public string Resource { get; set; } = string.Empty;
         public string? ResourceId { get; set; }
         public string? Details { get; set; }
+        /// <summary>JSON snapshot of request body / action arguments (and response when available).</summary>
+        public string? Data { get; set; }
         public string? IpAddress { get; set; }
         public string? UserAgent { get; set; }
         public DateTime Timestamp { get; set; }

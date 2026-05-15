@@ -129,6 +129,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/egg-tracker", label: "Egg tracker", icon: BarChart3 },
     { href: "/feed-tracker", label: "Feed at hand", icon: Wheat },
     { href: "/medication-tracker", label: "Medication at hand", icon: Pill },
+    { href: "/birds-left-tracker", label: "Birds left tracker", icon: Bird },
   ]
 
   const inventoryItems = [

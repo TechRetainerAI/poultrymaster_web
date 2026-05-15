@@ -81,7 +81,8 @@ namespace PoultryFarmAPIWeb.Business
                 IpAddress = CellStringNullable(reader, 8),
                 UserAgent = CellStringNullable(reader, 9),
                 Timestamp = CellDateTime(reader, 10),
-                Status = string.IsNullOrEmpty(CellString(reader, 11)) ? "Success" : CellString(reader, 11)
+                Status = string.IsNullOrEmpty(CellString(reader, 11)) ? "Success" : CellString(reader, 11),
+                Data = reader.FieldCount > 12 ? CellStringNullable(reader, 12) : null
             };
 
         public async Task<List<AuditLogModel>> GetAllAsync(string? userId, string? farmId, string? status, DateTime? startDate, DateTime? endDate, int page, int pageSize)
@@ -95,7 +96,7 @@ namespace PoultryFarmAPIWeb.Business
 
             // FarmId: Migrations/007_AddAuditLogsFarmId.sql. Table name: resolve for case-sensitive collations.
             using var cmd = new SqlCommand($@"
-                SELECT Id, UserId, UserName, FarmId, Action, Resource, ResourceId, Details, IpAddress, UserAgent, Timestamp, Status
+                SELECT Id, UserId, UserName, FarmId, Action, Resource, ResourceId, Details, IpAddress, UserAgent, Timestamp, Status, Data
                 FROM {table}
                 WHERE (@UserId IS NULL OR UserId = @UserId)
                   AND (@FarmId IS NULL OR FarmId = @FarmId)
@@ -133,7 +134,7 @@ namespace PoultryFarmAPIWeb.Business
             var table = await ResolveAuditLogsQualifiedNameAsync(conn);
 
             using var cmd = new SqlCommand($@"
-                SELECT TOP (@Take) Id, UserId, UserName, FarmId, Action, Resource, ResourceId, Details, IpAddress, UserAgent, Timestamp, Status
+                SELECT TOP (@Take) Id, UserId, UserName, FarmId, Action, Resource, ResourceId, Details, IpAddress, UserAgent, Timestamp, Status, Data
                 FROM {table}
                 ORDER BY Timestamp DESC;", conn);
             cmd.Parameters.AddWithValue("@Take", cap);
@@ -151,7 +152,7 @@ namespace PoultryFarmAPIWeb.Business
             await conn.OpenAsync();
             var table = await ResolveAuditLogsQualifiedNameAsync(conn);
             using var cmd = new SqlCommand($@"
-                SELECT Id, UserId, UserName, FarmId, Action, Resource, ResourceId, Details, IpAddress, UserAgent, Timestamp, Status
+                SELECT Id, UserId, UserName, FarmId, Action, Resource, ResourceId, Details, IpAddress, UserAgent, Timestamp, Status, Data
                 FROM {table}
                 WHERE CAST(Id AS NVARCHAR(128)) = @Id;", conn);
             cmd.Parameters.AddWithValue("@Id", id);
@@ -168,9 +169,9 @@ namespace PoultryFarmAPIWeb.Business
             var table = await ResolveAuditLogsQualifiedNameAsync(conn);
             using var cmd = new SqlCommand($@"
                 DECLARE @Inserted TABLE (Id NVARCHAR(128));
-                INSERT INTO {table} (UserId, UserName, FarmId, Action, Resource, ResourceId, Details, IpAddress, UserAgent, Timestamp, Status)
+                INSERT INTO {table} (UserId, UserName, FarmId, Action, Resource, ResourceId, Details, Data, IpAddress, UserAgent, Timestamp, Status)
                 OUTPUT CAST(inserted.Id AS NVARCHAR(128)) INTO @Inserted(Id)
-                VALUES (@UserId, @UserName, @FarmId, @Action, @Resource, @ResourceId, @Details, @IpAddress, @UserAgent, @Timestamp, @Status);
+                VALUES (@UserId, @UserName, @FarmId, @Action, @Resource, @ResourceId, @Details, @Data, @IpAddress, @UserAgent, @Timestamp, @Status);
                 SELECT TOP (1) Id FROM @Inserted;", conn);
 
             cmd.Parameters.AddWithValue("@UserId", log.UserId);
@@ -180,6 +181,7 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Resource", (object?)log.Resource ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@ResourceId", (object?)log.ResourceId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Details", (object?)log.Details ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Data", (object?)log.Data ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@IpAddress", (object?)log.IpAddress ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@UserAgent", (object?)log.UserAgent ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Timestamp", log.Timestamp);

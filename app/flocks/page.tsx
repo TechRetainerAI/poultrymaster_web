@@ -822,6 +822,12 @@ export default function FlocksPage() {
       }, 0)
   }, [flocks, flockBirdsLeftMap])
 
+  /** Same flocks as the three summary cards: placed minus latest birds left (compare to sum of daily deaths). */
+  const birdsLostPlacedMinusLeft = useMemo(
+    () => Math.max(0, overallTotalBirds - totalBirdsLeft),
+    [overallTotalBirds, totalBirdsLeft],
+  )
+
   const flockLifecycleBadge = (flock: Flock) => {
     const life = getFlockLifecycleStatus(flock)
     if (life === "pending") {
@@ -1144,7 +1150,28 @@ export default function FlocksPage() {
                       <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
                       <div className="min-w-0">
                         <div className="text-sm font-semibold text-slate-900">Total Deaths</div>
-                        <p className="text-xs text-slate-500 mt-0.5">Deaths on logs for active flocks; all days on the side.</p>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Sum of <strong>Deaths</strong> on every production row for the flocks in the other two cards. Each
+                          row should be birds lost <strong>that day only</strong> (not a running total).
+                        </p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Placed − birds left (same flocks):{" "}
+                          <span className="font-semibold text-slate-800 tabular-nums">
+                            {birdsLostPlacedMinusLeft.toLocaleString()}
+                          </span>
+                          {totalMortality > birdsLostPlacedMinusLeft + 1 && (
+                            <span className="block mt-0.5 text-amber-800/90">
+                              Red total is higher than this drop in headcount — check rows for cumulative death counts or the
+                              same day entered twice.
+                            </span>
+                          )}
+                          {birdsLostPlacedMinusLeft > totalMortality + 1 && (
+                            <span className="block mt-0.5 text-slate-600">
+                              Headcount fell more than summed deaths — some losses may be missing in the Deaths column, or
+                              birds were removed another way.
+                            </span>
+                          )}
+                        </p>
                       </div>
                     </div>
                     <div className="shrink-0 text-right">
@@ -1156,7 +1183,9 @@ export default function FlocksPage() {
                       >
                         {totalMortality.toLocaleString()}
                       </div>
-                      <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wide mt-0.5">All logs</div>
+                      <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wide mt-0.5">
+                        + inactive flocks
+                      </div>
                       <div className="text-sm font-semibold text-slate-800 tabular-nums">
                         {totalMortalityAllRowsFarm.toLocaleString()}
                       </div>

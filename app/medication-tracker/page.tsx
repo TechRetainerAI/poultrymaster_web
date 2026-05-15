@@ -521,22 +521,23 @@ export default function MedicationTrackerPage() {
                           <TableBody>
                             {medByProduct.map((p) => {
                               const shot = latestMedicationPhotos.get(p.key)
-                              const { userId: u, farmId: f } = getUserContext()
                               const recordId = shot?.healthRecordId
-                              const showDb = Boolean(shot?.hasAttachmentImage && recordId && u && f)
+                              const { userId: u, farmId: f } = getUserContext()
+                              const tryAuthImage = Boolean(recordId && u && f)
                               const href = shot?.path ? toReceiptViewUrl(shot.path, f) : null
-                              const hasAnyImage = showDb || Boolean(href)
+                              const hasAnyImage = tryAuthImage || Boolean(href)
                               return (
                               <TableRow key={p.key}>
                                 <TableCell className="font-medium text-slate-900">{p.label}</TableCell>
                                 <TableCell className="align-top">
                                   <div className="flex flex-col gap-2 min-w-[112px]">
-                                    {showDb && recordId ? (
+                                    {tryAuthImage && recordId ? (
                                       <div className="inline-block rounded-md border bg-white overflow-hidden">
                                         <AuthenticatedHealthImage
                                           healthRecordId={recordId}
                                           userId={u}
                                           farmId={f}
+                                          legacyFallbackSrc={href}
                                           className="h-14 w-14 object-cover"
                                           fallbackClassName="h-14 w-14"
                                         />
@@ -598,7 +599,7 @@ export default function MedicationTrackerPage() {
                         <ul className="flex flex-wrap gap-3">
                           {medicationPhotosNotInBalanceTable.map((info) => {
                             const { userId: u, farmId: f } = getUserContext()
-                            const showDb = Boolean(info.hasAttachmentImage && u && f)
+                            const tryAuthImage = Boolean(info.healthRecordId && u && f)
                             const href = info.path ? toReceiptViewUrl(info.path, f) : null
                             return (
                               <li
@@ -608,12 +609,13 @@ export default function MedicationTrackerPage() {
                                 <span className="font-medium text-slate-800 max-w-[160px] truncate" title={info.productLabel}>
                                   {info.productLabel}
                                 </span>
-                                {showDb ? (
+                                {tryAuthImage ? (
                                   <div className="inline-flex rounded border bg-white overflow-hidden shrink-0">
                                     <AuthenticatedHealthImage
                                       healthRecordId={info.healthRecordId}
                                       userId={u}
                                       farmId={f}
+                                      legacyFallbackSrc={href}
                                       className="h-10 w-10 object-cover"
                                       fallbackClassName="h-10 w-10"
                                     />

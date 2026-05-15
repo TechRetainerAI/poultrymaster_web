@@ -8,6 +8,7 @@ export interface AuditLog {
   resource: string
   resourceId: string
   details: string
+  data?: string | null
   ipAddress: string
   userAgent: string
   timestamp: string
