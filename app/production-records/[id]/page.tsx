@@ -35,6 +35,9 @@ export default function EditProductionRecordPage() {
     production12PM: "",
     production4PM: "",
     brokenEggs: "",
+    meatyEggs: "",
+    softEggs: "",
+    lostEggs: "",
     eggGrade: "",
   })
 
@@ -60,6 +63,9 @@ export default function EditProductionRecordPage() {
         production12PM: String(record.production12PM),
         production4PM: String(record.production4PM),
         brokenEggs: String((record as any).brokenEggs ?? 0),
+        meatyEggs: (record as any).meatyEggs == null ? "" : String((record as any).meatyEggs),
+        softEggs: (record as any).softEggs == null ? "" : String((record as any).softEggs),
+        lostEggs: (record as any).lostEggs == null ? "" : String((record as any).lostEggs),
         eggGrade: eggGradeFromApi((record as any).eggGrade),
       })
     } else {
@@ -102,6 +108,9 @@ export default function EditProductionRecordPage() {
       production12PM: Number(formData.production12PM),
       production4PM: Number(formData.production4PM),
       brokenEggs: Number(formData.brokenEggs) || 0,
+      meatyEggs: formData.meatyEggs === "" ? null : Number(formData.meatyEggs) || 0,
+      softEggs: formData.softEggs === "" ? null : Number(formData.softEggs) || 0,
+      lostEggs: formData.lostEggs === "" ? null : Number(formData.lostEggs) || 0,
       totalProduction,
       eggGrade: eggGradeToApi(formData.eggGrade),
     }
@@ -304,6 +313,48 @@ export default function EditProductionRecordPage() {
                         min="0"
                         disabled={loading}
                         className="h-11 border-red-200 focus:border-red-500 focus:ring-red-500"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="meatyEggs" className="text-sm font-medium text-amber-800">Meaty Eggs</Label>
+                      <Input
+                        id="meatyEggs"
+                        name="meatyEggs"
+                        type="number"
+                        value={formData.meatyEggs}
+                        onChange={handleChange}
+                        min="0"
+                        placeholder="—"
+                        disabled={loading}
+                        className="h-11 border-amber-200 focus:border-amber-500 focus:ring-amber-500"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="softEggs" className="text-sm font-medium text-violet-800">Soft Eggs</Label>
+                      <Input
+                        id="softEggs"
+                        name="softEggs"
+                        type="number"
+                        value={formData.softEggs}
+                        onChange={handleChange}
+                        min="0"
+                        placeholder="—"
+                        disabled={loading}
+                        className="h-11 border-violet-200 focus:border-violet-500 focus:ring-violet-500"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="lostEggs" className="text-sm font-medium text-slate-700">Lost Eggs</Label>
+                      <Input
+                        id="lostEggs"
+                        name="lostEggs"
+                        type="number"
+                        value={formData.lostEggs}
+                        onChange={handleChange}
+                        min="0"
+                        placeholder="—"
+                        disabled={loading}
+                        className="h-11 border-slate-200 focus:border-slate-500 focus:ring-slate-500"
                       />
                     </div>
                     <div className="space-y-2 md:col-span-3">

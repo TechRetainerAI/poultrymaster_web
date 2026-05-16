@@ -88,6 +88,7 @@ export default function SalesPage() {
     flockId: 0,
     saleDescription: "",
     paid: true,
+    size: null,
   })
 
   const productOptions = ["Fresh Eggs", "Chicken", "Manure", "Other"]
@@ -243,8 +244,9 @@ export default function SalesPage() {
         flockId: formData.flockId ?? 0,
         saleDescription: formData.saleDescription ?? "",
         paid: formData.paid ?? true,
+        size: formData.size?.trim() ? formData.size.trim() : null,
       }
-      
+
       const response = await createSale(saleData)
       if (response.success) {
         toast({
@@ -305,8 +307,9 @@ export default function SalesPage() {
         flockId: formData.flockId ?? 0,
         saleDescription: formData.saleDescription ?? "",
         paid: formData.paid ?? true,
+        size: formData.size?.trim() ? formData.size.trim() : null,
       }
-      
+
       const response = await updateSale(editingSale.saleId, payload)
       if (response.success) {
         toast({
@@ -516,6 +519,7 @@ export default function SalesPage() {
       flockId: sale.flockId,
       saleDescription: sale.saleDescription,
       paid: sale.paid ?? true,
+      size: sale.size ?? null,
     })
     const selection = productOptions.includes(sale.product) ? sale.product : "Other"
     setProductSelection(selection)
@@ -922,15 +926,38 @@ export default function SalesPage() {
                       </Select>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 rounded-md border bg-white px-3 py-2">
-                    <Checkbox
-                      id="salePaid"
-                      checked={Boolean(formData.paid ?? true)}
-                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, paid: checked === true }))}
-                    />
-                    <div className="space-y-0.5">
-                      <Label htmlFor="salePaid" className="cursor-pointer">Paid</Label>
-                      <p className="text-xs text-slate-500">Uncheck if customer has not paid yet (records as owed).</p>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <div className="flex items-center gap-3 rounded-md border bg-white px-3 py-2">
+                      <Checkbox
+                        id="salePaid"
+                        checked={Boolean(formData.paid ?? true)}
+                        onCheckedChange={(checked) => setFormData(prev => ({ ...prev, paid: checked === true }))}
+                      />
+                      <div className="space-y-0.5">
+                        <Label htmlFor="salePaid" className="cursor-pointer">Paid</Label>
+                        <p className="text-xs text-slate-500">Uncheck if customer has not paid yet (records as owed).</p>
+                      </div>
+                    </div>
+                    <div className="rounded-md border bg-white px-3 py-2 space-y-1">
+                      <Label htmlFor="saleSize">Egg Size (optional)</Label>
+                      <Input
+                        id="saleSize"
+                        list="egg-size-suggestions"
+                        value={formData.size ?? ""}
+                        onChange={(e) => setFormData(prev => ({ ...prev, size: e.target.value }))}
+                        placeholder="e.g. Inside, Tee, Serum"
+                      />
+                      <datalist id="egg-size-suggestions">
+                        <option value="Inside" />
+                        <option value="Tee" />
+                        <option value="Serum" />
+                        <option value="Small" />
+                        <option value="Medium" />
+                        <option value="Large" />
+                        <option value="XLarge" />
+                        <option value="Jumbo" />
+                      </datalist>
+                      <p className="text-xs text-slate-500">Used by the weekly report&apos;s &ldquo;Egg Sales by Size&rdquo; card.</p>
                     </div>
                   </div>
                 </div>

@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { ChevronLeft, ChevronRight, RefreshCw, FileBarChart, Calendar as CalendarIcon } from "lucide-react"
+import { ChevronLeft, ChevronRight, RefreshCw, FileBarChart, Calendar as CalendarIcon, Printer } from "lucide-react"
 import { getProductionRecords, type ProductionRecord } from "@/lib/api/production-record"
 import { getFlocks, type Flock } from "@/lib/api/flock"
 import { getHouses, type House } from "@/lib/api/house"
@@ -354,6 +354,22 @@ export default function WeeklyReportPage() {
 
   return (
     <div className="flex min-h-screen bg-slate-50">
+      <style>{`
+        @media print {
+          @page { size: A4 portrait; margin: 12mm; }
+          body { background: white !important; }
+          /* Hide dashboard chrome */
+          .bg-slate-900, .dashboard-sidebar, header { display: none !important; }
+          /* Hide page elements explicitly marked */
+          .weekly-print-hide { display: none !important; }
+          /* Tighten layout for print */
+          main { padding: 0 !important; }
+          /* Avoid breaking inside cards / tables */
+          .rounded-xl, .rounded-lg, [class*="Card"], table { break-inside: avoid; page-break-inside: avoid; }
+          /* Strip drop shadows that waste toner */
+          .shadow-sm, .shadow, .shadow-md { box-shadow: none !important; }
+        }
+      `}</style>
       <DashboardSidebar onLogout={handleLogout} />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
@@ -375,23 +391,34 @@ export default function WeeklyReportPage() {
                   </p>
                 </div>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                className="shrink-0 gap-2"
-                onClick={() => {
-                  setRefreshing(true)
-                  void loadData()
-                }}
-                disabled={refreshing || loading}
-              >
-                <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
-                Refresh
-              </Button>
+              <div className="flex gap-2 shrink-0 weekly-print-hide">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => {
+                    setRefreshing(true)
+                    void loadData()
+                  }}
+                  disabled={refreshing || loading}
+                >
+                  <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+                  Refresh
+                </Button>
+                <Button
+                  type="button"
+                  className="gap-2"
+                  onClick={() => window.print()}
+                  disabled={loading}
+                >
+                  <Printer className="h-4 w-4" />
+                  Print
+                </Button>
+              </div>
             </div>
 
             {/* Filters (#5) */}
-            <Card className="bg-white">
+            <Card className="bg-white weekly-print-hide">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Filters</CardTitle>
                 <CardDescription>Pick a week, or override with an explicit date range.</CardDescription>

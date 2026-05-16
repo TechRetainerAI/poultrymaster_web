@@ -47,6 +47,9 @@ export default function NewProductionRecordPage() {
     noon: "",
     evening: "",
     brokenEggs: "",
+    meatyEggs: "",
+    softEggs: "",
+    lostEggs: "",
     feedKg: "",
     feedType: "",
     mortality: "",
@@ -267,6 +270,9 @@ export default function NewProductionRecordPage() {
         production12PM: parseInt(form.noon) || 0,
         production4PM: parseInt(form.evening) || 0,
         brokenEggs: parseInt(form.brokenEggs) || 0,
+        meatyEggs: form.meatyEggs === "" ? null : parseInt(form.meatyEggs) || 0,
+        softEggs: form.softEggs === "" ? null : parseInt(form.softEggs) || 0,
+        lostEggs: form.lostEggs === "" ? null : parseInt(form.lostEggs) || 0,
         totalProduction: total,
         flockId: form.flockId ? parseInt(form.flockId) : null,
         eggGrade: eggGradeToApi(form.eggGrade),
@@ -490,6 +496,40 @@ export default function NewProductionRecordPage() {
                       onChange={(e) => setForm({ ...form, brokenEggs: e.target.value })}
                       placeholder="0"
                     />
+                  </div>
+
+                  {/* Egg losses: meaty / soft / lost — leave blank if not tracked */}
+                  <div className="col-span-12 grid grid-cols-3 gap-3">
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-2">
+                      <Label className="text-amber-800 font-semibold">Meaty Eggs</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={form.meatyEggs}
+                        onChange={(e) => setForm({ ...form, meatyEggs: e.target.value })}
+                        placeholder="—"
+                      />
+                    </div>
+                    <div className="p-3 bg-violet-50 border border-violet-200 rounded-lg space-y-2">
+                      <Label className="text-violet-800 font-semibold">Soft Eggs</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={form.softEggs}
+                        onChange={(e) => setForm({ ...form, softEggs: e.target.value })}
+                        placeholder="—"
+                      />
+                    </div>
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+                      <Label className="text-slate-700 font-semibold">Lost Eggs</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={form.lostEggs}
+                        onChange={(e) => setForm({ ...form, lostEggs: e.target.value })}
+                        placeholder="—"
+                      />
+                    </div>
                   </div>
 
                   {/* Total Eggs Summary */}
