@@ -11,6 +11,8 @@ namespace PoultryFarmAPIWeb.Business
 
         /// <summary>Caches whether dbo stored procedures include @EggGrade (migration 003).</summary>
         private static readonly ConcurrentDictionary<string, bool> SpHasEggGradeParamCache = new();
+        /// <summary>Caches whether dbo stored procedures include the egg-loss params @MeatyEggs/@SoftEggs/@LostEggs (migration 018). Probing @MeatyEggs is sufficient — they were added together.</summary>
+        private static readonly ConcurrentDictionary<string, bool> SpHasEggLossParamsCache = new();
 
         public ProductionRecordService(string connectionString)
         {
@@ -35,6 +37,36 @@ namespace PoultryFarmAPIWeb.Business
             var has = scalar != null && scalar != DBNull.Value;
             SpHasEggGradeParamCache[procedureName] = has;
             return has;
+        }
+
+        private static async Task<bool> ProcedureHasEggLossParamsAsync(SqlConnection conn, string procedureName)
+        {
+            if (SpHasEggLossParamsCache.TryGetValue(procedureName, out var cached))
+                return cached;
+
+            await using var probe = new SqlCommand(
+                @"SELECT 1
+                  FROM sys.parameters p
+                  INNER JOIN sys.procedures pr ON p.object_id = pr.object_id
+                  WHERE SCHEMA_NAME(pr.schema_id) = N'dbo'
+                    AND pr.name = @procName
+                    AND (p.name = N'MeatyEggs' OR p.name = N'@MeatyEggs')",
+                conn);
+            probe.Parameters.AddWithValue("@procName", procedureName);
+            var scalar = await probe.ExecuteScalarAsync();
+            var has = scalar != null && scalar != DBNull.Value;
+            SpHasEggLossParamsCache[procedureName] = has;
+            return has;
+        }
+
+        private static int? GetNullableIntIfPresent(SqlDataReader reader, string columnName)
+        {
+            for (var i = 0; i < reader.FieldCount; i++)
+            {
+                if (string.Equals(reader.GetName(i), columnName, StringComparison.OrdinalIgnoreCase))
+                    return reader.IsDBNull(i) ? (int?)null : reader.GetInt32(i);
+            }
+            return null;
         }
 
         public async Task<int> Insert(ProductionRecordModel model)
@@ -77,6 +109,12 @@ namespace PoultryFarmAPIWeb.Business
                 await conn.OpenAsync();
                 if (await ProcedureHasEggGradeParameterAsync(conn, "spProductionRecord_Insert"))
                     cmd.Parameters.AddWithValue("@EggGrade", (object?)model.EggGrade ?? DBNull.Value);
+                if (await ProcedureHasEggLossParamsAsync(conn, "spProductionRecord_Insert"))
+                {
+                    cmd.Parameters.AddWithValue("@MeatyEggs", (object?)model.MeatyEggs ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@SoftEggs", (object?)model.SoftEggs ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@LostEggs", (object?)model.LostEggs ?? DBNull.Value);
+                }
 
                 await cmd.ExecuteNonQueryAsync();
 
@@ -123,6 +161,12 @@ namespace PoultryFarmAPIWeb.Business
                 await conn.OpenAsync();
                 if (await ProcedureHasEggGradeParameterAsync(conn, "spProductionRecord_Update"))
                     cmd.Parameters.AddWithValue("@EggGrade", (object?)model.EggGrade ?? DBNull.Value);
+                if (await ProcedureHasEggLossParamsAsync(conn, "spProductionRecord_Update"))
+                {
+                    cmd.Parameters.AddWithValue("@MeatyEggs", (object?)model.MeatyEggs ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@SoftEggs", (object?)model.SoftEggs ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@LostEggs", (object?)model.LostEggs ?? DBNull.Value);
+                }
 
                 await cmd.ExecuteNonQueryAsync();
             }
@@ -177,7 +221,10 @@ namespace PoultryFarmAPIWeb.Business
                         BrokenEggs = reader.IsDBNull(reader.GetOrdinal("BrokenEggs")) ? (int?)null : reader.GetInt32(reader.GetOrdinal("BrokenEggs")),
                         Notes = reader.GetNullableStringIfPresent("Notes"),
                         EggCount = reader.IsDBNull(reader.GetOrdinal("EggCount")) ? totalProd : reader.GetInt32(reader.GetOrdinal("EggCount")),
-                        EggGrade = reader.GetNullableStringIfPresent("EggGrade")
+                        EggGrade = reader.GetNullableStringIfPresent("EggGrade"),
+                        MeatyEggs = GetNullableIntIfPresent(reader, "MeatyEggs"),
+                        SoftEggs = GetNullableIntIfPresent(reader, "SoftEggs"),
+                        LostEggs = GetNullableIntIfPresent(reader, "LostEggs")
                     };
                 }
 
@@ -234,7 +281,10 @@ namespace PoultryFarmAPIWeb.Business
                         BrokenEggs = reader.IsDBNull(reader.GetOrdinal("BrokenEggs")) ? (int?)null : reader.GetInt32(reader.GetOrdinal("BrokenEggs")),
                         Notes = reader.GetNullableStringIfPresent("Notes"),
                         EggCount = reader.IsDBNull(reader.GetOrdinal("EggCount")) ? totalProd : reader.GetInt32(reader.GetOrdinal("EggCount")),
-                        EggGrade = reader.GetNullableStringIfPresent("EggGrade")
+                        EggGrade = reader.GetNullableStringIfPresent("EggGrade"),
+                        MeatyEggs = GetNullableIntIfPresent(reader, "MeatyEggs"),
+                        SoftEggs = GetNullableIntIfPresent(reader, "SoftEggs"),
+                        LostEggs = GetNullableIntIfPresent(reader, "LostEggs")
                     });
                 }
             }

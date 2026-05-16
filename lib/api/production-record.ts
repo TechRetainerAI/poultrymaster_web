@@ -25,6 +25,12 @@ export interface ProductionRecord {
   flockName?: string
   /** Egg size grade (e.g. Small, Medium). */
   eggGrade?: string | null
+  /** Eggs lost as "meaty" (yolk/blood spot). Added by migration 018. */
+  meatyEggs?: number | null
+  /** Eggs lost as "soft" (thin/no shell). Added by migration 018. */
+  softEggs?: number | null
+  /** Eggs lost (missing/dropped). Added by migration 018. */
+  lostEggs?: number | null
 }
 
 export interface ProductionRecordInput {
@@ -47,6 +53,9 @@ export interface ProductionRecordInput {
   totalProduction: number
   flockId?: number | null
   eggGrade?: string | null
+  meatyEggs?: number | null
+  softEggs?: number | null
+  lostEggs?: number | null
 }
 
 // Mock data for development
@@ -232,6 +241,9 @@ export async function createProductionRecord(record: ProductionRecordInput) {
     }
     if (record.flockId !== undefined) payload.FlockId = record.flockId
     payload.eggGrade = record.eggGrade?.trim() ? record.eggGrade.trim() : null
+    payload.meatyEggs = record.meatyEggs ?? null
+    payload.softEggs = record.softEggs ?? null
+    payload.lostEggs = record.lostEggs ?? null
 
     const response = await fetch(url, {
       method: "POST",
@@ -309,6 +321,9 @@ export async function updateProductionRecord(id: number, record: ProductionRecor
     if (Object.prototype.hasOwnProperty.call(record, "eggGrade")) {
       payload.eggGrade = record.eggGrade?.trim() ? record.eggGrade.trim() : null
     }
+    if (Object.prototype.hasOwnProperty.call(record, "meatyEggs")) payload.meatyEggs = record.meatyEggs ?? null
+    if (Object.prototype.hasOwnProperty.call(record, "softEggs")) payload.softEggs = record.softEggs ?? null
+    if (Object.prototype.hasOwnProperty.call(record, "lostEggs")) payload.lostEggs = record.lostEggs ?? null
 
     const response = await fetch(url, {
       method: "PUT",

@@ -1,0 +1,277 @@
+
+
+Please implement the following updates **on the development environment (dev)**.
+
+# 0. on the audiltlog page under the data colum add the view data or Changed data
+  once the user cilck on the link  show the full data in a pop up and the should able to close it wen the finish vewing 
+# 1. Navigation Bar Changes
+
+### Move Analytics
+
+* Move **Analytics** in the **top navigation bar** so it appears **just before the “More” menu**.
+
+### Add Bird Left Tracker
+
+* Add **Bird Left Tracker** to the **Analytics dropdown menu**.
+
+---
+
+# 2. Egg Sorting Page Updates
+
+On the **Egg Sorting Page**:
+
+Remove the two page navigation links at the top:
+
+* **Tracker**
+* **Total by Size**
+
+The page should only display the egg sorting interface without those navigation links.
+
+---
+
+# 3. Sidebar Scrolling Behavior
+
+Improve the layout behavior:
+
+* The **sidebar should scroll independently**.
+* The **main page content should scroll separately**.
+* The sidebar **must remain fixed** and should **not move when the main content scrolls**.
+
+---
+
+# 4. New Weekly Poultry Production Report
+
+Create a **Weekly Poultry Production Report** based on the current manual farm sheet.
+
+The report should digitize the entire farm record system.
+
+---
+
+# 5. Report Filters
+
+Add filters at the top of the report:
+
+* **Week selector**
+* **Date range**
+* **Flock / Room filter**
+
+Example week:
+
+4 May – 10 May
+
+All calculations must update automatically based on the selected period.
+
+---
+
+# 6. Daily Egg Collection Report
+
+Create a table showing **eggs collected per flock/room for each day of the week**.
+
+### Columns
+
+* Room / Flock
+* Monday
+* Tuesday
+* Wednesday
+* Thursday
+* Friday
+* Saturday
+* Sunday
+
+### Requirements
+
+Each row represents a **room or flock**.
+
+Example rooms:
+
+* Room 1
+* Room 2
+* Room 3
+* Room 4
+
+The system should calculate:
+
+* **Total eggs collected per room**
+* **Total crates per room**
+
+---
+
+# 7. Egg Collection Time Tracking
+
+Track egg collection at **three times per day**.
+
+Collection periods:
+
+* **9:00 AM**
+* **12:00 PM**
+* **4:00 PM**
+
+For each flock:
+
+Store:
+
+* Eggs collected at each time
+* Daily totals
+* Weekly totals
+
+---
+
+# 8. Egg Sorting and Sales by Size
+
+Create a section for **egg sales categorized by size**.
+
+Egg sizes:
+
+* Inside
+* Tee
+* Serum
+
+For each size record:
+
+* Number of trays
+* Price per tray
+* Total revenue
+
+Example structure:
+
+Size | Trays | Price | Total
+Inside | 40 | 19 | auto
+Tee | 37 | 28 | auto
+Serum | 36 | 23 | auto
+
+The system should automatically calculate:
+
+* Total trays sold
+* Total crates sold
+* Total sales revenue
+
+---
+
+# 9. Egg Loss Tracking
+
+Add a section to record egg losses.
+
+Categories:
+
+* Broken eggs
+* Meaty eggs
+* Soft eggs
+* Lost eggs
+
+The system should store quantities and calculate totals.
+
+---
+
+# 10. Room Production Summary
+
+For each room display:
+
+Room | Eggs Collected | Crates | Remaining Eggs
+
+This should be automatically calculated from the recorded data.
+
+---
+
+# 11. Weekly Sales Summary
+
+Display weekly totals:
+
+* Total eggs sold
+* Total crates sold
+* Total revenue generated
+
+---
+
+# 12. Weekly Expenditure Section
+
+Create a table for farm expenses.
+
+Fields:
+
+* Date
+* Item
+* Price
+
+Example:
+
+Date | Item | Price
+6 May | Petrol | 160
+9 May | Diesel | 300
+
+The system should automatically calculate:
+
+**Total Expenditure**
+
+---
+
+# 13. Weekly Financial Summary
+
+Automatically compute the farm balance.
+
+Income = Total Egg Sales
+Expenditure = Total Expenses
+
+Final Balance:
+
+Balance = Income – Expenditure
+
+Example:
+
+Income: 19,688
+Expenditure: 460
+Balance: 19,228
+
+---
+
+# 14. Debtors Section
+
+Add a section for customers who owe money.
+
+Fields:
+
+* Customer Name
+* Amount Owed
+
+Example:
+
+Customer | Amount
+Serwa | 2096
+Tee | 6360
+Pha Sum | 2950
+
+---
+
+# 15. Observations / Notes Section
+
+Add a text area for weekly notes.
+
+Examples:
+
+* Eggs remaining for the week
+* Birds remaining
+* Feed purchases
+* Feed debts
+* Money brought home
+
+---
+
+# 16. Dashboard Summary Cards
+
+At the top of the report page show quick statistics:
+
+* Total Eggs Collected
+* Total Eggs Sold
+* Total Revenue
+* Total Expenses
+* Remaining Eggs
+* Net Balance
+
+These should update automatically based on the selected week.
+
+---
+
+✅ The system should **automatically calculate all totals, crates, balances, and summaries**, eliminating the need for manual calculations currently done on paper.
+
+---
+
+If you want, I can also help you create the **perfect database structure for this system (tables, relationships, and fields)** so the developer can build it **10x faster and cleaner**.

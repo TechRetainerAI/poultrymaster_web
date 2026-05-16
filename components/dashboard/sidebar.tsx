@@ -130,6 +130,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/feed-tracker", label: "Feed at hand", icon: Wheat },
     { href: "/medication-tracker", label: "Medication at hand", icon: Pill },
     { href: "/birds-left-tracker", label: "Birds left tracker", icon: Bird },
+    { href: "/weekly-report", label: "Weekly Report", icon: FileText },
   ]
 
   const inventoryItems = [
@@ -445,9 +446,9 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         </div>
       </div>
 
-      {/* Desktop sidebar — stretch with main column (min one viewport) so the rail always reaches the bottom */}
+      {/* Desktop sidebar — pin to viewport so it stays fixed while the main column scrolls. */}
       <div className={cn(
-        "hidden min-h-0 overflow-hidden lg:sticky lg:top-0 lg:min-h-screen lg:self-stretch lg:shrink-0 lg:flex lg:flex-col bg-slate-900 transition-all duration-300",
+        "hidden min-h-0 overflow-hidden lg:sticky lg:top-0 lg:h-screen lg:self-start lg:shrink-0 lg:flex lg:flex-col bg-slate-900 transition-all duration-300",
         isCollapsed ? "w-16" : "w-60"
       )}>
         {sidebarContent}

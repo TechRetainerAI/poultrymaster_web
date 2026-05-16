@@ -208,6 +208,8 @@ export function TopNavigation() {
       { href: "/egg-tracker", label: "Egg tracker", icon: BarChart3 },
       { href: "/feed-tracker", label: "Feed at hand", icon: Wheat },
       { href: "/medication-tracker", label: "Medication at hand", icon: Pill },
+      { href: "/birds-left-tracker", label: "Bird Left Tracker", icon: Bird },
+      { href: "/weekly-report", label: "Weekly Report", icon: FileText },
     ],
   }
 
@@ -258,12 +260,12 @@ export function TopNavigation() {
           <div className="h-5 w-px bg-white/30 mx-1" />
           <NavDropdown group={farmGroup} />
           <NavDropdown group={productionGroup} />
-          <NavDropdown group={analyticsGroup} />
           <NavDropdown group={inventoryGroup} />
           {financialGroup.items.length > 0 && <NavDropdown group={financialGroup} />}
           <div className="h-5 w-px bg-white/30 mx-1" />
           <NavLink item={{ href: "/resources", label: "Resources", icon: BookOpen }} />
           {permissions.featureAccess.canViewReports && <NavLink item={{ href: "/reports", label: "Reports", icon: BarChart3 }} />}
+          <NavDropdown group={analyticsGroup} />
           <NavDropdown group={moreGroup} />
           <div className="ml-auto flex items-center gap-1">
             {(TEMP_SHOW_PAYMENTS_LINK || permissions.isAdmin || permissions.featureAccess.canViewFinancial) && (

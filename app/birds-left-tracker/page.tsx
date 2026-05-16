@@ -26,6 +26,7 @@ import {
   summarizeBirdsLeftByFlock,
   type BirdsLeftLedgerRow,
 } from "@/lib/utils/birds-left-ledger"
+import { flockCountsTowardBirdTotals } from "@/lib/utils/flock-eligibility"
 
 const LEDGER_PAGE_SIZE = 20
 
@@ -97,7 +98,12 @@ export default function BirdsLeftTrackerPage() {
   }
 
   const summaries = useMemo(
-    () => summarizeBirdsLeftByFlock(flocks, records, sales),
+    () =>
+      summarizeBirdsLeftByFlock(
+        flocks.filter((f) => flockCountsTowardBirdTotals(f)),
+        records,
+        sales,
+      ),
     [flocks, records, sales],
   )
 

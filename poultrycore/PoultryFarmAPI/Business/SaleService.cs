@@ -12,6 +12,7 @@ namespace PoultryFarmAPIWeb.Business
     {
         private readonly string _connectionString;
         private static readonly ConcurrentDictionary<string, bool> SpHasPaidParamCache = new();
+        private static readonly ConcurrentDictionary<string, bool> SpHasSizeParamCache = new();
 
         public SaleService(string connectionString)
         {
@@ -36,6 +37,37 @@ namespace PoultryFarmAPIWeb.Business
             var has = scalar != null && scalar != DBNull.Value;
             SpHasPaidParamCache[procedureName] = has;
             return has;
+        }
+
+        /// <summary>Probes whether the stored procedure has @Size (added by migration 018).</summary>
+        private static async Task<bool> ProcedureHasSizeParameterAsync(SqlConnection conn, string procedureName)
+        {
+            if (SpHasSizeParamCache.TryGetValue(procedureName, out var cached))
+                return cached;
+
+            await using var probe = new SqlCommand(
+                @"SELECT 1
+                  FROM sys.parameters p
+                  INNER JOIN sys.procedures pr ON p.object_id = pr.object_id
+                  WHERE SCHEMA_NAME(pr.schema_id) = N'dbo'
+                    AND pr.name = @procName
+                    AND (p.name = N'Size' OR p.name = N'@Size')",
+                conn);
+            probe.Parameters.AddWithValue("@procName", procedureName);
+            var scalar = await probe.ExecuteScalarAsync();
+            var has = scalar != null && scalar != DBNull.Value;
+            SpHasSizeParamCache[procedureName] = has;
+            return has;
+        }
+
+        private static string? GetNullableStringIfPresent(SqlDataReader reader, string columnName)
+        {
+            for (var i = 0; i < reader.FieldCount; i++)
+            {
+                if (string.Equals(reader.GetName(i), columnName, StringComparison.OrdinalIgnoreCase))
+                    return reader.IsDBNull(i) ? null : reader.GetString(i);
+            }
+            return null;
         }
 
         private static bool GetBooleanIfPresent(SqlDataReader reader, string columnName, bool defaultValue = true)
@@ -71,6 +103,8 @@ namespace PoultryFarmAPIWeb.Business
                 await conn.OpenAsync();
                 if (await ProcedureHasPaidParameterAsync(conn, "spSale_Insert"))
                     cmd.Parameters.AddWithValue("@Paid", model.Paid);
+                if (await ProcedureHasSizeParameterAsync(conn, "spSale_Insert"))
+                    cmd.Parameters.AddWithValue("@Size", (object?)model.Size ?? DBNull.Value);
                 var result = await cmd.ExecuteScalarAsync();
                 return Convert.ToInt32(result);
             }
@@ -104,6 +138,8 @@ namespace PoultryFarmAPIWeb.Business
                 await conn.OpenAsync();
                 if (await ProcedureHasPaidParameterAsync(conn, "spSale_Update"))
                     cmd.Parameters.AddWithValue("@Paid", model.Paid);
+                if (await ProcedureHasSizeParameterAsync(conn, "spSale_Update"))
+                    cmd.Parameters.AddWithValue("@Size", (object?)model.Size ?? DBNull.Value);
                 await cmd.ExecuteNonQueryAsync();
             }
             catch (Exception ex)
@@ -140,6 +176,7 @@ namespace PoultryFarmAPIWeb.Business
                         FlockId = reader.IsDBNull(reader.GetOrdinal("FlockId")) ? null : reader.GetInt32(reader.GetOrdinal("FlockId")),
                         SaleDescription = reader.IsDBNull(reader.GetOrdinal("SaleDescription")) ? null : reader.GetString(reader.GetOrdinal("SaleDescription")),
                         Paid = GetBooleanIfPresent(reader, "Paid", true),
+                        Size = GetNullableStringIfPresent(reader, "Size"),
                         CreatedDate = reader.GetDateTime(reader.GetOrdinal("CreatedDate")),
                         FarmId = reader.GetString(reader.GetOrdinal("FarmId"))
                     };
@@ -180,6 +217,7 @@ namespace PoultryFarmAPIWeb.Business
                         FlockId = reader.IsDBNull(reader.GetOrdinal("FlockId")) ? null : reader.GetInt32(reader.GetOrdinal("FlockId")),
                         SaleDescription = reader.IsDBNull(reader.GetOrdinal("SaleDescription")) ? null : reader.GetString(reader.GetOrdinal("SaleDescription")),
                         Paid = GetBooleanIfPresent(reader, "Paid", true),
+                        Size = GetNullableStringIfPresent(reader, "Size"),
                         CreatedDate = reader.GetDateTime(reader.GetOrdinal("CreatedDate")),
                         FarmId = reader.GetString(reader.GetOrdinal("FarmId"))
                     };
@@ -242,6 +280,7 @@ namespace PoultryFarmAPIWeb.Business
                         FlockId = reader.IsDBNull(reader.GetOrdinal("FlockId")) ? null : reader.GetInt32(reader.GetOrdinal("FlockId")),
                         SaleDescription = reader.IsDBNull(reader.GetOrdinal("SaleDescription")) ? null : reader.GetString(reader.GetOrdinal("SaleDescription")),
                         Paid = GetBooleanIfPresent(reader, "Paid", true),
+                        Size = GetNullableStringIfPresent(reader, "Size"),
                         CreatedDate = reader.GetDateTime(reader.GetOrdinal("CreatedDate")),
                         FarmId = reader.GetString(reader.GetOrdinal("FarmId"))
                     };

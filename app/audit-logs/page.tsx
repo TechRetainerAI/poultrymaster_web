@@ -15,6 +15,7 @@ import { AuditLogsService } from "@/lib/services/audit-logs.service"
 import { getUserContext } from "@/lib/utils/user-context"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { formatDateShort, cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
@@ -48,6 +49,16 @@ export default function AuditLogsPage() {
   const [sortDir, setSortDir] = useState<SortDirection>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 10
+  const [viewLog, setViewLog] = useState<AuditLog | null>(null)
+
+  const prettyData = (raw?: string | null) => {
+    if (!raw) return "—"
+    try {
+      return JSON.stringify(JSON.parse(raw), null, 2)
+    } catch {
+      return raw
+    }
+  }
   const handleSort = (key: string) => { const r = toggleSort(key, sortKey, sortDir); setSortKey(r.key); setSortDir(r.direction) }
 
   const handleLogout = () => {
@@ -291,7 +302,13 @@ export default function AuditLogsPage() {
                                 {log.data && (
                                   <div className="col-span-2">
                                     <span className="text-slate-500">Data</span>
-                                    <span className="font-medium block truncate">{log.data}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setViewLog(log)}
+                                      className="ml-2 text-blue-600 hover:underline font-medium"
+                                    >
+                                      View data
+                                    </button>
                                   </div>
                                 )}
                               </div>
@@ -345,7 +362,19 @@ export default function AuditLogsPage() {
                             </Badge>
                           </TableCell>
                           <TableCell className={cn("max-w-xs truncate bg-white", isMobile && "sticky-col-actions")}>{log.details}</TableCell>
-                          <TableCell className="max-w-xs truncate bg-white">{log.data ?? "—"}</TableCell>
+                          <TableCell className="max-w-xs truncate bg-white">
+                            {log.data ? (
+                              <button
+                                type="button"
+                                onClick={() => setViewLog(log)}
+                                className="text-blue-600 hover:underline font-medium"
+                              >
+                                View data
+                              </button>
+                            ) : (
+                              "—"
+                            )}
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -385,6 +414,22 @@ export default function AuditLogsPage() {
           </div>
         </main>
       </div>
+
+      <Dialog open={!!viewLog} onOpenChange={(open) => !open && setViewLog(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Audit log data</DialogTitle>
+            <DialogDescription>
+              {viewLog
+                ? `${friendlyAction(viewLog.action)} ${viewLog.resource} • ${formatDate(viewLog.timestamp)} • ${displayUser(viewLog.userName)}`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <pre className="flex-1 overflow-auto rounded-md bg-slate-50 border p-3 text-xs font-mono whitespace-pre-wrap break-words text-slate-800">
+            {prettyData(viewLog?.data)}
+          </pre>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

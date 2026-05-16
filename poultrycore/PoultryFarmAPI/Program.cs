@@ -87,6 +87,9 @@ builder.Services.AddScoped<IHealthRecordService>(sp => new HealthRecordService(c
 // Audit logs service
 builder.Services.AddScoped<IAuditLogService>(sp => new AuditLogService(connectionString));
 
+// Weekly observations (notes per farm + week) — migration 018
+builder.Services.AddScoped<IFarmObservationService>(sp => new FarmObservationService(connectionString));
+
 // Chat service
 builder.Services.AddScoped<IChatService>(sp => new ChatService(connectionString));
 

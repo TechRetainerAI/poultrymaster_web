@@ -518,11 +518,6 @@ export default function EggProductionsPage() {
                   <p className="text-sm text-slate-600">
                     Daily collection by flock (9am / 12pm / 4pm) for the filters below.
                   </p>
-                  <div className="mt-2 text-sm">
-                    <Link href="/egg-tracker" className="text-blue-600 hover:underline font-medium">
-                      Egg tracker
-                    </Link>
-                  </div>
                 </div>
               </div>
               <Link href="/egg-production/new" prefetch={true} className="w-full sm:w-auto">

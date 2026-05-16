@@ -15,7 +15,9 @@ namespace PoultryFarmAPIWeb.Models
         public int? FlockId { get; set; }
         public string? SaleDescription { get; set; }
         public bool Paid { get; set; } = true;
+        /// <summary>Egg size (Inside / Tee / Serum / Small / Medium / etc.). Nullable; required only for egg sales tracked by size.</summary>
+        public string? Size { get; set; }
         public DateTime CreatedDate { get; set; }
-      
+
     }
 }

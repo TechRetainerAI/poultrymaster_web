@@ -40,5 +40,14 @@ namespace PoultryFarmAPIWeb.Models
         /// <summary>Egg size for the daily collection (e.g. Small, Medium, Large, XLarge, Jumbo).</summary>
         [JsonPropertyName("eggGrade")]
         public string? EggGrade { get; set; }
+
+        /// <summary>Eggs lost as "meaty" (yolk/blood spot). Nullable.</summary>
+        public int? MeatyEggs { get; set; }
+
+        /// <summary>Eggs lost as "soft" (thin/no shell). Nullable.</summary>
+        public int? SoftEggs { get; set; }
+
+        /// <summary>Eggs lost (missing, dropped, etc.). Nullable.</summary>
+        public int? LostEggs { get; set; }
     }
 }

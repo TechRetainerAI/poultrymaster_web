@@ -16,6 +16,8 @@ export interface Sale {
   flockId: number
   saleDescription: string
   paid?: boolean
+  /** Egg size for sales tracked by size (e.g. "Inside", "Tee", "Serum"). Added by migration 018. */
+  size?: string | null
   createdDate: string
 }
 
@@ -33,6 +35,7 @@ export interface SaleInput {
   flockId: number
   saleDescription: string
   paid?: boolean
+  size?: string | null
   createdDate?: string
 }
 
@@ -451,6 +454,7 @@ export async function createSale(sale: SaleInput): Promise<ApiResponse<Sale>> {
       flockId: sale.flockId,
       saleDescription: sale.saleDescription,
       paid: sale.paid ?? true,
+      size: sale.size ?? null,
       createdDate: new Date().toISOString(),
     }
 
@@ -552,6 +556,7 @@ export async function updateSale(id: number, sale: Partial<SaleInput>): Promise<
     if (sale.flockId !== undefined) requestBody.flockId = sale.flockId
     if (sale.saleDescription) requestBody.saleDescription = sale.saleDescription
     if (sale.paid !== undefined) requestBody.paid = sale.paid
+    if (Object.prototype.hasOwnProperty.call(sale, "size")) requestBody.size = sale.size ?? null
     if (sale.createdDate) requestBody.createdDate = sale.createdDate
 
     console.log("[v0] Sale update request body:", requestBody)
