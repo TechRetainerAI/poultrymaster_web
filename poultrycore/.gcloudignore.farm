@@ -7,3 +7,7 @@
 !cloudbuild.farm.yaml
 !PoultryFarmAPI/
 !PoultryFarmAPI/**
+
+# Re-exclude local build artifacts inside the kept tree (regenerable, ~270 MB).
+PoultryFarmAPI/bin/
+PoultryFarmAPI/obj/

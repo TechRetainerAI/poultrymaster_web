@@ -127,10 +127,10 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
   const analyticsItems = [
     { href: "/egg-tracker", label: "Egg tracker", icon: BarChart3 },
-    { href: "/feed-tracker", label: "Feed at hand", icon: Wheat },
-    { href: "/medication-tracker", label: "Medication at hand", icon: Pill },
+    { href: "/feed-tracker", label: "Feed tracker", icon: Wheat },
+    { href: "/medication-tracker", label: "Medication tracker", icon: Pill },
     { href: "/birds-left-tracker", label: "Birds left tracker", icon: Bird },
-    { href: "/weekly-report", label: "Weekly Report", icon: FileText },
+    { href: "/weekly-report", label: "Weekly Report Analytics", icon: FileText },
   ]
 
   const inventoryItems = [
@@ -348,14 +348,6 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         {/* Financial */}
         {financialItems.length > 0 && renderGroup("Financial", financialItems, "financial")}
 
-        {/* Divider */}
-        <div className="border-t border-slate-800 mx-2" />
-
-        {/* Resources */}
-        <div>
-          {renderNavItem({ href: "/resources", label: "Resources", icon: BookOpen })}
-        </div>
-
         {/* Admin */}
         {(permissions.isAdmin || permissions.featureAccess.canSeeEmployees) && (
           <>
@@ -373,6 +365,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         <div className="space-y-0.5">
           {permissions.featureAccess.canViewReports && renderNavItem({ href: "/reports", label: "Reports", icon: BarChart3 })}
           {renderNavItem({ href: "/profile", label: "Account", icon: User })}
+          {renderNavItem({ href: "/resources", label: "Resources", icon: BookOpen })}
           {renderNavItem(
             { href: "#", label: "Alerts", icon: Bell },
             true,

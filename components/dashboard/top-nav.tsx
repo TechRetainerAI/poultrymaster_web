@@ -206,10 +206,10 @@ export function TopNavigation() {
     label: "Analytics",
     items: [
       { href: "/egg-tracker", label: "Egg tracker", icon: BarChart3 },
-      { href: "/feed-tracker", label: "Feed at hand", icon: Wheat },
-      { href: "/medication-tracker", label: "Medication at hand", icon: Pill },
+      { href: "/feed-tracker", label: "Feed tracker", icon: Wheat },
+      { href: "/medication-tracker", label: "Medication tracker", icon: Pill },
       { href: "/birds-left-tracker", label: "Bird Left Tracker", icon: Bird },
-      { href: "/weekly-report", label: "Weekly Report", icon: FileText },
+      { href: "/weekly-report", label: "Weekly Report Analytics", icon: FileText },
     ],
   }
 
@@ -240,6 +240,7 @@ export function TopNavigation() {
     label: "More",
     items: [
       { href: "/profile", label: "Account", icon: User },
+      { href: "/resources", label: "Resources", icon: BookOpen },
       ...(permissions.featureAccess.canViewActivityLog
         ? [{ href: "/audit-logs", label: "Activity Log", icon: Activity }]
         : []),
@@ -263,7 +264,6 @@ export function TopNavigation() {
           <NavDropdown group={inventoryGroup} />
           {financialGroup.items.length > 0 && <NavDropdown group={financialGroup} />}
           <div className="h-5 w-px bg-white/30 mx-1" />
-          <NavLink item={{ href: "/resources", label: "Resources", icon: BookOpen }} />
           {permissions.featureAccess.canViewReports && <NavLink item={{ href: "/reports", label: "Reports", icon: BarChart3 }} />}
           <NavDropdown group={analyticsGroup} />
           <NavDropdown group={moreGroup} />

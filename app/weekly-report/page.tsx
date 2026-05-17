@@ -27,6 +27,10 @@ import { flockCountsTowardBirdTotals } from "@/lib/utils/flock-eligibility"
 
 const EGGS_PER_CRATE = 30
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const
+type RangeMode = "week" | "month" | "range" | "all"
+/** Sentinel range that effectively means "no date filter". */
+const ALL_TIME_FROM = "1970-01-01"
+const ALL_TIME_TO = "9999-12-31"
 
 /** Date helpers — local-time Mon-anchored weeks. */
 function startOfWeek(d: Date): Date {
@@ -42,6 +46,35 @@ function addDays(d: Date, n: number): Date {
 }
 function fmtShort(d: Date): string {
   return d.toLocaleDateString(undefined, { day: "numeric", month: "short" })
+}
+function fmtMonth(yyyymm: string): string {
+  // "2026-05" → "May 2026"
+  const [y, m] = yyyymm.split("-").map(Number)
+  if (!y || !m) return yyyymm
+  return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" })
+}
+function monthStart(yyyymm: string): string {
+  return `${yyyymm}-01`
+}
+function monthEnd(yyyymm: string): string {
+  const [y, m] = yyyymm.split("-").map(Number)
+  const last = new Date(y, m, 0).getDate() // day 0 of next month = last day of this month
+  return `${yyyymm}-${String(last).padStart(2, "0")}`
+}
+/** Build a list of months that appear in the loaded data, plus the current month. Newest first. */
+function deriveMonthOptions(records: { date: string }[], sales: { saleDate: string }[]): string[] {
+  const set = new Set<string>()
+  const now = new Date()
+  set.add(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`)
+  for (const r of records) {
+    const d = new Date(r.date)
+    if (!Number.isNaN(d.getTime())) set.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`)
+  }
+  for (const s of sales) {
+    const d = new Date(s.saleDate)
+    if (!Number.isNaN(d.getTime())) set.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`)
+  }
+  return Array.from(set).sort().reverse()
 }
 
 const isEggSale = (product: string | null | undefined) =>
@@ -59,7 +92,12 @@ export default function WeeklyReportPage() {
   const [error, setError] = useState("")
 
   // Filters
+  const [mode, setMode] = useState<RangeMode>("week")
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date()))
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    const n = new Date()
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`
+  })
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [flockFilter, setFlockFilter] = useState("ALL")
@@ -159,13 +197,24 @@ export default function WeeklyReportPage() {
     }
   }
 
-  // Effective date range: explicit From/To overrides the selected week.
+  // Effective date range derived from the active mode.
   const range = useMemo(() => {
-    if (dateFrom && dateTo) return { from: dateFrom, to: dateTo, label: `${dateFrom} → ${dateTo}` }
+    if (mode === "all") {
+      return { from: ALL_TIME_FROM, to: ALL_TIME_TO, label: "All time" }
+    }
+    if (mode === "month") {
+      return { from: monthStart(selectedMonth), to: monthEnd(selectedMonth), label: fmtMonth(selectedMonth) }
+    }
+    if (mode === "range" && dateFrom && dateTo) {
+      return { from: dateFrom, to: dateTo, label: `${dateFrom} → ${dateTo}` }
+    }
+    // Default: week (Mon-Sun anchored on weekStart).
     const from = toLocalDateKey(weekStart.toISOString())
     const to = toLocalDateKey(addDays(weekStart, 6).toISOString())
     return { from, to, label: `${fmtShort(weekStart)} – ${fmtShort(addDays(weekStart, 6))}` }
-  }, [weekStart, dateFrom, dateTo])
+  }, [mode, weekStart, selectedMonth, dateFrom, dateTo])
+
+  const monthOptions = useMemo(() => deriveMonthOptions(records, sales), [records, sales])
 
   // Filter active/started flocks for selectors (consistent with other pages).
   const eligibleFlocks = useMemo(
@@ -383,10 +432,10 @@ export default function WeeklyReportPage() {
                 </div>
                 <div className="min-w-0">
                   <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
-                    Weekly Poultry Production Report
+                    Weekly Report Analytics
                   </h1>
                   <p className="text-sm text-slate-600 mt-1">
-                    Week of <span className="font-semibold">{range.label}</span>. All totals
+                    Showing <span className="font-semibold">{range.label}</span>. All totals
                     update automatically based on the selected period.
                   </p>
                 </div>
@@ -421,75 +470,104 @@ export default function WeeklyReportPage() {
             <Card className="bg-white weekly-print-hide">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Filters</CardTitle>
-                <CardDescription>Pick a week, or override with an explicit date range.</CardDescription>
+                <CardDescription>Pick a week, a month, a custom range, or all time.</CardDescription>
               </CardHeader>
-              <CardContent className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    aria-label="Previous week"
-                    onClick={() => setWeekStart((w) => addDays(w, -7))}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <div className="flex items-center gap-2 px-2 py-1 rounded-md bg-slate-50 border text-sm font-medium text-slate-700 flex-1 min-w-0 justify-center">
-                    <CalendarIcon className="h-3.5 w-3.5 text-slate-500" />
-                    <span className="truncate">{fmtShort(weekStart)} – {fmtShort(addDays(weekStart, 6))}</span>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    aria-label="Next week"
-                    onClick={() => setWeekStart((w) => addDays(w, 7))}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
+              <CardContent className="space-y-3">
+                {/* Mode tabs */}
+                <div className="inline-flex rounded-md border bg-slate-50 p-0.5">
+                  {(["week", "month", "range", "all"] as RangeMode[]).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setMode(m)}
+                      className={cn(
+                        "px-3 py-1.5 text-xs font-medium rounded transition-colors capitalize",
+                        mode === m ? "bg-white shadow-sm text-slate-900" : "text-slate-600 hover:text-slate-900",
+                      )}
+                    >
+                      {m === "range" ? "Custom range" : m === "all" ? "All time" : m}
+                    </button>
+                  ))}
                 </div>
-                <Input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  placeholder="From"
-                />
-                <Input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  placeholder="To"
-                />
-                <Select value={flockFilter} onValueChange={setFlockFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Flock" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">All flocks</SelectItem>
-                    {eligibleFlocks.map((f) => (
-                      <SelectItem key={f.flockId} value={String(f.flockId)}>
-                        {f.name || `Flock #${f.flockId}`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={houseFilter} onValueChange={setHouseFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Room / House" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">All rooms</SelectItem>
-                    {houses.map((h) => (
-                      <SelectItem key={h.houseId} value={String(h.houseId)}>
-                        {h.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="md:col-span-2 lg:col-span-5 flex justify-end">
-                  {(dateFrom || dateTo || flockFilter !== "ALL" || houseFilter !== "ALL") && (
+
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                  {/* Active scope control */}
+                  {mode === "week" && (
+                    <div className="flex items-center gap-1 lg:col-span-2">
+                      <Button variant="outline" size="icon" aria-label="Previous week" onClick={() => setWeekStart((w) => addDays(w, -7))}>
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <div className="flex items-center gap-2 px-2 py-1 rounded-md bg-slate-50 border text-sm font-medium text-slate-700 flex-1 min-w-0 justify-center">
+                        <CalendarIcon className="h-3.5 w-3.5 text-slate-500" />
+                        <span className="truncate">{fmtShort(weekStart)} – {fmtShort(addDays(weekStart, 6))}</span>
+                      </div>
+                      <Button variant="outline" size="icon" aria-label="Next week" onClick={() => setWeekStart((w) => addDays(w, 7))}>
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                  {mode === "month" && (
+                    <div className="lg:col-span-2">
+                      <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Month" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {monthOptions.map((m) => (
+                            <SelectItem key={m} value={m}>{fmtMonth(m)}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  {mode === "range" && (
+                    <>
+                      <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} placeholder="From" />
+                      <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} placeholder="To" />
+                    </>
+                  )}
+                  {mode === "all" && (
+                    <div className="lg:col-span-2 px-3 py-2 rounded-md bg-emerald-50 border border-emerald-200 text-sm text-emerald-800">
+                      Showing every record ever logged for this farm.
+                    </div>
+                  )}
+
+                  <Select value={flockFilter} onValueChange={setFlockFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Flock" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All flocks</SelectItem>
+                      {eligibleFlocks.map((f) => (
+                        <SelectItem key={f.flockId} value={String(f.flockId)}>
+                          {f.name || `Flock #${f.flockId}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={houseFilter} onValueChange={setHouseFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Room / House" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All rooms</SelectItem>
+                      {houses.map((h) => (
+                        <SelectItem key={h.houseId} value={String(h.houseId)}>
+                          {h.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {(mode !== "week" || flockFilter !== "ALL" || houseFilter !== "ALL") && (
+                  <div className="flex justify-end">
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => {
+                        setMode("week")
+                        setWeekStart(startOfWeek(new Date()))
                         setDateFrom("")
                         setDateTo("")
                         setFlockFilter("ALL")
@@ -498,8 +576,8 @@ export default function WeeklyReportPage() {
                     >
                       Reset filters
                     </Button>
-                  )}
-                </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -857,7 +935,7 @@ export default function WeeklyReportPage() {
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">Observations / Notes</CardTitle>
                     <CardDescription>
-                      Free-text notes for week of {range.label}. Auto-saved per (farm, week).
+                      Free-text notes for week of <span className="font-medium">{fmtShort(weekStart)} – {fmtShort(addDays(weekStart, 6))}</span>. Stored per (farm, week) regardless of the filter mode above.
                       {observation?.updatedAt && (
                         <span className="ml-2 text-xs text-slate-400">
                           Last saved {new Date(observation.updatedAt).toLocaleString()}
