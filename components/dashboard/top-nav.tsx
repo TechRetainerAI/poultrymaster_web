@@ -188,8 +188,8 @@ export function TopNavigation() {
     label: "Farm",
     items: [
       { href: "/flock-batch", label: "Flock Purchases (Batches)", icon: Boxes },
-      { href: "/flocks", label: "Flock Group (pen/flocks)", icon: Bird },
-      { href: "/houses", label: "House", icon: Building2 },
+      { href: "/flocks", label: "Flock Groups (Pens / Flocks)", icon: Bird },
+      { href: "/houses", label: "Houses", icon: Building2 },
     ],
   }
 

@@ -589,7 +589,7 @@ export default function WeeklyReportPage() {
 
             {loading ? (
               <Card className="bg-white">
-                <CardContent className="py-12 text-center text-slate-600">Loading weekly report…</CardContent>
+                <CardContent className="py-12 text-center text-slate-600">Loading report…</CardContent>
               </Card>
             ) : (
               <>
@@ -705,7 +705,7 @@ export default function WeeklyReportPage() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <Card className="bg-white">
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-base">Weekly Sales Summary</CardTitle>
+                      <CardTitle className="text-base">Sales Summary</CardTitle>
                       <CardDescription>Egg sales only (other product sales are excluded).</CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -726,7 +726,7 @@ export default function WeeklyReportPage() {
 
                   <Card className="bg-white">
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-base">Weekly Financial Summary</CardTitle>
+                      <CardTitle className="text-base">Financial Summary</CardTitle>
                       <CardDescription>Balance = Income − Expenditure.</CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -761,7 +761,7 @@ export default function WeeklyReportPage() {
                 {/* Weekly Expenditure (#12) */}
                 <Card className="bg-white">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-base">Weekly Expenditure</CardTitle>
+                    <CardTitle className="text-base">Expenditure</CardTitle>
                     <CardDescription>Every expense in the selected period.</CardDescription>
                   </CardHeader>
                   <CardContent className="overflow-x-auto">

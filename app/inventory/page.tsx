@@ -233,10 +233,10 @@ export default function InventoryPage() {
   }, [inventory, search, selectedCategory, entryDateFrom, expiryDateFrom, sortField, sortDirection])
 
   const handleCreate = async () => {
-    if (!formData.name.trim() || !formData.category.trim() || !formData.unit.trim() || !formData.entryDate || !Number.isFinite(formData.quantity) || formData.quantity <= 0) {
+    if (!formData.name.trim() || !formData.category.trim() || !formData.unit.trim() || !Number.isFinite(formData.quantity) || formData.quantity <= 0) {
       toastFormGuide(
         toast,
-        "Add item name, category, unit, entry date, and a quantity greater than zero — then you can save.",
+        "Add item name, category, unit, and a quantity greater than zero — then you can save.",
       )
       return
     }
@@ -275,10 +275,10 @@ export default function InventoryPage() {
 
   const handleUpdate = async () => {
     if (!editingItem?.id) return
-    if (!formData.name.trim() || !formData.category.trim() || !formData.unit.trim() || !formData.entryDate || !Number.isFinite(formData.quantity) || formData.quantity <= 0) {
+    if (!formData.name.trim() || !formData.category.trim() || !formData.unit.trim() || !Number.isFinite(formData.quantity) || formData.quantity <= 0) {
       toastFormGuide(
         toast,
-        "Add item name, category, unit, entry date, and a quantity greater than zero — then you can save.",
+        "Add item name, category, unit, and a quantity greater than zero — then you can save.",
       )
       return
     }

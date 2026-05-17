@@ -209,6 +209,19 @@ export default function ProductionRecordsPage() {
     [flocks],
   )
 
+  /** Lookup flock name by ID — API doesn't return flockName on records. */
+  const flockNameById = useMemo(() => {
+    const m = new Map<number, string>()
+    for (const f of flocks) if (f.name) m.set(f.flockId, f.name)
+    return m
+  }, [flocks])
+
+  const resolveFlockLabel = (r: any): string => {
+    if (r.flockId == null) return "-"
+    const name = flockNameById.get(r.flockId) ?? r.flockName
+    return name ?? `Flock #${r.flockId}`
+  }
+
   // Summaries
   const totalEggs = useMemo(() => filtered.reduce((s, r) => s + (Number(r.totalProduction) || 0), 0), [filtered])
   const totalFeed = useMemo(() => filtered.reduce((s, r) => s + (Number(r.feedKg) || 0), 0), [filtered])
@@ -822,7 +835,7 @@ export default function ProductionRecordsPage() {
                                     <div className="flex items-center gap-2">
                                       <span className="font-semibold text-slate-900">{formatDateShort(r.date)}</span>
                                       <span className="text-slate-500">•</span>
-                                      <span className="text-slate-600 truncate">{r.flockName ? r.flockName : (r.flockId != null ? `Flock #${r.flockId}` : "—")}</span>
+                                      <span className="text-slate-600 truncate">{resolveFlockLabel(r)}</span>
                                     </div>
                                     <div className="mt-3 grid grid-cols-2 gap-2">
                                       <div className="rounded-lg bg-emerald-100 border border-emerald-300 px-3 py-2 shadow-sm">
@@ -926,7 +939,7 @@ export default function ProductionRecordsPage() {
                             )}
                           >
                             <TableCell className={cn("px-3 py-2 whitespace-nowrap min-w-[100px]", isMobile && "sticky-col-date bg-white")}>{isMobile ? formatDateShort(r.date) : new Date(r.date).toLocaleDateString()}</TableCell>
-                            <TableCell className={cn("px-3 py-2 whitespace-nowrap min-w-[120px] font-medium text-slate-800", isMobile && "sticky-col-flock bg-white")}>{r.flockName ? r.flockName : (r.flockId != null ? `Flock #${r.flockId}` : "-")}</TableCell>
+                            <TableCell className={cn("px-3 py-2 whitespace-nowrap min-w-[120px] font-medium text-slate-800", isMobile && "sticky-col-flock bg-white")}>{resolveFlockLabel(r)}</TableCell>
                             <TableCell className="px-3 py-2">{formatAge(r)}</TableCell>
                             <TableCell className="text-right px-3 py-2 text-blue-700 bg-blue-50/40 rounded-sm">{r.production9AM ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2 text-orange-700 bg-orange-50/40 rounded-sm">{r.production12PM ?? 0}</TableCell>
