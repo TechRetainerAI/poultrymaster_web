@@ -343,14 +343,6 @@ export default function EggTrackerPage() {
                   <p className="text-sm text-slate-600">
                     Ledger from egg sorting production, egg sales, and optional manual adjustments (like Cash at hand).
                   </p>
-                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                    <Link href="/egg-production" className="text-blue-600 hover:underline font-medium">
-                      Egg sorting
-                    </Link>
-                    <Link href="/egg-production#totals-by-size" className="text-blue-600 hover:underline font-medium">
-                      Totals by size
-                    </Link>
-                  </div>
                 </div>
               </div>
               <Button
