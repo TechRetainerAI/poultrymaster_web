@@ -865,7 +865,7 @@ export default function FlocksPage() {
                   <Bird className="w-5 h-5 text-green-600" />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="text-xl sm:text-2xl font-bold text-slate-900 truncate">Flocks</h1>
+                  <h1 className="text-xl sm:text-2xl font-bold text-slate-900 truncate">Flock Groups (Pens / Flocks)</h1>
                   <p className="text-sm text-slate-600">Manage your bird flocks</p>
                 </div>
               </div>
