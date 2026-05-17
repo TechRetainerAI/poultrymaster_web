@@ -12,5 +12,13 @@ namespace PoultryFarmAPIWeb.Models
         public decimal? ReorderLevel { get; set; }
         public int? SupplierId { get; set; }
         public bool IsActive { get; set; }
+
+        // Added by migration 019 — store the full set of fields the UI form collects.
+        public decimal? Cost { get; set; }
+        public string? SupplierName { get; set; }
+        public System.DateTime? PurchaseDate { get; set; }
+        public string? Notes { get; set; }
+        public string? Location { get; set; }
+        public System.DateTime? ExpiryDate { get; set; }
     }
 }

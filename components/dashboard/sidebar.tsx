@@ -114,9 +114,9 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
   // Navigation items
   const farmItems = [
-    { href: "/flock-batch", label: "Flock Batch", icon: Boxes },
-    { href: "/flocks", label: "Flocks", icon: Bird },
-    { href: "/houses", label: "Houses", icon: Building2 },
+    { href: "/flock-batch", label: "Flock Purchases (Batches)", icon: Boxes },
+    { href: "/flocks", label: "Flock Group (pen/flocks)", icon: Bird },
+    { href: "/houses", label: "House", icon: Building2 },
   ]
 
   const productionItems = [
@@ -130,7 +130,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/feed-tracker", label: "Feed tracker", icon: Wheat },
     { href: "/medication-tracker", label: "Medication tracker", icon: Pill },
     { href: "/birds-left-tracker", label: "Birds left tracker", icon: Bird },
-    { href: "/weekly-report", label: "Weekly Report Analytics", icon: FileText },
+    { href: "/weekly-report", label: "Analytical Report", icon: FileText },
   ]
 
   const inventoryItems = [

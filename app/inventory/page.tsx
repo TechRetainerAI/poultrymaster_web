@@ -138,9 +138,9 @@ export default function InventoryPage() {
     unit: item.unit ?? "",
     unitPrice: Number(item.cost ?? 0),
     supplier: item.supplier ?? "",
-    location: "",
-    expiryDate: "",
-    entryDate: item.purchaseDate ?? "",
+    location: item.location ?? "",
+    expiryDate: item.expiryDate ? String(item.expiryDate).split("T")[0] : "",
+    entryDate: item.purchaseDate ? String(item.purchaseDate).split("T")[0] : "",
     notes: item.notes ?? "",
     crates: 0,
     looseEggs: 0,
@@ -258,6 +258,8 @@ export default function InventoryPage() {
       supplier: formData.supplier || null,
       purchaseDate: formData.entryDate || null,
       notes: formData.notes || null,
+      location: formData.location || null,
+      expiryDate: formData.expiryDate || null,
     }
 
     const res = await createSupply(input)
@@ -298,6 +300,8 @@ export default function InventoryPage() {
       supplier: formData.supplier || null,
       purchaseDate: formData.entryDate || null,
       notes: formData.notes || null,
+      location: formData.location || null,
+      expiryDate: formData.expiryDate || null,
     }
 
     const res = await updateSupply(editingItem.id, input)

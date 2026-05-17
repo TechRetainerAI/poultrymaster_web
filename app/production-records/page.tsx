@@ -822,15 +822,12 @@ export default function ProductionRecordsPage() {
                                     <div className="flex items-center gap-2">
                                       <span className="font-semibold text-slate-900">{formatDateShort(r.date)}</span>
                                       <span className="text-slate-500">•</span>
-                                      <span className="text-slate-600 truncate">{r.flockId != null ? `Flock #${r.flockId}` : "—"}</span>
+                                      <span className="text-slate-600 truncate">{r.flockName ? r.flockName : (r.flockId != null ? `Flock #${r.flockId}` : "—")}</span>
                                     </div>
                                     <div className="mt-3 grid grid-cols-2 gap-2">
                                       <div className="rounded-lg bg-emerald-100 border border-emerald-300 px-3 py-2 shadow-sm">
                                         <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-900">Eggs</p>
                                         <p className="text-xl font-extrabold text-emerald-800 leading-tight">{(r.totalProduction ?? 0).toLocaleString()}</p>
-                                        {(r as any).eggGrade ? (
-                                          <p className="text-[11px] font-medium text-emerald-900 mt-1">Size: {formatEggGradeLabel((r as any).eggGrade)}</p>
-                                        ) : null}
                                       </div>
                                       <div className="rounded-lg bg-blue-100 border border-blue-300 px-3 py-2 shadow-sm">
                                         <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-900">Birds Left</p>
@@ -852,7 +849,6 @@ export default function ProductionRecordsPage() {
                                     <div><span className="text-slate-500">9am</span> <span className="font-medium text-blue-700">{r.production9AM ?? 0}</span></div>
                                     <div><span className="text-slate-500">12pm</span> <span className="font-medium text-orange-700">{r.production12PM ?? 0}</span></div>
                                     <div><span className="text-slate-500">4pm</span> <span className="font-medium text-purple-700">{r.production4PM ?? 0}</span></div>
-                                    <div><span className="text-slate-500">Size</span> <span className="font-medium text-slate-800">{formatEggGradeLabel((r as any).eggGrade)}</span></div>
                                     <div><span className="text-slate-500">Feed</span> <span className="font-medium">{(r.feedKg ?? 0).toFixed ? (r.feedKg ?? 0).toFixed(2) : r.feedKg} kg</span></div>
                                     <div><span className="text-slate-500">Deaths</span> <span className={cn("font-medium", (r.mortality ?? 0) > 0 ? "text-red-600" : "")}>{r.mortality ?? 0}</span></div>
                                     <div><span className="text-slate-500">Age</span> <span className="text-slate-700 truncate">{formatAge(r)}</span></div>
@@ -904,7 +900,6 @@ export default function ProductionRecordsPage() {
                           <SortableHeader label="4pm" sortKey="production4PM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-purple-100 text-purple-900 font-semibold" />
                           <SortableHeader label="Brokens" sortKey="brokenEggs" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-red-50 text-red-800 font-semibold" />
                           <SortableHeader label="Total" sortKey="totalProduction" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
-                          <SortableHeader label="Size" sortKey="eggGrade" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[72px] px-3 py-2 whitespace-nowrap" />
                           <SortableHeader label="Egg%" sortKey="eggPercent" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
                           <SortableHeader label="Feed" sortKey="feedKg" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
                           <SortableHeader label="Birds" sortKey="noOfBirds" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
@@ -917,7 +912,7 @@ export default function ProductionRecordsPage() {
                       <TableBody>
                         {paginatedRecords.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={16} className="py-12 text-center text-slate-500">
+                            <TableCell colSpan={15} className="py-12 text-center text-slate-500">
                               No records found for the selected filters.
                               <Button variant="link" className="ml-1" onClick={() => { setEditing(null); setFormOpen(true) }}>Log one now</Button>
                             </TableCell>
@@ -931,18 +926,13 @@ export default function ProductionRecordsPage() {
                             )}
                           >
                             <TableCell className={cn("px-3 py-2 whitespace-nowrap min-w-[100px]", isMobile && "sticky-col-date bg-white")}>{isMobile ? formatDateShort(r.date) : new Date(r.date).toLocaleDateString()}</TableCell>
-                            <TableCell className={cn("px-3 py-2 whitespace-nowrap min-w-[70px]", isMobile && "sticky-col-flock bg-white")}>{r.flockId != null ? `#${r.flockId}` : "-"}</TableCell>
+                            <TableCell className={cn("px-3 py-2 whitespace-nowrap min-w-[120px] font-medium text-slate-800", isMobile && "sticky-col-flock bg-white")}>{r.flockName ? r.flockName : (r.flockId != null ? `Flock #${r.flockId}` : "-")}</TableCell>
                             <TableCell className="px-3 py-2">{formatAge(r)}</TableCell>
                             <TableCell className="text-right px-3 py-2 text-blue-700 bg-blue-50/40 rounded-sm">{r.production9AM ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2 text-orange-700 bg-orange-50/40 rounded-sm">{r.production12PM ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2 text-purple-700 bg-purple-50/40 rounded-sm">{r.production4PM ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2 text-red-700 bg-red-50/40 rounded-sm">{(r as any).brokenEggs ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2 font-semibold text-slate-900">{r.totalProduction ?? 0}</TableCell>
-                            <TableCell className="px-3 py-2">
-                              <span className={cn("text-sm font-medium", (r as any).eggGrade ? "text-slate-800" : "text-slate-400")}>
-                                {formatEggGradeLabel((r as any).eggGrade)}
-                              </span>
-                            </TableCell>
                             <TableCell className="text-right px-3 py-2">{(() => { const b = Number(r.noOfBirds)||0; const t = Number(r.totalProduction)||0; return b? ((t/b)*100).toFixed(1)+"%":"-" })()}</TableCell>
                             <TableCell className="text-right px-3 py-2">{(r.feedKg ?? 0).toFixed ? r.feedKg.toFixed(2) : r.feedKg}</TableCell>
                             <TableCell className="text-right px-3 py-2">{r.noOfBirds ?? 0}</TableCell>

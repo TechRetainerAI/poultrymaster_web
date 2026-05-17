@@ -432,7 +432,7 @@ export default function WeeklyReportPage() {
                 </div>
                 <div className="min-w-0">
                   <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
-                    Weekly Report Analytics
+                    Analytical Report
                   </h1>
                   <p className="text-sm text-slate-600 mt-1">
                     Showing <span className="font-semibold">{range.label}</span>. All totals

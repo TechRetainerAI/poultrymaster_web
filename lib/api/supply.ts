@@ -27,6 +27,9 @@ export interface Supply {
   supplier?: string | null
   purchaseDate?: string | null
   notes?: string | null
+  // Added by migration 019 — these were previously silently dropped on save.
+  location?: string | null
+  expiryDate?: string | null
 }
 
 export interface SupplyInput {
@@ -41,6 +44,8 @@ export interface SupplyInput {
   supplier?: string | null
   purchaseDate?: string | null
   notes?: string | null
+  location?: string | null
+  expiryDate?: string | null
 }
 
 export interface ApiResponse<T = any> {
@@ -64,9 +69,11 @@ function mapSupply(raw: any): Supply {
     unit: raw.unit ?? raw.Unit ?? raw.unitOfMeasure ?? raw.UnitOfMeasure ?? "",
     cost: Number(raw.cost ?? raw.Cost ?? 0),
     supplierId: sid != null && sid !== "" ? Number(sid) : null,
-    supplier: raw.supplier ?? raw.Supplier ?? null,
+    supplier: raw.supplierName ?? raw.SupplierName ?? raw.supplier ?? raw.Supplier ?? null,
     purchaseDate: raw.purchaseDate ?? raw.PurchaseDate ?? null,
     notes: raw.notes ?? raw.Notes ?? null,
+    location: raw.location ?? raw.Location ?? null,
+    expiryDate: raw.expiryDate ?? raw.ExpiryDate ?? null,
   }
 }
 
@@ -166,6 +173,13 @@ export async function createSupply(input: SupplyInput): Promise<ApiResponse<Supp
         ReorderLevel: null,
         SupplierId: input.supplierId ?? null,
         IsActive: true,
+        // Migration 019 fields — backend stores them when present.
+        Cost: input.cost ?? null,
+        SupplierName: input.supplier ?? null,
+        PurchaseDate: input.purchaseDate ?? null,
+        Notes: input.notes ?? null,
+        Location: input.location ?? null,
+        ExpiryDate: input.expiryDate ?? null,
       }),
     })
 
@@ -211,6 +225,12 @@ export async function updateSupply(id: number, input: SupplyInput): Promise<ApiR
         ReorderLevel: null,
         SupplierId: input.supplierId ?? null,
         IsActive: true,
+        Cost: input.cost ?? null,
+        SupplierName: input.supplier ?? null,
+        PurchaseDate: input.purchaseDate ?? null,
+        Notes: input.notes ?? null,
+        Location: input.location ?? null,
+        ExpiryDate: input.expiryDate ?? null,
       }),
     })
 
