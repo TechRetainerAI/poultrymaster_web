@@ -680,7 +680,7 @@ export default function CashPage() {
                         </Button>
                       </div>
                     )}
-                  <Table className={cn("min-w-[1100px]", isMobile && "min-w-[900px]")}>
+                  <Table className={cn("w-full", !isMobile && "min-w-[900px]")}>
                     <TableHeader>
                       <TableRow>
                         <SortableHeader label="Date" sortKey="date" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className={cn(isMobile && "sticky-col-date bg-slate-50")} />
