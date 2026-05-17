@@ -66,5 +66,3 @@ END
 ELSE
     PRINT '017_AuditLogsData: [Data] already present on ' + @Qualified + N'.';
 GO
-  When you do merge dev → production, don't forget to also apply 017_AuditLogsData.sql to PoultryMaster (production DB)
-  — the deploy code expects the Data column. Want me to write a one-liner for that when the time comes?s
