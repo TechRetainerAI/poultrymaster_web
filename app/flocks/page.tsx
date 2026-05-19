@@ -116,7 +116,7 @@ export default function FlocksPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [createLoading, setCreateLoading] = useState(false)
   const [createError, setCreateError] = useState("")
-  const emptyFlockForm = { name: "", startDate: "", breed: "", quantity: 0, active: true, houseId: null as number | null, batchId: 0, inactivationReason: "", otherReason: "", notes: "" }
+  const emptyFlockForm = { name: "", startDate: "", breed: "", quantity: 0, active: true, hasArrived: false, houseId: null as number | null, batchId: 0, inactivationReason: "", otherReason: "", notes: "" }
   const [createForm, setCreateForm] = useState({ ...emptyFlockForm })
   const [createSelectedBatch, setCreateSelectedBatch] = useState<FlockBatch | null>(null)
 
@@ -181,6 +181,7 @@ export default function FlocksPage() {
             breed: f.breed,
             quantity: f.quantity,
             active: true,
+            hasArrived: Boolean(f.hasArrived),
             houseId: f.houseId ?? null,
             batchId: f.batchId ?? 0,
             inactivationReason: "",
@@ -466,6 +467,7 @@ export default function FlocksPage() {
       farmId, userId,
       name: createForm.name, startDate: createForm.startDate, breed: createForm.breed,
       quantity: createForm.quantity, active: createForm.active,
+      hasArrived: createForm.hasArrived,
       houseId: createForm.houseId, batchId: createForm.batchId,
       inactivationReason: createForm.inactivationReason,
       otherReason: createForm.inactivationReason === 'other' ? createForm.otherReason : '',
@@ -500,6 +502,7 @@ export default function FlocksPage() {
       setEditForm({
         name: f.name || "", startDate: f.startDate?.split('T')[0] || "", breed: f.breed || "",
         quantity: f.quantity || 0, active: f.active ?? false,
+        hasArrived: Boolean(f.hasArrived),
         houseId: f.houseId ?? null, batchId: f.batchId ?? 0,
         inactivationReason: f.inactivationReason ?? "", otherReason: f.otherReason ?? "",
         notes: f.notes ?? "",
@@ -533,6 +536,7 @@ export default function FlocksPage() {
     const flockData: Partial<FlockInput> = {
       name: editForm.name, startDate: editForm.startDate + 'T00:00:00Z', breed: editForm.breed,
       quantity: editForm.quantity, active: editForm.active,
+      hasArrived: editForm.hasArrived,
       houseId: editForm.houseId ?? null, batchId: editForm.batchId ?? 0,
       farmId, userId,
       inactivationReason: editForm.inactivationReason,
@@ -1589,9 +1593,14 @@ export default function FlocksPage() {
               <div className="bg-green-600 px-4 py-2 text-sm font-semibold text-white">Status &amp; Notes</div>
               <div className="p-4 bg-white space-y-4">
                 <div className="flex items-center space-x-2">
-                  <Switch checked={createForm.active} onCheckedChange={(checked) => setCreateForm({ ...createForm, active: checked })} disabled={createLoading} />
+                  <Switch checked={createForm.hasArrived} onCheckedChange={(checked) => setCreateForm({ ...createForm, hasArrived: checked })} disabled={createLoading} />
+                  <Label className="text-sm font-medium text-slate-700">Flock Has Arrived</Label>
+                  <p className="text-xs text-slate-500 ml-2">(Leave off until birds physically arrive — status stays Pending)</p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Switch checked={createForm.active} onCheckedChange={(checked) => setCreateForm({ ...createForm, active: checked })} disabled={createLoading || !createForm.hasArrived} />
                   <Label className="text-sm font-medium text-slate-700">Active Flock</Label>
-                  <p className="text-xs text-slate-500 ml-2">(Uncheck if this flock is no longer active)</p>
+                  <p className="text-xs text-slate-500 ml-2">(Only applies once the flock has arrived)</p>
                 </div>
                 {!createForm.active && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1701,9 +1710,14 @@ export default function FlocksPage() {
                 <div className="bg-green-600 px-4 py-2 text-sm font-semibold text-white">Status &amp; Notes</div>
                 <div className="p-4 bg-white space-y-4">
                   <div className="flex items-center space-x-2">
-                    <Switch checked={editForm.active} onCheckedChange={(checked) => setEditForm({ ...editForm, active: checked })} disabled={editLoading} />
+                    <Switch checked={editForm.hasArrived} onCheckedChange={(checked) => setEditForm({ ...editForm, hasArrived: checked })} disabled={editLoading} />
+                    <Label className="text-sm font-medium text-slate-700">Flock Has Arrived</Label>
+                    <p className="text-xs text-slate-500 ml-2">(Turn on once birds physically arrive)</p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Switch checked={editForm.active} onCheckedChange={(checked) => setEditForm({ ...editForm, active: checked })} disabled={editLoading || !editForm.hasArrived} />
                     <Label className="text-sm font-medium text-slate-700">Active Flock</Label>
-                    <p className="text-xs text-slate-500 ml-2">(Uncheck if this flock is no longer active)</p>
+                    <p className="text-xs text-slate-500 ml-2">(Only applies once the flock has arrived)</p>
                   </div>
                   {!editForm.active && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

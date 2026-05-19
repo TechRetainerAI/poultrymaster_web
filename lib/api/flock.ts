@@ -24,6 +24,7 @@ export interface Flock {
   breed: string
   quantity: number
   active: boolean
+  hasArrived: boolean
   houseId?: number | null
   batchId?: number | null
   inactivationReason?: string
@@ -41,6 +42,7 @@ export interface FlockInput {
   breed: string
   quantity: number
   active: boolean
+  hasArrived?: boolean
   houseId?: number | null
   batchId: number
   inactivationReason?: string
@@ -66,6 +68,7 @@ const mockFlocks: Flock[] = [
     breed: "Rhode Island Red",
     quantity: 250,
     active: true,
+    hasArrived: true,
     houseId: null,
   },
   {
@@ -77,6 +80,7 @@ const mockFlocks: Flock[] = [
     breed: "Cornish Cross",
     quantity: 500,
     active: true,
+    hasArrived: true,
     houseId: null,
   },
   {
@@ -88,6 +92,7 @@ const mockFlocks: Flock[] = [
     breed: "Leghorn",
     quantity: 180,
     active: false,
+    hasArrived: true,
     houseId: null,
   },
 ]
@@ -198,6 +203,7 @@ export async function getFlocks(userId?: string, farmId?: string): Promise<ApiRe
         startDate: flock.StartDate ?? flock.startDate ?? '',
         quantity: flock.Quantity ?? flock.quantity ?? 0,
         active: flock.Active !== undefined ? flock.Active : (flock.active !== undefined ? flock.active : true),
+        hasArrived: Boolean(flock.HasArrived ?? flock.hasArrived ?? false),
         houseId: flock.HouseId ?? flock.houseId ?? null,
         batchId: flock.BatchId ?? flock.batchId ?? null,
         batchName: flock.BatchName ?? flock.batchName ?? null,
@@ -391,6 +397,7 @@ export async function getFlock(id: number, userId?: string, farmId?: string): Pr
       startDate: data.StartDate ?? data.startDate ?? '',
       quantity: data.Quantity ?? data.quantity ?? 0,
       active: data.Active !== undefined ? data.Active : (data.active !== undefined ? data.active : true),
+      hasArrived: Boolean(data.HasArrived ?? data.hasArrived ?? false),
       houseId: data.HouseId ?? data.houseId ?? null,
       batchId: data.BatchId ?? data.batchId ?? null,
       batchName: data.BatchName ?? data.batchName ?? null,
@@ -485,6 +492,7 @@ export async function createFlock(flock: FlockInput): Promise<ApiResponse<Flock>
       Breed: flock.breed,
       Quantity: flock.quantity,
       Active: flock.active,
+      HasArrived: Boolean(flock.hasArrived),
       BatchId: flock.batchId,
     }
     
@@ -648,6 +656,7 @@ export async function updateFlock(id: number, flock: Partial<FlockInput>): Promi
       Breed: flock.breed || '',
       Quantity: flock.quantity ?? 0,
       Active: flock.active ?? true,
+      HasArrived: Boolean(flock.hasArrived),
       HouseId: flock.houseId ?? null,
       BatchId: flock.batchId ?? 0,
       InactivationReason: flock.inactivationReason || '',

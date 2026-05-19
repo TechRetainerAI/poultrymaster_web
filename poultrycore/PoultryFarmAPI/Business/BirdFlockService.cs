@@ -51,6 +51,7 @@ namespace PoultryFarmAPIWeb.Business
                     cmd.Parameters.AddWithValue("@InactivationReason", (object)model.InactivationReason ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@OtherReason", (object)model.OtherReason ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@Notes", (object)model.Notes ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@HasArrived", model.HasArrived);
 
                     await conn.OpenAsync();
                     object result = await cmd.ExecuteScalarAsync();
@@ -100,6 +101,7 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
                 cmd.Parameters.AddWithValue("@BatchId", (object)model.BatchId ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@Notes", (object)model.Notes ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@HasArrived", model.HasArrived);
 
                 await conn.OpenAsync();
                 await cmd.ExecuteNonQueryAsync();
@@ -136,12 +138,25 @@ namespace PoultryFarmAPIWeb.Business
                             OtherReason = reader.IsDBNull(reader.GetOrdinal("OtherReason")) ? null : reader.GetString(reader.GetOrdinal("OtherReason")),
                             BatchId = (int)(reader.IsDBNull(reader.GetOrdinal("BatchId")) ? (int?)null : reader.GetInt32(reader.GetOrdinal("BatchId"))),
                             Notes = reader.IsDBNull(reader.GetOrdinal("Notes")) ? null : reader.GetString(reader.GetOrdinal("Notes")),
-                            BatchName = reader.IsDBNull(reader.GetOrdinal("BatchName")) ? null : reader.GetString(reader.GetOrdinal("BatchName"))
+                            BatchName = reader.IsDBNull(reader.GetOrdinal("BatchName")) ? null : reader.GetString(reader.GetOrdinal("BatchName")),
+                            HasArrived = ReadHasArrived(reader)
                         };
                     }
                 }
             }
             return flock;
+        }
+
+        private static bool ReadHasArrived(SqlDataReader reader)
+        {
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                if (string.Equals(reader.GetName(i), "HasArrived", StringComparison.OrdinalIgnoreCase))
+                {
+                    return !reader.IsDBNull(i) && reader.GetBoolean(i);
+                }
+            }
+            return false;
         }
 
         public List<FlockModel> GetAllFlocks(string userId, string farmId)
@@ -173,7 +188,8 @@ namespace PoultryFarmAPIWeb.Business
                             OtherReason = reader.IsDBNull(reader.GetOrdinal("OtherReason")) ? null : reader.GetString(reader.GetOrdinal("OtherReason")),
                             BatchId = (int)(reader.IsDBNull(reader.GetOrdinal("BatchId")) ? (int?)null : reader.GetInt32(reader.GetOrdinal("BatchId"))),
                             Notes = reader.IsDBNull(reader.GetOrdinal("Notes")) ? null : reader.GetString(reader.GetOrdinal("Notes")),
-                            BatchName = reader.IsDBNull(reader.GetOrdinal("BatchName")) ? null : reader.GetString(reader.GetOrdinal("BatchName"))
+                            BatchName = reader.IsDBNull(reader.GetOrdinal("BatchName")) ? null : reader.GetString(reader.GetOrdinal("BatchName")),
+                            HasArrived = ReadHasArrived(reader)
                         };
                         flocks.Add(flock);
                     }
