@@ -248,7 +248,7 @@ export default function NewEggProductionPage() {
                         <SelectValue placeholder="Select a flock" />
                       </SelectTrigger>
                       <SelectContent>
-                        {flocks.map((flock: any) => (
+                        {flocks.filter((flock: any) => flock.hasArrived).map((flock: any) => (
                           <SelectItem key={flock.flockId} value={flock.flockId.toString()}>
                             {flock.name}
                           </SelectItem>
