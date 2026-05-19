@@ -387,7 +387,7 @@ export default function NewProductionRecordPage() {
                         <SelectValue placeholder="Select flock" />
                       </SelectTrigger>
                       <SelectContent>
-                        {flocks.map((f) => (
+                        {flocks.filter((f) => f.hasArrived).map((f) => (
                           <SelectItem key={f.flockId} value={String(f.flockId)}>
                             {f.name || `Flock ${f.flockId}`} (ID: {f.flockId})
                           </SelectItem>

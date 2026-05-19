@@ -38,6 +38,7 @@ export default function FlockBatchesPage() {
   const permissions = usePermissions()
   const { toast } = useToast()
   const [flockBatches, setFlockBatches] = useState<FlockBatch[]>([])
+  const [allFlocks, setAllFlocks] = useState<Flock[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
@@ -112,6 +113,7 @@ export default function FlockBatchesPage() {
   useEffect(() => {
     loadFlockBatches()
     loadSuppliers()
+    loadAllFlocks()
   }, [])
 
   const loadSuppliers = async () => {
@@ -120,6 +122,15 @@ export default function FlockBatchesPage() {
     const result = await getSuppliers(userId, farmId)
     if (result.success && result.data) {
       setSuppliers(result.data)
+    }
+  }
+
+  const loadAllFlocks = async () => {
+    const { userId, farmId } = getUserContext()
+    if (!userId || !farmId) return
+    const result = await getFlocks(userId, farmId)
+    if (result.success && result.data) {
+      setAllFlocks(result.data)
     }
   }
 
@@ -380,9 +391,13 @@ export default function FlockBatchesPage() {
     flockBatches.reduce((sum, b) => sum + (Number(b.totalCost) || (Number(b.costPerChick) * Number(b.numberOfBirds)) || 0), 0),
     [flockBatches]
   )
-  const totalNumberOfBirds = useMemo(() =>
+  const totalBirdsPurchased = useMemo(() =>
     flockBatches.reduce((sum, b) => sum + (Number(b.numberOfBirds) || 0), 0),
     [flockBatches]
+  )
+  const totalBirdsArrived = useMemo(() =>
+    allFlocks.filter((f) => f.hasArrived).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
+    [allFlocks]
   )
   const numberOfActiveBatches = useMemo(() =>
     flockBatches.filter(b => (b.status || "active").toLowerCase() === "active").length,
@@ -516,11 +531,18 @@ export default function FlockBatchesPage() {
                       <Bird className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
                       <div className="min-w-0">
                         <div className="text-sm font-semibold text-slate-900">Number of Birds</div>
-                        <p className="text-xs text-slate-500 mt-0.5">Total birds purchased across all batches.</p>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Birds that have arrived across all batches.
+                        </p>
+                        {totalBirdsPurchased > 0 && totalBirdsPurchased !== totalBirdsArrived && (
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            of {totalBirdsPurchased.toLocaleString()} purchased
+                          </p>
+                        )}
                       </div>
                     </div>
                     <div className={cn("font-bold text-blue-700 tabular-nums leading-tight shrink-0", isMobile ? "text-2xl" : "text-2xl sm:text-3xl sm:text-right")}>
-                      {totalNumberOfBirds.toLocaleString()}
+                      {totalBirdsArrived.toLocaleString()}
                     </div>
                   </div>
                 </div>
