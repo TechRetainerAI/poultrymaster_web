@@ -16,7 +16,7 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Plus, Edit, Trash2, ShoppingCart, DollarSign, TrendingUp, Package, FileText, Printer, Loader2, Info, Search, Filter, ChevronDown, ChevronUp } from "lucide-react"
+import { Plus, Edit, Trash2, ShoppingCart, DollarSign, TrendingUp, Package, FileText, Printer, Loader2, Info, Search, Filter, ChevronDown, ChevronUp, Mail } from "lucide-react"
 import { getSales, createSale, updateSale, deleteSale, getFlocks, getCustomers, createCustomer, type Sale, type SaleInput } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { getUserContext } from "@/lib/utils/user-context"
@@ -43,7 +43,7 @@ import {
   formatSaleInvoiceDate,
   SALE_INVOICE_PRINT_STYLES,
 } from "@/components/sales/sale-invoice-document"
-import { exportTableToPdf } from "@/lib/utils/pdf-export"
+import { exportTableToPdf, emailTableAsPdf, type PdfExportOptions } from "@/lib/utils/pdf-export"
 import { Download } from "lucide-react"
 
 export default function SalesPage() {
@@ -559,61 +559,80 @@ export default function SalesPage() {
     }
   }
 
+  const buildSalesPdfOpts = (): PdfExportOptions => {
+    const periodLabel = dateFrom || dateTo
+      ? `Period: ${dateFrom || "—"} to ${dateTo || "—"}`
+      : "Period: All time"
+    return {
+      title: "Sales Report",
+      filename: "sales",
+      farmName: farmInfo.name,
+      columns: [
+        { header: "Date" },
+        { header: "Customer" },
+        { header: "Product" },
+        { header: "Qty", align: "right" },
+        { header: "Unit price", align: "right" },
+        { header: "Total", align: "right" },
+        { header: "Payment" },
+        { header: "Status" },
+        { header: "Flock" },
+      ],
+      rows: filteredSales.map((s) => [
+        formatDateShort(s.saleDate),
+        s.customerName ?? "",
+        s.product ?? "",
+        s.quantity ?? 0,
+        formatCurrency(s.unitPrice ?? 0, currencyCode),
+        formatCurrency(s.totalAmount ?? 0, currencyCode),
+        s.paymentMethod ?? "",
+        s.paid === false ? "Unpaid" : "Paid",
+        getFlockLabel(s.flockId),
+      ]),
+      totalsRow: [
+        "",
+        "",
+        "TOTALS",
+        totalQuantity.toLocaleString(),
+        "",
+        formatCurrency(totalSales, currencyCode),
+        "",
+        "",
+        "",
+      ],
+      summaryLines: [
+        periodLabel,
+        `Total sales: ${formatCurrency(totalSales, currencyCode)}  |  Total quantity: ${totalQuantity.toLocaleString()}  |  Transactions: ${filteredSales.length}`,
+      ],
+      headFillColor: [22, 163, 74],
+    }
+  }
+
   const handleExportSalesPdf = async () => {
     if (filteredSales.length === 0) {
       toast({ title: "Nothing to export", description: "No sales match the current filters.", variant: "destructive" })
       return
     }
-    const rows = filteredSales.map((s) => [
-      formatDateShort(s.saleDate),
-      s.customerName ?? "",
-      s.product ?? "",
-      s.quantity ?? 0,
-      formatCurrency(s.unitPrice ?? 0, currencyCode),
-      formatCurrency(s.totalAmount ?? 0, currencyCode),
-      s.paymentMethod ?? "",
-      s.paid === false ? "Unpaid" : "Paid",
-      getFlockLabel(s.flockId),
-    ])
-    const periodLabel = dateFrom || dateTo
-      ? `Period: ${dateFrom || "—"} to ${dateTo || "—"}`
-      : "Period: All time"
     try {
-      await exportTableToPdf({
-        title: "Sales Report",
-        filename: "sales",
-        farmName: farmInfo.name,
-        columns: [
-          { header: "Date" },
-          { header: "Customer" },
-          { header: "Product" },
-          { header: "Qty", align: "right" },
-          { header: "Unit price", align: "right" },
-          { header: "Total", align: "right" },
-          { header: "Payment" },
-          { header: "Status" },
-          { header: "Flock" },
-        ],
-        rows,
-        totalsRow: [
-          "",
-          "",
-          "TOTALS",
-          totalQuantity.toLocaleString(),
-          "",
-          formatCurrency(totalSales, currencyCode),
-          "",
-          "",
-          "",
-        ],
-        summaryLines: [
-          periodLabel,
-          `Total sales: ${formatCurrency(totalSales, currencyCode)}  |  Total quantity: ${totalQuantity.toLocaleString()}  |  Transactions: ${filteredSales.length}`,
-        ],
-        headFillColor: [22, 163, 74],
-      })
+      await exportTableToPdf(buildSalesPdfOpts())
     } catch (err) {
       toast({ title: "PDF export failed", description: "Could not generate PDF. Please try again.", variant: "destructive" })
+    }
+  }
+
+  const [emailingReport, setEmailingReport] = useState(false)
+  const handleEmailSalesReport = async () => {
+    if (filteredSales.length === 0) {
+      toast({ title: "Nothing to email", description: "No sales match the current filters.", variant: "destructive" })
+      return
+    }
+    setEmailingReport(true)
+    try {
+      const res = await emailTableAsPdf(buildSalesPdfOpts())
+      if (res.success) toast({ title: "Report emailed", description: `Sent to ${res.recipient}.` })
+      else toast({ title: "Email failed", description: res.message || "Could not send report.", variant: "destructive" })
+    } finally {
+      setEmailingReport(false)
     }
   }
 
@@ -1163,6 +1182,10 @@ export default function SalesPage() {
                     <Download className="h-4 w-4" />
                     PDF
                   </Button>
+                  <Button variant="outline" size="sm" onClick={handleEmailSalesReport} disabled={emailingReport} className="gap-2 h-11 px-4">
+                    {emailingReport ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                    Email
+                  </Button>
                 </div>
               </div>
             ) : (
@@ -1194,6 +1217,10 @@ export default function SalesPage() {
                 <Button variant="outline" size="sm" onClick={handleExportSalesPdf} className="gap-2">
                   <Download className="h-4 w-4" />
                   Export PDF
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleEmailSalesReport} disabled={emailingReport} className="gap-2">
+                  {emailingReport ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                  Email Report
                 </Button>
                 <Button variant="outline" onClick={clearFilters}>Reset filters</Button>
               </div>

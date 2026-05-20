@@ -11,7 +11,7 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Plus, Pencil, Trash2, Mail, Phone, MapPin, Users, Search, RefreshCw, Loader2, UserPlus, ChevronDown, ChevronUp, Download } from "lucide-react"
-import { exportTableToPdf } from "@/lib/utils/pdf-export"
+import { exportTableToPdf, emailTableAsPdf, type PdfExportOptions } from "@/lib/utils/pdf-export"
 import { Label } from "@/components/ui/label"
 import { getCustomers, getCustomer, createCustomer, updateCustomer, deleteCustomer, type Customer, type CustomerInput } from "@/lib/api/customer"
 import { getUserContext } from "@/lib/utils/user-context"
@@ -285,37 +285,57 @@ export default function CustomersPage() {
   const endIndex = startIndex + itemsPerPage
   const currentCustomers = sortedCustomers.slice(startIndex, endIndex)
 
-  const handleExportPdf = async () => {
-    if (filteredCustomers.length === 0) {
-      toast({ title: "Nothing to export", description: "No customers match the current filters.", variant: "destructive" })
-      return
-    }
-    const rows = sortedCustomers.map((c: any) => [
+  const buildCustomersPdfOpts = (): PdfExportOptions => ({
+    title: "Customers Report",
+    filename: "customers",
+    columns: [
+      { header: "ID" },
+      { header: "Name" },
+      { header: "Email" },
+      { header: "Phone" },
+      { header: "City" },
+      { header: "Address" },
+    ],
+    rows: sortedCustomers.map((c: any) => [
       c.customerId ?? c.CustomerId ?? "",
       c.name ?? "",
       c.contactEmail ?? "",
       c.contactPhone ?? "",
       c.city ?? "",
       c.address ?? "",
-    ])
+    ]),
+    summaryLines: [`Total customers: ${filteredCustomers.length}`],
+    headFillColor: [99, 102, 241],
+  })
+
+  const handleExportPdf = async () => {
+    if (filteredCustomers.length === 0) {
+      toast({ title: "Nothing to export", description: "No customers match the current filters.", variant: "destructive" })
+      return
+    }
     try {
-      await exportTableToPdf({
-        title: "Customers Report",
-        filename: "customers",
-        columns: [
-          { header: "ID" },
-          { header: "Name" },
-          { header: "Email" },
-          { header: "Phone" },
-          { header: "City" },
-          { header: "Address" },
-        ],
-        rows,
-        summaryLines: [`Total customers: ${filteredCustomers.length}`],
-        headFillColor: [99, 102, 241],
-      })
+      await exportTableToPdf(buildCustomersPdfOpts())
     } catch (err) {
       toast({ title: "PDF export failed", description: "Could not generate PDF. Please try again.", variant: "destructive" })
+    }
+  }
+
+  const [emailingReport, setEmailingReport] = useState(false)
+  const handleEmailReport = async () => {
+    if (filteredCustomers.length === 0) {
+      toast({ title: "Nothing to email", description: "No customers match the current filters.", variant: "destructive" })
+      return
+    }
+    setEmailingReport(true)
+    try {
+      const res = await emailTableAsPdf(buildCustomersPdfOpts())
+      if (res.success) {
+        toast({ title: "Report emailed", description: `Sent to ${res.recipient}.` })
+      } else {
+        toast({ title: "Email failed", description: res.message || "Could not send report.", variant: "destructive" })
+      }
+    } finally {
+      setEmailingReport(false)
     }
   }
 
@@ -397,6 +417,9 @@ export default function CustomersPage() {
                     <Button variant="outline" className="w-full h-11 gap-2" onClick={handleExportPdf}>
                       <Download className="h-4 w-4" /> Export PDF
                     </Button>
+                    <Button variant="outline" className="w-full h-11 gap-2" onClick={handleEmailReport} disabled={emailingReport}>
+                      {emailingReport ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />} Email Report
+                    </Button>
                   </>
                 ) : (
                   <>
@@ -411,6 +434,9 @@ export default function CustomersPage() {
                     )}
                     <Button variant="outline" size="sm" onClick={handleExportPdf} className="gap-2">
                       <Download className="h-4 w-4" /> Export PDF
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={handleEmailReport} disabled={emailingReport} className="gap-2">
+                      {emailingReport ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />} Email Report
                     </Button>
                   </>
                 )}
