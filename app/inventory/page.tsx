@@ -15,8 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Plus, Edit, Trash2, Package, Search, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Filter, ChevronDown, ChevronUp, Download } from "lucide-react"
-import { exportTableToPdf } from "@/lib/utils/pdf-export"
+import { Plus, Edit, Trash2, Package, Search, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, Filter, ChevronDown, ChevronUp, Download, Mail, Loader2 } from "lucide-react"
+import { exportTableToPdf, emailTableAsPdf, type PdfExportOptions } from "@/lib/utils/pdf-export"
 import { getUserContext } from "@/lib/utils/user-context"
 import { useToast } from "@/hooks/use-toast"
 import { getSupplies, createSupply, updateSupply, deleteSupply, type SupplyInput } from "@/lib/api/supply"
@@ -372,11 +372,7 @@ export default function InventoryPage() {
     setDraftExpiryDateFrom("")
   }
 
-  const handleExportPdf = async () => {
-    if (filteredItems.length === 0) {
-      toast({ title: "Nothing to export", description: "No inventory items match the current filters.", variant: "destructive" })
-      return
-    }
+  const buildInventoryPdfOpts = (): PdfExportOptions => {
     const fmt = (n: number) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     let totalValue = 0
     const rows = filteredItems.map((it) => {
@@ -396,28 +392,52 @@ export default function InventoryPage() {
         it.expiryDate ? new Date(it.expiryDate).toLocaleDateString() : "",
       ]
     })
+    return {
+      title: "Inventory Report",
+      filename: "inventory",
+      columns: [
+        { header: "Item" },
+        { header: "Category" },
+        { header: "Qty", align: "right" },
+        { header: "Unit" },
+        { header: "Unit price", align: "right" },
+        { header: "Value", align: "right" },
+        { header: "Supplier" },
+        { header: "Location" },
+        { header: "Expires" },
+      ],
+      rows,
+      totalsRow: ["TOTAL", "", "", "", "", fmt(totalValue), "", "", ""],
+      summaryLines: [`Items: ${filteredItems.length}  |  Total value: ${fmt(totalValue)}`],
+      headFillColor: [234, 88, 12],
+    }
+  }
+
+  const handleExportPdf = async () => {
+    if (filteredItems.length === 0) {
+      toast({ title: "Nothing to export", description: "No inventory items match the current filters.", variant: "destructive" })
+      return
+    }
     try {
-      await exportTableToPdf({
-        title: "Inventory Report",
-        filename: "inventory",
-        columns: [
-          { header: "Item" },
-          { header: "Category" },
-          { header: "Qty", align: "right" },
-          { header: "Unit" },
-          { header: "Unit price", align: "right" },
-          { header: "Value", align: "right" },
-          { header: "Supplier" },
-          { header: "Location" },
-          { header: "Expires" },
-        ],
-        rows,
-        totalsRow: ["TOTAL", "", "", "", "", fmt(totalValue), "", "", ""],
-        summaryLines: [`Items: ${filteredItems.length}  |  Total value: ${fmt(totalValue)}`],
-        headFillColor: [234, 88, 12],
-      })
+      await exportTableToPdf(buildInventoryPdfOpts())
     } catch (err) {
       toast({ title: "PDF export failed", description: "Could not generate PDF. Please try again.", variant: "destructive" })
+    }
+  }
+
+  const [emailingReport, setEmailingReport] = useState(false)
+  const handleEmailReport = async () => {
+    if (filteredItems.length === 0) {
+      toast({ title: "Nothing to email", description: "No inventory items match the current filters.", variant: "destructive" })
+      return
+    }
+    setEmailingReport(true)
+    try {
+      const res = await emailTableAsPdf(buildInventoryPdfOpts())
+      if (res.success) toast({ title: "Report emailed", description: `Sent to ${res.recipient}.` })
+      else toast({ title: "Email failed", description: res.message || "Could not send report.", variant: "destructive" })
+    } finally {
+      setEmailingReport(false)
     }
   }
 
@@ -696,6 +716,9 @@ export default function InventoryPage() {
                   <Button variant="outline" size="sm" onClick={handleExportPdf} className="gap-2 h-11 px-4">
                     <Download className="h-4 w-4" /> PDF
                   </Button>
+                  <Button variant="outline" size="sm" onClick={handleEmailReport} disabled={emailingReport} className="gap-2 h-11 px-4">
+                    {emailingReport ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />} Email
+                  </Button>
                 </div>
               </div>
             ) : (
@@ -716,6 +739,9 @@ export default function InventoryPage() {
               <div className="ml-auto flex items-center gap-2">
                 <Button variant="outline" size="sm" onClick={handleExportPdf} className="gap-2">
                   <Download className="h-4 w-4" /> Export PDF
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleEmailReport} disabled={emailingReport} className="gap-2">
+                  {emailingReport ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />} Email Report
                 </Button>
                 <Button variant="outline" size="sm" onClick={clearFilters}><RefreshCw className="h-4 w-4 mr-2" /> Reset</Button>
               </div>

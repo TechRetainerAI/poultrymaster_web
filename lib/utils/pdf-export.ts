@@ -26,7 +26,9 @@ function readFarmName(): string {
   }
 }
 
-export async function exportTableToPdf(opts: PdfExportOptions): Promise<void> {
+// Builds the jsPDF document (shared by exportTableToPdf and emailTableAsPdf)
+// so PDF generation logic lives in exactly one place.
+async function buildPdfDoc(opts: PdfExportOptions) {
   const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
     import("jspdf"),
     import("jspdf-autotable"),
@@ -101,5 +103,67 @@ export async function exportTableToPdf(opts: PdfExportOptions): Promise<void> {
     margin: { left: 14, right: 14 },
   })
 
-  doc.save(`${opts.filename}-${new Date().toISOString().slice(0, 10)}.pdf`)
+  return { doc, farmName }
+}
+
+export function pdfDownloadFilename(filename: string): string {
+  return `${filename}-${new Date().toISOString().slice(0, 10)}.pdf`
+}
+
+export async function exportTableToPdf(opts: PdfExportOptions): Promise<void> {
+  const { doc } = await buildPdfDoc(opts)
+  doc.save(pdfDownloadFilename(opts.filename))
+}
+
+export async function generatePdfBlob(opts: PdfExportOptions): Promise<{ blob: Blob; filename: string; farmName: string }> {
+  const { doc, farmName } = await buildPdfDoc(opts)
+  const blob = doc.output("blob") as Blob
+  return { blob, filename: pdfDownloadFilename(opts.filename), farmName }
+}
+
+function readUserEmailFromStorage(): string {
+  if (typeof window === "undefined") return ""
+  try {
+    return localStorage.getItem("username") || ""
+  } catch {
+    return ""
+  }
+}
+
+export interface EmailReportResult {
+  success: boolean
+  message?: string
+  recipient: string
+}
+
+// Generates the PDF from `opts` (same shape as exportTableToPdf) and emails it
+// via POST /api/Email/Report. Recipient defaults to the logged-in user's
+// username (the login email stored on sign-in).
+export async function emailTableAsPdf(
+  opts: PdfExportOptions,
+  options?: { to?: string; subject?: string; body?: string }
+): Promise<EmailReportResult> {
+  const recipient = (options?.to ?? readUserEmailFromStorage()).trim()
+  if (!recipient || !recipient.includes("@")) {
+    return {
+      success: false,
+      recipient,
+      message: "No recipient email found. Sign in with an email address or pass an explicit `to`.",
+    }
+  }
+
+  const { blob, filename, farmName } = await generatePdfBlob(opts)
+  // Lazy-import the API helper to avoid pulling fetch config into pages that
+  // only ever download PDFs locally.
+  const { sendReportEmail } = await import("@/lib/api/email")
+  const res = await sendReportEmail({
+    blob,
+    filename,
+    to: recipient,
+    subject: options?.subject,
+    body: options?.body,
+    farmName: farmName || undefined,
+    reportTitle: opts.title,
+  })
+  return { success: res.success, message: res.message, recipient }
 }

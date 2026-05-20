@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Plus, Pencil, Trash2, Mail, Phone, MapPin, Truck, Search, RefreshCw, Loader2, ChevronDown, ChevronUp, Download } from "lucide-react"
-import { exportTableToPdf } from "@/lib/utils/pdf-export"
+import { exportTableToPdf, emailTableAsPdf, type PdfExportOptions } from "@/lib/utils/pdf-export"
 import { Label } from "@/components/ui/label"
 import {
   getSuppliers,
@@ -321,37 +321,54 @@ export default function SuppliersPage() {
     setCurrentPage(1)
   }
 
-  const handleExportPdf = async () => {
-    if (filteredSuppliers.length === 0) {
-      toast({ title: "Nothing to export", description: "No suppliers match the current filters.", variant: "destructive" })
-      return
-    }
-    const rows = sortedSuppliers.map((s: any) => [
+  const buildSuppliersPdfOpts = (): PdfExportOptions => ({
+    title: "Suppliers Report",
+    filename: "suppliers",
+    columns: [
+      { header: "ID" },
+      { header: "Name" },
+      { header: "Email" },
+      { header: "Phone" },
+      { header: "City" },
+      { header: "Address" },
+    ],
+    rows: sortedSuppliers.map((s: any) => [
       s.supplierId ?? s.SupplierId ?? "",
       s.name ?? "",
       s.contactEmail ?? "",
       s.contactPhone ?? "",
       s.city ?? "",
       s.address ?? "",
-    ])
+    ]),
+    summaryLines: [`Total suppliers: ${filteredSuppliers.length}`],
+    headFillColor: [13, 148, 136],
+  })
+
+  const handleExportPdf = async () => {
+    if (filteredSuppliers.length === 0) {
+      toast({ title: "Nothing to export", description: "No suppliers match the current filters.", variant: "destructive" })
+      return
+    }
     try {
-      await exportTableToPdf({
-        title: "Suppliers Report",
-        filename: "suppliers",
-        columns: [
-          { header: "ID" },
-          { header: "Name" },
-          { header: "Email" },
-          { header: "Phone" },
-          { header: "City" },
-          { header: "Address" },
-        ],
-        rows,
-        summaryLines: [`Total suppliers: ${filteredSuppliers.length}`],
-        headFillColor: [13, 148, 136],
-      })
+      await exportTableToPdf(buildSuppliersPdfOpts())
     } catch (err) {
       toast({ title: "PDF export failed", description: "Could not generate PDF. Please try again.", variant: "destructive" })
+    }
+  }
+
+  const [emailingReport, setEmailingReport] = useState(false)
+  const handleEmailReport = async () => {
+    if (filteredSuppliers.length === 0) {
+      toast({ title: "Nothing to email", description: "No suppliers match the current filters.", variant: "destructive" })
+      return
+    }
+    setEmailingReport(true)
+    try {
+      const res = await emailTableAsPdf(buildSuppliersPdfOpts())
+      if (res.success) toast({ title: "Report emailed", description: `Sent to ${res.recipient}.` })
+      else toast({ title: "Email failed", description: res.message || "Could not send report.", variant: "destructive" })
+    } finally {
+      setEmailingReport(false)
     }
   }
 
@@ -441,6 +458,9 @@ export default function SuppliersPage() {
                     <Button variant="outline" className="w-full h-11 gap-2" onClick={handleExportPdf}>
                       <Download className="h-4 w-4" /> Export PDF
                     </Button>
+                    <Button variant="outline" className="w-full h-11 gap-2" onClick={handleEmailReport} disabled={emailingReport}>
+                      {emailingReport ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />} Email Report
+                    </Button>
                   </>
                 ) : (
                   <>
@@ -463,6 +483,9 @@ export default function SuppliersPage() {
                     )}
                     <Button variant="outline" size="sm" onClick={handleExportPdf} className="gap-2">
                       <Download className="h-4 w-4" /> Export PDF
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={handleEmailReport} disabled={emailingReport} className="gap-2">
+                      {emailingReport ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />} Email Report
                     </Button>
                   </>
                 )}

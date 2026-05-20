@@ -15,7 +15,8 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { FileText, Plus, Calendar as CalendarIcon, Download, Search, X, RefreshCw, Loader2, ChevronDown, ChevronUp, Filter, Pencil, Trash2 } from "lucide-react"
+import { FileText, Plus, Calendar as CalendarIcon, Download, Search, X, RefreshCw, Loader2, ChevronDown, ChevronUp, Filter, Pencil, Trash2, Mail } from "lucide-react"
+import { sendReportEmail } from "@/lib/api/email"
 import { getProductionRecords, deleteProductionRecord, type ProductionRecord } from "@/lib/api/production-record"
 import { getFlocks, type Flock } from "@/lib/api/flock"
 import { getUserContext } from "@/lib/utils/user-context"
@@ -418,12 +419,8 @@ export default function ProductionRecordsPage() {
     URL.revokeObjectURL(url)
   }
 
-  const exportPdf = () => {
-    if (filtered.length === 0) {
-      alert("No records to export. Adjust your filters.")
-      return
-    }
-
+  // Builds the jsPDF document so both exportPdf and emailReport can reuse it.
+  const buildProductionPdfDoc = () => {
     const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" })
     const farmName = localStorage.getItem("farmName") || "Farm"
     const today = new Date().toLocaleDateString()
@@ -504,7 +501,46 @@ export default function ProductionRecordsPage() {
       },
     })
 
+    return { doc, farmName }
+  }
+
+  const exportPdf = () => {
+    if (filtered.length === 0) {
+      alert("No records to export. Adjust your filters.")
+      return
+    }
+    const { doc } = buildProductionPdfDoc()
     doc.save(`production-${new Date().toISOString().slice(0, 10)}.pdf`)
+  }
+
+  const [emailingReport, setEmailingReport] = useState(false)
+  const handleEmailReport = async () => {
+    if (filtered.length === 0) {
+      alert("No records to email. Adjust your filters.")
+      return
+    }
+    const recipient = (typeof window !== "undefined" ? localStorage.getItem("username") || "" : "").trim()
+    if (!recipient || !recipient.includes("@")) {
+      alert("No recipient email found. Sign in with an email address.")
+      return
+    }
+    setEmailingReport(true)
+    try {
+      const { doc, farmName } = buildProductionPdfDoc()
+      const blob = doc.output("blob") as Blob
+      const filename = `production-${new Date().toISOString().slice(0, 10)}.pdf`
+      const res = await sendReportEmail({
+        blob,
+        filename,
+        to: recipient,
+        farmName,
+        reportTitle: "Egg Production Report",
+      })
+      if (res.success) alert(`Report emailed to ${recipient}.`)
+      else alert(`Email failed: ${res.message || "Unknown error"}`)
+    } finally {
+      setEmailingReport(false)
+    }
   }
 
   return (
@@ -693,6 +729,9 @@ export default function ProductionRecordsPage() {
                   </Sheet>
                   <Button variant="outline" size="sm" onClick={exportCsv} className="h-11 px-4 min-w-[72px]">CSV</Button>
                   <Button size="sm" onClick={exportPdf} className="h-11 px-4 min-w-[72px]">PDF</Button>
+                  <Button variant="outline" size="sm" onClick={handleEmailReport} disabled={emailingReport} className="h-11 px-4 min-w-[72px] gap-1">
+                    {emailingReport ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />} Email
+                  </Button>
                 </div>
               </div>
             ) : (
@@ -735,6 +774,9 @@ export default function ProductionRecordsPage() {
                   <Button variant="outline" size="sm" onClick={clearFilters}><RefreshCw className="h-4 w-4 mr-2" /> Reset</Button>
                   <Button variant="outline" size="sm" onClick={exportCsv}><Download className="h-4 w-4 mr-2" /> Export CSV</Button>
                   <Button size="sm" onClick={exportPdf}><Download className="h-4 w-4 mr-2" /> Export PDF</Button>
+                  <Button variant="outline" size="sm" onClick={handleEmailReport} disabled={emailingReport}>
+                    {emailingReport ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Mail className="h-4 w-4 mr-2" />} Email Report
+                  </Button>
                 </div>
               </div>
             )}

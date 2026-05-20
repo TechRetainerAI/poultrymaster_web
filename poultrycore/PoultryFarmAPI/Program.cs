@@ -99,6 +99,17 @@ builder.Services.AddScoped<IChatService>(sp => new ChatService(connectionString)
 builder.Services.AddScoped<IMainFlockBatchService>(sp => new MainFlockBatchService(connectionString));
 // =================================================================
 
+// =================================================================
+// Email (SMTP via MailKit) — used by EmailController for report PDFs.
+// Set EmailConfiguration__From / __SmtpServer / __Port / __UserName /
+// __Password on Cloud Run. Leave blank locally to disable.
+// =================================================================
+var emailConfig = builder.Configuration.GetSection("EmailConfiguration").Get<PoultryFarmAPIWeb.Models.EmailConfiguration>()
+    ?? new PoultryFarmAPIWeb.Models.EmailConfiguration();
+builder.Services.AddSingleton(emailConfig);
+builder.Services.AddScoped<PoultryFarmAPIWeb.Business.IEmailService, PoultryFarmAPIWeb.Business.EmailService>();
+// =================================================================
+
 // 2) Add controllers with audit logging
 builder.Services.AddControllers(options =>
 {
