@@ -26,7 +26,8 @@ function getApiBaseUrl(pathSegments: string[]): string {
     pathSegments[0] === 'Admin' ||
     pathSegments[0] === 'Authentication' ||
     pathSegments[0] === 'Payments' ||
-    pathSegments[0] === 'UserProfile'
+    pathSegments[0] === 'UserProfile' ||
+    pathSegments[0] === 'Companies'
 
   // Login API: optional ADMIN_API_URL overrides (server-only). Otherwise same URL as the client:
   // NEXT_PUBLIC_LOGIN_API_URL or NEXT_PUBLIC_ADMIN_API_URL (no separate LOGIN_API_URL).
@@ -126,7 +127,8 @@ async function handleRequest(
       pathSegments[0] === 'Admin' ||
       pathSegments[0] === 'Authentication' ||
       pathSegments[0] === 'Payments' ||
-      pathSegments[0] === 'UserProfile'
+      pathSegments[0] === 'UserProfile' ||
+      pathSegments[0] === 'Companies'
 
     if (isAdminPath && isAdminProxyMisconfiguredAsSameOrigin(request, apiBaseUrl)) {
       return NextResponse.json(
