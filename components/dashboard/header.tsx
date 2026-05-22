@@ -10,6 +10,7 @@ import { useSidebarStore } from "@/lib/store/sidebar-store"
 import { TopNavigation } from "./top-nav"
 import { MobileBottomNav } from "./mobile-bottom-nav"
 import { InventoryLogo } from "@/components/auth/logo"
+import { CompanySwitcher } from "./company-switcher"
 
 export function DashboardHeader() {
   const router = useRouter()
@@ -160,10 +161,9 @@ export function DashboardHeader() {
             </div>
           )}
 
-          {/* Farm name */}
-          <div className="hidden xl:flex items-center gap-2 min-w-0 max-w-[240px]">
-            <span className="text-xs text-slate-400 uppercase tracking-wide">Farm</span>
-            <span className="text-sm text-white font-medium truncate">{farmName || "My Farm"}</span>
+          {/* Company switcher */}
+          <div className="hidden xl:block">
+            <CompanySwitcher />
           </div>
 
           {/* Search */}
@@ -275,8 +275,8 @@ export function DashboardHeader() {
             </div>
           </div>
 
-          <div className="text-xs text-slate-300 truncate px-1">
-            <span className="text-slate-400">Farm:</span> {farmName || "My Farm"}
+          <div className="px-1">
+            <CompanySwitcher />
           </div>
 
           <form onSubmit={handleSearch} className="w-full min-w-0">

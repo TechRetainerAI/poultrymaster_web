@@ -100,6 +100,17 @@ builder.Services.AddScoped<IMainFlockBatchService>(sp => new MainFlockBatchServi
 // =================================================================
 
 // =================================================================
+// Water company module (multi-company support, separate from poultry)
+// =================================================================
+builder.Services.AddScoped<IWaterProductService>(sp => new WaterProductService(connectionString));
+builder.Services.AddScoped<IWaterCustomerService>(sp => new WaterCustomerService(connectionString));
+builder.Services.AddScoped<IWaterStockService>(sp => new WaterStockService(connectionString));
+builder.Services.AddScoped<IWaterSaleService>(sp => new WaterSaleService(connectionString));
+builder.Services.AddScoped<IWaterPaymentService>(sp => new WaterPaymentService(connectionString));
+builder.Services.AddScoped<IWaterDashboardService>(sp => new WaterDashboardService(connectionString));
+// =================================================================
+
+// =================================================================
 // Email (SMTP via MailKit) — used by EmailController for report PDFs.
 // Set EmailConfiguration__From / __SmtpServer / __Port / __UserName /
 // __Password on Cloud Run. Leave blank locally to disable.

@@ -7,6 +7,8 @@ import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
 import { usePermissions } from "@/hooks/use-permissions"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
+import { useAuthStore } from "@/lib/store/auth-store"
+import { Droplets, ShoppingBag } from "lucide-react"
 import {
   Home,
   Bird,
@@ -179,10 +181,54 @@ function NavLink({ item }: { item: NavItem }) {
   )
 }
 
+function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermissions> }) {
+  const moreGroup: NavGroup = {
+    label: "More",
+    items: [
+      { href: "/profile", label: "Account", icon: User },
+      { href: "/resources", label: "Resources", icon: BookOpen },
+      ...(permissions.featureAccess.canViewActivityLog
+        ? [{ href: "/audit-logs", label: "Activity Log", icon: Activity }]
+        : []),
+      ...(permissions.featureAccess.canViewSettings
+        ? [{ href: "/settings", label: "Settings", icon: Settings }]
+        : []),
+      ...(permissions.isAdmin || permissions.featureAccess.canSeeEmployees
+        ? [{ href: "/employees", label: "Employees", icon: UserCog }]
+        : []),
+    ],
+  }
+
+  return (
+    <div className="hidden lg:block bg-sky-600 border-b border-sky-700">
+      <div className="flex items-center gap-1 px-4 py-1.5 nav-rail-scroll">
+        <NavLink item={{ href: "/water-dashboard", label: "Dashboard", icon: Droplets }} />
+        <div className="h-5 w-px bg-white/30 mx-1" />
+        <NavLink item={{ href: "/water-products", label: "Products", icon: ShoppingBag }} />
+        <NavLink item={{ href: "/water-stock", label: "Stock", icon: Boxes }} />
+        <NavLink item={{ href: "/water-customers", label: "Customers", icon: Users }} />
+        <NavLink item={{ href: "/water-sales", label: "Sales", icon: ShoppingCart }} />
+        <NavLink item={{ href: "/water-payments", label: "Payments", icon: CreditCard }} />
+        <NavDropdown group={moreGroup} />
+        <div className="ml-auto flex items-center gap-1">
+          <NavLink item={{ href: "/companies", label: "Companies", icon: Building2 }} />
+          <NavLink item={{ href: "/help", label: "Help Center", icon: BookOpen }} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function TopNavigation() {
   // Temporary business override while subscription enforcement is paused.
   const TEMP_SHOW_PAYMENTS_LINK = true
   const permissions = usePermissions()
+  const activeFarmType = useAuthStore((s) => s.activeFarmType)
+
+  // Water companies get their own nav rail.
+  if (activeFarmType === "Water") {
+    return <WaterTopNav permissions={permissions} />
+  }
 
   const farmGroup: NavGroup = {
     label: "Farm",
