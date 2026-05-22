@@ -37,10 +37,13 @@ import {
   Wheat,
   Pill,
   Truck,
+  Droplets,
+  ShoppingBag,
 } from "lucide-react"
 import { InventoryLogo } from "@/components/auth/logo"
 import { useAlertsStore, type AlertItem } from "@/lib/store/alerts-store"
 import { useSidebarStore } from "@/lib/store/sidebar-store"
+import { useAuthStore } from "@/lib/store/auth-store"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
 
@@ -56,6 +59,8 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const [isPending, startTransition] = useTransition()
   const alerts = useAlertsStore((s: { alerts: AlertItem[]; open: () => void }) => s.alerts)
   const openAlerts = useAlertsStore((s: { alerts: AlertItem[]; open: () => void }) => s.open)
+  const activeFarmType = useAuthStore((s) => s.activeFarmType)
+  const isWater = activeFarmType === "Water"
   const { isCollapsed, toggle, isMobileOpen, toggleMobile, setMobileOpen, setCollapsed } = useSidebarStore()
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     farm: true,
@@ -152,6 +157,17 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
       tempShowPayments: TEMP_SHOW_PAYMENTS_LINK,
     })
   )
+
+  // Water company nav items (shown when activeFarmType === "Water")
+  const waterCatalogItems = [
+    { href: "/water-products", label: "Products", icon: ShoppingBag },
+    { href: "/water-stock",    label: "Stock",    icon: Boxes },
+  ]
+  const waterSalesItems = [
+    { href: "/water-customers", label: "Customers", icon: Users },
+    { href: "/water-sales",     label: "Sales",     icon: ShoppingCart },
+    { href: "/water-payments",  label: "Payments",  icon: CreditCard },
+  ]
 
   // Single items (no group)
   const renderNavItem = (
@@ -313,40 +329,58 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         className="sidebar-nav-scrollable min-h-0 flex-1 overflow-y-auto overscroll-y-contain py-3 px-2 space-y-4"
         aria-label="Main navigation"
       >
-        {/* Dashboard */}
+        {/* Dashboard — route depends on active company type */}
         <div>
-          {renderNavItem({ href: "/dashboard", label: "Dashboard", icon: Home })}
+          {renderNavItem({
+            href: isWater ? "/water-dashboard" : "/dashboard",
+            label: "Dashboard",
+            icon: isWater ? Droplets : Home,
+          })}
         </div>
 
         {/* Divider */}
         <div className="border-t border-slate-800 mx-2" />
 
-        {/* Farm Management */}
-        {renderGroup("Farm", farmItems, "farm")}
+        {isWater ? (
+          <>
+            {/* Water — Catalog */}
+            {renderGroup("Catalog", waterCatalogItems, "waterCatalog")}
 
-        {/* Divider */}
-        <div className="border-t border-slate-800 mx-2" />
+            <div className="border-t border-slate-800 mx-2" />
 
-        {/* Production */}
-        {renderGroup("Production", productionItems, "production")}
+            {/* Water — Sales */}
+            {renderGroup("Sales", waterSalesItems, "waterSales")}
+          </>
+        ) : (
+          <>
+            {/* Farm Management */}
+            {renderGroup("Farm", farmItems, "farm")}
 
-        {/* Divider */}
-        <div className="border-t border-slate-800 mx-2" />
+            {/* Divider */}
+            <div className="border-t border-slate-800 mx-2" />
 
-        {/* Analytics */}
-        {renderGroup("Analytics", analyticsItems, "analytics")}
+            {/* Production */}
+            {renderGroup("Production", productionItems, "production")}
 
-        {/* Divider */}
-        <div className="border-t border-slate-800 mx-2" />
+            {/* Divider */}
+            <div className="border-t border-slate-800 mx-2" />
 
-        {/* Inventory & Health */}
-        {renderGroup("Inventory & Health", inventoryItems, "inventory")}
+            {/* Analytics */}
+            {renderGroup("Analytics", analyticsItems, "analytics")}
 
-        {/* Divider */}
-        <div className="border-t border-slate-800 mx-2" />
+            {/* Divider */}
+            <div className="border-t border-slate-800 mx-2" />
 
-        {/* Financial */}
-        {financialItems.length > 0 && renderGroup("Financial", financialItems, "financial")}
+            {/* Inventory & Health */}
+            {renderGroup("Inventory & Health", inventoryItems, "inventory")}
+
+            {/* Divider */}
+            <div className="border-t border-slate-800 mx-2" />
+
+            {/* Financial */}
+            {financialItems.length > 0 && renderGroup("Financial", financialItems, "financial")}
+          </>
+        )}
 
         {/* Admin */}
         {(permissions.isAdmin || permissions.featureAccess.canSeeEmployees) && (
@@ -372,6 +406,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
             openAlerts,
             alerts.length
           )}
+          {renderNavItem({ href: "/companies", label: "Companies", icon: Building2 })}
           {permissions.featureAccess.canViewActivityLog && renderNavItem({ href: "/audit-logs", label: "Activity Log", icon: Activity })}
           {permissions.featureAccess.canViewSettings && renderNavItem({ href: "/settings", label: "Settings", icon: Settings })}
           {renderNavItem({ href: "/help", label: "Help Center", icon: HelpCircle })}
