@@ -10,6 +10,13 @@ export interface FlockBatch {
   numberOfBirds: number;
   startDate: string;
   status: string;
+  costPerChick: number;
+  totalCost: number;
+  amountPaid: number;
+  supplierType: string;
+  supplierId: number | null;
+  supplierName: string;
+  notes?: string;
   createdDate: string;
 }
 
@@ -56,6 +63,7 @@ async function getErrorMessage(response: Response, defaultMessage: string): Prom
 
 // Helper function to map backend response (PascalCase) to frontend format (camelCase)
 function mapFlockBatch(raw: any): FlockBatch {
+  const supplierIdRaw = raw.supplierId ?? raw.SupplierId
   return {
     batchId: Number(raw.batchId ?? raw.BatchId ?? 0),
     farmId: raw.farmId ?? raw.FarmId ?? '',
@@ -66,6 +74,13 @@ function mapFlockBatch(raw: any): FlockBatch {
     numberOfBirds: Number(raw.numberOfBirds ?? raw.NumberOfBirds ?? 0),
     startDate: raw.startDate ?? raw.StartDate ?? '',
     status: raw.status ?? raw.Status ?? 'active',
+    costPerChick: Number(raw.costPerChick ?? raw.CostPerChick ?? 0),
+    totalCost: Number(raw.totalCost ?? raw.TotalCost ?? 0),
+    amountPaid: Number(raw.amountPaid ?? raw.AmountPaid ?? 0),
+    supplierType: raw.supplierType ?? raw.SupplierType ?? '',
+    supplierId: supplierIdRaw == null || supplierIdRaw === '' ? null : Number(supplierIdRaw),
+    supplierName: raw.supplierName ?? raw.SupplierName ?? '',
+    notes: raw.notes ?? raw.Notes ?? '',
     createdDate: raw.createdDate ?? raw.CreatedDate ?? '',
   }
 }
@@ -121,10 +136,11 @@ export async function getFlockBatches(userId?: string, farmId?: string): Promise
     const data = await response.json();
     console.log("[v0] Flock batches data received:", data);
 
+    const arr = Array.isArray(data) ? data : []
     return {
       success: true,
       message: "Flock batches fetched successfully",
-      data: data as FlockBatch[],
+      data: arr.map((x) => mapFlockBatch(x)),
     };
     } catch (error) {
       console.error("[v0] Flock batches fetch error:", error);
@@ -182,6 +198,13 @@ export interface FlockBatchInput {
   startDate: string;
   breed: string;
   numberOfBirds: number;
+  costPerChick?: number;
+  totalCost?: number;
+  amountPaid?: number;
+  supplierType?: string;
+  supplierId?: number | null;
+  status?: string;
+  notes?: string;
 }
 
 export async function createFlockBatch(flockBatch: FlockBatchInput): Promise<ApiResponse<FlockBatch>> {
@@ -189,7 +212,7 @@ export async function createFlockBatch(flockBatch: FlockBatchInput): Promise<Api
     const url = buildApiUrl('/MainFlockBatch');
     
     // Convert camelCase to PascalCase to match backend C# model
-    const payload = {
+    const payload: Record<string, unknown> = {
       UserId: flockBatch.userId,
       FarmId: flockBatch.farmId,
       BatchName: flockBatch.batchName,
@@ -197,6 +220,13 @@ export async function createFlockBatch(flockBatch: FlockBatchInput): Promise<Api
       StartDate: flockBatch.startDate,
       Breed: flockBatch.breed,
       NumberOfBirds: flockBatch.numberOfBirds,
+      CostPerChick: flockBatch.costPerChick ?? 0,
+      TotalCost: flockBatch.totalCost ?? 0,
+      AmountPaid: flockBatch.amountPaid ?? 0,
+      SupplierType: flockBatch.supplierType ?? '',
+      SupplierId: flockBatch.supplierId ?? null,
+      Status: flockBatch.status ?? 'active',
+      Notes: flockBatch.notes ?? null,
     };
     
     console.log("[v0] Creating flock batch:", url, payload);
@@ -265,11 +295,11 @@ export async function createFlockBatch(flockBatch: FlockBatchInput): Promise<Api
     
         const data = await response.json();
         console.log("[v0] Flock batch data received:", data);
-    
+
         return {
           success: true,
           message: "Flock batch fetched successfully",
-          data: data as FlockBatch,
+          data: mapFlockBatch(data),
         };
       } catch (error) {
         console.error("[v0] Flock batch fetch error:", error);
@@ -293,6 +323,13 @@ export async function createFlockBatch(flockBatch: FlockBatchInput): Promise<Api
         if (flockBatch.startDate !== undefined) payload.StartDate = flockBatch.startDate;
         if (flockBatch.breed !== undefined) payload.Breed = flockBatch.breed;
         if (flockBatch.numberOfBirds !== undefined) payload.NumberOfBirds = flockBatch.numberOfBirds;
+        if (flockBatch.costPerChick !== undefined) payload.CostPerChick = flockBatch.costPerChick;
+        if (flockBatch.totalCost !== undefined) payload.TotalCost = flockBatch.totalCost;
+        if (flockBatch.amountPaid !== undefined) payload.AmountPaid = flockBatch.amountPaid;
+        if (flockBatch.supplierType !== undefined) payload.SupplierType = flockBatch.supplierType;
+        if (flockBatch.supplierId !== undefined) payload.SupplierId = flockBatch.supplierId;
+        if (flockBatch.status !== undefined) payload.Status = flockBatch.status;
+        if (flockBatch.notes !== undefined) payload.Notes = flockBatch.notes;
         
         console.log("[v0] Updating flock batch:", url, payload);
     

@@ -11,7 +11,7 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Plus, Pencil, Trash2, Mail, Phone, UserCog, Users, Calendar, LogIn, Search, RefreshCw, Loader2, Save, User, ChevronDown, ChevronUp, Download } from "lucide-react"
-import { exportTableToPdf } from "@/lib/utils/pdf-export"
+import { exportTableToPdf, emailTableAsPdf, type PdfExportOptions } from "@/lib/utils/pdf-export"
 import { getEmployees, getEmployee, createEmployee, updateEmployee, deleteEmployee, getTodayLogins, type Employee, type CreateEmployeeData, type UpdateEmployeeData } from "@/lib/api/admin"
 import { getUserContext } from "@/lib/utils/user-context"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -446,37 +446,54 @@ export default function EmployeesPage() {
 
   const clearFilters = () => { setSearchQuery(""); setCurrentPage(1) }
 
-  const handleExportPdf = async () => {
-    if (filteredEmployees.length === 0) {
-      toast({ title: "Nothing to export", description: "No employees match the current filters.", variant: "destructive" })
-      return
-    }
-    const rows = sortedEmployees.map((e: any) => [
+  const buildEmployeesPdfOpts = (): PdfExportOptions => ({
+    title: "Employees Report",
+    filename: "employees",
+    columns: [
+      { header: "Name" },
+      { header: "Username" },
+      { header: "Email" },
+      { header: "Phone" },
+      { header: "Role" },
+      { header: "Status" },
+    ],
+    rows: sortedEmployees.map((e: any) => [
       `${e.firstName ?? ""} ${e.lastName ?? ""}`.trim(),
       e.userName ?? "",
       e.email ?? "",
       e.phoneNumber ?? "",
       e.isAdmin ? "Admin" : "Staff",
       e.isActive === false ? "Inactive" : "Active",
-    ])
+    ]),
+    summaryLines: [`Total employees: ${filteredEmployees.length}`],
+    headFillColor: [59, 130, 246],
+  })
+
+  const handleExportPdf = async () => {
+    if (filteredEmployees.length === 0) {
+      toast({ title: "Nothing to export", description: "No employees match the current filters.", variant: "destructive" })
+      return
+    }
     try {
-      await exportTableToPdf({
-        title: "Employees Report",
-        filename: "employees",
-        columns: [
-          { header: "Name" },
-          { header: "Username" },
-          { header: "Email" },
-          { header: "Phone" },
-          { header: "Role" },
-          { header: "Status" },
-        ],
-        rows,
-        summaryLines: [`Total employees: ${filteredEmployees.length}`],
-        headFillColor: [59, 130, 246],
-      })
+      await exportTableToPdf(buildEmployeesPdfOpts())
     } catch (err) {
       toast({ title: "PDF export failed", description: "Could not generate PDF. Please try again.", variant: "destructive" })
+    }
+  }
+
+  const [emailingReport, setEmailingReport] = useState(false)
+  const handleEmailReport = async () => {
+    if (filteredEmployees.length === 0) {
+      toast({ title: "Nothing to email", description: "No employees match the current filters.", variant: "destructive" })
+      return
+    }
+    setEmailingReport(true)
+    try {
+      const res = await emailTableAsPdf(buildEmployeesPdfOpts())
+      if (res.success) toast({ title: "Report emailed", description: `Sent to ${res.recipient}.` })
+      else toast({ title: "Email failed", description: res.message || "Could not send report.", variant: "destructive" })
+    } finally {
+      setEmailingReport(false)
     }
   }
   const handlePageChange = (page: number) => setCurrentPage(page)
@@ -498,7 +515,7 @@ export default function EmployeesPage() {
     return (
       <div className="flex min-h-screen bg-slate-50">
         <DashboardSidebar onLogout={handleLogout} />
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-w-0">
           <DashboardHeader />
           <main className="overflow-y-visible p-6 flex items-center justify-center"><p className="text-slate-600">Loading...</p></main>
         </div>
@@ -511,7 +528,7 @@ export default function EmployeesPage() {
   return (
     <div className="flex min-h-screen bg-slate-50">
       <DashboardSidebar onLogout={handleLogout} />
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
         <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
           <div className="space-y-6">
@@ -540,6 +557,9 @@ export default function EmployeesPage() {
                 {searchQuery && <Button variant="outline" size="sm" onClick={clearFilters}><RefreshCw className="h-4 w-4 mr-2" />Clear</Button>}
                 <Button variant="outline" size="sm" onClick={handleExportPdf} className="gap-2">
                   <Download className="h-4 w-4" /> Export PDF
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleEmailReport} disabled={emailingReport} className="gap-2">
+                  {emailingReport ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />} Email Report
                 </Button>
               </div>
             )}

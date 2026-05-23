@@ -112,65 +112,39 @@ namespace PoultryFarmAPIWeb.Filters
             }
         }
 
-        private string? GetUserIdFromBody(ActionExecutingContext context)
+        /// <summary>
+        /// PUT routes take (int id, Model model) as args. Values.FirstOrDefault() can return
+        /// the int — calling GetProperty("FarmId") on int returns null and the helper falls
+        /// through to "Unknown". Iterate every argument and pick the first one that exposes
+        /// the named property with a non-empty value.
+        /// </summary>
+        private static string? FindStringPropFromArgs(ActionExecutingContext context, params string[] propertyNames)
         {
-            var obj = context.ActionArguments.Values.FirstOrDefault();
-            if (obj != null)
+            foreach (var obj in context.ActionArguments.Values)
             {
-                var prop = obj.GetType().GetProperty("UserId");
-                if (prop != null)
+                if (obj == null) continue;
+                var t = obj.GetType();
+                // Skip primitives/strings/value types — they can't carry the property we want.
+                if (t.IsPrimitive || t.IsEnum || t == typeof(string) || t == typeof(decimal) || t == typeof(Guid)) continue;
+                foreach (var name in propertyNames)
                 {
-                    return prop.GetValue(obj)?.ToString();
-                }
-                var prop2 = obj.GetType().GetProperty("CreatedBy");
-                if (prop2 != null)
-                {
-                    return prop2.GetValue(obj)?.ToString();
-                }
-                var prop3 = obj.GetType().GetProperty("UpdatedBy");
-                if (prop3 != null)
-                {
-                    return prop3.GetValue(obj)?.ToString();
+                    var prop = t.GetProperty(name);
+                    if (prop == null) continue;
+                    var value = prop.GetValue(obj)?.ToString();
+                    if (!string.IsNullOrWhiteSpace(value)) return value;
                 }
             }
             return null;
         }
 
-        private string? GetFarmIdFromBody(ActionExecutingContext context)
-        {
-            var obj = context.ActionArguments.Values.FirstOrDefault();
-            if (obj != null)
-            {
-                var prop = obj.GetType().GetProperty("FarmId");
-                if (prop != null)
-                {
-                    return prop.GetValue(obj)?.ToString();
-                }
-            }
-            return null;
-        }
+        private string? GetUserIdFromBody(ActionExecutingContext context) =>
+            FindStringPropFromArgs(context, "UserId", "CreatedBy", "UpdatedBy");
 
-        private string? GetResourceIdFromBody(ActionExecutingContext context)
-        {
-            var obj = context.ActionArguments.Values.FirstOrDefault();
-            if (obj != null)
-            {
-                // Try common ID property names
-                var idProp = obj.GetType().GetProperty("Id") 
-                    ?? obj.GetType().GetProperty("FlockId")
-                    ?? obj.GetType().GetProperty("BatchId")
-                    ?? obj.GetType().GetProperty("ProductionRecordId");
-                if (idProp != null)
-                {
-                    var value = idProp.GetValue(obj);
-                    if (value != null)
-                    {
-                        return value.ToString();
-                    }
-                }
-            }
-            return null;
-        }
+        private string? GetFarmIdFromBody(ActionExecutingContext context) =>
+            FindStringPropFromArgs(context, "FarmId");
+
+        private string? GetResourceIdFromBody(ActionExecutingContext context) =>
+            FindStringPropFromArgs(context, "Id", "FlockId", "BatchId", "ProductionRecordId");
 
         private string? GetResourceIdFromResponse(ActionExecutedContext context)
         {

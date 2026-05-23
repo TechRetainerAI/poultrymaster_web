@@ -210,7 +210,7 @@ export default function NewEggProductionPage() {
   return (
     <div className="flex min-h-screen bg-slate-50">
       <DashboardSidebar onLogout={handleLogout} />
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
         <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
           <div className="space-y-6 space-y-6">
@@ -248,7 +248,7 @@ export default function NewEggProductionPage() {
                         <SelectValue placeholder="Select a flock" />
                       </SelectTrigger>
                       <SelectContent>
-                        {flocks.map((flock: any) => (
+                        {flocks.filter((flock: any) => flock.hasArrived).map((flock: any) => (
                           <SelectItem key={flock.flockId} value={flock.flockId.toString()}>
                             {flock.name}
                           </SelectItem>

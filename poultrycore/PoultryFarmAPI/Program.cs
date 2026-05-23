@@ -99,6 +99,28 @@ builder.Services.AddScoped<IChatService>(sp => new ChatService(connectionString)
 builder.Services.AddScoped<IMainFlockBatchService>(sp => new MainFlockBatchService(connectionString));
 // =================================================================
 
+// =================================================================
+// Water company module (multi-company support, separate from poultry)
+// =================================================================
+builder.Services.AddScoped<IWaterProductService>(sp => new WaterProductService(connectionString));
+builder.Services.AddScoped<IWaterCustomerService>(sp => new WaterCustomerService(connectionString));
+builder.Services.AddScoped<IWaterStockService>(sp => new WaterStockService(connectionString));
+builder.Services.AddScoped<IWaterSaleService>(sp => new WaterSaleService(connectionString));
+builder.Services.AddScoped<IWaterPaymentService>(sp => new WaterPaymentService(connectionString));
+builder.Services.AddScoped<IWaterDashboardService>(sp => new WaterDashboardService(connectionString));
+// =================================================================
+
+// =================================================================
+// Email (SMTP via MailKit) — used by EmailController for report PDFs.
+// Set EmailConfiguration__From / __SmtpServer / __Port / __UserName /
+// __Password on Cloud Run. Leave blank locally to disable.
+// =================================================================
+var emailConfig = builder.Configuration.GetSection("EmailConfiguration").Get<PoultryFarmAPIWeb.Models.EmailConfiguration>()
+    ?? new PoultryFarmAPIWeb.Models.EmailConfiguration();
+builder.Services.AddSingleton(emailConfig);
+builder.Services.AddScoped<PoultryFarmAPIWeb.Business.IEmailService, PoultryFarmAPIWeb.Business.EmailService>();
+// =================================================================
+
 // 2) Add controllers with audit logging
 builder.Services.AddControllers(options =>
 {

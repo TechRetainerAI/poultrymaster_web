@@ -336,7 +336,7 @@ export default function NewProductionRecordPage() {
   return (
     <div className="flex min-h-screen bg-slate-50">
       <DashboardSidebar onLogout={handleLogout} />
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
         <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
           <div className="space-y-6">
@@ -387,7 +387,7 @@ export default function NewProductionRecordPage() {
                         <SelectValue placeholder="Select flock" />
                       </SelectTrigger>
                       <SelectContent>
-                        {flocks.map((f) => (
+                        {flocks.filter((f) => f.hasArrived).map((f) => (
                           <SelectItem key={f.flockId} value={String(f.flockId)}>
                             {f.name || `Flock ${f.flockId}`} (ID: {f.flockId})
                           </SelectItem>

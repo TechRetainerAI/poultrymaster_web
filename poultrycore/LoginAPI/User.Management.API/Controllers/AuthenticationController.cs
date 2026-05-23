@@ -50,113 +50,32 @@ namespace User.Management.API.Controllers
         [Route("Register")]
         public async Task<IActionResult> Register([FromBody] RegisterUser registerUser)
         {
+            // SECURITY: never trust client-supplied roles on a public signup endpoint.
+            // The person registering is the farm owner; any other role must be granted by an admin.
+            registerUser.Roles = new List<string> { "Admin" };
+
             var tokenResponse = await _user.CreateUserWithTokenAsync(registerUser);
-            if (tokenResponse.IsSuccess && tokenResponse.Response!=null)
+            if (tokenResponse.IsSuccess && tokenResponse.Response != null)
             {
-                await _user.AssignRoleToUserAsync(registerUser.Roles,tokenResponse.Response.User);
+                await _user.AssignRoleToUserAsync(registerUser.Roles, tokenResponse.Response.User);
 
-                //var confirmationLink = $"http://localhost:4200/ConfirmEmail?Token={tokenResponse.Response.Token}&email={registerUser.Email}";
-
-                //using
-                //var encodedToken = WebUtility.UrlEncode(tokenResponse.Response.Token);
-                //var confirmationLink = $"{_webAppBaseUrl}/Account/ConfirmEmail?token={encodedToken}&email={registerUser.Email}";
-
-
-
-                //var confirmationLink = Url.Action(nameof(ConfirmEmail), "Account", new { tokenResponse.Response.Token, email = registerUser.Email }, Request.Scheme);
-
-                //This link is for the API.
-                //var confirmationLink = Url.Action(nameof(ConfirmEmail), "Authentication", new { tokenResponse.Response.Token, email = registerUser.Email }, Request.Scheme);
-
-
-                // Manually constructing the URL with scheme
-                //Encoding the token before sending it - so that when clicked upon in the browser, it does not change. Actually the browser will decode it
-                //and we will have it exactly as it is when it hits the endpoint -- We need to send the token exactly as it is in order to succeed the function call
-                var encodedToken = WebUtility.UrlEncode(tokenResponse.Response.Token);
-                var scheme = Request.Scheme;
-                //var host = Request.Host.Value;
-                //var confirmationLink = $"{scheme}://{_webAppBaseUrl}/Account/ConfirmEmail?token={encodedToken}&email={registerUser.Email}";
-                //var message = new Message(new string[] { registerUser.Email! }, "Confirmation email link", confirmationLink!);
-
-                // Send confirmation link to Next.js frontend
-                var confirmationLink = $"{_frontendAppBaseUrl}/test-email-confirmation?token={encodedToken}&email={registerUser.Email}";
-                //var confirmationLink = $"{scheme}://{_webAppBaseUrl}/Account/ConfirmEmail?token={encodedToken}&email={registerUser.Email}";
-
-
-                // Creating the email body
-                var emailBody = $@"
-                    <html>
-                    <head>
-                        <style>
-                            body {{
-                                font-family: Arial, sans-serif;
-                                line-height: 1.6;
-                            }}
-                            .container {{
-                                max-width: 600px;
-                                margin: 0 auto;
-                                padding: 20px;
-                                border: 1px solid #ddd;
-                                border-radius: 10px;
-                                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-                                background-color: #f9f9f9;
-                            }}
-                            .header {{
-                                text-align: center;
-                                padding: 10px 0;
-                                border-bottom: 1px solid #ddd;
-                            }}
-                            .content {{
-                                padding: 20px;
-                            }}
-                            .button {{
-                                display: inline-block;
-                                padding: 10px 20px;
-                                margin: 20px 0;
-                                border-radius: 5px;
-                                background-color: #007bff;
-                                color: #fff;
-                                text-decoration: none;
-                            }}
-                            .footer {{
-                                text-align: center;
-                                padding: 10px 0;
-                                border-top: 1px solid #ddd;
-                                font-size: 0.8rem;
-                                color: #666;
-                            }}
-                        </style>
-                    </head>
-                    <body>
-                        <div class='container'>
-                            <div class='header'>
-                                <h2>Account Activation</h2>
-                            </div>
-                            <div class='content'>
-                                <p>Dear {registerUser.FirstName},</p>
-                                <p>Thank you for registering an account with us. To complete your registration, please confirm your email address by clicking the link below:</p>
-                                <p><a href='{confirmationLink}' class='button'>Confirm Email Address</a></p>
-                                <p>If you did not register for this account, please ignore this email.</p>
-                                <p>Thank you,<br/>The Team</p>
-                            </div>
-                            <div class='footer'>
-                                <p>&copy; 2024 Your Company. All rights reserved.</p>
-                            </div>
-                        </div>
-                    </body>
-                </html>";
-
-                // Creating the email message
-                var message = new Message(new string[] { registerUser.Email! }, "Please confirm your email address", emailBody);
-                //_emailService.SendEmail(message);
-                var responseMsg = _emailService.SendEmail(message);
+                // Account is auto-confirmed at creation time (see UserManagement.CreateUserWithTokenAsync);
+                // no confirmation email is sent here. To require email verification, remove the
+                // EmailConfirmed = true line in that method and reinstate an email send below.
                 return StatusCode(StatusCodes.Status200OK,
-                        new Response { IsSuccess=true, Message = $"{tokenResponse.Message} {responseMsg}" });
-
+                    new Response { IsSuccess = true, Message = tokenResponse.Message });
             }
 
-            return StatusCode(StatusCodes.Status500InternalServerError,
-                  new Response { Message = tokenResponse.Message,IsSuccess=false });
+            // Map the service status onto a meaningful HTTP code (e.g. duplicate-user → 409).
+            var statusCode = tokenResponse.StatusCode switch
+            {
+                403 => StatusCodes.Status409Conflict,
+                > 0 => tokenResponse.StatusCode,
+                _   => StatusCodes.Status500InternalServerError,
+            };
+
+            return StatusCode(statusCode,
+                  new Response { Message = tokenResponse.Message, IsSuccess = false });
         }
 
         [HttpGet("ConfirmEmail")]
@@ -165,51 +84,36 @@ namespace User.Management.API.Controllers
             try
             {
                 var user = await _userManager.FindByEmailAsync(email);
-                if (user != null)
+                // Use the same generic response for "no such user" and "bad token" so this
+                // endpoint can't be used to enumerate registered email addresses.
+                if (user == null)
                 {
-                    // Try to confirm email with token
-                    var result = await _userManager.ConfirmEmailAsync(user, token);
-
-                    if (result.Succeeded)
+                    return StatusCode(StatusCodes.Status400BadRequest, new Response
                     {
-                        return StatusCode(StatusCodes.Status200OK, new Response
-                        {
-                            IsSuccess = result.Succeeded,
-                            Status = "Success",
-                            Message = "Email Verified Successfully"
-                        });
-                    }
-                    else
-                    {
-                        // If token verification fails, try to confirm email directly (for development only)
-                        // This allows manual confirmation without a valid token
-                        user.EmailConfirmed = true;
-                        var updateResult = await _userManager.UpdateAsync(user);
-                        
-                        if (updateResult.Succeeded)
-                        {
-                            return StatusCode(StatusCodes.Status200OK, new Response
-                            {
-                                IsSuccess = true,
-                                Status = "Success",
-                                Message = "Email Verified Successfully (manual confirmation)"
-                            });
-                        }
-                        
-                        return StatusCode(StatusCodes.Status500InternalServerError, new Response
-                        {
-                            IsSuccess = false,
-                            Status = "Error",
-                            Message = "Failed to confirm email"
-                        });
-                    }
+                        IsSuccess = false,
+                        Status = "Error",
+                        Message = "Invalid or expired confirmation link."
+                    });
                 }
 
-                return StatusCode(StatusCodes.Status500InternalServerError, new Response
+                var result = await _userManager.ConfirmEmailAsync(user, token);
+                if (result.Succeeded)
+                {
+                    return StatusCode(StatusCodes.Status200OK, new Response
+                    {
+                        IsSuccess = true,
+                        Status = "Success",
+                        Message = "Email Verified Successfully"
+                    });
+                }
+
+                // SECURITY: do not blindly mark EmailConfirmed = true when the token check
+                // fails — that would let anyone confirm any account.
+                return StatusCode(StatusCodes.Status400BadRequest, new Response
                 {
                     IsSuccess = false,
                     Status = "Error",
-                    Message = "This User Does not exist!"
+                    Message = "Invalid or expired confirmation link."
                 });
             }
             catch (Exception ex)

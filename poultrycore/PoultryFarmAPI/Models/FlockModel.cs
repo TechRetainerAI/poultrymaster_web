@@ -16,6 +16,7 @@
         public int BatchId { get; set; }
         public string? Notes { get; set; }
         public string? BatchName { get; set; }
+        public bool HasArrived { get; set; }
     }
 
 }

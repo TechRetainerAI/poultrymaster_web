@@ -486,8 +486,8 @@ export default function MedicationTrackerPage() {
                         <CardDescription>
                           Balance per product (dose units) from the same ledger. <strong>Finished</strong> means the running total
                           for that name is zero or below — time to restock or check entries. Use <strong>Pack photo</strong> to
-                          attach a picture of the bottle, label, or invoice (stored in the database with the health record; it
-                          does not change stock totals).
+                          upload or take a picture of the bottle, label, or invoice (stored in the database with the health
+                          record; it does not change stock totals).
                         </CardDescription>
                       </div>
                       <Button
@@ -833,8 +833,9 @@ export default function MedicationTrackerPage() {
                 Medication pack photo
               </DialogTitle>
               <DialogDescription>
-                Upload a picture of the label, bottle, or pack. The image is stored in your farm database (not on the web
-                server disk) so it keeps working after deploys. It does not change dose totals on this page.
+                Upload a picture of the label, bottle, or pack, or use <strong>Take photo</strong> to capture it with your
+                device camera. The image is stored in your farm database (not on the web server disk) so it keeps working
+                after deploys. It does not change dose totals on this page.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleMedicationPhotoSubmit} className="space-y-4 pt-2">
@@ -864,7 +865,7 @@ export default function MedicationTrackerPage() {
                     <SelectValue placeholder="Select flock" />
                   </SelectTrigger>
                   <SelectContent>
-                    {flocks.map((f) => (
+                    {flocks.filter((f) => f.hasArrived).map((f) => (
                       <SelectItem key={f.flockId} value={String(f.flockId)}>
                         {f.name || `Flock #${f.flockId}`}
                       </SelectItem>
@@ -905,10 +906,14 @@ export default function MedicationTrackerPage() {
                 </div>
               )}
               <ExpenseReceiptField
+                label="Pack photo (optional)"
                 existingPath={photoReceiptRemoved || photoFile ? null : photoExistingDbRecordId ? null : photoExistingPath}
                 resolveReceiptFarmId={getUserContext().farmId}
                 pendingFile={photoFile}
-                onPendingFileChange={setPhotoFile}
+                onPendingFileChange={(f) => {
+                  setPhotoFile(f)
+                  if (f) setPhotoDialogError("")
+                }}
                 onRemoveExisting={() => {
                   setPhotoReceiptRemoved(true)
                   setPhotoExistingPath(null)

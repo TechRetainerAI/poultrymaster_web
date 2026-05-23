@@ -41,6 +41,26 @@ namespace PoultryFarmAPIWeb.Models
         [StringLength(20)]
         public string Status { get; set; } = "active"; // e.g., "active", "inactive", "sold"
 
+        // Per-chick acquisition cost.
+        public decimal CostPerChick { get; set; }
+
+        // Full purchase price for the batch. Stored explicitly so the user can override the auto-computed value.
+        public decimal TotalCost { get; set; }
+
+        // Amount actually paid to the supplier (USD). May differ from TotalCost during partial payments.
+        public decimal AmountPaid { get; set; }
+
+        [StringLength(20)]
+        public string SupplierType { get; set; } = string.Empty; // "local" | "foreign"
+
+        // Optional FK to dbo.Supplier.
+        public int? SupplierId { get; set; }
+
+        // Denormalized supplier name for display (filled from JOIN on GET).
+        public string SupplierName { get; set; } = string.Empty;
+
+        public string? Notes { get; set; }
+
         // Date the record was created (managed by the database or service).
         public DateTime CreatedDate { get; set; }
     }

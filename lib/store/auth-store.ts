@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import type { Company, CompanyType } from '@/lib/api/companies'
 
 interface User {
   id: string
@@ -16,61 +17,127 @@ interface AuthState {
   refreshToken: string | null
   user: User | null
   isAuthenticated: boolean
+
+  // Multi-company
+  companies: Company[]
+  activeFarmId: string | null
+  activeFarmName: string | null
+  activeFarmType: CompanyType | null
+
   setToken: (token: string) => void
   setRefreshToken: (refreshToken: string) => void
   setUser: (user: User) => void
   login: (token: string, refreshToken: string, user: User) => void
   logout: () => void
+
+  setCompanies: (companies: Company[]) => void
+  setActiveCompany: (farmId: string, name: string, type: CompanyType, token?: string) => void
+}
+
+function syncCompanyToLocalStorage(farmId: string | null, name: string | null, type: CompanyType | null) {
+  if (typeof window === 'undefined') return
+  if (farmId) localStorage.setItem('farmId', farmId)
+  else localStorage.removeItem('farmId')
+  if (name) localStorage.setItem('farmName', name)
+  else localStorage.removeItem('farmName')
+  if (type) localStorage.setItem('farmType', type)
+  else localStorage.removeItem('farmType')
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       token: null,
       refreshToken: null,
       user: null,
       isAuthenticated: false,
-      
+      companies: [],
+      activeFarmId: null,
+      activeFarmName: null,
+      activeFarmType: null,
+
       setToken: (token) => {
         set({ token, isAuthenticated: !!token })
-        // Sync with localStorage
         if (typeof window !== 'undefined') {
-          if (token) {
-            localStorage.setItem('auth_token', token)
-          } else {
-            localStorage.removeItem('auth_token')
-          }
+          if (token) localStorage.setItem('auth_token', token)
+          else localStorage.removeItem('auth_token')
         }
       },
-      
+
       setRefreshToken: (refreshToken) => set({ refreshToken }),
-      
+
       setUser: (user) => set({ user }),
-      
+
       login: (token, refreshToken, user) => {
         set({
           token,
           refreshToken,
           user,
           isAuthenticated: true,
+          activeFarmId: user.farmId,
+          activeFarmName: user.farmName,
         })
-        // Sync with localStorage
         if (typeof window !== 'undefined') {
           localStorage.setItem('auth_token', token)
         }
+        syncCompanyToLocalStorage(user.farmId, user.farmName, get().activeFarmType)
       },
-      
+
       logout: () => {
         set({
           token: null,
           refreshToken: null,
           user: null,
           isAuthenticated: false,
+          companies: [],
+          activeFarmId: null,
+          activeFarmName: null,
+          activeFarmType: null,
         })
-        // Clear localStorage
         if (typeof window !== 'undefined') {
           localStorage.removeItem('auth_token')
+          localStorage.removeItem('farmId')
+          localStorage.removeItem('farmName')
+          localStorage.removeItem('farmType')
         }
+      },
+
+      setCompanies: (companies) => {
+        // If the current active company is now stale (was deleted), drop it.
+        const current = get().activeFarmId
+        const stillExists = current && companies.some((c) => c.farmId === current)
+        if (!stillExists && companies.length > 0) {
+          const first = companies[0]
+          set({
+            companies,
+            activeFarmId: first.farmId,
+            activeFarmName: first.name,
+            activeFarmType: first.type,
+          })
+          syncCompanyToLocalStorage(first.farmId, first.name, first.type)
+        } else {
+          // Reconcile active type from the matched company (it can change if updated server-side).
+          const match = companies.find((c) => c.farmId === current)
+          set({
+            companies,
+            activeFarmType: match?.type ?? get().activeFarmType,
+          })
+          if (match) syncCompanyToLocalStorage(match.farmId, match.name, match.type)
+        }
+      },
+
+      setActiveCompany: (farmId, name, type, token) => {
+        set((s) => ({
+          activeFarmId: farmId,
+          activeFarmName: name,
+          activeFarmType: type,
+          token: token ?? s.token,
+          user: s.user ? { ...s.user, farmId, farmName: name } : s.user,
+        }))
+        if (typeof window !== 'undefined' && token) {
+          localStorage.setItem('auth_token', token)
+        }
+        syncCompanyToLocalStorage(farmId, name, type)
       },
     }),
     {
@@ -80,6 +147,10 @@ export const useAuthStore = create<AuthState>()(
         refreshToken: state.refreshToken,
         user: state.user,
         isAuthenticated: state.isAuthenticated,
+        companies: state.companies,
+        activeFarmId: state.activeFarmId,
+        activeFarmName: state.activeFarmName,
+        activeFarmType: state.activeFarmType,
       }),
     }
   )

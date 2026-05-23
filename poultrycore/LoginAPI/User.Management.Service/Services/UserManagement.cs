@@ -103,7 +103,9 @@ namespace User.Management.Service.Services
 
                 var farmId = Guid.NewGuid().ToString();
 
-                // Create the user
+                // Create the user.
+                // EmailConfirmed = true: signup auto-confirms; the controller does not send a
+                // verification email. Flip this (and the controller) if you want strict verification.
                 ApplicationUser user = new()
                 {
                     FarmId = farmId,                                 //saving farmID as well
@@ -111,7 +113,7 @@ namespace User.Management.Service.Services
                     FirstName = registerUser.FirstName,
                     LastName = registerUser.LastName,
                     Email = registerUser.Email,
-                    EmailConfirmed = true, // Auto-confirm email for development
+                    EmailConfirmed = true,
                     PhoneNumber = registerUser.PhoneNumber,
                     SecurityStamp = Guid.NewGuid().ToString(),
                     UserName = registerUser.Username,
@@ -132,26 +134,26 @@ namespace User.Management.Service.Services
                         Email = registerUser.Email,
                         PhoneNumber = registerUser.PhoneNumber
                     };
-                    var createFarmResult = await _subscriptionService.CreateFarmAsync(farm);   
+                    var createFarmResult = await _subscriptionService.CreateFarmAsync(farm);
                     if (!createFarmResult)
                     {
-                        //await _subscriptionService.UpdateUserFarmIdAsync(user.Id, farmId);
+                        // Compensating delete: don't leave an orphan user that has no farm to log into.
+                        await _userManager.DeleteAsync(user);
                         return new ApiResponse<CreateUserResponse>
                         {
                             IsSuccess = false,
                             StatusCode = 500,
-                            Message = "User Created Successfully but Farm creation Failed"
+                            Message = "Farm creation failed. Please try again."
                         };
                     }
 
-                    // 4. Return success
-                    var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+                    // 4. Return success (no email-confirmation token: signup is auto-confirmed).
                     return new ApiResponse<CreateUserResponse>
                     {
                         Response = new CreateUserResponse()
                         {
                             User = user,
-                            Token = token
+                            Token = string.Empty
                         },
                         IsSuccess = true,
                         StatusCode = 201,

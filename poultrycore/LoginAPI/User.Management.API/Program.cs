@@ -267,6 +267,10 @@ builder.Services.AddScoped<IUserDataDAL>(provider => new UserDataDAL(connectionS
 // Register the service
 builder.Services.AddScoped<IUserService, UserService>();
 
+// Multi-company / Companies endpoints (GET /api/Companies/mine, POST, switch)
+builder.Services.AddScoped<ICompanyDAL>(provider => new CompanyDAL(connectionString));
+builder.Services.AddScoped<ICompanyService, CompanyService>();
+
 
 
 builder.Services.AddControllers();

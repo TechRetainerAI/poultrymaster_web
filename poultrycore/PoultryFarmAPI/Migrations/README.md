@@ -39,6 +39,28 @@ These SQL migration scripts update the database schema to unify data tables acro
 
 **Result:** Farmers can select a grade when logging production; it appears in the list and exports.
 
+### 025_AddMultiCompanyAndWaterSchema.sql
+**Purpose:** Adds multi-company support (one admin can own multiple Farms with different types) and the Water company module tables.
+
+**What it does:**
+1. Adds `Type`, `OwnerUserId`, `UpdatedAt` columns to `Farms` (defaults `Type='Poultry'`)
+2. Creates `UserFarms` join table — a user can belong to many farms (Admin/Staff)
+3. Backfills `UserFarms` from existing `AspNetUsers.FarmId` rows so nobody loses access
+4. Creates Water module tables: `WaterProducts`, `WaterCustomers`, `WaterStockTransactions`, `WaterSales`, `WaterSaleItems`, `WaterPayments`
+
+**Result:** The DB can now represent multiple companies per admin, and a separate water sales/distribution business alongside the existing poultry one.
+
+### 026_AddMultiCompanyAndWaterStoredProcedures.sql
+**Purpose:** Stored procedures backing the Companies endpoints and the Water module.
+
+**What it does:**
+1. `spCompany_*` — create/get/update farms, `spUserFarm_IsMember` for switch-farm authorization
+2. `spWaterProduct_*`, `spWaterCustomer_*` — standard CRUD with `StockOnHand` + `OutstandingBalance` computed columns
+3. `spWaterStock_*` — append-only stock-transaction ledger
+4. `spWaterSale_Create` — header + items + auto stock-out in one transaction; `spWaterSale_Cancel` writes compensating Return txns
+5. `spWaterPayment_Record` — records a payment and recomputes the parent sale's `AmountPaid` and `Status`
+6. `spWaterDashboard_Summary` — single-trip dashboard tiles
+
 ## How to Run
 
 ### Option 1: SQL Server Management Studio (SSMS)
