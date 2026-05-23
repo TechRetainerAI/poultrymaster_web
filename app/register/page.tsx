@@ -12,11 +12,28 @@ import { InventoryLogo } from "@/components/auth/logo"
 import { register } from "@/lib/api/auth"
 import Link from "next/link"
 
+// Identity-style errors come back as a string[] OR an object map ({ field: [msgs] }).
+function flattenErrors(errors: unknown): string[] {
+  if (!errors) return []
+  if (Array.isArray(errors)) return errors.map((e) => String(e))
+  if (typeof errors === "object") {
+    return Object.values(errors as Record<string, unknown>)
+      .flat()
+      .map((e) => String(e))
+  }
+  return [String(errors)]
+}
+
+const USERNAME_RE = /^[A-Za-z0-9._-]{3,30}$/
+const GHANA_PHONE_RE = /^(0\d{9}|\+?233\d{9})$/
+
 export default function RegisterPage() {
   const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const [errorList, setErrorList] = useState<string[]>([])
   const [success, setSuccess] = useState(false)
 
   const [formData, setFormData] = useState({
@@ -24,6 +41,7 @@ export default function RegisterPage() {
     username: "",
     email: "",
     password: "",
+    confirmPassword: "",
     firstName: "",
     lastName: "",
     phoneNumber: "",
@@ -36,10 +54,32 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setErrorList([])
+
+    const username = formData.username.trim()
+    if (!USERNAME_RE.test(username)) {
+      setError("Username must be 3–30 characters: letters, numbers, dot, underscore, or hyphen (no spaces).")
+      return
+    }
+
+    const phoneClean = formData.phoneNumber.replace(/[\s-]/g, "")
+    if (!GHANA_PHONE_RE.test(phoneClean)) {
+      setError("Phone number must be a Ghana number: 0XXXXXXXXX or +233XXXXXXXXX.")
+      return
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match.")
+      return
+    }
+
     setIsLoading(true)
 
+    const { confirmPassword: _confirm, ...payload } = formData
     const result = await register({
-      ...formData,
+      ...payload,
+      username,
+      phoneNumber: phoneClean,
       roles: ["Admin"], // Person registering is the farm owner/admin
     })
 
@@ -51,6 +91,7 @@ export default function RegisterPage() {
       }, 2000)
     } else {
       setError(result.message || "Registration failed. Please try again.")
+      setErrorList(flattenErrors(result.errors))
     }
 
     setIsLoading(false)
@@ -119,9 +160,16 @@ export default function RegisterPage() {
           </div>
 
           {/* Error Message */}
-          {error && (
+          {(error || errorList.length > 0) && (
             <div className="mb-6 p-4 bg-red-900/20 border border-red-500/30 rounded-lg">
-              <p className="text-sm text-red-300">{error}</p>
+              {error && <p className="text-sm text-red-300">{error}</p>}
+              {errorList.length > 0 && (
+                <ul className="mt-2 text-sm text-red-300 list-disc list-inside space-y-1">
+                  {errorList.map((msg, i) => (
+                    <li key={i}>{msg}</li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
 
@@ -228,6 +276,31 @@ export default function RegisterPage() {
                   disabled={isLoading}
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Confirm Password */}
+            <div className="space-y-2">
+              <div className="relative">
+                <Input
+                  id="confirmPassword"
+                  type={showConfirmPassword ? "text" : "password"}
+                  placeholder="Confirm Password"
+                  value={formData.confirmPassword}
+                  onChange={(e) => handleChange("confirmPassword", e.target.value)}
+                  className="h-10 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-orange-500 focus:ring-orange-500 pr-12"
+                  required
+                  disabled={isLoading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300 transition-colors"
+                  aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                  disabled={isLoading}
+                >
+                  {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
             </div>
