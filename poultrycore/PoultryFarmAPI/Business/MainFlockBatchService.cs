@@ -1,4 +1,4 @@
-﻿using System.Data;
+using System.Data;
 using System.Data.SqlClient;
 using PoultryFarmAPIWeb.Models;
 
@@ -55,6 +55,11 @@ namespace PoultryFarmAPIWeb.Business
                 int o = reader.GetOrdinal("TotalCost");
                 model.TotalCost = reader.IsDBNull(o) ? 0m : reader.GetDecimal(o);
             }
+            if (HasColumn(reader, "AmountPaid"))
+            {
+                int o = reader.GetOrdinal("AmountPaid");
+                model.AmountPaid = reader.IsDBNull(o) ? 0m : reader.GetDecimal(o);
+            }
             if (HasColumn(reader, "SupplierType"))
             {
                 int o = reader.GetOrdinal("SupplierType");
@@ -69,6 +74,11 @@ namespace PoultryFarmAPIWeb.Business
             {
                 int o = reader.GetOrdinal("SupplierName");
                 model.SupplierName = reader.IsDBNull(o) ? string.Empty : reader.GetString(o);
+            }
+            if (HasColumn(reader, "Notes"))
+            {
+                int o = reader.GetOrdinal("Notes");
+                model.Notes = reader.IsDBNull(o) ? null : reader.GetString(o);
             }
 
             return model;
@@ -92,8 +102,10 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.AddWithValue("@Status", (object?)model.Status ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@CostPerChick", model.CostPerChick);
                 cmd.Parameters.AddWithValue("@TotalCost", model.TotalCost);
+                cmd.Parameters.AddWithValue("@AmountPaid", model.AmountPaid);
                 cmd.Parameters.AddWithValue("@SupplierType", (object?)model.SupplierType ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@SupplierId", (object?)model.SupplierId ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@Notes", (object?)model.Notes ?? DBNull.Value);
 
                 await conn.OpenAsync();
                 var result = await cmd.ExecuteScalarAsync();
@@ -126,8 +138,10 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.AddWithValue("@Status", (object?)model.Status ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@CostPerChick", model.CostPerChick);
                 cmd.Parameters.AddWithValue("@TotalCost", model.TotalCost);
+                cmd.Parameters.AddWithValue("@AmountPaid", model.AmountPaid);
                 cmd.Parameters.AddWithValue("@SupplierType", (object?)model.SupplierType ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@SupplierId", (object?)model.SupplierId ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@Notes", (object?)model.Notes ?? DBNull.Value);
 
                 await conn.OpenAsync();
                 await cmd.ExecuteNonQueryAsync();

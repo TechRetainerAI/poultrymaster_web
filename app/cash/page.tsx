@@ -613,7 +613,7 @@ export default function CashPage() {
                   <Button variant="outline" size="sm" onClick={clearFilters}>Reset Filters</Button>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="min-w-0">
                 {loading ? (
                   <p className="text-slate-600 py-8 text-center">Loading...</p>
                 ) : sortedTransactions.length === 0 ? (
@@ -671,7 +671,16 @@ export default function CashPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className={cn("overflow-x-auto table-scroll-wrapper", isMobile && "pb-2")} style={{ WebkitOverflowScrolling: "touch" }}>
+                  <>
+                    <p className="text-xs text-slate-500 mb-2">
+                      {isMobile
+                        ? "Swipe right in the table to see Out, Balance, and Actions."
+                        : "If columns are cut off, scroll horizontally (→) to see Out, Balance, and Actions."}
+                    </p>
+                    <div className={cn(
+                      "overflow-x-auto max-w-full table-scroll-wrapper pb-3 pr-2",
+                      isMobile && "pb-2",
+                    )} style={{ WebkitOverflowScrolling: "touch" }}>
                     {isMobile && (
                       <div className="px-4 py-2 border-b bg-slate-50 flex items-center justify-between gap-2 sticky top-0 z-10">
                         <span className="text-xs text-slate-600">Table • Scroll → for more</span>
@@ -680,40 +689,42 @@ export default function CashPage() {
                         </Button>
                       </div>
                     )}
-                  <Table className={cn("w-full", !isMobile && "min-w-[900px]")}>
+                  <Table className="min-w-[1120px] w-max caption-bottom text-sm">
                     <TableHeader>
                       <TableRow>
-                        <SortableHeader label="Date" sortKey="date" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className={cn(isMobile && "sticky-col-date bg-slate-50")} />
-                        <SortableHeader label="Type" sortKey="type" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} />
-                        <SortableHeader label="Description" sortKey="description" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} />
-                        <SortableHeader label="In" sortKey="in" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right" />
-                        <SortableHeader label="Owed" sortKey="owed" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right" />
-                        <SortableHeader label="Out" sortKey="out" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right" />
-                        <SortableHeader label="Balance" sortKey="balance" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className={cn("text-right", isMobile && "sticky-col-actions bg-slate-50")} />
-                        <TableHead className="text-right">Actions</TableHead>
+                        <SortableHeader label="Date" sortKey="date" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className={cn("min-w-[96px]", isMobile && "sticky-col-date bg-slate-50")} />
+                        <SortableHeader label="Type" sortKey="type" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[88px]" />
+                        <SortableHeader label="Description" sortKey="description" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[160px] max-w-[320px]" />
+                        <SortableHeader label="In" sortKey="in" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[96px]" />
+                        <SortableHeader label="Owed" sortKey="owed" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[96px]" />
+                        <SortableHeader label="Out" sortKey="out" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[96px]" />
+                        <SortableHeader label="Balance" sortKey="balance" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[108px] bg-slate-50" />
+                        <TableHead className="text-right min-w-[88px] bg-slate-50 sticky-col-actions">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {sortedTransactions.map((t, i) => (
                         <TableRow key={i}>
-                          <TableCell className={cn("font-medium bg-white", isMobile && "sticky-col-date")}>
+                          <TableCell className={cn("font-medium bg-white whitespace-nowrap", isMobile && "sticky-col-date")}>
                             {t.date ? (isMobile ? formatDateShort(t.date) : new Date(t.date).toLocaleDateString()) : "-"}
                           </TableCell>
-                          <TableCell>{t.type}</TableCell>
-                          <TableCell>{t.description}</TableCell>
-                          <TableCell className="text-right text-emerald-600">
+                          <TableCell className="whitespace-nowrap">{t.type}</TableCell>
+                          <TableCell className="whitespace-normal break-words align-top text-sm min-w-[160px] max-w-[320px]">
+                            {t.description || "—"}
+                          </TableCell>
+                          <TableCell className="text-right text-emerald-600 whitespace-nowrap tabular-nums min-w-[96px]">
                             {t.in > 0 ? t.in.toLocaleString(undefined, { minimumFractionDigits: 2 }) : "-"}
                           </TableCell>
-                          <TableCell className="text-right text-amber-600">
+                          <TableCell className="text-right text-amber-600 whitespace-nowrap tabular-nums min-w-[96px]">
                             {(Number(t.owed) || 0) > 0 ? Number(t.owed).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "-"}
                           </TableCell>
-                          <TableCell className="text-right text-red-600">
+                          <TableCell className="text-right text-red-600 whitespace-nowrap tabular-nums min-w-[96px]">
                             {t.out > 0 ? t.out.toLocaleString(undefined, { minimumFractionDigits: 2 }) : "-"}
                           </TableCell>
-                          <TableCell className={cn("text-right font-medium bg-white", isMobile && "sticky-col-actions")}>
+                          <TableCell className="text-right font-medium bg-white whitespace-nowrap tabular-nums min-w-[108px]">
                             {formatCurrency(t.balance, currency)}
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="text-right bg-white sticky-col-actions min-w-[88px]">
                             <div className="inline-flex items-center gap-1">
                               <Button variant="ghost" size="icon" onClick={() => handleEditTransaction(t)} disabled={!canManageTransaction(t)} aria-label="Edit transaction">
                                 <Pencil className="h-4 w-4" />
@@ -728,6 +739,7 @@ export default function CashPage() {
                     </TableBody>
                   </Table>
                   </div>
+                  </>
                 )}
                 <div className="flex justify-center mt-4">
                   <ChevronDown className="h-5 w-5 text-slate-400" />

@@ -1,72 +1,163 @@
--- Stored Procedures for MainFlockBatch
--- This script creates the spMainFlockBatch_GetAll stored procedure
--- Note: Adjust data types (FarmId, UserId) to match your actual table structure
+-- MainFlockBatch: Amount Paid column + stored procedures
+-- Idempotent — safe to re-run. Aligns with migration 021 / 023.
+-- Run against your application database (not master).
 
--- Drop existing procedure if it exists
-IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[spMainFlockBatch_GetAll]') AND type in (N'P', N'PC'))
-DROP PROCEDURE [dbo].[spMainFlockBatch_GetAll]
+SET NOCOUNT ON;
 GO
 
--- Create GetAll stored procedure
--- Version 2: Status column does NOT exist in the table
--- The C# code will default Status to 'active' when the column is missing
-CREATE PROCEDURE [dbo].[spMainFlockBatch_GetAll]
-    @UserId NVARCHAR(450),
-    @FarmId NVARCHAR(450)  -- Change to UNIQUEIDENTIFIER if your FarmId is GUID type
-AS
+IF COL_LENGTH(N'dbo.MainFlockBatch', N'AmountPaid') IS NULL
 BEGIN
-    SET NOCOUNT ON;
-    
-    SELECT
-        BatchId = b.BatchId,
-        FarmId = b.FarmId,
-        UserId = b.UserId,
-        BatchCode = b.BatchCode,
-        BatchName = b.BatchName,
-        Breed = b.Breed,
-        NumberOfBirds = b.NumberOfBirds,
-        StartDate = b.StartDate,
-        CreatedDate = b.CreatedDate
-        -- Note: Status column not included - C# code will default to 'active'
-    FROM dbo.MainFlockBatch b
-    WHERE b.UserId = @UserId 
-      AND b.FarmId = @FarmId
-    ORDER BY b.CreatedDate DESC;
+    ALTER TABLE [dbo].[MainFlockBatch]
+        ADD [AmountPaid] DECIMAL(18, 2) NOT NULL CONSTRAINT [DF_MainFlockBatch_AmountPaid] DEFAULT (0);
+    PRINT N'Added MainFlockBatch.AmountPaid';
 END
 GO
 
-/*
--- Version 1: If Status column EXISTS in your MainFlockBatch table, use this version:
--- (Uncomment this and comment out Version 2 above)
-
-CREATE PROCEDURE [dbo].[spMainFlockBatch_GetAll]
+CREATE OR ALTER PROCEDURE [dbo].[spMainFlockBatch_GetAll]
     @UserId NVARCHAR(450),
     @FarmId NVARCHAR(450)
 AS
 BEGIN
     SET NOCOUNT ON;
-    
+
     SELECT
-        BatchId = b.BatchId,
-        FarmId = b.FarmId,
-        UserId = b.UserId,
-        BatchCode = b.BatchCode,
-        BatchName = b.BatchName,
-        Breed = b.Breed,
-        NumberOfBirds = b.NumberOfBirds,
-        StartDate = b.StartDate,
-        Status = ISNULL(b.Status, 'active'),
-        CreatedDate = b.CreatedDate
-    FROM dbo.MainFlockBatch b
-    WHERE b.UserId = @UserId 
-      AND b.FarmId = @FarmId
-    ORDER BY b.CreatedDate DESC;
+        b.[BatchId],
+        b.[FarmId],
+        b.[UserId],
+        b.[BatchCode],
+        b.[BatchName],
+        b.[Breed],
+        b.[NumberOfBirds],
+        b.[StartDate],
+        b.[CreatedDate],
+        b.[Status],
+        b.[CostPerChick],
+        b.[TotalCost],
+        b.[AmountPaid],
+        b.[SupplierType],
+        b.[SupplierId],
+        ISNULL(s.[Name], N'') AS [SupplierName]
+    FROM [dbo].[MainFlockBatch] b
+    LEFT JOIN [dbo].[Supplier] s
+        ON s.[SupplierId] = b.[SupplierId] AND s.[FarmId] = b.[FarmId]
+    WHERE b.[FarmId] = @FarmId
+    ORDER BY b.[CreatedDate] DESC, b.[BatchId] DESC;
 END
 GO
-*/
 
--- Note: If your FarmId column is of type UNIQUEIDENTIFIER, change the parameter type:
--- @FarmId UNIQUEIDENTIFIER
--- And convert in the WHERE clause:
--- WHERE b.UserId = @UserId AND b.FarmId = CAST(@FarmId AS UNIQUEIDENTIFIER)
+CREATE OR ALTER PROCEDURE [dbo].[spMainFlockBatch_GetById]
+    @BatchId INT,
+    @UserId  NVARCHAR(450),
+    @FarmId  NVARCHAR(450)
+AS
+BEGIN
+    SET NOCOUNT ON;
 
+    SELECT
+        b.[BatchId],
+        b.[FarmId],
+        b.[UserId],
+        b.[BatchCode],
+        b.[BatchName],
+        b.[Breed],
+        b.[NumberOfBirds],
+        b.[StartDate],
+        b.[CreatedDate],
+        b.[Status],
+        b.[CostPerChick],
+        b.[TotalCost],
+        b.[AmountPaid],
+        b.[SupplierType],
+        b.[SupplierId],
+        ISNULL(s.[Name], N'') AS [SupplierName]
+    FROM [dbo].[MainFlockBatch] b
+    LEFT JOIN [dbo].[Supplier] s
+        ON s.[SupplierId] = b.[SupplierId] AND s.[FarmId] = b.[FarmId]
+    WHERE b.[BatchId] = @BatchId
+      AND b.[FarmId]  = @FarmId;
+END
+GO
+
+CREATE OR ALTER PROCEDURE [dbo].[spMainFlockBatch_Insert]
+    @UserId        NVARCHAR(450),
+    @FarmId        NVARCHAR(450),
+    @BatchCode     NVARCHAR(25),
+    @BatchName     NVARCHAR(100),
+    @Breed         NVARCHAR(50),
+    @NumberOfBirds INT,
+    @StartDate     DATETIME2,
+    @Status        NVARCHAR(20)    = N'active',
+    @CostPerChick  DECIMAL(18, 2)  = 0,
+    @TotalCost     DECIMAL(18, 2)  = 0,
+    @SupplierType  NVARCHAR(20)    = NULL,
+    @SupplierId    INT             = NULL,
+    @AmountPaid    DECIMAL(18, 2)  = 0
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF (@TotalCost IS NULL OR @TotalCost = 0) AND @CostPerChick > 0
+        SET @TotalCost = @CostPerChick * @NumberOfBirds;
+
+    INSERT INTO [dbo].[MainFlockBatch]
+    (
+        [UserId], [FarmId], [BatchCode], [BatchName], [Breed],
+        [NumberOfBirds], [StartDate], [Status],
+        [CostPerChick], [TotalCost], [AmountPaid], [SupplierType], [SupplierId],
+        [CreatedDate]
+    )
+    VALUES
+    (
+        @UserId, @FarmId, @BatchCode, @BatchName, @Breed,
+        @NumberOfBirds, @StartDate, ISNULL(@Status, N'active'),
+        ISNULL(@CostPerChick, 0), ISNULL(@TotalCost, 0), ISNULL(@AmountPaid, 0),
+        @SupplierType, @SupplierId,
+        SYSUTCDATETIME()
+    );
+
+    SELECT CAST(SCOPE_IDENTITY() AS INT);
+END
+GO
+
+CREATE OR ALTER PROCEDURE [dbo].[spMainFlockBatch_Update]
+    @BatchId       INT,
+    @UserId        NVARCHAR(450),
+    @FarmId        NVARCHAR(450),
+    @BatchCode     NVARCHAR(25),
+    @BatchName     NVARCHAR(100),
+    @Breed         NVARCHAR(50),
+    @NumberOfBirds INT,
+    @StartDate     DATETIME2,
+    @Status        NVARCHAR(20)    = N'active',
+    @CostPerChick  DECIMAL(18, 2)  = 0,
+    @TotalCost     DECIMAL(18, 2)  = 0,
+    @SupplierType  NVARCHAR(20)    = NULL,
+    @SupplierId    INT             = NULL,
+    @AmountPaid    DECIMAL(18, 2)  = 0
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF (@TotalCost IS NULL OR @TotalCost = 0) AND @CostPerChick > 0
+        SET @TotalCost = @CostPerChick * @NumberOfBirds;
+
+    UPDATE [dbo].[MainFlockBatch]
+    SET
+        [BatchCode]     = @BatchCode,
+        [BatchName]     = @BatchName,
+        [Breed]         = @Breed,
+        [NumberOfBirds] = @NumberOfBirds,
+        [StartDate]     = @StartDate,
+        [Status]        = ISNULL(@Status, [Status]),
+        [CostPerChick]  = ISNULL(@CostPerChick, 0),
+        [TotalCost]     = ISNULL(@TotalCost, 0),
+        [AmountPaid]    = ISNULL(@AmountPaid, 0),
+        [SupplierType]  = @SupplierType,
+        [SupplierId]    = @SupplierId
+    WHERE [BatchId] = @BatchId
+      AND [FarmId]  = @FarmId;
+END
+GO
+
+PRINT N'create-mainflockbatch-procedures: complete (includes Amount Paid).';
+GO

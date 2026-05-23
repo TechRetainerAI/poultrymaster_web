@@ -32,6 +32,8 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { flockCountsTowardBirdTotals, getFlockLifecycleStatus } from "@/lib/utils/flock-eligibility"
+import { batchStatusFromToggles, batchTogglesFromStatus } from "@/lib/utils/batch-status"
+import { Switch } from "@/components/ui/switch"
 
 export default function FlockBatchesPage() {
   const router = useRouter()
@@ -85,9 +87,12 @@ export default function FlockBatchesPage() {
     numberOfBirds: 0,
     costPerChick: 0,
     totalCost: 0,
+    amountPaid: 0,
     supplierType: "local",
     supplierId: "" as string,
-    status: "active",
+    hasArrived: false,
+    active: true,
+    notes: "",
   })
 
   // Edit dialog state
@@ -103,9 +108,12 @@ export default function FlockBatchesPage() {
     numberOfBirds: 0,
     costPerChick: 0,
     totalCost: 0,
+    amountPaid: 0,
     supplierType: "local",
     supplierId: "" as string,
-    status: "active",
+    hasArrived: false,
+    active: true,
+    notes: "",
   })
   const [editFetching, setEditFetching] = useState(false)
 
@@ -165,9 +173,12 @@ export default function FlockBatchesPage() {
       numberOfBirds: 0,
       costPerChick: 0,
       totalCost: 0,
+      amountPaid: 0,
       supplierType: "local",
       supplierId: "",
-      status: "active",
+      hasArrived: false,
+      active: true,
+      notes: "",
     })
     setCreateError("")
     setIsCreateDialogOpen(true)
@@ -206,9 +217,11 @@ export default function FlockBatchesPage() {
       numberOfBirds: createForm.numberOfBirds,
       costPerChick: createForm.costPerChick || 0,
       totalCost: createForm.totalCost || (createForm.costPerChick * createForm.numberOfBirds) || 0,
+      amountPaid: createForm.amountPaid || 0,
       supplierType: createForm.supplierType,
       supplierId: createForm.supplierId ? Number(createForm.supplierId) : null,
-      status: createForm.status,
+      status: batchStatusFromToggles(createForm.hasArrived, createForm.active),
+      notes: createForm.notes || undefined,
     }
 
     const result = await createFlockBatch(flockBatchData)
@@ -239,6 +252,7 @@ export default function FlockBatchesPage() {
     const result = await getFlockBatch(batchId, userId, farmId)
     if (result.success && result.data) {
       const b = result.data
+      const toggles = batchTogglesFromStatus(b.status)
       setEditForm({
         batchName: b.batchName || "",
         batchCode: b.batchCode || "",
@@ -247,9 +261,12 @@ export default function FlockBatchesPage() {
         numberOfBirds: b.numberOfBirds || 0,
         costPerChick: b.costPerChick || 0,
         totalCost: b.totalCost || 0,
+        amountPaid: b.amountPaid || 0,
         supplierType: b.supplierType || "local",
         supplierId: b.supplierId != null ? String(b.supplierId) : "",
-        status: b.status || "active",
+        hasArrived: toggles.hasArrived,
+        active: toggles.active,
+        notes: b.notes || "",
       })
     } else {
       setEditError(result.message || "Failed to load flock batch")
@@ -289,9 +306,11 @@ export default function FlockBatchesPage() {
       numberOfBirds: editForm.numberOfBirds,
       costPerChick: editForm.costPerChick || 0,
       totalCost: editForm.totalCost || (editForm.costPerChick * editForm.numberOfBirds) || 0,
+      amountPaid: editForm.amountPaid || 0,
       supplierType: editForm.supplierType,
       supplierId: editForm.supplierId ? Number(editForm.supplierId) : null,
-      status: editForm.status,
+      status: batchStatusFromToggles(editForm.hasArrived, editForm.active),
+      notes: editForm.notes || undefined,
       farmId,
       userId,
     }
@@ -391,6 +410,10 @@ export default function FlockBatchesPage() {
     flockBatches.reduce((sum, b) => sum + (Number(b.totalCost) || (Number(b.costPerChick) * Number(b.numberOfBirds)) || 0), 0),
     [flockBatches]
   )
+  const totalAmountPaid = useMemo(() =>
+    flockBatches.reduce((sum, b) => sum + (Number(b.amountPaid) || 0), 0),
+    [flockBatches]
+  )
   const totalBirdsPurchased = useMemo(() =>
     flockBatches.reduce((sum, b) => sum + (Number(b.numberOfBirds) || 0), 0),
     [flockBatches]
@@ -403,6 +426,21 @@ export default function FlockBatchesPage() {
     flockBatches.filter(b => (b.status || "active").toLowerCase() === "active").length,
     [flockBatches]
   )
+
+  // Bottom totals derived from actual flocks (Number of Birds card uses the same source)
+  const totalBirds = useMemo(() =>
+    allFlocks.filter(f => f.hasArrived).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
+    [allFlocks]
+  )
+  const totalActiveBirds = useMemo(() =>
+    allFlocks.filter(f => f.hasArrived && f.active).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
+    [allFlocks]
+  )
+  const totalInactiveBirds = useMemo(() =>
+    allFlocks.filter(f => f.hasArrived && !f.active).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
+    [allFlocks]
+  )
+  const totalBirdsSold = 0
 
   // Pagination logic
   const sortedBatches = useMemo(() => sortData(filteredFlockBatches, sortKey, sortDir), [filteredFlockBatches, sortKey, sortDir])
@@ -510,7 +548,7 @@ export default function FlockBatchesPage() {
 
             {/* Score Cards */}
             {!loading && flockBatches.length > 0 && (
-              <div className={cn("grid gap-3", isMobile ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-3")}>
+              <div className={cn("grid gap-3", isMobile ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4")}>
                 <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
                   <div className={cn("flex gap-3", isMobile ? "flex-col items-stretch" : "items-center justify-between")}>
                     <div className="flex items-start gap-2 min-w-0">
@@ -522,6 +560,20 @@ export default function FlockBatchesPage() {
                     </div>
                     <div className={cn("font-bold text-emerald-600 tabular-nums leading-tight shrink-0", isMobile ? "text-2xl" : "text-2xl sm:text-3xl sm:text-right")}>
                       {totalPurchasePrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                  <div className={cn("flex gap-3", isMobile ? "flex-col items-stretch" : "items-center justify-between")}>
+                    <div className="flex items-start gap-2 min-w-0">
+                      <DollarSign className="w-5 h-5 text-sky-600 shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-slate-900">Total Amount Paid (USD)</div>
+                        <p className="text-xs text-slate-500 mt-0.5">Sum of amount paid across all batches.</p>
+                      </div>
+                    </div>
+                    <div className={cn("font-bold text-sky-700 tabular-nums leading-tight shrink-0", isMobile ? "text-2xl" : "text-2xl sm:text-3xl sm:text-right")}>
+                      {totalAmountPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
                   </div>
                 </div>
@@ -599,6 +651,7 @@ export default function FlockBatchesPage() {
                             <SelectItem value="ALL">All Statuses</SelectItem>
                             <SelectItem value="active">Active</SelectItem>
                             <SelectItem value="inactive">Inactive</SelectItem>
+                            <SelectItem value="pending">Pending</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -626,6 +679,7 @@ export default function FlockBatchesPage() {
                       <SelectItem value="ALL">All Statuses</SelectItem>
                       <SelectItem value="active">Active</SelectItem>
                       <SelectItem value="inactive">Inactive</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
                     </SelectContent>
                   </Select>
                   <div className="ml-auto">
@@ -684,7 +738,9 @@ export default function FlockBatchesPage() {
                                     <Badge variant="outline">{batch.batchCode}</Badge>
                                     <span className="text-slate-600">{batch.numberOfBirds.toLocaleString()} birds</span>
                                     <span className="text-slate-500">{batch.breed}</span>
-                                    {statusLower === "active" ? (
+                                    {statusLower === "pending" ? (
+                                      <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200">Pending</Badge>
+                                    ) : statusLower === "active" ? (
                                       <Badge className="bg-green-100 text-green-800 border border-green-200">Active</Badge>
                                     ) : (
                                       <Badge variant="secondary" className="bg-gray-100 text-gray-800">Inactive</Badge>
@@ -700,6 +756,7 @@ export default function FlockBatchesPage() {
                                   <div><span className="text-slate-500">Start</span> <span className="font-medium">{batch.startDate ? formatDateShort(batch.startDate) : "—"}</span></div>
                                   <div><span className="text-slate-500">Cost/Chick</span> <span className="font-medium tabular-nums">{Number(batch.costPerChick || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
                                   <div><span className="text-slate-500">Total Cost</span> <span className="font-medium tabular-nums">{computedTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                  <div><span className="text-slate-500">Amount Paid (USD)</span> <span className="font-medium tabular-nums">{Number(batch.amountPaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
                                   <div><span className="text-slate-500">Supplier</span> <span className="font-medium">{supplierLabel}</span></div>
                                   <div><span className="text-slate-500">Type</span> <span className="font-medium">{batch.supplierType ? batch.supplierType.charAt(0).toUpperCase() + batch.supplierType.slice(1).toLowerCase() : "—"}</span></div>
                                 </div>
@@ -747,6 +804,7 @@ export default function FlockBatchesPage() {
                           <SortableHeader label="Breed" sortKey="breed" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[150px] hidden lg:table-cell" />
                           <SortableHeader label="Cost/Chick" sortKey="costPerChick" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[110px] hidden md:table-cell" />
                           <SortableHeader label="Total Cost" sortKey="totalCost" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[120px] hidden md:table-cell" />
+                          <SortableHeader label="Amount Paid (USD)" sortKey="amountPaid" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[140px] hidden md:table-cell" />
                           <SortableHeader label="Supplier" sortKey="supplierName" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[150px] hidden lg:table-cell" />
                           <SortableHeader label="Type" sortKey="supplierType" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[100px] hidden lg:table-cell" />
                           <SortableHeader label="Status" sortKey="status" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[100px] hidden md:table-cell" />
@@ -788,6 +846,9 @@ export default function FlockBatchesPage() {
                             <TableCell className="text-slate-700 font-medium hidden md:table-cell tabular-nums">
                               {computedTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
+                            <TableCell className="text-slate-700 font-medium hidden md:table-cell tabular-nums">
+                              {Number(batch.amountPaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
                             <TableCell className="text-slate-600 hidden lg:table-cell">{supplierLabel}</TableCell>
                             <TableCell className="hidden lg:table-cell">
                               {batch.supplierType ? (
@@ -803,7 +864,9 @@ export default function FlockBatchesPage() {
                               )}
                             </TableCell>
                             <TableCell className="hidden md:table-cell">
-                              {statusLower === "active" ? (
+                              {statusLower === "pending" ? (
+                                <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200">Pending</Badge>
+                              ) : statusLower === "active" ? (
                                 <Badge variant="default" className="bg-green-100 text-green-800 border border-green-200">Active</Badge>
                               ) : (
                                 <Badge variant="secondary" className="bg-gray-100 text-gray-800">Inactive</Badge>
@@ -875,13 +938,35 @@ export default function FlockBatchesPage() {
                     ))}
                     
                     <PaginationItem>
-                      <PaginationNext 
+                      <PaginationNext
                         onClick={handleNextPage}
                         className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
                       />
                     </PaginationItem>
                   </PaginationContent>
                 </Pagination>
+              </div>
+            )}
+
+            {/* Bird totals (page bottom) */}
+            {!loading && flockBatches.length > 0 && (
+              <div className={cn("grid gap-3", isMobile ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-4")}>
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Birds</div>
+                  <div className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{totalBirds.toLocaleString()}</div>
+                </div>
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Active Birds</div>
+                  <div className="mt-1 text-2xl font-bold tabular-nums text-emerald-600">{totalActiveBirds.toLocaleString()}</div>
+                </div>
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Inactive Birds</div>
+                  <div className="mt-1 text-2xl font-bold tabular-nums text-slate-600">{totalInactiveBirds.toLocaleString()}</div>
+                </div>
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Birds Sold</div>
+                  <div className="mt-1 text-2xl font-bold tabular-nums text-amber-600">{totalBirdsSold.toLocaleString()}</div>
+                </div>
               </div>
             )}
           </div>
@@ -1013,16 +1098,6 @@ export default function FlockBatchesPage() {
                     setCreateForm(prev => ({ ...prev, numberOfBirds: n, totalCost: prev.costPerChick > 0 ? +(prev.costPerChick * n).toFixed(2) : prev.totalCost }))
                   }} required disabled={createLoading} />
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Status</Label>
-                  <Select value={createForm.status} onValueChange={(v) => setCreateForm({ ...createForm, status: v })} disabled={createLoading}>
-                    <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
             </div>
 
@@ -1039,6 +1114,10 @@ export default function FlockBatchesPage() {
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-slate-700">Total Cost</Label>
                   <Input type="number" min="0" step="0.01" placeholder="Auto-calculated" value={createForm.totalCost} onChange={(e) => setCreateForm({ ...createForm, totalCost: parseFloat(e.target.value) || 0 })} disabled={createLoading} />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">Amount Paid (USD)</Label>
+                  <Input type="number" min="0" step="0.01" placeholder="e.g., 250.00" value={createForm.amountPaid} onChange={(e) => setCreateForm({ ...createForm, amountPaid: parseFloat(e.target.value) || 0 })} disabled={createLoading} />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-slate-700">Type</Label>
@@ -1064,10 +1143,32 @@ export default function FlockBatchesPage() {
               </div>
             </div>
 
+            <div className="rounded-xl border border-slate-200 overflow-hidden">
+              <div className="bg-green-600 px-4 py-2 text-sm font-semibold text-white">Status &amp; Notes</div>
+              <div className="p-4 bg-white space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Switch checked={createForm.hasArrived} onCheckedChange={(checked) => setCreateForm({ ...createForm, hasArrived: checked })} disabled={createLoading} />
+                  <Label className="text-sm font-medium text-slate-700">Batch Has Arrived</Label>
+                  <p className="text-xs text-slate-500 ml-2">(Leave off until birds physically arrive — status stays Pending)</p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Switch checked={createForm.active} onCheckedChange={(checked) => setCreateForm({ ...createForm, active: checked })} disabled={createLoading || !createForm.hasArrived} />
+                  <Label className="text-sm font-medium text-slate-700">Active Batch</Label>
+                  <p className="text-xs text-slate-500 ml-2">(Only applies once the batch has arrived)</p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">Notes (Optional)</Label>
+                  <textarea placeholder="Add any additional notes about the batch" value={createForm.notes}
+                    onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
+                    className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[80px]" disabled={createLoading} />
+                </div>
+              </div>
+            </div>
+
             <div className="flex gap-3 justify-end pt-2">
               <Button type="button" onClick={() => setIsCreateDialogOpen(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
               <Button type="submit" disabled={createLoading}>
-                {createLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Creating...</> : <><Bird className="w-4 h-4 mr-2" />Create Flock Batch</>}
+                {createLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Creating...</> : <><Bird className="w-4 h-4 mr-2" />Create Batch</>}
               </Button>
             </div>
           </form>
@@ -1119,16 +1220,6 @@ export default function FlockBatchesPage() {
                       setEditForm(prev => ({ ...prev, numberOfBirds: n, totalCost: prev.costPerChick > 0 ? +(prev.costPerChick * n).toFixed(2) : prev.totalCost }))
                     }} required disabled={editLoading} />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-700">Status</Label>
-                    <Select value={editForm.status} onValueChange={(v) => setEditForm({ ...editForm, status: v })} disabled={editLoading}>
-                      <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="inactive">Inactive</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
                 </div>
               </div>
 
@@ -1145,6 +1236,10 @@ export default function FlockBatchesPage() {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-slate-700">Total Cost</Label>
                     <Input type="number" min="0" step="0.01" placeholder="Auto-calculated" value={editForm.totalCost} onChange={(e) => setEditForm({ ...editForm, totalCost: parseFloat(e.target.value) || 0 })} disabled={editLoading} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Amount Paid (USD)</Label>
+                    <Input type="number" min="0" step="0.01" placeholder="e.g., 250.00" value={editForm.amountPaid} onChange={(e) => setEditForm({ ...editForm, amountPaid: parseFloat(e.target.value) || 0 })} disabled={editLoading} />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-slate-700">Type</Label>
@@ -1170,10 +1265,32 @@ export default function FlockBatchesPage() {
                 </div>
               </div>
 
+              <div className="rounded-xl border border-slate-200 overflow-hidden">
+                <div className="bg-green-600 px-4 py-2 text-sm font-semibold text-white">Status &amp; Notes</div>
+                <div className="p-4 bg-white space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <Switch checked={editForm.hasArrived} onCheckedChange={(checked) => setEditForm({ ...editForm, hasArrived: checked })} disabled={editLoading} />
+                    <Label className="text-sm font-medium text-slate-700">Batch Has Arrived</Label>
+                    <p className="text-xs text-slate-500 ml-2">(Turn on once birds physically arrive)</p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Switch checked={editForm.active} onCheckedChange={(checked) => setEditForm({ ...editForm, active: checked })} disabled={editLoading || !editForm.hasArrived} />
+                    <Label className="text-sm font-medium text-slate-700">Active Batch</Label>
+                    <p className="text-xs text-slate-500 ml-2">(Only applies once the batch has arrived)</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Notes (Optional)</Label>
+                    <textarea placeholder="Add any additional notes about the batch" value={editForm.notes || ''}
+                      onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                      className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[80px]" disabled={editLoading} />
+                  </div>
+                </div>
+              </div>
+
               <div className="flex gap-3 justify-end pt-2">
                 <Button type="button" onClick={() => setIsEditDialogOpen(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
                 <Button type="submit" disabled={editLoading}>
-                  {editLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</> : <><Save className="w-4 h-4 mr-2" />Update Flock Batch</>}
+                  {editLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</> : <><Save className="w-4 h-4 mr-2" />Update Batch</>}
                 </Button>
               </div>
             </form>

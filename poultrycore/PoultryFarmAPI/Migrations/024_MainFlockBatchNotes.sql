@@ -1,12 +1,7 @@
 -- =============================================================================
--- 021_MainFlockBatchPurchaseFields.sql
--- Adds purchase-tracking + status fields to dbo.MainFlockBatch and updates
--- the related stored procedures so the Flock Batches page can store
--- Cost Per Chick, Total Cost, Amount Paid (USD), Supplier Type (local/foreign),
--- Supplier (FK to dbo.Supplier), and an explicit active/inactive/pending Status.
---
--- All new columns are NULLable / defaulted so existing rows and existing
--- callers keep working. Idempotent (safe to re-run).
+-- 024_MainFlockBatchNotes.sql
+-- Adds Notes to dbo.MainFlockBatch for the Status & Notes section on the UI.
+-- Idempotent (safe to re-run).
 -- =============================================================================
 
 IF DB_NAME() IN (N'master', N'model', N'msdb', N'tempdb')
@@ -20,76 +15,16 @@ GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[MainFlockBatch]') AND type = N'U')
 BEGIN
-    RAISERROR(N'021: dbo.MainFlockBatch not found. Run earlier migrations first.', 16, 1);
+    RAISERROR(N'024: dbo.MainFlockBatch not found. Run earlier migrations first.', 16, 1);
 END
 GO
 
--- ---------------------------------------------------------------------------
--- 1. Add new columns
--- ---------------------------------------------------------------------------
-IF COL_LENGTH(N'dbo.MainFlockBatch', N'Status') IS NULL
+IF COL_LENGTH(N'dbo.MainFlockBatch', N'Notes') IS NULL
 BEGIN
-    ALTER TABLE [dbo].[MainFlockBatch]
-        ADD [Status] NVARCHAR(20) NOT NULL CONSTRAINT [DF_MainFlockBatch_Status] DEFAULT (N'active');
-    PRINT N'021: Added MainFlockBatch.Status';
+    ALTER TABLE [dbo].[MainFlockBatch] ADD [Notes] NVARCHAR(MAX) NULL;
+    PRINT N'024: Added MainFlockBatch.Notes';
 END
 GO
-
-IF COL_LENGTH(N'dbo.MainFlockBatch', N'CostPerChick') IS NULL
-BEGIN
-    ALTER TABLE [dbo].[MainFlockBatch]
-        ADD [CostPerChick] DECIMAL(18, 2) NOT NULL CONSTRAINT [DF_MainFlockBatch_CostPerChick] DEFAULT (0);
-    PRINT N'021: Added MainFlockBatch.CostPerChick';
-END
-GO
-
-IF COL_LENGTH(N'dbo.MainFlockBatch', N'TotalCost') IS NULL
-BEGIN
-    ALTER TABLE [dbo].[MainFlockBatch]
-        ADD [TotalCost] DECIMAL(18, 2) NOT NULL CONSTRAINT [DF_MainFlockBatch_TotalCost] DEFAULT (0);
-    PRINT N'021: Added MainFlockBatch.TotalCost';
-END
-GO
-
-IF COL_LENGTH(N'dbo.MainFlockBatch', N'AmountPaid') IS NULL
-BEGIN
-    ALTER TABLE [dbo].[MainFlockBatch]
-        ADD [AmountPaid] DECIMAL(18, 2) NOT NULL CONSTRAINT [DF_MainFlockBatch_AmountPaid] DEFAULT (0);
-    PRINT N'021: Added MainFlockBatch.AmountPaid';
-END
-GO
-
-IF COL_LENGTH(N'dbo.MainFlockBatch', N'SupplierType') IS NULL
-BEGIN
-    ALTER TABLE [dbo].[MainFlockBatch] ADD [SupplierType] NVARCHAR(20) NULL;
-    PRINT N'021: Added MainFlockBatch.SupplierType';
-END
-GO
-
-IF COL_LENGTH(N'dbo.MainFlockBatch', N'SupplierId') IS NULL
-BEGIN
-    ALTER TABLE [dbo].[MainFlockBatch] ADD [SupplierId] INT NULL;
-    PRINT N'021: Added MainFlockBatch.SupplierId';
-END
-GO
-
--- Helpful filter for the score-card / status filter on the UI
-IF NOT EXISTS (
-    SELECT 1 FROM sys.indexes
-    WHERE name = N'IX_MainFlockBatch_FarmId_Status'
-      AND object_id = OBJECT_ID(N'[dbo].[MainFlockBatch]')
-)
-BEGIN
-    CREATE NONCLUSTERED INDEX [IX_MainFlockBatch_FarmId_Status]
-        ON [dbo].[MainFlockBatch]([FarmId], [Status]);
-    PRINT N'021: Created index IX_MainFlockBatch_FarmId_Status';
-END
-GO
-
--- ---------------------------------------------------------------------------
--- 2. Stored procedures (CREATE OR ALTER — back-compat parameter ordering:
---    existing params first, new params at the end with defaults).
--- ---------------------------------------------------------------------------
 
 CREATE OR ALTER PROCEDURE [dbo].[spMainFlockBatch_Insert]
     @UserId        NVARCHAR(450),
@@ -104,12 +39,12 @@ CREATE OR ALTER PROCEDURE [dbo].[spMainFlockBatch_Insert]
     @TotalCost     DECIMAL(18, 2)  = 0,
     @SupplierType  NVARCHAR(20)    = NULL,
     @SupplierId    INT             = NULL,
-    @AmountPaid    DECIMAL(18, 2)  = 0
+    @AmountPaid    DECIMAL(18, 2)  = 0,
+    @Notes         NVARCHAR(MAX)   = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- Auto-compute TotalCost when caller leaves it as the default.
     IF (@TotalCost IS NULL OR @TotalCost = 0) AND @CostPerChick > 0
         SET @TotalCost = @CostPerChick * @NumberOfBirds;
 
@@ -118,14 +53,14 @@ BEGIN
         [UserId], [FarmId], [BatchCode], [BatchName], [Breed],
         [NumberOfBirds], [StartDate], [Status],
         [CostPerChick], [TotalCost], [AmountPaid], [SupplierType], [SupplierId],
-        [CreatedDate]
+        [Notes], [CreatedDate]
     )
     VALUES
     (
         @UserId, @FarmId, @BatchCode, @BatchName, @Breed,
         @NumberOfBirds, @StartDate, ISNULL(@Status, N'active'),
         ISNULL(@CostPerChick, 0), ISNULL(@TotalCost, 0), ISNULL(@AmountPaid, 0),
-        @SupplierType, @SupplierId,
+        @SupplierType, @SupplierId, @Notes,
         SYSUTCDATETIME()
     );
 
@@ -147,7 +82,8 @@ CREATE OR ALTER PROCEDURE [dbo].[spMainFlockBatch_Update]
     @TotalCost     DECIMAL(18, 2)  = 0,
     @SupplierType  NVARCHAR(20)    = NULL,
     @SupplierId    INT             = NULL,
-    @AmountPaid    DECIMAL(18, 2)  = 0
+    @AmountPaid    DECIMAL(18, 2)  = 0,
+    @Notes         NVARCHAR(MAX)   = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -167,7 +103,8 @@ BEGIN
         [TotalCost]     = ISNULL(@TotalCost, 0),
         [AmountPaid]    = ISNULL(@AmountPaid, 0),
         [SupplierType]  = @SupplierType,
-        [SupplierId]    = @SupplierId
+        [SupplierId]    = @SupplierId,
+        [Notes]         = @Notes
     WHERE [BatchId] = @BatchId
       AND [FarmId]  = @FarmId;
 END
@@ -184,7 +121,7 @@ BEGIN
         b.[BatchId], b.[UserId], b.[FarmId], b.[BatchCode], b.[BatchName],
         b.[Breed], b.[NumberOfBirds], b.[StartDate], b.[CreatedDate],
         b.[Status], b.[CostPerChick], b.[TotalCost], b.[AmountPaid],
-        b.[SupplierType], b.[SupplierId],
+        b.[SupplierType], b.[SupplierId], b.[Notes],
         ISNULL(s.[Name], N'') AS [SupplierName]
     FROM [dbo].[MainFlockBatch] b
     LEFT JOIN [dbo].[Supplier] s
@@ -204,7 +141,7 @@ BEGIN
         b.[BatchId], b.[UserId], b.[FarmId], b.[BatchCode], b.[BatchName],
         b.[Breed], b.[NumberOfBirds], b.[StartDate], b.[CreatedDate],
         b.[Status], b.[CostPerChick], b.[TotalCost], b.[AmountPaid],
-        b.[SupplierType], b.[SupplierId],
+        b.[SupplierType], b.[SupplierId], b.[Notes],
         ISNULL(s.[Name], N'') AS [SupplierName]
     FROM [dbo].[MainFlockBatch] b
     LEFT JOIN [dbo].[Supplier] s
@@ -214,20 +151,5 @@ BEGIN
 END
 GO
 
--- Delete sp is unchanged in shape; CREATE OR ALTER for completeness so this
--- migration can rebuild the proc surface from one file.
-CREATE OR ALTER PROCEDURE [dbo].[spMainFlockBatch_Delete]
-    @BatchId INT,
-    @UserId  NVARCHAR(450),
-    @FarmId  NVARCHAR(450)
-AS
-BEGIN
-    SET NOCOUNT ON;
-    DELETE FROM [dbo].[MainFlockBatch]
-    WHERE [BatchId] = @BatchId
-      AND [FarmId]  = @FarmId;
-END
-GO
-
-PRINT N'021_MainFlockBatchPurchaseFields: complete.';
+PRINT N'024_MainFlockBatchNotes: complete.';
 GO
