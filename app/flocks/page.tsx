@@ -747,6 +747,21 @@ export default function FlocksPage() {
   const endIndex = startIndex + itemsPerPage
   const paginatedFlocks = filteredFlocks.slice(startIndex, endIndex)
 
+  // Bottom totals (farm-wide; ignore current filters so the page-level summary stays stable)
+  const totalBirdsCount = useMemo(() =>
+    flocks.filter(f => f.hasArrived).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
+    [flocks]
+  )
+  const totalActiveBirdsCount = useMemo(() =>
+    flocks.filter(f => f.hasArrived && f.active).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
+    [flocks]
+  )
+  const totalInactiveBirdsCount = useMemo(() =>
+    flocks.filter(f => f.hasArrived && !f.active).reduce((sum, f) => sum + (Number(f.quantity) || 0), 0),
+    [flocks]
+  )
+  const totalBirdsSoldCount = 0
+
   const truncateText = (text: string | undefined, maxLength: number) => {
     if (!text) return 'N/A'
     if (text.length > maxLength) {
@@ -1518,13 +1533,35 @@ export default function FlocksPage() {
                     ))}
                     
                     <PaginationItem>
-                      <PaginationNext 
+                      <PaginationNext
                         onClick={handleNextPage}
                         className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
                       />
                     </PaginationItem>
                   </PaginationContent>
                 </Pagination>
+              </div>
+            )}
+
+            {/* Bird totals (page bottom) */}
+            {!loading && flocks.length > 0 && (
+              <div className={cn("grid gap-3", isMobile ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-4")}>
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Birds</div>
+                  <div className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{totalBirdsCount.toLocaleString()}</div>
+                </div>
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Active Birds</div>
+                  <div className="mt-1 text-2xl font-bold tabular-nums text-emerald-600">{totalActiveBirdsCount.toLocaleString()}</div>
+                </div>
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Inactive Birds</div>
+                  <div className="mt-1 text-2xl font-bold tabular-nums text-slate-600">{totalInactiveBirdsCount.toLocaleString()}</div>
+                </div>
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Total Birds Sold</div>
+                  <div className="mt-1 text-2xl font-bold tabular-nums text-amber-600">{totalBirdsSoldCount.toLocaleString()}</div>
+                </div>
               </div>
             )}
           </div>

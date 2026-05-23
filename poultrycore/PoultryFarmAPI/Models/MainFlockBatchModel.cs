@@ -47,6 +47,9 @@ namespace PoultryFarmAPIWeb.Models
         // Full purchase price for the batch. Stored explicitly so the user can override the auto-computed value.
         public decimal TotalCost { get; set; }
 
+        // Amount actually paid to the supplier (USD). May differ from TotalCost during partial payments.
+        public decimal AmountPaid { get; set; }
+
         [StringLength(20)]
         public string SupplierType { get; set; } = string.Empty; // "local" | "foreign"
 
@@ -55,6 +58,8 @@ namespace PoultryFarmAPIWeb.Models
 
         // Denormalized supplier name for display (filled from JOIN on GET).
         public string SupplierName { get; set; } = string.Empty;
+
+        public string? Notes { get; set; }
 
         // Date the record was created (managed by the database or service).
         public DateTime CreatedDate { get; set; }

@@ -12,9 +12,11 @@ export interface FlockBatch {
   status: string;
   costPerChick: number;
   totalCost: number;
+  amountPaid: number;
   supplierType: string;
   supplierId: number | null;
   supplierName: string;
+  notes?: string;
   createdDate: string;
 }
 
@@ -74,9 +76,11 @@ function mapFlockBatch(raw: any): FlockBatch {
     status: raw.status ?? raw.Status ?? 'active',
     costPerChick: Number(raw.costPerChick ?? raw.CostPerChick ?? 0),
     totalCost: Number(raw.totalCost ?? raw.TotalCost ?? 0),
+    amountPaid: Number(raw.amountPaid ?? raw.AmountPaid ?? 0),
     supplierType: raw.supplierType ?? raw.SupplierType ?? '',
     supplierId: supplierIdRaw == null || supplierIdRaw === '' ? null : Number(supplierIdRaw),
     supplierName: raw.supplierName ?? raw.SupplierName ?? '',
+    notes: raw.notes ?? raw.Notes ?? '',
     createdDate: raw.createdDate ?? raw.CreatedDate ?? '',
   }
 }
@@ -196,9 +200,11 @@ export interface FlockBatchInput {
   numberOfBirds: number;
   costPerChick?: number;
   totalCost?: number;
+  amountPaid?: number;
   supplierType?: string;
   supplierId?: number | null;
   status?: string;
+  notes?: string;
 }
 
 export async function createFlockBatch(flockBatch: FlockBatchInput): Promise<ApiResponse<FlockBatch>> {
@@ -216,9 +222,11 @@ export async function createFlockBatch(flockBatch: FlockBatchInput): Promise<Api
       NumberOfBirds: flockBatch.numberOfBirds,
       CostPerChick: flockBatch.costPerChick ?? 0,
       TotalCost: flockBatch.totalCost ?? 0,
+      AmountPaid: flockBatch.amountPaid ?? 0,
       SupplierType: flockBatch.supplierType ?? '',
       SupplierId: flockBatch.supplierId ?? null,
       Status: flockBatch.status ?? 'active',
+      Notes: flockBatch.notes ?? null,
     };
     
     console.log("[v0] Creating flock batch:", url, payload);
@@ -317,9 +325,11 @@ export async function createFlockBatch(flockBatch: FlockBatchInput): Promise<Api
         if (flockBatch.numberOfBirds !== undefined) payload.NumberOfBirds = flockBatch.numberOfBirds;
         if (flockBatch.costPerChick !== undefined) payload.CostPerChick = flockBatch.costPerChick;
         if (flockBatch.totalCost !== undefined) payload.TotalCost = flockBatch.totalCost;
+        if (flockBatch.amountPaid !== undefined) payload.AmountPaid = flockBatch.amountPaid;
         if (flockBatch.supplierType !== undefined) payload.SupplierType = flockBatch.supplierType;
         if (flockBatch.supplierId !== undefined) payload.SupplierId = flockBatch.supplierId;
         if (flockBatch.status !== undefined) payload.Status = flockBatch.status;
+        if (flockBatch.notes !== undefined) payload.Notes = flockBatch.notes;
         
         console.log("[v0] Updating flock batch:", url, payload);
     

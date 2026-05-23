@@ -1,12 +1,26 @@
 "use client"
 
-import { useId, useRef, useState, useEffect } from "react"
+import { useId, useRef, useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { ImageIcon, X } from "lucide-react"
+import { Camera, ImageIcon, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toReceiptViewUrl } from "@/lib/utils/expense-receipt"
 import { AuthenticatedExpenseImage } from "@/components/expense/authenticated-expense-image"
+
+const RECEIPT_MAX_BYTES = 4 * 1024 * 1024
+const RECEIPT_ACCEPT = "image/jpeg,image/png,image/webp"
+const RECEIPT_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"])
+
+function validateReceiptFile(file: File): string | null {
+  if (!RECEIPT_MIME_TYPES.has(file.type)) {
+    return "Use a JPEG, PNG, or WebP image."
+  }
+  if (file.size > RECEIPT_MAX_BYTES) {
+    return "Image must be 4 MB or smaller."
+  }
+  return null
+}
 
 export type ExpenseDbAttachmentPreview = {
   expenseId: number
@@ -27,6 +41,10 @@ type ExpenseReceiptFieldProps = {
   /** When user removes an already-saved receipt (edit form) */
   onRemoveExisting?: () => void
   disabled?: boolean
+  /** Field label (default: Receipt photo) */
+  label?: string
+  /** Show "Take photo" for device camera (default: true) */
+  showCaptureOption?: boolean
 }
 
 export function ExpenseReceiptField({
@@ -37,11 +55,40 @@ export function ExpenseReceiptField({
   onPendingFileChange,
   onRemoveExisting,
   disabled,
+  label = "Receipt photo (optional)",
+  showCaptureOption = true,
 }: ExpenseReceiptFieldProps) {
   const inputId = useId()
-  const inputRef = useRef<HTMLInputElement>(null)
+  const uploadInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
   const [localPreview, setLocalPreview] = useState<string | null>(null)
   const [imgFailed, setImgFailed] = useState(false)
+  const [fileError, setFileError] = useState<string | null>(null)
+
+  const applySelectedFile = useCallback(
+    (file: File | null) => {
+      setFileError(null)
+      if (!file) {
+        onPendingFileChange(null)
+        return
+      }
+      const err = validateReceiptFile(file)
+      if (err) {
+        setFileError(err)
+        return
+      }
+      onPendingFileChange(file)
+    },
+    [onPendingFileChange]
+  )
+
+  const onFileInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      applySelectedFile(e.target.files?.[0] ?? null)
+      e.target.value = ""
+    },
+    [applySelectedFile]
+  )
 
   useEffect(() => {
     if (!pendingFile) {
@@ -66,39 +113,65 @@ export function ExpenseReceiptField({
   const showDbPreview = Boolean(dbAttachment && !pendingFile)
   const showRemoveSaved = Boolean((existingPath || dbAttachment) && !pendingFile)
 
+  const hasPreview = Boolean(previewSrc || showDbPreview)
+
   return (
     <div className="space-y-2">
       <Label htmlFor={inputId} className="text-sm font-medium text-slate-700">
-        Receipt photo (optional)
+        {label}
       </Label>
       <p className="text-xs text-slate-500">
-        JPEG, PNG, or WebP, up to 4 MB. Saved with this expense for your records.
+        JPEG, PNG, or WebP, up to 4 MB.
+        {showCaptureOption
+          ? " Upload from your device, or take a photo with the camera (works best on phones and tablets)."
+          : " Saved with this record for your files."}
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <input
-          ref={inputRef}
+          ref={uploadInputRef}
           id={inputId}
           type="file"
-          accept="image/jpeg,image/png,image/webp"
+          accept={RECEIPT_ACCEPT}
           className="hidden"
           disabled={disabled}
-          onChange={(e) => {
-            const f = e.target.files?.[0] ?? null
-            onPendingFileChange(f)
-            e.target.value = ""
-          }}
+          onChange={onFileInputChange}
         />
+        {showCaptureOption && (
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept={RECEIPT_ACCEPT}
+            capture="environment"
+            className="hidden"
+            disabled={disabled}
+            onChange={onFileInputChange}
+            aria-label="Take photo with camera"
+          />
+        )}
         <Button
           type="button"
           variant="outline"
           size="sm"
           disabled={disabled}
           className="gap-2"
-          onClick={() => inputRef.current?.click()}
+          onClick={() => uploadInputRef.current?.click()}
         >
           <ImageIcon className="h-4 w-4" />
-          {previewSrc || showDbPreview ? "Replace image" : "Upload receipt"}
+          {hasPreview ? "Replace image" : "Upload image"}
         </Button>
+        {showCaptureOption && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={disabled}
+            className="gap-2"
+            onClick={() => cameraInputRef.current?.click()}
+          >
+            <Camera className="h-4 w-4" />
+            Take photo
+          </Button>
+        )}
         {pendingFile && (
           <Button
             type="button"
@@ -106,7 +179,7 @@ export function ExpenseReceiptField({
             size="sm"
             className="text-slate-600"
             disabled={disabled}
-            onClick={() => onPendingFileChange(null)}
+            onClick={() => applySelectedFile(null)}
           >
             <X className="h-4 w-4 mr-1" />
             Clear new image
@@ -119,6 +192,11 @@ export function ExpenseReceiptField({
           </Button>
         )}
       </div>
+      {fileError && (
+        <p className="text-xs text-red-600" role="alert">
+          {fileError}
+        </p>
+      )}
       {showDbPreview && dbAttachment && (
         <div
           className={cn(
