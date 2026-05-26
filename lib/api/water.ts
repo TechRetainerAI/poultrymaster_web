@@ -1101,7 +1101,10 @@ export interface WaterDailyClosing {
   creditSales?: number
   customerCollections?: number
   driverShortages?: number
+  actualCashCounted?: number
+  cashDifference?: number
   managerNotes?: string | null
+  rejectionReason?: string | null
   status: "Draft" | "Submitted" | "Approved" | "Rejected" | string
   submittedBy?: string | null
   submittedAt?: string | null
@@ -1167,6 +1170,10 @@ export const approveWaterDailyClosing = (id: number) =>
   jsend<void>(`/Water/daily-closings/${id}/approve?farmId=${encodeURIComponent(activeFarmId())}&approvedBy=${encodeURIComponent(currentUserId() || "")}`, "POST")
 export const rejectWaterDailyClosing = (id: number, rejectionReason: string) =>
   jsend<void>(`/Water/daily-closings/${id}/reject?farmId=${encodeURIComponent(activeFarmId())}&approvedBy=${encodeURIComponent(currentUserId() || "")}`, "POST", { rejectionReason })
+export const deleteWaterDailyClosing = (id: number) =>
+  jsend<void>(`/Water/daily-closings/${id}?farmId=${encodeURIComponent(activeFarmId())}`, "DELETE")
+export const updateWaterDailyClosingNotes = (id: number, managerNotes: string | null) =>
+  jsend<void>(`/Water/daily-closings/${id}/notes?farmId=${encodeURIComponent(activeFarmId())}`, "PUT", { managerNotes })
 
 // ----- Reports
 // Shape matches dbo.spWaterReport_PeriodPnL exactly (migration 044). Older

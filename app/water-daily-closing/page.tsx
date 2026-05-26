@@ -12,15 +12,17 @@ import { Textarea } from "@/components/ui/textarea"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Loader2, FileText, AlertCircle, CheckCircle2, XCircle, Eye } from "lucide-react"
+import { Plus, Loader2, FileText, AlertCircle, CheckCircle2, XCircle, Eye, Trash2, Pencil } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import {
   listWaterDailyClosings, getWaterDailyClosing, createWaterDailyClosing,
   submitWaterDailyClosing, approveWaterDailyClosing, rejectWaterDailyClosing,
+  deleteWaterDailyClosing, updateWaterDailyClosingNotes,
   type WaterDailyClosing,
 } from "@/lib/api/water"
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 
 function gh(n: number | null | undefined) {
   const v = n ?? 0
@@ -49,6 +51,10 @@ export default function WaterDailyClosingPage() {
 
   const [view, setView] = useState<WaterDailyClosing | null>(null)
   const [submitForm, setSubmitForm] = useState({ actualCashCounted: 0, managerNotes: "" })
+  // Reject dialog state — replaces window.prompt so the layout matches the rest of the app.
+  const [rejectDlg, setRejectDlg] = useState<{ id: number; reason: string } | null>(null)
+  // Delete confirmation
+  const [deleteTarget, setDeleteTarget] = useState<WaterDailyClosing | null>(null)
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Water") { router.replace("/dashboard"); return }
@@ -101,10 +107,46 @@ export default function WaterDailyClosingPage() {
   }
 
   async function reject(id: number) {
-    const reason = window.prompt("Rejection reason?")
-    if (!reason) return
-    try { await rejectWaterDailyClosing(id, reason); toast({ title: "Closing rejected" }); setView(null); await load() }
-    catch (e: any) { toast({ title: "Reject failed", description: e?.message, variant: "destructive" }) }
+    // Open the reject dialog instead of using window.prompt — the prompt looks like a system dialog
+    // and operators were closing it by accident.
+    setRejectDlg({ id, reason: "" })
+  }
+
+  async function confirmReject() {
+    if (!rejectDlg || !rejectDlg.reason.trim()) {
+      toast({ title: "Reason required", description: "Tell the manager what to fix.", variant: "destructive" })
+      return
+    }
+    try {
+      await rejectWaterDailyClosing(rejectDlg.id, rejectDlg.reason.trim())
+      toast({ title: "Closing rejected" })
+      setRejectDlg(null); setView(null); await load()
+    } catch (e: any) {
+      toast({ title: "Reject failed", description: e?.message, variant: "destructive" })
+    }
+  }
+
+  async function deleteClosing(c: WaterDailyClosing) {
+    try {
+      await deleteWaterDailyClosing(c.waterDailyClosingId)
+      toast({ title: "Closing deleted", description: `${c.closingDate.split("T")[0]} removed.` })
+      setDeleteTarget(null); setView(null); await load()
+    } catch (e: any) {
+      toast({ title: "Delete failed", description: e?.message, variant: "destructive" })
+    }
+  }
+
+  async function saveNotesEdit() {
+    if (!view) return
+    try {
+      await updateWaterDailyClosingNotes(view.waterDailyClosingId, submitForm.managerNotes ?? null)
+      toast({ title: "Notes saved" })
+      // Refresh the open closing so the new notes appear without closing the dialog.
+      const fresh = await getWaterDailyClosing(view.waterDailyClosingId)
+      setView(fresh); await load()
+    } catch (e: any) {
+      toast({ title: "Save failed", description: e?.message, variant: "destructive" })
+    }
   }
 
   const todayClosing = closings.find(c => c.closingDate?.startsWith(new Date().toISOString().slice(0, 10)))
@@ -172,7 +214,20 @@ export default function WaterDailyClosingPage() {
                         <TableCell className="text-right tabular-nums">{gh(c.cashAtHand)}</TableCell>
                         <TableCell><Badge className={STATUS_COLORS[c.status] ?? ""}>{c.status}</Badge></TableCell>
                         <TableCell className="text-right">
-                          <Button size="sm" variant="ghost" onClick={() => openView(c)}><Eye className="h-4 w-4" /></Button>
+                          <div className="inline-flex gap-1">
+                            <Button size="sm" variant="ghost" onClick={() => openView(c)} title="View"><Eye className="h-4 w-4" /></Button>
+                            {(c.status === "Draft" || c.status === "Rejected") && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                                onClick={() => setDeleteTarget(c)}
+                                title="Delete (Draft/Rejected only)"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -203,54 +258,105 @@ export default function WaterDailyClosingPage() {
         </DialogContent>
       </Dialog>
 
-      {/* View / submit / approve */}
+      {/* View / submit / approve — wider modal so the 12 summary tiles + form fit without scrolling. */}
       <Dialog open={!!view} onOpenChange={(v) => { if (!v) setView(null) }}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-5xl">
           <DialogHeader>
-            <DialogTitle>
-              {view && (<>Closing: {view.closingDate.split("T")[0]} <Badge className={STATUS_COLORS[view.status]}>{view.status}</Badge></>)}
+            <DialogTitle className="flex items-center gap-2">
+              {view && (
+                <>
+                  <FileText className="h-5 w-5 text-sky-600" />
+                  <span>Closing: {view.closingDate.split("T")[0]}</span>
+                  <Badge className={STATUS_COLORS[view.status]}>{view.status}</Badge>
+                </>
+              )}
             </DialogTitle>
           </DialogHeader>
           {view && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                <Tile label="Bags produced" value={String(view.bagsProduced ?? 0)} />
-                <Tile label="Bags sold" value={String(view.bagsSold ?? 0)} />
-                <Tile label="Bags returned" value={String(view.bagsReturned ?? 0)} />
-                <Tile label="Bags damaged" value={String(view.bagsDamaged ?? 0)} />
-                <Tile label="Closing stock" value={String(view.closingStock ?? 0)} />
-                <Tile label="Total income" value={gh(view.totalIncome)} accent="green" />
-                <Tile label="Total expenses" value={gh(view.totalExpenses)} accent="rose" />
-                <Tile label="Cash at hand" value={gh(view.cashAtHand)} />
-                <Tile label="MoMo balance" value={gh(view.moMoBalance)} />
-                <Tile label="Bank balance" value={gh(view.bankBalance)} />
-                <Tile label="Credit sales" value={gh(view.creditSales)} />
-                <Tile label="Driver shortages" value={gh(view.driverShortages)} />
+            <div className="space-y-4">
+              {/* Production tiles */}
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Production</div>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
+                  <Tile label="Bags produced" value={String(view.bagsProduced ?? 0)} />
+                  <Tile label="Bags sold" value={String(view.bagsSold ?? 0)} />
+                  <Tile label="Bags returned" value={String(view.bagsReturned ?? 0)} />
+                  <Tile label="Bags damaged" value={String(view.bagsDamaged ?? 0)} />
+                  <Tile label="Closing stock" value={String(view.closingStock ?? 0)} />
+                </div>
+              </div>
+              {/* Money tiles */}
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Money</div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <Tile label="Total income" value={gh(view.totalIncome)} accent="green" />
+                  <Tile label="Total expenses" value={gh(view.totalExpenses)} accent="rose" />
+                  <Tile label="Cash at hand" value={gh(view.cashAtHand)} />
+                  <Tile label="MoMo balance" value={gh(view.moMoBalance)} />
+                  <Tile label="Bank balance" value={gh(view.bankBalance)} />
+                  <Tile label="Credit sales" value={gh(view.creditSales)} />
+                  <Tile label="Driver shortages" value={gh(view.driverShortages)} accent={view.driverShortages ? "rose" : undefined} />
+                </div>
               </div>
 
-              {view.status === "Draft" && (
-                <div className="border-t pt-3 space-y-2">
-                  <div className="font-medium text-slate-700">Submit for approval</div>
+              {/* Submit form is now reachable from BOTH Draft and Rejected. Operators were stuck on
+                  rejected closings with no way to address the manager's feedback and resubmit. */}
+              {(view.status === "Draft" || view.status === "Rejected") && (
+                <div className="border-t pt-4 space-y-3 bg-slate-50 -mx-6 px-6 py-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="font-semibold text-slate-700">
+                      {view.status === "Draft" ? "Submit for approval" : "Address feedback and re-submit"}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={saveNotesEdit}>
+                        <Pencil className="h-4 w-4 mr-1" /> Save notes only
+                      </Button>
+                      <Button size="sm" variant="ghost" className="text-rose-600 hover:bg-rose-50" onClick={() => setDeleteTarget(view)}>
+                        <Trash2 className="h-4 w-4 mr-1" /> Delete
+                      </Button>
+                    </div>
+                  </div>
+                  {view.rejectionReason && (
+                    <div className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+                      <strong>Rejected:</strong> {view.rejectionReason}
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-3">
                     <div><Label>Actual cash counted (physical)</Label>
                       <Input type="number" min={0} step="0.01" value={submitForm.actualCashCounted} onChange={(e) => setSubmitForm({ ...submitForm, actualCashCounted: Number(e.target.value) || 0 })} /></div>
+                    <div className="flex flex-col justify-end">
+                      <div className="text-xs text-slate-500">Cash at hand (expected)</div>
+                      <div className="font-semibold tabular-nums">{gh(view.cashAtHand)}</div>
+                      {submitForm.actualCashCounted > 0 && (
+                        <div className={`text-xs mt-1 ${Math.abs(submitForm.actualCashCounted - (view.cashAtHand ?? 0)) < 0.01 ? "text-emerald-700" : "text-amber-700"}`}>
+                          Variance: {gh(submitForm.actualCashCounted - (view.cashAtHand ?? 0))}
+                        </div>
+                      )}
+                    </div>
                     <div className="col-span-2"><Label>Manager notes</Label>
-                      <Textarea value={submitForm.managerNotes} onChange={(e) => setSubmitForm({ ...submitForm, managerNotes: e.target.value })} /></div>
+                      <Textarea rows={3} value={submitForm.managerNotes} onChange={(e) => setSubmitForm({ ...submitForm, managerNotes: e.target.value })} /></div>
                   </div>
                   <div className="flex justify-end gap-2 pt-2">
-                    <Button onClick={submitClosing}>Submit for approval</Button>
+                    <Button onClick={submitClosing}>
+                      <CheckCircle2 className="h-4 w-4 mr-1" />
+                      {view.status === "Rejected" ? "Resubmit for approval" : "Submit for approval"}
+                    </Button>
                   </div>
                 </div>
               )}
 
               {view.status === "Submitted" && (
-                <div className="border-t pt-3 flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => reject(view.waterDailyClosingId)}><XCircle className="h-4 w-4 mr-1" /> Reject</Button>
-                  <Button onClick={() => approve(view.waterDailyClosingId)}><CheckCircle2 className="h-4 w-4 mr-1" /> Approve &amp; lock</Button>
+                <div className="border-t pt-4 flex justify-end gap-2">
+                  <Button variant="outline" className="text-rose-600 hover:bg-rose-50 border-rose-200" onClick={() => reject(view.waterDailyClosingId)}>
+                    <XCircle className="h-4 w-4 mr-1" /> Reject
+                  </Button>
+                  <Button onClick={() => approve(view.waterDailyClosingId)} className="bg-emerald-600 hover:bg-emerald-700">
+                    <CheckCircle2 className="h-4 w-4 mr-1" /> Approve &amp; lock
+                  </Button>
                 </div>
               )}
 
-              {view.managerNotes && (
+              {view.status === "Approved" && view.managerNotes && (
                 <div className="border-t pt-2 text-sm">
                   <span className="text-slate-500">Manager notes:</span> {view.managerNotes}
                 </div>
@@ -259,6 +365,47 @@ export default function WaterDailyClosingPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Reject dialog — proper modal replacing window.prompt. */}
+      <Dialog open={!!rejectDlg} onOpenChange={(v) => { if (!v) setRejectDlg(null) }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-rose-700">
+              <XCircle className="h-5 w-5" /> Reject closing
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600">
+              The manager will see this reason when they reopen the closing to fix it.
+              Be specific (e.g. "cash variance ¢200 over — recount the till").
+            </p>
+            <div>
+              <Label>Rejection reason</Label>
+              <Textarea
+                rows={4}
+                value={rejectDlg?.reason ?? ""}
+                onChange={(e) => setRejectDlg(rejectDlg ? { ...rejectDlg, reason: e.target.value } : null)}
+                placeholder="Why are you rejecting this closing?"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" onClick={() => setRejectDlg(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmReject}>
+              <XCircle className="h-4 w-4 mr-1" /> Reject
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation. */}
+      <ConfirmDeleteDialog
+        open={!!deleteTarget}
+        onOpenChange={(v) => { if (!v) setDeleteTarget(null) }}
+        title="Delete daily closing?"
+        description={deleteTarget ? `Closing for ${deleteTarget.closingDate.split("T")[0]} (status: ${deleteTarget.status}) will be permanently removed. This cannot be undone.` : ""}
+        onConfirm={() => deleteTarget && deleteClosing(deleteTarget)}
+      />
     </div>
   )
 }

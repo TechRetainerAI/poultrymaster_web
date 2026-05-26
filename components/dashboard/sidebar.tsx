@@ -210,10 +210,13 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/water-staff",   label: "Staff",   icon: Users2 },
     { href: "/water-payroll", label: "Payroll", icon: Banknote },
   ]
-  // Water — Admin (W7 maintenance + W5 setup)
+  // Water — Admin (W7 maintenance + unified Setup hub)
+  // /water-setup is the new tabbed hub for products/drivers/machines/routes/etc.
+  // /water-company-setup (company profile page) is now reachable via the
+  // dedicated /water-products link from inside /water-setup if needed.
   const waterAdminItems = [
-    { href: "/water-maintenance",   label: "Maintenance", icon: Wrench },
-    { href: "/water-company-setup", label: "Setup",       icon: Settings },
+    { href: "/water-maintenance", label: "Maintenance", icon: Wrench },
+    { href: "/water-setup",       label: "Setup",       icon: Settings },
   ]
 
   // Generic Company nav items (shown when activeFarmType === "Generic")
