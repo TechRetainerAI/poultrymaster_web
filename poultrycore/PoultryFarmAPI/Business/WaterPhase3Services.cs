@@ -46,6 +46,11 @@ namespace PoultryFarmAPIWeb.Business
         Task<WaterDailyClosingModel?> SubmitAsync(int id, string farmId, WaterDailyClosingSubmitRequest req, string? submittedBy);
         Task ApproveAsync(int id, string farmId, string? approvedBy);
         Task RejectAsync(int id, string farmId, string rejectionReason, string? approvedBy);
+        /// <summary>Hard-deletes a Draft or Rejected closing. Returns true if a row was removed; false if the closing
+        /// was Submitted/Approved (SP guards against it) or didn't exist.</summary>
+        Task<bool> DeleteAsync(int id, string farmId);
+        /// <summary>Updates ManagerNotes on a Draft or Rejected closing. Same false-on-immutable contract as DeleteAsync.</summary>
+        Task<bool> UpdateNotesAsync(int id, string farmId, string? managerNotes);
     }
 
     public interface IWaterReportService
@@ -463,6 +468,30 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@ApprovedBy", (object?)approvedBy ?? DBNull.Value);
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task<bool> DeleteAsync(int id, string farmId)
+        {
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterDailyClosing_Delete", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@WaterDailyClosingId", id);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await conn.OpenAsync();
+            // SP returns RowsDeleted scalar; 0 means the SP's WHERE rejected it (not Draft/Rejected, or wrong farm).
+            var result = await cmd.ExecuteScalarAsync();
+            return Convert.ToInt32(result ?? 0) > 0;
+        }
+
+        public async Task<bool> UpdateNotesAsync(int id, string farmId, string? managerNotes)
+        {
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterDailyClosing_UpdateNotes", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@WaterDailyClosingId", id);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@ManagerNotes", (object?)managerNotes ?? DBNull.Value);
+            await conn.OpenAsync();
+            var result = await cmd.ExecuteScalarAsync();
+            return Convert.ToInt32(result ?? 0) > 0;
         }
 
         private static WaterDailyClosingModel Read(SqlDataReader r) => new()

@@ -183,6 +183,31 @@ namespace PoultryFarmAPIWeb.Controllers
             await _svc.RejectAsync(id, farmId, req.RejectionReason, approvedBy);
             return NoContent();
         }
+
+        // Delete a Draft or Rejected closing. Returns 404 with a hint if the row is Submitted/Approved
+        // (or doesn't exist) — keeps the audit trail honest by not silently swallowing the no-op.
+        [HttpDelete("{id:int}")] public async Task<IActionResult> Delete(int id, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            var deleted = await _svc.DeleteAsync(id, farmId);
+            return deleted ? NoContent() : NotFound("Closing not found, or it is Submitted/Approved (immutable).");
+        }
+
+        // Edit ManagerNotes on a Draft or Rejected closing. The auto-aggregated production / sales / cash
+        // fields are NOT user-editable (they come from the source SPs at submit time).
+        [HttpPut("{id:int}/notes")] public async Task<IActionResult> UpdateNotes(
+            int id, [FromQuery] string farmId, [FromBody] WaterDailyClosingNotesRequest req)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            if (req == null) return BadRequest("Body required.");
+            var updated = await _svc.UpdateNotesAsync(id, farmId, req.ManagerNotes);
+            return updated ? NoContent() : NotFound("Closing not found, or it is Submitted/Approved (immutable).");
+        }
+    }
+
+    public class WaterDailyClosingNotesRequest
+    {
+        public string? ManagerNotes { get; set; }
     }
 
     [ApiController]
