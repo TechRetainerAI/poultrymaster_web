@@ -39,3 +39,7 @@ PoultryPro/PoultryFarmAPI/publish.zip
 # zip files
 poultry-zen-main/poultry-zen-main/*.zip
 *.zip
+.local/
+
+# Claude Code local agent state (never commit)
+.claude/
