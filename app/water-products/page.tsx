@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { Plus, Pencil, Trash2, Loader2, ShoppingBag, AlertCircle, PackagePlus } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
@@ -40,9 +41,14 @@ export default function WaterProductsPage() {
   const [restockProduct, setRestockProduct] = useState<WaterProduct | null>(null)
   const [restockQty, setRestockQty] = useState<number>(0)
   const [restockCost, setRestockCost] = useState<number | undefined>(undefined)
+  const [deleteTarget, setDeleteTarget] = useState<WaterProduct | null>(null)
 
   useEffect(() => {
-    if (activeFarmType && activeFarmType !== "Water") {
+    // Wait for Zustand to hydrate before deciding. Without this guard the
+    // load() call fires with whatever farmId is in localStorage on first
+    // render, which may belong to a different company type and cause 400s.
+    if (activeFarmType === null || activeFarmType === undefined) return
+    if (activeFarmType !== "Water") {
       router.replace("/dashboard")
       return
     }
@@ -85,13 +91,9 @@ export default function WaterProductsPage() {
     finally { setSaving(false) }
   }
 
-  async function handleDelete(p: WaterProduct) {
-    if (!confirm(`Delete or deactivate "${p.name}"?`)) return
-    try {
-      await deleteWaterProduct(p.waterProductId)
-      toast({ title: "Removed" })
-      await load()
-    } catch (e: any) { toast({ title: "Delete failed", description: e?.message, variant: "destructive" }) }
+  async function performDelete(p: WaterProduct) {
+    await deleteWaterProduct(p.waterProductId)
+    await load()
   }
 
   function openRestock(p: WaterProduct) {
@@ -180,7 +182,7 @@ export default function WaterProductsPage() {
                           <Button size="sm" variant="ghost" onClick={() => openEdit(p)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button size="sm" variant="ghost" onClick={() => handleDelete(p)}>
+                          <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(p)}>
                             <Trash2 className="h-4 w-4 text-red-500" />
                           </Button>
                         </TableCell>
@@ -214,6 +216,16 @@ export default function WaterProductsPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDeleteDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => { if (!o) setDeleteTarget(null) }}
+        title="Delete product?"
+        description={deleteTarget ? `Delete or deactivate "${deleteTarget.name}"? Existing sales will be preserved, but it will no longer appear in product lists.` : undefined}
+        successTitle="Product removed"
+        errorTitle="Delete failed"
+        onConfirm={async () => { if (deleteTarget) await performDelete(deleteTarget) }}
+      />
     </div>
   )
 }

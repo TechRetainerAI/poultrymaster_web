@@ -21,7 +21,7 @@ import {
 } from "@/lib/utils/expense-receipt"
 import { ExpenseReceiptField } from "@/components/expense/expense-receipt-field"
 import { getUserContext } from "@/lib/utils/user-context"
-import { getValidFlocks, getFlocksForSelect } from "@/lib/utils/flock-utils"
+import { getValidFlocks, getFlocksForExpenseSelect } from "@/lib/utils/flock-utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function EditExpensePage() {
@@ -123,7 +123,7 @@ export default function EditExpensePage() {
     try {
       setFlocksLoading(true)
       await getValidFlocks()
-      const flocksForSelect = getFlocksForSelect()
+      const flocksForSelect = getFlocksForExpenseSelect()
       setFlocks(flocksForSelect)
     } catch (error) {
       console.error("[v0] Error loading flocks:", error)

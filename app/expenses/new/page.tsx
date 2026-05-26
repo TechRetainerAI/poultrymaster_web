@@ -17,7 +17,7 @@ import { uploadExpenseReceipt } from "@/lib/api/receipt-upload"
 import { appendReceiptSuffix } from "@/lib/utils/expense-receipt"
 import { ExpenseReceiptField } from "@/components/expense/expense-receipt-field"
 import { getUserContext } from "@/lib/utils/user-context"
-import { getValidFlocks, getFlocksForSelect } from "@/lib/utils/flock-utils"
+import { getValidFlocks, getFlocksForExpenseSelect, getFlockSelectEmptyHint } from "@/lib/utils/flock-utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function NewExpensePage() {
@@ -62,11 +62,11 @@ export default function NewExpensePage() {
     try {
       setFlocksLoading(true)
       await getValidFlocks()
-      const flocksForSelect = getFlocksForSelect()
+      const flocksForSelect = getFlocksForExpenseSelect()
       setFlocks(flocksForSelect)
-      
+
       if (flocksForSelect.length === 0) {
-        setError("No active flocks found. Please create a flock first.")
+        setError(getFlockSelectEmptyHint("expense"))
       }
     } catch (error) {
       console.error("[v0] Error loading flocks:", error)
@@ -214,7 +214,7 @@ export default function NewExpensePage() {
                         {flocksLoading ? (
                           <SelectItem value="loading" disabled>Loading flocks...</SelectItem>
                         ) : flocks.length === 0 ? (
-                          <SelectItem value="no-flocks" disabled>No flocks available</SelectItem>
+                          <SelectItem value="no-flocks" disabled>{getFlockSelectEmptyHint("expense")}</SelectItem>
                         ) : (
                           flocks.map((flock) => (
                             <SelectItem key={flock.value} value={flock.value}>

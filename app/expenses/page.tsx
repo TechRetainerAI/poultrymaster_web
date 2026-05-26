@@ -23,7 +23,7 @@ import {
 import { ExpenseReceiptField } from "@/components/expense/expense-receipt-field"
 import { getFlocks, type Flock } from "@/lib/api/flock"
 import { getUserContext } from "@/lib/utils/user-context"
-import { getValidFlocks, getFlocksForSelect } from "@/lib/utils/flock-utils"
+import { getValidFlocks, getFlocksForExpenseSelect, getFlockSelectEmptyHint } from "@/lib/utils/flock-utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -138,7 +138,7 @@ export default function ExpensesPage() {
     setFlocksSelectLoading(true)
     try {
       await getValidFlocks()
-      const fs = getFlocksForSelect()
+      const fs = getFlocksForExpenseSelect()
       setFlocksForSelect(fs)
     } catch (err) {
       console.error("Error loading flocks:", err)
@@ -482,7 +482,7 @@ export default function ExpensesPage() {
                 {flocksSelectLoading ? (
                   <SelectItem value="loading" disabled>Loading flocks...</SelectItem>
                 ) : flocksForSelect.length === 0 ? (
-                  <SelectItem value="none" disabled>No flocks available</SelectItem>
+                  <SelectItem value="none" disabled>{getFlockSelectEmptyHint("expense")}</SelectItem>
                 ) : (
                   flocksForSelect.map((f) => (
                     <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>

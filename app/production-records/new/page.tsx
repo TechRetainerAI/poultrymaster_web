@@ -11,8 +11,8 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { FileText, X } from "lucide-react"
-import { getFlocks } from "@/lib/api/flock"
 import { getUserContext } from "@/lib/utils/user-context"
+import { getValidFlocks, getFlocksForProductionSelect, getFlockSelectEmptyHint } from "@/lib/utils/flock-utils"
 import {
   createProductionRecord,
   getProductionRecords,
@@ -35,7 +35,8 @@ export default function NewProductionRecordPage() {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
-  const [flocks, setFlocks] = useState<any[]>([])
+  const [flocksForSelect, setFlocksForSelect] = useState<{ value: string; label: string }[]>([])
+  const [allFlocks, setAllFlocks] = useState<any[]>([])
   const [flocksError, setFlocksError] = useState("")
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), [])
@@ -109,8 +110,8 @@ export default function NewProductionRecordPage() {
   const birdsLeft = (parseInt(form.numBirds) || 0) - (parseInt(form.mortality) || 0)
 
   const selectedFlock = useMemo(
-    () => flocks.find((f) => String(f.flockId) === form.flockId),
-    [flocks, form.flockId],
+    () => allFlocks.find((f) => String(f.flockId) === form.flockId),
+    [allFlocks, form.flockId],
   )
 
   const { ageWeeks, ageDays, ageYears } = useMemo(() => {
@@ -141,15 +142,17 @@ export default function NewProductionRecordPage() {
         setFlocksError("")
         const { userId, farmId } = getUserContext()
         if (!userId || !farmId) return
-        const res = await getFlocks(userId, farmId)
-        if (res.success && Array.isArray(res.data)) setFlocks(res.data)
-        else {
-          setFlocks([])
-          setFlocksError(res.message || "Failed to load flocks.")
+        const list = await getValidFlocks()
+        setAllFlocks(list)
+        const select = getFlocksForProductionSelect()
+        setFlocksForSelect(select)
+        if (select.length === 0) {
+          setFlocksError(getFlockSelectEmptyHint("production"))
         }
       } catch (e) {
         console.error(e)
-        setFlocks([])
+        setAllFlocks([])
+        setFlocksForSelect([])
         setFlocksError("Unable to load flocks. Please try again.")
       }
     }
@@ -184,7 +187,7 @@ export default function NewProductionRecordPage() {
               }))
             }
           } else {
-            const flock = flocks.find((f) => f.flockId === flockIdNum)
+            const flock = allFlocks.find((f) => f.flockId === flockIdNum)
             if (flock) {
               setPreviousBirdsLeft(flock.quantity || 0)
               if (!form.numBirds) {
@@ -205,7 +208,7 @@ export default function NewProductionRecordPage() {
     }
 
     loadPreviousRecords()
-  }, [form.flockId, form.date, flocks])
+  }, [form.flockId, form.date, allFlocks])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -387,11 +390,17 @@ export default function NewProductionRecordPage() {
                         <SelectValue placeholder="Select flock" />
                       </SelectTrigger>
                       <SelectContent>
-                        {flocks.filter((f) => f.hasArrived).map((f) => (
-                          <SelectItem key={f.flockId} value={String(f.flockId)}>
-                            {f.name || `Flock ${f.flockId}`} (ID: {f.flockId})
+                        {flocksForSelect.length === 0 ? (
+                          <SelectItem value="none" disabled>
+                            {flocksError || getFlockSelectEmptyHint("production")}
                           </SelectItem>
-                        ))}
+                        ) : (
+                          flocksForSelect.map((f) => (
+                            <SelectItem key={f.value} value={f.value}>
+                              {f.label}
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                     {flocksError && (

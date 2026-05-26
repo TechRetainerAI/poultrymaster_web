@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { BarChart3, Copy, RefreshCw, Plus, Pencil, Trash2 } from "lucide-react"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { getEggProductions, type EggProduction } from "@/lib/api/egg-production"
@@ -58,6 +59,7 @@ export default function EggTrackerPage() {
   const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false)
   const [editingAdjustmentId, setEditingAdjustmentId] = useState<number | null>(null)
   const [adjSubmitting, setAdjSubmitting] = useState(false)
+  const [deleteAdjustmentId, setDeleteAdjustmentId] = useState<number | null>(null)
   const [adjForm, setAdjForm] = useState({
     adjustmentType: "Correction" as AdjType,
     eggDelta: "",
@@ -299,19 +301,12 @@ export default function EggTrackerPage() {
     }
   }
 
-  const deleteAdjustment = async (row: EggLedgerRow) => {
+  const deleteAdjustment = (row: EggLedgerRow) => {
     const id = parseAdjustmentIdFromSortKey(row.sortKey)
     if (id == null) return
     const { farmId } = getUserContext()
     if (!farmId) return
-    if (!confirm("Delete this egg inventory adjustment?")) return
-    const res = await deleteEggInventoryAdjustment(id, farmId)
-    if (!res.success) {
-      toast({ title: "Delete failed", description: res.message, variant: "destructive" })
-      return
-    }
-    toast({ title: "Adjustment removed" })
-    void loadData()
+    setDeleteAdjustmentId(id)
   }
 
   const handleCopyEggsAtHand = () => {
@@ -686,6 +681,23 @@ export default function EggTrackerPage() {
           </div>
         </main>
       </div>
+
+      <ConfirmDeleteDialog
+        open={deleteAdjustmentId !== null}
+        onOpenChange={(o) => { if (!o) setDeleteAdjustmentId(null) }}
+        title="Delete egg inventory adjustment?"
+        description="This adjustment will be permanently removed from the ledger."
+        successTitle="Adjustment removed"
+        errorTitle="Delete failed"
+        onConfirm={async () => {
+          if (deleteAdjustmentId === null) return { success: false, message: "Missing id" }
+          const { farmId } = getUserContext()
+          if (!farmId) return { success: false, message: "Missing farm context" }
+          const res = await deleteEggInventoryAdjustment(deleteAdjustmentId, farmId)
+          if (res.success) void loadData()
+          return res
+        }}
+      />
     </div>
   )
 }

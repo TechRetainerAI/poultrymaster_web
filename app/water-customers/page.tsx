@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { Plus, Pencil, Trash2, Loader2, Users, AlertCircle } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
@@ -35,6 +36,7 @@ export default function WaterCustomersPage() {
   const [editId, setEditId] = useState<number | null>(null)
   const [form, setForm] = useState<WaterCustomerInput>(EMPTY)
   const [saving, setSaving] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<WaterCustomer | null>(null)
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Water") {
@@ -69,13 +71,9 @@ export default function WaterCustomersPage() {
     finally { setSaving(false) }
   }
 
-  async function remove(c: WaterCustomer) {
-    if (!confirm(`Delete customer "${c.name}"?`)) return
-    try {
-      await deleteWaterCustomer(c.waterCustomerId)
-      toast({ title: "Customer removed" })
-      await load()
-    } catch (e: any) { toast({ title: "Delete failed", description: e?.message, variant: "destructive" }) }
+  async function performDelete(c: WaterCustomer) {
+    await deleteWaterCustomer(c.waterCustomerId)
+    await load()
   }
 
   return (
@@ -129,7 +127,7 @@ export default function WaterCustomersPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <Button size="sm" variant="ghost" onClick={() => openEdit(c)}><Pencil className="h-4 w-4" /></Button>
-                          <Button size="sm" variant="ghost" onClick={() => remove(c)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                          <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(c)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -164,6 +162,16 @@ export default function WaterCustomersPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDeleteDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => { if (!o) setDeleteTarget(null) }}
+        title="Delete customer?"
+        itemLabel={deleteTarget?.name}
+        successTitle="Customer removed"
+        errorTitle="Delete failed"
+        onConfirm={async () => { if (deleteTarget) await performDelete(deleteTarget) }}
+      />
     </div>
   )
 }

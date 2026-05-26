@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Wallet, Copy, ChevronDown, ChevronUp, Mic, MicOff, Send, Plus, Pencil, Trash2 } from "lucide-react"
 import { getUserContext } from "@/lib/utils/user-context"
@@ -72,6 +73,7 @@ export default function CashPage() {
   const [outFilter, setOutFilter] = useState("")
   const [sortKey, setSortKey] = useState<string | null>("date")
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
+  const [deleteAdjustmentId, setDeleteAdjustmentId] = useState<number | null>(null)
   const isMobile = useIsMobile()
   const recognitionRef = useRef<any>(null)
 
@@ -248,17 +250,7 @@ export default function CashPage() {
       return
     }
 
-    const confirmed = window.confirm("Delete this cash adjustment?")
-    if (!confirmed) return
-
-    const res = await deleteCashAdjustment(adjustmentId, farmId)
-    if (!res.success) {
-      toast({ title: "Failed", description: res.message || "Failed to delete adjustment", variant: "destructive" })
-      return
-    }
-
-    toast({ title: "Deleted", description: "Cash adjustment deleted successfully." })
-    loadData()
+    setDeleteAdjustmentId(adjustmentId)
   }
 
   // Voice input (Web Speech API)
@@ -772,6 +764,22 @@ export default function CashPage() {
           </div>
         </main>
       </div>
+
+      <ConfirmDeleteDialog
+        open={deleteAdjustmentId !== null}
+        onOpenChange={(o) => { if (!o) setDeleteAdjustmentId(null) }}
+        title="Delete cash adjustment?"
+        description="This cash adjustment will be permanently removed. This action cannot be undone."
+        successTitle="Deleted"
+        successDescription="Cash adjustment deleted successfully."
+        errorTitle="Delete failed"
+        onConfirm={async () => {
+          if (deleteAdjustmentId === null || !farmId) return { success: false, message: "Missing context" }
+          const res = await deleteCashAdjustment(deleteAdjustmentId, farmId)
+          if (res.success) loadData()
+          return res
+        }}
+      />
     </div>
   )
 }

@@ -45,6 +45,7 @@ export default function RegisterPage() {
     firstName: "",
     lastName: "",
     phoneNumber: "",
+    companyType: "" as "" | "Poultry" | "Water",
   })
 
   const handleChange = (field: string, value: string) => {
@@ -55,6 +56,11 @@ export default function RegisterPage() {
     e.preventDefault()
     setError("")
     setErrorList([])
+
+    if (formData.companyType !== "Poultry" && formData.companyType !== "Water") {
+      setError("Please choose what kind of business you're registering — Poultry or Water.")
+      return
+    }
 
     const username = formData.username.trim()
     if (!USERNAME_RE.test(username)) {
@@ -80,6 +86,7 @@ export default function RegisterPage() {
       ...payload,
       username,
       phoneNumber: phoneClean,
+      companyType: formData.companyType, // narrowed above
       roles: ["Admin"], // Person registering is the farm owner/admin
     })
 
@@ -175,6 +182,37 @@ export default function RegisterPage() {
 
           {/* Registration Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Business Type chooser */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-slate-200">What kind of business are you registering?</p>
+              <div className="grid grid-cols-2 gap-3">
+                {([
+                  { value: "Poultry", emoji: "🐔", title: "Poultry", subtitle: "Farm management" },
+                  { value: "Water", emoji: "💧", title: "Water", subtitle: "Sales / distribution" },
+                ] as const).map((opt) => {
+                  const selected = formData.companyType === opt.value
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => handleChange("companyType", opt.value)}
+                      disabled={isLoading}
+                      aria-pressed={selected}
+                      className={`p-4 rounded-lg border-2 text-center transition-all ${
+                        selected
+                          ? "border-orange-500 bg-orange-500/10 ring-2 ring-orange-500/40"
+                          : "border-slate-600 bg-slate-700/30 hover:border-slate-500"
+                      } disabled:opacity-50`}
+                    >
+                      <div className="text-3xl mb-1">{opt.emoji}</div>
+                      <div className="text-sm font-semibold text-white">{opt.title}</div>
+                      <div className="text-xs text-slate-400">{opt.subtitle}</div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
             {/* Farm Name */}
             <div className="space-y-2">
               <Input

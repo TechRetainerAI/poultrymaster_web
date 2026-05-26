@@ -8,11 +8,24 @@ import { MetricsCards } from "@/components/dashboard/metrics-cards"
 import { DashboardCharts } from "@/components/dashboard/charts"
 import { Setup2FADialog } from "@/components/auth/setup-2fa-dialog"
 import { DEFAULT_LOGIN_API_HOST } from "@/lib/api/default-api-hosts"
+import { useAuthStore } from "@/lib/store/auth-store"
 
 export default function DashboardPage() {
   const router = useRouter()
+  const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const [show2FASetup, setShow2FASetup] = useState(false)
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false)
+
+  // /dashboard is the POULTRY dashboard. If the user's active company is
+  // Water or Generic, redirect to their dashboard so the right content
+  // shows immediately (previously the poultry dashboard flashed first
+  // and the user had to click Dashboard again to land on the right one).
+  // Wait for Zustand to hydrate before checking.
+  useEffect(() => {
+    if (activeFarmType === null || activeFarmType === undefined) return
+    if (activeFarmType === "Water")        router.replace("/water-dashboard")
+    else if (activeFarmType === "Generic") router.replace("/generic-dashboard")
+  }, [activeFarmType, router])
 
   // Check if user has 2FA enabled
   useEffect(() => {

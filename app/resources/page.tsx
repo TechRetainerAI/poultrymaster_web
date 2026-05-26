@@ -1,9 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
+import { useAuthStore } from "@/lib/store/auth-store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -53,7 +54,17 @@ interface FeedFormulation {
 export default function ResourcesPage() {
   const router = useRouter()
   const { toast } = useToast()
+  const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const [activeTab, setActiveTab] = useState("vaccination")
+
+  // This page is poultry-only (vaccination schedules, feed formulations,
+  // medication schedules are all for chickens). Send Water/Generic users
+  // to their own dashboard. Wait for Zustand to hydrate before checking.
+  useEffect(() => {
+    if (activeFarmType === null || activeFarmType === undefined) return
+    if (activeFarmType === "Water")        router.replace("/water-dashboard")
+    else if (activeFarmType === "Generic") router.replace("/generic-dashboard")
+  }, [activeFarmType, router])
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; type: "vaccination" | "medication" | "feed"; name: string } | null>(null)
 

@@ -13,9 +13,20 @@ import { Textarea } from "@/components/ui/textarea"
 import { Save, MapPin, DollarSign, Building2, Phone, Mail, Globe, Users, Clock } from "lucide-react"
 import { SuccessModal } from "@/components/auth/success-modal"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useAuthStore } from "@/lib/store/auth-store"
 
 export default function SettingsPage() {
   const router = useRouter()
+  const activeFarmType = useAuthStore((s) => s.activeFarmType)
+
+  // /settings is the POULTRY settings/profile page. Water and Generic companies
+  // have their own dedicated setup pages. Route each company type to its own.
+  useEffect(() => {
+    if (activeFarmType === null || activeFarmType === undefined) return
+    if (activeFarmType === "Water")        router.replace("/water-company-setup")
+    else if (activeFarmType === "Generic") router.replace("/generic-setup")
+  }, [activeFarmType, router])
+
   const [isEditing, setIsEditing] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState("")
