@@ -1,0 +1,69 @@
+@model PoultryWeb.Models.Generic.GenericSupplierVm
+@{
+    Layout = "_GenericLayout";
+    ViewData["Title"] = "New supplier";
+    string[] types = new[] { "ProductSupplier", "ServiceProvider", "Landlord", "UtilityProvider", "Contractor", "Other" };
+}
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <form asp-action="Create" method="post" class="row g-3">
+            @Html.AntiForgeryToken()
+
+            <div class="col-md-6">
+                <label class="form-label">Supplier name *</label>
+                <input asp-for="SupplierName" class="form-control" required maxlength="200" />
+                <span asp-validation-for="SupplierName" class="text-danger small"></span>
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label">Supplier type</label>
+                <select asp-for="SupplierType" class="form-select">
+                    @foreach (var t in types)
+                    { <option value="@t" selected="@(Model.SupplierType == t)">@t</option> }
+                </select>
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label">Phone number</label>
+                <input asp-for="PhoneNumber" class="form-control" maxlength="50" />
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label">Email</label>
+                <input asp-for="Email" type="email" class="form-control" maxlength="150" />
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label">Location</label>
+                <input asp-for="Location" class="form-control" maxlength="255" />
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label">Address</label>
+                <input asp-for="Address" class="form-control" maxlength="500" />
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label">Payment terms (days)</label>
+                <input asp-for="PaymentTermsDays" type="number" min="0" class="form-control" />
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label">Opening balance (GHC)</label>
+                <input asp-for="OpeningBalance" type="number" step="0.01" class="form-control" />
+                <small class="text-muted">Pre-existing amount you owe the supplier.</small>
+            </div>
+
+            <div class="col-12">
+                <label class="form-label">Notes</label>
+                <textarea asp-for="Notes" rows="2" class="form-control" maxlength="1000"></textarea>
+            </div>
+
+            <div class="col-12 d-flex justify-content-end gap-2">
+                <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">Create</button>
+            </div>
+        </form>
+    </div>
+</div>
