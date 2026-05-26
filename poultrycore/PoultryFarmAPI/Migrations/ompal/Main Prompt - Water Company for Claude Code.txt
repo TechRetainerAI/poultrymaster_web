@@ -1,0 +1,1296 @@
+You are a senior full-stack software engineer working on our existing PoultryMaster / multi-business management platform.
+
+We have already upgraded the platform so that one owner/admin account can create and manage multiple companies. A company can be a Poultry Company, Water Company, or future business type. The selected company type should control which modules and sidebar menus are shown.
+
+We now want to build the FULL VERSION of the Water Company module for Ghanaian sachet-water businesses.
+
+Business Context:
+A typical Ghana water company pumps water from a borehole, treats it, uses sachet-water machines to produce sachets, packages 30 sachets into one bag, stores finished bags, loads trucks and motor kings/tricycles for distribution, sells to nearby stores, market women, wholesalers, and walk-in customers, tracks credit sales, collects cash/MoMo/bank payments, pays expenses, and reviews weekly/monthly income vs expenditure to determine profit.
+
+This module must go far beyond simple accounting. It should help the owner answer these daily questions:
+
+1. How many bags did we produce?
+2. How many bags did we sell?
+3. How many bags are currently in stock?
+4. Where is the cash?
+5. Who owes us money?
+6. Which driver/route/customer is making or losing money?
+7. Are there shortages, waste, theft, or unexplained losses?
+8. What is our weekly/monthly profit?
+9. Which expenses are eating into profit?
+10. Which machines, vehicles, or raw materials need attention?
+
+Build this as a production-quality business module.
+
+Important Unit Definitions:
+- Main product: Sachet Water Bag
+- Default conversion: 1 Bag = 30 Sachets
+- Currency: GHC
+- Business Type: Water Company / Sachet Water Production
+- Vehicles may include trucks, motor kings, tricycles, vans, motorbikes.
+
+High-Level Architecture Requirement:
+The app already supports multiple companies. Every Water Company table must be company-scoped using CompanyId. No water-company data should leak across companies. Users should only access water-company records for companies they belong to.
+
+Add CompanyType support if not already cleanly implemented:
+- Poultry
+- Water
+- Other
+
+When the selected company has CompanyType = Water, show the Water Company sidebar/menu and modules. When CompanyType = Poultry, show poultry modules.
+
+Build the full Water Company module with the following areas:
+
+====================================================
+1. WATER COMPANY SETUP
+====================================================
+
+Create a Water Company setup/profile area.
+
+Track:
+- CompanyId
+- BrandName
+- BusinessType: Sachet Water / Bottled Water / Both
+- ProductionSiteAddress
+- MainLocation
+- WaterSourceType: Borehole / Ghana Water / Tanker Supply / Mixed
+- DefaultCurrency = GHC
+- DefaultBagSachetCount = 30
+- OwnerName
+- PhoneNumber
+- Notes
+
+Also support product setup.
+
+Create WaterProducts:
+- Id
+- CompanyId
+- ProductName
+- ProductType: SachetBag / BottledWater / DispenserBottle / Other
+- PackagingType
+- UnitsPerPack
+- DefaultSellingPrice
+- WholesalePrice
+- RetailPrice
+- EstimatedCostPerUnit
+- MinimumStockAlert
+- IsActive
+- CreatedAt
+- UpdatedAt
+- IsDeleted
+
+Default product to seed for a new water company:
+- ProductName: Sachet Water Bag
+- ProductType: SachetBag
+- UnitsPerPack: 30
+- Unit: Bag
+
+====================================================
+2. BOREHOLE / WATER SOURCE MANAGEMENT
+====================================================
+
+Create Boreholes / Water Sources.
+
+Track:
+- Id
+- CompanyId
+- BoreholeName
+- Location
+- PumpType
+- PumpCapacity
+- TankCapacity
+- WaterTreatmentMethod
+- FiltrationSystem
+- UVSterilizationAvailable
+- MaintenanceFrequencyDays
+- LastMaintenanceDate
+- NextMaintenanceDate
+- WaterQualityTestDueDate
+- Status: Active / Inactive / UnderMaintenance
+- Notes
+
+Create DailyWaterPumpingLogs:
+- Id
+- CompanyId
+- BoreholeId
+- Date
+- OpeningTankLevel
+- ClosingTankLevel
+- EstimatedLitresPumped
+- PumpStartTime
+- PumpEndTime
+- ElectricityUsed
+- FuelUsed
+- OperatorStaffId
+- Notes
+
+Create WaterQualityTests:
+- Id
+- CompanyId
+- BoreholeId
+- TestDate
+- TestType
+- PHLevel
+- TDS
+- Turbidity
+- ChlorineLevel
+- Result: Passed / Failed / Pending
+- TestedBy
+- LabName
+- AttachmentUrl
+- NextTestDate
+- Notes
+
+Add dashboard alerts for:
+- Water quality test due
+- Failed water quality test
+- Borehole maintenance due
+- Pump maintenance due
+
+====================================================
+3. MACHINE AND PRODUCTION MANAGEMENT
+====================================================
+
+Create WaterMachines:
+- Id
+- CompanyId
+- MachineName
+- MachineNumber
+- MachineType
+- Manufacturer
+- PurchaseDate
+- CapacityPerHour
+- AssignedOperatorStaffId
+- MaintenanceFrequencyDays
+- LastMaintenanceDate
+- NextMaintenanceDate
+- Status: Active / Down / UnderMaintenance
+- Notes
+
+Create WaterProductionBatches:
+- Id
+- CompanyId
+- BatchNumber
+- ProductionDate
+- Shift: Morning / Afternoon / Night / FullDay
+- MachineId
+- OperatorStaffId
+- StartTime
+- EndTime
+- ProductId
+- BagsProduced
+- SachetsPerBag
+- TotalSachetsProduced
+- LooseSachetsProduced
+- RejectedSachets
+- DamagedBags
+- PackagingRollsUsed
+- EstimatedWaterUsedLitres
+- ElectricityCost
+- FuelCost
+- LaborCost
+- OtherProductionCost
+- TotalProductionCost
+- CostPerBag
+- ProductionEfficiencyPercent
+- QualityStatus: Pending / Passed / Failed
+- Notes
+- CreatedBy
+- ApprovedBy
+- ApprovedAt
+- CreatedAt
+- UpdatedAt
+- IsDeleted
+
+Important calculations:
+- TotalSachetsProduced = BagsProduced * SachetsPerBag
+- GoodBagsProduced = BagsProduced - DamagedBags
+- ProductionEfficiencyPercent = ((TotalSachetsProduced - RejectedSachets) / TotalSachetsProduced) * 100
+- TotalProductionCost = ElectricityCost + FuelCost + LaborCost + OtherProductionCost + allocated raw material costs if available
+- CostPerBag = TotalProductionCost / BagsProduced
+
+BatchNumber format:
+WATER-{CompanyShortCode}-{yyyyMMdd}-{sequence}
+
+When a production batch is approved, automatically create a finished goods stock movement increasing finished goods inventory.
+
+====================================================
+4. RAW MATERIAL INVENTORY
+====================================================
+
+Create RawMaterialItems:
+- Id
+- CompanyId
+- ItemName
+- Category: PackagingRoll / SachetFilm / OuterBag / Chemical / Filter / UVLamp / SparePart / Fuel / CleaningSupply / Other
+- UnitOfMeasure
+- MinimumStockAlert
+- CurrentQuantity
+- IsActive
+- Notes
+
+Create RawMaterialPurchases:
+- Id
+- CompanyId
+- ItemId
+- SupplierId
+- PurchaseDate
+- Quantity
+- UnitCost
+- TotalCost
+- PaymentMethod: Cash / MoMo / Bank / Credit
+- AmountPaid
+- Balance
+- ReceiptUrl
+- ReceivedByStaffId
+- Notes
+
+Create RawMaterialUsage:
+- Id
+- CompanyId
+- ProductionBatchId
+- ItemId
+- QuantityUsed
+- ExpectedQuantityUsed
+- Variance
+- VarianceReason
+- UsedByStaffId
+- DateUsed
+- Notes
+
+When raw materials are purchased, increase raw material stock.
+When raw materials are used, reduce raw material stock.
+Show alerts when raw material stock is below minimum.
+
+Variance calculation:
+Variance = QuantityUsed - ExpectedQuantityUsed
+
+Add a Raw Material Usage Analysis report:
+- Expected usage
+- Actual usage
+- Variance
+- Estimated loss/waste value
+- Production batch linked
+- Operator linked
+
+====================================================
+5. FINISHED GOODS INVENTORY
+====================================================
+
+Create FinishedGoodsInventory by Product and Company:
+- Id
+- CompanyId
+- ProductId
+- CurrentQuantityBags
+- CurrentQuantitySachets
+- StockValue
+- LastUpdated
+
+Create StockMovements:
+- Id
+- CompanyId
+- ProductId
+- MovementDate
+- MovementType: ProductionIn / SaleOut / VehicleLoadOut / VehicleReturnIn / DamageOut / AdjustmentIn / AdjustmentOut / Transfer
+- QuantityBags
+- QuantitySachets
+- UnitCost
+- TotalValue
+- ReferenceType
+- ReferenceId
+- CreatedBy
+- Notes
+
+Track:
+- Opening Stock
+- Bags Produced
+- Bags Sold
+- Bags Loaded
+- Bags Returned
+- Bags Damaged
+- Closing Stock
+
+Formula:
+ExpectedClosingStock = OpeningStock + Produced - Sold - LoadedOut + Returned - Damaged +/- Adjustments
+
+Create stock reconciliation screen:
+- Expected Closing Stock
+- Actual Count
+- Difference
+- Reason
+- ApprovedBy
+
+====================================================
+6. SALES MANAGEMENT
+====================================================
+
+Create Customers:
+- Id
+- CompanyId
+- CustomerName
+- CustomerType: ShopOwner / MarketWoman / Distributor / Wholesaler / School / Church / Restaurant / EventCustomer / WalkIn / Other
+- PhoneNumber
+- Location
+- RouteId
+- CreditLimit
+- PaymentTermsDays
+- PriceLevel: Retail / Wholesale / Custom
+- AssignedDriverStaffId
+- IsActive
+- Notes
+
+Create Sales:
+- Id
+- CompanyId
+- SaleDate
+- CustomerId nullable for walk-in
+- SalesChannel: FactoryCash / Wholesale / RetailShop / MarketWoman / TruckRoute / MotorKingRoute / CreditSale / WalkIn
+- RouteId nullable
+- VehicleId nullable
+- DriverStaffId nullable
+- TotalAmount
+- DiscountAmount
+- NetAmount
+- AmountPaid
+- Balance
+- PaymentStatus: Paid / Partial / Unpaid
+- PaymentMethod: Cash / MoMo / Bank / Mixed / Credit
+- ReceiptNumber
+- Notes
+- CreatedBy
+- ApprovedBy
+- ApprovedAt
+
+Create SaleItems:
+- Id
+- SaleId
+- ProductId
+- QuantityBags
+- SachetsPerBag
+- QuantitySachets
+- UnitPrice
+- LineTotal
+
+When a sale is approved:
+- Reduce finished goods inventory
+- Create income/cash transaction for amount paid
+- If balance remains, create/update customer ledger
+
+Create CustomerLedger:
+- Id
+- CompanyId
+- CustomerId
+- TransactionDate
+- TransactionType: SaleDebit / PaymentCredit / Adjustment
+- SaleId nullable
+- PaymentId nullable
+- DebitAmount
+- CreditAmount
+- BalanceAfterTransaction
+- Description
+- CreatedBy
+
+Create CustomerPayments:
+- Id
+- CompanyId
+- CustomerId
+- PaymentDate
+- Amount
+- PaymentMethod: Cash / MoMo / Bank
+- ReceivedByStaffId
+- LinkedSaleId nullable
+- Notes
+
+Dashboard should show:
+- Total sales today
+- Total credit sales
+- Outstanding customer debt
+- Overdue customers
+- Top customers
+- Customers who stopped buying recently
+
+====================================================
+7. DISTRIBUTION / ROUTE / VEHICLE MANAGEMENT
+====================================================
+
+Create Vehicles:
+- Id
+- CompanyId
+- VehicleName
+- VehicleType: Truck / MotorKing / Tricycle / Van / Motorbike / Other
+- RegistrationNumber
+- DefaultDriverStaffId
+- CapacityBags
+- FuelType
+- Status: Active / Inactive / UnderMaintenance
+- Notes
+
+Create Routes:
+- Id
+- CompanyId
+- RouteName
+- AreaCovered
+- DefaultDriverStaffId
+- DefaultVehicleId
+- ExpectedCustomers
+- ExpectedBagsSold
+- Notes
+
+Create VehicleLoads:
+- Id
+- CompanyId
+- LoadDate
+- VehicleId
+- DriverStaffId
+- AssistantStaffId nullable
+- RouteId
+- ProductId
+- BagsLoaded
+- SachetsPerBag
+- ExpectedSellingPricePerBag
+- ExpectedCash
+- OpeningCashWithDriver
+- LoadedByStaffId
+- Status: Loaded / Returned / Reconciled / Cancelled
+- Notes
+
+ExpectedCash = BagsLoaded * ExpectedSellingPricePerBag
+
+When vehicle is loaded:
+- Move stock from warehouse into vehicle/distribution status
+- Create stock movement: VehicleLoadOut
+
+Create DriverReturns:
+- Id
+- CompanyId
+- VehicleLoadId
+- ReturnDate
+- BagsSold
+- BagsReturned
+- BagsDamaged
+- CashCollected
+- MoMoCollected
+- BankCollected
+- CreditSalesAmount
+- TotalCollected
+- ExpectedCash
+- ShortageAmount
+- OverageAmount
+- ReconciledByStaffId
+- ApprovedBy
+- ApprovedAt
+- Notes
+
+Important reconciliation:
+ExpectedCash = BagsSold * ExpectedSellingPricePerBag
+TotalAccountedFor = CashCollected + MoMoCollected + BankCollected + CreditSalesAmount
+ShortageAmount = max(ExpectedCash - TotalAccountedFor, 0)
+OverageAmount = max(TotalAccountedFor - ExpectedCash, 0)
+
+When return is approved:
+- Add returned bags back into finished goods inventory
+- Remove damaged bags from inventory as loss
+- Create sales records for sold bags
+- Create cash transactions for collected cash/MoMo/bank
+- Create credit sale/customer ledger entries if credit sales are recorded
+- Create driver shortage record if shortage exists
+
+Create DriverShortages:
+- Id
+- CompanyId
+- DriverStaffId
+- VehicleLoadId
+- ShortageDate
+- ExpectedAmount
+- ActualAmount
+- ShortageAmount
+- Reason
+- Status: Pending / Approved / Deducted / Waived
+- ApprovedBy
+- Notes
+
+Create RouteProfitability report:
+- Route
+- Bags Loaded
+- Bags Sold
+- Revenue
+- Fuel Cost
+- Driver Commission
+- Loading Cost
+- Damages
+- Shortages
+- Net Route Profit
+
+====================================================
+8. STAFF, ATTENDANCE, PAYROLL
+====================================================
+
+Create Staff:
+- Id
+- CompanyId
+- FirstName
+- LastName
+- PhoneNumber
+- Role: MachineOperator / PackagingWorker / Loader / Driver / MotorKingRider / Salesperson / FactoryManager / Accountant / Cleaner / Security / Other
+- SalaryType: Daily / Weekly / Monthly / Commission / Mixed
+- BasePay
+- CommissionRate
+- AssignedVehicleId nullable
+- AssignedRouteId nullable
+- IsActive
+- Notes
+
+Create StaffAttendance:
+- Id
+- CompanyId
+- StaffId
+- AttendanceDate
+- ClockIn
+- ClockOut
+- Shift
+- Status: Present / Absent / Late / HalfDay
+- Notes
+
+Create StaffPayrollRuns:
+- Id
+- CompanyId
+- PeriodStart
+- PeriodEnd
+- PayDate
+- TotalGrossPay
+- TotalDeductions
+- TotalNetPay
+- Status: Draft / Approved / Paid
+- CreatedBy
+- ApprovedBy
+- ApprovedAt
+
+Create StaffPayrollItems:
+- Id
+- PayrollRunId
+- StaffId
+- BasicPay
+- DailyWage
+- Commission
+- Bonus
+- Deductions
+- NetPay
+- Notes
+
+Commission options:
+- Commission per bag sold
+- Commission based on route sales
+- Bonus for no shortage
+- Deduction for approved shortages
+
+====================================================
+9. EXPENSE TRACKING
+====================================================
+
+Create ExpenseCategories with default Ghana water-company categories:
+- Raw Materials
+- Packaging Rolls
+- Fuel
+- Electricity
+- Water Treatment
+- Machine Repairs
+- Vehicle Repairs
+- Driver Wages
+- Factory Worker Wages
+- Loading Boys
+- Security
+- Rent
+- Borehole Maintenance
+- Generator Maintenance
+- Marketing
+- Phone/Internet
+- Government Fees
+- Water Quality Testing
+- Cleaning Supplies
+- Miscellaneous
+
+Create Expenses:
+- Id
+- CompanyId
+- ExpenseDate
+- CategoryId
+- Description
+- Amount
+- PaidTo
+- PaymentMethod: Cash / MoMo / Bank
+- CashAccountId nullable
+- ReceiptUrl
+- LinkedVehicleId nullable
+- LinkedMachineId nullable
+- LinkedProductionBatchId nullable
+- CreatedBy
+- ApprovedBy
+- ApprovedAt
+- Notes
+
+When an expense is approved:
+- Create cash out transaction
+- Include in profit/loss reports
+
+Expense reports:
+- Expenses by category
+- Top expense category
+- Expense trend
+- Fuel cost by vehicle
+- Repair cost by machine
+- Production cost per bag
+- Route cost
+
+====================================================
+10. CASH AT HAND / ACCOUNTING
+====================================================
+
+Create CashAccounts:
+- Id
+- CompanyId
+- AccountName
+- AccountType: FactoryCashBox / OwnerCash / MoMoWallet / BankAccount / DriverCash / PettyCash
+- OpeningBalance
+- CurrentBalance
+- IsActive
+
+Create CashTransactions:
+- Id
+- CompanyId
+- CashAccountId
+- TransactionDate
+- TransactionType: CashIn / CashOut / TransferIn / TransferOut / Adjustment
+- SourceType: Sale / CustomerPayment / Expense / DriverReturn / OwnerDeposit / Withdrawal / Adjustment / Transfer
+- SourceId nullable
+- Amount
+- Description
+- CreatedBy
+- ApprovedBy
+- ApprovedAt
+
+Create CashTransfers:
+- Id
+- CompanyId
+- FromCashAccountId
+- ToCashAccountId
+- TransferDate
+- Amount
+- Notes
+- CreatedBy
+- ApprovedBy
+- ApprovedAt
+
+Cash dashboard:
+- Factory cash
+- MoMo balance
+- Bank balance
+- Petty cash
+- Cash with drivers
+- Total cash at hand
+- Expected cash vs actual cash
+- Cash movement trend
+
+====================================================
+11. MAINTENANCE MANAGEMENT
+====================================================
+
+Create MaintenanceLogs:
+- Id
+- CompanyId
+- AssetType: Machine / Vehicle / Borehole / Generator / Other
+- AssetId
+- IssueDate
+- IssueDescription
+- ReportedByStaffId
+- TechnicianName
+- RepairCost
+- PartsReplaced
+- DowntimeHours
+- Status: Open / InProgress / Completed
+- CompletedDate
+- Notes
+
+Maintenance alerts:
+- Machine service due
+- Vehicle service due
+- Borehole service due
+- Generator service due
+- Repeated breakdowns
+- High repair cost
+
+Calculate estimated lost production:
+EstimatedLostProduction = DowntimeHours * MachineCapacityPerHour
+
+====================================================
+12. LOSS, WASTE, AND THEFT CONTROL
+====================================================
+
+Create LossRecords:
+- Id
+- CompanyId
+- LossDate
+- LossType: BurstSachets / DamagedBags / ReturnedBags / MachineWaste / PackagingWaste / DriverShortage / MissingStock / BadDebt / Other
+- ProductId nullable
+- QuantityBags
+- QuantitySachets
+- EstimatedValue
+- ResponsibleStaffId nullable
+- Reason
+- ApprovedBy
+- Notes
+
+Create automatic alerts for:
+- Stock mismatch
+- Driver shortage
+- Raw material usage variance
+- High damaged bags
+- High rejected sachets
+- Expenses above normal
+- Credit sales growing too fast
+- Customer overdue balance
+- Machine downtime spike
+
+====================================================
+13. DAILY CLOSING PROCESS
+====================================================
+
+Create DailyClosings:
+- Id
+- CompanyId
+- ClosingDate
+- OpeningStock
+- BagsProduced
+- BagsSold
+- BagsReturned
+- BagsDamaged
+- ClosingStock
+- TotalIncome
+- TotalExpenses
+- CashAtHand
+- MoMoBalance
+- BankBalance
+- CreditSales
+- CustomerCollections
+- DriverShortages
+- ManagerNotes
+- Status: Draft / Submitted / Approved / Rejected
+- SubmittedBy
+- SubmittedAt
+- ApprovedBy
+- ApprovedAt
+
+Daily closing checklist:
+1. Enter production output
+2. Confirm finished goods stock
+3. Record all factory sales
+4. Reconcile all drivers
+5. Record all expenses
+6. Count cash at hand
+7. Confirm MoMo/bank collections
+8. Submit daily report
+9. Owner reviews and approves
+
+Once approved, lock the daily closing records unless a correction is made with reason and audit trail.
+
+====================================================
+14. WEEKLY, MONTHLY, AND ANNUAL REPORTING
+====================================================
+
+Build reports similar to the current manual report but much more detailed.
+
+The existing report style has:
+- Date
+- Income
+- Expenditure
+- Surplus/Deficit
+
+The app must generate:
+Weekly Profit and Loss:
+- Period Start
+- Period End
+- Total Income
+- Total Expenses
+- Surplus/Deficit
+- Profit Margin
+- Bags Produced
+- Bags Sold
+- Closing Stock
+- Customer Debt
+- Driver Shortages
+- Cash at Hand
+- Best Route
+- Worst Route
+- Highest Expense Category
+
+Monthly Report:
+- Month
+- Income
+- Expenses
+- Surplus/Deficit
+- Average Weekly Profit
+- Bags Produced
+- Bags Sold
+- Average Profit per Bag
+- Total Outstanding Debt
+- Total Shortages
+- Top Customer
+- Top Route
+
+Annual Report:
+- Total Revenue
+- Total Expenses
+- Total Profit
+- Average Monthly Profit
+- Best Month
+- Worst Month
+- Total Bags Produced
+- Total Bags Sold
+- Total Credit Outstanding
+- Total Driver Shortage
+- Total Damages/Waste
+
+Charts:
+- Income vs expenses
+- Profit trend
+- Bags produced vs bags sold
+- Route performance
+- Expense breakdown
+- Customer debt
+- Cash at hand trend
+- Machine downtime
+- Raw material usage variance
+
+Reports should be exportable to PDF and Excel/CSV where the existing app already supports exports.
+
+====================================================
+15. DASHBOARD REQUIREMENTS
+====================================================
+
+Build a powerful Water Company dashboard.
+
+Cards:
+- Today’s Production
+- Today’s Sales
+- Today’s Expenses
+- Today’s Profit
+- Cash at Hand
+- Bags in Stock
+- Customer Debt
+- Driver Shortages
+- Raw Materials Low Stock
+- Machine Status
+- Vehicle Status
+
+Weekly section:
+- Income this week
+- Expenses this week
+- Profit this week
+- Bags produced
+- Bags sold
+- Best route
+- Worst route
+- Top customer
+- Highest expense category
+
+Owner intelligence section:
+- Where did my money go?
+- Who owes me money?
+- Which route makes the most profit?
+- Which driver has the most shortages?
+- Which expense is growing too fast?
+- How many bags should I have in stock?
+- Did production match sales?
+- How much profit per bag?
+
+Alerts:
+- Low packaging stock
+- Customer debt overdue
+- Vehicle maintenance due
+- Machine maintenance due
+- Borehole maintenance due
+- Driver shortage detected
+- Stock mismatch detected
+- Water quality test due
+- Raw material usage variance
+
+====================================================
+16. ROLES AND PERMISSIONS
+====================================================
+
+Add/extend role permissions for Water Company.
+
+Roles:
+- Owner
+- CompanyAdmin
+- FactoryManager
+- Accountant
+- MachineOperator
+- Driver
+- Salesperson
+- InventoryOfficer
+- Viewer
+
+Permission examples:
+- Owner can see everything
+- Accountant can manage financials and reports
+- FactoryManager can approve production and daily closing
+- MachineOperator can only enter production
+- Driver can only see assigned loads/deliveries
+- InventoryOfficer can manage stock and materials
+- Viewer can only view reports
+
+Every create/update/delete should respect company and permission scope.
+
+====================================================
+17. AUDIT LOGS AND APPROVALS
+====================================================
+
+For important records, track:
+- CreatedBy
+- CreatedAt
+- UpdatedBy
+- UpdatedAt
+- ApprovedBy
+- ApprovedAt
+- IsDeleted
+- DeletionReason
+- CorrectionReason
+
+Create AuditLogs:
+- Id
+- CompanyId
+- EntityName
+- EntityId
+- Action: Create / Update / Delete / Approve / Reject
+- OldValuesJson
+- NewValuesJson
+- PerformedBy
+- PerformedAt
+- Reason
+
+Important records requiring approval:
+- Production batch
+- Vehicle return/reconciliation
+- Expenses
+- Stock adjustments
+- Daily closing
+- Payroll run
+- Loss records
+- Cash transfers
+
+====================================================
+18. UI / UX REQUIREMENTS
+====================================================
+
+Create a Water Company sidebar like this:
+
+Dashboard
+
+Production
+- Daily Production
+- Production Batches
+- Machines
+- Water Quality
+- Boreholes
+
+Inventory
+- Finished Goods
+- Raw Materials
+- Stock Adjustments
+- Damages & Waste
+
+Sales
+- New Sale
+- Sales History
+- Customer Payments
+- Credit Sales
+
+Distribution
+- Load Vehicle
+- Driver Returns
+- Routes
+- Vehicles
+
+Customers
+- Customer List
+- Customer Ledger
+- Debt Report
+
+Expenses
+- Record Expense
+- Expense History
+- Expense Categories
+
+Cash & Accounts
+- Cash at Hand
+- Cash Movement
+- Transfers
+- Weekly P&L
+- Monthly Reports
+
+Staff
+- Workers
+- Attendance
+- Payroll
+
+Maintenance
+- Machines
+- Vehicles
+- Borehole
+- Maintenance Logs
+
+Reports
+- Daily Report
+- Weekly Report
+- Monthly Report
+- Annual Report
+- Driver Reconciliation
+- Route Profitability
+- Customer Debt
+- Inventory
+- Raw Material Usage
+
+Settings
+
+UX Principles:
+- Mobile-friendly
+- Large buttons for field workers
+- Fast entry screens
+- Simple Ghana-friendly wording
+- Avoid overly technical accounting language where possible
+- Use GHC formatting
+- Use bag/sachet terminology clearly
+- Show calculated values automatically
+- Provide printable/exportable reports
+
+Fast Entry buttons on dashboard:
+- + Production
+- + Sale
+- + Expense
+- + Load Vehicle
+- + Driver Return
+- + Customer Payment
+- + Cash Count
+
+====================================================
+19. API / BACKEND REQUIREMENTS
+====================================================
+
+Implement clean backend architecture consistent with the existing app.
+
+Expected backend layers:
+- Controllers / API endpoints
+- Services
+- Repositories or database access layer
+- DTOs / ViewModels
+- Validation
+- Authorization checks
+- Audit logging
+- Company scope enforcement
+
+Each endpoint must validate:
+- The user belongs to the company
+- The selected company is CompanyType = Water where applicable
+- The user has permission for the action
+- Required records belong to the same CompanyId
+
+Use transactions for operations that affect multiple tables. Examples:
+- Approving production batch should update production batch + stock movement + inventory
+- Approving sale should update sales + sale items + inventory + cash/customer ledger
+- Approving driver return should update driver return + sales + stock + cash + credit ledgers + shortages
+- Approving expense should update expenses + cash transactions
+- Approving stock adjustment should update stock + audit log
+
+====================================================
+20. VALIDATIONS
+====================================================
+
+Add strong validations:
+- BagsProduced cannot be negative
+- SachetsPerBag defaults to 30
+- Quantity sold cannot exceed available stock unless override permission exists
+- Vehicle load cannot exceed available finished goods stock
+- Vehicle load cannot exceed vehicle capacity unless manager override
+- Payment amount cannot exceed balance unless marked as overpayment
+- Expenses require category and amount
+- Driver return must reconcile loaded bags:
+  BagsLoaded = BagsSold + BagsReturned + BagsDamaged + MissingBags
+- Stock adjustment requires reason
+- Approved records cannot be edited without correction reason
+- Customer credit cannot exceed credit limit without approval
+- Cash account cannot go negative unless overdraft/negative balance is allowed by settings
+
+====================================================
+21. SEED DATA
+====================================================
+
+When a new Water Company is created, seed:
+
+Default product:
+- Sachet Water Bag
+- UnitsPerPack = 30
+
+Default expense categories:
+- Raw Materials
+- Packaging Rolls
+- Fuel
+- Electricity
+- Water Treatment
+- Machine Repairs
+- Vehicle Repairs
+- Driver Wages
+- Factory Worker Wages
+- Loading Boys
+- Security
+- Rent
+- Borehole Maintenance
+- Generator Maintenance
+- Marketing
+- Phone/Internet
+- Government Fees
+- Water Quality Testing
+- Cleaning Supplies
+- Miscellaneous
+
+Default cash accounts:
+- Factory Cash Box
+- MoMo Wallet
+- Bank Account
+- Petty Cash
+
+Default roles/permissions for Water Company.
+
+====================================================
+22. REPORTING CALCULATIONS
+====================================================
+
+Implement these calculations:
+
+Total Sachets:
+TotalSachets = Bags * SachetsPerBag
+
+Production Cost Per Bag:
+ProductionCostPerBag = TotalProductionCost / BagsProduced
+
+Gross Profit:
+GrossProfit = SalesRevenue - ProductionCost
+
+Net Profit:
+NetProfit = TotalIncome - TotalExpenses
+
+Profit Margin:
+ProfitMargin = NetProfit / TotalIncome * 100
+
+Driver Shortage:
+ExpectedCash = BagsSold * SellingPricePerBag
+TotalAccountedFor = CashCollected + MoMoCollected + BankCollected + CreditSalesAmount
+Shortage = max(ExpectedCash - TotalAccountedFor, 0)
+
+Stock Reconciliation:
+ExpectedClosingStock = OpeningStock + Produced - Sold - Damaged - LoadedOut + Returned +/- Adjustments
+
+Route Profit:
+RouteProfit = RouteSales - FuelCost - DriverCommission - LoadingCost - DamagesValue - Shortages
+
+Customer Balance:
+CustomerBalance = TotalDebits - TotalCredits
+
+Cash At Hand:
+CashAtHand = Sum(CurrentBalance of active cash accounts)
+
+====================================================
+23. TESTING REQUIREMENTS
+====================================================
+
+Add tests for:
+- Creating water company
+- Seeding default product/categories/accounts
+- Creating production batch
+- Approving production batch updates stock
+- Creating raw material purchase updates stock
+- Creating sale updates stock and customer ledger
+- Recording customer payment reduces balance
+- Loading vehicle reduces warehouse stock
+- Driver return calculates shortage correctly
+- Expenses reduce cash account
+- Cash transfer updates both accounts
+- Daily closing aggregates correctly
+- Weekly report totals income, expenses, and profit
+- Permission checks
+- Company scope checks
+- Cannot access another company’s water data
+
+====================================================
+24. EXPECTED DEMO FLOW
+====================================================
+
+Make sure the app supports this demo flow:
+
+1. Owner creates a Water Company.
+2. System seeds Sachet Water Bag, expense categories, and cash accounts.
+3. Owner adds machines, borehole, vehicles, routes, staff, and customers.
+4. Factory manager records production:
+   - 2,500 bags produced
+   - 30 sachets per bag
+   - 75,000 sachets total
+5. Inventory increases by 2,500 bags.
+6. Manager loads Truck 1 with 1,200 bags and Motor King 1 with 300 bags.
+7. Truck driver returns:
+   - 1,100 bags sold
+   - 50 bags returned
+   - 50 bags damaged/missing
+   - cash/MoMo/credit entered
+8. System calculates expected cash, actual cash, shortage, returned stock, damages, and route sales.
+9. Accountant records expenses:
+   - packaging rolls
+   - fuel
+   - electricity
+   - wages
+10. Customer payments are recorded.
+11. Daily closing summarizes production, sales, expenses, stock, cash, credit, and shortages.
+12. Dashboard shows:
+   - Today’s Production
+   - Today’s Sales
+   - Today’s Expenses
+   - Today’s Profit
+   - Cash at Hand
+   - Bags in Stock
+   - Customer Debt
+   - Driver Shortages
+13. Weekly report shows:
+   - income
+   - expenditure
+   - surplus/deficit
+   - bags produced
+   - bags sold
+   - cash at hand
+   - customer debt
+   - top route
+   - top expense
+
+====================================================
+25. IMPLEMENTATION STYLE
+====================================================
+
+Please implement this carefully in small, working increments.
+
+Before coding:
+1. Inspect the current project structure.
+2. Identify existing Company, User, Role, Auth, Dashboard, Inventory, Sales, Expense, Report, and Cash modules.
+3. Reuse existing patterns where possible.
+4. Do not break poultry-company functionality.
+5. Add Water Company functionality behind CompanyType = Water.
+6. Keep company scoping consistent everywhere.
+
+After coding:
+1. Run build.
+2. Run tests.
+3. Fix compile/type errors.
+4. Add or update seed data.
+5. Provide a summary of files changed.
+6. Provide the database migration/script changes.
+7. Provide the routes/pages added.
+8. Provide any setup steps required.
+
+The goal is to make the Water Company module impressive enough that a Ghanaian sachet-water business owner immediately says: “This app understands my business.”
+```

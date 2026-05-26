@@ -1,0 +1,1287 @@
+Yes, this is absolutely something we can do, and it is actually a very smart product direction.
+
+The best architecture is:
+
+```text
+Company Types
+  1. Poultry Company     → specialized poultry modules
+  2. Water Company       → specialized water production/distribution modules
+  3. Generic Company     → universal business management modules
+```
+
+The **Generic Company** becomes the foundation for any business that does not need industry-specific tracking yet. It can support restaurants, hotels, shops, provision stores, salons, small factories, schools, transport businesses, pharmacies, boutiques, hardware stores, etc.
+
+The goal should be:
+
+> Any small or medium business owner should be able to create a company, track daily sales, expenses, inventory, staff, cash at hand, customers, suppliers, debts, reports, and profit without needing a custom module.
+
+---
+
+# Generic Company Module Vision
+
+The Generic Company should answer these daily questions:
+
+```text
+1. How much did we sell today?
+2. How much did we spend today?
+3. How much cash do we have?
+4. Who owes us money?
+5. Who do we owe?
+6. What products/services are selling most?
+7. What expenses are growing?
+8. What stock is running low?
+9. Which staff member made sales or handled cash?
+10. What is our profit for the day, week, month, and year?
+```
+
+This makes it useful for almost every business type.
+
+---
+
+# 1. Generic Company Setup
+
+When creating a company, the owner chooses:
+
+```text
+Company Type: Generic Company
+Business Category:
+  - Restaurant
+  - Hotel / Guest House
+  - Retail Shop
+  - Supermarket / Provision Store
+  - Boutique / Clothing
+  - Salon / Barbering
+  - Pharmacy
+  - Hardware Store
+  - Transport Business
+  - School
+  - Services Business
+  - Manufacturing
+  - Other
+```
+
+Track:
+
+```text
+Company Name
+Business Category
+Location
+Owner Name
+Phone Number
+Currency: GHC / USD / etc.
+Default Tax Setting
+Default Payment Methods
+Opening Cash Balance
+Business Start Date
+```
+
+This gives flexibility without forcing the user into poultry or water-specific language.
+
+---
+
+# 2. Universal Dashboard
+
+The dashboard should be simple but powerful.
+
+## Main Cards
+
+```text
+Today’s Sales
+Today’s Expenses
+Today’s Profit
+Cash at Hand
+Inventory Value
+Customer Debt
+Supplier Debt
+Low Stock Items
+Pending Payments
+```
+
+## Weekly Summary
+
+```text
+Income this week
+Expenses this week
+Profit this week
+Top-selling product/service
+Highest expense category
+Best customer
+Outstanding debt
+Cash movement
+```
+
+## Owner Intelligence
+
+```text
+Where did my money go?
+Who owes me money?
+Which product sells most?
+Which expense is increasing?
+Which staff handled the most sales?
+What stock is running low?
+Is today better than yesterday?
+Is this month better than last month?
+```
+
+This generic dashboard would work for a restaurant, hotel, shop, or service business.
+
+---
+
+# 3. Sales Module
+
+This should support both **product sales** and **service sales**.
+
+## Sales Types
+
+```text
+Product Sale
+Service Sale
+Mixed Sale
+Credit Sale
+Walk-in Sale
+Customer Sale
+Online Sale
+Delivery Sale
+Wholesale Sale
+Retail Sale
+```
+
+## Sales Entry
+
+Track:
+
+```text
+Date
+Customer
+Sale Type
+Product/Service Sold
+Quantity
+Unit Price
+Discount
+Total Amount
+Amount Paid
+Balance
+Payment Method
+Salesperson
+Receipt Number
+Notes
+```
+
+## Payment Status
+
+```text
+Paid
+Partial
+Unpaid
+Refunded
+Cancelled
+```
+
+This works for:
+
+```text
+Restaurant: food/drinks sold
+Hotel: room booking/payment
+Shop: product sale
+Salon: haircut/service sale
+School: fee payment
+Transport: fare/charter income
+```
+
+---
+
+# 4. Products and Services
+
+Generic Company should allow the owner to sell either physical items or services.
+
+## Products
+
+Track:
+
+```text
+Product Name
+Category
+SKU / Code
+Unit of Measure
+Cost Price
+Selling Price
+Opening Stock
+Current Stock
+Minimum Stock Alert
+Supplier
+IsActive
+```
+
+Examples:
+
+```text
+Rice
+Drinks
+Soap
+Clothes
+Hotel bottled water
+Restaurant food items
+Pharmacy medicine
+Hardware tools
+```
+
+## Services
+
+Track:
+
+```text
+Service Name
+Category
+Default Price
+Estimated Cost
+Duration
+Staff Assigned
+IsActive
+```
+
+Examples:
+
+```text
+Haircut
+Hotel room night
+Laundry service
+Consultation
+Delivery fee
+Repair service
+Event booking
+```
+
+This is important because not every business sells stock-based products.
+
+---
+
+# 5. Inventory Management
+
+The generic inventory module should be flexible enough for shops, restaurants, hotels, and small factories.
+
+## Inventory Features
+
+```text
+Stock In
+Stock Out
+Stock Adjustment
+Damaged Stock
+Returned Stock
+Expired Stock
+Internal Use
+Stock Transfer
+Low Stock Alerts
+```
+
+## Stock Movement
+
+Track:
+
+```text
+Date
+Product
+Movement Type
+Quantity
+Cost Price
+Selling Price
+Reference
+Handled By
+Reason
+Notes
+```
+
+## Inventory Reports
+
+```text
+Current Stock
+Low Stock
+Stock Value
+Fast-moving Items
+Slow-moving Items
+Damaged/Expired Stock
+Stock Adjustment History
+Profit by Product
+```
+
+For restaurants, inventory can track ingredients.
+For shops, it tracks goods.
+For hotels, it tracks supplies.
+For salons, it tracks products used or sold.
+
+---
+
+# 6. Expense Management
+
+This is one of the most important universal modules.
+
+## Expense Categories
+
+Default categories:
+
+```text
+Rent
+Utilities
+Electricity
+Water
+Internet
+Fuel
+Transport
+Repairs and Maintenance
+Salaries and Wages
+Inventory Purchases
+Cleaning Supplies
+Marketing
+Office Supplies
+Security
+Bank Charges
+Mobile Money Charges
+Government Fees
+Loan Repayment
+Miscellaneous
+```
+
+## Expense Entry
+
+Track:
+
+```text
+Date
+Expense Category
+Description
+Amount
+Paid To
+Payment Method
+Cash Account
+Receipt Attachment
+Staff Who Recorded It
+Approved By
+Notes
+```
+
+## Expense Reports
+
+```text
+Expenses by category
+Daily expenses
+Weekly expenses
+Monthly expenses
+Highest expense category
+Expense trend
+Expense vs income
+```
+
+This gives the owner control over spending.
+
+---
+
+# 7. Cash at Hand / Cash Accounts
+
+This should be part of the generic foundation because all small businesses care about cash.
+
+## Cash Accounts
+
+```text
+Main Cash Box
+Petty Cash
+Owner Cash
+Mobile Money Wallet
+Bank Account
+Staff Cash
+Branch Cash
+```
+
+## Cash Transactions
+
+```text
+Cash In
+Cash Out
+Transfer
+Owner Deposit
+Owner Withdrawal
+Sales Collection
+Customer Payment
+Expense Payment
+Supplier Payment
+Adjustment
+```
+
+## Cash Dashboard
+
+```text
+Total Cash at Hand
+Cash in Register
+MoMo Balance
+Bank Balance
+Petty Cash
+Cash with Staff
+Today’s Cash In
+Today’s Cash Out
+Expected Cash vs Actual Cash
+```
+
+This is useful for every company type.
+
+---
+
+# 8. Customers and Credit Sales
+
+Many Ghanaian businesses sell on credit, so this must be strong.
+
+## Customer Profile
+
+```text
+Customer Name
+Customer Type
+Phone Number
+Location
+Credit Limit
+Payment Terms
+Opening Balance
+Assigned Staff
+Notes
+```
+
+## Customer Ledger
+
+Track:
+
+```text
+Date
+Transaction Type
+Invoice/Sale
+Amount Charged
+Amount Paid
+Balance
+Payment Method
+Collected By
+```
+
+## Debt Reports
+
+```text
+Customers owing money
+Overdue balances
+Top debtors
+Customer payment history
+Credit limit exceeded
+Debt aging report
+```
+
+This alone can make the app valuable.
+
+---
+
+# 9. Suppliers and Payables
+
+Businesses also owe suppliers.
+
+## Supplier Profile
+
+```text
+Supplier Name
+Phone Number
+Location
+Items/Services Supplied
+Payment Terms
+Opening Balance
+Notes
+```
+
+## Supplier Ledger
+
+Track:
+
+```text
+Purchase Date
+Item/Service Purchased
+Total Amount
+Amount Paid
+Balance
+Due Date
+Payment Status
+```
+
+## Supplier Reports
+
+```text
+Suppliers we owe
+Upcoming payments
+Supplier purchase history
+Top suppliers
+```
+
+---
+
+# 10. Purchases Module
+
+Purchases should be separated from expenses because inventory purchases affect stock.
+
+## Purchase Entry
+
+Track:
+
+```text
+Date
+Supplier
+Product
+Quantity
+Unit Cost
+Total Cost
+Amount Paid
+Balance
+Payment Method
+Receipt/Invoice
+Received By
+Notes
+```
+
+When purchase is approved:
+
+```text
+Increase inventory
+Create supplier payable if not fully paid
+Create cash/bank/MoMo transaction for amount paid
+```
+
+This works for shops, restaurants, hotels, pharmacies, and almost every product-based business.
+
+---
+
+# 11. Staff Management
+
+Generic staff tracking should support basic operations.
+
+## Staff Profile
+
+```text
+Name
+Role
+Phone Number
+Salary Type
+Base Pay
+Commission Rate
+Branch/Location
+Status
+```
+
+## Staff Roles
+
+```text
+Owner
+Manager
+Cashier
+Salesperson
+Inventory Officer
+Accountant
+Cleaner
+Security
+Driver
+Service Provider
+Viewer
+```
+
+## Attendance
+
+```text
+Date
+Clock In
+Clock Out
+Present/Absent
+Shift
+Notes
+```
+
+## Staff Performance
+
+```text
+Sales handled
+Cash collected
+Expenses recorded
+Inventory adjustments made
+Attendance summary
+Commission earned
+```
+
+---
+
+# 12. Payroll / Wages
+
+For the generic version, payroll does not need to be complex at first.
+
+Track:
+
+```text
+Pay Period
+Staff
+Basic Pay
+Daily Wage
+Commission
+Bonus
+Deductions
+Net Pay
+Payment Method
+Payment Status
+```
+
+Useful for:
+
+```text
+Restaurant workers
+Shop attendants
+Hotel staff
+Drivers
+Cleaners
+Salespeople
+```
+
+---
+
+# 13. Daily Closing
+
+This is one of the most powerful generic features.
+
+Every day, the manager should close the business day.
+
+## Daily Closing Checklist
+
+```text
+1. Confirm total sales
+2. Confirm total expenses
+3. Count cash at hand
+4. Confirm MoMo/bank collections
+5. Confirm customer credit sales
+6. Confirm inventory changes
+7. Record notes
+8. Submit to owner/admin
+9. Owner approves
+```
+
+## Daily Closing Summary
+
+```text
+Opening Cash
+Total Sales
+Total Expenses
+Customer Payments
+Supplier Payments
+Cash In
+Cash Out
+Expected Cash
+Actual Cash
+Difference
+Closing Cash
+Manager Notes
+Status
+```
+
+This is useful for any business with staff handling money.
+
+---
+
+# 14. Profit and Loss Reports
+
+The Generic Company must generate simple financial reports.
+
+## Daily P&L
+
+```text
+Total Income
+Total Expenses
+Gross Profit
+Net Profit
+Cash Collected
+Credit Sales
+Outstanding Debt
+```
+
+## Weekly P&L
+
+```text
+Week Start
+Week End
+Income
+Expenses
+Profit/Loss
+Profit Margin
+Top Income Source
+Top Expense Category
+Cash at Hand
+Customer Debt
+Supplier Debt
+```
+
+## Monthly P&L
+
+```text
+Month
+Total Income
+Total Expenses
+Net Profit
+Average Daily Sales
+Best Sales Day
+Worst Sales Day
+Inventory Purchases
+Payroll
+Customer Debt
+Supplier Debt
+```
+
+## Annual Report
+
+```text
+Total Revenue
+Total Expenses
+Total Profit
+Average Monthly Profit
+Best Month
+Worst Month
+Total Customer Debt
+Total Supplier Debt
+Inventory Value
+```
+
+---
+
+# 15. Business-Specific Templates
+
+This is how Generic Company becomes powerful.
+
+When the user selects a business category, we seed useful defaults.
+
+## Restaurant Template
+
+Seed:
+
+```text
+Sales Categories:
+- Food
+- Drinks
+- Delivery
+- Catering
+
+Expense Categories:
+- Ingredients
+- Gas
+- Charcoal
+- Staff wages
+- Rent
+- Cleaning supplies
+
+Inventory:
+- Rice
+- Oil
+- Meat
+- Fish
+- Drinks
+```
+
+## Hotel Template
+
+Seed:
+
+```text
+Sales Categories:
+- Room Booking
+- Food & Drinks
+- Laundry
+- Event Hall
+- Conference Room
+
+Expense Categories:
+- Housekeeping
+- Electricity
+- Water
+- Staff wages
+- Repairs
+- Security
+
+Inventory:
+- Bedsheets
+- Towels
+- Soap
+- Tissue
+- Drinks
+```
+
+## Retail Shop Template
+
+Seed:
+
+```text
+Sales Categories:
+- Retail Sales
+- Wholesale Sales
+
+Expense Categories:
+- Inventory Purchases
+- Transport
+- Rent
+- Electricity
+- Staff wages
+
+Inventory:
+- Custom products
+```
+
+## Service Business Template
+
+Seed:
+
+```text
+Sales Categories:
+- Service Fees
+- Consultation
+- Subscription
+- Maintenance
+
+Expense Categories:
+- Transport
+- Internet
+- Staff wages
+- Tools
+- Marketing
+```
+
+This way, Generic Company feels customized even though it is universal.
+
+---
+
+# 16. Branch / Location Support
+
+Some businesses may have more than one branch.
+
+Track:
+
+```text
+Branch Name
+Location
+Manager
+Cash Account
+Inventory Location
+Staff Assigned
+```
+
+Allow reports by:
+
+```text
+Company-wide
+Branch-specific
+Staff-specific
+Product-specific
+```
+
+This makes it scalable.
+
+---
+
+# 17. Approvals and Audit Trail
+
+For trust and accountability:
+
+## Approvals Needed For
+
+```text
+Large expenses
+Stock adjustments
+Daily closing
+Cash transfers
+Deleting records
+Credit limit override
+Payroll approval
+Refunds
+```
+
+## Audit Log
+
+Track:
+
+```text
+Who created the record
+Who edited it
+What changed
+When it changed
+Why it changed
+Who approved it
+```
+
+This is important for owner-managed businesses where workers enter data.
+
+---
+
+# 18. Roles and Permissions
+
+Generic Company roles:
+
+```text
+Owner
+Admin
+Manager
+Accountant
+Cashier
+Salesperson
+Inventory Officer
+Staff
+Viewer
+```
+
+Permission examples:
+
+```text
+Owner sees everything
+Manager can manage daily operations
+Accountant can manage finance and reports
+Cashier can record sales and payments
+Inventory Officer can manage stock
+Salesperson can only record their own sales
+Viewer can only view dashboards/reports
+```
+
+---
+
+# 19. Generic Company Sidebar
+
+The sidebar should be clean and universal:
+
+```text
+Dashboard
+
+Sales
+  - New Sale
+  - Sales History
+  - Customer Payments
+  - Credit Sales
+
+Products & Services
+  - Products
+  - Services
+  - Categories
+  - Pricing
+
+Inventory
+  - Current Stock
+  - Stock In
+  - Stock Out
+  - Adjustments
+  - Damages / Losses
+
+Purchases
+  - New Purchase
+  - Purchase History
+  - Supplier Payments
+
+Customers
+  - Customer List
+  - Customer Ledger
+  - Debt Report
+
+Suppliers
+  - Supplier List
+  - Supplier Ledger
+  - Payables
+
+Expenses
+  - Record Expense
+  - Expense History
+  - Expense Categories
+
+Cash & Accounts
+  - Cash at Hand
+  - Cash Movement
+  - Transfers
+  - Cash Reconciliation
+
+Staff
+  - Staff List
+  - Attendance
+  - Payroll
+  - Commissions
+
+Reports
+  - Daily Report
+  - Weekly P&L
+  - Monthly P&L
+  - Annual Report
+  - Sales Report
+  - Expense Report
+  - Inventory Report
+  - Customer Debt Report
+  - Supplier Payables Report
+  - Cash Report
+
+Settings
+```
+
+---
+
+# 20. Database Entities
+
+At a high level:
+
+```text
+Companies
+CompanyTypes
+BusinessCategories
+CompanyUsers
+Roles
+Permissions
+
+Branches
+CashAccounts
+CashTransactions
+CashTransfers
+
+Products
+ProductCategories
+Services
+ServiceCategories
+InventoryItems
+StockMovements
+StockAdjustments
+
+Customers
+CustomerLedger
+CustomerPayments
+
+Suppliers
+SupplierLedger
+SupplierPayments
+Purchases
+PurchaseItems
+
+Sales
+SaleItems
+Payments
+Refunds
+
+Expenses
+ExpenseCategories
+
+Staff
+StaffAttendance
+PayrollRuns
+PayrollItems
+Commissions
+
+DailyClosings
+Reports
+AuditLogs
+Attachments
+```
+
+The key principle:
+
+> Most tables should be generic and reusable. Poultry and Water modules can even reuse some of these generic tables where possible.
+
+For example:
+
+```text
+Sales
+Expenses
+CashAccounts
+CashTransactions
+Customers
+Suppliers
+Staff
+Reports
+AuditLogs
+```
+
+These can serve all company types.
+
+---
+
+# 21. Relationship Between Generic, Poultry, and Water Modules
+
+This is very important.
+
+The best design is not to duplicate everything.
+
+## Shared Core Modules
+
+These should be used by all company types:
+
+```text
+Users
+Companies
+CompanyUsers
+Roles
+Permissions
+Customers
+Suppliers
+Sales
+Expenses
+CashAccounts
+CashTransactions
+Staff
+Reports
+AuditLogs
+Attachments
+```
+
+## Specialized Modules
+
+Poultry-specific:
+
+```text
+Flock Batches
+Flocks/Pens
+Egg Production
+Feed Usage
+Mortality
+Bird Sales
+Poultry Inventory
+```
+
+Water-specific:
+
+```text
+Boreholes
+Water Machines
+Production Batches
+Vehicle Loading
+Driver Returns
+Water Quality
+Route Reconciliation
+```
+
+## Generic-specific
+
+Generic Company uses only the shared core modules plus flexible products/services/inventory.
+
+So the architecture becomes:
+
+```text
+Platform Core
+  ├── Generic Business Modules
+  │     ├── Sales
+  │     ├── Expenses
+  │     ├── Inventory
+  │     ├── Cash
+  │     ├── Customers
+  │     ├── Suppliers
+  │     ├── Staff
+  │     └── Reports
+  │
+  ├── Poultry Extension
+  │     ├── Flocks
+  │     ├── Eggs
+  │     ├── Feed
+  │     └── Mortality
+  │
+  └── Water Extension
+        ├── Borehole
+        ├── Production Machine
+        ├── Sachet Bags
+        ├── Distribution
+        └── Driver Reconciliation
+```
+
+This is clean and scalable.
+
+---
+
+# 22. MVP for Generic Company
+
+Start with:
+
+```text
+Company setup
+Products/services
+Sales
+Expenses
+Cash at hand
+Customers
+Customer debt
+Suppliers
+Inventory
+Daily closing
+Weekly/monthly reports
+Dashboard
+Roles/permissions
+```
+
+Then later add:
+
+```text
+Payroll
+Branches
+Advanced inventory
+Commissions
+Supplier payables
+Approval workflow
+Audit logs
+PDF/Excel exports
+```
+
+But since you said full version, we should design the full structure now, then implement in phases.
+
+---
+
+# 23. Why This Is a Great Idea
+
+This can make the platform much bigger than PoultryMaster.
+
+Instead of only serving poultry farms, the app becomes:
+
+```text
+A Ghana/Africa-focused business operations platform for small and medium businesses.
+```
+
+Poultry and Water become strong vertical templates, but Generic Company lets you serve many more businesses immediately.
+
+The platform can eventually be positioned as:
+
+```text
+One platform to manage your farm, shop, factory, restaurant, hotel, or service business.
+```
+
+That is very powerful because many African business owners own multiple different businesses. One person may have:
+
+```text
+Poultry farm
+Water company
+Provision shop
+Hotel
+Transport business
+Restaurant
+```
+
+With this structure, one owner can manage all of them under one login.
+
+---
+
+# Recommended Company Type Structure
+
+Use:
+
+```text
+CompanyType
+  - Poultry
+  - Water
+  - Generic
+```
+
+And then for Generic:
+
+```text
+BusinessCategory
+  - Restaurant
+  - Hotel
+  - Retail Shop
+  - Supermarket
+  - Boutique
+  - Salon
+  - Pharmacy
+  - Hardware
+  - Transport
+  - School
+  - Services
+  - Manufacturing
+  - Other
+```
+
+That gives you both simplicity and flexibility.
+
+Final answer: **Yes, we can absolutely do this.** In fact, this should become the shared operating system of the app, while Poultry and Water are specialized extensions on top of it.
+
+Data Source=34.39.109.13;Persist Security Info=True;User ID=sqlserver;Password=Techretainer@77;Pooling=False;MultipleActiveResultSets=False;Encrypt=False;TrustServerCertificate=True;Command Timeout=0
