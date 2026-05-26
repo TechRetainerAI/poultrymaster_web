@@ -8,3 +8,10 @@
 **/*.suo
 **/TestResults/
 **/publish/
+
+# Login API Dockerfile only COPYs LoginAPI/ — everything else is dead weight for this build
+PoultryPro/
+PoultryFarmAPI/
+PoultryWeb/
+API/
+Other sql files for Crypto software/

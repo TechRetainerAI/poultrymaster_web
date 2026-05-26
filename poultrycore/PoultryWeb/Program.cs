@@ -85,6 +85,11 @@ builder.Services.AddHttpClient<IReportWebApiService, ReportWebApiService>();
 builder.Services.AddHttpClient<IProductionRecordWebApiService, ProductionRecordWebApiService>();
 builder.Services.AddHttpClient<IEmployeeWebApiService, EmployeeWebApiService>();
 
+// Phase 6a: Generic Company API client (one client for the entire
+// /api/generic-company/{farmId}/... surface).
+builder.Services.AddHttpClient<PoultryWeb.Business.Generic.IGenericApiClient,
+                               PoultryWeb.Business.Generic.GenericApiClient>();
+
 // Add generic HttpClientFactory
 builder.Services.AddHttpClient();
 

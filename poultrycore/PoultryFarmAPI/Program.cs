@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Filters;
+using PoultryFarmAPIWeb.Middleware;
 using QuestPDF.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -108,6 +109,101 @@ builder.Services.AddScoped<IWaterStockService>(sp => new WaterStockService(conne
 builder.Services.AddScoped<IWaterSaleService>(sp => new WaterSaleService(connectionString));
 builder.Services.AddScoped<IWaterPaymentService>(sp => new WaterPaymentService(connectionString));
 builder.Services.AddScoped<IWaterDashboardService>(sp => new WaterDashboardService(connectionString));
+
+// Phase W1: Water Production (Boreholes, Machines, Production Batches, Quality Tests, Daily Pumping Logs)
+builder.Services.AddScoped<IWaterBoreholeService>(sp => new WaterBoreholeService(connectionString));
+builder.Services.AddScoped<IWaterMachineService>(sp => new WaterMachineService(connectionString));
+builder.Services.AddScoped<IWaterProductionBatchService>(sp => new WaterProductionBatchService(connectionString));
+builder.Services.AddScoped<IWaterQualityTestService>(sp => new WaterQualityTestService(connectionString));
+builder.Services.AddScoped<IWaterDailyPumpingLogService>(sp => new WaterDailyPumpingLogService(connectionString));
+
+// Phase W2: Water Distribution (Drivers, Vehicles, Routes, Vehicle Loadings, Driver Returns + reconciliation, Shortages)
+builder.Services.AddScoped<IWaterDriverService>(sp => new WaterDriverService(connectionString));
+builder.Services.AddScoped<IWaterVehicleService>(sp => new WaterVehicleService(connectionString));
+builder.Services.AddScoped<IWaterRouteService>(sp => new WaterRouteService(connectionString));
+builder.Services.AddScoped<IWaterVehicleLoadingService>(sp => new WaterVehicleLoadingService(connectionString));
+builder.Services.AddScoped<IWaterDriverReturnService>(sp => new WaterDriverReturnService(connectionString));
+builder.Services.AddScoped<IWaterDriverShortageService>(sp => new WaterDriverShortageService(connectionString));
+
+// Phase W3: Water Raw Materials + Daily Closing + Loss Records + Reports
+builder.Services.AddScoped<IWaterRawMaterialItemService>(sp => new WaterRawMaterialItemService(connectionString));
+builder.Services.AddScoped<IWaterRawMaterialPurchaseService>(sp => new WaterRawMaterialPurchaseService(connectionString));
+builder.Services.AddScoped<IWaterRawMaterialUsageService>(sp => new WaterRawMaterialUsageService(connectionString));
+builder.Services.AddScoped<IWaterLossRecordService>(sp => new WaterLossRecordService(connectionString));
+builder.Services.AddScoped<IWaterDailyClosingService>(sp => new WaterDailyClosingService(connectionString));
+builder.Services.AddScoped<IWaterReportService>(sp => new WaterReportService(connectionString));
+
+// Phase W4: Finance — expense categories + expenses (approval workflow + cash
+// side-effects), multi-account cash accounts + ledger, cash transfers (paired
+// TransferOut/TransferIn), customer ledger. Schema: migration 047. SPs: 048.
+builder.Services.AddScoped<IWaterExpenseCategoryService>(sp => new WaterExpenseCategoryService(connectionString));
+builder.Services.AddScoped<IWaterExpenseService>(sp => new WaterExpenseService(connectionString));
+builder.Services.AddScoped<IWaterCashAccountService>(sp => new WaterCashAccountService(connectionString));
+builder.Services.AddScoped<IWaterCashTransferService>(sp => new WaterCashTransferService(connectionString));
+builder.Services.AddScoped<IWaterCustomerLedgerService>(sp => new WaterCustomerLedgerService(connectionString));
+
+// Phase W5: Water Company profile (setup metadata: brand, business type,
+// water source, default currency/bag-sachet count, owner contact). Setup SP
+// is idempotent and also runs the finance defaults seed. Migration 049.
+builder.Services.AddScoped<IWaterCompanyService>(sp => new WaterCompanyService(connectionString));
+
+// Phase W6: Staff + Attendance + Payroll. Payroll items use a computed NetPay
+// column; spWaterPayrollItem_Upsert rolls run totals atomically. Mark-paid
+// writes one CashOut for the run total against the run's WaterCashAccountId.
+// Migrations 050 (schema) + 051 (SPs).
+builder.Services.AddScoped<IWaterStaffService>(sp => new WaterStaffService(connectionString));
+builder.Services.AddScoped<IWaterStaffAttendanceService>(sp => new WaterStaffAttendanceService(connectionString));
+builder.Services.AddScoped<IWaterPayrollService>(sp => new WaterPayrollService(connectionString));
+
+// Phase W7: Maintenance logs for machines/vehicles/boreholes/generators.
+// Complete-SP can also book a CashOut for repair cost against a cash account
+// (idempotent — CashTransactionWritten guards double-booking). Migration 052.
+builder.Services.AddScoped<IWaterMaintenanceLogService>(sp => new WaterMaintenanceLogService(connectionString));
+// =================================================================
+
+// =================================================================
+// Generic Company module (multi-company support: shops, restaurants,
+// hotels, salons, pharmacies, etc.). Foundation only in Phase 1:
+// profile, business categories, expense categories, cash accounts,
+// customer/supplier type and payment-method seeds.
+// =================================================================
+builder.Services.AddScoped<IGenericCompanyService>(sp => new GenericCompanyService(connectionString));
+
+// Phase 2: Products + Services + Inventory (stock movements, stock adjustments
+// with Draft → Submitted → Approved/Rejected workflow).
+builder.Services.AddScoped<IGenericProductService>(sp => new GenericProductService(connectionString));
+builder.Services.AddScoped<IGenericServiceCatalogService>(sp => new GenericServiceCatalogService(connectionString));
+builder.Services.AddScoped<IGenericInventoryService>(sp => new GenericInventoryService(connectionString));
+
+// Phase 3: Customers + Sales + Customer Payments + Cash Transactions.
+// Sale_Approve is the meaty one: writes stock movement SaleOut per product,
+// CashTransaction CashIn for AmountPaid, CustomerLedger SaleDebit + balance
+// update if Balance > 0 — all in one transaction.
+builder.Services.AddScoped<IGenericCustomerService>(sp => new GenericCustomerService(connectionString));
+builder.Services.AddScoped<IGenericSaleService>(sp => new GenericSaleService(connectionString));
+builder.Services.AddScoped<IGenericCashTransactionService>(sp => new GenericCashTransactionService(connectionString));
+
+// Phase 4: Suppliers + Purchases + Expenses + Cash Transfers (the money-out
+// side). Purchase_Approve mirrors Sale_Approve; Expense_Approve branches on
+// PaymentMethod (Credit → supplier ledger vs cash account → CashOut);
+// CashTransfer_Approve writes a paired TransferOut/TransferIn.
+builder.Services.AddScoped<IGenericSupplierService>(sp => new GenericSupplierService(connectionString));
+builder.Services.AddScoped<IGenericPurchaseService>(sp => new GenericPurchaseService(connectionString));
+builder.Services.AddScoped<IGenericExpenseRecordService>(sp => new GenericExpenseRecordService(connectionString));
+builder.Services.AddScoped<IGenericCashTransferService>(sp => new GenericCashTransferService(connectionString));
+
+// Phase 5: Daily Closing + Reports + Dashboard. The Submit SP auto-aggregates
+// from the immutable tables, so the closing is a snapshot, not re-entered data.
+builder.Services.AddScoped<IGenericDailyClosingService>(sp => new GenericDailyClosingService(connectionString));
+builder.Services.AddScoped<IGenericReportService>(sp => new GenericReportService(connectionString));
+
+// Phase 6: Staff + Attendance + Payroll (spec §13, §14). Payroll items use a
+// computed NetPay column; spGenericPayrollItem_Upsert rolls run totals
+// atomically. MarkPaid writes one CashOut for the run total against the run's
+// GenericCashAccountId. Migrations 055 (schema) + 056 (SPs).
+builder.Services.AddScoped<IGenericStaffService>(sp => new GenericStaffService(connectionString));
+builder.Services.AddScoped<IGenericStaffAttendanceService>(sp => new GenericStaffAttendanceService(connectionString));
+builder.Services.AddScoped<IGenericPayrollService>(sp => new GenericPayrollService(connectionString));
 // =================================================================
 
 // =================================================================
@@ -128,6 +224,61 @@ builder.Services.AddControllers(options =>
 });
 builder.Services.AddScoped<AuditLogActionFilter>();
 builder.Services.AddSignalR();
+
+// 2b) Friendly auto-validation messages for Water + Generic routes only.
+//     ASP.NET's default `[ApiController]` model-binding error for a missing
+//     [FromQuery] farmId is "The farmId field is required." — leaks the param
+//     name (which says "farm") to end users on Water and Generic Company
+//     pages where the app's noun is "company", not "farm".
+//
+//     This factory only rewrites for /api/Water/* and /api/generic-company/*
+//     paths so that poultry endpoints — which legitimately deal with farms —
+//     keep the original wording. Pure string rewrite on the error MESSAGE
+//     (not the key) so frontend code that inspects `errors.farmId` keeps
+//     working.
+builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(options =>
+{
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        var path = context.HttpContext.Request.Path.Value ?? string.Empty;
+        var rewrite = path.StartsWith("/api/Water/",          StringComparison.OrdinalIgnoreCase)
+                   || path.StartsWith("/api/generic-company", StringComparison.OrdinalIgnoreCase);
+
+        var errors = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+        foreach (var kvp in context.ModelState)
+        {
+            var modelErrors = kvp.Value?.Errors;
+            if (modelErrors is null || modelErrors.Count == 0) continue;
+
+            var messages = new string[modelErrors.Count];
+            for (int i = 0; i < modelErrors.Count; i++)
+            {
+                var msg = modelErrors[i].ErrorMessage;
+                if (rewrite && !string.IsNullOrEmpty(msg))
+                {
+                    // "The farmId field is required." → "The Company ID field is required."
+                    msg = msg.Replace("farmId", "Company ID", StringComparison.Ordinal)
+                             .Replace("FarmId", "Company ID", StringComparison.Ordinal);
+                }
+                messages[i] = msg ?? string.Empty;
+            }
+            errors[kvp.Key] = messages;
+        }
+
+        var problem = new Microsoft.AspNetCore.Mvc.ValidationProblemDetails(errors)
+        {
+            Type     = "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+            Title    = "One or more validation errors occurred.",
+            Status   = StatusCodes.Status400BadRequest,
+            Instance = context.HttpContext.Request.Path,
+        };
+        return new Microsoft.AspNetCore.Mvc.BadRequestObjectResult(problem)
+        {
+            ContentTypes = { "application/problem+json" }
+        };
+    };
+});
+
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -243,6 +394,11 @@ var app = builder.Build();
 
 // Configure the HTTP request pipeline.
 app.UseForwardedHeaders();
+
+// Catch unhandled exceptions FIRST so SqlException -> JSON body with the actual
+// SQL error number/message instead of an HTML 500. Must come before any other
+// middleware that could throw (auth, routing, controllers).
+app.UseMiddleware<GlobalExceptionMiddleware>();
 
 // Swagger was previously Development-only, which breaks /swagger on Cloud Run (Production).
 var enableSwagger = app.Environment.IsDevelopment()

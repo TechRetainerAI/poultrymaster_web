@@ -25,5 +25,9 @@ namespace User.Management.Service.Models.Authentication.SignUp
 
         public List<string>? Roles { get; set; } = new List<string>();
         public string PhoneNumber { get; set; }
+
+        // Optional on the wire for backwards-compat with older frontends; defaults to "Poultry"
+        // in CreateUserWithTokenAsync. The new frontend forces an explicit choice up-front.
+        public string? CompanyType { get; set; }
     }
 }

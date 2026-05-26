@@ -126,11 +126,13 @@ namespace User.Management.Service.Services
                 {
 
                     // 2. Create the farm and get farmId
+                    // CompanyType is required by the model; "Poultry" stays as a defensive fallback
+                    // for any legacy script that bypasses model validation.
                     Farm farm = new Farm
                     {
                         FarmId = farmId,
                         Name = registerUser.FarmName,
-                        Type = "Poultry",
+                        Type = string.IsNullOrWhiteSpace(registerUser.CompanyType) ? "Poultry" : registerUser.CompanyType,
                         Email = registerUser.Email,
                         PhoneNumber = registerUser.PhoneNumber
                     };

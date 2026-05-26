@@ -118,6 +118,12 @@ namespace User.Management.Data
 
         public async Task<bool> CreateFarmAsync(Farm farm)
         {
+            // sp_CreateFarm (migration 053) returns the inserted row; treat
+            // "no row returned" as failure so the caller's compensating
+            // DeleteAsync runs and we never leak an AspNetUsers row whose
+            // FarmId points at a Farms row that doesn't actually exist.
+            // The original "return true if no exception" silently produced
+            // 29 orphan users between this SP being deployed and 053.
             try
             {
                 using (SqlConnection connection = new SqlConnection(_connectionString))
@@ -133,13 +139,29 @@ namespace User.Management.Data
                     cmd.Parameters.AddWithValue("@PhoneNumber", (object)farm.PhoneNumber ?? DBNull.Value);
 
                     await connection.OpenAsync();
-                    await cmd.ExecuteNonQueryAsync();
-                    return true; // 👍 Assume success if no exception thrown
+                    using (var reader = await cmd.ExecuteReaderAsync())
+                    {
+                        var inserted = await reader.ReadAsync();
+                        if (!inserted)
+                        {
+                            Console.WriteLine($"[CreateFarmAsync] sp_CreateFarm returned no row for FarmId={farm.FarmId}, Name={farm.Name}");
+                            return false;
+                        }
+                    }
+                    return true;
                 }
+            }
+            catch (SqlException sqlEx)
+            {
+                // Surface the SQL error number + message so Cloud Run logs
+                // show "Cannot insert NULL into column 'Email'" instead of a
+                // generic 500.
+                Console.WriteLine($"[CreateFarmAsync] SqlException {sqlEx.Number}/{sqlEx.State}: {sqlEx.Message}");
+                return false;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error in CreateFarmAsync: {ex.Message}");
+                Console.WriteLine($"[CreateFarmAsync] {ex.GetType().Name}: {ex.Message}");
                 return false;
             }
         }
