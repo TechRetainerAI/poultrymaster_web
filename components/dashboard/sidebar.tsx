@@ -39,6 +39,14 @@ import {
   Truck,
   Droplets,
   ShoppingBag,
+  Receipt,
+  Users2,
+  Banknote,
+  Wrench,
+  Factory,
+  Cog,
+  Box,
+  Route as RouteIcon,
 } from "lucide-react"
 import { InventoryLogo } from "@/components/auth/logo"
 import { useAlertsStore, type AlertItem } from "@/lib/store/alerts-store"
@@ -61,6 +69,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const openAlerts = useAlertsStore((s: { alerts: AlertItem[]; open: () => void }) => s.open)
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const isWater = activeFarmType === "Water"
+  const isGeneric = activeFarmType === "Generic"
   const { isCollapsed, toggle, isMobileOpen, toggleMobile, setMobileOpen, setCollapsed } = useSidebarStore()
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     farm: true,
@@ -167,6 +176,76 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/water-customers", label: "Customers", icon: Users },
     { href: "/water-sales",     label: "Sales",     icon: ShoppingCart },
     { href: "/water-payments",  label: "Payments",  icon: CreditCard },
+  ]
+  // Water — Production (W1)
+  const waterProductionItems = [
+    { href: "/water-production-batches", label: "Production batches", icon: Factory },
+    { href: "/water-machines",           label: "Machines",            icon: Cog },
+    { href: "/water-boreholes",          label: "Boreholes",           icon: Droplets },
+  ]
+  // Water — Distribution (W2)
+  const waterDistributionItems = [
+    { href: "/water-drivers",        label: "Drivers",        icon: Users2 },
+    { href: "/water-driver-returns", label: "Driver returns", icon: Truck },
+    { href: "/water-vehicles",       label: "Vehicles",       icon: Truck },
+    { href: "/water-routes",         label: "Routes",         icon: RouteIcon },
+  ]
+  // Water — Inventory (W3 raw materials + loss tracking)
+  const waterInventoryItems = [
+    { href: "/water-raw-materials", label: "Raw materials", icon: Box },
+    { href: "/water-loss-records",  label: "Damages & loss", icon: AlertTriangle },
+  ]
+  // Water — Reports (W3)
+  const waterReportsItems = [
+    { href: "/water-reports", label: "Reports", icon: BarChart3 },
+  ]
+  // Water — Money (W4 finance + W3 daily closing)
+  const waterMoneyItems = [
+    { href: "/water-expenses",      label: "Expenses",       icon: Receipt },
+    { href: "/water-cash-accounts", label: "Cash & Accounts", icon: Wallet },
+    { href: "/water-daily-closing", label: "Daily Closing",   icon: FileText },
+  ]
+  // Water — People (W6)
+  const waterPeopleItems = [
+    { href: "/water-staff",   label: "Staff",   icon: Users2 },
+    { href: "/water-payroll", label: "Payroll", icon: Banknote },
+  ]
+  // Water — Admin (W7 maintenance + W5 setup)
+  const waterAdminItems = [
+    { href: "/water-maintenance",   label: "Maintenance", icon: Wrench },
+    { href: "/water-company-setup", label: "Setup",       icon: Settings },
+  ]
+
+  // Generic Company nav items (shown when activeFarmType === "Generic")
+  const genericCatalogItems = [
+    { href: "/generic-products",          label: "Products",          icon: ShoppingBag },
+    { href: "/generic-stock-adjustments", label: "Stock adjustments", icon: Boxes },
+  ]
+  const genericSalesItems = [
+    { href: "/generic-sales",              label: "Sales",             icon: ShoppingCart },
+    { href: "/generic-customers",          label: "Customers",         icon: Users },
+    { href: "/generic-customer-payments",  label: "Customer payments", icon: CreditCard },
+  ]
+  const genericPurchasingItems = [
+    { href: "/generic-suppliers",          label: "Suppliers",         icon: Truck },
+    { href: "/generic-purchases",          label: "Purchases",         icon: Package },
+    { href: "/generic-supplier-payments",  label: "Supplier payments", icon: CreditCard },
+    { href: "/generic-expenses",           label: "Expenses",          icon: DollarSign },
+  ]
+  const genericMoneyItems = [
+    { href: "/generic-cash",           label: "Cash & Accounts", icon: Wallet },
+    { href: "/generic-cash-transfers", label: "Cash transfers",  icon: Activity },
+    { href: "/generic-daily-closings", label: "Daily Closing",   icon: FileText },
+  ]
+  // Generic — People (Phase 6: staff + attendance + payroll, migrations 055/056)
+  const genericPeopleItems = [
+    { href: "/generic-staff",       label: "Staff",      icon: Users2 },
+    { href: "/generic-attendance",  label: "Attendance", icon: Activity },
+    { href: "/generic-payroll",     label: "Payroll",    icon: Banknote },
+  ]
+  const genericAdminItems = [
+    { href: "/generic-reports", label: "Reports", icon: BarChart3 },
+    { href: "/generic-setup",   label: "Setup",   icon: Settings },
   ]
 
   // Single items (no group)
@@ -332,9 +411,9 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         {/* Dashboard — route depends on active company type */}
         <div>
           {renderNavItem({
-            href: isWater ? "/water-dashboard" : "/dashboard",
+            href: isWater ? "/water-dashboard" : isGeneric ? "/generic-dashboard" : "/dashboard",
             label: "Dashboard",
-            icon: isWater ? Droplets : Home,
+            icon: isWater ? Droplets : isGeneric ? ShoppingBag : Home,
           })}
         </div>
 
@@ -348,8 +427,73 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
             <div className="border-t border-slate-800 mx-2" />
 
+            {/* Water — Production (W1) */}
+            {renderGroup("Production", waterProductionItems, "waterProduction")}
+
+            <div className="border-t border-slate-800 mx-2" />
+
+            {/* Water — Distribution (W2) */}
+            {renderGroup("Distribution", waterDistributionItems, "waterDistribution")}
+
+            <div className="border-t border-slate-800 mx-2" />
+
             {/* Water — Sales */}
             {renderGroup("Sales", waterSalesItems, "waterSales")}
+
+            <div className="border-t border-slate-800 mx-2" />
+
+            {/* Water — Inventory (raw materials + loss) */}
+            {renderGroup("Inventory", waterInventoryItems, "waterInventory")}
+
+            <div className="border-t border-slate-800 mx-2" />
+
+            {/* Water — Money (W4 finance + W3 daily closing) */}
+            {renderGroup("Money", waterMoneyItems, "waterMoney")}
+
+            <div className="border-t border-slate-800 mx-2" />
+
+            {/* Water — People (W6 staff + payroll) */}
+            {renderGroup("People", waterPeopleItems, "waterPeople")}
+
+            <div className="border-t border-slate-800 mx-2" />
+
+            {/* Water — Reports */}
+            {renderGroup("Reports", waterReportsItems, "waterReports")}
+
+            <div className="border-t border-slate-800 mx-2" />
+
+            {/* Water — Admin (W7 maintenance + W5 setup) */}
+            {renderGroup("Admin", waterAdminItems, "waterAdmin")}
+          </>
+        ) : isGeneric ? (
+          <>
+            {/* Generic Company — Catalog */}
+            {renderGroup("Catalog", genericCatalogItems, "genericCatalog")}
+
+            <div className="border-t border-slate-800 mx-2" />
+
+            {/* Generic Company — Sales */}
+            {renderGroup("Sales", genericSalesItems, "genericSales")}
+
+            <div className="border-t border-slate-800 mx-2" />
+
+            {/* Generic Company — Purchasing */}
+            {renderGroup("Purchasing", genericPurchasingItems, "genericPurchasing")}
+
+            <div className="border-t border-slate-800 mx-2" />
+
+            {/* Generic Company — Money */}
+            {renderGroup("Money", genericMoneyItems, "genericMoney")}
+
+            <div className="border-t border-slate-800 mx-2" />
+
+            {/* Generic Company — People (Phase 6) */}
+            {renderGroup("People", genericPeopleItems, "genericPeople")}
+
+            <div className="border-t border-slate-800 mx-2" />
+
+            {/* Generic Company — Admin */}
+            {renderGroup("Admin", genericAdminItems, "genericAdmin")}
           </>
         ) : (
           <>
@@ -399,7 +543,8 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         <div className="space-y-0.5">
           {permissions.featureAccess.canViewReports && renderNavItem({ href: "/reports", label: "Reports", icon: BarChart3 })}
           {renderNavItem({ href: "/profile", label: "Account", icon: User })}
-          {renderNavItem({ href: "/resources", label: "Resources", icon: BookOpen })}
+          {/* Resources page is poultry-only (vaccination/feed/medication schedules for chickens). */}
+          {!isWater && !isGeneric && renderNavItem({ href: "/resources", label: "Resources", icon: BookOpen })}
           {renderNavItem(
             { href: "#", label: "Alerts", icon: Bell },
             true,
@@ -408,8 +553,11 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
           )}
           {renderNavItem({ href: "/companies", label: "Companies", icon: Building2 })}
           {permissions.featureAccess.canViewActivityLog && renderNavItem({ href: "/audit-logs", label: "Activity Log", icon: Activity })}
-          {permissions.featureAccess.canViewSettings && renderNavItem({ href: "/settings", label: "Settings", icon: Settings })}
-          {renderNavItem({ href: "/help", label: "Help Center", icon: HelpCircle })}
+          {/* /settings is the poultry farm-profile page. Water and Generic have their own
+              dedicated setup links inside their respective sidebar groups above. */}
+          {!isWater && !isGeneric && permissions.featureAccess.canViewSettings && renderNavItem({ href: "/settings", label: "Settings", icon: Settings })}
+          {/* /help is poultry-specific (flocks, eggs, vaccinations). */}
+          {!isWater && !isGeneric && renderNavItem({ href: "/help", label: "Help Center", icon: HelpCircle })}
           {renderNavItem({ href: "/terms", label: "Terms & Conditions", icon: ListTodo })}
         </div>
       </nav>

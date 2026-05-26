@@ -54,6 +54,7 @@ export interface RegisterData {
   lastName: string
   roles: string[]
   phoneNumber: string
+  companyType: "Poultry" | "Water"
 }
 
 export interface LoginData {

@@ -7,6 +7,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useChatStore } from "@/lib/store/chat-store"
 import { useSidebarStore } from "@/lib/store/sidebar-store"
+import { useAuthStore } from "@/lib/store/auth-store"
 import { TopNavigation } from "./top-nav"
 import { MobileBottomNav } from "./mobile-bottom-nav"
 import { InventoryLogo } from "@/components/auth/logo"
@@ -17,20 +18,25 @@ export function DashboardHeader() {
   const unread = useChatStore((s) => s.unreadCount)
   const openChat = useChatStore((s) => s.openChat)
   const { isCollapsed, isMobileOpen, toggleMobile } = useSidebarStore()
+  const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const [username, setUsername] = useState("")
   const [roleLabel, setRoleLabel] = useState("")
-  const [farmName, setFarmName] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
 
   useEffect(() => {
     if (typeof window === 'undefined') return
     const u = localStorage.getItem('username') || localStorage.getItem('userName') || ""
-    const f = localStorage.getItem('farmName') || localStorage.getItem('FarmName') || ""
     const isStaff = localStorage.getItem('isStaff') === 'true'
     setUsername(u)
-    setFarmName(f)
     setRoleLabel(isStaff ? 'Staff' : 'Admin')
   }, [])
+
+  // Search placeholder adapts to active company type. Poultry-only terms
+  // ("flocks") shouldn't show on Water or Generic companies.
+  const searchPlaceholder =
+    activeFarmType === "Water"   ? "Search customers, sales, drivers…" :
+    activeFarmType === "Generic" ? "Search customers, products, sales…" :
+    "Search customers, flocks, sales…"
 
   // Define all available pages for navigation
   const pageRoutes = [
@@ -172,7 +178,7 @@ export function DashboardHeader() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
               <Input
                 type="text"
-                placeholder="Search customers, flocks, sales..."
+                placeholder={searchPlaceholder}
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 onKeyDown={(e) => {

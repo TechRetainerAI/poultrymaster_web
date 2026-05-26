@@ -1,6 +1,6 @@
 import { getFlocks, type Flock } from "@/lib/api/flock"
 import { getUserContext } from "@/lib/utils/user-context"
-import { flockCountsTowardBirdTotals } from "@/lib/utils/flock-eligibility"
+import { flockCountsTowardBirdTotals, getFlockLifecycleStatus } from "@/lib/utils/flock-eligibility"
 
 // Cache for flocks to avoid repeated API calls
 let flocksCache: Flock[] | null = null
@@ -47,15 +47,63 @@ export function clearFlocksCache() {
   console.log("[v0] Cleared flocks cache")
 }
 
+function flockSelectLabel(flock: Flock): string {
+  const status = getFlockLifecycleStatus(flock)
+  const statusNote =
+    status === "pending" ? " · Pending arrival" : status === "inactive" ? " · Inactive" : ""
+  return `${flock.name} (${flock.breed}) - ${flock.quantity} birds${statusNote}`
+}
+
+/** Flocks eligible for production / feed (arrived + active). */
 export function getFlocksForSelect(): { value: string; label: string }[] {
-  if (!flocksCache) {
-    return []
-  }
-  
+  if (!flocksCache) return []
+
   return flocksCache
     .filter((flock) => flockCountsTowardBirdTotals(flock))
-    .map(flock => ({
+    .map((flock) => ({
       value: flock.flockId.toString(),
-      label: `${flock.name} (${flock.breed}) - ${flock.quantity} birds`
+      label: flockSelectLabel(flock),
     }))
+}
+
+/** All flocks on the farm — for expenses (includes pending / inactive). */
+export function getFlocksForExpenseSelect(): { value: string; label: string }[] {
+  if (!flocksCache) return []
+
+  return flocksCache.map((flock) => ({
+    value: flock.flockId.toString(),
+    label: flockSelectLabel(flock),
+  }))
+}
+
+/** Flocks that have physically arrived — for production logging. */
+export function getFlocksForProductionSelect(): { value: string; label: string }[] {
+  if (!flocksCache) return []
+
+  return flocksCache
+    .filter((flock) => flock.hasArrived)
+    .map((flock) => ({
+      value: flock.flockId.toString(),
+      label: flockSelectLabel(flock),
+    }))
+}
+
+export function getFlockSelectEmptyHint(
+  mode: "expense" | "production" | "eligible"
+): string {
+  const total = flocksCache?.length ?? 0
+  if (total === 0) {
+    return "No flocks in the database for this farm. Add a flock on the Flocks page first."
+  }
+  if (mode === "expense") {
+    return "Flocks could not be loaded. Check your connection and try again."
+  }
+  const eligible =
+    mode === "production"
+      ? flocksCache!.filter((f) => f.hasArrived).length
+      : flocksCache!.filter((f) => flockCountsTowardBirdTotals(f)).length
+  if (eligible === 0) {
+    return `You have ${total} flock(s), but none are ready for ${mode === "production" ? "production" : "this form"} yet. On the Flocks page, turn on “Flock Has Arrived” (and keep the flock Active).`
+  }
+  return "No flocks available"
 }

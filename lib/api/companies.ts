@@ -1,6 +1,6 @@
 import { getAuthHeaders, loginApiUrl } from "./config"
 
-export type CompanyType = "Poultry" | "Water" | string
+export type CompanyType = "Poultry" | "Water" | "Generic" | string
 
 export interface Company {
   farmId: string

@@ -186,16 +186,39 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
     label: "More",
     items: [
       { href: "/profile", label: "Account", icon: User },
-      { href: "/resources", label: "Resources", icon: BookOpen },
+      // /resources and /settings are poultry-only — Water has /water-company-setup
       ...(permissions.featureAccess.canViewActivityLog
         ? [{ href: "/audit-logs", label: "Activity Log", icon: Activity }]
-        : []),
-      ...(permissions.featureAccess.canViewSettings
-        ? [{ href: "/settings", label: "Settings", icon: Settings }]
         : []),
       ...(permissions.isAdmin || permissions.featureAccess.canSeeEmployees
         ? [{ href: "/employees", label: "Employees", icon: UserCog }]
         : []),
+    ],
+  }
+
+  // Operations dropdown houses the daily/weekly workflow pages: production,
+  // distribution, daily closing, expenses, staff, payroll, maintenance, setup.
+  // Without this they'd be invisible on desktop top-nav, only reachable via
+  // the sidebar.
+  const opsGroup: NavGroup = {
+    label: "Operations",
+    items: [
+      { href: "/water-production-batches", label: "Production batches", icon: Boxes },
+      { href: "/water-machines",           label: "Machines",           icon: Settings },
+      { href: "/water-boreholes",          label: "Boreholes",          icon: Droplets },
+      { href: "/water-vehicles",           label: "Vehicles",           icon: Truck },
+      { href: "/water-routes",             label: "Routes",             icon: Activity },
+      { href: "/water-driver-returns",     label: "Driver returns",     icon: Truck },
+      { href: "/water-raw-materials",      label: "Raw materials",      icon: Boxes },
+      { href: "/water-loss-records",       label: "Damages & loss",     icon: AlertTriangle },
+      { href: "/water-daily-closing",      label: "Daily Closing",      icon: FileText },
+      { href: "/water-reports",            label: "Reports",            icon: BarChart3 },
+      { href: "/water-expenses",           label: "Expenses",           icon: DollarSign },
+      { href: "/water-cash-accounts",      label: "Cash & Accounts",    icon: Wallet },
+      { href: "/water-staff",              label: "Staff",              icon: Users },
+      { href: "/water-payroll",            label: "Payroll",            icon: CreditCard },
+      { href: "/water-maintenance",        label: "Maintenance",        icon: Settings },
+      { href: "/water-company-setup",      label: "Setup",              icon: Settings },
     ],
   }
 
@@ -209,10 +232,59 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
         <NavLink item={{ href: "/water-customers", label: "Customers", icon: Users }} />
         <NavLink item={{ href: "/water-sales", label: "Sales", icon: ShoppingCart }} />
         <NavLink item={{ href: "/water-payments", label: "Payments", icon: CreditCard }} />
+        <NavDropdown group={opsGroup} />
         <NavDropdown group={moreGroup} />
         <div className="ml-auto flex items-center gap-1">
           <NavLink item={{ href: "/companies", label: "Companies", icon: Building2 }} />
-          <NavLink item={{ href: "/help", label: "Help Center", icon: BookOpen }} />
+          {/* /help is poultry-specific */}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Generic Company top-nav: same compact pattern as WaterTopNav, but with the
+// emerald color to make the company-type switch visually obvious. Mirrors the
+// Generic sidebar groups (Catalog / Sales / Purchasing / Money / Admin); less
+// important items live in a More dropdown so the rail stays one line wide.
+function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePermissions> }) {
+  const moreGroup: NavGroup = {
+    label: "More",
+    items: [
+      { href: "/generic-customer-payments",  label: "Customer payments",  icon: CreditCard },
+      { href: "/generic-supplier-payments",  label: "Supplier payments",  icon: CreditCard },
+      { href: "/generic-cash",               label: "Cash & Accounts",    icon: Wallet },
+      { href: "/generic-cash-transfers",     label: "Cash transfers",     icon: Activity },
+      { href: "/generic-daily-closings",     label: "Daily Closing",      icon: FileText },
+      { href: "/generic-reports",            label: "Reports",            icon: BarChart3 },
+      { href: "/generic-setup",              label: "Setup",              icon: Settings },
+      { href: "/profile",                    label: "Account",            icon: User },
+      // /resources and /settings are poultry-only — Generic has /generic-setup
+      ...(permissions.featureAccess.canViewActivityLog
+        ? [{ href: "/audit-logs", label: "Activity Log", icon: Activity }]
+        : []),
+      ...(permissions.isAdmin || permissions.featureAccess.canSeeEmployees
+        ? [{ href: "/employees", label: "Employees", icon: UserCog }]
+        : []),
+    ],
+  }
+
+  return (
+    <div className="hidden lg:block bg-emerald-600 border-b border-emerald-700">
+      <div className="flex items-center gap-1 px-4 py-1.5 nav-rail-scroll">
+        <NavLink item={{ href: "/generic-dashboard",          label: "Dashboard",         icon: Home }} />
+        <div className="h-5 w-px bg-white/30 mx-1" />
+        <NavLink item={{ href: "/generic-products",           label: "Products",          icon: ShoppingBag }} />
+        <NavLink item={{ href: "/generic-stock-adjustments",  label: "Stock adjustments", icon: Boxes }} />
+        <NavLink item={{ href: "/generic-sales",              label: "Sales",             icon: ShoppingCart }} />
+        <NavLink item={{ href: "/generic-customers",          label: "Customers",         icon: Users }} />
+        <NavLink item={{ href: "/generic-suppliers",          label: "Suppliers",         icon: Truck }} />
+        <NavLink item={{ href: "/generic-purchases",          label: "Purchases",         icon: Package }} />
+        <NavLink item={{ href: "/generic-expenses",           label: "Expenses",          icon: DollarSign }} />
+        <NavDropdown group={moreGroup} />
+        <div className="ml-auto flex items-center gap-1">
+          <NavLink item={{ href: "/companies", label: "Companies", icon: Building2 }} />
+          {/* /help is poultry-specific */}
         </div>
       </div>
     </div>
@@ -225,9 +297,14 @@ export function TopNavigation() {
   const permissions = usePermissions()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
 
-  // Water companies get their own nav rail.
+  // Water and Generic companies each get their own nav rail — falling through
+  // to the Poultry layout below would show "Flocks / Houses / Egg sorting" on
+  // a Generic company sidebar, which is what the user is hitting right now.
   if (activeFarmType === "Water") {
     return <WaterTopNav permissions={permissions} />
+  }
+  if (activeFarmType === "Generic") {
+    return <GenericTopNav permissions={permissions} />
   }
 
   const farmGroup: NavGroup = {

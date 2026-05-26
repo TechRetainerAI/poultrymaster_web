@@ -7,8 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { getFlocks } from "@/lib/api/flock"
 import { getUserContext } from "@/lib/utils/user-context"
+import { getValidFlocks, getFlocksForProductionSelect, getFlockSelectEmptyHint } from "@/lib/utils/flock-utils"
 import { createProductionRecord, updateProductionRecord, deleteProductionRecord, getProductionRecords, type ProductionRecordInput, type ProductionRecord } from "@/lib/api/production-record"
 import { createFeedUsage, updateFeedUsage, getFeedUsages, type FeedUsageInput } from "@/lib/api/feed-usage"
 import { usePermissions } from "@/hooks/use-permissions"
@@ -46,7 +46,8 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
   const [deleting, setDeleting] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [error, setError] = useState("")
-  const [flocks, setFlocks] = useState<any[]>([])
+  const [flocksForSelect, setFlocksForSelect] = useState<{ value: string; label: string }[]>([])
+  const [allFlocks, setAllFlocks] = useState<any[]>([])
   const [flocksError, setFlocksError] = useState("")
   const { isAdmin } = usePermissions()
 
@@ -119,7 +120,10 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
   const totalPieces = total % EGGS_PER_CRATE
   // Birds left must always equal numBirds - mortality to keep data consistent
   const birdsLeft = (parseInt(form.numBirds) || 0) - (parseInt(form.mortality) || 0)
-  const selectedFlock = useMemo(() => flocks.find((f) => String(f.flockId) === form.flockId), [flocks, form.flockId])
+  const selectedFlock = useMemo(
+    () => allFlocks.find((f) => String(f.flockId) === form.flockId),
+    [allFlocks, form.flockId]
+  )
   const { ageWeeks, ageDays, ageYears } = useMemo(() => {
     try {
       if (!selectedFlock?.startDate || !form.date) return { ageWeeks: 0, ageDays: 0, ageYears: 0 }
@@ -144,14 +148,16 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
         setFlocksError("")
         const { userId, farmId } = getUserContext()
         if (!userId || !farmId) return
-        const res = await getFlocks(userId, farmId)
-        if (res.success && Array.isArray(res.data)) setFlocks(res.data)
-        else {
-          setFlocks([])
-          setFlocksError(res.message || "Failed to load flocks.")
+        const list = await getValidFlocks()
+        setAllFlocks(list)
+        const select = getFlocksForProductionSelect()
+        setFlocksForSelect(select)
+        if (select.length === 0) {
+          setFlocksError(getFlockSelectEmptyHint("production"))
         }
       } catch (e) {
-        setFlocks([])
+        setAllFlocks([])
+        setFlocksForSelect([])
         setFlocksError("Unable to fetch flocks. Check API URL and CORS.")
       }
     }
@@ -185,7 +191,7 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
             }
           } else {
             // No previous records, use flock's initial quantity
-            const flock = flocks.find(f => f.flockId === flockIdNum)
+            const flock = allFlocks.find(f => f.flockId === flockIdNum)
             if (flock) {
               setPreviousBirdsLeft(flock.quantity || 0)
               if (!form.numBirds) {
@@ -203,7 +209,7 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
     }
 
     loadPreviousRecords()
-  }, [form.flockId, form.date, flocks])
+  }, [form.flockId, form.date, allFlocks])
 
   useEffect(() => {
     if (!record) {
@@ -445,11 +451,17 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
                     <SelectValue placeholder="Select flock" />
                   </SelectTrigger>
                   <SelectContent>
-                    {flocks.map((f) => (
-                      <SelectItem key={f.flockId} value={String(f.flockId)}>
-                        {f.name || `Flock ${f.flockId}`} (ID: {f.flockId})
+                    {flocksForSelect.length === 0 ? (
+                      <SelectItem value="none" disabled>
+                        {flocksError || getFlockSelectEmptyHint("production")}
                       </SelectItem>
-                    ))}
+                    ) : (
+                      flocksForSelect.map((f) => (
+                        <SelectItem key={f.value} value={f.value}>
+                          {f.label}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
                 {flocksError ? <div className="text-xs text-amber-600">{flocksError}</div> : null}
