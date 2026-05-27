@@ -204,7 +204,10 @@ export default function WaterExpensesPage() {
                       <TableRow key={e.waterExpenseId}>
                         <TableCell className="whitespace-nowrap">{e.expenseDate.split("T")[0]}</TableCell>
                         <TableCell>{e.categoryName ?? "—"}</TableCell>
-                        <TableCell className="max-w-xs truncate">{e.description ?? "—"}</TableCell>
+                        {/* Wrap long descriptions onto multiple lines instead of truncating with an
+                            ellipsis — operators were missing the second half of "Fuel for Truck 1
+                            — full tank, station X, receipt #…" type entries. */}
+                        <TableCell className="max-w-sm whitespace-normal break-words align-top">{e.description ?? "—"}</TableCell>
                         <TableCell className="text-right tabular-nums">{e.amount.toFixed(2)}</TableCell>
                         <TableCell>{e.paidTo ?? "—"}</TableCell>
                         <TableCell>{e.paymentMethod}</TableCell>

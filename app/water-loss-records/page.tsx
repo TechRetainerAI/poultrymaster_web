@@ -164,7 +164,7 @@ export default function WaterLossRecordsPage() {
                         <TableCell className="text-right tabular-nums">{l.quantityBags ?? 0}</TableCell>
                         <TableCell className="text-right tabular-nums">{l.quantitySachets ?? 0}</TableCell>
                         <TableCell className="text-right tabular-nums">{gh(l.estimatedValue ?? 0)}</TableCell>
-                        <TableCell className="max-w-xs truncate">{l.reason ?? "—"}</TableCell>
+                        <TableCell className="max-w-sm whitespace-normal break-words align-top">{l.reason ?? "—"}</TableCell>
                         <TableCell><Badge className={STATUS_COLOR[l.status ?? "Pending"] ?? ""}>{l.status ?? "Pending"}</Badge></TableCell>
                         <TableCell className="text-right">
                           {l.status !== "Approved" && <Button size="sm" variant="ghost" onClick={() => approve(l)}><CheckCircle2 className="h-4 w-4 text-green-600" /></Button>}

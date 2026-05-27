@@ -161,6 +161,15 @@ export default function WaterDriverReturnsPage() {
   const shortage = Math.max(expected - collected, 0)
   const overage  = Math.max(collected - expected, 0)
 
+  // Live bag reconciliation — shown inside the form so operators see the mismatch
+  // BEFORE clicking Save (and so the Save button can be disabled to prevent a
+  // confusing "toast says X but I don't know what X means" loop). Sold + Returned
+  // + Damaged must equal Loaded — every bag has to be accounted for somewhere.
+  const totalBagsInForm = returnForm.bagsSold + returnForm.bagsReturned + returnForm.bagsDamaged
+  const expectedTotalBags = returnDlg.loading?.bagsLoaded ?? 0
+  const bagDelta = totalBagsInForm - expectedTotalBags
+  const bagsReconcile = returnDlg.loading ? bagDelta === 0 : false
+
   const totals = useMemo(() => ({
     openLoadings: loadings.filter(l => l.status === "Loaded").length,
     totalShortage: returns.reduce((s, r) => s + (r.shortageAmount ?? 0), 0),
@@ -331,6 +340,31 @@ export default function WaterDriverReturnsPage() {
                   <Textarea value={returnForm.notes} onChange={(e) => setReturnForm({ ...returnForm, notes: e.target.value })} /></div>
               </div>
 
+              {/* Live bag-reconciliation banner — fires before Save so the operator can
+                  see WHY the form is blocked. Green when balanced, amber when short
+                  (more bags to account for), rose when over. */}
+              <div
+                className={`mt-3 rounded-md border px-3 py-2 text-sm flex items-center justify-between ${
+                  bagsReconcile
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                    : bagDelta < 0
+                      ? "border-amber-200 bg-amber-50 text-amber-800"
+                      : "border-rose-200 bg-rose-50 text-rose-800"
+                }`}
+              >
+                <span>
+                  Sold + Returned + Damaged = <strong className="tabular-nums">{totalBagsInForm}</strong> /
+                  Loaded <strong className="tabular-nums">{expectedTotalBags}</strong>
+                </span>
+                <span className="font-semibold tabular-nums">
+                  {bagsReconcile
+                    ? "✓ Balanced"
+                    : bagDelta < 0
+                      ? `${Math.abs(bagDelta)} bag(s) unaccounted — add them to Returned or Damaged`
+                      : `${bagDelta} bag(s) over — reduce one of the counts`}
+                </span>
+              </div>
+
               <div className="border-t pt-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
                 <div><span className="text-slate-500">Expected cash:</span> <span className="font-semibold tabular-nums">{gh(expected)}</span></div>
                 <div><span className="text-slate-500">Collected:</span> <span className="font-semibold tabular-nums">{gh(collected)}</span></div>
@@ -341,7 +375,9 @@ export default function WaterDriverReturnsPage() {
           )}
           <div className="flex justify-end gap-2 pt-3">
             <Button variant="ghost" onClick={() => setReturnDlg({ open: false })}>Cancel</Button>
-            <Button onClick={saveReturn}>Reconcile &amp; approve</Button>
+            <Button onClick={saveReturn} disabled={!bagsReconcile} title={!bagsReconcile ? "Bags must add up to Loaded before saving" : undefined}>
+              Reconcile &amp; approve
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

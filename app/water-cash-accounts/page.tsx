@@ -261,7 +261,7 @@ export default function WaterCashAccountsPage() {
                       <TableCell>{r.transactionType}</TableCell>
                       <TableCell>{r.sourceType ?? "—"}</TableCell>
                       <TableCell className={`text-right tabular-nums ${r.amount < 0 ? "text-rose-600" : "text-green-700"}`}>{r.amount.toFixed(2)}</TableCell>
-                      <TableCell className="max-w-xs truncate">{r.description ?? "—"}</TableCell>
+                      <TableCell className="max-w-sm whitespace-normal break-words align-top">{r.description ?? "—"}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

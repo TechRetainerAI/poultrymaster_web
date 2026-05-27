@@ -173,7 +173,7 @@ export default function WaterMaintenancePage() {
                       <TableRow key={l.waterMaintenanceLogId}>
                         <TableCell>{l.issueDate.split("T")[0]}</TableCell>
                         <TableCell><Badge variant="outline">{l.assetType}</Badge> {l.assetLabel ?? ""}</TableCell>
-                        <TableCell className="max-w-xs truncate">{l.issueDescription}</TableCell>
+                        <TableCell className="max-w-sm whitespace-normal break-words align-top">{l.issueDescription}</TableCell>
                         <TableCell>{l.technicianName ?? "—"}</TableCell>
                         <TableCell className="text-right tabular-nums">{l.repairCost.toFixed(2)}</TableCell>
                         <TableCell>
