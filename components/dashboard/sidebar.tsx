@@ -177,36 +177,40 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/water-sales",     label: "Sales",     icon: ShoppingCart },
     { href: "/water-payments",  label: "Payments",  icon: CreditCard },
   ]
-  // Water — Production (W1)
-  const waterProductionItems = [
+  // James (2026-05-27) wanted the four daily-flow items to sit at the TOP LEVEL of
+  // the sidebar, not nested under a group header. The other group items stay where
+  // they were so operators still have a logical grouping for less-touched things
+  // (Machines, Boreholes, Vehicles, Routes, etc.).
+  const waterTopLevelItems = [
     { href: "/water-production-batches", label: "Production batches", icon: Factory },
-    { href: "/water-machines",           label: "Machines",            icon: Cog },
-    { href: "/water-boreholes",          label: "Boreholes",           icon: Droplets },
+    { href: "/water-raw-materials",      label: "Raw materials",      icon: Box },
+    { href: "/water-driver-returns",     label: "Driver returns",     icon: Truck },
+    { href: "/water-daily-closing",      label: "Daily Closing",      icon: FileText },
   ]
-  // Water — Distribution (W2)
+  // Water — Production setup (machines + water source — Production batches moved to top-level)
+  const waterProductionItems = [
+    { href: "/water-machines",  label: "Machines",  icon: Cog },
+    { href: "/water-boreholes", label: "Boreholes", icon: Droplets },
+  ]
+  // Water — Distribution (Driver returns moved to top-level)
   const waterDistributionItems = [
-    { href: "/water-drivers",        label: "Drivers",        icon: Users2 },
-    { href: "/water-driver-returns", label: "Driver returns", icon: Truck },
-    { href: "/water-vehicles",       label: "Vehicles",       icon: Truck },
-    { href: "/water-routes",         label: "Routes",         icon: RouteIcon },
+    { href: "/water-drivers",  label: "Drivers",  icon: Users2 },
+    { href: "/water-vehicles", label: "Vehicles", icon: Truck },
+    { href: "/water-routes",   label: "Routes",   icon: RouteIcon },
   ]
-  // Water — Inventory (overview + raw materials + loss tracking)
-  // /water-inventory is the new at-a-glance page (finished products + raw items in
-  // one tabbed view). Existing pages remain reachable from inside it.
+  // Water — Inventory (Raw materials moved to top-level)
   const waterInventoryItems = [
-    { href: "/water-inventory",     label: "Inventory",      icon: Boxes },
-    { href: "/water-raw-materials", label: "Raw materials",  icon: Box },
-    { href: "/water-loss-records",  label: "Damages & loss", icon: AlertTriangle },
+    { href: "/water-inventory",    label: "Inventory",      icon: Boxes },
+    { href: "/water-loss-records", label: "Damages & loss", icon: AlertTriangle },
   ]
   // Water — Reports (W3)
   const waterReportsItems = [
     { href: "/water-reports", label: "Reports", icon: BarChart3 },
   ]
-  // Water — Money (W4 finance + W3 daily closing)
+  // Water — Money (Daily Closing moved to top-level)
   const waterMoneyItems = [
-    { href: "/water-expenses",      label: "Expenses",       icon: Receipt },
+    { href: "/water-expenses",      label: "Expenses",        icon: Receipt },
     { href: "/water-cash-accounts", label: "Cash & Accounts", icon: Wallet },
-    { href: "/water-daily-closing", label: "Daily Closing",   icon: FileText },
   ]
   // Water — People (W6)
   const waterPeopleItems = [
@@ -431,6 +435,15 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
         {isWater ? (
           <>
+            {/* Water — top-level daily-flow items (no group header — they sit at
+                the same nesting level as Dashboard so operators reach them in one
+                click instead of expanding a group). */}
+            {waterTopLevelItems.map((item) => (
+              <div key={item.href}>{renderNavItem(item)}</div>
+            ))}
+
+            <div className="border-t border-slate-800 mx-2" />
+
             {/* Water — Catalog */}
             {renderGroup("Catalog", waterCatalogItems, "waterCatalog")}
 
