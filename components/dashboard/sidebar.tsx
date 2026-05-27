@@ -190,9 +190,12 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/water-vehicles",       label: "Vehicles",       icon: Truck },
     { href: "/water-routes",         label: "Routes",         icon: RouteIcon },
   ]
-  // Water — Inventory (W3 raw materials + loss tracking)
+  // Water — Inventory (overview + raw materials + loss tracking)
+  // /water-inventory is the new at-a-glance page (finished products + raw items in
+  // one tabbed view). Existing pages remain reachable from inside it.
   const waterInventoryItems = [
-    { href: "/water-raw-materials", label: "Raw materials", icon: Box },
+    { href: "/water-inventory",     label: "Inventory",      icon: Boxes },
+    { href: "/water-raw-materials", label: "Raw materials",  icon: Box },
     { href: "/water-loss-records",  label: "Damages & loss", icon: AlertTriangle },
   ]
   // Water — Reports (W3)
@@ -220,8 +223,11 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   ]
 
   // Generic Company nav items (shown when activeFarmType === "Generic")
+  // /generic-inventory is the new at-a-glance stock page (products + cards
+  // + filters). /generic-stock-adjustments stays for actually changing stock.
   const genericCatalogItems = [
     { href: "/generic-products",          label: "Products",          icon: ShoppingBag },
+    { href: "/generic-inventory",         label: "Inventory",         icon: Boxes },
     { href: "/generic-stock-adjustments", label: "Stock adjustments", icon: Boxes },
   ]
   const genericSalesItems = [
