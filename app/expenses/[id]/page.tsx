@@ -63,12 +63,14 @@ export default function EditExpensePage() {
     "Other"
   ]
 
+  // Mobile Money added 2026-05-27 (James). Match /expenses (list) and /expenses/new.
   const paymentMethods = [
     "Cash",
+    "Mobile Money",
     "Credit Card",
     "Bank Transfer",
     "Check",
-    "Other"
+    "Other",
   ]
 
   useEffect(() => {

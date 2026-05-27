@@ -109,7 +109,8 @@ export default function ExpensesPage() {
   const [editHasDbAttachment, setEditHasDbAttachment] = useState(false)
 
   const expenseCategories = ["Feed", "Veterinary", "Equipment", "Labor", "Utilities", "Other"]
-  const paymentMethods = ["Cash", "Credit Card", "Bank Transfer", "Check", "Other"]
+  // Mobile Money added 2026-05-27 (James). Match /expenses/new and /expenses/[id].
+  const paymentMethods = ["Cash", "Mobile Money", "Credit Card", "Bank Transfer", "Check", "Other"]
 
   useEffect(() => {
     loadExpenses()
