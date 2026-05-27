@@ -19,6 +19,7 @@ import { Check, Boxes, Loader2, Plus, ArrowUpCircle, ArrowDownCircle, X } from "
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
+import { PromptDialog } from "@/components/ui/prompt-dialog"
 import {
   approveStockAdjustment, createStockAdjustment, getProducts, getStockAdjustments,
   rejectStockAdjustment, submitStockAdjustment,
@@ -49,6 +50,8 @@ function GenericStockAdjustmentsPageInner() {
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  // Reject target — opens the PromptDialog with a typed reason (replaces window.prompt).
+  const [rejectTarget, setRejectTarget] = useState<number | null>(null)
 
   const [form, setForm] = useState({
     genericProductId: "",
@@ -111,11 +114,18 @@ function GenericStockAdjustmentsPageInner() {
     catch (e: any) { toast({ title: "Approve failed", description: e?.message ?? String(e), variant: "destructive" }) }
   }
 
-  const onReject = async (id: number) => {
-    const reason = window.prompt("Reason for rejection?")
-    if (!reason) return
-    try { await rejectStockAdjustment(id, reason); toast({ title: `Adjustment #${id} rejected.` }); await load() }
-    catch (e: any) { toast({ title: "Reject failed", description: e?.message ?? String(e), variant: "destructive" }) }
+  const onReject = (id: number) => setRejectTarget(id)
+
+  const confirmReject = async (reason: string) => {
+    if (rejectTarget == null) return
+    try {
+      await rejectStockAdjustment(rejectTarget, reason)
+      toast({ title: `Adjustment #${rejectTarget} rejected.` })
+      setRejectTarget(null); await load()
+    } catch (e: any) {
+      toast({ title: "Reject failed", description: e?.message ?? String(e), variant: "destructive" })
+      throw e
+    }
   }
 
   return (
@@ -248,6 +258,18 @@ function GenericStockAdjustmentsPageInner() {
           )}
         </main>
       </div>
+
+      <PromptDialog
+        open={rejectTarget != null}
+        onOpenChange={(v) => { if (!v) setRejectTarget(null) }}
+        title="Reject stock adjustment"
+        description={rejectTarget ? `Adjustment #${rejectTarget} will be rejected. Tell the originator why.` : ""}
+        label="Rejection reason"
+        placeholder="e.g. wrong product, count looks off, missing receipt…"
+        confirmLabel="Reject"
+        confirmVariant="destructive"
+        onSubmit={confirmReject}
+      />
     </div>
   )
 }

@@ -16,6 +16,7 @@ import { Plus, Loader2, Banknote, AlertCircle, CheckCircle2, XCircle, Trash2 } f
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
+import { PromptDialog } from "@/components/ui/prompt-dialog"
 import {
   listWaterPayrollRuns, getWaterPayrollRun, createWaterPayrollRun,
   upsertWaterPayrollItem, deleteWaterPayrollItem,
@@ -45,6 +46,8 @@ export default function WaterPayrollPage() {
 
   const [newRunDlg, setNewRunDlg] = useState(false)
   const [runForm, setRunForm] = useState({ periodStart: "", periodEnd: "", waterCashAccountId: 0, notes: "" })
+  // Cancel target → opens the PromptDialog (replaces window.prompt).
+  const [cancelTarget, setCancelTarget] = useState<WaterPayrollRun | null>(null)
 
   const [editing, setEditing] = useState<WaterPayrollRun | null>(null)
   const [itemForm, setItemForm] = useState({ waterStaffId: 0, basicPay: 0, dailyWage: 0, commission: 0, bonus: 0, deductions: 0, paymentMethod: "Cash", notes: "" })
@@ -105,18 +108,27 @@ export default function WaterPayrollPage() {
     catch (e: any) { toast({ title: "Remove failed", description: e?.message, variant: "destructive" }) }
   }
 
-  async function doAction(r: WaterPayrollRun, action: "approve" | "pay" | "cancel") {
+  async function doAction(r: WaterPayrollRun, action: "approve" | "pay") {
     try {
       if (action === "approve") await approveWaterPayrollRun(r.waterPayrollRunId)
       if (action === "pay") await markWaterPayrollRunPaid(r.waterPayrollRunId)
-      if (action === "cancel") {
-        const reason = window.prompt("Cancel reason? (optional)") ?? undefined
-        await cancelWaterPayrollRun(r.waterPayrollRunId, reason)
-      }
       toast({ title: `Run ${action === "pay" ? "marked paid" : action + "d"}` })
       if (editing && editing.waterPayrollRunId === r.waterPayrollRunId) await refreshEditing()
       await load()
     } catch (e: any) { toast({ title: `${action} failed`, description: e?.message, variant: "destructive" }) }
+  }
+
+  async function confirmCancelRun(reason: string) {
+    if (!cancelTarget) return
+    try {
+      await cancelWaterPayrollRun(cancelTarget.waterPayrollRunId, reason || undefined)
+      toast({ title: "Payroll run cancelled" })
+      if (editing && editing.waterPayrollRunId === cancelTarget.waterPayrollRunId) await refreshEditing()
+      setCancelTarget(null); await load()
+    } catch (e: any) {
+      toast({ title: "Cancel failed", description: e?.message, variant: "destructive" })
+      throw e
+    }
   }
 
   return (
@@ -161,7 +173,7 @@ export default function WaterPayrollPage() {
                           <Button size="sm" variant="ghost" onClick={() => openEditing(r)}>Open</Button>
                           {r.status === "Draft" && <Button size="sm" variant="ghost" onClick={() => doAction(r, "approve")}><CheckCircle2 className="h-4 w-4 text-blue-600" /></Button>}
                           {r.status === "Approved" && <Button size="sm" variant="ghost" onClick={() => doAction(r, "pay")}>Mark paid</Button>}
-                          {r.status !== "Cancelled" && r.status !== "Paid" && <Button size="sm" variant="ghost" onClick={() => doAction(r, "cancel")}><XCircle className="h-4 w-4 text-rose-500" /></Button>}
+                          {r.status !== "Cancelled" && r.status !== "Paid" && <Button size="sm" variant="ghost" onClick={() => setCancelTarget(r)}><XCircle className="h-4 w-4 text-rose-500" /></Button>}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -267,6 +279,19 @@ export default function WaterPayrollPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <PromptDialog
+        open={!!cancelTarget}
+        onOpenChange={(v) => { if (!v) setCancelTarget(null) }}
+        title="Cancel payroll run"
+        description={cancelTarget ? `Run for ${cancelTarget.periodStart?.split("T")[0]} → ${cancelTarget.periodEnd?.split("T")[0]} will be cancelled.` : ""}
+        label="Reason (optional)"
+        placeholder="e.g. ran twice, wrong period, replacing with corrected run…"
+        confirmLabel="Cancel run"
+        confirmVariant="destructive"
+        allowEmpty
+        onSubmit={confirmCancelRun}
+      />
     </div>
   )
 }

@@ -17,6 +17,7 @@ import { Plus, Loader2, Receipt, AlertCircle, CheckCircle2, XCircle, Trash2, Tag
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
+import { PromptDialog } from "@/components/ui/prompt-dialog"
 import {
   listWaterExpenses, createWaterExpense, submitWaterExpense, approveWaterExpense, cancelWaterExpense,
   listWaterExpenseCategories, createWaterExpenseCategory,
@@ -61,6 +62,9 @@ export default function WaterExpensesPage() {
 
   const [catDlg, setCatDlg] = useState(false)
   const [newCatName, setNewCatName] = useState("")
+  // Cancel target — opens the PromptDialog. Replaces the old window.prompt
+  // (system-looking dialog operators kept dismissing by accident).
+  const [cancelTarget, setCancelTarget] = useState<WaterExpense | null>(null)
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Water") { router.replace("/dashboard"); return }
@@ -99,17 +103,25 @@ export default function WaterExpensesPage() {
     finally { setSaving(false) }
   }
 
-  async function doAction(e: WaterExpense, action: "submit" | "approve" | "cancel") {
+  async function doAction(e: WaterExpense, action: "submit" | "approve") {
     try {
       if (action === "submit") await submitWaterExpense(e.waterExpenseId)
       if (action === "approve") await approveWaterExpense(e.waterExpenseId)
-      if (action === "cancel") {
-        const r = window.prompt("Reason for cancellation? (optional)") ?? undefined
-        await cancelWaterExpense(e.waterExpenseId, r)
-      }
       toast({ title: `Expense ${action}d` })
       await load()
     } catch (err: any) { toast({ title: `${action} failed`, description: err?.message, variant: "destructive" }) }
+  }
+
+  async function confirmCancel(reason: string) {
+    if (!cancelTarget) return
+    try {
+      await cancelWaterExpense(cancelTarget.waterExpenseId, reason || undefined)
+      toast({ title: "Expense canceled" })
+      setCancelTarget(null); await load()
+    } catch (err: any) {
+      toast({ title: "Cancel failed", description: err?.message, variant: "destructive" })
+      throw err
+    }
   }
 
   async function addCategory() {
@@ -200,7 +212,7 @@ export default function WaterExpensesPage() {
                         <TableCell className="text-right">
                           {e.status === "Draft" && <Button size="sm" variant="ghost" onClick={() => doAction(e, "submit")}>Submit</Button>}
                           {(e.status === "Draft" || e.status === "Submitted") && <Button size="sm" variant="ghost" onClick={() => doAction(e, "approve")}><CheckCircle2 className="h-4 w-4 text-green-600" /></Button>}
-                          {e.status !== "Cancelled" && e.status !== "Rejected" && <Button size="sm" variant="ghost" onClick={() => doAction(e, "cancel")}><XCircle className="h-4 w-4 text-rose-500" /></Button>}
+                          {e.status !== "Cancelled" && e.status !== "Rejected" && <Button size="sm" variant="ghost" onClick={() => setCancelTarget(e)}><XCircle className="h-4 w-4 text-rose-500" /></Button>}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -283,6 +295,19 @@ export default function WaterExpensesPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <PromptDialog
+        open={!!cancelTarget}
+        onOpenChange={(v) => { if (!v) setCancelTarget(null) }}
+        title="Cancel expense"
+        description={cancelTarget ? `Expense #${cancelTarget.waterExpenseId} will be moved to Cancelled. Optionally tell the team why.` : ""}
+        label="Reason (optional)"
+        placeholder="e.g. duplicate entry, wrong amount, supplier refunded…"
+        confirmLabel="Cancel expense"
+        confirmVariant="destructive"
+        allowEmpty
+        onSubmit={confirmCancel}
+      />
     </div>
   )
 }

@@ -506,7 +506,7 @@ export default function ProductionRecordsPage() {
 
   const exportPdf = () => {
     if (filtered.length === 0) {
-      alert("No records to export. Adjust your filters.")
+      toast({ title: "Nothing to export", description: "Adjust your filters and try again.", variant: "destructive" })
       return
     }
     const { doc } = buildProductionPdfDoc()
@@ -516,12 +516,12 @@ export default function ProductionRecordsPage() {
   const [emailingReport, setEmailingReport] = useState(false)
   const handleEmailReport = async () => {
     if (filtered.length === 0) {
-      alert("No records to email. Adjust your filters.")
+      toast({ title: "Nothing to email", description: "Adjust your filters and try again.", variant: "destructive" })
       return
     }
     const recipient = (typeof window !== "undefined" ? localStorage.getItem("username") || "" : "").trim()
     if (!recipient || !recipient.includes("@")) {
-      alert("No recipient email found. Sign in with an email address.")
+      toast({ title: "No recipient email", description: "Sign in with an email address to receive the report.", variant: "destructive" })
       return
     }
     setEmailingReport(true)
@@ -536,8 +536,8 @@ export default function ProductionRecordsPage() {
         farmName,
         reportTitle: "Egg Production Report",
       })
-      if (res.success) alert(`Report emailed to ${recipient}.`)
-      else alert(`Email failed: ${res.message || "Unknown error"}`)
+      if (res.success) toast({ title: "Report emailed", description: `Sent to ${recipient}.` })
+      else toast({ title: "Email failed", description: res.message || "Unknown error.", variant: "destructive" })
     } finally {
       setEmailingReport(false)
     }
