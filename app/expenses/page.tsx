@@ -22,6 +22,7 @@ import {
 } from "@/lib/utils/expense-receipt"
 import { ExpenseReceiptField } from "@/components/expense/expense-receipt-field"
 import { getFlocks, type Flock } from "@/lib/api/flock"
+import { useBatchFlockSelect, BATCH_ALL } from "@/hooks/use-batch-flock-select"
 import { getUserContext } from "@/lib/utils/user-context"
 import { getValidFlocks, getFlocksForExpenseSelect, getFlockSelectEmptyHint } from "@/lib/utils/flock-utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -86,8 +87,17 @@ export default function ExpensesPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [createLoading, setCreateLoading] = useState(false)
   const [createError, setCreateError] = useState("")
-  const [flocksForSelect, setFlocksForSelect] = useState<{ value: string; label: string }[]>([])
-  const [flocksSelectLoading, setFlocksSelectLoading] = useState(false)
+  // Batch + Flock dropdowns (James 2026-05-27, repeated request on /expenses).
+  // The hook owns the valid-flock list + batch list + filter logic; we render
+  // the two <Select>s inside renderForm() below and pass the same hook state to
+  // both create and edit forms (one filter affects both since renderForm is shared).
+  const {
+    batchOptions,
+    selectedBatchId,
+    setSelectedBatchId,
+    flockOptions: flocksForSelect,
+    loading: flocksSelectLoading,
+  } = useBatchFlockSelect()
   const [createForm, setCreateForm] = useState({
     flockId: "", expenseDate: new Date().toISOString().split("T")[0], category: "", description: "", amount: "", paymentMethod: "",
   })
@@ -135,18 +145,10 @@ export default function ExpensesPage() {
     if (res.success && res.data) setAllFlocks(res.data)
   }
 
-  const loadFlocksForSelect = async () => {
-    setFlocksSelectLoading(true)
-    try {
-      await getValidFlocks()
-      const fs = getFlocksForExpenseSelect()
-      setFlocksForSelect(fs)
-    } catch (err) {
-      console.error("Error loading flocks:", err)
-    } finally {
-      setFlocksSelectLoading(false)
-    }
-  }
+  // Flock+Batch loading now lives in useBatchFlockSelect (hook above). Stub kept
+  // so existing call sites compile without renaming everywhere — it's a no-op
+  // because the hook auto-loads on mount and refreshes via its own state.
+  const loadFlocksForSelect = async () => { /* no-op: handled by useBatchFlockSelect */ }
 
   const loadExpenses = async () => {
     const { userId, farmId } = getUserContext()
@@ -474,7 +476,26 @@ export default function ExpensesPage() {
     <>
       <div className="rounded-xl border border-slate-200 overflow-hidden">
         <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Flock &amp; Date</div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-white">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-slate-700">Batch</Label>
+            <Select value={selectedBatchId} onValueChange={(v) => {
+              setSelectedBatchId(v)
+              // If the form's currently-selected flock isn't in the new batch's flocks,
+              // clear it so the user doesn't save against a now-hidden flock.
+              if (v !== BATCH_ALL && form.flockId && !flocksForSelect.some((f) => f.value === form.flockId)) {
+                setForm({ ...form, flockId: "" })
+              }
+            }}>
+              <SelectTrigger><SelectValue placeholder="All batches" /></SelectTrigger>
+              <SelectContent>
+                {batchOptions.map((b) => (
+                  <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="text-xs text-slate-500">Filters flocks below.</div>
+          </div>
           <div className="space-y-2">
             <Label className="text-sm font-medium text-slate-700">Select Flock *</Label>
             <Select value={form.flockId} onValueChange={(v) => setForm({ ...form, flockId: v })}>

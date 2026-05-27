@@ -21,8 +21,8 @@ import {
 } from "@/lib/utils/expense-receipt"
 import { ExpenseReceiptField } from "@/components/expense/expense-receipt-field"
 import { getUserContext } from "@/lib/utils/user-context"
-import { getValidFlocks, getFlocksForExpenseSelect } from "@/lib/utils/flock-utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useBatchFlockSelect, BATCH_ALL } from "@/hooks/use-batch-flock-select"
 
 export default function EditExpensePage() {
   const router = useRouter()
@@ -33,8 +33,14 @@ export default function EditExpensePage() {
   const [loading, setLoading] = useState(false)
   const [fetchLoading, setFetchLoading] = useState(true)
   const [error, setError] = useState("")
-  const [flocks, setFlocks] = useState<{ value: string; label: string }[]>([])
-  const [flocksLoading, setFlocksLoading] = useState(true)
+  // Batch + Flock dropdowns (James 2026-05-27).
+  const {
+    batchOptions,
+    selectedBatchId,
+    setSelectedBatchId,
+    flockOptions: flocks,
+    loading: flocksLoading,
+  } = useBatchFlockSelect()
   
   const [formData, setFormData] = useState({
     flockId: "",
@@ -121,18 +127,9 @@ export default function EditExpensePage() {
     setFetchLoading(false)
   }
 
-  const loadFlocks = async () => {
-    try {
-      setFlocksLoading(true)
-      await getValidFlocks()
-      const flocksForSelect = getFlocksForExpenseSelect()
-      setFlocks(flocksForSelect)
-    } catch (error) {
-      console.error("[v0] Error loading flocks:", error)
-    } finally {
-      setFlocksLoading(false)
-    }
-  }
+  // Flock+Batch loading now lives in useBatchFlockSelect. Stub kept so the
+  // existing loadFlocks() call site doesn't need renaming.
+  const loadFlocks = async () => { /* no-op: handled by useBatchFlockSelect */ }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -287,7 +284,25 @@ export default function EditExpensePage() {
                 <p className="text-sm text-slate-600">
                   Update the expense details below
                 </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Batch</Label>
+                    <Select value={selectedBatchId} onValueChange={(v) => {
+                      setSelectedBatchId(v)
+                      // Clear flockId if the current selection is no longer in the filtered batch.
+                      if (v !== BATCH_ALL && formData.flockId && !flocks.some((f) => f.value === formData.flockId)) {
+                        setFormData((prev) => ({ ...prev, flockId: "" }))
+                      }
+                    }}>
+                      <SelectTrigger><SelectValue placeholder="All batches" /></SelectTrigger>
+                      <SelectContent>
+                        {batchOptions.map((b) => (
+                          <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="text-xs text-slate-500">Filters flocks below.</div>
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="flockId" className="text-sm font-medium text-slate-700">
                       Select Flock *
