@@ -12,7 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { FileText, X } from "lucide-react"
 import { getUserContext } from "@/lib/utils/user-context"
-import { getValidFlocks, getFlocksForProductionSelect, getFlockSelectEmptyHint } from "@/lib/utils/flock-utils"
+import { getFlocksForProductionSelect, getFlockSelectEmptyHint } from "@/lib/utils/flock-utils"
+import { useBatchFlockSelect, BATCH_ALL } from "@/hooks/use-batch-flock-select"
 import {
   createProductionRecord,
   getProductionRecords,
@@ -35,9 +36,18 @@ export default function NewProductionRecordPage() {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
-  const [flocksForSelect, setFlocksForSelect] = useState<{ value: string; label: string }[]>([])
-  const [allFlocks, setAllFlocks] = useState<any[]>([])
   const [flocksError, setFlocksError] = useState("")
+  // Batch + Flock dropdowns (James 2026-05-27 request: Batch dropdown above Flock,
+  // default "All"; choosing a batch narrows the Flock options below).
+  const {
+    batchOptions,
+    selectedBatchId,
+    setSelectedBatchId,
+    allFlocks,
+    flockOptions: flocksForSelect,
+    loading: batchFlockLoading,
+    error: batchFlockError,
+  } = useBatchFlockSelect()
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), [])
 
@@ -135,29 +145,25 @@ export default function NewProductionRecordPage() {
     }
   }, [selectedFlock, form.date])
 
-  // Load flocks
+  // Flocks/batches load via useBatchFlockSelect above. Surface the same
+  // empty-state hint the page used to show when no eligible flocks exist
+  // (preserves the "ARRIVED+ACTIVE only" wording rather than a generic message).
   useEffect(() => {
-    const load = async () => {
-      try {
-        setFlocksError("")
-        const { userId, farmId } = getUserContext()
-        if (!userId || !farmId) return
-        const list = await getValidFlocks()
-        setAllFlocks(list)
-        const select = getFlocksForProductionSelect()
-        setFlocksForSelect(select)
-        if (select.length === 0) {
-          setFlocksError(getFlockSelectEmptyHint("production"))
-        }
-      } catch (e) {
-        console.error(e)
-        setAllFlocks([])
-        setFlocksForSelect([])
-        setFlocksError("Unable to load flocks. Please try again.")
-      }
+    if (batchFlockLoading) return
+    if (batchFlockError) { setFlocksError(batchFlockError); return }
+    setFlocksError(flocksForSelect.length === 0 ? getFlockSelectEmptyHint("production") : "")
+  }, [batchFlockLoading, batchFlockError, flocksForSelect.length])
+
+  // If the user picks a batch and their currently-selected flock isn't in it,
+  // clear the flockId so they don't accidentally save against a hidden flock.
+  useEffect(() => {
+    if (selectedBatchId === BATCH_ALL) return
+    if (!form.flockId) return
+    if (!flocksForSelect.some((o) => o.value === form.flockId)) {
+      setForm((prev) => ({ ...prev, flockId: "" }))
     }
-    load()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBatchId, flocksForSelect])
 
   // Load previous records to calculate birds left
   useEffect(() => {
@@ -380,6 +386,23 @@ export default function NewProductionRecordPage() {
                   Flock &amp; Date
                 </div>
                 <div className="grid grid-cols-12 gap-4 px-4 py-4">
+                  <div className="col-span-12 md:col-span-6 space-y-2">
+                    <Label>Batch</Label>
+                    <Select value={selectedBatchId} onValueChange={setSelectedBatchId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="All batches" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {batchOptions.map((b) => (
+                          <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="text-xs text-slate-500">
+                      Filters the Flock dropdown below. Leave on "All batches" to see every flock.
+                    </div>
+                  </div>
+
                   <div className="col-span-12 md:col-span-6 space-y-2">
                     <Label>Flock</Label>
                     <Select

@@ -20,7 +20,16 @@ import {
   type GenericCashAccount, type GenericExpenseCategory, type GenericSupplier,
 } from "@/lib/api/generic"
 
-const PAY_METHODS = ["Cash", "MoMo", "Bank", "Card", "Credit"]
+// Each entry is [stored-value, display-label]. We keep MoMo as the stored value
+// so existing DB rows / generic-cash transactions keep matching, but show
+// "Mobile Money" in the UI (James 2026-05-27).
+const PAY_METHODS: Array<{ value: string; label: string }> = [
+  { value: "Cash",   label: "Cash" },
+  { value: "MoMo",   label: "Mobile Money" },
+  { value: "Bank",   label: "Bank" },
+  { value: "Card",   label: "Card" },
+  { value: "Credit", label: "Credit" },
+]
 
 export default function NewGenericExpensePage() {
   const router = useRouter()
@@ -150,7 +159,7 @@ export default function NewGenericExpensePage() {
                   <Label>Payment method *</Label>
                   <Select value={form.paymentMethod} onValueChange={(v) => setForm((f) => ({ ...f, paymentMethod: v }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{PAY_METHODS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
+                    <SelectContent>{PAY_METHODS.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 {!isCredit ? (

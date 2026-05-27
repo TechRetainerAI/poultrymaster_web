@@ -24,6 +24,8 @@ export default function NewEggProductionPage() {
   const [error, setError] = useState("")
   const [flockBatches, setFlockBatches] = useState<FlockBatch[]>([])
   const [flocks, setFlocks] = useState<any[]>([])
+  // Batch filter (James 2026-05-27). Default "ALL" shows every arrived flock.
+  const [selectedBatchId, setSelectedBatchId] = useState<string>("ALL")
 
   const [formData, setFormData] = useState<Omit<EggProductionInput, "farmId" | "userId" | "totalProduction">>({
     flockId: 0,
@@ -237,10 +239,37 @@ export default function NewEggProductionPage() {
               <div className="space-y-4 p-6 bg-white rounded-lg shadow-sm">
                 <h3 className="text-lg font-semibold text-slate-900">Production Details</h3>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="space-y-2">
+                    <Label>Batch</Label>
+                    <Select value={selectedBatchId} onValueChange={(v) => {
+                      setSelectedBatchId(v)
+                      // Clear flockId if the current selection isn't in the new batch.
+                      if (v !== "ALL" && formData.flockId) {
+                        const fb = flocks.find((f: any) => f.flockId === formData.flockId)
+                        if (!fb || String(fb.batchId) !== v) {
+                          handleInputChange("flockId", 0)
+                        }
+                      }
+                    }} disabled={loading}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="All batches" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ALL">All batches</SelectItem>
+                        {flockBatches.map((b) => (
+                          <SelectItem key={b.batchId} value={String(b.batchId)}>
+                            {b.batchName || b.batchCode || `Batch #${b.batchId}`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="text-xs text-slate-500">Filters flocks below.</div>
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="flockId">Flock *</Label>
                     <Select
+                      value={formData.flockId ? String(formData.flockId) : undefined}
                       onValueChange={(value) => handleInputChange("flockId", parseInt(value))}
                       disabled={loading}
                     >
@@ -248,11 +277,14 @@ export default function NewEggProductionPage() {
                         <SelectValue placeholder="Select a flock" />
                       </SelectTrigger>
                       <SelectContent>
-                        {flocks.filter((flock: any) => flock.hasArrived).map((flock: any) => (
-                          <SelectItem key={flock.flockId} value={flock.flockId.toString()}>
-                            {flock.name}
-                          </SelectItem>
-                        ))}
+                        {flocks
+                          .filter((flock: any) => flock.hasArrived)
+                          .filter((flock: any) => selectedBatchId === "ALL" || String(flock.batchId) === selectedBatchId)
+                          .map((flock: any) => (
+                            <SelectItem key={flock.flockId} value={flock.flockId.toString()}>
+                              {flock.name}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </div>

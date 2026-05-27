@@ -232,7 +232,10 @@ export default function WaterExpensesPage() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Cash">Cash</SelectItem>
-                  <SelectItem value="MoMo">MoMo</SelectItem>
+                  {/* Value stays "MoMo" so existing DB rows / SP filters still match;
+                      only the label changes to the more descriptive "Mobile Money" the
+                      rest of the app uses (James 2026-05-27). */}
+                  <SelectItem value="MoMo">Mobile Money</SelectItem>
                   <SelectItem value="Bank">Bank</SelectItem>
                   <SelectItem value="Card">Card</SelectItem>
                   <SelectItem value="Credit">Credit</SelectItem>
