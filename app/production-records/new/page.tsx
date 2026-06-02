@@ -6,6 +6,7 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -464,11 +465,11 @@ export default function NewProductionRecordPage() {
                     <div className="grid grid-cols-3 gap-3">
                       <div className="space-y-1">
                         <Label className="text-xs">Crates ({EGGS_PER_CRATE} eggs)</Label>
-                        <Input type="number" min="0" value={morningCrates} onChange={(e) => setMorningCrates(parseInt(e.target.value) || 0)} />
+                        <NumberInput min="0" value={morningCrates} onChange={(e) => setMorningCrates(parseInt(e.target.value) || 0)} />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Loose Eggs</Label>
-                        <Input type="number" min="0" max="29" value={morningLoose} onChange={(e) => setMorningLoose(parseInt(e.target.value) || 0)} />
+                        <NumberInput min="0" max="29" value={morningLoose} onChange={(e) => setMorningLoose(parseInt(e.target.value) || 0)} />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Total</Label>
@@ -484,11 +485,11 @@ export default function NewProductionRecordPage() {
                     <div className="grid grid-cols-3 gap-3">
                       <div className="space-y-1">
                         <Label className="text-xs">Crates ({EGGS_PER_CRATE} eggs)</Label>
-                        <Input type="number" min="0" value={noonCrates} onChange={(e) => setNoonCrates(parseInt(e.target.value) || 0)} />
+                        <NumberInput min="0" value={noonCrates} onChange={(e) => setNoonCrates(parseInt(e.target.value) || 0)} />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Loose Eggs</Label>
-                        <Input type="number" min="0" max="29" value={noonLoose} onChange={(e) => setNoonLoose(parseInt(e.target.value) || 0)} />
+                        <NumberInput min="0" max="29" value={noonLoose} onChange={(e) => setNoonLoose(parseInt(e.target.value) || 0)} />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Total</Label>
@@ -504,11 +505,11 @@ export default function NewProductionRecordPage() {
                     <div className="grid grid-cols-3 gap-3">
                       <div className="space-y-1">
                         <Label className="text-xs">Crates ({EGGS_PER_CRATE} eggs)</Label>
-                        <Input type="number" min="0" value={eveningCrates} onChange={(e) => setEveningCrates(parseInt(e.target.value) || 0)} />
+                        <NumberInput min="0" value={eveningCrates} onChange={(e) => setEveningCrates(parseInt(e.target.value) || 0)} />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Loose Eggs</Label>
-                        <Input type="number" min="0" max="29" value={eveningLoose} onChange={(e) => setEveningLoose(parseInt(e.target.value) || 0)} />
+                        <NumberInput min="0" max="29" value={eveningLoose} onChange={(e) => setEveningLoose(parseInt(e.target.value) || 0)} />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Total</Label>
@@ -521,8 +522,8 @@ export default function NewProductionRecordPage() {
                   {/* Broken Eggs */}
                   <div className="col-span-12 md:col-span-6 p-3 bg-red-50 border border-red-200 rounded-lg space-y-2">
                     <Label className="text-red-800 font-semibold">Broken Eggs</Label>
-                    <Input
-                      type="number"
+                    <NumberInput
+                      
                       min="0"
                       value={form.brokenEggs}
                       onChange={(e) => setForm({ ...form, brokenEggs: e.target.value })}
@@ -534,8 +535,8 @@ export default function NewProductionRecordPage() {
                   <div className="col-span-12 grid grid-cols-3 gap-3">
                     <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-2">
                       <Label className="text-amber-800 font-semibold">Meaty Eggs</Label>
-                      <Input
-                        type="number"
+                      <NumberInput
+                        
                         min="0"
                         value={form.meatyEggs}
                         onChange={(e) => setForm({ ...form, meatyEggs: e.target.value })}
@@ -544,8 +545,8 @@ export default function NewProductionRecordPage() {
                     </div>
                     <div className="p-3 bg-violet-50 border border-violet-200 rounded-lg space-y-2">
                       <Label className="text-violet-800 font-semibold">Soft Eggs</Label>
-                      <Input
-                        type="number"
+                      <NumberInput
+                        
                         min="0"
                         value={form.softEggs}
                         onChange={(e) => setForm({ ...form, softEggs: e.target.value })}
@@ -554,8 +555,8 @@ export default function NewProductionRecordPage() {
                     </div>
                     <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
                       <Label className="text-slate-700 font-semibold">Lost Eggs</Label>
-                      <Input
-                        type="number"
+                      <NumberInput
+                        
                         min="0"
                         value={form.lostEggs}
                         onChange={(e) => setForm({ ...form, lostEggs: e.target.value })}
@@ -605,8 +606,8 @@ export default function NewProductionRecordPage() {
                 <div className="grid grid-cols-12 gap-4 px-4 py-4">
                   <div className="col-span-12 md:col-span-4 space-y-2">
                     <Label>Num of Birds</Label>
-                    <Input
-                      type="number"
+                    <NumberInput
+                      
                       min="0"
                       value={form.numBirds}
                       onChange={(e) =>
@@ -620,8 +621,8 @@ export default function NewProductionRecordPage() {
                   <div className="col-span-12 md:col-span-4 space-y-2">
                     <Label>Deaths</Label>
                     <p className="text-xs text-muted-foreground -mt-1 mb-1">Birds lost on this day.</p>
-                    <Input
-                      type="number"
+                    <NumberInput
+                      
                       min="0"
                       value={form.mortality}
                       onChange={(e) =>
@@ -660,8 +661,8 @@ export default function NewProductionRecordPage() {
                     <>
                       <div className="col-span-12 md:col-span-4 space-y-2">
                         <Label>Age (weeks)</Label>
-                        <Input
-                          type="number"
+                        <NumberInput
+                          
                           min="0"
                           value={manualWeeks}
                           onChange={(e) => setManualWeeks(e.target.value)}
@@ -670,8 +671,8 @@ export default function NewProductionRecordPage() {
                       </div>
                       <div className="col-span-12 md:col-span-4 space-y-2">
                         <Label>Age (years)</Label>
-                        <Input
-                          type="number"
+                        <NumberInput
+                          
                           min="0"
                           value={manualYears}
                           onChange={(e) => setManualYears(e.target.value)}
@@ -680,8 +681,8 @@ export default function NewProductionRecordPage() {
                       </div>
                       <div className="col-span-12 md:col-span-4 space-y-2">
                         <Label>Age (days)</Label>
-                        <Input
-                          type="number"
+                        <NumberInput
+                          
                           min="0"
                           value={manualDays}
                           onChange={(e) => setManualDays(e.target.value)}
@@ -734,8 +735,8 @@ export default function NewProductionRecordPage() {
                   </div>
                   <div className="col-span-12 md:col-span-4 space-y-2">
                     <Label>Feed (kg)</Label>
-                    <Input
-                      type="number"
+                    <NumberInput
+                      
                       step="0.01"
                       min="0"
                       value={form.feedKg}

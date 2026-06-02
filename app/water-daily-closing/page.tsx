@@ -1,18 +1,21 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Loader2, FileText, AlertCircle, CheckCircle2, XCircle, Eye, Trash2, Pencil } from "lucide-react"
+import { Plus, Loader2, FileText, CheckCircle2, XCircle, Eye, Trash2, Pencil, Undo2, RefreshCw } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -20,20 +23,23 @@ import {
   listWaterDailyClosings, getWaterDailyClosing, createWaterDailyClosing,
   submitWaterDailyClosing, approveWaterDailyClosing, rejectWaterDailyClosing,
   deleteWaterDailyClosing, updateWaterDailyClosingNotes,
+  reopenWaterDailyClosing, linkSupersededWaterDailyClosing, recreateWaterDailyClosing,
   type WaterDailyClosing,
 } from "@/lib/api/water"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
+import { PromptDialog } from "@/components/ui/prompt-dialog"
+import { fmtMoney } from "@/lib/currency"
 
-function gh(n: number | null | undefined) {
-  const v = n ?? 0
-  return `GHC ${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
+const gh = (n: number | null | undefined) => fmtMoney(n)
 
 const STATUS_COLORS: Record<string, string> = {
   Draft: "bg-slate-100 text-slate-700",
   Submitted: "bg-blue-100 text-blue-700",
   Approved: "bg-green-100 text-green-700",
   Rejected: "bg-rose-100 text-rose-700",
+  // Migration 068 — closings can be reopened so a fresh one can supersede.
+  Reopened: "bg-amber-100 text-amber-700",
+  Superseded: "bg-slate-100 text-slate-500",
 }
 
 export default function WaterDailyClosingPage() {
@@ -43,8 +49,19 @@ export default function WaterDailyClosingPage() {
   const logout = useLogout()
 
   const [closings, setClosings] = useState<WaterDailyClosing[]>([])
+  const [search, setSearch] = useState("")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+
+  const visibleClosings = useMemo(
+    () => filterByDateAndSearch(closings, {
+      search, dateFrom, dateTo,
+      searchKeys: ["status"],
+      dateKey: "closingDate",
+    }),
+    [closings, search, dateFrom, dateTo],
+  )
 
   const [newDlg, setNewDlg] = useState(false)
   const [newDate, setNewDate] = useState(new Date().toISOString().split("T")[0])
@@ -55,6 +72,35 @@ export default function WaterDailyClosingPage() {
   const [rejectDlg, setRejectDlg] = useState<{ id: number; reason: string } | null>(null)
   // Delete confirmation
   const [deleteTarget, setDeleteTarget] = useState<WaterDailyClosing | null>(null)
+  // Migration 068 — reopen/resubmit dialogs.
+  const [reopenTarget, setReopenTarget] = useState<WaterDailyClosing | null>(null)
+
+  // After Reopen succeeds, "Recreate Closing" inserts a new Draft for the same
+  // date and links it back to the reopened (predecessor) row in a single
+  // transactional call (migration 079 — spWaterDailyClosing_Recreate). The
+  // returned Draft surfaces live aggregates through GetById's "Status='Draft' →
+  // use live totals" path (migration 058), so the user reviews up-to-date
+  // sales/production/expense numbers before submitting.
+  async function resubmitFor(c: WaterDailyClosing) {
+    try {
+      const { closing, waterDailyClosingId } = await recreateWaterDailyClosing({
+        closingDate: c.closingDate.split("T")[0],
+        predecessorClosingId: c.waterDailyClosingId,
+        actualCashCounted: c.actualCashCounted ?? 0,
+        managerNotes: c.managerNotes ?? null,
+      })
+      toast({
+        title: "Closing recalculated",
+        description: "New draft created from current data — review and submit.",
+      })
+      await load()
+      // Prefer the closing returned by the endpoint so we don't pay for an
+      // extra GetById round-trip.
+      setView(closing ?? (waterDailyClosingId ? await getWaterDailyClosing(waterDailyClosingId) : null))
+    } catch (e: any) {
+      toast({ title: "Could not recreate closing", description: e?.message, variant: "destructive" })
+    }
+  }
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Water") { router.replace("/dashboard"); return }
@@ -63,9 +109,9 @@ export default function WaterDailyClosingPage() {
   }, [activeFarmType])
 
   async function load() {
-    setLoading(true); setError(null)
+    setLoading(true)
     try { setClosings(await listWaterDailyClosings()) }
-    catch (e: any) { setError(e?.message ?? String(e)) }
+    catch (e: any) { toast({ title: "Could not load daily closings", description: e?.message ?? String(e), variant: "destructive" }) }
     finally { setLoading(false) }
   }
 
@@ -157,11 +203,11 @@ export default function WaterDailyClosingPage() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <DashboardHeader />
         <main className="flex-1 overflow-auto p-4 md:p-6">
-          <div className="mb-4 flex items-center justify-between gap-2">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
               <FileText className="h-6 w-6 text-sky-600" /> Daily closing
             </h1>
-            <Button onClick={() => { setNewDate(new Date().toISOString().split("T")[0]); setNewDlg(true) }}>
+            <Button onClick={() => { setNewDate(new Date().toISOString().split("T")[0]); setNewDlg(true) }} className="w-full sm:w-auto h-11 sm:h-10">
               <Plus className="h-4 w-4 mr-1" /> Start today's closing
             </Button>
           </div>
@@ -177,11 +223,12 @@ export default function WaterDailyClosingPage() {
             </Card>
           )}
 
-          {error && (
-            <Card className="border-red-200 bg-red-50 mb-4">
-              <CardContent className="flex items-center gap-2 p-3 text-red-700"><AlertCircle className="h-4 w-4" /> {error}</CardContent>
-            </Card>
-          )}
+          <ListFilters
+            search={search} setSearch={setSearch}
+            dateFrom={dateFrom} setDateFrom={setDateFrom}
+            dateTo={dateTo} setDateTo={setDateTo}
+            searchPlaceholder="Search status"
+          />
 
           <Card>
             <CardContent className="p-0">
@@ -190,49 +237,110 @@ export default function WaterDailyClosingPage() {
               ) : closings.length === 0 ? (
                 <div className="p-8 text-center text-slate-500">No daily closings yet. Start today's above.</div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead className="text-right">Bags produced</TableHead>
-                      <TableHead className="text-right">Bags sold</TableHead>
-                      <TableHead className="text-right">Income</TableHead>
-                      <TableHead className="text-right">Expenses</TableHead>
-                      <TableHead className="text-right">Cash at hand</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {closings.map((c) => (
-                      <TableRow key={c.waterDailyClosingId}>
-                        <TableCell className="font-medium">{c.closingDate.split("T")[0]}</TableCell>
-                        <TableCell className="text-right tabular-nums">{c.bagsProduced ?? 0}</TableCell>
-                        <TableCell className="text-right tabular-nums">{c.bagsSold ?? 0}</TableCell>
-                        <TableCell className="text-right tabular-nums">{gh(c.totalIncome)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{gh(c.totalExpenses)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{gh(c.cashAtHand)}</TableCell>
-                        <TableCell><Badge className={STATUS_COLORS[c.status] ?? ""}>{c.status}</Badge></TableCell>
-                        <TableCell className="text-right">
-                          <div className="inline-flex gap-1">
-                            <Button size="sm" variant="ghost" onClick={() => openView(c)} title="View"><Eye className="h-4 w-4" /></Button>
-                            {(c.status === "Draft" || c.status === "Rejected") && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-rose-600 hover:text-rose-700 hover:bg-rose-50"
-                                onClick={() => setDeleteTarget(c)}
-                                title="Delete (Draft/Rejected only)"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <MobileCardList
+                  items={visibleClosings}
+                  getKey={(c) => c.waterDailyClosingId}
+                  primary={(c) => c.closingDate.split("T")[0]}
+                  secondary={(c) => (
+                    <>
+                      <span>Cash {gh(c.cashAtHand)}</span>
+                      <Badge className={STATUS_COLORS[c.status] ?? ""}>{c.status}</Badge>
+                    </>
+                  )}
+                  details={(c) => [
+                    { label: "Date", value: c.closingDate.split("T")[0] },
+                    { label: "Bags produced", value: c.bagsProduced ?? 0 },
+                    { label: "Bags sold", value: c.bagsSold ?? 0 },
+                    { label: "Income", value: gh(c.totalIncome) },
+                    { label: "Expenses", value: gh(c.totalExpenses) },
+                    { label: "Cash at hand", value: gh(c.cashAtHand) },
+                    { label: "Status", value: c.status },
+                  ]}
+                  actions={(c) => (
+                    <>
+                      <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openView(c)}>
+                        <Eye className="h-4 w-4 mr-1" /> View
+                      </Button>
+                      {(c.status === "Draft" || c.status === "Rejected") && (
+                        <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 border-red-200" onClick={() => setDeleteTarget(c)}>
+                          <Trash2 className="h-4 w-4 mr-1" /> Delete
+                        </Button>
+                      )}
+                      {/* Prompt 2 §12 — Submitted/Approved can be reopened so
+                          today's late corrections can flow into a fresh
+                          closing. The old row stays in history. */}
+                      {(c.status === "Submitted" || c.status === "Approved") && (
+                        <Button size="sm" variant="outline" className="flex-1 h-10 text-amber-700 border-amber-200"
+                          onClick={() => setReopenTarget(c)}>
+                          <Undo2 className="h-4 w-4 mr-1" /> Reopen
+                        </Button>
+                      )}
+                      {c.status === "Reopened" && (
+                        <Button size="sm" variant="outline" className="flex-1 h-10"
+                          onClick={() => resubmitFor(c)}>
+                          <RefreshCw className="h-4 w-4 mr-1" /> Recreate closing
+                        </Button>
+                      )}
+                    </>
+                  )}
+                  desktopTable={
+                    <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead className="text-right">Bags produced</TableHead>
+                          <TableHead className="text-right">Bags sold</TableHead>
+                          <TableHead className="text-right">Income</TableHead>
+                          <TableHead className="text-right">Expenses</TableHead>
+                          <TableHead className="text-right">Cash at hand</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {visibleClosings.map((c) => (
+                          <TableRow key={c.waterDailyClosingId}>
+                            <TableCell className="font-medium">{c.closingDate.split("T")[0]}</TableCell>
+                            <TableCell className="text-right tabular-nums">{c.bagsProduced ?? 0}</TableCell>
+                            <TableCell className="text-right tabular-nums">{c.bagsSold ?? 0}</TableCell>
+                            <TableCell className="text-right tabular-nums">{gh(c.totalIncome)}</TableCell>
+                            <TableCell className="text-right tabular-nums">{gh(c.totalExpenses)}</TableCell>
+                            <TableCell className="text-right tabular-nums">{gh(c.cashAtHand)}</TableCell>
+                            <TableCell><Badge className={STATUS_COLORS[c.status] ?? ""}>{c.status}</Badge></TableCell>
+                            <TableCell className="text-right">
+                              <div className="inline-flex gap-1">
+                                <Button size="sm" variant="ghost" onClick={() => openView(c)} title="View"><Eye className="h-4 w-4" /></Button>
+                                {(c.status === "Draft" || c.status === "Rejected") && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                                    onClick={() => setDeleteTarget(c)}
+                                    title="Delete (Draft/Rejected only)"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                {(c.status === "Submitted" || c.status === "Approved") && (
+                                  <Button size="sm" variant="ghost" onClick={() => setReopenTarget(c)} title="Reopen">
+                                    <Undo2 className="h-4 w-4 text-amber-600" />
+                                  </Button>
+                                )}
+                                {c.status === "Reopened" && (
+                                  <Button size="sm" variant="ghost" onClick={() => resubmitFor(c)} title="Recreate closing">
+                                    <RefreshCw className="h-4 w-4 text-sky-600" />
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    </div>
+                  }
+                />
               )}
             </CardContent>
           </Card>
@@ -260,7 +368,7 @@ export default function WaterDailyClosingPage() {
 
       {/* View / submit / approve — wider modal so the 12 summary tiles + form fit without scrolling. */}
       <Dialog open={!!view} onOpenChange={(v) => { if (!v) setView(null) }}>
-        <DialogContent className="max-w-5xl">
+        <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {view && (
@@ -323,7 +431,7 @@ export default function WaterDailyClosingPage() {
                   )}
                   <div className="grid grid-cols-2 gap-3">
                     <div><Label>Actual cash counted (physical)</Label>
-                      <Input type="number" min={0} step="0.01" value={submitForm.actualCashCounted} onChange={(e) => setSubmitForm({ ...submitForm, actualCashCounted: Number(e.target.value) || 0 })} /></div>
+                      <NumberInput min={0} step="0.01" value={submitForm.actualCashCounted} onChange={(e) => setSubmitForm({ ...submitForm, actualCashCounted: Number(e.target.value) || 0 })} /></div>
                     <div className="flex flex-col justify-end">
                       <div className="text-xs text-slate-500">Cash at hand (expected)</div>
                       <div className="font-semibold tabular-nums">{gh(view.cashAtHand)}</div>
@@ -405,6 +513,32 @@ export default function WaterDailyClosingPage() {
         title="Delete daily closing?"
         description={deleteTarget ? `Closing for ${deleteTarget.closingDate.split("T")[0]} (status: ${deleteTarget.status}) will be permanently removed. This cannot be undone.` : ""}
         onConfirm={() => deleteTarget && deleteClosing(deleteTarget)}
+      />
+
+      {/* Migration 068 — Reopen with reason. The reopened closing stays in
+          history (IsActive=0). The user can then create a new draft via
+          Resubmit for the same date. */}
+      <PromptDialog
+        open={!!reopenTarget}
+        onOpenChange={(v) => { if (!v) setReopenTarget(null) }}
+        title="Reopen this closing?"
+        description={reopenTarget
+          ? <>The closing for <span className="font-medium">{reopenTarget.closingDate.split("T")[0]}</span> will be marked Reopened and stay in history. After reopening, click <span className="font-medium">Recreate closing</span> on the row to recalculate using current sales, expenses, production, payroll and cash for the same date.</>
+          : undefined}
+        label="Reason for reopening"
+        placeholder="e.g. late expenses entered after closing"
+        confirmLabel="Reopen"
+        confirmVariant="destructive"
+        onSubmit={async (reason) => {
+          if (!reopenTarget) return
+          try {
+            await reopenWaterDailyClosing(reopenTarget.waterDailyClosingId, reason)
+            toast({ title: "Closing reopened — click Resubmit to start a fresh one." })
+            setReopenTarget(null); await load()
+          } catch (e: any) {
+            toast({ title: "Reopen failed", description: e?.message, variant: "destructive" })
+          }
+        }}
       />
     </div>
   )

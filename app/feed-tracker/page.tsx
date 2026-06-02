@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -447,8 +448,8 @@ export default function FeedTrackerPage() {
                             </div>
                             <div className="space-y-2">
                               <Label>Feed change (kg)</Label>
-                              <Input
-                                type="number"
+                              <NumberInput
+                                
                                 step="0.01"
                                 placeholder="e.g. 100 or -25.5"
                                 value={adjForm.feedDeltaKg}

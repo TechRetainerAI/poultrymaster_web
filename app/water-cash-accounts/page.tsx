@@ -1,19 +1,23 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
-import { Plus, Loader2, Wallet, AlertCircle, RefreshCw, ArrowLeftRight, Eye } from "lucide-react"
+import { Plus, Pencil, Loader2, Wallet, RefreshCw, ArrowLeftRight, Eye } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -33,8 +37,18 @@ export default function WaterCashAccountsPage() {
 
   const [accounts, setAccounts] = useState<WaterCashAccount[]>([])
   const [transfers, setTransfers] = useState<WaterCashTransfer[]>([])
+  const [search, setSearch] = useState("")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+
+  const visibleAccounts = useMemo(
+    () => filterByDateAndSearch(accounts, {
+      search, dateFrom, dateTo,
+      searchKeys: ["accountName", "accountType"],
+    }),
+    [accounts, search, dateFrom, dateTo],
+  )
 
   const [open, setOpen] = useState(false)
   const [editId, setEditId] = useState<number | null>(null)
@@ -52,11 +66,11 @@ export default function WaterCashAccountsPage() {
   }, [activeFarmType])
 
   async function load() {
-    setLoading(true); setError(null)
+    setLoading(true)
     try {
       const [accs, xfers] = await Promise.all([listWaterCashAccounts(), listWaterCashTransfers()])
       setAccounts(accs); setTransfers(xfers)
-    } catch (e: any) { setError(e?.message ?? String(e)) }
+    } catch (e: any) { toast({ title: "Could not load cash accounts", description: e?.message ?? String(e), variant: "destructive" }) }
     finally { setLoading(false) }
   }
 
@@ -138,11 +152,11 @@ export default function WaterCashAccountsPage() {
             <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Approved transfers</div><div className="text-xl font-semibold">{transfers.filter(t => t.status === "Approved").length}</div></CardContent></Card>
           </div>
 
-          {error && (
-            <Card className="border-red-200 bg-red-50 mb-4">
-              <CardContent className="flex items-center gap-2 p-3 text-red-700"><AlertCircle className="h-4 w-4" /> {error}</CardContent>
-            </Card>
-          )}
+          <ListFilters
+            search={search} setSearch={setSearch}
+            searchOnly
+            searchPlaceholder="Search account name or type"
+          />
 
           <Card>
             <CardContent className="p-0">
@@ -151,33 +165,62 @@ export default function WaterCashAccountsPage() {
               ) : accounts.length === 0 ? (
                 <div className="p-8 text-center text-slate-500">No cash accounts. Use Setup to seed defaults or create one above.</div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead className="text-right">Opening</TableHead>
-                      <TableHead className="text-right">Current</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {accounts.map((a) => (
-                      <TableRow key={a.waterCashAccountId}>
-                        <TableCell className="font-medium">{a.accountName}</TableCell>
-                        <TableCell>{a.accountType}</TableCell>
-                        <TableCell className="text-right tabular-nums">{a.openingBalance.toFixed(2)}</TableCell>
-                        <TableCell className={`text-right tabular-nums font-semibold ${a.currentBalance < 0 ? "text-rose-600" : ""}`}>{a.currentBalance.toFixed(2)}</TableCell>
-                        <TableCell>{a.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="outline">Inactive</Badge>}</TableCell>
-                        <TableCell className="text-right">
-                          <Button size="sm" variant="ghost" onClick={() => viewTransactions(a)}><Eye className="h-4 w-4" /></Button>
-                          <Button size="sm" variant="ghost" onClick={() => openEdit(a)}>Edit</Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <MobileCardList
+                  items={visibleAccounts}
+                  getKey={(a) => a.waterCashAccountId}
+                  primary={(a) => a.accountName}
+                  secondary={(a) => (
+                    <>
+                      <span>{a.accountType}</span>
+                      {a.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="outline">Inactive</Badge>}
+                    </>
+                  )}
+                  details={(a) => [
+                    { label: "Type", value: a.accountType },
+                    { label: "Opening", value: a.openingBalance.toFixed(2) },
+                    { label: "Current", value: <span className={a.currentBalance < 0 ? "text-rose-600 font-semibold" : "font-semibold"}>{a.currentBalance.toFixed(2)}</span> },
+                    { label: "Status", value: a.isActive ? "Active" : "Inactive" },
+                  ]}
+                  actions={(a) => (
+                    <>
+                      <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => viewTransactions(a)}>
+                        <Eye className="h-4 w-4 mr-1" /> Txns
+                      </Button>
+                      <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openEdit(a)}>Edit</Button>
+                    </>
+                  )}
+                  desktopTable={
+                    <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead className="text-right">Opening</TableHead>
+                          <TableHead className="text-right">Current</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {visibleAccounts.map((a) => (
+                          <TableRow key={a.waterCashAccountId}>
+                            <TableCell className="font-medium">{a.accountName}</TableCell>
+                            <TableCell>{a.accountType}</TableCell>
+                            <TableCell className="text-right tabular-nums">{a.openingBalance.toFixed(2)}</TableCell>
+                            <TableCell className={`text-right tabular-nums font-semibold ${a.currentBalance < 0 ? "text-rose-600" : ""}`}>{a.currentBalance.toFixed(2)}</TableCell>
+                            <TableCell>{a.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="outline">Inactive</Badge>}</TableCell>
+                            <TableCell className="text-right">
+                              <Button size="sm" variant="ghost" onClick={() => viewTransactions(a)}><Eye className="h-4 w-4" /></Button>
+                              <Button size="sm" variant="ghost" onClick={() => openEdit(a)}>Edit</Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    </div>
+                  }
+                />
               )}
             </CardContent>
           </Card>
@@ -186,28 +229,60 @@ export default function WaterCashAccountsPage() {
             <Card className="mt-4">
               <CardContent className="p-4">
                 <div className="mb-2 font-medium text-slate-700">Recent transfers</div>
-                <Table>
-                  <TableHeader>
-                    <TableRow><TableHead>Date</TableHead><TableHead>From</TableHead><TableHead>To</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {transfers.slice(0, 8).map((t) => (
-                      <TableRow key={t.waterCashTransferId}>
-                        <TableCell>{t.transferDate.split("T")[0]}</TableCell>
-                        <TableCell>{t.fromAccountName}</TableCell>
-                        <TableCell>{t.toAccountName}</TableCell>
-                        <TableCell className="text-right tabular-nums">{t.amount.toFixed(2)}</TableCell>
-                        <TableCell><Badge variant="outline">{t.status}</Badge></TableCell>
-                        <TableCell className="text-right">
-                          {t.status === "Draft" && <>
-                            <Button size="sm" variant="ghost" onClick={async () => { await approveWaterCashTransfer(t.waterCashTransferId); await load() }}>Approve</Button>
-                            <Button size="sm" variant="ghost" onClick={async () => { await cancelWaterCashTransfer(t.waterCashTransferId); await load() }}>Cancel</Button>
-                          </>}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <MobileCardList
+                  items={transfers.slice(0, 8)}
+                  getKey={(t) => t.waterCashTransferId}
+                  primary={(t) => `${t.fromAccountName} → ${t.toAccountName}`}
+                  secondary={(t) => (
+                    <>
+                      <span>{t.transferDate.split("T")[0]}</span>
+                      <Badge variant="outline">{t.status}</Badge>
+                    </>
+                  )}
+                  details={(t) => [
+                    { label: "Date", value: t.transferDate.split("T")[0] },
+                    { label: "From", value: t.fromAccountName },
+                    { label: "To", value: t.toAccountName },
+                    { label: "Amount", value: t.amount.toFixed(2) },
+                    { label: "Status", value: t.status },
+                  ]}
+                  actions={(t) => (
+                    <>
+                      {t.status === "Draft" && (
+                        <>
+                          <Button size="sm" variant="outline" className="flex-1 h-10 text-green-700 border-green-200" onClick={async () => { await approveWaterCashTransfer(t.waterCashTransferId); await load() }}>Approve</Button>
+                          <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 border-red-200" onClick={async () => { await cancelWaterCashTransfer(t.waterCashTransferId); await load() }}>Cancel</Button>
+                        </>
+                      )}
+                    </>
+                  )}
+                  desktopTable={
+                    <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow><TableHead>Date</TableHead><TableHead>From</TableHead><TableHead>To</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {transfers.slice(0, 8).map((t) => (
+                          <TableRow key={t.waterCashTransferId}>
+                            <TableCell>{t.transferDate.split("T")[0]}</TableCell>
+                            <TableCell>{t.fromAccountName}</TableCell>
+                            <TableCell>{t.toAccountName}</TableCell>
+                            <TableCell className="text-right tabular-nums">{t.amount.toFixed(2)}</TableCell>
+                            <TableCell><Badge variant="outline">{t.status}</Badge></TableCell>
+                            <TableCell className="text-right">
+                              {t.status === "Draft" && <>
+                                <Button size="sm" variant="ghost" onClick={async () => { await approveWaterCashTransfer(t.waterCashTransferId); await load() }}>Approve</Button>
+                                <Button size="sm" variant="ghost" onClick={async () => { await cancelWaterCashTransfer(t.waterCashTransferId); await load() }}>Cancel</Button>
+                              </>}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    </div>
+                  }
+                />
               </CardContent>
             </Card>
           )}
@@ -216,42 +291,71 @@ export default function WaterCashAccountsPage() {
 
       {/* Create/edit account */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>{editId ? "Edit account" : "New cash account"}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2"><Label>Name *</Label>
-              <Input value={form.accountName} onChange={(e) => setForm({ ...form, accountName: e.target.value })} /></div>
-            <div><Label>Type</Label>
-              <Select value={form.accountType} onValueChange={(v) => setForm({ ...form, accountType: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{ACCOUNT_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-              </Select></div>
-            {!editId && (<div><Label>Opening balance</Label>
-              <Input type="number" step="0.01" value={form.openingBalance} onChange={(e) => setForm({ ...form, openingBalance: Number(e.target.value) || 0 })} /></div>)}
-            <div className="col-span-2 flex items-center justify-between rounded border p-2">
-              <Label>Allow negative balance</Label>
-              <Switch checked={form.allowNegativeBalance} onCheckedChange={(v) => setForm({ ...form, allowNegativeBalance: v })} />
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {editId ? <Pencil className="w-5 h-5 text-blue-600" /> : <Wallet className="w-5 h-5 text-blue-600" />}
+              {editId ? "Edit account" : "New cash account"}
+            </DialogTitle>
+            <DialogDescription>Configure where cash flows into or out of</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <FormSection title="Identity" color="indigo">
+              <FormField label="Name *" full>
+                <Input value={form.accountName} onChange={(e) => setForm({ ...form, accountName: e.target.value })} />
+              </FormField>
+              <FormField label="Type" full={!!editId}>
+                <Select value={form.accountType} onValueChange={(v) => setForm({ ...form, accountType: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{ACCOUNT_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                </Select>
+              </FormField>
+              {!editId && (
+                <FormField label="Opening balance">
+                  <NumberInput step="0.01" value={form.openingBalance} onChange={(e) => setForm({ ...form, openingBalance: Number(e.target.value) || 0 })} />
+                </FormField>
+              )}
+            </FormSection>
+
+            <FormSection title="Behavior" color="amber" columns={1}>
+              <FormField label="Allow negative balance">
+                <div className="flex items-center justify-between rounded border p-2">
+                  <span className="text-sm text-slate-700">Allow this account to go below zero</span>
+                  <Switch checked={form.allowNegativeBalance} onCheckedChange={(v) => setForm({ ...form, allowNegativeBalance: v })} />
+                </div>
+              </FormField>
+              {editId && (
+                <FormField label="Active">
+                  <div className="flex items-center justify-between rounded border p-2">
+                    <span className="text-sm text-slate-700">Active</span>
+                    <Switch checked={form.isActive} onCheckedChange={(v) => setForm({ ...form, isActive: v })} />
+                  </div>
+                </FormField>
+              )}
+            </FormSection>
+
+            <FormSection title="Notes" color="slate" columns={1}>
+              <FormField label="Notes">
+                <Input value={form.notes ?? ""} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+              </FormField>
+            </FormSection>
+
+            <div className="flex gap-3 justify-end pt-2">
+              <Button type="button" onClick={() => setOpen(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
+              <Button onClick={save} disabled={saving}>
+                {saving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</>) : "Save"}
+              </Button>
             </div>
-            {editId && (<div className="col-span-2 flex items-center justify-between rounded border p-2">
-              <Label>Active</Label>
-              <Switch checked={form.isActive} onCheckedChange={(v) => setForm({ ...form, isActive: v })} />
-            </div>)}
-            <div className="col-span-2"><Label>Notes</Label>
-              <Input value={form.notes ?? ""} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
-          </div>
-          <div className="flex justify-end gap-2 pt-3">
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
           </div>
         </DialogContent>
       </Dialog>
 
       {/* Transactions view */}
       <Dialog open={txDlg.open} onOpenChange={(v) => setTxDlg({ open: v, rows: [] })}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Transactions — {txDlg.acc?.accountName}</DialogTitle></DialogHeader>
           {txDlg.rows.length === 0 ? <div className="p-4 text-slate-500">No transactions yet.</div> : (
-            <div className="max-h-96 overflow-auto">
+            <div className="max-h-96 overflow-auto overflow-x-auto">
               <Table>
                 <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Type</TableHead><TableHead>Source</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Description</TableHead></TableRow></TableHeader>
                 <TableBody>
@@ -273,27 +377,42 @@ export default function WaterCashAccountsPage() {
 
       {/* Transfer */}
       <Dialog open={xferDlg} onOpenChange={setXferDlg}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Cash transfer (Draft → Approved)</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3">
-            <div><Label>From</Label>
-              <Select value={String(xferForm.fromWaterCashAccountId)} onValueChange={(v) => setXferForm({ ...xferForm, fromWaterCashAccountId: Number(v) })}>
-                <SelectTrigger><SelectValue placeholder="From account" /></SelectTrigger>
-                <SelectContent>{accounts.filter(a => a.isActive).map(a => <SelectItem key={a.waterCashAccountId} value={String(a.waterCashAccountId)}>{a.accountName}</SelectItem>)}</SelectContent>
-              </Select></div>
-            <div><Label>To</Label>
-              <Select value={String(xferForm.toWaterCashAccountId)} onValueChange={(v) => setXferForm({ ...xferForm, toWaterCashAccountId: Number(v) })}>
-                <SelectTrigger><SelectValue placeholder="To account" /></SelectTrigger>
-                <SelectContent>{accounts.filter(a => a.isActive).map(a => <SelectItem key={a.waterCashAccountId} value={String(a.waterCashAccountId)}>{a.accountName}</SelectItem>)}</SelectContent>
-              </Select></div>
-            <div className="col-span-2"><Label>Amount</Label>
-              <Input type="number" min={0.01} step="0.01" value={xferForm.amount} onChange={(e) => setXferForm({ ...xferForm, amount: Number(e.target.value) || 0 })} /></div>
-            <div className="col-span-2"><Label>Notes</Label>
-              <Input value={xferForm.notes} onChange={(e) => setXferForm({ ...xferForm, notes: e.target.value })} /></div>
-          </div>
-          <div className="flex justify-end gap-2 pt-3">
-            <Button variant="ghost" onClick={() => setXferDlg(false)}>Cancel</Button>
-            <Button onClick={saveTransfer}>Create &amp; approve</Button>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowLeftRight className="w-5 h-5 text-blue-600" /> Cash transfer (Draft → Approved)
+            </DialogTitle>
+            <DialogDescription>Move funds between two cash accounts</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <FormSection title="Accounts" color="indigo">
+              <FormField label="From">
+                <Select value={String(xferForm.fromWaterCashAccountId)} onValueChange={(v) => setXferForm({ ...xferForm, fromWaterCashAccountId: Number(v) })}>
+                  <SelectTrigger><SelectValue placeholder="From account" /></SelectTrigger>
+                  <SelectContent>{accounts.filter(a => a.isActive).map(a => <SelectItem key={a.waterCashAccountId} value={String(a.waterCashAccountId)}>{a.accountName}</SelectItem>)}</SelectContent>
+                </Select>
+              </FormField>
+              <FormField label="To">
+                <Select value={String(xferForm.toWaterCashAccountId)} onValueChange={(v) => setXferForm({ ...xferForm, toWaterCashAccountId: Number(v) })}>
+                  <SelectTrigger><SelectValue placeholder="To account" /></SelectTrigger>
+                  <SelectContent>{accounts.filter(a => a.isActive).map(a => <SelectItem key={a.waterCashAccountId} value={String(a.waterCashAccountId)}>{a.accountName}</SelectItem>)}</SelectContent>
+                </Select>
+              </FormField>
+            </FormSection>
+
+            <FormSection title="Amount" color="amber" columns={1}>
+              <FormField label="Amount">
+                <NumberInput min={0.01} step="0.01" value={xferForm.amount} onChange={(e) => setXferForm({ ...xferForm, amount: Number(e.target.value) || 0 })} />
+              </FormField>
+              <FormField label="Notes">
+                <Input value={xferForm.notes} onChange={(e) => setXferForm({ ...xferForm, notes: e.target.value })} />
+              </FormField>
+            </FormSection>
+
+            <div className="flex gap-3 justify-end pt-2">
+              <Button type="button" onClick={() => setXferDlg(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
+              <Button onClick={saveTransfer}>Create &amp; approve</Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

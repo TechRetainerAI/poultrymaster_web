@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -384,7 +385,7 @@ export default function SuppliesPage() {
                     Add Supply
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                       <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
@@ -439,9 +440,9 @@ export default function SuppliesPage() {
                         <div className="grid grid-cols-3 gap-4">
                           <div className="space-y-2">
                             <Label htmlFor="quantity" className="text-xs font-medium text-slate-600">Quantity *</Label>
-                            <Input
+                            <NumberInput
                               id="quantity"
-                              type="number"
+                              
                               min="0"
                               value={formData.quantity}
                               onChange={(e) => setFormData(prev => ({ ...prev, quantity: parseFloat(e.target.value) || 0 }))}
@@ -462,9 +463,9 @@ export default function SuppliesPage() {
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="cost" className="text-xs font-medium text-slate-600">Cost</Label>
-                            <Input
+                            <NumberInput
                               id="cost"
-                              type="number"
+                              
                               min="0"
                               step="0.01"
                               value={formData.cost}
@@ -833,7 +834,7 @@ export default function SuppliesPage() {
                 }
               }}
             >
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
                     <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
@@ -888,9 +889,9 @@ export default function SuppliesPage() {
                       <div className="grid grid-cols-3 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="edit-quantity" className="text-xs font-medium text-slate-600">Quantity *</Label>
-                          <Input
+                          <NumberInput
                             id="edit-quantity"
-                            type="number"
+                            
                             min="0"
                             value={formData.quantity}
                             onChange={(e) => setFormData(prev => ({ ...prev, quantity: parseFloat(e.target.value) || 0 }))}
@@ -911,9 +912,9 @@ export default function SuppliesPage() {
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="edit-cost" className="text-xs font-medium text-slate-600">Cost</Label>
-                          <Input
+                          <NumberInput
                             id="edit-cost"
-                            type="number"
+                            
                             min="0"
                             step="0.01"
                             value={formData.cost}

@@ -1,19 +1,23 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
+import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Pencil, Trash2, Loader2, Cog, AlertCircle } from "lucide-react"
+import { Plus, Pencil, Trash2, Loader2, Cog } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -44,9 +48,19 @@ export default function WaterMachinesPage() {
   const logout = useLogout()
 
   const [items, setItems] = useState<WaterMachine[]>([])
+  const [search, setSearch] = useState("")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
+
+  const visibleItems = useMemo(
+    () => filterByDateAndSearch(items, {
+      search, dateFrom, dateTo,
+      searchKeys: ["machineName", "machineType", "manufacturer"],
+    }),
+    [items, search, dateFrom, dateTo],
+  )
   const [editId, setEditId] = useState<number | null>(null)
   const [form, setForm] = useState<FormState>(EMPTY)
   const [saving, setSaving] = useState(false)
@@ -59,9 +73,9 @@ export default function WaterMachinesPage() {
   }, [activeFarmType])
 
   async function load() {
-    setLoading(true); setError(null)
+    setLoading(true)
     try { setItems(await listWaterMachines()) }
-    catch (e: any) { setError(e?.message ?? String(e)) }
+    catch (e: any) { toast({ title: "Could not load machines", description: e?.message ?? String(e), variant: "destructive" }) }
     finally { setLoading(false) }
   }
 
@@ -102,18 +116,18 @@ export default function WaterMachinesPage() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <DashboardHeader />
         <main className="flex-1 overflow-auto p-4 md:p-6">
-          <div className="mb-4 flex items-center justify-between gap-2">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
               <Cog className="h-6 w-6 text-sky-600" /> Machines
             </h1>
-            <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> New machine</Button>
+            <Button onClick={openNew} className="w-full sm:w-auto h-11 sm:h-10"><Plus className="h-4 w-4 mr-1" /> New machine</Button>
           </div>
 
-          {error && (
-            <Card className="border-red-200 bg-red-50 mb-4">
-              <CardContent className="flex items-center gap-2 p-3 text-red-700"><AlertCircle className="h-4 w-4" /> {error}</CardContent>
-            </Card>
-          )}
+          <ListFilters
+            search={search} setSearch={setSearch}
+            searchOnly
+            searchPlaceholder="Search name, type or manufacturer"
+          />
 
           <Card>
             <CardContent className="p-0">
@@ -122,27 +136,59 @@ export default function WaterMachinesPage() {
               ) : items.length === 0 ? (
                 <div className="p-8 text-center text-slate-500">No machines yet.</div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow><TableHead>Name</TableHead><TableHead>Number</TableHead><TableHead>Type</TableHead><TableHead className="text-right">Capacity/hr</TableHead><TableHead>Next maint.</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {items.map((m) => (
-                      <TableRow key={m.waterMachineId}>
-                        <TableCell className="font-medium">{m.machineName}</TableCell>
-                        <TableCell>{m.machineNumber ?? "—"}</TableCell>
-                        <TableCell>{m.machineType ?? "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums">{m.capacityPerHour ?? "—"}</TableCell>
-                        <TableCell>{m.nextMaintenanceDate ? m.nextMaintenanceDate.split("T")[0] : "—"}</TableCell>
-                        <TableCell><Badge className={STATUS_COLOR[m.status] ?? ""}>{m.status}</Badge></TableCell>
-                        <TableCell className="text-right">
-                          <Button size="sm" variant="ghost" onClick={() => openEdit(m)}><Pencil className="h-4 w-4" /></Button>
-                          <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(m)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <MobileCardList
+                  items={visibleItems}
+                  getKey={(m) => m.waterMachineId}
+                  primary={(m) => m.machineName}
+                  secondary={(m) => (
+                    <>
+                      <span>{m.machineType ?? "—"}</span>
+                      <Badge className={STATUS_COLOR[m.status] ?? ""}>{m.status}</Badge>
+                    </>
+                  )}
+                  details={(m) => [
+                    { label: "Number", value: m.machineNumber ?? "—" },
+                    { label: "Type", value: m.machineType ?? "—" },
+                    { label: "Capacity/hr", value: m.capacityPerHour ?? "—" },
+                    { label: "Next maint.", value: m.nextMaintenanceDate ? m.nextMaintenanceDate.split("T")[0] : "—" },
+                    { label: "Status", value: m.status },
+                  ]}
+                  actions={(m) => (
+                    <>
+                      <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openEdit(m)}>
+                        <Pencil className="h-4 w-4 mr-1" /> Edit
+                      </Button>
+                      <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 border-red-200" onClick={() => setDeleteTarget(m)}>
+                        <Trash2 className="h-4 w-4 mr-1" /> Delete
+                      </Button>
+                    </>
+                  )}
+                  desktopTable={
+                    <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow><TableHead>Name</TableHead><TableHead>Number</TableHead><TableHead>Type</TableHead><TableHead className="text-right">Capacity/hr</TableHead><TableHead>Next maint.</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {visibleItems.map((m) => (
+                          <TableRow key={m.waterMachineId}>
+                            <TableCell className="font-medium">{m.machineName}</TableCell>
+                            <TableCell>{m.machineNumber ?? "—"}</TableCell>
+                            <TableCell>{m.machineType ?? "—"}</TableCell>
+                            <TableCell className="text-right tabular-nums">{m.capacityPerHour ?? "—"}</TableCell>
+                            <TableCell>{m.nextMaintenanceDate ? m.nextMaintenanceDate.split("T")[0] : "—"}</TableCell>
+                            <TableCell><Badge className={STATUS_COLOR[m.status] ?? ""}>{m.status}</Badge></TableCell>
+                            <TableCell className="text-right">
+                              <Button size="sm" variant="ghost" onClick={() => openEdit(m)}><Pencil className="h-4 w-4" /></Button>
+                              <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(m)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    </div>
+                  }
+                />
               )}
             </CardContent>
           </Card>
@@ -150,38 +196,69 @@ export default function WaterMachinesPage() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader><DialogTitle>{editId ? "Edit machine" : "New machine"}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2"><Label>Machine name *</Label>
-              <Input value={form.machineName} onChange={(e) => setForm({ ...form, machineName: e.target.value })} /></div>
-            <div><Label>Machine number</Label>
-              <Input value={form.machineNumber ?? ""} onChange={(e) => setForm({ ...form, machineNumber: e.target.value || null })} /></div>
-            <div><Label>Type</Label>
-              <Input value={form.machineType ?? ""} onChange={(e) => setForm({ ...form, machineType: e.target.value || null })} placeholder="e.g. Sachet filling, Bottling" /></div>
-            <div><Label>Manufacturer</Label>
-              <Input value={form.manufacturer ?? ""} onChange={(e) => setForm({ ...form, manufacturer: e.target.value || null })} /></div>
-            <div><Label>Capacity / hour (bags)</Label>
-              <Input type="number" min={0} value={form.capacityPerHour ?? ""} onChange={(e) => setForm({ ...form, capacityPerHour: e.target.value ? Number(e.target.value) : null })} /></div>
-            <div><Label>Purchase date</Label>
-              <Input type="date" value={form.purchaseDate ?? ""} onChange={(e) => setForm({ ...form, purchaseDate: e.target.value || null })} /></div>
-            <div><Label>Status</Label>
-              <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-              </Select></div>
-            <div><Label>Maintenance frequency (days)</Label>
-              <Input type="number" min={0} value={form.maintenanceFrequencyDays ?? ""} onChange={(e) => setForm({ ...form, maintenanceFrequencyDays: e.target.value ? Number(e.target.value) : null })} /></div>
-            <div><Label>Last maintenance</Label>
-              <Input type="date" value={form.lastMaintenanceDate ?? ""} onChange={(e) => setForm({ ...form, lastMaintenanceDate: e.target.value || null })} /></div>
-            <div><Label>Next maintenance</Label>
-              <Input type="date" value={form.nextMaintenanceDate ?? ""} onChange={(e) => setForm({ ...form, nextMaintenanceDate: e.target.value || null })} /></div>
-            <div className="col-span-2"><Label>Notes</Label>
-              <Input value={form.notes ?? ""} onChange={(e) => setForm({ ...form, notes: e.target.value || null })} /></div>
-          </div>
-          <div className="flex justify-end gap-2 pt-3">
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
+        <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {editId ? <Pencil className="w-5 h-5 text-blue-600" /> : <Cog className="w-5 h-5 text-blue-600" />}
+              {editId ? "Edit machine" : "New machine"}
+            </DialogTitle>
+            <DialogDescription>Register a production machine and its maintenance schedule</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <FormSection title="Identity" color="indigo">
+              <FormField label="Machine name *" full>
+                <Input value={form.machineName} onChange={(e) => setForm({ ...form, machineName: e.target.value })} />
+              </FormField>
+              <FormField label="Machine number">
+                <Input value={form.machineNumber ?? ""} onChange={(e) => setForm({ ...form, machineNumber: e.target.value || null })} />
+              </FormField>
+              <FormField label="Type">
+                <Input value={form.machineType ?? ""} onChange={(e) => setForm({ ...form, machineType: e.target.value || null })} placeholder="e.g. Sachet filling, Bottling" />
+              </FormField>
+              <FormField label="Manufacturer">
+                <Input value={form.manufacturer ?? ""} onChange={(e) => setForm({ ...form, manufacturer: e.target.value || null })} />
+              </FormField>
+            </FormSection>
+
+            <FormSection title="Details" color="blue">
+              <FormField label="Capacity / hour (bags)">
+                <NumberInput min={0} value={form.capacityPerHour ?? ""} onChange={(e) => setForm({ ...form, capacityPerHour: e.target.value ? Number(e.target.value) : null })} />
+              </FormField>
+              <FormField label="Purchase date">
+                <Input type="date" value={form.purchaseDate ?? ""} onChange={(e) => setForm({ ...form, purchaseDate: e.target.value || null })} />
+              </FormField>
+              <FormField label="Status" full>
+                <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                </Select>
+              </FormField>
+            </FormSection>
+
+            <FormSection title="Maintenance" color="amber">
+              <FormField label="Maintenance frequency (days)" full>
+                <NumberInput min={0} value={form.maintenanceFrequencyDays ?? ""} onChange={(e) => setForm({ ...form, maintenanceFrequencyDays: e.target.value ? Number(e.target.value) : null })} />
+              </FormField>
+              <FormField label="Last maintenance">
+                <Input type="date" value={form.lastMaintenanceDate ?? ""} onChange={(e) => setForm({ ...form, lastMaintenanceDate: e.target.value || null })} />
+              </FormField>
+              <FormField label="Next maintenance">
+                <Input type="date" value={form.nextMaintenanceDate ?? ""} onChange={(e) => setForm({ ...form, nextMaintenanceDate: e.target.value || null })} />
+              </FormField>
+            </FormSection>
+
+            <FormSection title="Notes" color="slate" columns={1}>
+              <FormField label="Notes">
+                <Input value={form.notes ?? ""} onChange={(e) => setForm({ ...form, notes: e.target.value || null })} />
+              </FormField>
+            </FormSection>
+
+            <div className="flex gap-3 justify-end pt-2">
+              <Button type="button" onClick={() => setOpen(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
+              <Button onClick={save} disabled={saving}>
+                {saving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</>) : "Save"}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

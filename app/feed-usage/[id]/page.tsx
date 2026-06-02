@@ -6,6 +6,7 @@ import { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -291,10 +292,10 @@ export default function EditFeedUsagePage() {
                     <Label htmlFor="quantityKg" className="text-sm font-medium text-slate-700">
                       Quantity (kg) *
                     </Label>
-                    <Input
+                    <NumberInput
                       id="quantityKg"
                       name="quantityKg"
-                      type="number"
+                      
                       step="0.1"
                       min="0"
                       placeholder="e.g., 25.5"

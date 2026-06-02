@@ -8,6 +8,7 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
@@ -172,11 +173,11 @@ export default function GenericStaffDetailPage() {
                   </div>
                   <div>
                     <Label>Base pay</Label>
-                    <Input type="number" step="0.01" min="0" value={form.basePay} onChange={(e) => setForm((f) => ({ ...f, basePay: e.target.value }))} />
+                    <NumberInput step="0.01" min="0" value={form.basePay} onChange={(e) => setForm((f) => ({ ...f, basePay: e.target.value }))} />
                   </div>
                   <div>
                     <Label>Commission rate (optional)</Label>
-                    <Input type="number" step="0.0001" min="0" value={form.commissionRate} onChange={(e) => setForm((f) => ({ ...f, commissionRate: e.target.value }))} />
+                    <NumberInput step="0.0001" min="0" value={form.commissionRate} onChange={(e) => setForm((f) => ({ ...f, commissionRate: e.target.value }))} />
                   </div>
                   <div className="md:col-span-2 flex items-center gap-2">
                     <Switch checked={form.isActive} onCheckedChange={(v) => setForm((f) => ({ ...f, isActive: v }))} id="active" />

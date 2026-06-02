@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -424,8 +425,8 @@ export default function EggTrackerPage() {
                             </div>
                             <div className="space-y-2">
                               <Label>Egg change (whole eggs)</Label>
-                              <Input
-                                type="number"
+                              <NumberInput
+                                
                                 step={1}
                                 placeholder="e.g. 50 or -20"
                                 value={adjForm.eggDelta}

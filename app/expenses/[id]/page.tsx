@@ -6,6 +6,7 @@ import { useEffect, useState } from "react"
 import { useRouter, useParams, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
@@ -380,10 +381,10 @@ export default function EditExpensePage() {
                     <Label htmlFor="amount" className="text-sm font-medium text-slate-700">
                       Amount ($) *
                     </Label>
-                    <Input
+                    <NumberInput
                       id="amount"
                       name="amount"
-                      type="number"
+                      
                       step="0.01"
                       min="0"
                       value={formData.amount}

@@ -6,6 +6,7 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -339,9 +340,9 @@ export default function EditEggProductionPage() {
 
                   <div className="space-y-2">
                     <Label htmlFor="totalProduction">Total Eggs Collected</Label>
-                    <Input
+                    <NumberInput
                       id="totalProduction"
-                      type="number"
+                      
                       min="0"
                       value={totalProduction}
                       disabled
@@ -350,9 +351,9 @@ export default function EditEggProductionPage() {
 
                   <div className="space-y-2">
                     <Label htmlFor="brokenEggs">Broken Eggs</Label>
-                    <Input
+                    <NumberInput
                       id="brokenEggs"
-                      type="number"
+                      
                       min="0"
                       value={formData.brokenEggs}
                       onChange={(e) => handleInputChange("brokenEggs", parseInt(e.target.value) || 0)}
@@ -390,11 +391,11 @@ export default function EditEggProductionPage() {
                   <div className="grid grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">Crates</Label>
-                      <Input type="number" min="0" value={morningCrates} onChange={(e) => setMorningCrates(parseInt(e.target.value) || 0)} disabled={saving} />
+                      <NumberInput min="0" value={morningCrates} onChange={(e) => setMorningCrates(parseInt(e.target.value) || 0)} disabled={saving} />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Loose Eggs</Label>
-                      <Input type="number" min="0" max="29" value={morningLoose} onChange={(e) => setMorningLoose(parseInt(e.target.value) || 0)} disabled={saving} />
+                      <NumberInput min="0" max="29" value={morningLoose} onChange={(e) => setMorningLoose(parseInt(e.target.value) || 0)} disabled={saving} />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Total</Label>
@@ -410,11 +411,11 @@ export default function EditEggProductionPage() {
                   <div className="grid grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">Crates</Label>
-                      <Input type="number" min="0" value={noonCrates} onChange={(e) => setNoonCrates(parseInt(e.target.value) || 0)} disabled={saving} />
+                      <NumberInput min="0" value={noonCrates} onChange={(e) => setNoonCrates(parseInt(e.target.value) || 0)} disabled={saving} />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Loose Eggs</Label>
-                      <Input type="number" min="0" max="29" value={noonLoose} onChange={(e) => setNoonLoose(parseInt(e.target.value) || 0)} disabled={saving} />
+                      <NumberInput min="0" max="29" value={noonLoose} onChange={(e) => setNoonLoose(parseInt(e.target.value) || 0)} disabled={saving} />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Total</Label>
@@ -430,11 +431,11 @@ export default function EditEggProductionPage() {
                   <div className="grid grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">Crates</Label>
-                      <Input type="number" min="0" value={eveningCrates} onChange={(e) => setEveningCrates(parseInt(e.target.value) || 0)} disabled={saving} />
+                      <NumberInput min="0" value={eveningCrates} onChange={(e) => setEveningCrates(parseInt(e.target.value) || 0)} disabled={saving} />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Loose Eggs</Label>
-                      <Input type="number" min="0" max="29" value={eveningLoose} onChange={(e) => setEveningLoose(parseInt(e.target.value) || 0)} disabled={saving} />
+                      <NumberInput min="0" max="29" value={eveningLoose} onChange={(e) => setEveningLoose(parseInt(e.target.value) || 0)} disabled={saving} />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Total</Label>

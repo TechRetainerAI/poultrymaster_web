@@ -8,6 +8,7 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -336,15 +337,15 @@ export default function GenericPayrollRunDetailPage() {
                             </Select>
                           </div>
                           <div><Label>Basic pay</Label>
-                            <Input type="number" step="0.01" min="0" value={form.basicPay} onChange={(e) => setForm((f) => ({ ...f, basicPay: e.target.value }))} /></div>
+                            <NumberInput step="0.01" min="0" value={form.basicPay} onChange={(e) => setForm((f) => ({ ...f, basicPay: e.target.value }))} /></div>
                           <div><Label>Daily wage</Label>
-                            <Input type="number" step="0.01" min="0" value={form.dailyWage} onChange={(e) => setForm((f) => ({ ...f, dailyWage: e.target.value }))} /></div>
+                            <NumberInput step="0.01" min="0" value={form.dailyWage} onChange={(e) => setForm((f) => ({ ...f, dailyWage: e.target.value }))} /></div>
                           <div><Label>Commission</Label>
-                            <Input type="number" step="0.01" min="0" value={form.commission} onChange={(e) => setForm((f) => ({ ...f, commission: e.target.value }))} /></div>
+                            <NumberInput step="0.01" min="0" value={form.commission} onChange={(e) => setForm((f) => ({ ...f, commission: e.target.value }))} /></div>
                           <div><Label>Bonus</Label>
-                            <Input type="number" step="0.01" min="0" value={form.bonus} onChange={(e) => setForm((f) => ({ ...f, bonus: e.target.value }))} /></div>
+                            <NumberInput step="0.01" min="0" value={form.bonus} onChange={(e) => setForm((f) => ({ ...f, bonus: e.target.value }))} /></div>
                           <div><Label>Deductions</Label>
-                            <Input type="number" step="0.01" min="0" value={form.deductions} onChange={(e) => setForm((f) => ({ ...f, deductions: e.target.value }))} /></div>
+                            <NumberInput step="0.01" min="0" value={form.deductions} onChange={(e) => setForm((f) => ({ ...f, deductions: e.target.value }))} /></div>
                           <div>
                             <Label>Payment method</Label>
                             <Select value={form.paymentMethod} onValueChange={(v) => setForm((f) => ({ ...f, paymentMethod: v }))}>

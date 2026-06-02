@@ -7,6 +7,7 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -210,8 +211,8 @@ export default function GenericSetupPage() {
 
                   <div>
                     <Label>Opening cash ({form.defaultCurrency})</Label>
-                    <Input
-                      type="number"
+                    <NumberInput
+                      
                       step="0.01"
                       value={form.openingCashBalance}
                       onChange={(e) => setForm((f) => ({ ...f, openingCashBalance: e.target.value }))}

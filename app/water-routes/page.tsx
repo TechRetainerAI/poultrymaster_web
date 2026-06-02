@@ -1,18 +1,22 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
-import { Plus, Pencil, Trash2, Loader2, Route as RouteIcon, AlertCircle } from "lucide-react"
+import { FormSection, FormField } from "@/components/ui/form-section"
+import { Plus, Pencil, Trash2, Loader2, Route as RouteIcon } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -22,7 +26,7 @@ import {
 } from "@/lib/api/water"
 
 type FormState = Omit<WaterRoute, "waterRouteId" | "farmId">
-const EMPTY: FormState = { routeName: "", areaCovered: null, defaultDriverStaffId: null, defaultWaterVehicleId: null, expectedCustomers: null, expectedBagsSold: null, notes: null }
+const EMPTY: FormState = { routeName: "", areaCovered: null, defaultDriverStaffId: null, defaultVehicleId: null, expectedCustomers: null, expectedBagsSold: null, notes: null }
 
 export default function WaterRoutesPage() {
   const router = useRouter()
@@ -32,8 +36,18 @@ export default function WaterRoutesPage() {
 
   const [items, setItems] = useState<WaterRoute[]>([])
   const [vehicles, setVehicles] = useState<WaterVehicle[]>([])
+  const [search, setSearch] = useState("")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+
+  const visibleItems = useMemo(
+    () => filterByDateAndSearch(items, {
+      search, dateFrom, dateTo,
+      searchKeys: ["routeName", "areaCovered"],
+    }),
+    [items, search, dateFrom, dateTo],
+  )
   const [open, setOpen] = useState(false)
   const [editId, setEditId] = useState<number | null>(null)
   const [form, setForm] = useState<FormState>(EMPTY)
@@ -47,9 +61,9 @@ export default function WaterRoutesPage() {
   }, [activeFarmType])
 
   async function load() {
-    setLoading(true); setError(null)
+    setLoading(true)
     try { const [rs, vs] = await Promise.all([listWaterRoutes(), listWaterVehicles()]); setItems(rs); setVehicles(vs) }
-    catch (e: any) { setError(e?.message ?? String(e)) }
+    catch (e: any) { toast({ title: "Could not load routes", description: e?.message ?? String(e), variant: "destructive" }) }
     finally { setLoading(false) }
   }
 
@@ -58,7 +72,7 @@ export default function WaterRoutesPage() {
     setEditId(r.waterRouteId)
     setForm({
       routeName: r.routeName, areaCovered: r.areaCovered, defaultDriverStaffId: r.defaultDriverStaffId,
-      defaultWaterVehicleId: r.defaultWaterVehicleId, expectedCustomers: r.expectedCustomers,
+      defaultVehicleId: r.defaultVehicleId, expectedCustomers: r.expectedCustomers,
       expectedBagsSold: r.expectedBagsSold, notes: r.notes,
     })
     setOpen(true)
@@ -86,18 +100,18 @@ export default function WaterRoutesPage() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <DashboardHeader />
         <main className="flex-1 overflow-auto p-4 md:p-6">
-          <div className="mb-4 flex items-center justify-between gap-2">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
               <RouteIcon className="h-6 w-6 text-sky-600" /> Routes
             </h1>
-            <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> New route</Button>
+            <Button onClick={openNew} className="w-full sm:w-auto h-11 sm:h-10"><Plus className="h-4 w-4 mr-1" /> New route</Button>
           </div>
 
-          {error && (
-            <Card className="border-red-200 bg-red-50 mb-4">
-              <CardContent className="flex items-center gap-2 p-3 text-red-700"><AlertCircle className="h-4 w-4" /> {error}</CardContent>
-            </Card>
-          )}
+          <ListFilters
+            search={search} setSearch={setSearch}
+            searchOnly
+            searchPlaceholder="Search route or area"
+          />
 
           <Card>
             <CardContent className="p-0">
@@ -106,26 +120,56 @@ export default function WaterRoutesPage() {
               ) : items.length === 0 ? (
                 <div className="p-8 text-center text-slate-500">No routes yet.</div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow><TableHead>Name</TableHead><TableHead>Area</TableHead><TableHead>Default vehicle</TableHead><TableHead className="text-right">Expected customers</TableHead><TableHead className="text-right">Expected bags</TableHead><TableHead className="text-right">Actions</TableHead></TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {items.map((r) => (
-                      <TableRow key={r.waterRouteId}>
-                        <TableCell className="font-medium">{r.routeName}</TableCell>
-                        <TableCell>{r.areaCovered ?? "—"}</TableCell>
-                        <TableCell>{vehicles.find(v => v.waterVehicleId === r.defaultWaterVehicleId)?.vehicleName ?? "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums">{r.expectedCustomers ?? "—"}</TableCell>
-                        <TableCell className="text-right tabular-nums">{r.expectedBagsSold ?? "—"}</TableCell>
-                        <TableCell className="text-right">
-                          <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
-                          <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(r)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <MobileCardList
+                  items={visibleItems}
+                  getKey={(r) => r.waterRouteId}
+                  primary={(r) => r.routeName}
+                  secondary={(r) => (
+                    <>
+                      <span>{r.areaCovered ?? "—"}</span>
+                    </>
+                  )}
+                  details={(r) => [
+                    { label: "Area", value: r.areaCovered ?? "—" },
+                    { label: "Default vehicle", value: vehicles.find(v => v.waterVehicleId === r.defaultVehicleId)?.vehicleName ?? "—" },
+                    { label: "Expected customers", value: r.expectedCustomers ?? "—" },
+                    { label: "Expected bags", value: r.expectedBagsSold ?? "—" },
+                  ]}
+                  actions={(r) => (
+                    <>
+                      <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openEdit(r)}>
+                        <Pencil className="h-4 w-4 mr-1" /> Edit
+                      </Button>
+                      <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 border-red-200" onClick={() => setDeleteTarget(r)}>
+                        <Trash2 className="h-4 w-4 mr-1" /> Delete
+                      </Button>
+                    </>
+                  )}
+                  desktopTable={
+                    <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow><TableHead>Name</TableHead><TableHead>Area</TableHead><TableHead>Default vehicle</TableHead><TableHead className="text-right">Expected customers</TableHead><TableHead className="text-right">Expected bags</TableHead><TableHead className="text-right">Actions</TableHead></TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {visibleItems.map((r) => (
+                          <TableRow key={r.waterRouteId}>
+                            <TableCell className="font-medium">{r.routeName}</TableCell>
+                            <TableCell>{r.areaCovered ?? "—"}</TableCell>
+                            <TableCell>{vehicles.find(v => v.waterVehicleId === r.defaultVehicleId)?.vehicleName ?? "—"}</TableCell>
+                            <TableCell className="text-right tabular-nums">{r.expectedCustomers ?? "—"}</TableCell>
+                            <TableCell className="text-right tabular-nums">{r.expectedBagsSold ?? "—"}</TableCell>
+                            <TableCell className="text-right">
+                              <Button size="sm" variant="ghost" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
+                              <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(r)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    </div>
+                  }
+                />
               )}
             </CardContent>
           </Card>
@@ -133,37 +177,60 @@ export default function WaterRoutesPage() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>{editId ? "Edit route" : "New route"}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2"><Label>Route name *</Label>
-              <Input value={form.routeName} onChange={(e) => setForm({ ...form, routeName: e.target.value })} placeholder="e.g. Kumasi East" /></div>
-            <div className="col-span-2"><Label>Area covered</Label>
-              <Input value={form.areaCovered ?? ""} onChange={(e) => setForm({ ...form, areaCovered: e.target.value || null })} /></div>
-            <div className="col-span-2"><Label>Default vehicle</Label>
-              <Select value={String(form.defaultWaterVehicleId ?? "")} onValueChange={(v) => setForm({ ...form, defaultWaterVehicleId: v ? Number(v) : null })}>
-                <SelectTrigger><SelectValue placeholder="(none)" /></SelectTrigger>
-                <SelectContent>
-                  {vehicles.length === 0 && (
-                    <div className="px-2 py-1.5 text-sm text-slate-500">No vehicles. Add one on the Vehicles page first.</div>
-                  )}
-                  {vehicles.map(v => (
-                    <SelectItem key={v.waterVehicleId} value={String(v.waterVehicleId)}>
-                      {v.vehicleName} ({v.vehicleType}){v.status !== "Active" ? ` — ${v.status}` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select></div>
-            <div><Label>Expected customers</Label>
-              <Input type="number" min={0} value={form.expectedCustomers ?? ""} onChange={(e) => setForm({ ...form, expectedCustomers: e.target.value ? Number(e.target.value) : null })} /></div>
-            <div><Label>Expected bags/day</Label>
-              <Input type="number" min={0} value={form.expectedBagsSold ?? ""} onChange={(e) => setForm({ ...form, expectedBagsSold: e.target.value ? Number(e.target.value) : null })} /></div>
-            <div className="col-span-2"><Label>Notes</Label>
-              <Input value={form.notes ?? ""} onChange={(e) => setForm({ ...form, notes: e.target.value || null })} /></div>
-          </div>
-          <div className="flex justify-end gap-2 pt-3">
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {editId ? <Pencil className="w-5 h-5 text-blue-600" /> : <RouteIcon className="w-5 h-5 text-blue-600" />}
+              {editId ? "Edit route" : "New route"}
+            </DialogTitle>
+            <DialogDescription>Define a delivery route and its expectations</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <FormSection title="Basics" color="indigo">
+              <FormField label="Route name *" full>
+                <Input value={form.routeName} onChange={(e) => setForm({ ...form, routeName: e.target.value })} placeholder="e.g. Kumasi East" />
+              </FormField>
+              <FormField label="Area covered" full>
+                <Input value={form.areaCovered ?? ""} onChange={(e) => setForm({ ...form, areaCovered: e.target.value || null })} />
+              </FormField>
+            </FormSection>
+
+            <FormSection title="Assignment" color="blue">
+              <FormField label="Default vehicle" full>
+                <Select value={String(form.defaultVehicleId ?? "")} onValueChange={(v) => setForm({ ...form, defaultVehicleId: v ? Number(v) : null })}>
+                  <SelectTrigger><SelectValue placeholder="(none)" /></SelectTrigger>
+                  <SelectContent>
+                    {vehicles.length === 0 && (
+                      <div className="px-2 py-1.5 text-sm text-slate-500">No vehicles. Add one on the Vehicles page first.</div>
+                    )}
+                    {vehicles.map(v => (
+                      <SelectItem key={v.waterVehicleId} value={String(v.waterVehicleId)}>
+                        {v.vehicleName} ({v.vehicleType}){v.status !== "Active" ? ` — ${v.status}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+              <FormField label="Expected customers">
+                <NumberInput min={0} value={form.expectedCustomers ?? ""} onChange={(e) => setForm({ ...form, expectedCustomers: e.target.value ? Number(e.target.value) : null })} />
+              </FormField>
+              <FormField label="Expected bags/day">
+                <NumberInput min={0} value={form.expectedBagsSold ?? ""} onChange={(e) => setForm({ ...form, expectedBagsSold: e.target.value ? Number(e.target.value) : null })} />
+              </FormField>
+            </FormSection>
+
+            <FormSection title="Notes" color="slate" columns={1}>
+              <FormField label="Notes">
+                <Input value={form.notes ?? ""} onChange={(e) => setForm({ ...form, notes: e.target.value || null })} />
+              </FormField>
+            </FormSection>
+
+            <div className="flex gap-3 justify-end pt-2">
+              <Button type="button" onClick={() => setOpen(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
+              <Button onClick={save} disabled={saving}>
+                {saving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</>) : "Save"}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

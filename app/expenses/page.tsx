@@ -27,6 +27,7 @@ import { getUserContext } from "@/lib/utils/user-context"
 import { getValidFlocks, getFlocksForExpenseSelect, getFlockSelectEmptyHint } from "@/lib/utils/flock-utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
@@ -533,7 +534,7 @@ export default function ExpensesPage() {
           </div>
           <div className="space-y-2">
             <Label className="text-sm font-medium text-slate-700">Amount *</Label>
-            <Input name="amount" type="number" step="0.01" min="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0.00" required disabled={isLoading} className="max-w-[200px]" />
+            <NumberInput name="amount"  step="0.01" min="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0.00" required disabled={isLoading} className="max-w-[200px]" />
           </div>
           <div className="space-y-2">
             <Label className="text-sm font-medium text-slate-700">Payment Method *</Label>
@@ -1032,7 +1033,7 @@ export default function ExpensesPage() {
 
       {/* Create Expense Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col gap-4 overflow-hidden p-6">
+        <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] flex flex-col gap-4 overflow-hidden p-6">
           <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2"><DollarSign className="w-5 h-5 text-green-600" /> Add Expense</DialogTitle>
             <DialogDescription>Record a new farm expense</DialogDescription>
@@ -1065,7 +1066,7 @@ export default function ExpensesPage() {
 
       {/* Edit Expense Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col gap-4 overflow-hidden p-6">
+        <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] flex flex-col gap-4 overflow-hidden p-6">
           <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2"><Pencil className="w-5 h-5 text-blue-600" /> Edit Expense</DialogTitle>
             <DialogDescription>Update expense information</DialogDescription>

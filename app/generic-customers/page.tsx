@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -8,18 +8,22 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { FormSection, FormField } from "@/components/ui/form-section"
 import { Loader2, Plus, Users, Pencil, Trash2 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { createCustomer, updateCustomer, deleteCustomer, getCustomers, type GenericCustomer } from "@/lib/api/generic"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
+import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 
 const CUSTOMER_TYPES = ["Individual", "Business", "Walk-in", "Retail Customer", "Wholesale Customer", "Other"]
 
@@ -33,6 +37,9 @@ export default function GenericCustomersPage() {
   const logout = useLogout()
   const { toast } = useToast()
   const [rows, setRows] = useState<GenericCustomer[]>([])
+  const [search, setSearch] = useState("")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -88,6 +95,14 @@ export default function GenericCustomersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFarmType, router])
 
+  const visibleRows = useMemo(
+    () => filterByDateAndSearch(rows, {
+      search, dateFrom, dateTo,
+      searchKeys: ["customerName", "phoneNumber", "email", "location"],
+    }),
+    [rows, search, dateFrom, dateTo],
+  )
+
   const onSave = async () => {
     if (!form.customerName.trim()) {
       toast({ title: "Name is required", variant: "destructive" })
@@ -141,62 +156,70 @@ export default function GenericCustomersPage() {
             </div>
             <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setEditingId(null) }}>
               <DialogTrigger asChild>
-                <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" />New customer</Button>
+                <Button onClick={openNew} className="w-full sm:w-auto h-11 sm:h-10"><Plus className="h-4 w-4 mr-1" />New customer</Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>{editingId != null ? "Edit customer" : "New customer"}</DialogTitle>
+                  <DialogTitle className="flex items-center gap-2">
+                    {editingId != null
+                      ? <><Pencil className="w-5 h-5 text-blue-600" /> Edit customer</>
+                      : <><Users className="w-5 h-5 text-blue-600" /> New customer</>}
+                  </DialogTitle>
                   <DialogDescription>Capture basic contact info, credit limit and any opening balance they already owe you.</DialogDescription>
                 </DialogHeader>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="md:col-span-2">
-                    <Label>Customer name *</Label>
-                    <Input value={form.customerName} onChange={(e) => setForm((f) => ({ ...f, customerName: e.target.value }))} maxLength={200} />
-                  </div>
-                  <div>
-                    <Label>Type</Label>
-                    <Select value={form.customerType} onValueChange={(v) => setForm((f) => ({ ...f, customerType: v }))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>{CUSTOMER_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Phone</Label>
-                    <Input value={form.phoneNumber} onChange={(e) => setForm((f) => ({ ...f, phoneNumber: e.target.value }))} maxLength={50} />
-                  </div>
-                  <div>
-                    <Label>Email</Label>
-                    <Input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} maxLength={150} />
-                  </div>
-                  <div>
-                    <Label>Location</Label>
-                    <Input value={form.location} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} maxLength={255} />
-                  </div>
-                  <div className="md:col-span-2">
-                    <Label>Address</Label>
-                    <Input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} maxLength={500} />
-                  </div>
-                  <div>
-                    <Label>Credit limit</Label>
-                    <Input type="number" step="0.01" value={form.creditLimit} onChange={(e) => setForm((f) => ({ ...f, creditLimit: e.target.value }))} />
-                  </div>
-                  <div>
-                    <Label>Payment terms (days)</Label>
-                    <Input type="number" min="0" value={form.paymentTermsDays} onChange={(e) => setForm((f) => ({ ...f, paymentTermsDays: e.target.value }))} />
-                  </div>
-                  <div>
-                    <Label>Opening balance owed</Label>
-                    <Input type="number" step="0.01" value={form.openingBalance} onChange={(e) => setForm((f) => ({ ...f, openingBalance: e.target.value }))} />
-                  </div>
-                  <div className="md:col-span-2">
-                    <Label>Notes</Label>
-                    <Textarea rows={2} value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
+                <div className="space-y-4">
+                  <FormSection title="Personal information" color="indigo">
+                    <FormField label="Customer name *" full>
+                      <Input value={form.customerName} onChange={(e) => setForm((f) => ({ ...f, customerName: e.target.value }))} maxLength={200} />
+                    </FormField>
+                    <FormField label="Type">
+                      <Select value={form.customerType} onValueChange={(v) => setForm((f) => ({ ...f, customerType: v }))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>{CUSTOMER_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </FormField>
+                    <FormField label="Phone">
+                      <Input value={form.phoneNumber} onChange={(e) => setForm((f) => ({ ...f, phoneNumber: e.target.value }))} maxLength={50} />
+                    </FormField>
+                    <FormField label="Email">
+                      <Input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} maxLength={150} />
+                    </FormField>
+                  </FormSection>
+
+                  <FormSection title="Address" color="green">
+                    <FormField label="Location">
+                      <Input value={form.location} onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))} maxLength={255} />
+                    </FormField>
+                    <FormField label="Address" full>
+                      <Input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} maxLength={500} />
+                    </FormField>
+                  </FormSection>
+
+                  <FormSection title="Credit & balance" color="amber">
+                    <FormField label="Credit limit">
+                      <NumberInput step="0.01" value={form.creditLimit} onChange={(e) => setForm((f) => ({ ...f, creditLimit: e.target.value }))} />
+                    </FormField>
+                    <FormField label="Payment terms (days)">
+                      <NumberInput min="0" value={form.paymentTermsDays} onChange={(e) => setForm((f) => ({ ...f, paymentTermsDays: e.target.value }))} />
+                    </FormField>
+                    <FormField label="Opening balance owed" full>
+                      <NumberInput step="0.01" value={form.openingBalance} onChange={(e) => setForm((f) => ({ ...f, openingBalance: e.target.value }))} />
+                    </FormField>
+                  </FormSection>
+
+                  <FormSection title="Notes" color="slate" columns={1}>
+                    <FormField label="Notes">
+                      <Textarea rows={2} value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
+                    </FormField>
+                  </FormSection>
+
+                  <div className="flex gap-3 justify-end pt-2">
+                    <Button type="button" onClick={() => setOpen(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
+                    <Button onClick={onSave} disabled={saving}>
+                      {saving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</>) : (editingId != null ? "Save changes" : "Create")}
+                    </Button>
                   </div>
                 </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-                  <Button onClick={onSave} disabled={saving}>{saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}{editingId != null ? "Save changes" : "Create"}</Button>
-                </DialogFooter>
               </DialogContent>
             </Dialog>
           </div>
@@ -206,53 +229,102 @@ export default function GenericCustomersPage() {
           ) : rows.length === 0 ? (
             <Card><CardContent className="py-8 text-center text-slate-500">No customers yet. Create your first one.</CardContent></Card>
           ) : (
+            <>
+            <ListFilters
+              search={search} setSearch={setSearch}
+              searchOnly
+              searchPlaceholder="Search name, phone, email or location"
+            />
             <Card>
               <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Phone</TableHead>
-                      <TableHead>Location</TableHead>
-                      <TableHead className="text-right">Credit limit</TableHead>
-                      <TableHead className="text-right">Owes us</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {rows.map((c) => {
-                      const overLimit = c.creditLimit > 0 && c.currentBalance > c.creditLimit
-                      return (
-                        <TableRow key={c.genericCustomerId}>
-                          <TableCell className="font-medium">
-                            <Link href={`/generic-customers/${c.genericCustomerId}/ledger`} className="text-emerald-700 hover:underline">
-                              {c.customerName}
-                            </Link>
-                          </TableCell>
-                          <TableCell><Badge variant="outline">{c.customerType}</Badge></TableCell>
-                          <TableCell>{c.phoneNumber ?? "—"}</TableCell>
-                          <TableCell>{c.location ?? "—"}</TableCell>
-                          <TableCell className="text-right">{c.creditLimit > 0 ? fmt(c.creditLimit) : "—"}</TableCell>
-                          <TableCell className={`text-right ${c.currentBalance > 0 ? "text-rose-700 font-semibold" : ""}`}>{fmt(c.currentBalance)}</TableCell>
-                          <TableCell>
-                            {!c.isActive ? <Badge variant="secondary">Inactive</Badge>
-                              : overLimit ? <Badge className="bg-rose-100 text-rose-800 hover:bg-rose-100">Over limit</Badge>
-                              : c.currentBalance > 0 ? <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">Owes</Badge>
-                              : <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">OK</Badge>}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button size="sm" variant="ghost" onClick={() => openEdit(c)} title="Edit"><Pencil className="h-4 w-4" /></Button>
-                            <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(c)} title="Delete"><Trash2 className="h-4 w-4 text-red-500" /></Button>
-                          </TableCell>
+                <MobileCardList
+                  items={visibleRows}
+                  getKey={(c) => c.genericCustomerId}
+                  primary={(c) => (
+                    <Link href={`/generic-customers/${c.genericCustomerId}/ledger`} className="text-emerald-700 hover:underline">
+                      {c.customerName}
+                    </Link>
+                  )}
+                  secondary={(c) => (
+                    <>
+                      <Badge variant="outline">{c.customerType}</Badge>
+                      {c.phoneNumber && <span>· {c.phoneNumber}</span>}
+                    </>
+                  )}
+                  trailing={(c) => {
+                    const overLimit = c.creditLimit > 0 && c.currentBalance > c.creditLimit
+                    return !c.isActive ? <Badge variant="secondary">Inactive</Badge>
+                      : overLimit ? <Badge className="bg-rose-100 text-rose-800 hover:bg-rose-100">Over limit</Badge>
+                      : c.currentBalance > 0 ? <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">Owes</Badge>
+                      : <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">OK</Badge>
+                  }}
+                  details={(c) => [
+                    { label: "Phone", value: c.phoneNumber ?? "—" },
+                    { label: "Location", value: c.location ?? "—" },
+                    { label: "Credit limit", value: c.creditLimit > 0 ? fmt(c.creditLimit) : "—" },
+                    { label: "Owes us", value: <span className={c.currentBalance > 0 ? "text-rose-700 font-semibold" : ""}>{fmt(c.currentBalance)}</span> },
+                  ]}
+                  actions={(c) => (
+                    <>
+                      <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openEdit(c)}>
+                        <Pencil className="h-4 w-4 mr-1" /> Edit
+                      </Button>
+                      <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 border-red-200" onClick={() => setDeleteTarget(c)}>
+                        <Trash2 className="h-4 w-4 mr-1" /> Delete
+                      </Button>
+                    </>
+                  )}
+                  desktopTable={
+                    <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Phone</TableHead>
+                          <TableHead>Location</TableHead>
+                          <TableHead className="text-right">Credit limit</TableHead>
+                          <TableHead className="text-right">Owes us</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead></TableHead>
                         </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {visibleRows.map((c) => {
+                          const overLimit = c.creditLimit > 0 && c.currentBalance > c.creditLimit
+                          return (
+                            <TableRow key={c.genericCustomerId}>
+                              <TableCell className="font-medium">
+                                <Link href={`/generic-customers/${c.genericCustomerId}/ledger`} className="text-emerald-700 hover:underline">
+                                  {c.customerName}
+                                </Link>
+                              </TableCell>
+                              <TableCell><Badge variant="outline">{c.customerType}</Badge></TableCell>
+                              <TableCell>{c.phoneNumber ?? "—"}</TableCell>
+                              <TableCell>{c.location ?? "—"}</TableCell>
+                              <TableCell className="text-right">{c.creditLimit > 0 ? fmt(c.creditLimit) : "—"}</TableCell>
+                              <TableCell className={`text-right ${c.currentBalance > 0 ? "text-rose-700 font-semibold" : ""}`}>{fmt(c.currentBalance)}</TableCell>
+                              <TableCell>
+                                {!c.isActive ? <Badge variant="secondary">Inactive</Badge>
+                                  : overLimit ? <Badge className="bg-rose-100 text-rose-800 hover:bg-rose-100">Over limit</Badge>
+                                  : c.currentBalance > 0 ? <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">Owes</Badge>
+                                  : <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">OK</Badge>}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button size="sm" variant="ghost" onClick={() => openEdit(c)} title="Edit"><Pencil className="h-4 w-4" /></Button>
+                                <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(c)} title="Delete"><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                    </div>
+                  }
+                />
               </CardContent>
             </Card>
+            </>
           )}
         </main>
       </div>

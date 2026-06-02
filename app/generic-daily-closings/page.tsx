@@ -1,16 +1,18 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Check, FileText, Loader2, Plus, RefreshCw } from "lucide-react"
@@ -21,6 +23,7 @@ import {
   approveDailyClosing, createDailyClosing, getDailyClosings, submitDailyClosing,
   type GenericDailyClosing,
 } from "@/lib/api/generic"
+import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 
 function fmt(n: number) {
   return new Intl.NumberFormat(undefined, { style: "currency", currency: "GHS", maximumFractionDigits: 2 }).format(n)
@@ -42,6 +45,9 @@ export default function GenericDailyClosingsPage() {
   const { toast } = useToast()
 
   const [rows, setRows] = useState<GenericDailyClosing[]>([])
+  const [search, setSearch] = useState("")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -66,6 +72,15 @@ export default function GenericDailyClosingsPage() {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFarmType, router])
+
+  const visibleRows = useMemo(
+    () => filterByDateAndSearch(rows, {
+      search, dateFrom, dateTo,
+      searchKeys: ["status", "managerNotes"],
+      dateKey: "closingDate",
+    }),
+    [rows, search, dateFrom, dateTo],
+  )
 
   const onCreate = async () => {
     setSaving(true)
@@ -125,7 +140,7 @@ export default function GenericDailyClosingsPage() {
             </div>
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
-                <Button><Plus className="h-4 w-4 mr-1" />Close today</Button>
+                <Button className="w-full sm:w-auto h-11 sm:h-10"><Plus className="h-4 w-4 mr-1" />Close today</Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
@@ -139,11 +154,11 @@ export default function GenericDailyClosingsPage() {
                   </div>
                   <div>
                     <Label>Opening cash (optional)</Label>
-                    <Input type="number" step="0.01" value={form.openingCash} onChange={(e) => setForm((f) => ({ ...f, openingCash: e.target.value }))} placeholder="auto" />
+                    <NumberInput step="0.01" value={form.openingCash} onChange={(e) => setForm((f) => ({ ...f, openingCash: e.target.value }))} placeholder="auto" />
                   </div>
                   <div className="md:col-span-2">
                     <Label>Actual cash counted *</Label>
-                    <Input type="number" step="0.01" min="0" value={form.actualCashCounted} onChange={(e) => setForm((f) => ({ ...f, actualCashCounted: e.target.value }))} />
+                    <NumberInput step="0.01" min="0" value={form.actualCashCounted} onChange={(e) => setForm((f) => ({ ...f, actualCashCounted: e.target.value }))} />
                   </div>
                   <div className="md:col-span-2">
                     <Label>Manager notes</Label>
@@ -169,62 +184,125 @@ export default function GenericDailyClosingsPage() {
               No daily closings yet. Click <strong>Close today</strong> to count cash and submit your first one.
             </CardContent></Card>
           ) : (
+            <>
+            <ListFilters
+              search={search} setSearch={setSearch}
+              dateFrom={dateFrom} setDateFrom={setDateFrom}
+              dateTo={dateTo} setDateTo={setDateTo}
+              searchPlaceholder="Search status or manager notes"
+            />
             <Card>
               <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead className="text-right">Sales</TableHead>
-                      <TableHead className="text-right">Expenses</TableHead>
-                      <TableHead className="text-right">Expected cash</TableHead>
-                      <TableHead className="text-right">Actual cash</TableHead>
-                      <TableHead className="text-right">Difference</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {rows.map((c) => (
-                      <TableRow key={c.genericDailyClosingId}>
-                        <TableCell>{new Date(c.closingDate).toLocaleDateString()}</TableCell>
-                        <TableCell className="text-right">{fmt(c.totalSales)}</TableCell>
-                        <TableCell className="text-right">{fmt(c.totalExpenses)}</TableCell>
-                        <TableCell className="text-right">{fmt(c.expectedCash)}</TableCell>
-                        <TableCell className="text-right">{fmt(c.actualCashCounted)}</TableCell>
-                        <TableCell className={`text-right ${c.cashDifference !== 0 ? "text-rose-700 font-semibold" : ""}`}>{fmt(c.cashDifference)}</TableCell>
-                        <TableCell><Badge className={badgeClass(c.status)}>{c.status}</Badge></TableCell>
-                        <TableCell className="flex gap-1">
-                          {c.status === "Submitted" && (
-                            <>
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button size="sm" variant="default" className="bg-emerald-600 hover:bg-emerald-700"><Check className="h-3 w-3 mr-1" />Approve</Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Approve and lock?</AlertDialogTitle>
-                                    <AlertDialogDescription>Once approved, this closing becomes a frozen snapshot of the day.</AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => onApprove(c.genericDailyClosingId)}>Approve</AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-                              <Button size="sm" variant="outline" title="Refresh totals" onClick={() => onResubmit(c.genericDailyClosingId)}><RefreshCw className="h-3 w-3" /></Button>
-                            </>
-                          )}
-                          {c.status === "Draft" && (
-                            <Button size="sm" onClick={() => onResubmit(c.genericDailyClosingId)}>Submit</Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <MobileCardList
+                  items={visibleRows}
+                  getKey={(c) => c.genericDailyClosingId}
+                  primary={(c) => new Date(c.closingDate).toLocaleDateString()}
+                  secondary={(c) => (
+                    <>
+                      <span>Sales {fmt(c.totalSales)}</span>
+                      <span>·</span>
+                      <span>Exp {fmt(c.totalExpenses)}</span>
+                    </>
+                  )}
+                  trailing={(c) => <Badge className={badgeClass(c.status)}>{c.status}</Badge>}
+                  details={(c) => [
+                    { label: "Sales", value: fmt(c.totalSales) },
+                    { label: "Expenses", value: fmt(c.totalExpenses) },
+                    { label: "Expected cash", value: fmt(c.expectedCash) },
+                    { label: "Actual cash", value: fmt(c.actualCashCounted) },
+                    { label: "Difference", value: <span className={c.cashDifference !== 0 ? "text-rose-700 font-semibold" : ""}>{fmt(c.cashDifference)}</span> },
+                  ]}
+                  actions={(c) => (
+                    <>
+                      {c.status === "Submitted" && (
+                        <>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button size="sm" variant="outline" className="flex-1 h-10 text-emerald-700 border-emerald-200">
+                                <Check className="h-4 w-4 mr-1" /> Approve
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Approve and lock?</AlertDialogTitle>
+                                <AlertDialogDescription>Once approved, this closing becomes a frozen snapshot of the day.</AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => onApprove(c.genericDailyClosingId)}>Approve</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                          <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => onResubmit(c.genericDailyClosingId)}>
+                            <RefreshCw className="h-4 w-4 mr-1" /> Refresh
+                          </Button>
+                        </>
+                      )}
+                      {c.status === "Draft" && (
+                        <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => onResubmit(c.genericDailyClosingId)}>Submit</Button>
+                      )}
+                    </>
+                  )}
+                  desktopTable={
+                    <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead className="text-right">Sales</TableHead>
+                          <TableHead className="text-right">Expenses</TableHead>
+                          <TableHead className="text-right">Expected cash</TableHead>
+                          <TableHead className="text-right">Actual cash</TableHead>
+                          <TableHead className="text-right">Difference</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {visibleRows.map((c) => (
+                          <TableRow key={c.genericDailyClosingId}>
+                            <TableCell>{new Date(c.closingDate).toLocaleDateString()}</TableCell>
+                            <TableCell className="text-right">{fmt(c.totalSales)}</TableCell>
+                            <TableCell className="text-right">{fmt(c.totalExpenses)}</TableCell>
+                            <TableCell className="text-right">{fmt(c.expectedCash)}</TableCell>
+                            <TableCell className="text-right">{fmt(c.actualCashCounted)}</TableCell>
+                            <TableCell className={`text-right ${c.cashDifference !== 0 ? "text-rose-700 font-semibold" : ""}`}>{fmt(c.cashDifference)}</TableCell>
+                            <TableCell><Badge className={badgeClass(c.status)}>{c.status}</Badge></TableCell>
+                            <TableCell className="flex gap-1">
+                              {c.status === "Submitted" && (
+                                <>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button size="sm" variant="default" className="bg-emerald-600 hover:bg-emerald-700"><Check className="h-3 w-3 mr-1" />Approve</Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Approve and lock?</AlertDialogTitle>
+                                        <AlertDialogDescription>Once approved, this closing becomes a frozen snapshot of the day.</AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => onApprove(c.genericDailyClosingId)}>Approve</AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                  <Button size="sm" variant="outline" title="Refresh totals" onClick={() => onResubmit(c.genericDailyClosingId)}><RefreshCw className="h-3 w-3" /></Button>
+                                </>
+                              )}
+                              {c.status === "Draft" && (
+                                <Button size="sm" onClick={() => onResubmit(c.genericDailyClosingId)}>Submit</Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    </div>
+                  }
+                />
               </CardContent>
             </Card>
+            </>
           )}
         </main>
       </div>

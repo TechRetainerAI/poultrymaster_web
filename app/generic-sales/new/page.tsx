@@ -8,6 +8,7 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -273,9 +274,9 @@ export default function NewGenericSalePage() {
                                 <Input className="h-8" value={r.description} onChange={(e) => updateRow(idx, { description: e.target.value })} placeholder="Service description" />
                               )}
                             </TableCell>
-                            <TableCell><Input className="h-8 text-right" type="number" step="0.001" min="0" value={r.quantity} onChange={(e) => updateRow(idx, { quantity: Number(e.target.value) || 0 })} /></TableCell>
-                            <TableCell><Input className="h-8 text-right" type="number" step="0.01" min="0" value={r.unitPrice} onChange={(e) => updateRow(idx, { unitPrice: Number(e.target.value) || 0 })} /></TableCell>
-                            <TableCell><Input className="h-8 text-right" type="number" step="0.01" min="0" value={r.discountAmount} onChange={(e) => updateRow(idx, { discountAmount: Number(e.target.value) || 0 })} /></TableCell>
+                            <TableCell><NumberInput className="h-8 text-right"  step="0.001" min="0" value={r.quantity} onChange={(e) => updateRow(idx, { quantity: Number(e.target.value) || 0 })} /></TableCell>
+                            <TableCell><NumberInput className="h-8 text-right"  step="0.01" min="0" value={r.unitPrice} onChange={(e) => updateRow(idx, { unitPrice: Number(e.target.value) || 0 })} /></TableCell>
+                            <TableCell><NumberInput className="h-8 text-right"  step="0.01" min="0" value={r.discountAmount} onChange={(e) => updateRow(idx, { discountAmount: Number(e.target.value) || 0 })} /></TableCell>
                             <TableCell className="text-right font-semibold">{fmt(line)}</TableCell>
                             <TableCell>
                               <Button size="icon" variant="ghost" onClick={() => setRows((rs) => rs.filter((_, i) => i !== idx))}>
@@ -297,15 +298,15 @@ export default function NewGenericSalePage() {
                   <CardContent className="grid grid-cols-2 gap-3">
                     <div>
                       <Label>Discount (header)</Label>
-                      <Input type="number" step="0.01" min="0" value={header.headerDiscountAmount} onChange={(e) => setHeader((h) => ({ ...h, headerDiscountAmount: e.target.value }))} />
+                      <NumberInput step="0.01" min="0" value={header.headerDiscountAmount} onChange={(e) => setHeader((h) => ({ ...h, headerDiscountAmount: e.target.value }))} />
                     </div>
                     <div>
                       <Label>Tax</Label>
-                      <Input type="number" step="0.01" min="0" value={header.taxAmount} onChange={(e) => setHeader((h) => ({ ...h, taxAmount: e.target.value }))} />
+                      <NumberInput step="0.01" min="0" value={header.taxAmount} onChange={(e) => setHeader((h) => ({ ...h, taxAmount: e.target.value }))} />
                     </div>
                     <div>
                       <Label>Amount paid</Label>
-                      <Input type="number" step="0.01" min="0" value={header.amountPaid} onChange={(e) => setHeader((h) => ({ ...h, amountPaid: e.target.value }))} />
+                      <NumberInput step="0.01" min="0" value={header.amountPaid} onChange={(e) => setHeader((h) => ({ ...h, amountPaid: e.target.value }))} />
                     </div>
                     <div>
                       <Label>Method</Label>

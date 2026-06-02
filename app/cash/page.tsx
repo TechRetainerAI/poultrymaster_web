@@ -7,6 +7,7 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -52,7 +53,6 @@ export default function CashPage() {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [summary, setSummary] = useState<CashSummary | null>(null)
-  const [error, setError] = useState("")
   const [askInput, setAskInput] = useState("")
   const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false)
   const [adjustmentForm, setAdjustmentForm] = useState({
@@ -89,17 +89,16 @@ export default function CashPage() {
 
   const loadData = async () => {
     setLoading(true)
-    setError("")
     try {
       const res = await getCashSummary(userId!, farmId!)
       if (res.success && res.data) {
         setSummary(res.data)
       } else {
-        setError(res.message || "Failed to load cash summary")
+        toast({ title: "Could not load cash", description: res.message || "Failed to load cash summary", variant: "destructive" })
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to load cash data:", err)
-      setError("Failed to load cash data")
+      toast({ title: "Could not load cash", description: err?.message ?? "Failed to load cash data", variant: "destructive" })
     } finally {
       setLoading(false)
     }
@@ -452,12 +451,6 @@ export default function CashPage() {
               </div>
             </div>
 
-            {error && (
-              <div className="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-                {error}
-              </div>
-            )}
-
             {/* Top Summary Card */}
             <Card className="border-emerald-200 bg-emerald-50/50">
               <CardHeader className="pb-2">
@@ -514,8 +507,8 @@ export default function CashPage() {
                         </div>
                         <div className="space-y-2">
                           <Label>Amount ({currency})</Label>
-                          <Input
-                            type="number"
+                          <NumberInput
+                            
                             step="0.01"
                             placeholder="0.00"
                             value={adjustmentForm.amount}
@@ -598,8 +591,8 @@ export default function CashPage() {
                   />
                   <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
                   <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-                  <Input type="number" step="0.01" placeholder="In >=" value={inFilter} onChange={(e) => setInFilter(e.target.value)} />
-                  <Input type="number" step="0.01" placeholder="Out >=" value={outFilter} onChange={(e) => setOutFilter(e.target.value)} />
+                  <NumberInput step="0.01" placeholder="In >=" value={inFilter} onChange={(e) => setInFilter(e.target.value)} />
+                  <NumberInput step="0.01" placeholder="Out >=" value={outFilter} onChange={(e) => setOutFilter(e.target.value)} />
                 </div>
                 <div className="pt-2">
                   <Button variant="outline" size="sm" onClick={clearFilters}>Reset Filters</Button>

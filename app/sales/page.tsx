@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
@@ -772,7 +773,7 @@ export default function SalesPage() {
                     Add Sale
                   </Button>
                 </DialogTrigger>
-          <DialogContent className="max-w-4xl w-[95vw] sm:max-w-[900px] max-h-[90vh] flex flex-col gap-4 overflow-hidden p-6">
+          <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] flex flex-col gap-4 overflow-hidden p-6">
             <DialogHeader className="shrink-0">
               <DialogTitle>Create New Sale</DialogTitle>
               <DialogDescription>
@@ -832,9 +833,9 @@ export default function SalesPage() {
                   <div className="grid grid-cols-3 gap-4 p-4 bg-amber-50">
                     <div className="space-y-2">
                       <Label htmlFor="crates" className="text-sm">Crates (30 eggs)</Label>
-                      <Input
+                      <NumberInput
                         id="crates"
-                        type="number"
+                        
                         min="0"
                         value={crates}
                         onChange={(e) => {
@@ -847,9 +848,9 @@ export default function SalesPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="looseEggs" className="text-sm">Loose Eggs</Label>
-                      <Input
+                      <NumberInput
                         id="looseEggs"
-                        type="number"
+                        
                         min="0"
                         max="29"
                         value={looseEggs}
@@ -883,9 +884,9 @@ export default function SalesPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="quantity">Quantity *</Label>
-                      <Input
+                      <NumberInput
                         id="quantity"
-                        type="number"
+                        
                         value={formData.quantity}
                         onChange={(e) => setFormData(prev => ({ ...prev, quantity: Number(e.target.value) }))}
                         placeholder="0"
@@ -896,9 +897,9 @@ export default function SalesPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="unitPrice">{isEggsProduct ? "Unit Price Per Crate *" : "Unit Price *"}</Label>
-                      <Input
+                      <NumberInput
                         id="unitPrice"
-                        type="number"
+                        
                         step="0.01"
                         value={formData.unitPrice}
                         onChange={(e) => setFormData(prev => ({ ...prev, unitPrice: Number(e.target.value) }))}
@@ -909,9 +910,9 @@ export default function SalesPage() {
                   <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="totalAmount">Calculated Amount</Label>
-                      <Input
+                      <NumberInput
                         id="totalAmount"
-                        type="number"
+                        
                         step="0.01"
                         value={formData.totalAmount}
                         readOnly
@@ -920,9 +921,9 @@ export default function SalesPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="overrideAmount">Override Amount</Label>
-                      <Input
+                      <NumberInput
                         id="overrideAmount"
-                        type="number"
+                        
                         step="0.01"
                         value={overrideAmount ?? ""}
                         onChange={(e) => setOverrideAmount(e.target.value ? Number(e.target.value) : undefined)}
@@ -1501,7 +1502,7 @@ export default function SalesPage() {
                 }
               }}
             >
-              <DialogContent className="max-w-4xl w-[95vw] sm:max-w-[900px] max-h-[90vh] flex flex-col gap-4 overflow-hidden p-6">
+              <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] flex flex-col gap-4 overflow-hidden p-6">
                 <DialogHeader className="shrink-0">
                   <DialogTitle>Edit Sale</DialogTitle>
                   <DialogDescription>
@@ -1561,9 +1562,9 @@ export default function SalesPage() {
                       <div className="grid grid-cols-3 gap-4 p-4 bg-amber-50">
                         <div className="space-y-2">
                           <Label htmlFor="edit-crates" className="text-sm">Crates (30 eggs)</Label>
-                          <Input
+                          <NumberInput
                             id="edit-crates"
-                            type="number"
+                            
                             min="0"
                             value={crates}
                             onChange={(e) => {
@@ -1576,9 +1577,9 @@ export default function SalesPage() {
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="edit-looseEggs" className="text-sm">Loose Eggs</Label>
-                          <Input
+                          <NumberInput
                             id="edit-looseEggs"
-                            type="number"
+                            
                             min="0"
                             max="29"
                             value={looseEggs}
@@ -1612,9 +1613,9 @@ export default function SalesPage() {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="edit-quantity">Quantity *</Label>
-                          <Input
+                          <NumberInput
                             id="edit-quantity"
-                            type="number"
+                            
                             value={formData.quantity}
                             onChange={(e) => setFormData(prev => ({ ...prev, quantity: Number(e.target.value) }))}
                             placeholder="0"
@@ -1625,9 +1626,9 @@ export default function SalesPage() {
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="edit-unitPrice">{isEggsProduct ? "Unit Price Per Crate *" : "Unit Price *"}</Label>
-                          <Input
+                          <NumberInput
                             id="edit-unitPrice"
-                            type="number"
+                            
                             step="0.01"
                             value={formData.unitPrice}
                             onChange={(e) => setFormData(prev => ({ ...prev, unitPrice: Number(e.target.value) }))}
@@ -1638,9 +1639,9 @@ export default function SalesPage() {
                       <div className="grid grid-cols-3 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="edit-totalAmount">Calculated Amount</Label>
-                          <Input
+                          <NumberInput
                             id="edit-totalAmount"
-                            type="number"
+                            
                             step="0.01"
                             value={formData.totalAmount}
                             readOnly
@@ -1649,9 +1650,9 @@ export default function SalesPage() {
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="edit-overrideAmount">Override Amount</Label>
-                          <Input
+                          <NumberInput
                             id="edit-overrideAmount"
-                            type="number"
+                            
                             step="0.01"
                             value={overrideAmount ?? ""}
                             onChange={(e) => setOverrideAmount(e.target.value ? Number(e.target.value) : undefined)}
@@ -1790,7 +1791,7 @@ export default function SalesPage() {
 
             {/* Invoice Dialog */}
             <Dialog open={isInvoiceDialogOpen} onOpenChange={closeInvoiceDialog}>
-              <DialogContent className={cn("w-[95vw] max-h-[90vh] overflow-y-auto", isMobile ? "p-4" : "max-w-3xl")}>
+              <DialogContent className={cn("w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto", isMobile ? "p-4" : "")}>
                 <DialogHeader>
                   <DialogTitle>Sale invoice</DialogTitle>
                   <DialogDescription>

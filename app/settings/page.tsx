@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -272,8 +273,8 @@ export default function SettingsPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
                       <div className="space-y-2">
                         <Label className="text-sm text-slate-600">Total bird capacity</Label>
-                        <Input
-                          type="number"
+                        <NumberInput
+                          
                           min="0"
                           value={formData.totalCapacity}
                           onChange={(e) => handleInputChange("totalCapacity", e.target.value)}

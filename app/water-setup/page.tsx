@@ -25,9 +25,24 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
-  Settings, Plus, Pencil, Trash2, Loader2, AlertCircle,
+  Settings, Plus, Pencil, Trash2, Loader2, Save, DollarSign,
   ShoppingBag, Users, Truck, Route as RouteIcon, Cog, Droplets, Box, Users2,
 } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
+import { Switch } from "@/components/ui/switch"
+import { FormSection, FormField } from "@/components/ui/form-section"
+import { fetchFarmSettings, updateFarmCurrency, useFarmSettingsStore, fmtMoney } from "@/lib/currency"
+import {
+  ProductModal, CustomerModal, DriverModal, VehicleModal, RouteModal,
+  MachineModal, BoreholeModal, RawMaterialModal, StaffModal,
+} from "@/components/water-setup/inline-modals"
+import {
+  getWaterCompanyProfile, setupWaterCompany, updateWaterCompanyProfile,
+  type WaterCompanyProfile,
+} from "@/lib/api/water"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -42,6 +57,7 @@ import {
   listWaterBoreholes, deleteWaterBorehole,
   listWaterRawMaterialItems, deleteWaterRawMaterialItem,
   listWaterStaff, deleteWaterStaff,
+  listWaterSuppliers, deleteWaterSupplier,
 } from "@/lib/api/water"
 
 type Column<T> = { header: string; accessor: (item: T) => React.ReactNode }
@@ -53,21 +69,32 @@ type SetupTab<T> = {
   idOf: (item: T) => number
   labelOf: (item: T) => string
   delete?: (id: number) => Promise<void>
+  // Link to the dedicated full page (kept as a "Open full page" escape hatch
+  // so power users with bulk-edit needs don't lose the existing UI).
   addHref: string
   columns: Column<T>[]
+  // Prompt 2 §13 — optional inline modal. When provided, Add/Edit happen
+  // inside this page; tabs without a modal fall back to navigating to addHref.
+  Modal?: React.ComponentType<{
+    open: boolean
+    item: T | null
+    onOpenChange: (open: boolean) => void
+    onSaved: () => void
+  }>
 }
 
 function SetupSection<T>({ tab }: { tab: SetupTab<T> }) {
   const { toast } = useToast()
   const [items, setItems] = useState<T[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<T | null>(null)
+  // Inline modal state — null = closed, "add" = new item, item = edit.
+  const [modalState, setModalState] = useState<"add" | T | null>(null)
 
   async function load() {
-    setLoading(true); setError(null)
+    setLoading(true)
     try { setItems(await tab.fetch()) }
-    catch (e: any) { setError(e?.message ?? String(e)) }
+    catch (e: any) { toast({ title: `Could not load ${tab.label.toLowerCase()}`, description: e?.message ?? String(e), variant: "destructive" }) }
     finally { setLoading(false) }
   }
   useEffect(() => { void load() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [])
@@ -87,58 +114,76 @@ function SetupSection<T>({ tab }: { tab: SetupTab<T> }) {
   return (
     <Card>
       <CardContent className="p-0">
-        <div className="flex items-center justify-between gap-2 px-4 py-3 border-b">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b">
           <div className="flex items-center gap-2 text-slate-700">
             <tab.icon className="h-5 w-5 text-sky-600" />
             <span className="font-semibold">{tab.label}</span>
             {!loading && <Badge variant="secondary" className="ml-1">{items.length}</Badge>}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button asChild size="sm" variant="outline">
               <Link href={tab.addHref}><Pencil className="h-4 w-4 mr-1" /> Open full page</Link>
             </Button>
-            <Button asChild size="sm">
-              <Link href={tab.addHref}><Plus className="h-4 w-4 mr-1" /> Add {tab.label.toLowerCase()}</Link>
-            </Button>
+            {tab.Modal ? (
+              <Button size="sm" onClick={() => setModalState("add")}>
+                <Plus className="h-4 w-4 mr-1" /> Add {tab.label.toLowerCase()}
+              </Button>
+            ) : (
+              <Button asChild size="sm">
+                <Link href={tab.addHref}><Plus className="h-4 w-4 mr-1" /> Add {tab.label.toLowerCase()}</Link>
+              </Button>
+            )}
           </div>
         </div>
         {loading ? (
           <div className="p-6 text-slate-500 flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
-        ) : error ? (
-          <div className="p-4 text-rose-700 flex items-center gap-2 bg-rose-50"><AlertCircle className="h-4 w-4" /> {error}</div>
         ) : items.length === 0 ? (
           <div className="p-8 text-center text-slate-500">
             No {tab.label.toLowerCase()} yet. Click <span className="font-medium">Add {tab.label.toLowerCase()}</span> above to create your first one.
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
                 {tab.columns.map((c) => <TableHead key={c.header}>{c.header}</TableHead>)}
-                {tab.delete && <TableHead className="text-right">Actions</TableHead>}
+                {(tab.delete || tab.Modal) && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {items.map((item) => (
                 <TableRow key={tab.idOf(item)}>
                   {tab.columns.map((c) => <TableCell key={c.header}>{c.accessor(item)}</TableCell>)}
-                  {tab.delete && (
-                    <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-rose-600 hover:bg-rose-50"
-                        onClick={() => setDeleteTarget(item)}
-                        title={`Delete ${tab.label.toLowerCase()}`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                  {(tab.delete || tab.Modal) && (
+                    <TableCell className="text-right whitespace-nowrap">
+                      {tab.Modal && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setModalState(item)}
+                          title={`Edit ${tab.label.toLowerCase()}`}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {tab.delete && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-rose-600 hover:bg-rose-50"
+                          onClick={() => setDeleteTarget(item)}
+                          title={`Delete ${tab.label.toLowerCase()}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </TableCell>
                   )}
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+          </div>
         )}
       </CardContent>
       <ConfirmDeleteDialog
@@ -148,11 +193,25 @@ function SetupSection<T>({ tab }: { tab: SetupTab<T> }) {
         description={deleteTarget ? `${tab.labelOf(deleteTarget)} will be permanently removed. Records that reference it may stop resolving.` : ""}
         onConfirm={() => deleteTarget && handleDelete(deleteTarget)}
       />
+
+      {/* Inline add/edit modal — only rendered when the tab declares one. */}
+      {tab.Modal && (
+        <tab.Modal
+          open={modalState !== null}
+          item={modalState === "add" ? null : modalState as T | null}
+          onOpenChange={(o) => { if (!o) setModalState(null) }}
+          onSaved={() => { setModalState(null); void load() }}
+        />
+      )}
     </Card>
   )
 }
 
-const fmtGhc = (n?: number | null) => `GHC ${(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+// Module-scope formatter — module scope means we can't subscribe via useFmt().
+// fmtMoney reads the latest setting from the Zustand store on each call, so
+// once CompanySettingsCard re-renders SetupSection on save, this picks up the
+// new shape on the next render.
+const fmtGhc = (n?: number | null) => fmtMoney(n ?? 0)
 
 const tabs: SetupTab<any>[] = [
   {
@@ -172,6 +231,7 @@ const tabs: SetupTab<any>[] = [
       { header: "Stock", accessor: (p: any) => p.stockOnHand ?? 0 },
       { header: "Active", accessor: (p: any) => p.isActive ? <Badge className="bg-emerald-100 text-emerald-700">Yes</Badge> : <Badge variant="secondary">No</Badge> },
     ],
+    Modal: ProductModal,
   },
   {
     key: "customers",
@@ -188,6 +248,7 @@ const tabs: SetupTab<any>[] = [
       { header: "City", accessor: (c: any) => c.city ?? "—" },
       { header: "Outstanding", accessor: (c: any) => fmtGhc(c.outstandingBalance) },
     ],
+    Modal: CustomerModal,
   },
   {
     key: "drivers",
@@ -204,6 +265,7 @@ const tabs: SetupTab<any>[] = [
       { header: "License", accessor: (d: any) => d.licenseNumber ?? "—" },
       { header: "Active", accessor: (d: any) => d.isActive ? <Badge className="bg-emerald-100 text-emerald-700">Yes</Badge> : <Badge variant="secondary">No</Badge> },
     ],
+    Modal: DriverModal,
   },
   {
     key: "vehicles",
@@ -221,6 +283,7 @@ const tabs: SetupTab<any>[] = [
       { header: "Capacity", accessor: (v: any) => v.capacityBags ? `${v.capacityBags} bags` : "—" },
       { header: "Status", accessor: (v: any) => <Badge variant={v.status === "Active" ? "default" : "secondary"}>{v.status ?? "—"}</Badge> },
     ],
+    Modal: VehicleModal,
   },
   {
     key: "routes",
@@ -237,6 +300,7 @@ const tabs: SetupTab<any>[] = [
       { header: "Expected customers", accessor: (r: any) => r.expectedCustomers ?? "—" },
       { header: "Expected bags", accessor: (r: any) => r.expectedBagsSold ?? "—" },
     ],
+    Modal: RouteModal,
   },
   {
     key: "machines",
@@ -253,6 +317,7 @@ const tabs: SetupTab<any>[] = [
       { header: "Capacity / hr", accessor: (m: any) => m.capacityPerHour ?? "—" },
       { header: "Status", accessor: (m: any) => <Badge variant={m.status === "Active" ? "default" : "secondary"}>{m.status ?? "—"}</Badge> },
     ],
+    Modal: MachineModal,
   },
   {
     key: "boreholes",
@@ -269,10 +334,11 @@ const tabs: SetupTab<any>[] = [
       { header: "Pump", accessor: (b: any) => b.pumpType ?? "—" },
       { header: "Status", accessor: (b: any) => <Badge variant={b.status === "Active" ? "default" : "secondary"}>{b.status ?? "—"}</Badge> },
     ],
+    Modal: BoreholeModal,
   },
   {
     key: "raw-materials",
-    label: "Raw materials",
+    label: "Raw materials & supplies",
     icon: Box,
     addHref: "/water-raw-materials",
     fetch: listWaterRawMaterialItems,
@@ -287,6 +353,26 @@ const tabs: SetupTab<any>[] = [
       { header: "Min alert", accessor: (i: any) => i.minimumStockAlert ?? "—" },
       { header: "Active", accessor: (i: any) => i.isActive ? <Badge className="bg-emerald-100 text-emerald-700">Yes</Badge> : <Badge variant="secondary">No</Badge> },
     ],
+    Modal: RawMaterialModal,
+  },
+  {
+    key: "suppliers",
+    label: "Suppliers",
+    icon: Truck,
+    addHref: "/water-suppliers",
+    fetch: () => listWaterSuppliers({ includeInactive: true }),
+    delete: deleteWaterSupplier,
+    idOf: (s: any) => s.waterSupplierId,
+    labelOf: (s: any) => s.supplierName,
+    columns: [
+      { header: "Name",   accessor: (s: any) => <span className="font-medium">{s.supplierName}</span> },
+      { header: "Type",   accessor: (s: any) => s.supplierType ?? "—" },
+      { header: "Phone",  accessor: (s: any) => s.phone ?? "—" },
+      { header: "Email",  accessor: (s: any) => s.email ?? "—" },
+      { header: "Active", accessor: (s: any) => s.isActive ? "Yes" : "No" },
+    ],
+    // No inline modal yet — the standalone /water-suppliers page already has
+    // the full form. Add/Edit deep-link to that page; delete works inline.
   },
   {
     key: "staff",
@@ -304,6 +390,7 @@ const tabs: SetupTab<any>[] = [
       { header: "Salary type", accessor: (s: any) => s.salaryType ?? "—" },
       { header: "Base pay", accessor: (s: any) => fmtGhc(s.basePay) },
     ],
+    Modal: StaffModal,
   },
 ]
 
@@ -333,15 +420,38 @@ export default function WaterSetupPage() {
             </div>
           </div>
 
-          <Tabs defaultValue={tabs[0].key} className="w-full">
-            <TabsList className="flex flex-wrap h-auto gap-1 bg-slate-100 p-1">
+          <Tabs defaultValue="company" className="w-full">
+            <div className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+              Choose setup area
+            </div>
+            {/* Pill-style tabs (Three Prompts §8): clear hover/active state,
+                cursor-pointer, icon + label, horizontal scroll on small screens
+                so the row never crops. */}
+            <TabsList className="flex w-full flex-nowrap overflow-x-auto h-auto gap-1.5 rounded-lg bg-slate-100 p-1.5">
+              {/* Prompt 2 §14/§15 — company-level settings live in their own
+                  tab so the rest of the per-entity tabs stay focused. */}
+              <TabsTrigger
+                value="company"
+                className="shrink-0 cursor-pointer rounded-md border border-transparent px-3 py-1.5 text-slate-700 transition hover:bg-white hover:border-slate-200 data-[state=active]:border-sky-300 data-[state=active]:bg-white data-[state=active]:text-sky-700 data-[state=active]:shadow-sm"
+              >
+                <DollarSign className="h-4 w-4 mr-1.5" /> Company
+              </TabsTrigger>
               {tabs.map((t) => (
-                <TabsTrigger key={t.key} value={t.key} className="data-[state=active]:bg-white">
+                <TabsTrigger
+                  key={t.key}
+                  value={t.key}
+                  className="shrink-0 cursor-pointer rounded-md border border-transparent px-3 py-1.5 text-slate-700 transition hover:bg-white hover:border-slate-200 data-[state=active]:border-sky-300 data-[state=active]:bg-white data-[state=active]:text-sky-700 data-[state=active]:shadow-sm"
+                >
                   <t.icon className="h-4 w-4 mr-1.5" />
                   {t.label}
                 </TabsTrigger>
               ))}
             </TabsList>
+
+            <TabsContent value="company" className="mt-4">
+              <CompanySettingsCard />
+            </TabsContent>
+
             {tabs.map((t) => (
               <TabsContent key={t.key} value={t.key} className="mt-4">
                 <SetupSection tab={t} />
@@ -351,5 +461,237 @@ export default function WaterSetupPage() {
         </main>
       </div>
     </div>
+  )
+}
+
+// ----------------------------------------------------------------------------
+// Company settings — Prompt 2 Part 2 §7 + §8.
+//
+// Single tab that lets the owner edit BOTH the business profile (brand,
+// location, owner, sachets per bag, …) AND the currency settings. If the
+// company profile doesn't exist yet, this acts as a first-time setup form;
+// otherwise it acts as an edit form.
+// ----------------------------------------------------------------------------
+function CompanySettingsCard() {
+  const { toast } = useToast()
+  const apply = useFarmSettingsStore((s) => s.apply)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  // Currency settings (Farms row).
+  const [code, setCode] = useState("GHS")
+  const [symbol, setSymbol] = useState("GHC")
+  const [showSymbol, setShowSymbol] = useState(true)
+
+  // Company profile (WaterCompanyProfiles row). hasProfile tracks first-run
+  // vs edit — used to switch between setupWaterCompany and updateWaterCompanyProfile.
+  const [hasProfile, setHasProfile] = useState(false)
+  const [profile, setProfile] = useState({
+    brandName: "",
+    // Default must be one of the SP's allowed values (Sachet|Bottled|Both).
+    // Previously defaulted to "WaterProduction" — completely outside the SP's
+    // IN list, so every Save was rejected with "BusinessType must be Sachet,
+    // Bottled, or Both." James reported this on 2026-05-30.
+    businessType: "Sachet",
+    waterSourceType: "Borehole",
+    productionSiteAddress: "",
+    mainLocation: "",
+    ownerName: "",
+    phoneNumber: "",
+    defaultBagSachetCount: 30,
+    notes: "",
+  })
+
+  useEffect(() => {
+    void (async () => {
+      setLoading(true)
+      try {
+        const [farmSettings, prof] = await Promise.all([
+          fetchFarmSettings().catch(() => null),
+          getWaterCompanyProfile().catch(() => null),
+        ])
+        if (farmSettings) {
+          setCode(farmSettings.currencyCode)
+          setSymbol(farmSettings.currencySymbol)
+          setShowSymbol(farmSettings.showCurrencySymbol)
+          apply(farmSettings)
+        }
+        if (prof) {
+          setHasProfile(true)
+          setProfile({
+            brandName: prof.brandName ?? "",
+            businessType: prof.businessType ?? "WaterProduction",
+            waterSourceType: prof.waterSourceType ?? "Borehole",
+            productionSiteAddress: prof.productionSiteAddress ?? "",
+            mainLocation: prof.mainLocation ?? "",
+            ownerName: prof.ownerName ?? "",
+            phoneNumber: prof.phoneNumber ?? "",
+            defaultBagSachetCount: prof.defaultBagSachetCount ?? 30,
+            notes: prof.notes ?? "",
+          })
+        }
+      } catch (e: any) {
+        toast({ title: "Could not load company settings", description: e?.message ?? String(e), variant: "destructive" })
+      } finally { setLoading(false) }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function save() {
+    setSaving(true)
+    try {
+      // 1. Persist business profile.
+      // Defence-in-depth: even if `profile.businessType` is loaded as a stale
+      // pre-fix value (e.g. "WaterProduction" left over from the old dropdown),
+      // normalize against the SP whitelist before sending so we never trip
+      // RAISERROR. Same for waterSourceType.
+      const allowedBiz    = ["Sachet", "Bottled", "Both"]
+      const allowedSource = ["Borehole", "GhanaWater", "Tanker", "Mixed"]
+      const profilePayload = {
+        brandName: profile.brandName || null,
+        businessType:
+          allowedBiz.find(o => o.toLowerCase() === (profile.businessType ?? "").toLowerCase())
+          ?? "Sachet",
+        waterSourceType:
+          allowedSource.find(o => o.toLowerCase() === (profile.waterSourceType ?? "").toLowerCase())
+          ?? "Borehole",
+        productionSiteAddress: profile.productionSiteAddress || null,
+        mainLocation: profile.mainLocation || null,
+        ownerName: profile.ownerName || null,
+        phoneNumber: profile.phoneNumber || null,
+        defaultCurrency: code.trim() || "GHS",
+        defaultBagSachetCount: profile.defaultBagSachetCount || 30,
+        notes: profile.notes || null,
+      }
+      if (hasProfile) await updateWaterCompanyProfile(profilePayload)
+      else            { await setupWaterCompany(profilePayload); setHasProfile(true) }
+
+      // 2. Persist currency / display settings.
+      const next = await updateFarmCurrency({
+        currencyCode: code.trim() || "GHS",
+        currencySymbol: symbol.trim() || "GHC",
+        showCurrencySymbol: showSymbol,
+      })
+      if (next) apply(next)
+
+      toast({ title: hasProfile ? "Company settings saved." : "Water company set up." })
+    } catch (e: any) {
+      toast({ title: "Could not save", description: e?.message ?? String(e), variant: "destructive" })
+    } finally { setSaving(false) }
+  }
+
+  if (loading) {
+    return (
+      <Card><CardContent className="p-6 text-slate-500 flex items-center gap-2">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading company settings…
+      </CardContent></Card>
+    )
+  }
+
+  return (
+    <Card>
+      <CardContent className="p-4 space-y-4">
+        <FormSection title="Business profile" color="indigo">
+          <FormField label="Brand name" full>
+            <Input value={profile.brandName} onChange={(e) => setProfile({ ...profile, brandName: e.target.value })} />
+          </FormField>
+          {/* James (2026-05-30): both selects had options that don't match the
+              backend SP whitelist. Picking any of them caused
+              "BusinessType must be Sachet, Bottled, or Both." or the
+              waterSourceType equivalent. Aligned with spWaterCompany_Setup
+              and added case-insensitive normalize so old DB values still
+              load to a valid trigger state. */}
+          <FormField label="Business type *">
+            {(() => {
+              const allowed = ["Sachet", "Bottled", "Both"]
+              const match = allowed.find(o => o.toLowerCase() === (profile.businessType ?? "").toLowerCase())
+              const value = match ?? "Sachet"
+              return (
+                <Select value={value} onValueChange={(v) => setProfile({ ...profile, businessType: v })}>
+                  <SelectTrigger><SelectValue placeholder="Pick business type" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Sachet">Sachet</SelectItem>
+                    <SelectItem value="Bottled">Bottled</SelectItem>
+                    <SelectItem value="Both">Both</SelectItem>
+                  </SelectContent>
+                </Select>
+              )
+            })()}
+          </FormField>
+          <FormField label="Water source *">
+            {(() => {
+              const allowed = ["Borehole", "GhanaWater", "Tanker", "Mixed"]
+              const match = allowed.find(o => o.toLowerCase() === (profile.waterSourceType ?? "").toLowerCase())
+              const value = match ?? "Borehole"
+              return (
+                <Select value={value} onValueChange={(v) => setProfile({ ...profile, waterSourceType: v })}>
+                  <SelectTrigger><SelectValue placeholder="Pick water source" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Borehole">Borehole</SelectItem>
+                    <SelectItem value="GhanaWater">Ghana Water</SelectItem>
+                    <SelectItem value="Tanker">Tanker</SelectItem>
+                    <SelectItem value="Mixed">Mixed</SelectItem>
+                  </SelectContent>
+                </Select>
+              )
+            })()}
+          </FormField>
+          <FormField label="Production site address" full>
+            <Input value={profile.productionSiteAddress} onChange={(e) => setProfile({ ...profile, productionSiteAddress: e.target.value })} />
+          </FormField>
+          <FormField label="Main location / town" full>
+            <Input value={profile.mainLocation} onChange={(e) => setProfile({ ...profile, mainLocation: e.target.value })} />
+          </FormField>
+        </FormSection>
+
+        <FormSection title="Owner" color="blue">
+          <FormField label="Owner name">
+            <Input value={profile.ownerName} onChange={(e) => setProfile({ ...profile, ownerName: e.target.value })} />
+          </FormField>
+          <FormField label="Phone">
+            <Input value={profile.phoneNumber} onChange={(e) => setProfile({ ...profile, phoneNumber: e.target.value })} />
+          </FormField>
+        </FormSection>
+
+        <FormSection title="Production defaults" color="green">
+          <FormField label="Sachets per bag" hint="Used as default when recording production batches.">
+            <NumberInput min={1} value={profile.defaultBagSachetCount}
+              onChange={(e) => setProfile({ ...profile, defaultBagSachetCount: Number(e.target.value) || 30 })} />
+          </FormField>
+        </FormSection>
+
+        <FormSection title="Currency settings" color="amber">
+          <FormField label="Currency code" hint="ISO-style identifier — e.g. GHS, USD, EUR.">
+            <Input value={code} onChange={(e) => setCode(e.target.value)} maxLength={10} />
+          </FormField>
+          <FormField label="Currency symbol" hint="Prefix rendered before amounts. e.g. GHC, ₵, $, ₦.">
+            <Input value={symbol} onChange={(e) => setSymbol(e.target.value)} maxLength={10} />
+          </FormField>
+          <FormField label="Show currency symbol on pages" full>
+            <div className="flex items-center justify-between rounded border p-2">
+              <span className="text-sm text-slate-700">
+                When off, amounts render as bare numbers (e.g. <span className="font-mono">1,234.50</span>).
+              </span>
+              <Switch checked={showSymbol} onCheckedChange={setShowSymbol} />
+            </div>
+          </FormField>
+          <div className="text-xs text-slate-500 col-span-2">
+            Preview: <span className="font-mono">{showSymbol ? `${symbol} ` : ""}1,234.50</span>
+          </div>
+        </FormSection>
+
+        <FormSection title="Notes" color="slate" columns={1}>
+          <FormField label="Notes">
+            <Textarea value={profile.notes} onChange={(e) => setProfile({ ...profile, notes: e.target.value })} />
+          </FormField>
+        </FormSection>
+
+        <div className="flex justify-end">
+          <Button onClick={save} disabled={saving}>
+            {saving ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Saving…</> : <><Save className="h-4 w-4 mr-1" /> {hasProfile ? "Save settings" : "Set up Water Company"}</>}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

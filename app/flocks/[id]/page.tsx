@@ -6,6 +6,7 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -328,9 +329,9 @@ export default function EditFlockPage() {
                     <Label htmlFor="quantity" className="text-sm font-medium text-slate-700">
                       Number of Birds *
                     </Label>
-                    <Input
+                    <NumberInput
                       id="quantity"
-                      type="number"
+                      
                       min="1"
                       placeholder="e.g., 100"
                       value={formData.quantity}

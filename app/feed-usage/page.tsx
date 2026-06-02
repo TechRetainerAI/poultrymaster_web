@@ -11,6 +11,7 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Pencil, Trash2, Calendar, Package, Loader2, Search, Filter, ChevronDown, ChevronUp } from "lucide-react"
@@ -423,7 +424,7 @@ export default function FeedUsagePage() {
           </div>
           <div className="space-y-2">
             <Label className="text-sm font-medium text-slate-700">Quantity (kg) *</Label>
-            <Input name="quantityKg" type="number" step="0.1" min="0" placeholder="e.g., 25.5" value={form.quantityKg} onChange={(e) => setForm({ ...form, quantityKg: e.target.value })} required disabled={isLoading} />
+            <NumberInput name="quantityKg"  step="0.1" min="0" placeholder="e.g., 25.5" value={form.quantityKg} onChange={(e) => setForm({ ...form, quantityKg: e.target.value })} required disabled={isLoading} />
           </div>
         </div>
       </div>

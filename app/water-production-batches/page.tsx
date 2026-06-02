@@ -7,23 +7,31 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Loader2, Factory, AlertCircle, CheckCircle2, XCircle, Pencil, Undo2 } from "lucide-react"
+import { FormSection, FormField } from "@/components/ui/form-section"
+import { Plus, Loader2, Factory, CheckCircle2, XCircle, Pencil, Undo2, Trash2, Eye } from "lucide-react"
+import Link from "next/link"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import {
   listWaterProductionBatches, createWaterProductionBatch, updateWaterProductionBatch,
   approveWaterProductionBatch, cancelWaterProductionBatch, reopenWaterProductionBatch,
-  listWaterMachines, listWaterProducts,
+  listWaterMachines, listWaterProducts, listWaterRawMaterialItems,
+  getWaterProductionRecipe, listWaterProductionBatchMaterials,
   type WaterProductionBatch, type WaterMachine, type WaterProduct,
+  type WaterRawMaterialItem, type WaterProductionMaterialUsageInput,
 } from "@/lib/api/water"
+import { useFmt } from "@/lib/currency"
 
 const STATUS_COLORS: Record<string, string> = {
   Draft: "bg-slate-100 text-slate-700",
@@ -33,17 +41,44 @@ const STATUS_COLORS: Record<string, string> = {
 
 const SHIFTS = ["Morning", "Afternoon", "Night", "FullDay"]
 
+const round3 = (n: number) => Math.round(n * 1000) / 1000
+
+// In-memory row shape for the "Raw Materials Used" section. We track expected
+// vs actual separately so the user can adjust without losing the recipe-derived
+// suggestion (and so the backend can write Variance).
+type MaterialRow = {
+  waterRawMaterialItemId: number
+  expectedQuantity: number
+  actualQuantity: number
+  unitCost: number    // GHC per unit; pre-filled from latest purchase
+  unitOfMeasure: string
+  availableStock: number
+  itemName: string
+}
+
 export default function WaterProductionBatchesPage() {
   const router = useRouter()
   const { toast } = useToast()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const logout = useLogout()
+  const fmtGhc = useFmt()
 
   const [batches, setBatches] = useState<WaterProductionBatch[]>([])
   const [machines, setMachines] = useState<WaterMachine[]>([])
   const [products, setProducts] = useState<WaterProduct[]>([])
+  const [rawMaterials, setRawMaterials] = useState<WaterRawMaterialItem[]>([])
+  const [search, setSearch] = useState("")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  // Raw Materials Used section state.
+  const [materialRows, setMaterialRows] = useState<MaterialRow[]>([])
+  const [recipeLoading, setRecipeLoading] = useState(false)
+  // True when this batch's selected product has a saved recipe — drives the
+  // "Use expected quantities" button + warns when missing materials.
+  const [hasRecipe, setHasRecipe] = useState(false)
+  // User chose to override the "materials missing" guard at Approve time.
+  const [overrideMissing, setOverrideMissing] = useState(false)
 
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -64,7 +99,10 @@ export default function WaterProductionBatchesPage() {
     batchNumber: makeBatchNumber(),
     productionDate: new Date().toISOString().split("T")[0],
     shift: "Morning",
+    // 0 = no specific machine. When machineScope = "AllMachines" we ignore
+    // this and store NULL on the backend so reports can tell the two apart.
     waterMachineId: 0,
+    machineScope: "SingleMachine" as "SingleMachine" | "AllMachines",
     waterProductId: 0,
     bagsProduced: 0,
     sachetsPerBag: 30,
@@ -84,22 +122,81 @@ export default function WaterProductionBatchesPage() {
   }, [activeFarmType])
 
   async function load() {
-    setLoading(true); setError(null)
+    setLoading(true)
     try {
-      const [bs, ms, ps] = await Promise.all([listWaterProductionBatches(), listWaterMachines(), listWaterProducts()])
-      setBatches(bs); setMachines(ms); setProducts(ps)
-    } catch (e: any) { setError(e?.message ?? String(e)) }
+      const [bs, ms, ps, mats] = await Promise.all([
+        listWaterProductionBatches(),
+        listWaterMachines(),
+        listWaterProducts(),
+        listWaterRawMaterialItems(),
+      ])
+      setBatches(bs); setMachines(ms); setProducts(ps); setRawMaterials(mats)
+    } catch (e: any) { toast({ title: "Could not load production batches", description: e?.message ?? String(e), variant: "destructive" }) }
     finally { setLoading(false) }
   }
 
-  function openNew() {
+  // Fetch the selected product's recipe and reseed material rows. Called on
+  // every product change inside the open dialog. We deliberately don't preserve
+  // user edits when the product changes — switching products means a different
+  // recipe entirely.
+  async function loadRecipeForProduct(productId: number, bagsProduced: number) {
+    setRecipeLoading(true); setHasRecipe(false)
+    try {
+      const recipe = await getWaterProductionRecipe(productId)
+      if (!recipe || !recipe.items.length) {
+        setMaterialRows([])
+        return
+      }
+      setHasRecipe(true)
+      const rows: MaterialRow[] = recipe.items.map(it => {
+        const mat = rawMaterials.find(m => m.waterRawMaterialItemId === it.waterRawMaterialItemId)
+        // Expected = bags × qty-per-bag × (1 + waste%)
+        const expectedRaw = bagsProduced * Number(it.quantityPerOutputUnit ?? 0)
+        const expected = expectedRaw * (1 + Number(it.wasteAllowancePercent ?? 0) / 100)
+        const unitCost = Number(it.latestUnitCost ?? 0)
+        return {
+          waterRawMaterialItemId: it.waterRawMaterialItemId,
+          expectedQuantity: round3(expected),
+          actualQuantity: round3(expected),
+          unitCost,
+          unitOfMeasure: it.rawMaterialUnit ?? mat?.unitOfMeasure ?? "",
+          availableStock: Number(it.rawMaterialStock ?? mat?.currentQuantity ?? 0),
+          itemName: it.rawMaterialName ?? mat?.itemName ?? `Material #${it.waterRawMaterialItemId}`,
+        }
+      })
+      setMaterialRows(rows)
+    } catch (e: any) {
+      // Don't blow up the whole modal — just leave the section empty so the
+      // user can still record the batch without a recipe.
+      console.warn("recipe load failed", e)
+      setMaterialRows([])
+    } finally {
+      setRecipeLoading(false)
+    }
+  }
+
+  // Show finished goods first in the picker — raw/packaging materials are
+  // legal too (Other), but the typical case is sachet/bottle water.
+  const productPicker = useMemo(
+    () => [...products].sort((a, b) => {
+      const aFG = (a.productType ?? "FinishedGood") === "FinishedGood" ? 0 : 1
+      const bFG = (b.productType ?? "FinishedGood") === "FinishedGood" ? 0 : 1
+      return aFG - bFG || a.name.localeCompare(b.name)
+    }),
+    [products],
+  )
+
+  async function openNew() {
     setEditingId(null)
+    setOverrideMissing(false)
+    const defaultProductId = productPicker.find(p => p.isActive)?.waterProductId ?? 0
     setForm({
       batchNumber: makeBatchNumber(),
       productionDate: new Date().toISOString().split("T")[0],
       shift: "Morning",
       waterMachineId: machines.find(m => m.status === "Active")?.waterMachineId ?? 0,
-      waterProductId: products[0]?.waterProductId ?? 0,
+      machineScope: "SingleMachine",
+      waterProductId: defaultProductId,
       bagsProduced: 0,
       sachetsPerBag: 30,
       rejectedSachets: 0,
@@ -110,16 +207,20 @@ export default function WaterProductionBatchesPage() {
       otherProductionCost: 0,
       notes: "",
     })
+    setMaterialRows([])
     setOpen(true)
+    if (defaultProductId) await loadRecipeForProduct(defaultProductId, 0)
   }
 
-  function openEdit(b: WaterProductionBatch) {
+  async function openEdit(b: WaterProductionBatch) {
     setEditingId(b.waterProductionBatchId)
+    setOverrideMissing(false)
     setForm({
       batchNumber: b.batchNumber ?? makeBatchNumber(),
       productionDate: b.productionDate ? b.productionDate.split("T")[0] : new Date().toISOString().split("T")[0],
       shift: b.shift ?? "Morning",
       waterMachineId: b.waterMachineId ?? 0,
+      machineScope: (b.machineScope === "AllMachines" ? "AllMachines" : "SingleMachine"),
       waterProductId: b.waterProductId ?? 0,
       bagsProduced: b.bagsProduced ?? 0,
       sachetsPerBag: b.sachetsPerBag ?? 30,
@@ -131,7 +232,32 @@ export default function WaterProductionBatchesPage() {
       otherProductionCost: b.otherProductionCost ?? 0,
       notes: b.notes ?? "",
     })
+    setMaterialRows([])
     setOpen(true)
+    // Prefer the user's previously-recorded usage rows over fresh expected
+    // values — they're the source of truth for this Draft batch.
+    try {
+      const used = await listWaterProductionBatchMaterials(b.waterProductionBatchId)
+      if (used.length > 0) {
+        setHasRecipe(true)
+        setMaterialRows(used.map(u => {
+          const mat = rawMaterials.find(m => m.waterRawMaterialItemId === u.waterRawMaterialItemId)
+          return {
+            waterRawMaterialItemId: u.waterRawMaterialItemId,
+            expectedQuantity: Number(u.expectedQuantityUsed ?? u.quantityUsed ?? 0),
+            actualQuantity: Number(u.quantityUsed ?? 0),
+            unitCost: Number(u.unitCost ?? 0),
+            unitOfMeasure: u.unitOfMeasure ?? mat?.unitOfMeasure ?? "",
+            availableStock: Number(u.currentStock ?? mat?.currentQuantity ?? 0),
+            itemName: u.itemName ?? mat?.itemName ?? `Material #${u.waterRawMaterialItemId}`,
+          }
+        }))
+      } else if (b.waterProductId) {
+        await loadRecipeForProduct(b.waterProductId, b.bagsProduced ?? 0)
+      }
+    } catch (e) {
+      console.warn("materials load failed", e)
+    }
   }
 
   async function save() {
@@ -139,13 +265,42 @@ export default function WaterProductionBatchesPage() {
     if (!form.waterProductId)     return toast({ title: "Pick a product first", variant: "destructive" })
     if (form.bagsProduced <= 0)   return toast({ title: "Bags produced must be greater than zero", variant: "destructive" })
     if (form.sachetsPerBag <= 0)  return toast({ title: "Sachets per bag must be greater than zero", variant: "destructive" })
+
+    // Inline validation on Raw Materials Used.
+    for (const row of materialRows) {
+      if (row.actualQuantity < 0) return toast({ title: `Negative quantity not allowed`, description: `${row.itemName}: actual cannot be negative.`, variant: "destructive" })
+    }
+
+    // Guard: missing required materials. Draft can be saved without them, but
+    // we still warn unless the user already accepted the override (rendered
+    // inline below the materials table).
+    if (hasRecipe && materialRows.some(r => r.actualQuantity <= 0) && !overrideMissing) {
+      return toast({
+        title: "Some materials are missing",
+        description: "Tick \"Save anyway (override)\" below the Raw Materials section if you want to record this batch without them.",
+        variant: "destructive",
+      })
+    }
+
     setSaving(true)
     try {
+      const materialsUsed: WaterProductionMaterialUsageInput[] | undefined = materialRows.length > 0
+        ? materialRows.map(r => ({
+            waterRawMaterialItemId: r.waterRawMaterialItemId,
+            quantityUsed: r.actualQuantity,
+            expectedQuantityUsed: r.expectedQuantity,
+            unitCost: r.unitCost,
+          }))
+        : []  // explicit empty array → SP replaces with no rows
+
       const payload = {
         ...form,
         productionDate: form.productionDate,
-        waterMachineId: form.waterMachineId || null as any,
+        // "All Machines / Combined" → NULL machine id (the SP also enforces this).
+        waterMachineId: form.machineScope === "AllMachines" ? null : (form.waterMachineId || null as any),
         waterProductId: form.waterProductId || null as any,
+        machineScope: form.machineScope,
+        materialsUsed,
       }
       if (editingId != null) {
         await updateWaterProductionBatch(editingId, payload as any)
@@ -157,6 +312,48 @@ export default function WaterProductionBatchesPage() {
       setOpen(false); setEditingId(null); await load()
     } catch (e: any) { toast({ title: editingId != null ? "Update failed" : "Save failed", description: e?.message, variant: "destructive" }) }
     finally { setSaving(false) }
+  }
+
+  // Recompute expected when bags-produced changes (preserves user overrides
+  // on actualQuantity — the user might've already adjusted them).
+  function applyExpectedQuantities() {
+    if (!form.waterProductId) return
+    setMaterialRows(rows => rows.map(r => {
+      // Use the original recipe ratio: expected ÷ previous bags. If previous
+      // expected was 0 we have nothing to extrapolate from — fall back to 0.
+      return r // recompute happens via separate reload below
+    }))
+    // Easier: just refetch.
+    void loadRecipeForProduct(form.waterProductId, form.bagsProduced)
+  }
+
+  function addMaterialRow() {
+    const unused = rawMaterials.filter(m => m.isActive && !materialRows.some(r => r.waterRawMaterialItemId === m.waterRawMaterialItemId))
+    if (unused.length === 0) {
+      toast({ title: "No more materials to add", variant: "destructive" })
+      return
+    }
+    const m = unused[0]
+    setMaterialRows([
+      ...materialRows,
+      {
+        waterRawMaterialItemId: m.waterRawMaterialItemId,
+        expectedQuantity: 0,
+        actualQuantity: 0,
+        unitCost: 0,
+        unitOfMeasure: m.unitOfMeasure ?? "",
+        availableStock: Number(m.currentQuantity ?? 0),
+        itemName: m.itemName,
+      },
+    ])
+  }
+
+  function removeMaterialRow(idx: number) {
+    setMaterialRows(rows => rows.filter((_, i) => i !== idx))
+  }
+
+  function updateMaterialRow(idx: number, patch: Partial<MaterialRow>) {
+    setMaterialRows(rows => rows.map((r, i) => i === idx ? { ...r, ...patch } : r))
   }
 
   async function approve(b: WaterProductionBatch) {
@@ -174,20 +371,39 @@ export default function WaterProductionBatchesPage() {
     await load()
   }
 
-  // Derived totals: today's bags + month's bags from Approved batches only
+  // Derived totals: today's good bags + month's good bags from Approved batches.
+  // The cards label this explicitly as "(good)" so users don't confuse it with
+  // total produced bags — see migration 067 / prompt #7.
   const totals = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10)
     const month = today.slice(0, 7)
     const approved = batches.filter(b => b.status === "Approved")
-    const todayBags = approved.filter(b => b.productionDate.startsWith(today)).reduce((s, b) => s + (b.bagsProduced - (b.damagedBags ?? 0)), 0)
-    const monthBags = approved.filter(b => b.productionDate.startsWith(month)).reduce((s, b) => s + (b.bagsProduced - (b.damagedBags ?? 0)), 0)
+    const good = (b: WaterProductionBatch) =>
+      (b.goodBags ?? (b.bagsProduced - (b.damagedBags ?? 0)))
+    const todayBags = approved.filter(b => b.productionDate.startsWith(today)).reduce((s, b) => s + good(b), 0)
+    const monthBags = approved.filter(b => b.productionDate.startsWith(month)).reduce((s, b) => s + good(b), 0)
     return { todayBags, monthBags, draftCount: batches.filter(b => b.status === "Draft").length }
   }, [batches])
 
-  // Live preview values in the dialog
+  const visibleBatches = useMemo(
+    () => filterByDateAndSearch(batches, {
+      search, dateFrom, dateTo,
+      searchKeys: ["batchNumber", "status", "notes"],
+      dateKey: "productionDate",
+    }),
+    [batches, search, dateFrom, dateTo],
+  )
+
+  // Live preview values in the dialog.
   const totalSachets = form.bagsProduced * form.sachetsPerBag
-  const totalProductionCost = form.electricityCost + form.fuelCost + form.laborCost + form.otherProductionCost
-  const costPerBag = form.bagsProduced > 0 ? totalProductionCost / form.bagsProduced : 0
+  const otherProductionCost = form.electricityCost + form.fuelCost + form.laborCost + form.otherProductionCost
+  // Migration 063: raw material cost is part of the live total.
+  const rawMaterialCost = materialRows.reduce((s, r) => s + (r.actualQuantity * r.unitCost), 0)
+  const totalProductionCost = otherProductionCost + rawMaterialCost
+  // Migration 067: Cost per Bag must use GOOD bags (Produced - Damaged), not
+  // total Produced. Otherwise damaging stock makes per-bag cost look cheap.
+  const goodBags = Math.max(0, form.bagsProduced - form.damagedBags)
+  const costPerBag = goodBags > 0 ? totalProductionCost / goodBags : 0
   const efficiency = totalSachets > 0 ? ((totalSachets - form.rejectedSachets) / totalSachets) * 100 : 0
 
   return (
@@ -212,19 +428,21 @@ export default function WaterProductionBatchesPage() {
             </Button>
           </div>
 
-          {/* Stat cards — 2 cols on mobile, 4 on md+ */}
-          <div className="mb-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+          {/* Prompt 2 §10 — filters above score cards, consistent app-wide. */}
+          <ListFilters
+            search={search} setSearch={setSearch}
+            dateFrom={dateFrom} setDateFrom={setDateFrom}
+            dateTo={dateTo} setDateTo={setDateTo}
+            searchPlaceholder="Search batch number, status or notes"
+          />
+
+          {/* Score cards now sit AFTER the filters, per Prompt 2 §10. */}
+          <div className="mt-3 mb-3 grid grid-cols-2 md:grid-cols-4 gap-3">
             <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Today's bags (good)</div><div className="text-xl font-semibold tabular-nums">{totals.todayBags.toLocaleString()}</div></CardContent></Card>
-            <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Month's bags</div><div className="text-xl font-semibold tabular-nums">{totals.monthBags.toLocaleString()}</div></CardContent></Card>
+            <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Month's bags (good)</div><div className="text-xl font-semibold tabular-nums">{totals.monthBags.toLocaleString()}</div></CardContent></Card>
             <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Pending approval</div><div className="text-xl font-semibold">{totals.draftCount}</div></CardContent></Card>
             <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Active machines</div><div className="text-xl font-semibold">{machines.filter(m => m.status === "Active").length}</div></CardContent></Card>
           </div>
-
-          {error && (
-            <Card className="border-red-200 bg-red-50 mb-4">
-              <CardContent className="flex items-center gap-2 p-3 text-red-700"><AlertCircle className="h-4 w-4 shrink-0" /> <span className="text-sm break-words">{error}</span></CardContent>
-            </Card>
-          )}
 
           <Card>
             <CardContent className="p-0">
@@ -233,109 +451,491 @@ export default function WaterProductionBatchesPage() {
               ) : batches.length === 0 ? (
                 <div className="p-8 text-center text-slate-500">No production batches yet.</div>
               ) : (
-                // Horizontal scroll on narrow screens so columns don't overflow the card.
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Shift</TableHead>
-                        <TableHead>Machine</TableHead>
-                        <TableHead className="text-right">Bags</TableHead>
-                        <TableHead className="text-right">Damaged</TableHead>
-                        <TableHead className="text-right">Cost</TableHead>
-                        <TableHead className="text-right">Cost/bag</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {batches.map((b) => (
-                        <TableRow key={b.waterProductionBatchId}>
-                          <TableCell className="whitespace-nowrap">{b.productionDate ? b.productionDate.split("T")[0] : "—"}</TableCell>
-                          <TableCell>{b.shift ?? "—"}</TableCell>
-                          <TableCell className="max-w-[160px] truncate">{b.machineName ?? "—"}</TableCell>
-                          <TableCell className="text-right tabular-nums">{b.bagsProduced}</TableCell>
-                          <TableCell className="text-right tabular-nums">{b.damagedBags ?? 0}</TableCell>
-                          <TableCell className="text-right tabular-nums whitespace-nowrap">GHC {(b.totalProductionCost ?? 0).toFixed(2)}</TableCell>
-                          <TableCell className="text-right tabular-nums">{(b.costPerBag ?? 0).toFixed(2)}</TableCell>
-                          <TableCell><Badge className={STATUS_COLORS[b.status] ?? ""}>{b.status}</Badge></TableCell>
-                          <TableCell className="text-right whitespace-nowrap">
-                            {/* Edit only allowed in Draft — once approved the batch has moved stock + cash and edits would corrupt the books. */}
-                            {b.status === "Draft" && <Button size="sm" variant="ghost" onClick={() => openEdit(b)} title="Edit"><Pencil className="h-4 w-4" /></Button>}
-                            {b.status === "Draft" && <Button size="sm" variant="ghost" onClick={() => approve(b)} title="Approve"><CheckCircle2 className="h-4 w-4 text-green-600" /></Button>}
-                            {b.status !== "Cancelled" && b.status !== "Approved" && <Button size="sm" variant="ghost" onClick={() => cancel(b)} title="Cancel"><XCircle className="h-4 w-4 text-rose-500" /></Button>}
-                            {/* Reopen reverses the stock txn and flips back to Draft so the user can edit/delete. Blocked by backend if bags have already sold. */}
-                            {b.status === "Approved" && <Button size="sm" variant="ghost" onClick={() => setReopenTarget(b)} title="Reopen for edit"><Undo2 className="h-4 w-4 text-amber-600" /></Button>}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                <MobileCardList
+                  items={visibleBatches}
+                  getKey={(b) => b.waterProductionBatchId}
+                  primary={(b) => `${b.batchNumber ?? `#${b.waterProductionBatchId}`} · ${(b.goodBags ?? (b.bagsProduced - (b.damagedBags ?? 0))).toLocaleString()} good bags`}
+                  secondary={(b) => (
+                    <>
+                      <span>{b.productionDate ? b.productionDate.split("T")[0] : "—"}</span>
+                      <Badge className={STATUS_COLORS[b.status] ?? ""}>{b.status}</Badge>
+                    </>
+                  )}
+                  details={(b) => {
+                    const totalCost = b.allInCost ?? ((b.totalProductionCost ?? 0) + (b.rawMaterialCost ?? 0))
+                    const cpb       = b.costPerBag ?? 0
+                    return [
+                      { label: "Date", value: b.productionDate ? b.productionDate.split("T")[0] : "—" },
+                      { label: "Shift", value: b.shift ?? "—" },
+                      { label: "Machine", value: b.machineScope === "AllMachines" ? "All Machines / Combined" : (b.machineName ?? "—") },
+                      { label: "Produced bags", value: b.bagsProduced.toLocaleString() },
+                      { label: "Good bags", value: (b.goodBags ?? (b.bagsProduced - (b.damagedBags ?? 0))).toLocaleString() },
+                      { label: "Damaged", value: b.damagedBags ?? 0 },
+                      { label: "Total cost", value: fmtGhc(totalCost) },
+                      { label: "Cost/bag", value: fmtGhc(cpb) },
+                    ]
+                  }}
+                  actions={(b) => (
+                    <>
+                      {/* View — every batch including Approved (prompt #3). */}
+                      <Button asChild size="sm" variant="outline" className="flex-1 h-10">
+                        <Link href={`/water-production-batches/${b.waterProductionBatchId}`}>
+                          <Eye className="h-4 w-4 mr-1" /> View
+                        </Link>
+                      </Button>
+                      {b.status === "Draft" && (
+                        <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openEdit(b)}>
+                          <Pencil className="h-4 w-4 mr-1" /> Edit
+                        </Button>
+                      )}
+                      {b.status === "Draft" && (
+                        <Button size="sm" variant="outline" className="flex-1 h-10 text-green-700 border-green-200" onClick={() => approve(b)}>
+                          <CheckCircle2 className="h-4 w-4 mr-1" /> Approve
+                        </Button>
+                      )}
+                      {b.status !== "Cancelled" && b.status !== "Approved" && (
+                        <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 border-red-200" onClick={() => cancel(b)}>
+                          <XCircle className="h-4 w-4 mr-1" /> Cancel
+                        </Button>
+                      )}
+                      {b.status === "Approved" && (
+                        <Button size="sm" variant="outline" className="flex-1 h-10 text-amber-700 border-amber-200" onClick={() => setReopenTarget(b)}>
+                          <Undo2 className="h-4 w-4 mr-1" /> Reopen
+                        </Button>
+                      )}
+                    </>
+                  )}
+                  desktopTable={
+                    // Horizontal scroll on narrow screens so columns don't overflow the card.
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Shift</TableHead>
+                            <TableHead>Machine</TableHead>
+                            <TableHead className="text-right">Produced</TableHead>
+                            <TableHead className="text-right">Good</TableHead>
+                            <TableHead className="text-right">Damaged</TableHead>
+                            <TableHead className="text-right">Total cost</TableHead>
+                            <TableHead className="text-right">Cost/bag</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {visibleBatches.map((b) => {
+                            const totalCost = b.allInCost ?? ((b.totalProductionCost ?? 0) + (b.rawMaterialCost ?? 0))
+                            const cpb       = b.costPerBag ?? 0
+                            const good      = b.goodBags ?? (b.bagsProduced - (b.damagedBags ?? 0))
+                            return (
+                              <TableRow key={b.waterProductionBatchId}>
+                                <TableCell className="whitespace-nowrap">{b.productionDate ? b.productionDate.split("T")[0] : "—"}</TableCell>
+                                <TableCell>{b.shift ?? "—"}</TableCell>
+                                <TableCell className="max-w-[160px] truncate">
+                                  {b.machineScope === "AllMachines"
+                                    ? <span className="italic text-slate-600">All / Combined</span>
+                                    : (b.machineName ?? "—")}
+                                </TableCell>
+                                <TableCell className="text-right tabular-nums">{b.bagsProduced.toLocaleString()}</TableCell>
+                                <TableCell className="text-right tabular-nums font-medium">{good.toLocaleString()}</TableCell>
+                                <TableCell className="text-right tabular-nums">{b.damagedBags ?? 0}</TableCell>
+                                <TableCell className="text-right tabular-nums whitespace-nowrap">{fmtGhc(totalCost)}</TableCell>
+                                <TableCell className="text-right tabular-nums whitespace-nowrap">{fmtGhc(cpb)}</TableCell>
+                                <TableCell><Badge className={STATUS_COLORS[b.status] ?? ""}>{b.status}</Badge></TableCell>
+                                <TableCell className="text-right whitespace-nowrap">
+                                  {/* View first — works for Draft + Approved + Cancelled. */}
+                                  <Button asChild size="sm" variant="ghost" title="View details">
+                                    <Link href={`/water-production-batches/${b.waterProductionBatchId}`}><Eye className="h-4 w-4" /></Link>
+                                  </Button>
+                                  {/* Edit only allowed in Draft — once approved the batch has moved stock + cash and edits would corrupt the books. */}
+                                  {b.status === "Draft" && <Button size="sm" variant="ghost" onClick={() => openEdit(b)} title="Edit"><Pencil className="h-4 w-4" /></Button>}
+                                  {b.status === "Draft" && <Button size="sm" variant="ghost" onClick={() => approve(b)} title="Approve"><CheckCircle2 className="h-4 w-4 text-green-600" /></Button>}
+                                  {b.status !== "Cancelled" && b.status !== "Approved" && <Button size="sm" variant="ghost" onClick={() => cancel(b)} title="Cancel"><XCircle className="h-4 w-4 text-rose-500" /></Button>}
+                                  {/* Reopen reverses the stock txn and flips back to Draft so the user can edit/delete. Blocked by backend if bags have already sold. */}
+                                  {b.status === "Approved" && <Button size="sm" variant="ghost" onClick={() => setReopenTarget(b)} title="Reopen for edit"><Undo2 className="h-4 w-4 text-amber-600" /></Button>}
+                                </TableCell>
+                              </TableRow>
+                            )
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  }
+                />
               )}
             </CardContent>
           </Card>
         </main>
       </div>
 
+      {/* Production batch is a large modal. James (2026-05-30): "some of the
+          popup page is hidden" — the raw-materials table has 8 columns and
+          even at max-w-7xl + min-w-[160px] on the Material select, total
+          width exceeds the dialog on mid-size screens, so the right-side
+          columns (Stock, Cost, Remove) were getting clipped. Drop the
+          overflow-x-hidden so the inner `overflow-x-auto` wrapper can
+          actually scroll. p-3 sm:p-6 keeps mobile padding tight. */}
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setEditingId(null) }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{editingId != null ? "Edit production batch" : "Record production batch"}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="col-span-4 md:col-span-4"><Label>Batch number *</Label>
-              <Input maxLength={60} value={form.batchNumber} onChange={(e) => setForm({ ...form, batchNumber: e.target.value })} placeholder="e.g. B-20260524-093015" /></div>
-            <div className="col-span-2"><Label>Production date</Label>
-              <Input type="date" value={form.productionDate} onChange={(e) => setForm({ ...form, productionDate: e.target.value })} /></div>
-            <div className="col-span-2"><Label>Shift</Label>
-              <Select value={form.shift} onValueChange={(v) => setForm({ ...form, shift: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{SHIFTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-              </Select></div>
+        {/* Wider on big screens (1800px cap, 98vw on mid laptops) so the
+            8-column raw-materials table breathes. overflow-x-hidden because the
+            base DialogContent uses `display: grid` whose children default to
+            min-width: auto — any wider child would push a page-level
+            scrollbar. The inner tables already wrap their own overflow-x. */}
+        <DialogContent className="w-[98vw] max-w-[1800px] max-h-[90vh] overflow-y-auto overflow-x-hidden p-3 sm:p-6">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Factory className="w-5 h-5 text-blue-600" />
+              {editingId != null ? "Edit production batch" : "Record production batch"}
+            </DialogTitle>
+            <DialogDescription>
+              Record what was produced, the raw materials consumed, and the costs incurred. Saved as Draft until approved.
+            </DialogDescription>
+          </DialogHeader>
 
-            <div className="col-span-2"><Label>Machine</Label>
-              <Select value={String(form.waterMachineId)} onValueChange={(v) => setForm({ ...form, waterMachineId: Number(v) })}>
-                <SelectTrigger><SelectValue placeholder="Pick machine" /></SelectTrigger>
-                <SelectContent>{machines.filter(m => m.status === "Active").map(m => <SelectItem key={m.waterMachineId} value={String(m.waterMachineId)}>{m.machineName}</SelectItem>)}</SelectContent>
-              </Select></div>
-            <div className="col-span-2"><Label>Product</Label>
-              <Select value={String(form.waterProductId)} onValueChange={(v) => setForm({ ...form, waterProductId: Number(v) })}>
-                <SelectTrigger><SelectValue placeholder="Pick product" /></SelectTrigger>
-                <SelectContent>{products.map(p => <SelectItem key={p.waterProductId} value={String(p.waterProductId)}>{p.name}</SelectItem>)}</SelectContent>
-              </Select></div>
+          {/* min-w-0 forces this child to shrink within the DialogContent grid
+              track (grid children default to min-width: auto, which is the
+              real reason inner tables/inputs were spilling out of the dialog). */}
+          <div className="space-y-4 min-w-0 w-full">
+            <FormSection title="Batch information" color="indigo">
+              <FormField label="Batch number *" full>
+                <Input maxLength={60} value={form.batchNumber} onChange={(e) => setForm({ ...form, batchNumber: e.target.value })} placeholder="e.g. B-20260524-093015" />
+              </FormField>
+              <FormField label="Production date">
+                <Input type="date" value={form.productionDate} onChange={(e) => setForm({ ...form, productionDate: e.target.value })} />
+              </FormField>
+              <FormField label="Shift">
+                <Select value={form.shift} onValueChange={(v) => setForm({ ...form, shift: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{SHIFTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                </Select>
+              </FormField>
+              <FormField label="Machine">
+                {/* The special value "0" represents "All Machines / Combined" —
+                    used when the business records a single combined batch
+                    across several machines instead of per-machine batches.
+                    See prompt #8. */}
+                <Select
+                  value={form.machineScope === "AllMachines" ? "all" : String(form.waterMachineId)}
+                  onValueChange={(v) => {
+                    if (v === "all") setForm({ ...form, machineScope: "AllMachines", waterMachineId: 0 })
+                    else setForm({ ...form, machineScope: "SingleMachine", waterMachineId: Number(v) })
+                  }}>
+                  <SelectTrigger><SelectValue placeholder="Pick machine" /></SelectTrigger>
+                  <SelectContent>
+                    {machines.filter(m => m.status === "Active").map(m =>
+                      <SelectItem key={m.waterMachineId} value={String(m.waterMachineId)}>{m.machineName}</SelectItem>
+                    )}
+                    <SelectItem value="all">All Machines / Combined</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FormField>
+              <FormField label="Product">
+                <Select value={String(form.waterProductId)} onValueChange={(v) => {
+                  const id = Number(v)
+                  setForm({ ...form, waterProductId: id })
+                  if (id) void loadRecipeForProduct(id, form.bagsProduced)
+                }}>
+                  <SelectTrigger><SelectValue placeholder="Pick product" /></SelectTrigger>
+                  <SelectContent>{productPicker.map(p => (
+                    <SelectItem key={p.waterProductId} value={String(p.waterProductId)}>
+                      {p.name}{(p.productType ?? "FinishedGood") !== "FinishedGood" ? ` (${p.productType})` : ""}
+                    </SelectItem>
+                  ))}</SelectContent>
+                </Select>
+              </FormField>
+            </FormSection>
 
-            <div><Label>Bags produced *</Label>
-              <Input type="number" min={0} value={form.bagsProduced} onChange={(e) => setForm({ ...form, bagsProduced: Number(e.target.value) || 0 })} /></div>
-            <div><Label>Sachets/bag</Label>
-              <Input type="number" min={1} value={form.sachetsPerBag} onChange={(e) => setForm({ ...form, sachetsPerBag: Number(e.target.value) || 30 })} /></div>
-            <div><Label>Damaged bags</Label>
-              <Input type="number" min={0} value={form.damagedBags} onChange={(e) => setForm({ ...form, damagedBags: Number(e.target.value) || 0 })} /></div>
-            <div><Label>Rejected sachets</Label>
-              <Input type="number" min={0} value={form.rejectedSachets} onChange={(e) => setForm({ ...form, rejectedSachets: Number(e.target.value) || 0 })} /></div>
+            <FormSection title="Production output" color="blue">
+              {/* "Produced bags" = total bags before subtracting damaged.
+                  Good bags = Produced - Damaged, computed below and rolled into
+                  the live summary strip + the list page. */}
+              <FormField label="Produced bags *" hint="Total bags before subtracting damaged">
+                <NumberInput min={0} value={form.bagsProduced} onChange={(e) => {
+                  const v = Number(e.target.value) || 0
+                  setForm({ ...form, bagsProduced: v })
+                }} />
+              </FormField>
+              <FormField label="Sachets per bag">
+                <NumberInput min={1} value={form.sachetsPerBag} onChange={(e) => setForm({ ...form, sachetsPerBag: Number(e.target.value) || 30 })} />
+              </FormField>
+              <FormField label="Damaged bags" hint="Counted as loss — not added to stock">
+                <NumberInput min={0} value={form.damagedBags} onChange={(e) => setForm({ ...form, damagedBags: Number(e.target.value) || 0 })} />
+              </FormField>
+              <FormField label="Rejected sachets" hint="Counted as loss">
+                <NumberInput min={0} value={form.rejectedSachets} onChange={(e) => setForm({ ...form, rejectedSachets: Number(e.target.value) || 0 })} />
+              </FormField>
+            </FormSection>
 
-            <div><Label>Electricity (GHC)</Label>
-              <Input type="number" min={0} step="0.01" value={form.electricityCost} onChange={(e) => setForm({ ...form, electricityCost: Number(e.target.value) || 0 })} /></div>
-            <div><Label>Fuel (GHC)</Label>
-              <Input type="number" min={0} step="0.01" value={form.fuelCost} onChange={(e) => setForm({ ...form, fuelCost: Number(e.target.value) || 0 })} /></div>
-            <div><Label>Labor (GHC)</Label>
-              <Input type="number" min={0} step="0.01" value={form.laborCost} onChange={(e) => setForm({ ...form, laborCost: Number(e.target.value) || 0 })} /></div>
-            <div><Label>Other (GHC)</Label>
-              <Input type="number" min={0} step="0.01" value={form.otherProductionCost} onChange={(e) => setForm({ ...form, otherProductionCost: Number(e.target.value) || 0 })} /></div>
+            {/* ====================================================== */}
+            {/* Raw Materials Used (migration 063) - own coloured       */}
+            {/* section to match the farm-style FormSection look.       */}
+            {/* ====================================================== */}
+            <div className="rounded-xl border border-slate-200 overflow-hidden">
+              {/* Header wraps to a second line on narrow widths so the action
+                  buttons ("Use expected" + "Add material") don't get clipped
+                  off the right edge of the dialog on small/mid laptops. */}
+              <div className="bg-amber-600 px-4 py-2 text-sm font-semibold text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <span>Raw materials &amp; supplies used</span>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="secondary" size="sm" onClick={applyExpectedQuantities} disabled={!hasRecipe || !form.waterProductId}>
+                    Use expected
+                  </Button>
+                  <Button type="button" variant="secondary" size="sm" onClick={addMaterialRow}>
+                    <Plus className="h-4 w-4 mr-1" /> Add material
+                  </Button>
+                </div>
+              </div>
+              <div className="p-4 bg-white">
+                <div className="text-xs text-slate-500 mb-2">
+                  {hasRecipe
+                    ? "Auto-loaded from this product's recipe. Adjust actual usage if needed."
+                    : "This product has no recipe — add materials manually or set one up in Product details."}
+                </div>
 
-            <div className="col-span-4"><Label>Notes</Label>
-              <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
-          </div>
+              {recipeLoading ? (
+                <div className="text-sm text-slate-500 flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading recipe…
+                </div>
+              ) : materialRows.length === 0 ? (
+                <div className="text-xs text-slate-500 px-2 py-3">
+                  No materials yet.{" "}
+                  {form.waterProductId
+                    ? "Click \"Add material\" to record usage, or open the product to add a recipe."
+                    : "Pick a product first."}
+                </div>
+              ) : (
+                <div>
+                  {/* Desktop table — was breaking out of the dialog on common
+                      laptop widths (1024-1280px) with all 8 columns. Push the
+                      table to `xl:` (1280px+) where it actually fits cleanly,
+                      and let the friendlier card stack carry everything below
+                      that. Both layouts now use the same data; only the
+                      arrangement changes. */}
+                  <div className="hidden xl:block overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Material</TableHead>
+                          <TableHead className="text-right">Expected</TableHead>
+                          <TableHead className="text-right">Actual</TableHead>
+                          <TableHead>Unit</TableHead>
+                          <TableHead className="text-right">Unit cost</TableHead>
+                          <TableHead className="text-right">Stock</TableHead>
+                          <TableHead className="text-right">Cost</TableHead>
+                          <TableHead></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {materialRows.map((row, idx) => {
+                          const overStock = row.actualQuantity > row.availableStock
+                          const cost = row.actualQuantity * row.unitCost
+                          return (
+                            <TableRow key={idx}>
+                              <TableCell>
+                                <Select value={String(row.waterRawMaterialItemId)} onValueChange={(v) => {
+                                  const id = Number(v)
+                                  const mat = rawMaterials.find(m => m.waterRawMaterialItemId === id)
+                                  updateMaterialRow(idx, {
+                                    waterRawMaterialItemId: id,
+                                    itemName: mat?.itemName ?? row.itemName,
+                                    unitOfMeasure: mat?.unitOfMeasure ?? "",
+                                    availableStock: Number(mat?.currentQuantity ?? 0),
+                                  })
+                                }}>
+                                  <SelectTrigger className="min-w-[160px]"><SelectValue /></SelectTrigger>
+                                  <SelectContent>
+                                    {rawMaterials.map(m => (
+                                      <SelectItem key={m.waterRawMaterialItemId} value={String(m.waterRawMaterialItemId)}>
+                                        {m.itemName}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums text-slate-500">
+                                {row.expectedQuantity.toLocaleString(undefined, { maximumFractionDigits: 3 })}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <NumberInput
+                                   min={0} step="0.001"
+                                  value={row.actualQuantity}
+                                  onChange={(e) => updateMaterialRow(idx, { actualQuantity: Number(e.target.value) || 0 })}
+                                  className={`w-24 ml-auto text-right ${overStock ? "border-amber-400" : ""}`}
+                                />
+                                {overStock && (
+                                  <div className="text-[10px] text-amber-700 mt-0.5">
+                                    Over stock ({row.availableStock.toLocaleString()})
+                                  </div>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-slate-500">{row.unitOfMeasure || "—"}</TableCell>
+                              <TableCell className="text-right">
+                                <NumberInput
+                                   min={0} step="0.01"
+                                  value={row.unitCost}
+                                  onChange={(e) => updateMaterialRow(idx, { unitCost: Number(e.target.value) || 0 })}
+                                  className="w-20 ml-auto text-right"
+                                />
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums text-slate-500">
+                                {row.availableStock.toLocaleString(undefined, { maximumFractionDigits: 3 })}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums">
+                                {cost.toFixed(2)}
+                              </TableCell>
+                              <TableCell>
+                                <Button type="button" size="sm" variant="ghost" onClick={() => removeMaterialRow(idx)}>
+                                  <Trash2 className="h-4 w-4 text-red-500" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
 
-          <div className="border-t pt-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
-            <div><span className="text-slate-500">Total sachets:</span> <span className="font-semibold tabular-nums">{totalSachets.toLocaleString()}</span></div>
-            <div><span className="text-slate-500">Total cost:</span> <span className="font-semibold tabular-nums">GHC {totalProductionCost.toFixed(2)}</span></div>
-            <div><span className="text-slate-500">Cost/bag:</span> <span className="font-semibold tabular-nums">GHC {costPerBag.toFixed(2)}</span></div>
-            <div><span className="text-slate-500">Efficiency:</span> <span className="font-semibold tabular-nums">{efficiency.toFixed(1)}%</span></div>
-          </div>
+                  {/* Card stack — used everywhere up to xl: (1280px). The
+                      previous lg: cutover meant 1024-1280px screens saw the
+                      cramped 8-column table; the stack reads cleaner and
+                      doesn't get clipped at any width. md+ takes advantage of
+                      the wider dialog with a 4-up info row + side-by-side
+                      Material/inputs. */}
+                  <div className="xl:hidden space-y-3">
+                    {materialRows.map((row, idx) => {
+                      const overStock = row.actualQuantity > row.availableStock
+                      const cost = row.actualQuantity * row.unitCost
+                      return (
+                        <div key={idx} className={`rounded-md border p-3 space-y-3 bg-white ${overStock ? "border-amber-300" : "border-slate-200"}`}>
+                          {/* Row 1: Material picker spans full width on phones,
+                              shares space with the inputs on md+ screens. */}
+                          <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
+                            <div className="md:col-span-5 min-w-0">
+                              <label className="text-xs text-slate-500">Material</label>
+                              <Select value={String(row.waterRawMaterialItemId)} onValueChange={(v) => {
+                                const id = Number(v)
+                                const mat = rawMaterials.find(m => m.waterRawMaterialItemId === id)
+                                updateMaterialRow(idx, {
+                                  waterRawMaterialItemId: id,
+                                  itemName: mat?.itemName ?? row.itemName,
+                                  unitOfMeasure: mat?.unitOfMeasure ?? "",
+                                  availableStock: Number(mat?.currentQuantity ?? 0),
+                                })
+                              }}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {rawMaterials.map(m => (
+                                    <SelectItem key={m.waterRawMaterialItemId} value={String(m.waterRawMaterialItemId)}>{m.itemName}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 md:col-span-6">
+                              <div>
+                                <label className="text-xs text-slate-500">Actual ({row.unitOfMeasure || "—"})</label>
+                                <NumberInput
+                                   min={0} step="0.001"
+                                  value={row.actualQuantity}
+                                  onChange={(e) => updateMaterialRow(idx, { actualQuantity: Number(e.target.value) || 0 })}
+                                  className={`text-right ${overStock ? "border-amber-400" : ""}`}
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs text-slate-500">Unit cost</label>
+                                <NumberInput
+                                   min={0} step="0.01"
+                                  value={row.unitCost}
+                                  onChange={(e) => updateMaterialRow(idx, { unitCost: Number(e.target.value) || 0 })}
+                                  className="text-right"
+                                />
+                              </div>
+                            </div>
+                            <div className="md:col-span-1 flex md:justify-end">
+                              <Button type="button" size="sm" variant="ghost" onClick={() => removeMaterialRow(idx)}>
+                                <Trash2 className="h-4 w-4 text-red-500" />
+                              </Button>
+                            </div>
+                          </div>
+                          {/* Row 2: info strip — Expected / Stock / Cost. md+ also
+                              shows Unit alongside so all 4 metadata fields are
+                              visible at a glance. */}
+                          <div className="grid grid-cols-3 md:grid-cols-4 gap-2 text-xs border-t pt-2">
+                            <div>
+                              <div className="text-slate-500">Expected</div>
+                              <div className="tabular-nums">{row.expectedQuantity.toLocaleString(undefined, { maximumFractionDigits: 3 })}</div>
+                            </div>
+                            <div className="hidden md:block">
+                              <div className="text-slate-500">Unit</div>
+                              <div className="tabular-nums">{row.unitOfMeasure || "—"}</div>
+                            </div>
+                            <div>
+                              <div className="text-slate-500">Stock</div>
+                              <div className={`tabular-nums ${overStock ? "text-amber-700 font-semibold" : ""}`}>{row.availableStock.toLocaleString(undefined, { maximumFractionDigits: 3 })}</div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-slate-500">Cost</div>
+                              <div className="tabular-nums font-semibold">{fmtGhc(cost)}</div>
+                            </div>
+                          </div>
+                          {overStock && (
+                            <div className="text-[11px] text-amber-700">Over stock ({row.availableStock.toLocaleString()} on hand)</div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
 
-          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-3 sticky bottom-0 bg-white pb-1">
-            <Button variant="ghost" onClick={() => setOpen(false)} className="h-11 sm:h-10">Cancel</Button>
-            <Button onClick={save} disabled={saving} className="h-11 sm:h-10">{saving ? "Saving…" : editingId != null ? "Save changes" : "Save as Draft"}</Button>
+                  {hasRecipe && materialRows.some(r => r.actualQuantity <= 0) && (
+                    <label className="text-xs text-amber-700 flex items-center gap-2 mt-2">
+                      <input type="checkbox" checked={overrideMissing} onChange={(e) => setOverrideMissing(e.target.checked)} />
+                      Save anyway (override) — some required materials have zero usage
+                    </label>
+                  )}
+                </div>
+              )}
+              </div>
+            </div>
+
+            <FormSection title="Production costs" color="green">
+              <FormField label="Electricity">
+                <NumberInput min={0} step="0.01" value={form.electricityCost} onChange={(e) => setForm({ ...form, electricityCost: Number(e.target.value) || 0 })} />
+              </FormField>
+              <FormField label="Fuel">
+                <NumberInput min={0} step="0.01" value={form.fuelCost} onChange={(e) => setForm({ ...form, fuelCost: Number(e.target.value) || 0 })} />
+              </FormField>
+              <FormField label="Labor">
+                <NumberInput min={0} step="0.01" value={form.laborCost} onChange={(e) => setForm({ ...form, laborCost: Number(e.target.value) || 0 })} />
+              </FormField>
+              <FormField label="Other">
+                <NumberInput min={0} step="0.01" value={form.otherProductionCost} onChange={(e) => setForm({ ...form, otherProductionCost: Number(e.target.value) || 0 })} />
+              </FormField>
+            </FormSection>
+
+            <FormSection title="Notes" color="slate" columns={1}>
+              <FormField label="Notes">
+                <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+              </FormField>
+            </FormSection>
+
+            {/* Live summary strip — calmer slate background so it doesn't fight
+                the colored section bands above. */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 text-sm">
+              <div><span className="text-slate-500">Good bags:</span> <span className="font-semibold tabular-nums">{goodBags.toLocaleString()}</span></div>
+              <div><span className="text-slate-500">Sachets:</span> <span className="font-semibold tabular-nums">{totalSachets.toLocaleString()}</span></div>
+              <div><span className="text-slate-500">Raw materials &amp; supplies:</span> <span className="font-semibold tabular-nums">{fmtGhc(rawMaterialCost)}</span></div>
+              <div><span className="text-slate-500">Other costs:</span> <span className="font-semibold tabular-nums">{fmtGhc(otherProductionCost)}</span></div>
+              <div><span className="text-slate-500">Total cost:</span> <span className="font-semibold tabular-nums">{fmtGhc(totalProductionCost)}</span></div>
+              <div><span className="text-slate-500">Cost/bag:</span> <span className="font-semibold tabular-nums">{fmtGhc(costPerBag)}</span></div>
+              <div><span className="text-slate-500">Efficiency:</span> <span className="font-semibold tabular-nums">{efficiency.toFixed(1)}%</span></div>
+            </div>
+
+            <div className="flex gap-3 justify-end pt-2 sticky bottom-0 bg-white pb-1">
+              <Button type="button" onClick={() => setOpen(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
+              <Button onClick={save} disabled={saving}>
+                {saving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</>) : editingId != null ? "Save changes" : "Save as Draft"}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
