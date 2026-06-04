@@ -114,6 +114,12 @@ builder.Services.AddScoped<IWaterDashboardService>(sp => new WaterDashboardServi
 builder.Services.AddScoped<IWaterBoreholeService>(sp => new WaterBoreholeService(connectionString));
 builder.Services.AddScoped<IWaterMachineService>(sp => new WaterMachineService(connectionString));
 builder.Services.AddScoped<IWaterProductionBatchService>(sp => new WaterProductionBatchService(connectionString));
+// Migration 063: Production Recipes + Raw Material Usage history
+builder.Services.AddScoped<IWaterProductionRecipeService>(sp => new WaterProductionRecipeService(connectionString));
+// Migration 067: Production Loss page
+builder.Services.AddScoped<IWaterProductionLossService>(sp => new WaterProductionLossService(connectionString));
+// Migration 068: Farm-level settings (currency)
+builder.Services.AddScoped<IWaterFarmSettingsService>(sp => new WaterFarmSettingsService(connectionString));
 builder.Services.AddScoped<IWaterQualityTestService>(sp => new WaterQualityTestService(connectionString));
 builder.Services.AddScoped<IWaterDailyPumpingLogService>(sp => new WaterDailyPumpingLogService(connectionString));
 
@@ -138,6 +144,8 @@ builder.Services.AddScoped<IWaterReportService>(sp => new WaterReportService(con
 // TransferOut/TransferIn), customer ledger. Schema: migration 047. SPs: 048.
 builder.Services.AddScoped<IWaterExpenseCategoryService>(sp => new WaterExpenseCategoryService(connectionString));
 builder.Services.AddScoped<IWaterExpenseService>(sp => new WaterExpenseService(connectionString));
+// Migration 076: Suppliers master list (Paid To). Used by Expenses, RM purchases.
+builder.Services.AddScoped<IWaterSupplierService>(sp => new WaterSupplierService(connectionString));
 builder.Services.AddScoped<IWaterCashAccountService>(sp => new WaterCashAccountService(connectionString));
 builder.Services.AddScoped<IWaterCashTransferService>(sp => new WaterCashTransferService(connectionString));
 builder.Services.AddScoped<IWaterCustomerLedgerService>(sp => new WaterCustomerLedgerService(connectionString));

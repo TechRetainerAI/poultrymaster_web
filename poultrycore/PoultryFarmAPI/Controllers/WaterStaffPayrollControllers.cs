@@ -174,5 +174,35 @@ namespace PoultryFarmAPIWeb.Controllers
             await _svc.CancelAsync(id, farmId, cancelledBy, body?.Reason);
             return NoContent();
         }
+
+        // Migration 080 — flip Approved/Paid → Reopened, reverse linked expense + cash.
+        [HttpPost("{id:int}/unapprove")]
+        public async Task<IActionResult> Unapprove(
+            int id, [FromQuery] string farmId, [FromQuery] string? reopenedBy,
+            [FromBody] WaterPayrollRunCancelRequest? body)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            await _svc.UnapproveAsync(id, farmId, reopenedBy, body?.Reason);
+            return NoContent();
+        }
+
+        // Migration 080 — hard delete a Draft/Pending/Reopened run.
+        [HttpDelete("{id:int}")]
+        public async Task<IActionResult> Delete(int id, [FromQuery] string farmId, [FromQuery] string? deletedBy)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            await _svc.DeleteRunAsync(id, farmId, deletedBy);
+            return NoContent();
+        }
+
+        // Migration 082 — full Payroll Run Details with YTD totals + linked expense.
+        // One round-trip; the page renders all four sections from this payload.
+        [HttpGet("{id:int}/details")]
+        public async Task<ActionResult<WaterPayrollRunDetailsModel>> GetDetails(int id, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            var details = await _svc.GetDetailsWithYtdAsync(id, farmId);
+            return details is null ? NotFound() : Ok(details);
+        }
     }
 }

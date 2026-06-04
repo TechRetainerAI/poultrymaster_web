@@ -28,7 +28,12 @@ export function getAuthenticationApiUrl(pathSegment: string): string {
   return `${API_BASE_URL}/api/Authentication/${seg}`
 }
 
-/** Explains real flow (browser → Next proxy → Login API) for support / debugging */
+/**
+ * Diagnostic flow text (browser → Next proxy → Login API). Useful for support
+ * but James reported (2026-05-30) that end users were seeing the whole thing
+ * in the login error toast. We now route this to console.error only — the
+ * UI shows a short friendly message via friendlyLoginError() below.
+ */
 function loginUpstreamDiagnostics(): string {
   const upstream = API_BASE_URL
   if (typeof window === "undefined") {
@@ -43,6 +48,40 @@ function loginUpstreamDiagnostics(): string {
     `• GCP → Cloud Run → Login service → Logs: fix startup if the container crashes (DB connection string, etc.).\n` +
     `• From your PC: curl -sI "${upstream}/" — expect HTTP 200 or 404 from the app, not timeout.`
   )
+}
+
+/**
+ * Maps an internal error reason to a short, user-friendly toast message.
+ * The verbose technical diagnostic (loginUpstreamDiagnostics) is logged to
+ * the browser console instead — support can grab it from DevTools when
+ * needed without showing it to end users.
+ */
+type LoginErrorReason =
+  | "timeout"
+  | "network"
+  | "empty-body"
+  | "invalid-json"
+  | "non-json"
+  | "server-500"
+  | "upstream-5xx"
+function friendlyLoginError(reason: LoginErrorReason): string {
+  switch (reason) {
+    case "timeout":
+      return "The server is taking too long to respond. Please try again in a moment."
+    case "network":
+      return "Couldn't reach the login service. Please check your internet connection and try again."
+    case "empty-body":
+    case "invalid-json":
+    case "non-json":
+    case "server-500":
+    case "upstream-5xx":
+      return "The login service is having trouble right now. Please try again in a minute. If it keeps happening, contact support."
+  }
+}
+function logLoginDiagnostic(label: string, extra?: unknown) {
+  // Single place to dump the verbose flow + any extra context for support.
+  // eslint-disable-next-line no-console
+  console.error(`[Login diagnostic] ${label}\n${loginUpstreamDiagnostics()}`, extra ?? "")
 }
 
 export interface RegisterData {
@@ -232,9 +271,12 @@ export async function register(data: RegisterData): Promise<ApiResponse> {
     const result = await response.json()
 
     if (!response.ok) {
+      // ASP.NET [ApiController] auto-validation returns ProblemDetails:
+      // { title: "One or more validation errors occurred.", errors: { field: [..] } }
+      // — pick `title` so the user sees a real message instead of "Registration failed".
       return {
         success: false,
-        message: result.message || "Registration failed",
+        message: result.message || result.title || "Registration failed",
         errors: result.errors,
       }
     }
@@ -250,6 +292,68 @@ export async function register(data: RegisterData): Promise<ApiResponse> {
       message: "Network error. Please try again.",
     }
   }
+}
+
+/**
+ * Try to swap the stored refresh token for a fresh access token.
+ *
+ * Why this exists: getMyCompanies and other plain-fetch helpers don't go through
+ * the axios refresh interceptor, so when the 60-minute access token expires they
+ * surface a hard "401" until the user manually logs out and back in. This helper
+ * lets fetch-based helpers attempt one refresh on 401 before giving up.
+ *
+ * Single-flight: if a refresh is already in progress, callers await the same
+ * promise so we never POST refresh-token twice in parallel.
+ */
+let refreshInFlight: Promise<boolean> | null = null
+export function tryRefreshAccessToken(): Promise<boolean> {
+  if (typeof window === "undefined") return Promise.resolve(false)
+  if (refreshInFlight) return refreshInFlight
+
+  refreshInFlight = (async () => {
+    try {
+      const accessToken = localStorage.getItem("auth_token") || ""
+      const refreshToken = localStorage.getItem("refresh_token") || ""
+      if (!accessToken || !refreshToken) return false
+
+      // Backend expects the full LoginResponse shape (TokenType objects, not raw
+      // strings). ExpiryTokenDate is checked with `AND token mismatch`, so as
+      // long as the refresh token matches user.RefreshToken the date is ignored.
+      const res = await fetch(getAuthenticationApiUrl("Refresh-Token"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", accept: "*/*" },
+        body: JSON.stringify({
+          accessToken: { token: accessToken, expiryTokenDate: new Date(0).toISOString() },
+          refreshToken: { token: refreshToken, expiryTokenDate: new Date(0).toISOString() },
+        }),
+      })
+      if (!res.ok) return false
+
+      const json = await res.json().catch(() => null)
+      // Wrapper shape: { isSuccess, response: { accessToken: { token, ... }, refreshToken: { token, ... } } }
+      const r = json?.response ?? json
+      const newAccess = r?.accessToken?.token ?? r?.AccessToken?.Token
+      const newRefresh = r?.refreshToken?.token ?? r?.RefreshToken?.Token
+      if (!newAccess) return false
+
+      localStorage.setItem("auth_token", newAccess)
+      if (newRefresh) localStorage.setItem("refresh_token", newRefresh)
+
+      // Sync the axios singleton so Farm API requests pick up the new token too.
+      try {
+        const { apiClient } = await import("@/lib/api/client")
+        apiClient.setToken(newAccess)
+      } catch { /* not critical */ }
+
+      return true
+    } catch {
+      return false
+    } finally {
+      refreshInFlight = null
+    }
+  })()
+
+  return refreshInFlight
 }
 
 /** Browser → /api/proxy → Cloud Run: must exceed proxy’s Login/Admin upstream timeout (75s) so the client sees a JSON error instead of a generic abort. */
@@ -282,36 +386,20 @@ export async function login(data: LoginData): Promise<ApiResponse> {
     } catch (fetchError: any) {
       clearTimeout(timeoutId)
       
-      // Handle specific fetch errors
       if (fetchError.name === "AbortError") {
-        console.error("[Poultry Core] Request timeout (client limit, ms):", LOGIN_FETCH_TIMEOUT_MS, API_BASE_URL)
-        return {
-          success: false,
-          message: `Login request timed out (waited ${LOGIN_FETCH_TIMEOUT_MS / 1000}s).\n\n${loginUpstreamDiagnostics()}`,
-        }
+        logLoginDiagnostic(`Client timeout after ${LOGIN_FETCH_TIMEOUT_MS}ms`, API_BASE_URL)
+        return { success: false, message: friendlyLoginError("timeout") }
       }
-      
-      // Network errors — in the browser this is usually same-origin /api/proxy failing or unreachable
-      console.error("[Poultry Core] Fetch error:", fetchError)
-      console.error("[Poultry Core] Error details:", {
-        name: fetchError.name,
-        message: fetchError.message,
-        stack: fetchError.stack,
+
+      // Network errors — in the browser this is usually same-origin /api/proxy
+      // failing or the upstream Cloud Run service being unreachable. Log the
+      // full context for support; users just see the short message.
+      logLoginDiagnostic("Fetch error (network)", {
+        name: fetchError?.name,
+        message: fetchError?.message,
+        stack: fetchError?.stack,
       })
-      
-      let errorMessage = `Could not complete login (network error).\n\n${loginUpstreamDiagnostics()}\n\n`
-      
-      if (fetchError.message.includes('Failed to fetch') || fetchError.message.includes('NetworkError')) {
-        errorMessage +=
-          "Technical: \"Failed to fetch\" here often means your browser never got a normal response from this site’s /api/proxy route, OR the hosting server cannot reach the Login API URL above."
-      } else {
-        errorMessage += fetchError.message || "Unknown network error."
-      }
-      
-      return {
-        success: false,
-        message: errorMessage,
-      }
+      return { success: false, message: friendlyLoginError("network") }
     }
 
     // Single read — some hosts/CDNs send text/html with a JSON body; parse if it looks like JSON
@@ -320,11 +408,8 @@ export async function login(data: LoginData): Promise<ApiResponse> {
     const trimmed = text.trim()
 
     if (!trimmed) {
-      console.error("[Poultry Core] Empty response:", response.status, contentType)
-      return {
-        success: false,
-        message: `Empty response (HTTP ${response.status}). Check Render logs for [Proxy API] and Cloud Run Login logs.\n\n${loginUpstreamDiagnostics()}`,
-      }
+      logLoginDiagnostic(`Empty response body, HTTP ${response.status}`, { contentType })
+      return { success: false, message: friendlyLoginError("empty-body") }
     }
 
     const looksJson =
@@ -338,43 +423,27 @@ export async function login(data: LoginData): Promise<ApiResponse> {
       try {
         result = JSON.parse(text)
       } catch (parseError) {
-        console.error("[Poultry Core] JSON parse error:", parseError, trimmed.slice(0, 500))
-        return {
-          success: false,
-          message: `Invalid JSON (HTTP ${response.status}).\n\n${loginUpstreamDiagnostics()}`,
-        }
+        logLoginDiagnostic(`Invalid JSON, HTTP ${response.status}`, { parseError, bodyPreview: trimmed.slice(0, 500) })
+        return { success: false, message: friendlyLoginError("invalid-json") }
       }
     } else {
-      console.error("[Poultry Core] Non-JSON response:", {
-        status: response.status,
-        contentType,
-        body: trimmed.slice(0, 500),
-      })
-      return {
-        success: false,
-        message: `Login failed (HTTP ${response.status}).\n${trimmed.slice(0, 400)}${trimmed.length > 400 ? "…" : ""}\n\n${loginUpstreamDiagnostics()}`,
-      }
+      logLoginDiagnostic(`Non-JSON response, HTTP ${response.status}`, { contentType, bodyPreview: trimmed.slice(0, 500) })
+      return { success: false, message: friendlyLoginError("non-json") }
     }
 
-    // Proxy timeout / errors: { success, message, errorType, errorCode } — show full message (already includes checks)
+    // Proxy/gateway 5xx with a JSON body — log the raw message + error codes
+    // for support, but the user sees the friendly message.
     if (
       [500, 502, 503, 504].includes(response.status) &&
       typeof (result as any)?.message === "string"
     ) {
       const r = result as any
-      const suffix =
-        r.errorType && r.errorType !== "AbortError"
-          ? `\n(${r.errorType}${r.errorCode ? `: ${r.errorCode}` : ""})`
-          : r.errorCode
-            ? `\n(${r.errorCode})`
-            : ""
-      const alreadyHasFlow = String(r.message).includes("Login flow:")
-      return {
-        success: false,
-        message: alreadyHasFlow
-          ? `${r.message}${suffix}`
-          : `${r.message}${suffix}\n\n${loginUpstreamDiagnostics()}`,
-      }
+      logLoginDiagnostic(`Upstream ${response.status} with message`, {
+        message: r.message,
+        errorType: r.errorType,
+        errorCode: r.errorCode,
+      })
+      return { success: false, message: friendlyLoginError("upstream-5xx") }
     }
 
     if (
@@ -383,10 +452,8 @@ export async function login(data: LoginData): Promise<ApiResponse> {
       typeof result === "object" &&
       Object.keys(result).length === 0
     ) {
-      return {
-        success: false,
-        message: `Login API returned HTTP ${response.status} with an empty JSON body. Typical causes: crash before response, or gateway timeout. Check Cloud Run → Login service → Logs (DB, SMTP, JWT).\n\n${loginUpstreamDiagnostics()}`,
-      }
+      logLoginDiagnostic(`HTTP ${response.status} with empty JSON body`)
+      return { success: false, message: friendlyLoginError("server-500") }
     }
 
     console.log("[Poultry Core] Full login response:", JSON.stringify(result, null, 2))
@@ -536,32 +603,23 @@ export async function login(data: LoginData): Promise<ApiResponse> {
       message: result.message || "Login successful",
     }
   } catch (error: any) {
-    console.error("[Poultry Core] Login error:", error)
-    console.error("[Poultry Core] Error type:", error?.constructor?.name)
-    console.error("[Poultry Core] Error message:", error?.message)
-    
-    // Provide more specific error messages based on the error type
-    let errorMessage = "Network error. Please try again."
-    
+    // Same user-friendly + console-diagnostic split as the inner handlers.
+    logLoginDiagnostic("Unhandled login error", {
+      name: error?.constructor?.name,
+      message: error?.message,
+      stack: error?.stack,
+    })
+
     if (error instanceof TypeError) {
-      if (error.message === "Failed to fetch" || error.message.includes("Failed to fetch")) {
-        errorMessage = `Could not complete login (Failed to fetch).\n\n${loginUpstreamDiagnostics()}`
-      } else if (error.message.includes("CORS")) {
-        errorMessage = `CORS blocked the response. With the proxy, the browser usually talks only to this site; if you still see CORS, try a hard refresh or redeploy the frontend.\n\n${loginUpstreamDiagnostics()}`
-      } else if (error.message.includes("NetworkError")) {
-        errorMessage = "Network connection failed. Please check your internet connection."
-      } else {
-        errorMessage = `Network error: ${error.message || "Unknown error occurred"}\n\n${loginUpstreamDiagnostics()}`
-      }
-    } else if (error?.name === "AbortError") {
-      errorMessage = `Login request timed out.\n\n${loginUpstreamDiagnostics()}`
-    } else {
-      errorMessage = error?.message || "An unexpected error occurred. Please try again."
+      // TypeError covers "Failed to fetch", "NetworkError", CORS rejections.
+      return { success: false, message: friendlyLoginError("network") }
     }
-    
+    if (error?.name === "AbortError") {
+      return { success: false, message: friendlyLoginError("timeout") }
+    }
     return {
       success: false,
-      message: errorMessage,
+      message: error?.message || "Something went wrong. Please try again.",
     }
   }
 }

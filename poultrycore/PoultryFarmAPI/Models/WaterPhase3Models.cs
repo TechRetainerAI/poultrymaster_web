@@ -34,6 +34,8 @@ namespace PoultryFarmAPIWeb.Models
         public string? Category { get; set; }
         public string? UnitOfMeasure { get; set; }
         [StringLength(200)] public string? SupplierName { get; set; }
+        // Migration 078: FK to WaterSuppliers. SupplierName above kept as freetext fallback.
+        public int? SupplierId { get; set; }
         public DateTime PurchaseDate { get; set; }
         [Range(0.0001, double.MaxValue)] public decimal Quantity { get; set; }
         [Range(0, double.MaxValue)] public decimal UnitCost { get; set; }
@@ -122,6 +124,15 @@ namespace PoultryFarmAPIWeb.Models
         [StringLength(500)] public string? RejectionReason { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
+
+        // Migration 068 — reopen / resubmit support. IsActive flips to 0 when
+        // the closing is reopened; SupersededByClosingId points at the new
+        // closing that replaces this one in the audit chain.
+        public bool IsActive { get; set; } = true;
+        public int? SupersededByClosingId { get; set; }
+        public string? ReopenedBy { get; set; }
+        public DateTime? ReopenedAt { get; set; }
+        [StringLength(500)] public string? ReopenReason { get; set; }
     }
 
     public class WaterDailyClosingSubmitRequest
@@ -179,6 +190,42 @@ namespace PoultryFarmAPIWeb.Models
         public decimal ActualAccountedFor { get; set; }
         public decimal TotalShortages { get; set; }
         public int ShortageOccurrences { get; set; }
+    }
+
+    // Migration 066: Driver Collection Report — per-driver per-product detail
+    // plus a per-driver roll-up totals row.
+    public class WaterDriverCollectionDetailRow
+    {
+        public int? WaterDriverId { get; set; }
+        public string? DriverName { get; set; }
+        public int WaterProductId { get; set; }
+        public string? ProductName { get; set; }
+        public int BagsLoaded { get; set; }
+        public int BagsSold { get; set; }
+        public int BagsReturned { get; set; }
+        public int BagsDamaged { get; set; }
+        public decimal ExpectedCash { get; set; }
+        public decimal SalesValue { get; set; }
+    }
+
+    public class WaterDriverCollectionTotalsRow
+    {
+        public int? WaterDriverId { get; set; }
+        public string? DriverName { get; set; }
+        public int DeliveryRuns { get; set; }
+        public int ReconciledRuns { get; set; }
+        public decimal CashCollected { get; set; }
+        public decimal MoMoCollected { get; set; }
+        public decimal BankCollected { get; set; }
+        public decimal CreditSales { get; set; }
+        public decimal Shortage { get; set; }
+        public decimal Overage { get; set; }
+    }
+
+    public class WaterDriverCollectionReport
+    {
+        public List<WaterDriverCollectionDetailRow> Detail { get; set; } = new();
+        public List<WaterDriverCollectionTotalsRow> Totals { get; set; } = new();
     }
 
     public class WaterRawMaterialVarianceRow
@@ -239,5 +286,40 @@ namespace PoultryFarmAPIWeb.Models
         public decimal TotalSales { get; set; }
         public decimal TotalPaid { get; set; }
         public decimal OutstandingBalance { get; set; }
+    }
+
+    // Migration 081 — Supplier Report row.
+    public class WaterSupplierActivityRow
+    {
+        public int      WaterSupplierId { get; set; }
+        public string   SupplierName { get; set; } = string.Empty;
+        public string?  SupplierType { get; set; }
+        public string?  ContactPerson { get; set; }
+        public string?  Phone { get; set; }
+        public string?  Email { get; set; }
+        public decimal  TotalPurchaseAmount { get; set; }
+        public int      PurchaseCount { get; set; }
+        public DateTime? LastPurchaseDate { get; set; }
+        public decimal  TotalExpenseAmount { get; set; }
+        public int      ExpenseCount { get; set; }
+        public DateTime? LastExpenseDate { get; set; }
+        public decimal  OutstandingBalance { get; set; }
+    }
+
+    // Migration 068 — currency + display settings on the Farms row.
+    public class WaterFarmSettingsModel
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string CurrencyCode { get; set; } = "GHS";
+        public string CurrencySymbol { get; set; } = "GHC";
+        public bool ShowCurrencySymbol { get; set; } = true;
+    }
+
+    public class WaterFarmSettingsCurrencyRequest
+    {
+        public string CurrencyCode { get; set; } = "GHS";
+        public string CurrencySymbol { get; set; } = "GHC";
+        public bool ShowCurrencySymbol { get; set; } = true;
     }
 }

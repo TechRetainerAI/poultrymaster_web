@@ -46,11 +46,13 @@ namespace User.Management.API.Controllers
         }
 
         private readonly IAdminService _adminService;
+        private readonly IAuditLogger _auditLogger;
         private readonly ILogger<AdminController> _logger;
 
-        public AdminController(IAdminService adminService, ILogger<AdminController> logger)
+        public AdminController(IAdminService adminService, IAuditLogger auditLogger, ILogger<AdminController> logger)
         {
             _adminService = adminService;
+            _auditLogger = auditLogger;
             _logger = logger;
         }
 
@@ -279,6 +281,18 @@ namespace User.Management.API.Controllers
 
                 _logger.LogInformation("Employee created and verified successfully: {EmployeeId}, UserName: {UserName}", createdEmployee.Id, createdEmployee.UserName);
 
+                // Audit trail. Fire-and-forget — failure to insert the audit row
+                // must not break the response. Details mirror the Farm API filter's
+                // "<METHOD> <Resource> (ID: x) - Created" format so the existing
+                // /audit-logs UI renders this row consistently.
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action:     "POST",
+                    resource:   "Employee",
+                    resourceId: createdEmployee.Id,
+                    farmId:     farmId,
+                    details:    $"POST Employee (ID: {createdEmployee.Id}) - Created");
+
                 return CreatedAtAction(nameof(GetEmployeeById), new { id = createdEmployee.Id }, employeeModel);
             }
             catch (Exception ex)
@@ -332,6 +346,14 @@ namespace User.Management.API.Controllers
 
                 _logger.LogInformation("Employee {EmployeeId} updated successfully", id);
 
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action:     "PUT",
+                    resource:   "Employee",
+                    resourceId: id,
+                    farmId:     farmId,
+                    details:    $"PUT Employee (ID: {id}) - Updated");
+
                 return NoContent();
             }
             catch (Exception ex)
@@ -350,7 +372,7 @@ namespace User.Management.API.Controllers
             try
             {
                 var farmId = User.FindFirst("FarmId")?.Value;
-                
+
                 if (string.IsNullOrEmpty(farmId))
                 {
                     return BadRequest("FarmId not found in user claims");
@@ -366,6 +388,14 @@ namespace User.Management.API.Controllers
                 }
 
                 _logger.LogInformation("Employee {EmployeeId} deleted successfully", id);
+
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action:     "DELETE",
+                    resource:   "Employee",
+                    resourceId: id,
+                    farmId:     farmId,
+                    details:    $"DELETE Employee (ID: {id}) - Deleted");
 
                 return NoContent();
             }

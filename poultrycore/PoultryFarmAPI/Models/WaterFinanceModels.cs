@@ -104,6 +104,16 @@ namespace PoultryFarmAPIWeb.Models
         public int? LinkedWaterMachineId { get; set; }
         public int? LinkedWaterProductionBatchId { get; set; }
 
+        // Supplier ("Paid To") — populated from the WaterSuppliers master list.
+        // PaidTo above stays as a freetext fallback for legacy rows.
+        public int? SupplierId { get; set; }
+        [StringLength(200)] public string? SupplierName { get; set; }
+
+        // Source link for auto-generated expenses (Payroll, RawMaterialPurchase,
+        // ProductionBatch). Drives the clickable Source column on the Expenses page.
+        [StringLength(40)]  public string? SourceType { get; set; }
+        public int? SourceId { get; set; }
+
         [StringLength(20)] public string Status { get; set; } = WaterExpenseStatus.Draft;
 
         [StringLength(1000)] public string? Notes { get; set; }
@@ -120,6 +130,29 @@ namespace PoultryFarmAPIWeb.Models
     public class WaterExpenseRejectRequest
     {
         [StringLength(500)] public string? Reason { get; set; }
+    }
+
+    // ====================================================================
+    // WaterSupplier — the "Paid To" master list used by expenses, raw material
+    // purchases, and the Supplier Report. Soft-deleted; see migration 076.
+    // ====================================================================
+    public class WaterSupplierModel
+    {
+        [Key] public int WaterSupplierId { get; set; }
+        [Required] public string FarmId { get; set; } = string.Empty;
+        [Required, StringLength(200)] public string SupplierName { get; set; } = string.Empty;
+        [StringLength(200)] public string? ContactPerson { get; set; }
+        [StringLength(50)]  public string? Phone { get; set; }
+        [StringLength(200)] public string? Email { get; set; }
+        [StringLength(500)] public string? Address { get; set; }
+        [StringLength(60)]  public string? SupplierType { get; set; }
+        [StringLength(1000)]public string? Notes { get; set; }
+        public bool IsActive { get; set; } = true;
+        public bool IsDeleted { get; set; }
+        public string? CreatedBy { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public string? UpdatedBy { get; set; }
+        public DateTime? UpdatedAt { get; set; }
     }
 
     public class WaterExpenseCancelRequest

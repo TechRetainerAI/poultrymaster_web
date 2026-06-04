@@ -271,6 +271,12 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ICompanyDAL>(provider => new CompanyDAL(connectionString));
 builder.Services.AddScoped<ICompanyService, CompanyService>();
 
+// Audit logger — writes to the same dbo.AuditLogs table the Farm API filter
+// populates. Login API doesn't have a global filter; controllers call this
+// explicitly for actions that should appear in the audit trail (employee
+// create is the first; 2FA toggles / profile updates can opt in later).
+builder.Services.AddSingleton<IAuditLogger>(_ => new AuditLogger(connectionString));
+
 
 
 builder.Services.AddControllers();

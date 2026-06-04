@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic"
 
-import { Suspense, useEffect, useState } from "react"
+import { Suspense, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -11,11 +11,13 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { Loader2, Plus, ShoppingCart } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { getSales, type GenericSale } from "@/lib/api/generic"
+import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 
 const STATUS_FILTERS = ["All", "Draft", "Approved", "Refunded", "Cancelled"] as const
 
@@ -34,12 +36,15 @@ function statusBadgeClass(s: string) {
 
 function GenericSalesPageInner() {
   const router = useRouter()
-  const search = useSearchParams()
-  const status = search.get("status") || "All"
+  const sp = useSearchParams()
+  const status = sp.get("status") || "All"
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const logout = useLogout()
   const { toast } = useToast()
   const [rows, setRows] = useState<GenericSale[]>([])
+  const [search, setSearch] = useState("")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -56,6 +61,15 @@ function GenericSalesPageInner() {
     return () => { cancelled = true }
   }, [activeFarmType, router, status, toast])
 
+  const visibleRows = useMemo(
+    () => filterByDateAndSearch(rows, {
+      search, dateFrom, dateTo,
+      searchKeys: ["customerName", "status", "notes"],
+      dateKey: "saleDate",
+    }),
+    [rows, search, dateFrom, dateTo],
+  )
+
   return (
     <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={logout} />
@@ -69,7 +83,7 @@ function GenericSalesPageInner() {
               </h1>
               <p className="text-sm text-slate-500">{rows.length} {status === "All" ? "" : status.toLowerCase()} sale(s)</p>
             </div>
-            <Button asChild>
+            <Button asChild className="w-full sm:w-auto h-11 sm:h-10">
               <Link href="/generic-sales/new"><Plus className="h-4 w-4 mr-1" />New sale</Link>
             </Button>
           </div>
@@ -92,40 +106,82 @@ function GenericSalesPageInner() {
           ) : rows.length === 0 ? (
             <Card><CardContent className="py-8 text-center text-slate-500">No sales yet. <Link href="/generic-sales/new" className="text-emerald-700 underline">Record your first one â†’</Link></CardContent></Card>
           ) : (
+            <>
+            <ListFilters
+              search={search} setSearch={setSearch}
+              dateFrom={dateFrom} setDateFrom={setDateFrom}
+              dateTo={dateTo} setDateTo={setDateTo}
+              searchPlaceholder="Search customer, status or notes"
+            />
             <Card>
               <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>#</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Customer</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
-                      <TableHead className="text-right">Paid</TableHead>
-                      <TableHead className="text-right">Balance</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {rows.map((s) => (
-                      <TableRow key={s.genericSaleId}>
-                        <TableCell><Link href={`/generic-sales/${s.genericSaleId}`} className="text-emerald-700 underline">#{s.genericSaleId}</Link></TableCell>
-                        <TableCell>{new Date(s.saleDate).toLocaleDateString()}</TableCell>
-                        <TableCell>{s.customerName ?? <span className="text-slate-500">Walk-in</span>}</TableCell>
-                        <TableCell className="text-xs text-slate-500">{s.salesType}</TableCell>
-                        <TableCell className="text-right">{fmt(s.totalAmount)}</TableCell>
-                        <TableCell className="text-right">{fmt(s.amountPaid)}</TableCell>
-                        <TableCell className={`text-right ${s.balance > 0 ? "text-rose-700 font-semibold" : ""}`}>{fmt(s.balance)}</TableCell>
-                        <TableCell><Badge className={statusBadgeClass(s.status)}>{s.status}</Badge></TableCell>
-                        <TableCell><Button asChild size="sm" variant="ghost"><Link href={`/generic-sales/${s.genericSaleId}`}>Details</Link></Button></TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <MobileCardList
+                  items={visibleRows}
+                  getKey={(s) => s.genericSaleId}
+                  primary={(s) => (
+                    <Link href={`/generic-sales/${s.genericSaleId}`} className="text-emerald-700 underline">
+                      #{s.genericSaleId} · {s.customerName ?? "Walk-in"}
+                    </Link>
+                  )}
+                  secondary={(s) => (
+                    <>
+                      <span>{new Date(s.saleDate).toLocaleDateString()}</span>
+                      <span>·</span>
+                      <span className="text-xs">{s.salesType}</span>
+                    </>
+                  )}
+                  trailing={(s) => <Badge className={statusBadgeClass(s.status)}>{s.status}</Badge>}
+                  details={(s) => [
+                    { label: "Date", value: new Date(s.saleDate).toLocaleDateString() },
+                    { label: "Customer", value: s.customerName ?? "Walk-in" },
+                    { label: "Type", value: s.salesType },
+                    { label: "Total", value: fmt(s.totalAmount) },
+                    { label: "Paid", value: fmt(s.amountPaid) },
+                    { label: "Balance", value: <span className={s.balance > 0 ? "text-rose-700 font-semibold" : ""}>{fmt(s.balance)}</span> },
+                  ]}
+                  actions={(s) => (
+                    <Button asChild size="sm" variant="outline" className="flex-1 h-10">
+                      <Link href={`/generic-sales/${s.genericSaleId}`}>Details</Link>
+                    </Button>
+                  )}
+                  desktopTable={
+                    <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>#</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Customer</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead className="text-right">Total</TableHead>
+                          <TableHead className="text-right">Paid</TableHead>
+                          <TableHead className="text-right">Balance</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {visibleRows.map((s) => (
+                          <TableRow key={s.genericSaleId}>
+                            <TableCell><Link href={`/generic-sales/${s.genericSaleId}`} className="text-emerald-700 underline">#{s.genericSaleId}</Link></TableCell>
+                            <TableCell>{new Date(s.saleDate).toLocaleDateString()}</TableCell>
+                            <TableCell>{s.customerName ?? <span className="text-slate-500">Walk-in</span>}</TableCell>
+                            <TableCell className="text-xs text-slate-500">{s.salesType}</TableCell>
+                            <TableCell className="text-right">{fmt(s.totalAmount)}</TableCell>
+                            <TableCell className="text-right">{fmt(s.amountPaid)}</TableCell>
+                            <TableCell className={`text-right ${s.balance > 0 ? "text-rose-700 font-semibold" : ""}`}>{fmt(s.balance)}</TableCell>
+                            <TableCell><Badge className={statusBadgeClass(s.status)}>{s.status}</Badge></TableCell>
+                            <TableCell><Button asChild size="sm" variant="ghost"><Link href={`/generic-sales/${s.genericSaleId}`}>Details</Link></Button></TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    </div>
+                  }
+                />
               </CardContent>
             </Card>
+            </>
           )}
         </main>
       </div>

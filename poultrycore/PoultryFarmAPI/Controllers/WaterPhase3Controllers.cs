@@ -131,6 +131,31 @@ namespace PoultryFarmAPIWeb.Controllers
             await _svc.ApproveAsync(id, farmId, approvedBy);
             return NoContent();
         }
+
+        // Migration 068 — Edit a Pending loss record inline. SP rejects edits
+        // on Approved records (must Unapprove first).
+        [HttpPut("{id:int}")]
+        public async Task<IActionResult> Update(int id, [FromQuery] string farmId, [FromBody] WaterLossRecordModel m)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            m.WaterLossRecordId = id;
+            m.FarmId = farmId;
+            await _svc.UpdateAsync(m);
+            return NoContent();
+        }
+
+        // Migration 068 — Unapprove an Approved record. Reason is captured for audit.
+        [HttpPost("{id:int}/unapprove")]
+        public async Task<IActionResult> Unapprove(int id, [FromQuery] string farmId, [FromQuery] string? unapprovedBy,
+            [FromBody] UnapproveLossRequest? body)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            await _svc.UnapproveAsync(id, farmId, unapprovedBy, body?.Reason);
+            return NoContent();
+        }
+
+        public class UnapproveLossRequest { public string? Reason { get; set; } }
     }
 
     [ApiController]
@@ -203,6 +228,66 @@ namespace PoultryFarmAPIWeb.Controllers
             var updated = await _svc.UpdateNotesAsync(id, farmId, req.ManagerNotes);
             return updated ? NoContent() : NotFound("Closing not found, or it is Submitted/Approved (immutable).");
         }
+
+        // Migration 068 — Reopen an active closing (marks it Reopened) so a
+        // new submission can be made for the same date.
+        [HttpPost("{id:int}/reopen")]
+        public async Task<IActionResult> Reopen(int id, [FromQuery] string farmId, [FromQuery] string? reopenedBy,
+            [FromBody] ReopenClosingRequest? body)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            await _svc.ReopenAsync(id, farmId, reopenedBy, body?.Reason);
+            return NoContent();
+        }
+
+        // Migration 068 — Link a fresh closing back to the one it superseded.
+        // Frontend calls this after a successful Resubmit.
+        [HttpPost("{newId:int}/link-superseded")]
+        public async Task<IActionResult> LinkSuperseded(int newId, [FromQuery] string farmId,
+            [FromBody] LinkSupersededRequest body)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            if (body is null || body.PreviousClosingId <= 0) return BadRequest("PreviousClosingId is required.");
+            await _svc.LinkSupersededAsync(newId, farmId, body.PreviousClosingId);
+            return NoContent();
+        }
+
+        public class ReopenClosingRequest { public string? Reason { get; set; } }
+        public class LinkSupersededRequest { public int PreviousClosingId { get; set; } }
+
+        // Migration 079 — one-shot Recreate. Used by the "Recreate Closing"
+        // button shown on a Reopened row in the Daily Closing UI.
+        [HttpPost("recreate")]
+        public async Task<ActionResult<object>> Recreate(
+            [FromQuery] string farmId,
+            [FromQuery] string? createdBy,
+            [FromBody] RecreateClosingRequest body)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            if (body is null || body.PredecessorClosingId <= 0)
+                return BadRequest("PredecessorClosingId is required.");
+
+            var newId = await _svc.RecreateAsync(
+                farmId,
+                body.ClosingDate,
+                body.PredecessorClosingId,
+                createdBy,
+                body.ActualCashCounted,
+                body.ManagerNotes,
+                body.DifferenceReason);
+
+            var created = await _svc.GetByIdAsync(newId, farmId);
+            return Ok(new { WaterDailyClosingId = newId, Closing = created });
+        }
+
+        public class RecreateClosingRequest
+        {
+            public DateTime ClosingDate { get; set; }
+            public int      PredecessorClosingId { get; set; }
+            public decimal  ActualCashCounted { get; set; }
+            public string?  ManagerNotes { get; set; }
+            public string?  DifferenceReason { get; set; }
+        }
     }
 
     public class WaterDailyClosingNotesRequest
@@ -234,6 +319,18 @@ namespace PoultryFarmAPIWeb.Controllers
             [FromQuery] string farmId, [FromQuery] DateTime fromDate, [FromQuery] DateTime toDate)
             => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.GetRawMaterialVarianceAsync(farmId, fromDate, toDate));
 
+        // Migration 066: Prompt 2 #16 — Driver Collection Report.
+        [HttpGet("driver-collection")]
+        public async Task<ActionResult<WaterDriverCollectionReport>> DriverCollection(
+            [FromQuery] string farmId,
+            [FromQuery] DateTime fromDate,
+            [FromQuery] DateTime toDate,
+            [FromQuery] int? waterDriverId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            return Ok(await _svc.GetDriverCollectionAsync(farmId, fromDate, toDate, waterDriverId));
+        }
+
         [HttpGet("dashboard-extended")] public async Task<ActionResult<WaterDashboardExtendedModel>> DashboardExtended([FromQuery] string farmId)
             => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.GetDashboardExtendedAsync(farmId));
 
@@ -246,5 +343,43 @@ namespace PoultryFarmAPIWeb.Controllers
         [HttpGet("top-customers")] public async Task<ActionResult<IEnumerable<WaterTopCustomerRow>>> TopCustomers(
             [FromQuery] string farmId, [FromQuery] DateTime fromDate, [FromQuery] DateTime toDate, [FromQuery] int topN = 10)
             => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.GetTopCustomersAsync(farmId, fromDate, toDate, topN));
+
+        // Migration 081 — Supplier activity report.
+        [HttpGet("supplier-activity")] public async Task<ActionResult<IEnumerable<WaterSupplierActivityRow>>> SupplierActivity(
+            [FromQuery] string farmId, [FromQuery] DateTime? fromDate, [FromQuery] DateTime? toDate)
+            => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.GetSupplierActivityAsync(farmId, fromDate, toDate));
+    }
+
+    // Migration 068 — currency settings on the Water company. The Login API
+    // owns the rest of the Farms row (Name, Type, OwnerUserId) but currency is
+    // read/written here so the Water UI doesn't need cross-API plumbing.
+    [ApiController]
+    [Route("api/Water/farm-settings")]
+    public class WaterFarmSettingsController : ControllerBase
+    {
+        private readonly IWaterFarmSettingsService _svc;
+        public WaterFarmSettingsController(IWaterFarmSettingsService svc) => _svc = svc;
+
+        [HttpGet]
+        public async Task<ActionResult<WaterFarmSettingsModel>> Get([FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            var s = await _svc.GetAsync(farmId);
+            return s is null ? NotFound() : Ok(s);
+        }
+
+        [HttpPut("currency")]
+        public async Task<ActionResult<WaterFarmSettingsModel>> UpdateCurrency(
+            [FromQuery] string farmId, [FromBody] WaterFarmSettingsCurrencyRequest body)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            if (body is null) return BadRequest("Body required.");
+            var s = await _svc.UpdateCurrencyAsync(
+                farmId,
+                string.IsNullOrWhiteSpace(body.CurrencyCode)   ? "GHS" : body.CurrencyCode,
+                string.IsNullOrWhiteSpace(body.CurrencySymbol) ? "GHC" : body.CurrencySymbol,
+                body.ShowCurrencySymbol);
+            return s is null ? NotFound() : Ok(s);
+        }
     }
 }

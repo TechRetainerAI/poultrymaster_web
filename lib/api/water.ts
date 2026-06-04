@@ -1,6 +1,10 @@
 import { farmApiUrl, getAuthHeaders, getUserContext } from "./config"
 
 // ----- Types -----
+// Migration 063 introduces ProductType so finished goods are separated from
+// raw/packaging materials in the Products list and Recipe pickers.
+export type WaterProductType = "FinishedGood" | "RawMaterial" | "PackagingMaterial" | "Other"
+
 export interface WaterProduct {
   waterProductId: number
   farmId: string
@@ -10,10 +14,19 @@ export interface WaterProduct {
   unit?: string | null
   unitPrice: number
   isActive: boolean
+  productType: WaterProductType
   notes?: string | null
   createdDate: string
   updatedDate?: string | null
   stockOnHand: number
+  // Migration 084 — sachet-water support. Inventory page reads these to show
+  // both bags + sachets when isSachetProduct=true. Sales modal uses sellingUnit
+  // to pick between bagPrice and sachetPrice.
+  baseUnit?: string | null
+  sachetsPerBag?: number | null
+  bagPrice?: number | null
+  sachetPrice?: number | null
+  isSachetProduct?: boolean
 }
 
 export interface WaterProductInput {
@@ -23,7 +36,14 @@ export interface WaterProductInput {
   unit?: string | null
   unitPrice: number
   isActive?: boolean
+  productType?: WaterProductType
   notes?: string | null
+  // Migration 084 — sachet-water support (optional).
+  baseUnit?: string | null
+  sachetsPerBag?: number | null
+  bagPrice?: number | null
+  sachetPrice?: number | null
+  isSachetProduct?: boolean
 }
 
 export interface WaterCustomer {
@@ -38,6 +58,14 @@ export interface WaterCustomer {
   createdDate: string
   updatedDate?: string | null
   outstandingBalance: number
+  // Migration 082 — system-managed default customers (Summary delivery sales,
+  // walk-in / unassigned-credit posting). Frontend pins these to the top of
+  // the customer list and gates delete behind a strong warning.
+  customerType?: string | null
+  defaultCustomerType?: "GeneralSales" | "GeneralDelivery" | "GeneralCredit" | string | null
+  isDefaultCustomer?: boolean
+  isSystemGenerated?: boolean
+  isActive?: boolean
 }
 
 export interface WaterCustomerInput {
@@ -47,6 +75,15 @@ export interface WaterCustomerInput {
   address?: string | null
   city?: string | null
   notes?: string | null
+}
+
+// Migration 082 — one row per default-customer type returned by
+// /Water/customers/create-defaults.
+export interface WaterDefaultCustomerResult {
+  waterCustomerId: number
+  defaultCustomerType: "GeneralSales" | "GeneralDelivery" | "GeneralCredit" | string
+  name: string
+  wasCreated: boolean
 }
 
 export interface WaterStockTransaction {
@@ -71,6 +108,12 @@ export interface WaterSaleItem {
   quantity: number
   unitPrice: number
   lineTotal?: number
+  // Migration 084 — selling unit on the line (Bag | Sachet). BaseUnit /
+  // BaseQuantity are server-computed and reflect the deducted stock in the
+  // product's base unit.
+  sellingUnit?: string | null
+  baseUnit?: string | null
+  baseQuantity?: number | null
 }
 
 export interface WaterSale {
@@ -141,9 +184,43 @@ function currentUserId(): string {
   return userId
 }
 
+// Extract the most useful human-readable message from a Farm API error
+// response. The .NET GlobalExceptionMiddleware returns JSON like
+//   { "errorNumber": 50000, "message": "Insufficient warehouse stock ..." }
+// for SqlExceptions, and a ProblemDetails-style JSON for ModelState errors:
+//   { "errors": { "BatchNumber": ["required"] }, ... }
+// Some 4xx return plain text. We try JSON first, fall back to text, and
+// strip the URL prefix so the toast shows just the cause.
+function explainHttpError(method: string, path: string, status: number, body: string): string {
+  if (!body) return `${method} ${path} → HTTP ${status}`
+  let parsed: any = null
+  try { parsed = JSON.parse(body) } catch { /* not JSON */ }
+  if (parsed) {
+    // Common shapes: { message }, { title }, { detail }, { error }, ModelState { errors }
+    if (typeof parsed.message === "string" && parsed.message) return parsed.message
+    if (typeof parsed.detail === "string"  && parsed.detail)  return parsed.detail
+    if (typeof parsed.title === "string"   && parsed.title)   return parsed.title
+    if (typeof parsed.error === "string"   && parsed.error)   return parsed.error
+    if (parsed.errors && typeof parsed.errors === "object") {
+      const lines: string[] = []
+      for (const k of Object.keys(parsed.errors)) {
+        const v = parsed.errors[k]
+        lines.push(`${k}: ${Array.isArray(v) ? v.join(", ") : String(v)}`)
+      }
+      if (lines.length) return lines.join(" · ")
+    }
+  }
+  // Plain-text body (e.g. ASP.NET error page). Trim and trim to a sensible length.
+  const trimmed = body.trim().replace(/\s+/g, " ")
+  return trimmed.length > 400 ? trimmed.slice(0, 400) + "…" : trimmed
+}
+
 async function jget<T>(path: string): Promise<T> {
   const res = await fetch(farmApiUrl(path), { headers: getAuthHeaders() })
-  if (!res.ok) throw new Error(`GET ${path} -> ${res.status}`)
+  if (!res.ok) {
+    const t = await res.text().catch(() => "")
+    throw new Error(explainHttpError("GET", path, res.status, t))
+  }
   return (await res.json()) as T
 }
 
@@ -153,7 +230,7 @@ async function jsend<T>(path: string, method: "POST" | "PUT" | "DELETE", body?: 
   const res = await fetch(farmApiUrl(path), init)
   if (!res.ok) {
     const t = await res.text().catch(() => "")
-    throw new Error(`${method} ${path} -> ${res.status} ${t}`)
+    throw new Error(explainHttpError(method, path, res.status, t))
   }
   if (res.status === 204) return undefined as unknown as T
   const text = await res.text()
@@ -191,6 +268,15 @@ export const updateWaterCustomer = (id: number, input: WaterCustomerInput) =>
 
 export const deleteWaterCustomer = (id: number) =>
   jsend<void>(`/Water/customers/${id}?farmId=${encodeURIComponent(activeFarmId())}`, "DELETE")
+
+// Migration 082 — idempotently creates the 3 default system customers for the
+// active farm. Returns one row per default type (wasCreated=false on rows
+// that already existed).
+export const createWaterDefaultCustomers = () =>
+  jsend<WaterDefaultCustomerResult[]>(
+    `/Water/customers/create-defaults?farmId=${encodeURIComponent(activeFarmId())}`,
+    "POST",
+  )
 
 // ----- Stock -----
 export const listWaterStockTransactions = (productId?: number) => {
@@ -282,6 +368,13 @@ export interface WaterExpense {
   linkedWaterVehicleId?: number | null
   linkedWaterMachineId?: number | null
   linkedWaterProductionBatchId?: number | null
+  // Migration 077 — supplier link replaces freetext paidTo as the canonical Paid To.
+  supplierId?: number | null
+  supplierName?: string | null
+  // Migration 075/078 — Source link for auto-generated expenses (Payroll,
+  // RawMaterialPurchase, ProductionBatch). Powers the clickable Source column.
+  sourceType?: "Payroll" | "RawMaterialPurchase" | "ProductionBatch" | string | null
+  sourceId?: number | null
   status: "Draft" | "Submitted" | "Approved" | "Rejected" | "Cancelled" | string
   notes?: string | null
   createdBy?: string | null
@@ -304,7 +397,51 @@ export interface WaterExpenseInput {
   linkedWaterMachineId?: number | null
   linkedWaterProductionBatchId?: number | null
   notes?: string | null
+  supplierId?: number | null
 }
+
+// Migration 076 — Supplier master list (Paid To dropdown source).
+export interface WaterSupplier {
+  waterSupplierId: number
+  farmId: string
+  supplierName: string
+  contactPerson?: string | null
+  phone?: string | null
+  email?: string | null
+  address?: string | null
+  supplierType?: string | null
+  notes?: string | null
+  isActive: boolean
+  isDeleted: boolean
+  createdBy?: string | null
+  createdAt: string
+  updatedBy?: string | null
+  updatedAt?: string | null
+}
+
+export interface WaterSupplierInput {
+  supplierName: string
+  contactPerson?: string | null
+  phone?: string | null
+  email?: string | null
+  address?: string | null
+  supplierType?: string | null
+  notes?: string | null
+  isActive?: boolean
+}
+
+// The §1 SupplierType examples. Used to power the dropdown on the form.
+// Plain string so users can still type "Other" or future categories freely.
+export const WATER_SUPPLIER_TYPES = [
+  "Raw Material Supplier",
+  "Packaging Supplier",
+  "Fuel Supplier",
+  "Machine Parts Supplier",
+  "Vehicle Repair Supplier",
+  "Utility Provider",
+  "Service Provider",
+  "Other",
+] as const
 
 export interface WaterCashAccount {
   waterCashAccountId: number
@@ -390,6 +527,26 @@ export const deleteWaterExpense = (id: number) =>
 
 export const seedWaterFinanceDefaults = () =>
   jsend<{ expenseCategoryCount: number; cashAccountCount: number }>(`/Water/expenses/seed-defaults?farmId=${encodeURIComponent(activeFarmId())}`, "POST")
+
+// ----- Suppliers (Migration 076)
+export const listWaterSuppliers = (opts?: { includeInactive?: boolean; search?: string }) => {
+  const q = new URLSearchParams({ farmId: activeFarmId() })
+  if (opts?.includeInactive) q.set("includeInactive", "true")
+  if (opts?.search) q.set("search", opts.search)
+  return jget<WaterSupplier[]>(`/Water/suppliers?${q.toString()}`)
+}
+
+export const getWaterSupplier = (id: number) =>
+  jget<WaterSupplier>(`/Water/suppliers/${id}?farmId=${encodeURIComponent(activeFarmId())}`)
+
+export const createWaterSupplier = (input: WaterSupplierInput) =>
+  jsend<WaterSupplier>(`/Water/suppliers`, "POST", { ...input, farmId: activeFarmId(), createdBy: currentUserId() })
+
+export const updateWaterSupplier = (id: number, input: WaterSupplierInput) =>
+  jsend<WaterSupplier>(`/Water/suppliers/${id}`, "PUT", { ...input, waterSupplierId: id, farmId: activeFarmId(), updatedBy: currentUserId() })
+
+export const deleteWaterSupplier = (id: number) =>
+  jsend<void>(`/Water/suppliers/${id}?farmId=${encodeURIComponent(activeFarmId())}&deletedBy=${encodeURIComponent(currentUserId() || "")}`, "DELETE")
 
 // ----- Cash accounts
 export const listWaterCashAccounts = () =>
@@ -576,7 +733,7 @@ export interface WaterPayrollRun {
   totalGrossPay: number
   totalDeductions: number
   totalNetPay: number
-  status: "Draft" | "Approved" | "Paid" | "Cancelled" | string
+  status: "Draft" | "Pending" | "Approved" | "Paid" | "Reopened" | "Cancelled" | string
   waterCashAccountId?: number | null
   cashAccountName?: string | null
   notes?: string | null
@@ -585,6 +742,12 @@ export interface WaterPayrollRun {
   approvedAt?: string | null
   paidBy?: string | null
   paidAt?: string | null
+  // Migration 080 — audit trail for Unapprove/Reapprove cycle.
+  reopenedBy?: string | null
+  reopenedAt?: string | null
+  reopenReason?: string | null
+  reapprovedBy?: string | null
+  reapprovedAt?: string | null
   createdAt: string
   updatedAt?: string | null
   items?: WaterPayrollItem[]
@@ -651,6 +814,68 @@ export const markWaterPayrollRunPaid = (id: number, payDate?: string) =>
 
 export const cancelWaterPayrollRun = (id: number, reason?: string) =>
   jsend<void>(`/Water/payroll-runs/${id}/cancel?farmId=${encodeURIComponent(activeFarmId())}&cancelledBy=${encodeURIComponent(currentUserId() || "")}`, "POST", { reason })
+
+// Migration 080 — flip Approved/Paid back to Reopened so corrections can be made.
+// Reverses the linked Expense (SourceType=Payroll) so books reconcile.
+export const unapproveWaterPayrollRun = (id: number, reason: string) =>
+  jsend<void>(`/Water/payroll-runs/${id}/unapprove?farmId=${encodeURIComponent(activeFarmId())}&reopenedBy=${encodeURIComponent(currentUserId() || "")}`, "POST", { reason })
+
+// Migration 080 — hard delete a Draft / Pending / Reopened run.
+// Backend rejects if active linked expense exists; call unapprove first if needed.
+export const deleteWaterPayrollRun = (id: number) =>
+  jsend<void>(`/Water/payroll-runs/${id}?farmId=${encodeURIComponent(activeFarmId())}&deletedBy=${encodeURIComponent(currentUserId() || "")}`, "DELETE")
+
+// Migration 082 — Full Payroll Run Details with YTD totals + linked expense.
+export interface WaterPayrollYtdTotals {
+  year: number
+  ytdGrossPaid: number
+  ytdDeductions: number
+  ytdNetPaid: number
+  totalPayrollRuns: number
+  totalStaffPaid: number
+}
+export interface WaterPayrollYtdStaffRow {
+  waterStaffId: number
+  staffName?: string | null
+  staffRole?: string | null
+  ytdBasic: number
+  ytdDaily: number
+  ytdCommission: number
+  ytdBonus: number
+  ytdDeductions: number
+  ytdGross: number
+  ytdNet: number
+}
+export interface WaterPayrollLinkedExpense {
+  waterExpenseId: number
+  farmId: string
+  expenseDate: string
+  waterExpenseCategoryId: number
+  categoryName?: string | null
+  description?: string | null
+  amount: number
+  paymentMethod?: string | null
+  waterCashAccountId?: number | null
+  cashAccountName?: string | null
+  status?: string | null
+  notes?: string | null
+  createdBy?: string | null
+  approvedBy?: string | null
+  approvedAt?: string | null
+  sourceType?: string | null
+  sourceId?: number | null
+  createdAt: string
+  updatedAt?: string | null
+}
+export interface WaterPayrollRunDetails {
+  run: WaterPayrollRun | null
+  ytdTotals: WaterPayrollYtdTotals | null
+  ytdByStaff: WaterPayrollYtdStaffRow[]
+  linkedExpense: WaterPayrollLinkedExpense | null
+}
+
+export const getWaterPayrollRunDetails = (id: number) =>
+  jget<WaterPayrollRunDetails>(`/Water/payroll-runs/${id}/details?farmId=${encodeURIComponent(activeFarmId())}`)
 
 // =============================================================================
 // W7: Maintenance Logs
@@ -736,8 +961,8 @@ export interface WaterBorehole {
   boreholeName: string
   location?: string | null
   pumpType?: string | null
-  pumpCapacity?: number | null
-  tankCapacity?: number | null
+  pumpCapacity?: string | null
+  tankCapacity?: string | null
   waterTreatmentMethod?: string | null
   filtrationSystem?: string | null
   uvSterilizationAvailable?: boolean
@@ -774,6 +999,8 @@ export interface WaterProductionBatch {
   shift?: string | null
   waterMachineId?: number | null
   machineName?: string | null
+  waterBoreholeId?: number | null
+  boreholeName?: string | null
   operatorStaffId?: number | null
   startTime?: string | null
   endTime?: string | null
@@ -792,8 +1019,18 @@ export interface WaterProductionBatch {
   laborCost?: number
   otherProductionCost?: number
   totalProductionCost?: number
+  // Migration 063: roll-up of raw material cost. The all-in cost displayed in
+  // the UI is totalProductionCost + rawMaterialCost.
+  rawMaterialCost?: number
+  // Migration 067 — server-side derived fields. The list page now binds the
+  // Cost (=allInCost) and Cost/Bag columns directly to these so they match
+  // the modal summary.
+  goodBags?: number
+  allInCost?: number
   costPerBag?: number
   productionEfficiencyPercent?: number
+  // Migration 067 — 'SingleMachine' | 'AllMachines'.
+  machineScope?: "SingleMachine" | "AllMachines" | string
   qualityStatus: "Pending" | "Passed" | "Failed" | string
   status: "Draft" | "Approved" | "Cancelled" | string
   notes?: string | null
@@ -802,6 +1039,93 @@ export interface WaterProductionBatch {
   approvedAt?: string | null
   createdAt: string
   updatedAt?: string | null
+  // Inbound only — sent on POST/PUT to /production-batches.
+  materialsUsed?: WaterProductionMaterialUsageInput[]
+}
+
+// =============================================================================
+// Production Recipes + Raw Material Usage (migration 063)
+// =============================================================================
+
+export interface WaterProductionRecipeItem {
+  waterProductionRecipeItemId: number
+  waterProductionRecipeId: number
+  waterRawMaterialItemId: number
+  rawMaterialName?: string | null
+  rawMaterialUnit?: string | null
+  rawMaterialStock?: number | null
+  latestUnitCost?: number | null
+  quantityPerOutputUnit: number
+  outputUnit: string
+  wasteAllowancePercent: number
+  isOptional: boolean
+  displayOrder: number
+  notes?: string | null
+  createdAt?: string
+  updatedAt?: string | null
+}
+
+export interface WaterProductionRecipe {
+  waterProductionRecipeId: number
+  farmId: string
+  waterProductId: number
+  recipeName: string
+  isDefault: boolean
+  isActive: boolean
+  notes?: string | null
+  createdBy?: string | null
+  createdAt: string
+  updatedBy?: string | null
+  updatedAt?: string | null
+  items: WaterProductionRecipeItem[]
+}
+
+// Input for POST/PUT /production-batches — the per-batch "Raw Materials Used"
+// table. Property names match the SP's OPENJSON contract.
+export interface WaterProductionMaterialUsageInput {
+  waterRawMaterialItemId: number
+  quantityUsed: number
+  expectedQuantityUsed?: number | null
+  unitCost?: number | null
+  varianceReason?: string | null
+  notes?: string | null
+}
+
+export interface WaterProductionMaterialUsageRow {
+  waterRawMaterialUsageId: number
+  farmId: string
+  waterRawMaterialItemId: number
+  itemName?: string | null
+  unitOfMeasure?: string | null
+  currentStock?: number | null
+  waterProductionBatchId?: number | null
+  batchNumber?: string | null
+  finishedProductName?: string | null
+  usedDate: string
+  quantityUsed: number
+  expectedQuantityUsed?: number | null
+  variance: number
+  varianceReason?: string | null
+  unitCost?: number | null
+  totalCost?: number | null
+  usedByStaffId?: number | null
+  notes?: string | null
+  createdAt: string
+}
+
+// Body for PUT /products/{id}/recipe.
+export interface WaterProductionRecipeUpsertInput {
+  recipeName?: string
+  notes?: string | null
+  items: Array<{
+    waterRawMaterialItemId: number
+    quantityPerOutputUnit: number
+    outputUnit?: string
+    wasteAllowancePercent?: number
+    isOptional?: boolean
+    displayOrder?: number
+    notes?: string | null
+  }>
 }
 
 export interface WaterQualityTest {
@@ -864,6 +1188,118 @@ export const cancelWaterProductionBatch = (id: number) =>
 export const reopenWaterProductionBatch = (id: number) =>
   jsend<void>(`/Water/production-batches/${id}/reopen?farmId=${encodeURIComponent(activeFarmId())}&reopenedBy=${encodeURIComponent(currentUserId() || "")}`, "POST")
 
+// Migration 063: read back the per-batch materials used so an edit dialog can
+// preload the same rows. Returns [] when the batch never logged any.
+export const listWaterProductionBatchMaterials = (batchId: number) =>
+  jget<WaterProductionMaterialUsageRow[]>(`/Water/production-batches/${batchId}/materials?farmId=${encodeURIComponent(activeFarmId())}`)
+
+// Migration 067 — Details view: linked loss, expense and stock-txn records.
+export interface WaterProductionLoss {
+  waterProductionLossId: number
+  farmId: string
+  lossDate: string
+  lossType: string
+  sourceType: string
+  sourceId?: number | null
+  waterProductId?: number | null
+  productName?: string | null
+  batchNumber?: string | null
+  bagsLost: number
+  sachetsLost: number
+  sachetsPerBag: number
+  costPerBag: number
+  bagsLossValue: number
+  sachetsLossValue: number
+  totalValue: number
+  reason?: string | null
+  status: string
+  notes?: string | null
+  createdBy?: string | null
+  createdAt: string
+}
+
+export interface WaterProductionLinkedExpense {
+  waterExpenseId: number
+  farmId: string
+  expenseDate: string
+  waterExpenseCategoryId: number
+  categoryName?: string | null
+  description?: string | null
+  amount: number
+  paidTo?: string | null
+  paymentMethod?: string | null
+  waterCashAccountId?: number | null
+  cashAccountName?: string | null
+  linkedWaterProductionBatchId?: number | null
+  status?: string | null
+  notes?: string | null
+  createdBy?: string | null
+  approvedBy?: string | null
+  approvedAt?: string | null
+  createdAt: string
+}
+
+export interface WaterProductionLinkedStockTxn {
+  waterStockTransactionId: number
+  waterProductId: number
+  productName?: string | null
+  txnType?: string | null
+  quantity: number
+  unitCost?: number | null
+  note?: string | null
+  createdAt: string
+}
+
+export const listWaterProductionBatchLinkedLosses = (batchId: number) =>
+  jget<WaterProductionLoss[]>(`/Water/production-batches/${batchId}/linked-losses?farmId=${encodeURIComponent(activeFarmId())}`)
+
+export const listWaterProductionBatchLinkedExpenses = (batchId: number) =>
+  jget<WaterProductionLinkedExpense[]>(`/Water/production-batches/${batchId}/linked-expenses?farmId=${encodeURIComponent(activeFarmId())}`)
+
+export const listWaterProductionBatchLinkedStockTxns = (batchId: number) =>
+  jget<WaterProductionLinkedStockTxn[]>(`/Water/production-batches/${batchId}/linked-stock-txns?farmId=${encodeURIComponent(activeFarmId())}`)
+
+// Migration 067 — standalone Loss page.
+export const listWaterProductionLosses = (opts?: { fromDate?: string; toDate?: string; status?: string }) => {
+  const qs = new URLSearchParams({ farmId: activeFarmId() })
+  if (opts?.fromDate) qs.append("fromDate", opts.fromDate)
+  if (opts?.toDate)   qs.append("toDate",   opts.toDate)
+  if (opts?.status)   qs.append("status",   opts.status)
+  return jget<WaterProductionLoss[]>(`/Water/production-losses?${qs.toString()}`)
+}
+
+// ----- Production Recipes -----
+// Returns null when the product has no recipe yet. The backend emits 200 with
+// either a recipe payload or `null` body — distinguishing "no recipe" from a
+// network error.
+export const getWaterProductionRecipe = async (waterProductId: number): Promise<WaterProductionRecipe | null> => {
+  const r = await jget<WaterProductionRecipe | null>(`/Water/products/${waterProductId}/recipe?farmId=${encodeURIComponent(activeFarmId())}`)
+  return r ?? null
+}
+
+export const upsertWaterProductionRecipe = (waterProductId: number, input: WaterProductionRecipeUpsertInput) =>
+  jsend<{ waterProductionRecipeId: number }>(
+    `/Water/products/${waterProductId}/recipe?farmId=${encodeURIComponent(activeFarmId())}&updatedBy=${encodeURIComponent(currentUserId() || "")}`,
+    "PUT",
+    {
+      recipeName: input.recipeName ?? "Default",
+      notes: input.notes ?? null,
+      items: input.items,
+    },
+  )
+
+export const deleteWaterProductionRecipe = (waterProductId: number, recipeId: number) =>
+  jsend<void>(`/Water/products/${waterProductId}/recipe/${recipeId}?farmId=${encodeURIComponent(activeFarmId())}`, "DELETE")
+
+// ----- Raw Material Usage history (for /water-raw-materials → Usage History tab) -----
+export const listWaterRawMaterialUsageHistory = (opts?: { itemId?: number; fromDate?: string; toDate?: string }) => {
+  const qs = new URLSearchParams({ farmId: activeFarmId() })
+  if (opts?.itemId) qs.append("itemId", String(opts.itemId))
+  if (opts?.fromDate) qs.append("fromDate", opts.fromDate)
+  if (opts?.toDate) qs.append("toDate", opts.toDate)
+  return jget<WaterProductionMaterialUsageRow[]>(`/Water/raw-material-usage/history?${qs.toString()}`)
+}
+
 // ----- Quality tests
 export const listWaterQualityTests = (opts?: { boreholeId?: number; batchId?: number }) => {
   const qs = new URLSearchParams({ farmId: activeFarmId() })
@@ -884,9 +1320,18 @@ export interface WaterDriver {
   driverName: string
   phoneNumber?: string | null
   licenseNumber?: string | null
-  assignedWaterVehicleId?: number | null
+  // Backend column name is DefaultVehicleId (NOT AssignedWaterVehicleId — that
+  // belongs to WaterStaff). The previous mismatch was the reason the assigned
+  // vehicle never persisted across save (Prompt 2 §6).
+  defaultVehicleId?: number | null
+  defaultRouteId?: number | null
+  basePay?: number | null
+  commissionPerBag?: number | null
   isActive: boolean
   notes?: string | null
+  // Legacy alias — accepted by some older callers. New code should use
+  // defaultVehicleId. Kept here to keep callers compiling during rollout.
+  assignedWaterVehicleId?: number | null
 }
 
 export interface WaterVehicle {
@@ -908,7 +1353,9 @@ export interface WaterRoute {
   routeName: string
   areaCovered?: string | null
   defaultDriverStaffId?: number | null
-  defaultWaterVehicleId?: number | null
+  // Backend column is DefaultVehicleId (NOT DefaultWaterVehicleId — the name
+  // mismatch was breaking persistence per Prompt 2 §7).
+  defaultVehicleId?: number | null
   expectedCustomers?: number | null
   expectedBagsSold?: number | null
   notes?: string | null
@@ -920,12 +1367,17 @@ export interface WaterVehicleLoading {
   loadDate: string
   waterVehicleId: number
   vehicleName?: string | null
+  // Backend renamed driverStaffId -> waterDriverId in migration 040. Both
+  // names are kept as optionals for older callers; new code should use
+  // waterDriverId.
   driverStaffId?: number | null
+  waterDriverId?: number | null
   driverName?: string | null
   assistantStaffId?: number | null
   waterRouteId?: number | null
   routeName?: string | null
   waterProductId?: number | null
+  productName?: string | null
   bagsLoaded: number
   sachetsPerBag?: number
   expectedSellingPricePerBag?: number
@@ -934,6 +1386,25 @@ export interface WaterVehicleLoading {
   loadedByStaffId?: number | null
   status: "Loaded" | "Returned" | "Reconciled" | "Cancelled" | string
   notes?: string | null
+  // Migration 064: multi-product items, sent on POST and returned via the
+  // /items endpoint.
+  items?: WaterVehicleLoadingItem[]
+}
+
+// Per-product line on a loading (migration 064).
+export interface WaterVehicleLoadingItem {
+  waterVehicleLoadingItemId?: number
+  waterVehicleLoadingId?: number
+  waterProductId: number
+  productName?: string | null
+  productUnit?: string | null
+  bagsLoaded: number
+  sachetsPerBag?: number
+  unitPrice: number
+  expectedAmount?: number
+  notes?: string | null
+  createdAt?: string
+  updatedAt?: string | null
 }
 
 export interface WaterDriverReturn {
@@ -944,19 +1415,143 @@ export interface WaterDriverReturn {
   bagsSold: number
   bagsReturned: number
   bagsDamaged: number
+  missingBags?: number
   cashCollected: number
   moMoCollected: number
   bankCollected: number
   creditSalesAmount: number
+  // Migration 064: driver's cash float reconciliation.
+  cashReturnedByDriver?: number
+  approvedDeliveryExpenses?: number
   totalCollected?: number
+  totalAccountedFor?: number
   expectedCash?: number
   shortageAmount?: number
   overageAmount?: number
   reconciledByStaffId?: number | null
+  createdBy?: string | null
   approvedBy?: string | null
   approvedAt?: string | null
   status?: "Draft" | "Approved" | "Cancelled" | string
   notes?: string | null
+  // Joined for convenience (from spWaterDriverReturn_GetAll).
+  waterVehicleId?: number | null
+  waterDriverId?: number | null
+  waterRouteId?: number | null
+  vehicleName?: string | null
+  driverName?: string | null
+  routeName?: string | null
+  loadingBagsLoaded?: number | null
+  loadingExpectedCash?: number | null
+  expectedSellingPricePerBag?: number | null
+  // Migration 064: optional payloads on POST.
+  items?: WaterDriverReturnItem[]
+  customerSales?: WaterDriverReturnCustomerSaleInput[]
+  expenses?: WaterDeliveryExpenseInput[]
+  // Migration 083 — sales posting mode + primary customer.
+  //   'Detailed'     → use customer breakdown rows (default; legacy).
+  //   'OneCustomer'  → entire delivery sale posts to primaryCustomerId.
+  //   'Summary'      → posts to the GeneralDelivery default customer.
+  salesPostingMode?: "Detailed" | "OneCustomer" | "Summary" | string | null
+  primaryCustomerId?: number | null
+}
+
+// Per-product reconciliation row (migration 064).
+export interface WaterDriverReturnItem {
+  waterDriverReturnItemId?: number
+  waterDriverReturnId?: number
+  waterProductId: number
+  productName?: string | null
+  bagsLoaded?: number
+  bagsSold: number
+  bagsReturned: number
+  bagsDamaged: number
+  unitPrice: number
+  expectedSales?: number
+  notes?: string | null
+  createdAt?: string
+  updatedAt?: string | null
+}
+
+// Customer breakdown row sent on POST.
+export interface WaterDriverReturnCustomerSaleInput {
+  waterCustomerId?: number | null
+  customerLabel?: string | null
+  cashPaid: number
+  moMoPaid: number
+  bankPaid: number
+  creditAmount: number
+  notes?: string | null
+  items: Array<{
+    waterProductId: number
+    quantity: number
+    unitPrice: number
+  }>
+}
+
+// Customer breakdown row returned by GET — includes the generated WaterSale.
+export interface WaterDriverReturnCustomerSaleRow {
+  waterDriverReturnCustomerSaleId: number
+  waterDriverReturnId: number
+  waterCustomerId?: number | null
+  customerName?: string | null
+  customerLabel?: string | null
+  totalAmount: number
+  cashPaid: number
+  moMoPaid: number
+  bankPaid: number
+  creditAmount: number
+  generatedWaterSaleId?: number | null
+  notes?: string | null
+  createdAt: string
+  updatedAt?: string | null
+  items: Array<{
+    waterDriverReturnCustomerSaleItemId: number
+    waterDriverReturnCustomerSaleId: number
+    waterProductId: number
+    productName?: string | null
+    quantity: number
+    unitPrice: number
+    lineTotal: number
+  }>
+}
+
+export interface WaterDeliveryExpenseInput {
+  expenseCategory: string
+  amount: number
+  description?: string | null
+  isApproved?: boolean
+  notes?: string | null
+}
+
+export interface WaterDeliveryExpense {
+  waterDeliveryExpenseId: number
+  farmId: string
+  waterDriverReturnId?: number | null
+  waterVehicleLoadingId?: number | null
+  expenseCategory: string
+  amount: number
+  description?: string | null
+  isApproved: boolean
+  notes?: string | null
+  createdBy?: string | null
+  createdAt: string
+  updatedAt?: string | null
+  // Migration 085 — populated by listWaterDeliveryExpenses(); null on the
+  // per-return endpoint.
+  returnDate?: string | null
+  returnStatus?: string | null
+  driverName?: string | null
+  vehicleNumber?: string | null
+}
+
+// Migration 085 — list every delivery expense for the farm; powers the
+// unified Expenses ledger on /water-expenses (alongside listWaterExpenses).
+export const listWaterDeliveryExpenses = (opts?: { fromDate?: string; toDate?: string }) => {
+  const qs = new URLSearchParams({ farmId: activeFarmId() })
+  if (opts?.fromDate) qs.append("fromDate", opts.fromDate)
+  if (opts?.toDate)   qs.append("toDate",   opts.toDate)
+  return jget<WaterDeliveryExpense[]>(`/Water/delivery-expenses?${qs.toString()}`)
 }
 
 // ----- Vehicles
@@ -1004,6 +1599,15 @@ export const approveWaterVehicleLoading = (id: number) =>
 export const cancelWaterVehicleLoading = (id: number) =>
   jsend<void>(`/Water/vehicle-loadings/${id}/cancel?farmId=${encodeURIComponent(activeFarmId())}`, "POST")
 
+// Migration 065: void a Draft or Loaded loading. Reverses LoadOut stock when
+// the loading was already approved; blocks if a return references it.
+export const voidWaterVehicleLoading = (id: number, reason?: string | null) =>
+  jsend<void>(
+    `/Water/vehicle-loadings/${id}/void?farmId=${encodeURIComponent(activeFarmId())}&voidedBy=${encodeURIComponent(currentUserId() || "")}`,
+    "POST",
+    { reason: reason ?? null },
+  )
+
 // ----- Driver returns (the reconciliation step after a vehicle returns)
 export const listWaterDriverReturns = (opts?: { status?: string; fromDate?: string; toDate?: string }) => {
   const qs = new URLSearchParams({ farmId: activeFarmId() })
@@ -1018,6 +1622,76 @@ export const approveWaterDriverReturn = (id: number) =>
   jsend<void>(`/Water/driver-returns/${id}/approve?farmId=${encodeURIComponent(activeFarmId())}&approvedBy=${encodeURIComponent(currentUserId() || "")}`, "POST")
 export const cancelWaterDriverReturn = (id: number) =>
   jsend<void>(`/Water/driver-returns/${id}/cancel?farmId=${encodeURIComponent(activeFarmId())}`, "POST")
+// Migration 071: Uncancel — Cancelled → Draft. After uncancel the operator
+// can Approve again to re-reconcile.
+export const uncancelWaterDriverReturn = (id: number) =>
+  jsend<void>(`/Water/driver-returns/${id}/uncancel?farmId=${encodeURIComponent(activeFarmId())}`, "POST")
+// Migration 072: admin-only hard delete of a Cancelled return + its items,
+// customer-sales (and their items), and delivery expenses. The SP rejects
+// non-Cancelled rows; the frontend gates the button behind permissions.isAdmin.
+export const deleteWaterDriverReturn = (id: number) =>
+  jsend<void>(`/Water/driver-returns/${id}?farmId=${encodeURIComponent(activeFarmId())}`, "DELETE")
+
+// Migration 068: Reverse Reconciliation (Prompt 2 §3). Unwinds linked sales,
+// payments and stock txns and flips the return back to Draft so the user can
+// edit and re-reconcile.
+export const reverseWaterDriverReturn = (id: number, reason: string) =>
+  jsend<void>(
+    `/Water/driver-returns/${id}/reverse?farmId=${encodeURIComponent(activeFarmId())}&reversedBy=${encodeURIComponent(currentUserId() || "")}`,
+    "POST",
+    { reason },
+  )
+
+// Migration 083 — Approve & Reconcile a Draft return in one shot.
+// Validates bag accounting + posting-mode-specific rules, then materialises
+// sales using the row's SalesPostingMode (Detailed | OneCustomer | Summary).
+export const approveReconcileWaterDriverReturn = (id: number) =>
+  jsend<void>(
+    `/Water/driver-returns/${id}/approve-reconcile?farmId=${encodeURIComponent(activeFarmId())}&approvedBy=${encodeURIComponent(currentUserId() || "")}`,
+    "POST",
+  )
+
+// Migration 083 — set the posting mode + primary customer on a Draft return.
+export const updateWaterDriverReturnPostingMode = (
+  id: number,
+  body: { salesPostingMode: "Detailed" | "OneCustomer" | "Summary"; primaryCustomerId?: number | null },
+) =>
+  jsend<void>(
+    `/Water/driver-returns/${id}/posting-mode?farmId=${encodeURIComponent(activeFarmId())}`,
+    "POST",
+    body,
+  )
+
+// Migration 068: Reload / Edit Load (Prompt 2 §4). Reverses LoadOut for the
+// previous lines and applies the new ones. Header fields can be partially
+// updated; Items === null leaves existing items alone.
+export const reloadWaterVehicleLoading = (id: number, input: {
+  waterDriverId?: number | null
+  waterVehicleId?: number | null
+  waterRouteId?: number | null
+  loadDate?: string | null
+  openingCashWithDriver?: number | null
+  notes?: string | null
+  items?: Array<{ waterProductId: number; bagsLoaded: number; unitPrice: number }> | null
+}) =>
+  jsend<void>(
+    `/Water/vehicle-loadings/${id}/reload?farmId=${encodeURIComponent(activeFarmId())}&updatedBy=${encodeURIComponent(currentUserId() || "")}`,
+    "POST",
+    input,
+  )
+
+// Migration 064: detail GETs for a delivery run / return.
+export const listWaterVehicleLoadingItems = (loadingId: number) =>
+  jget<WaterVehicleLoadingItem[]>(`/Water/vehicle-loadings/${loadingId}/items?farmId=${encodeURIComponent(activeFarmId())}`)
+
+export const listWaterDriverReturnItems = (returnId: number) =>
+  jget<WaterDriverReturnItem[]>(`/Water/driver-returns/${returnId}/items?farmId=${encodeURIComponent(activeFarmId())}`)
+
+export const listWaterDriverReturnCustomerSales = (returnId: number) =>
+  jget<WaterDriverReturnCustomerSaleRow[]>(`/Water/driver-returns/${returnId}/customer-sales?farmId=${encodeURIComponent(activeFarmId())}`)
+
+export const listWaterDriverReturnExpenses = (returnId: number) =>
+  jget<WaterDeliveryExpense[]>(`/Water/driver-returns/${returnId}/expenses?farmId=${encodeURIComponent(activeFarmId())}`)
 
 // =============================================================================
 // W3: Raw materials, loss records, daily closing, reports
@@ -1040,7 +1714,9 @@ export interface WaterRawMaterialPurchase {
   farmId: string
   waterRawMaterialItemId: number
   itemName?: string | null
+  // Migration 078 — SupplierId FK; SupplierName preserved as freetext fallback.
   supplierId?: number | null
+  supplierName?: string | null
   purchaseDate: string
   quantity: number
   unitCost: number
@@ -1151,6 +1827,19 @@ export const createWaterLossRecord = (input: Omit<WaterLossRecord, "waterLossRec
   jsend<{ waterLossRecordId: number }>(`/Water/loss-records`, "POST", { ...input, farmId: activeFarmId() })
 export const approveWaterLossRecord = (id: number) =>
   jsend<void>(`/Water/loss-records/${id}/approve?farmId=${encodeURIComponent(activeFarmId())}&approvedBy=${encodeURIComponent(currentUserId() || "")}`, "POST")
+// Migration 068: edit a Pending loss record inline. The backend rejects edits
+// on Approved records — caller should Unapprove first.
+export const updateWaterLossRecord = (id: number, input: Partial<WaterLossRecord>) =>
+  jsend<void>(`/Water/loss-records/${id}?farmId=${encodeURIComponent(activeFarmId())}`, "PUT",
+    { ...input, waterLossRecordId: id, farmId: activeFarmId() })
+// Migration 068: Approved → Reopened (Pending) with a reason. Cash impact is
+// reversed automatically by the SP.
+export const unapproveWaterLossRecord = (id: number, reason: string) =>
+  jsend<void>(
+    `/Water/loss-records/${id}/unapprove?farmId=${encodeURIComponent(activeFarmId())}&unapprovedBy=${encodeURIComponent(currentUserId() || "")}`,
+    "POST",
+    { reason },
+  )
 
 // ----- Daily closing
 export const listWaterDailyClosings = (opts?: { status?: string; fromDate?: string; toDate?: string }) => {
@@ -1174,6 +1863,68 @@ export const deleteWaterDailyClosing = (id: number) =>
   jsend<void>(`/Water/daily-closings/${id}?farmId=${encodeURIComponent(activeFarmId())}`, "DELETE")
 export const updateWaterDailyClosingNotes = (id: number, managerNotes: string | null) =>
   jsend<void>(`/Water/daily-closings/${id}/notes?farmId=${encodeURIComponent(activeFarmId())}`, "PUT", { managerNotes })
+
+// Migration 068 — Reopen an active closing (marks it Reopened + IsActive=0)
+// so a new closing can be submitted for the same date. After the new closing
+// is in the DB, call linkSuperseded(newId, previousId) to record the chain.
+export const reopenWaterDailyClosing = (id: number, reason: string) =>
+  jsend<void>(
+    `/Water/daily-closings/${id}/reopen?farmId=${encodeURIComponent(activeFarmId())}&reopenedBy=${encodeURIComponent(currentUserId() || "")}`,
+    "POST",
+    { reason },
+  )
+
+export const linkSupersededWaterDailyClosing = (newClosingId: number, previousClosingId: number) =>
+  jsend<void>(
+    `/Water/daily-closings/${newClosingId}/link-superseded?farmId=${encodeURIComponent(activeFarmId())}`,
+    "POST",
+    { previousClosingId },
+  )
+
+// Migration 081 — Supplier Report row.
+export interface WaterSupplierActivityRow {
+  waterSupplierId: number
+  supplierName: string
+  supplierType?: string | null
+  contactPerson?: string | null
+  phone?: string | null
+  email?: string | null
+  totalPurchaseAmount: number
+  purchaseCount: number
+  lastPurchaseDate?: string | null
+  totalExpenseAmount: number
+  expenseCount: number
+  lastExpenseDate?: string | null
+  outstandingBalance: number
+}
+
+export const getWaterSupplierActivity = (opts?: { fromDate?: string; toDate?: string }) => {
+  const qs = new URLSearchParams({ farmId: activeFarmId() })
+  if (opts?.fromDate) qs.set("fromDate", opts.fromDate)
+  if (opts?.toDate)   qs.set("toDate",   opts.toDate)
+  return jget<WaterSupplierActivityRow[]>(`/Water/reports/supplier-activity?${qs.toString()}`)
+}
+
+// Migration 079 — single-shot Recreate after Reopen.
+// Backend creates the new Draft using current data and links it to the predecessor.
+export const recreateWaterDailyClosing = (input: {
+  closingDate: string
+  predecessorClosingId: number
+  actualCashCounted?: number
+  managerNotes?: string | null
+  differenceReason?: string | null
+}) =>
+  jsend<{ waterDailyClosingId: number; closing: WaterDailyClosing }>(
+    `/Water/daily-closings/recreate?farmId=${encodeURIComponent(activeFarmId())}&createdBy=${encodeURIComponent(currentUserId() || "")}`,
+    "POST",
+    {
+      closingDate: input.closingDate,
+      predecessorClosingId: input.predecessorClosingId,
+      actualCashCounted: input.actualCashCounted ?? 0,
+      managerNotes: input.managerNotes ?? null,
+      differenceReason: input.differenceReason ?? null,
+    },
+  )
 
 // ----- Reports
 // Shape matches dbo.spWaterReport_PeriodPnL exactly (migration 044). Older
@@ -1257,3 +2008,39 @@ export const getWaterExpenseByCategory = (fromDate: string, toDate: string) =>
 
 export const getWaterTopCustomers = (fromDate: string, toDate: string, topN = 5) =>
   jget<WaterTopCustomerRow[]>(`/Water/reports/top-customers?${period(fromDate, toDate)}&topN=${topN}`)
+
+// Migration 066: Driver Collection Report (Prompt 2 #16). Two result sets:
+// per-driver per-product detail rows + per-driver totals.
+export interface WaterDriverCollectionDetailRow {
+  waterDriverId?: number | null
+  driverName?: string | null
+  waterProductId: number
+  productName?: string | null
+  bagsLoaded: number
+  bagsSold: number
+  bagsReturned: number
+  bagsDamaged: number
+  expectedCash: number
+  salesValue: number
+}
+export interface WaterDriverCollectionTotalsRow {
+  waterDriverId?: number | null
+  driverName?: string | null
+  deliveryRuns: number
+  reconciledRuns: number
+  cashCollected: number
+  moMoCollected: number
+  bankCollected: number
+  creditSales: number
+  shortage: number
+  overage: number
+}
+export interface WaterDriverCollectionReport {
+  detail: WaterDriverCollectionDetailRow[]
+  totals: WaterDriverCollectionTotalsRow[]
+}
+
+export const getWaterDriverCollection = (fromDate: string, toDate: string, waterDriverId?: number) => {
+  const qs = `${period(fromDate, toDate)}${waterDriverId ? `&waterDriverId=${waterDriverId}` : ""}`
+  return jget<WaterDriverCollectionReport>(`/Water/reports/driver-collection?${qs}`)
+}

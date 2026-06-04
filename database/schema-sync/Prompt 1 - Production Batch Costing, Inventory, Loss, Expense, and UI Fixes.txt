@@ -1,0 +1,475 @@
+Correct — then we should remove that section completely and adjust the cost-per-bag issue to say the **modal calculation is already correct, but the list page is not displaying/pulling it correctly**.
+
+Here is the corrected prompt:
+
+We need to fix and complete the Production Batch implementation based on the current behavior observed after adding raw material usage to production.
+
+The Production Batch feature is already working partially. The modal now captures production output, raw materials used, production costs, and notes. The cost calculation inside the production entry modal is working correctly. However, some values are not showing correctly on the Production Batches list page, approved batches are not easily viewable, loss/expense integrations need to be completed, and the modal layout needs to be corrected.
+
+Please implement the following changes.
+
+1. Fix Cost Per Bag Display on the Production Batches List
+
+The Cost/Bag value is calculated correctly inside the production entry modal, but it is not showing correctly on the Production Batches list page.
+
+The Production Batches list currently shows `0.00` for Cost/Bag even when the batch has a valid production cost and the modal summary shows the correct value.
+
+Update the list page/API/query/view model so that the Cost/Bag column uses the same calculation/value shown in the production batch modal/details.
+
+Use this formula consistently:
+
+`Cost Per Bag = Total Production Cost / Good Bags Produced`
+
+Where:
+
+`Total Production Cost = Raw Material Cost + Electricity + Fuel + Labor + Other`
+
+And:
+
+`Good Bags Produced = Bags Produced - Damaged Bags`
+
+Example:
+
+If:
+
+* Bags Produced = 7,000
+* Damaged Bags = 2
+* Raw Material Cost = GHC 100
+* Electricity = GHC 0
+* Fuel = GHC 0
+* Labor = GHC 100
+* Other = GHC 250
+
+Then:
+
+* Other Production Costs = GHC 350
+* Total Production Cost = GHC 450
+* Good Bags Produced = 6,998
+* Cost Per Bag = 450 / 6,998 = approximately GHC 0.06
+
+The Production Batches list should display approximately:
+
+`GHC 0.06`
+
+not:
+
+`GHC 0.00`
+
+The modal summary, details view, and list page must all show the same Cost/Bag value.
+
+2. Fix Main Production Batches List Cost
+
+The Production Batch details/modal summary shows:
+
+* Raw Materials: GHC 100
+* Other Costs: GHC 350
+* Total Cost: GHC 450
+
+But the main Production Batches list is only showing GHC 350 in the Cost column.
+
+This is incorrect.
+
+The main list Cost column must include raw material cost.
+
+Use:
+
+`Cost = Raw Material Cost + Electricity + Fuel + Labor + Other`
+
+The Cost shown on the Production Batches list must match the Total Cost shown in the production batch details/modal summary.
+
+3. Add View Details for Approved Production Batches
+
+Approved production batches must remain viewable.
+
+Currently, approved batches do not expose enough detail from the list.
+
+Add a View Details action for every production batch, including approved batches.
+
+For Draft batches, actions should allow:
+
+* View
+* Edit
+* Approve
+* Delete/Cancel, if supported
+
+For Approved batches, actions should allow:
+
+* View Details
+* Reverse/Undo only if the existing system supports reversal
+
+The View Details page/modal should be read-only for approved batches.
+
+The details view must show:
+
+* Batch number
+* Production date
+* Shift
+* Machine
+* Product
+* Bags produced
+* Damaged bags
+* Rejected sachets
+* Good bags
+* Sachets per bag
+* Total sachets
+* Raw materials used
+* Expected raw material usage
+* Actual raw material usage
+* Raw material cost
+* Electricity cost
+* Fuel cost
+* Labor cost
+* Other cost
+* Total production cost
+* Cost per bag
+* Efficiency
+* Status
+* Created by
+* Approved by
+* Approved date
+* Related inventory transactions
+* Related loss records
+* Related production-linked expense records, if applicable
+
+4. Feed Production Cash Costs into Expenses
+
+The manual production cost fields should feed into the Expenses page.
+
+These fields are:
+
+* Electricity
+* Fuel
+* Labor
+* Other
+
+When a production batch is approved, create production-linked Expense records for any of these values that are greater than zero.
+
+Each generated expense record should include:
+
+* CompanyId
+* ExpenseDate = ProductionDate
+* Amount
+* ExpenseCategory
+* Description
+* SourceType = ProductionBatch
+* SourceId = ProductionBatchId
+* CreatedBy
+* CreatedAt
+
+Suggested category mapping:
+
+* Electricity → Electricity / Utilities
+* Fuel → Fuel
+* Labor → Labor
+* Other → Production Other / Other
+
+These expenses must be traceable back to the production batch.
+
+The Expenses page should show these records like normal expenses, but ideally with a source label such as “Production Batch.”
+
+Avoid duplicate expense creation. If a production batch is edited or re-approved, update or reverse/recreate the linked expenses safely instead of inserting duplicates.
+
+5. Feed Damaged Bags and Rejected Sachets into Loss Records
+
+The Production Output section currently captures:
+
+* Damaged bags
+* Rejected sachets
+
+These values should automatically create linked Loss Records when the production batch is approved.
+
+If Damaged Bags > 0 or Rejected Sachets > 0, create a Loss Record linked to the production batch.
+
+Suggested loss record fields:
+
+* CompanyId
+* LossDate = ProductionDate
+* LossType = ProductionDamage
+* SourceType = ProductionBatch
+* SourceId = ProductionBatchId
+* ProductId = FinishedProductId
+* BagsLost = DamagedBags
+* SachetsLost = RejectedSachets
+* Value = calculated loss value
+* Reason = Production damage / rejected during production
+* Status = Approved
+* CreatedBy
+* CreatedAt
+
+Loss value should be calculated from the production cost per bag.
+
+Use:
+
+`Damaged Bag Loss Value = Damaged Bags × Cost Per Bag`
+
+For rejected sachets:
+
+`Rejected Sachet Loss Value = (Rejected Sachets / Sachets Per Bag) × Cost Per Bag`
+
+Total loss value:
+
+`Total Loss Value = Damaged Bag Loss Value + Rejected Sachet Loss Value`
+
+The Loss Records page should show these production-generated loss records.
+
+Avoid duplicate loss creation. If a batch is edited, reversed, or re-approved, linked loss records should be updated or safely regenerated.
+
+6. Correct Finished Goods Stock Quantity
+
+Clarify and enforce the production output logic.
+
+Use this definition:
+
+`Bags Produced = total bags produced before removing damaged bags`
+
+`Damaged Bags = bags that were produced but are not sellable`
+
+`Good Bags = Bags Produced - Damaged Bags`
+
+Inventory for the finished product should increase by Good Bags, not total Bags Produced.
+
+Example:
+
+If:
+
+* Bags Produced = 7,000
+* Damaged Bags = 2
+
+Then:
+
+* Good Bags Added to Stock = 6,998
+* Loss Record should be created for 2 damaged bags
+
+Rejected sachets should also be captured as loss, but should not be added to sellable finished goods.
+
+The Production Batches list currently has a column for Bags. Make sure the label and value are consistent.
+
+If the column shows good bags, label it clearly as:
+
+`Good Bags`
+
+If the column shows total produced bags, label it clearly as:
+
+`Produced Bags`
+
+Do not mix the definitions.
+
+7. Fix Production Batch Summary Cards
+
+The Production Batches page has summary cards such as:
+
+* Today’s bags
+* Month’s bags
+* Pending approval
+* Active machines
+
+Make sure the bag summary cards use consistent logic.
+
+Recommended:
+
+* Today’s bags (good) = sum of good bags from approved production batches for today
+* Month’s bags = sum of good bags from approved production batches for the current month
+
+Good bags should be calculated as:
+
+`Bags Produced - Damaged Bags`
+
+If the card is showing total produced bags instead, rename it to make that clear.
+
+8. Machine Dropdown Behavior
+
+The Machine dropdown in the Production Batch entry popup should support combined production when needed.
+
+Add an option:
+
+`All Machines / Combined`
+
+This should be used when the business records one combined production batch across multiple machines instead of separate batches per machine.
+
+Recommended storage:
+
+* MachineId = NULL
+* MachineScope = AllMachines
+
+For actual machine-specific batches:
+
+* MachineId should be the selected machine
+* MachineScope = SingleMachine
+
+The UI should show:
+
+* Machine 1
+* Machine 2
+* All Machines / Combined
+
+Reports and details should clearly display whether a batch was tied to a specific machine or recorded as combined production.
+
+9. Fix Modal Width and Horizontal Overflow
+
+The Production Batch modal currently overflows horizontally, forcing the user to scroll sideways.
+
+This should be fixed.
+
+Increase the modal width and make the layout responsive.
+
+Apply this fix to all data-entry modals where the form content overflows horizontally.
+
+Requirements:
+
+* No horizontal scrolling in normal data-entry modals
+* Complex forms should use wider modals
+* Tables inside modals should fit properly
+* Fields should wrap instead of overflowing
+* Footer action buttons should remain visible and aligned
+* The modal should work cleanly on desktop and reasonably on smaller screens
+
+Recommended modal sizes:
+
+* Small modal: max-width around 600px
+* Medium modal: max-width around 800px
+* Large modal: max-width around 1000px to 1100px
+* Production Batch modal should use a large modal
+* Delivery return and load vehicle modals should also use large modals when they contain tables or multiple product lines
+
+For the Production Batch modal specifically, the raw materials table must not cause horizontal overflow.
+
+Use one or more of these approaches:
+
+* Increase modal width
+* Use a responsive grid layout
+* Allow table columns to wrap
+* On smaller screens, convert raw material rows into stacked cards
+
+10. Ensure Production Batch Approval Creates All Linked Records
+
+When a production batch is approved, the system should complete all related records in one consistent workflow.
+
+Approval should:
+
+A. Save production batch status as Approved.
+
+B. Calculate:
+
+* Raw Material Cost
+* Other Production Costs
+* Total Production Cost
+* Good Bags
+* Total Sachets
+* Cost Per Bag
+* Efficiency
+
+C. Create finished goods inventory IN transaction:
+
+* ProductId = FinishedProductId
+* Direction = In
+* TransactionType = Production
+* Quantity = Good Bags
+* SourceType = ProductionBatch
+* SourceId = ProductionBatchId
+
+D. Create raw material inventory OUT transactions:
+For each raw material used:
+
+* ProductId = RawMaterialProductId
+* Direction = Out
+* TransactionType = ProductionUsage
+* Quantity = ActualQuantityUsed
+* SourceType = ProductionBatch
+* SourceId = ProductionBatchId
+
+E. Create production-linked Expense records for:
+
+* Electricity
+* Fuel
+* Labor
+* Other
+
+Only create these if the amount is greater than zero.
+
+F. Create linked Loss Records for:
+
+* Damaged Bags
+* Rejected Sachets
+
+Only create these if the quantity is greater than zero.
+
+G. Ensure all linked records include:
+
+* CompanyId
+* SourceType = ProductionBatch
+* SourceId = ProductionBatchId
+* CreatedBy
+* CreatedAt
+
+11. Avoid Duplicate Linked Records
+
+The system must not create duplicate inventory transactions, duplicate expense records, or duplicate loss records if a production batch is saved, edited, approved, or reprocessed.
+
+Use one of these safe approaches:
+
+* Prevent editing after approval and only allow view/reversal
+* Or if editing approved batches is supported, reverse old linked records and recreate them
+* Or update existing linked records by SourceType and SourceId
+
+The important requirement is:
+
+One approved production batch should have one consistent set of linked inventory, expense, and loss records.
+
+12. Production Batch List Columns
+
+Update the Production Batches list so it reflects the corrected values.
+
+Recommended columns:
+
+* Date
+* Shift
+* Machine
+* Product
+* Produced Bags
+* Good Bags
+* Damaged
+* Total Cost
+* Cost/Bag
+* Status
+* Actions
+
+If space is limited, keep the current columns but ensure:
+
+* Cost includes raw material cost
+* Cost/Bag is pulled/displayed correctly from the same logic used by the modal/details
+* Bags label is clear
+* Approved batches have a View Details action
+
+13. Final Expected Behavior
+
+After these changes, the production batch feature should behave as follows:
+
+When the user records a production batch:
+
+* The selected product loads its expected raw materials.
+* The user can adjust actual raw material usage.
+* The user enters production output and production costs.
+* The modal calculates raw material cost, other costs, total cost, and cost per bag correctly.
+
+When the batch is approved:
+
+* Finished goods stock increases by good bags.
+* Raw material stock decreases by actual raw material usage.
+* Electricity, fuel, labor, and other production costs create linked expense records.
+* Damaged bags and rejected sachets create linked loss records.
+* Total production cost includes raw materials and production costs.
+* Cost per bag is displayed correctly on the list page.
+* The main Production Batches list and the details view show matching totals.
+* Approved batches remain viewable.
+* The modal does not overflow horizontally.
+
+Primary bugs to fix:
+
+* Cost/Bag showing 0.00 on the Production Batches list
+* Main list Cost excluding raw material cost
+* Approved batches not easily viewable
+* Production costs not feeding Expenses page
+* Damaged/rejected production output not feeding Loss Records
+* Finished goods stock should use Good Bags, not total produced bags
+* Machine dropdown needs All Machines / Combined support
+* Production Batch modal and other overflowing modals need wider/responsive layout

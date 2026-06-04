@@ -241,9 +241,33 @@ namespace User.Management.API.Controllers
                     </body>
                     </html>";
 
-                // Creating the email message
+                // James (2026-05-30): SMTP failures (e.g. Gmail rejecting the
+                // configured password) used to bubble unhandled, surface as a
+                // 500, and lock users out of their accounts. Catch and return
+                // a real message so the operator sees what's wrong instead of
+                // "the login service is having trouble".
                 var message = new Message(new string[] { user.Email! }, "Your One-Time Password (OTP) Code", emailBody);
-                _emailService.SendEmail(message);
+                try
+                {
+                    _emailService.SendEmail(message);
+                }
+                catch (Exception emailEx)
+                {
+                    _logger.LogError(emailEx,
+                        "OTP email send failed for user {UserName} ({Email})",
+                        user.UserName, user.Email);
+                    // 400 (not 5xx) so the frontend's friendly-error fallback
+                    // doesn't swallow this specific, actionable message.
+                    return BadRequest(new Response
+                    {
+                        IsSuccess = false,
+                        Status = "EmailDeliveryFailed",
+                        Message =
+                            "Could not send your two-factor code by email. " +
+                            "Your account is fine — this is a server-side mail problem. " +
+                            "Ask an admin to verify the SMTP credentials, or temporarily disable two-factor authentication on your account.",
+                    });
+                }
 
                 return Ok(new Response
                 {
@@ -478,6 +502,107 @@ namespace User.Management.API.Controllers
             {
                 return StatusCode(500, $"Error retrieving user: {ex.Message}");
             }
+        }
+
+        // Self-update for profile fields shown on /profile. UserName is intentionally
+        // NOT editable here — it's the JWT claim, changing it would invalidate the
+        // current token and any audit history that references it. Use a separate
+        // admin-mediated flow if username changes are ever needed.
+        public class UpdateProfileRequest
+        {
+            public string? FirstName { get; set; }
+            public string? LastName { get; set; }
+            [System.ComponentModel.DataAnnotations.EmailAddress]
+            public string? Email { get; set; }
+            public string? PhoneNumber { get; set; }
+            public string? FarmName { get; set; }
+        }
+
+        [HttpPut]
+        [Route("update-profile")]
+        [Authorize]
+        public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest req)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+
+            var username = User.Identity?.Name;
+            if (string.IsNullOrEmpty(username)) return Unauthorized("User not found in claims");
+
+            var user = await _userManager.FindByNameAsync(username);
+            if (user == null) return NotFound("User not found");
+
+            // Only overwrite fields the client actually sent (null = "leave as-is"),
+            // and trim everything so we don't store whitespace-only values.
+            if (req.FirstName   != null) user.FirstName   = req.FirstName.Trim();
+            if (req.LastName    != null) user.LastName    = req.LastName.Trim();
+            if (req.PhoneNumber != null) user.PhoneNumber = req.PhoneNumber.Trim();
+            if (req.FarmName    != null) user.FarmName    = req.FarmName.Trim();
+
+            // Email is special: Identity tracks NormalizedEmail and the email-confirmed
+            // flag. Use SetEmailAsync so both stay in sync. Re-confirmation is left off
+            // for now to match the signup auto-confirm behavior (see CreateUserWithTokenAsync).
+            if (!string.IsNullOrWhiteSpace(req.Email) &&
+                !string.Equals(req.Email, user.Email, StringComparison.OrdinalIgnoreCase))
+            {
+                var setEmail = await _userManager.SetEmailAsync(user, req.Email.Trim());
+                if (!setEmail.Succeeded)
+                    return BadRequest(string.Join("; ", setEmail.Errors.Select(e => e.Description)));
+                user.EmailConfirmed = true;
+            }
+
+            var update = await _userManager.UpdateAsync(user);
+            if (!update.Succeeded)
+                return BadRequest(string.Join("; ", update.Errors.Select(e => e.Description)));
+
+            return Ok(user);
+        }
+
+        // Self-toggle for two-factor authentication. The login flow already
+        // checks user.TwoFactorEnabled and emails an OTP via the Email token
+        // provider (see Program.cs Identity options) — the missing piece was a
+        // way for the user to actually flip the column. The profile page used
+        // to call this endpoint and silently fall back to localStorage on 404,
+        // which made it look like 2FA was enabled when it never reached the DB.
+        [HttpPost]
+        [Route("enable-2fa")]
+        [Authorize]
+        public async Task<IActionResult> Enable2Fa()
+        {
+            var username = User.Identity?.Name;
+            if (string.IsNullOrEmpty(username)) return Unauthorized("User not found in claims");
+
+            var user = await _userManager.FindByNameAsync(username);
+            if (user == null) return NotFound("User not found");
+
+            // Pre-flight: 2FA requires a confirmed email (we send OTP there).
+            // Signup auto-confirms today; this guard catches manually-created
+            // users who somehow still have EmailConfirmed=false.
+            if (!user.EmailConfirmed)
+                return BadRequest("Your email must be confirmed before enabling two-factor authentication.");
+
+            var setResult = await _userManager.SetTwoFactorEnabledAsync(user, true);
+            if (!setResult.Succeeded)
+                return BadRequest(string.Join("; ", setResult.Errors.Select(e => e.Description)));
+
+            return Ok(new Response { IsSuccess = true, Status = "Success", Message = "Two-factor authentication enabled." });
+        }
+
+        [HttpPost]
+        [Route("disable-2fa")]
+        [Authorize]
+        public async Task<IActionResult> Disable2Fa()
+        {
+            var username = User.Identity?.Name;
+            if (string.IsNullOrEmpty(username)) return Unauthorized("User not found in claims");
+
+            var user = await _userManager.FindByNameAsync(username);
+            if (user == null) return NotFound("User not found");
+
+            var setResult = await _userManager.SetTwoFactorEnabledAsync(user, false);
+            if (!setResult.Succeeded)
+                return BadRequest(string.Join("; ", setResult.Errors.Select(e => e.Description)));
+
+            return Ok(new Response { IsSuccess = true, Status = "Success", Message = "Two-factor authentication disabled." });
         }
 
     }

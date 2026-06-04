@@ -225,6 +225,11 @@ namespace PoultryFarmAPIWeb.Business
         Task       ApproveAsync(int runId, string farmId, string? approvedBy);
         Task       MarkPaidAsync(int runId, string farmId, string? paidBy, DateTime? payDate);
         Task       CancelAsync(int runId, string farmId, string? cancelledBy, string? reason);
+        // Migration 080
+        Task       UnapproveAsync(int runId, string farmId, string? reopenedBy, string? reason);
+        Task       DeleteRunAsync(int runId, string farmId, string? deletedBy);
+        // Migration 082 — full Payroll Run Details with YTD totals + linked expense.
+        Task<WaterPayrollRunDetailsModel?> GetDetailsWithYtdAsync(int runId, string farmId);
     }
 
     public class WaterPayrollService : IWaterPayrollService
@@ -346,6 +351,119 @@ namespace PoultryFarmAPIWeb.Business
             await cmd.ExecuteNonQueryAsync();
         }
 
+        // Migration 080 — flip Approved/Paid → Reopened, reverse linked expense + cash.
+        public async Task UnapproveAsync(int runId, string farmId, string? reopenedBy, string? reason)
+        {
+            using var c = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterPayrollRun_Unapprove", c) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@WaterPayrollRunId", runId);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@ReopenedBy", (object?)reopenedBy ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Reason",     (object?)reason     ?? DBNull.Value);
+            await c.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // Migration 080 — hard delete a Draft / Pending / Reopened payroll run.
+        public async Task DeleteRunAsync(int runId, string farmId, string? deletedBy)
+        {
+            using var c = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterPayrollRun_Delete", c) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@WaterPayrollRunId", runId);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@DeletedBy", (object?)deletedBy ?? DBNull.Value);
+            await c.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // Migration 082 — one round-trip for the Payroll Run Details page.
+        // SP returns 4 result sets: Run header, Items, YTD totals + YTD by staff
+        // (concatenated by SQL Server into the same NextResult), Linked expense.
+        public async Task<WaterPayrollRunDetailsModel?> GetDetailsWithYtdAsync(int runId, string farmId)
+        {
+            using var c = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterPayrollRun_GetDetailsWithYtd", c) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@WaterPayrollRunId", runId);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await c.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+
+            var result = new WaterPayrollRunDetailsModel();
+
+            // Set 1: Run header
+            if (await r.ReadAsync()) result.Run = ReadRun(r);
+            if (result.Run == null) return null;
+
+            // Set 2: items
+            if (await r.NextResultAsync())
+                while (await r.ReadAsync())
+                    result.Run.Items.Add(ReadItem(r));
+
+            // Set 3a: YTD totals (single row)
+            if (await r.NextResultAsync() && await r.ReadAsync())
+            {
+                result.YtdTotals = new WaterPayrollYtdTotals
+                {
+                    Year             = r.GetInt32(r.GetOrdinal("Year")),
+                    YtdGrossPaid     = r.GetDecimal(r.GetOrdinal("YtdGrossPaid")),
+                    YtdDeductions    = r.GetDecimal(r.GetOrdinal("YtdDeductions")),
+                    YtdNetPaid       = r.GetDecimal(r.GetOrdinal("YtdNetPaid")),
+                    TotalPayrollRuns = r.GetInt32(r.GetOrdinal("TotalPayrollRuns")),
+                    TotalStaffPaid   = r.GetInt32(r.GetOrdinal("TotalStaffPaid")),
+                };
+            }
+
+            // Set 3b: per-staff YTD
+            if (await r.NextResultAsync())
+            {
+                while (await r.ReadAsync())
+                {
+                    result.YtdByStaff.Add(new WaterPayrollYtdStaffRow
+                    {
+                        WaterStaffId  = r.GetInt32(r.GetOrdinal("WaterStaffId")),
+                        StaffName     = r.IsDBNull(r.GetOrdinal("StaffName"))  ? null : r.GetString(r.GetOrdinal("StaffName")),
+                        StaffRole     = r.IsDBNull(r.GetOrdinal("StaffRole"))  ? null : r.GetString(r.GetOrdinal("StaffRole")),
+                        YtdBasic      = r.GetDecimal(r.GetOrdinal("YtdBasic")),
+                        YtdDaily      = r.GetDecimal(r.GetOrdinal("YtdDaily")),
+                        YtdCommission = r.GetDecimal(r.GetOrdinal("YtdCommission")),
+                        YtdBonus      = r.GetDecimal(r.GetOrdinal("YtdBonus")),
+                        YtdDeductions = r.GetDecimal(r.GetOrdinal("YtdDeductions")),
+                        YtdGross      = r.GetDecimal(r.GetOrdinal("YtdGross")),
+                        YtdNet        = r.GetDecimal(r.GetOrdinal("YtdNet")),
+                    });
+                }
+            }
+
+            // Set 4: linked expense (0 or 1 row)
+            if (await r.NextResultAsync() && await r.ReadAsync())
+            {
+                result.LinkedExpense = new WaterPayrollLinkedExpense
+                {
+                    WaterExpenseId         = r.GetInt32(r.GetOrdinal("WaterExpenseId")),
+                    FarmId                 = r.GetString(r.GetOrdinal("FarmId")),
+                    ExpenseDate            = r.GetDateTime(r.GetOrdinal("ExpenseDate")),
+                    WaterExpenseCategoryId = r.GetInt32(r.GetOrdinal("WaterExpenseCategoryId")),
+                    CategoryName           = r.IsDBNull(r.GetOrdinal("CategoryName"))    ? null : r.GetString(r.GetOrdinal("CategoryName")),
+                    Description            = r.IsDBNull(r.GetOrdinal("Description"))     ? null : r.GetString(r.GetOrdinal("Description")),
+                    Amount                 = r.GetDecimal(r.GetOrdinal("Amount")),
+                    PaymentMethod          = r.IsDBNull(r.GetOrdinal("PaymentMethod"))   ? null : r.GetString(r.GetOrdinal("PaymentMethod")),
+                    WaterCashAccountId     = r.IsDBNull(r.GetOrdinal("WaterCashAccountId")) ? null : r.GetInt32(r.GetOrdinal("WaterCashAccountId")),
+                    CashAccountName        = r.IsDBNull(r.GetOrdinal("CashAccountName")) ? null : r.GetString(r.GetOrdinal("CashAccountName")),
+                    Status                 = r.IsDBNull(r.GetOrdinal("Status"))          ? null : r.GetString(r.GetOrdinal("Status")),
+                    Notes                  = r.IsDBNull(r.GetOrdinal("Notes"))           ? null : r.GetString(r.GetOrdinal("Notes")),
+                    CreatedBy              = r.IsDBNull(r.GetOrdinal("CreatedBy"))       ? null : r.GetString(r.GetOrdinal("CreatedBy")),
+                    ApprovedBy             = r.IsDBNull(r.GetOrdinal("ApprovedBy"))      ? null : r.GetString(r.GetOrdinal("ApprovedBy")),
+                    ApprovedAt             = r.IsDBNull(r.GetOrdinal("ApprovedAt"))      ? null : r.GetDateTime(r.GetOrdinal("ApprovedAt")),
+                    SourceType             = r.IsDBNull(r.GetOrdinal("SourceType"))      ? null : r.GetString(r.GetOrdinal("SourceType")),
+                    SourceId               = r.IsDBNull(r.GetOrdinal("SourceId"))        ? null : r.GetInt32(r.GetOrdinal("SourceId")),
+                    CreatedAt              = r.GetDateTime(r.GetOrdinal("CreatedAt")),
+                    UpdatedAt              = r.IsDBNull(r.GetOrdinal("UpdatedAt"))       ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
+                };
+            }
+
+            return result;
+        }
+
         // ----- Readers
         private static WaterPayrollRunModel ReadRun(SqlDataReader r) => new()
         {
@@ -366,9 +484,22 @@ namespace PoultryFarmAPIWeb.Business
             ApprovedAt        = r.IsDBNull(r.GetOrdinal("ApprovedAt")) ? null : r.GetDateTime(r.GetOrdinal("ApprovedAt")),
             PaidBy            = r.IsDBNull(r.GetOrdinal("PaidBy")) ? null : r.GetString(r.GetOrdinal("PaidBy")),
             PaidAt            = r.IsDBNull(r.GetOrdinal("PaidAt")) ? null : r.GetDateTime(r.GetOrdinal("PaidAt")),
+            ReopenedBy        = HasCol(r, "ReopenedBy")   && !r.IsDBNull(r.GetOrdinal("ReopenedBy"))   ? r.GetString(r.GetOrdinal("ReopenedBy"))   : null,
+            ReopenedAt        = HasCol(r, "ReopenedAt")   && !r.IsDBNull(r.GetOrdinal("ReopenedAt"))   ? r.GetDateTime(r.GetOrdinal("ReopenedAt")) : (DateTime?)null,
+            ReopenReason      = HasCol(r, "ReopenReason") && !r.IsDBNull(r.GetOrdinal("ReopenReason")) ? r.GetString(r.GetOrdinal("ReopenReason")) : null,
+            ReapprovedBy      = HasCol(r, "ReapprovedBy") && !r.IsDBNull(r.GetOrdinal("ReapprovedBy")) ? r.GetString(r.GetOrdinal("ReapprovedBy")) : null,
+            ReapprovedAt      = HasCol(r, "ReapprovedAt") && !r.IsDBNull(r.GetOrdinal("ReapprovedAt")) ? r.GetDateTime(r.GetOrdinal("ReapprovedAt")) : (DateTime?)null,
             CreatedAt         = r.GetDateTime(r.GetOrdinal("CreatedAt")),
             UpdatedAt         = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
         };
+
+        private static bool HasCol(SqlDataReader r, string name)
+        {
+            for (int i = 0; i < r.FieldCount; i++)
+                if (string.Equals(r.GetName(i), name, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            return false;
+        }
 
         private static WaterPayrollItemModel ReadItem(SqlDataReader r)
         {

@@ -1,0 +1,329 @@
+Title: Setup Page, Loss Records, Closing, Currency, Filters, and Expense Integration Fixes
+
+We need to complete several app-wide workflow and setup improvements in the Water Company app.
+
+This prompt focuses on setup consistency, raw material purchase expense integration, loss correction workflow, daily closing resubmission, filter placement, and currency display settings.
+
+Please implement the following changes.
+
+---
+
+## 1. Raw Material Purchase Should Create an Expense Entry
+
+When a raw material purchase is recorded, it should create an entry in the Expenses page.
+
+A raw material purchase is a real business cash-out/expense.
+
+Required behavior:
+
+When recording a raw material purchase:
+
+* Create raw material stock-in record.
+* Create purchase record.
+* Create linked Expense record.
+
+Expense record should include:
+
+* CompanyId
+* ExpenseDate = PurchaseDate
+* ExpenseCategory = Raw Materials / Inventory Purchase
+* Amount = Purchase Total
+* PaymentMethod
+* Description
+* SourceType = RawMaterialPurchase
+* SourceId = RawMaterialPurchaseId
+* CreatedBy
+* CreatedAt
+
+The Expenses page should show the raw material purchase expense.
+
+Avoid duplicate expenses if the purchase is edited or saved more than once.
+
+If a raw material purchase is deleted/reversed, the linked expense should also be reversed, deleted, or marked inactive consistently.
+
+---
+
+## 2. Move Filters Above Score Cards on Loss Records Page
+
+On the Loss Records page, the filters currently appear below the score cards.
+
+Move all filters above the score cards.
+
+The Type filter dropdown should be grouped with the other filters.
+
+New order should be:
+
+1. Page title and primary action button
+2. Filters section
+3. Score cards
+4. Loss records table
+
+Filters should include:
+
+* Search
+* Type
+* From date
+* To date
+* Status, if supported
+
+The Type dropdown should include:
+
+* All Types
+* Damaged Bags
+* Rejected Sachets
+* Production Damage
+* Delivery Damage
+* Manual Loss
+* Any other existing loss types
+
+---
+
+## 3. Move Filters Above Score Cards on All Pages
+
+Apply the same layout principle across the application.
+
+On all pages that have filters and score cards, filters should appear before the score cards.
+
+Standard page structure should be:
+
+1. Page title and action buttons
+2. Filters/search section
+3. Score cards/summary cards
+4. Data table/list
+
+Apply this consistently to pages such as:
+
+* Deliveries
+* Production Batches
+* Loss Records
+* Raw Materials
+* Sales
+* Payments
+* Expenses
+* Stock
+* Reports
+* Any other page with filters and score cards
+
+---
+
+## 4. Loss Records: Edit Pending and Unapprove Approved Records
+
+The Loss Records page needs a correction workflow.
+
+Pending loss records should allow:
+
+* View Details
+* Edit
+* Approve
+* Delete/Cancel, if supported
+
+Approved loss records should allow:
+
+* View Details
+* Unapprove
+* Reverse, if supported
+
+When the user clicks Unapprove:
+
+* Require a reason.
+* Change status from Approved back to Pending or Reopened.
+* Reverse any stock/inventory effect caused by approval.
+* Allow the user to edit the record.
+* Allow approval again after editing.
+
+Avoid duplicate inventory/loss impacts when the record is approved again.
+
+All unapprove/reapprove actions should be auditable.
+
+---
+
+## 5. Daily Closing: Allow Reopen and Resubmit Closing for a Day
+
+The Closing page needs the ability to resubmit closing for a given day.
+
+Business reason:
+
+A user may close a day, then later discover that additional sales, expenses, production, delivery returns, losses, or corrections were entered. The user must be able to reopen or resubmit the closing so the final daily summary reflects the corrected data.
+
+Required actions for a submitted daily closing:
+
+* View Details
+* Reopen / Undo Closing
+* Resubmit Closing
+
+Preferred workflow:
+
+When user clicks Reopen/Undo Closing:
+
+* Require a reason.
+* Mark the existing closing as Inactive, Reopened, or Superseded.
+* Do not physically delete the old closing.
+* Allow the user to generate and submit a new closing for the same date.
+
+The new closing should become the active closing for that day.
+
+The old closing should remain in history for audit purposes.
+
+Closing records should support:
+
+* ClosingDate
+* Status: Submitted, Reopened, Superseded, Active, Inactive, etc.
+* IsActive
+* SupersededByClosingId
+* ReopenedBy
+* ReopenedAt
+* ReopenReason
+* SubmittedBy
+* SubmittedAt
+
+Only one closing should be active for a given company and closing date.
+
+The closing details should show whether it replaced a previous closing.
+
+---
+
+## 6. Setup Page Should Support Full Inline Setup Without Leaving the Page
+
+The Water Company Setup page has tabs for setup data such as:
+
+* Products
+* Customers
+* Drivers
+* Vehicles
+* Routes
+* Machines
+* Boreholes
+* Raw Materials
+* Staff
+
+There are already full pages for these areas, but the setup page should allow the user to complete full setup without leaving the setup page.
+
+Each setup tab should support the same core actions available on the full page:
+
+* View list
+* Add new
+* Edit
+* Delete/Deactivate, if supported
+* Search/filter where applicable
+* Save changes
+* Show validation errors
+* Refresh list after changes
+
+When the user clicks Add New from a setup tab, open the same modal used by the full page.
+
+Examples:
+
+From Setup → Drivers:
+
+* User clicks New Driver.
+* New Driver modal opens.
+* User saves.
+* Driver appears immediately in Setup → Drivers.
+* The same driver also appears on the full Drivers page.
+
+From full Drivers page:
+
+* User adds/edits driver.
+* The same updated data appears in Setup → Drivers.
+
+The setup page and full pages must use the same underlying data and APIs.
+
+No separate duplicated setup data should be created.
+
+The setup page should become a central place where the user can configure all supporting data needed for day-to-day operations.
+
+---
+
+## 7. Fix Main Water Company Setup Page Not Working
+
+The main Water Company Setup page is currently showing a “Not Found” error.
+
+Fix this page.
+
+The page should load correctly and allow the user to view/edit the main business setup details, including:
+
+* Brand name
+* Business type
+* Water source
+* Production site address
+* Main location/town
+* Owner name
+* Phone
+* Default currency
+* Sachets per bag
+* Notes
+* Currency display preference
+* Any other existing setup fields
+
+The “Set up Water Company” button should save the setup correctly.
+
+If setup already exists, the page should load the existing setup and behave as an edit page, not as a first-time-only form.
+
+---
+
+## 8. Currency Symbol Configuration
+
+Currency symbols shown across the app should be configurable from the Water Company Setup page.
+
+The app currently shows values like:
+
+* GHC 100.00
+* GHC 19,500.00
+
+This should come from the company setup.
+
+Required fields:
+
+* CurrencyCode, example: GHS
+* CurrencySymbol, example: GHC or ₵
+* ShowCurrencySymbol, true/false
+
+Add a checkbox/toggle on the setup page:
+
+`Show currency symbol on pages`
+
+If checked:
+
+* Show values like `GHC 100.00`
+
+If unchecked:
+
+* Show values like `100.00`
+
+This should apply across all pages, including:
+
+* Dashboard
+* Sales
+* Payments
+* Expenses
+* Production Batches
+* Raw Materials
+* Deliveries
+* Loss Records
+* Stock
+* Reports
+* Closing
+* Customer balances
+* Any modal summaries
+
+The value should be company-specific.
+
+Do not hardcode `GHC` in individual pages.
+
+Use a shared currency formatting utility/helper so the display is consistent.
+
+---
+
+## Final Expected Result
+
+After these changes:
+
+* Raw material purchases create linked Expense records.
+* Loss Records filters appear above score cards.
+* Filters appear above score cards consistently across the app.
+* Pending losses can be edited.
+* Approved losses can be unapproved, edited, and approved again.
+* Daily closing can be reopened/resubmitted for the same day while preserving history.
+* Setup page supports full inline setup for products, customers, drivers, vehicles, routes, machines, boreholes, raw materials, and staff.
+* Main Water Company Setup page works and loads existing setup correctly.
+* Currency display is configurable and consistent across all pages.

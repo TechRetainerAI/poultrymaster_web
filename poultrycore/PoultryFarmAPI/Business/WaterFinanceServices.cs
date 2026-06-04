@@ -397,6 +397,7 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@LinkedWaterProductionBatchId", (object?)m.LinkedWaterProductionBatchId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@CreatedBy", (object?)m.CreatedBy ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@SupplierId", (object?)m.SupplierId ?? DBNull.Value);
             await c.OpenAsync();
             return Convert.ToInt32(await cmd.ExecuteScalarAsync());
         }
@@ -489,6 +490,10 @@ namespace PoultryFarmAPIWeb.Business
             LinkedWaterVehicleId         = r.IsDBNull(r.GetOrdinal("LinkedWaterVehicleId")) ? null : r.GetInt32(r.GetOrdinal("LinkedWaterVehicleId")),
             LinkedWaterMachineId         = r.IsDBNull(r.GetOrdinal("LinkedWaterMachineId")) ? null : r.GetInt32(r.GetOrdinal("LinkedWaterMachineId")),
             LinkedWaterProductionBatchId = r.IsDBNull(r.GetOrdinal("LinkedWaterProductionBatchId")) ? null : r.GetInt32(r.GetOrdinal("LinkedWaterProductionBatchId")),
+            SupplierId                   = HasCol(r, "SupplierId")   && !r.IsDBNull(r.GetOrdinal("SupplierId"))   ? r.GetInt32(r.GetOrdinal("SupplierId"))    : (int?)null,
+            SupplierName                 = HasCol(r, "SupplierName") && !r.IsDBNull(r.GetOrdinal("SupplierName")) ? r.GetString(r.GetOrdinal("SupplierName")) : null,
+            SourceType                   = HasCol(r, "SourceType")   && !r.IsDBNull(r.GetOrdinal("SourceType"))   ? r.GetString(r.GetOrdinal("SourceType"))   : null,
+            SourceId                     = HasCol(r, "SourceId")     && !r.IsDBNull(r.GetOrdinal("SourceId"))     ? r.GetInt32(r.GetOrdinal("SourceId"))      : (int?)null,
             Status                       = r.GetString(r.GetOrdinal("Status")),
             Notes                        = r.IsDBNull(r.GetOrdinal("Notes")) ? null : r.GetString(r.GetOrdinal("Notes")),
             CreatedBy                    = r.IsDBNull(r.GetOrdinal("CreatedBy")) ? null : r.GetString(r.GetOrdinal("CreatedBy")),
@@ -496,6 +501,129 @@ namespace PoultryFarmAPIWeb.Business
             ApprovedAt                   = r.IsDBNull(r.GetOrdinal("ApprovedAt")) ? null : r.GetDateTime(r.GetOrdinal("ApprovedAt")),
             CreatedAt                    = r.GetDateTime(r.GetOrdinal("CreatedAt")),
             UpdatedAt                    = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
+        };
+
+        // Defensive column-exists check — lets us add new columns to the SP
+        // result set without breaking older deployments where the SP hasn't
+        // been refreshed yet (e.g. prod skipping a dev-only migration).
+        private static bool HasCol(SqlDataReader r, string name)
+        {
+            for (int i = 0; i < r.FieldCount; i++)
+                if (string.Equals(r.GetName(i), name, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            return false;
+        }
+    }
+
+    // ====================================================================
+    // WaterSupplier — master list backing the "Paid To" dropdown on the
+    // Expense form, the supplier dropdown on Raw Material Purchases, the
+    // standalone /water-suppliers page and the Setup tab. See migration 076.
+    // ====================================================================
+    public interface IWaterSupplierService
+    {
+        Task<List<WaterSupplierModel>> ListAsync(string farmId, bool includeInactive, bool includeDeleted, string? search);
+        Task<WaterSupplierModel?>      GetByIdAsync(int id, string farmId);
+        Task<int>                      InsertAsync(WaterSupplierModel m);
+        Task                           UpdateAsync(WaterSupplierModel m);
+        Task                           DeleteAsync(int id, string farmId, string? deletedBy);
+    }
+
+    public class WaterSupplierService : IWaterSupplierService
+    {
+        private readonly string _cs;
+        public WaterSupplierService(string cs) => _cs = cs;
+
+        public async Task<List<WaterSupplierModel>> ListAsync(string farmId, bool includeInactive, bool includeDeleted, string? search)
+        {
+            var list = new List<WaterSupplierModel>();
+            using var c = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterSupplier_ListByFarm", c) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@IncludeInactive", includeInactive ? 1 : 0);
+            cmd.Parameters.AddWithValue("@IncludeDeleted",  includeDeleted  ? 1 : 0);
+            cmd.Parameters.AddWithValue("@Search", (object?)search ?? DBNull.Value);
+            await c.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync()) list.Add(ReadSupplier(r));
+            return list;
+        }
+
+        public async Task<WaterSupplierModel?> GetByIdAsync(int id, string farmId)
+        {
+            using var c = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterSupplier_GetById", c) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@WaterSupplierId", id);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await c.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            return await r.ReadAsync() ? ReadSupplier(r) : null;
+        }
+
+        public async Task<int> InsertAsync(WaterSupplierModel m)
+        {
+            using var c = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterSupplier_Insert", c) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
+            cmd.Parameters.AddWithValue("@SupplierName", m.SupplierName);
+            cmd.Parameters.AddWithValue("@ContactPerson", (object?)m.ContactPerson ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Phone",         (object?)m.Phone         ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Email",         (object?)m.Email         ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Address",       (object?)m.Address       ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@SupplierType",  (object?)m.SupplierType  ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Notes",         (object?)m.Notes         ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@CreatedBy",     (object?)m.CreatedBy     ?? DBNull.Value);
+            await c.OpenAsync();
+            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        public async Task UpdateAsync(WaterSupplierModel m)
+        {
+            using var c = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterSupplier_Update", c) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@WaterSupplierId", m.WaterSupplierId);
+            cmd.Parameters.AddWithValue("@FarmId",          m.FarmId);
+            cmd.Parameters.AddWithValue("@SupplierName",    m.SupplierName);
+            cmd.Parameters.AddWithValue("@ContactPerson",   (object?)m.ContactPerson ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Phone",           (object?)m.Phone         ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Email",           (object?)m.Email         ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Address",         (object?)m.Address       ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@SupplierType",    (object?)m.SupplierType  ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Notes",           (object?)m.Notes         ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@IsActive",        m.IsActive);
+            cmd.Parameters.AddWithValue("@UpdatedBy",       (object?)m.UpdatedBy     ?? DBNull.Value);
+            await c.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task DeleteAsync(int id, string farmId, string? deletedBy)
+        {
+            using var c = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterSupplier_Delete", c) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@WaterSupplierId", id);
+            cmd.Parameters.AddWithValue("@FarmId",          farmId);
+            cmd.Parameters.AddWithValue("@DeletedBy",       (object?)deletedBy ?? DBNull.Value);
+            await c.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        private static WaterSupplierModel ReadSupplier(SqlDataReader r) => new()
+        {
+            WaterSupplierId = r.GetInt32(r.GetOrdinal("WaterSupplierId")),
+            FarmId          = r.GetString(r.GetOrdinal("FarmId")),
+            SupplierName    = r.GetString(r.GetOrdinal("SupplierName")),
+            ContactPerson   = r.IsDBNull(r.GetOrdinal("ContactPerson")) ? null : r.GetString(r.GetOrdinal("ContactPerson")),
+            Phone           = r.IsDBNull(r.GetOrdinal("Phone"))         ? null : r.GetString(r.GetOrdinal("Phone")),
+            Email           = r.IsDBNull(r.GetOrdinal("Email"))         ? null : r.GetString(r.GetOrdinal("Email")),
+            Address         = r.IsDBNull(r.GetOrdinal("Address"))       ? null : r.GetString(r.GetOrdinal("Address")),
+            SupplierType    = r.IsDBNull(r.GetOrdinal("SupplierType"))  ? null : r.GetString(r.GetOrdinal("SupplierType")),
+            Notes           = r.IsDBNull(r.GetOrdinal("Notes"))         ? null : r.GetString(r.GetOrdinal("Notes")),
+            IsActive        = r.GetBoolean(r.GetOrdinal("IsActive")),
+            IsDeleted       = r.GetBoolean(r.GetOrdinal("IsDeleted")),
+            CreatedBy       = r.IsDBNull(r.GetOrdinal("CreatedBy"))     ? null : r.GetString(r.GetOrdinal("CreatedBy")),
+            CreatedAt       = r.GetDateTime(r.GetOrdinal("CreatedAt")),
+            UpdatedBy       = r.IsDBNull(r.GetOrdinal("UpdatedBy"))     ? null : r.GetString(r.GetOrdinal("UpdatedBy")),
+            UpdatedAt       = r.IsDBNull(r.GetOrdinal("UpdatedAt"))     ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
         };
     }
 

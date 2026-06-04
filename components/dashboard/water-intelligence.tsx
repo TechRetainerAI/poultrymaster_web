@@ -23,20 +23,20 @@ import {
   getWaterTopCustomers,
   type WaterExpenseByCategoryRow, type WaterPeriodPnL, type WaterRouteProfitabilityRow, type WaterTopCustomerRow,
 } from "@/lib/api/water"
+import { useCurrency, useFmt } from "@/lib/currency"
 
-// "GHC 1,234.56" — matches water-dashboard's fmtMoney. ISO code is GHS but
-// the platform's user-facing label is GHC, so format the number and prefix.
-function gh(n: number | null | undefined): string {
-  const v = Number.isFinite(Number(n)) ? Number(n) : 0
-  return `GHC ${new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v)}`
-}
-
-function ghShort(n: number | null | undefined): string {
-  // Compact form for small tiles: "GHC 12.3K" / "GHC 1.2M"
-  const v = Number.isFinite(Number(n)) ? Number(n) : 0
-  if (Math.abs(v) >= 1_000_000) return `GHC ${(v / 1_000_000).toFixed(1)}M`
-  if (Math.abs(v) >= 1_000)     return `GHC ${(v / 1_000).toFixed(1)}K`
-  return `GHC ${v.toFixed(2)}`
+// Compact form for small tiles: "GHC 12.3K" / "GHC 1.2M". Uses the live
+// symbol from the currency store and honours showSymbol so the toggle
+// affects this view too.
+function useGhShort() {
+  const { symbol, showSymbol } = useCurrency()
+  return (n: number | null | undefined): string => {
+    const v = Number.isFinite(Number(n)) ? Number(n) : 0
+    const prefix = showSymbol ? `${symbol} ` : ""
+    if (Math.abs(v) >= 1_000_000) return `${prefix}${(v / 1_000_000).toFixed(1)}M`
+    if (Math.abs(v) >= 1_000)     return `${prefix}${(v / 1_000).toFixed(1)}K`
+    return `${prefix}${v.toFixed(2)}`
+  }
 }
 
 function firstOfMonthIso(): string {
@@ -87,6 +87,7 @@ export function WaterIntelligenceSection({ fromDate, toDate }: SectionProps) {
 // Card 1 — Where did my money go?  (top 5 expense categories with % bars)
 // ---------------------------------------------------------------------------
 function ExpenseBreakdownCard({ fromDate, toDate }: { fromDate: string; toDate: string }) {
+  const gh = useFmt()
   const [rows, setRows] = useState<WaterExpenseByCategoryRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -156,6 +157,7 @@ function ExpenseBreakdownCard({ fromDate, toDate }: { fromDate: string; toDate: 
 // Card 2 — Profit per bag  (single big metric + bags context)
 // ---------------------------------------------------------------------------
 function ProfitPerBagCard({ fromDate, toDate }: { fromDate: string; toDate: string }) {
+  const gh = useFmt()
   const [pnl, setPnl] = useState<WaterPeriodPnL | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -225,6 +227,8 @@ function ProfitPerBagCard({ fromDate, toDate }: { fromDate: string; toDate: stri
 // Card 3 — Best / worst route
 // ---------------------------------------------------------------------------
 function BestWorstRouteCard({ fromDate, toDate }: { fromDate: string; toDate: string }) {
+  const gh = useFmt()
+  const ghShort = useGhShort()
   const [rows, setRows] = useState<WaterRouteProfitabilityRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -313,6 +317,8 @@ function BestWorstRouteCard({ fromDate, toDate }: { fromDate: string; toDate: st
 // Card 4 — Top customers (by sales) + biggest debtor
 // ---------------------------------------------------------------------------
 function TopCustomersCard({ fromDate, toDate }: { fromDate: string; toDate: string }) {
+  const gh = useFmt()
+  const ghShort = useGhShort()
   const [rows, setRows] = useState<WaterTopCustomerRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 

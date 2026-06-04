@@ -24,7 +24,14 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Unit", (object?)m.Unit ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@UnitPrice", m.UnitPrice);
             cmd.Parameters.AddWithValue("@IsActive", m.IsActive);
+            cmd.Parameters.AddWithValue("@ProductType", string.IsNullOrWhiteSpace(m.ProductType) ? "FinishedGood" : m.ProductType);
             cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
+            // Migration 084 — sachet product fields. SP defaults handle older DBs.
+            cmd.Parameters.AddWithValue("@BaseUnit",        (object?)m.BaseUnit        ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@SachetsPerBag",   (object?)m.SachetsPerBag   ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@BagPrice",        (object?)m.BagPrice        ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@SachetPrice",     (object?)m.SachetPrice     ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@IsSachetProduct", m.IsSachetProduct);
 
             await conn.OpenAsync();
             var result = await cmd.ExecuteScalarAsync();
@@ -43,7 +50,14 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Unit", (object?)m.Unit ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@UnitPrice", m.UnitPrice);
             cmd.Parameters.AddWithValue("@IsActive", m.IsActive);
+            cmd.Parameters.AddWithValue("@ProductType", string.IsNullOrWhiteSpace(m.ProductType) ? "FinishedGood" : m.ProductType);
             cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
+            // Migration 084 — sachet product fields.
+            cmd.Parameters.AddWithValue("@BaseUnit",        (object?)m.BaseUnit        ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@SachetsPerBag",   (object?)m.SachetsPerBag   ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@BagPrice",        (object?)m.BagPrice        ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@SachetPrice",     (object?)m.SachetPrice     ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@IsSachetProduct", m.IsSachetProduct);
 
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
@@ -95,10 +109,28 @@ namespace PoultryFarmAPIWeb.Business
             Unit           = r.IsDBNull(r.GetOrdinal("Unit")) ? null : r.GetString(r.GetOrdinal("Unit")),
             UnitPrice      = r.GetDecimal(r.GetOrdinal("UnitPrice")),
             IsActive       = r.GetBoolean(r.GetOrdinal("IsActive")),
+            // ProductType column added in migration 063. Tolerate a DB that
+            // hasn't been migrated yet by falling back to FinishedGood.
+            ProductType    = HasCol(r, "ProductType") && !r.IsDBNull(r.GetOrdinal("ProductType"))
+                                ? r.GetString(r.GetOrdinal("ProductType"))
+                                : "FinishedGood",
             Notes          = r.IsDBNull(r.GetOrdinal("Notes")) ? null : r.GetString(r.GetOrdinal("Notes")),
             CreatedDate    = r.GetDateTime(r.GetOrdinal("CreatedDate")),
             UpdatedDate    = r.IsDBNull(r.GetOrdinal("UpdatedDate")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedDate")),
             StockOnHand    = r.IsDBNull(r.GetOrdinal("StockOnHand")) ? 0 : Convert.ToInt32(r.GetValue(r.GetOrdinal("StockOnHand"))),
+            // Migration 084 — sachet fields are nullable; absent in older DBs.
+            BaseUnit       = HasCol(r, "BaseUnit")        && !r.IsDBNull(r.GetOrdinal("BaseUnit"))        ? r.GetString(r.GetOrdinal("BaseUnit"))                  : null,
+            SachetsPerBag  = HasCol(r, "SachetsPerBag")   && !r.IsDBNull(r.GetOrdinal("SachetsPerBag"))   ? r.GetInt32(r.GetOrdinal("SachetsPerBag"))             : null,
+            BagPrice       = HasCol(r, "BagPrice")        && !r.IsDBNull(r.GetOrdinal("BagPrice"))        ? r.GetDecimal(r.GetOrdinal("BagPrice"))                : null,
+            SachetPrice    = HasCol(r, "SachetPrice")     && !r.IsDBNull(r.GetOrdinal("SachetPrice"))     ? r.GetDecimal(r.GetOrdinal("SachetPrice"))             : null,
+            IsSachetProduct= HasCol(r, "IsSachetProduct") && r.GetBoolean(r.GetOrdinal("IsSachetProduct")),
         };
+
+        private static bool HasCol(SqlDataReader r, string n)
+        {
+            for (int i = 0; i < r.FieldCount; i++)
+                if (r.GetName(i).Equals(n, StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
+        }
     }
 }

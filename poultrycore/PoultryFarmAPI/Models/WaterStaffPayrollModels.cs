@@ -139,6 +139,13 @@ namespace PoultryFarmAPIWeb.Models
         public string? PaidBy { get; set; }
         public DateTime? PaidAt { get; set; }
 
+        // Migration 080 — audit trail for Unapprove/Reapprove cycle.
+        public string?   ReopenedBy { get; set; }
+        public DateTime? ReopenedAt { get; set; }
+        [StringLength(500)] public string? ReopenReason { get; set; }
+        public string?   ReapprovedBy { get; set; }
+        public DateTime? ReapprovedAt { get; set; }
+
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
 
@@ -197,5 +204,62 @@ namespace PoultryFarmAPIWeb.Models
     public class WaterPayrollRunCancelRequest
     {
         [StringLength(500)] public string? Reason { get; set; }
+    }
+
+    // Migration 082: payload returned by spWaterPayrollRun_GetDetailsWithYtd.
+    // Powers the /water-payroll/[id]/details page in one round-trip.
+    public class WaterPayrollRunDetailsModel
+    {
+        public WaterPayrollRunModel? Run { get; set; }
+        public WaterPayrollYtdTotals? YtdTotals { get; set; }
+        public List<WaterPayrollYtdStaffRow> YtdByStaff { get; set; } = new();
+        public WaterPayrollLinkedExpense? LinkedExpense { get; set; }
+    }
+
+    public class WaterPayrollYtdTotals
+    {
+        public int     Year             { get; set; }
+        public decimal YtdGrossPaid     { get; set; }
+        public decimal YtdDeductions    { get; set; }
+        public decimal YtdNetPaid       { get; set; }
+        public int     TotalPayrollRuns { get; set; }
+        public int     TotalStaffPaid   { get; set; }
+    }
+
+    public class WaterPayrollYtdStaffRow
+    {
+        public int     WaterStaffId    { get; set; }
+        public string? StaffName       { get; set; }
+        public string? StaffRole       { get; set; }
+        public decimal YtdBasic        { get; set; }
+        public decimal YtdDaily        { get; set; }
+        public decimal YtdCommission   { get; set; }
+        public decimal YtdBonus        { get; set; }
+        public decimal YtdDeductions   { get; set; }
+        public decimal YtdGross        { get; set; }
+        public decimal YtdNet          { get; set; }
+    }
+
+    public class WaterPayrollLinkedExpense
+    {
+        public int      WaterExpenseId         { get; set; }
+        public string   FarmId                 { get; set; } = string.Empty;
+        public DateTime ExpenseDate            { get; set; }
+        public int      WaterExpenseCategoryId { get; set; }
+        public string?  CategoryName           { get; set; }
+        public string?  Description            { get; set; }
+        public decimal  Amount                 { get; set; }
+        public string?  PaymentMethod          { get; set; }
+        public int?     WaterCashAccountId     { get; set; }
+        public string?  CashAccountName        { get; set; }
+        public string?  Status                 { get; set; }
+        public string?  Notes                  { get; set; }
+        public string?  CreatedBy              { get; set; }
+        public string?  ApprovedBy             { get; set; }
+        public DateTime? ApprovedAt            { get; set; }
+        public string?  SourceType             { get; set; }
+        public int?     SourceId               { get; set; }
+        public DateTime CreatedAt              { get; set; }
+        public DateTime? UpdatedAt             { get; set; }
     }
 }

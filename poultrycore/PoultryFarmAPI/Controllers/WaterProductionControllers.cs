@@ -181,6 +181,124 @@ namespace PoultryFarmAPIWeb.Controllers
             await _svc.ReopenAsync(id, farmId, reopenedBy);
             return NoContent();
         }
+
+        // Migration 063: list the raw materials consumed for this batch so the
+        // edit modal can re-render them on reopen and the receipt view can show
+        // them on detail.
+        [HttpGet("{id:int}/materials")]
+        public async Task<ActionResult<IEnumerable<WaterProductionMaterialUsageRow>>> GetMaterials(int id, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            return Ok(await _svc.GetMaterialsUsedAsync(id, farmId));
+        }
+
+        // Migration 067 — Details view: linked loss records, expenses, stock txns.
+        [HttpGet("{id:int}/linked-losses")]
+        public async Task<ActionResult<IEnumerable<WaterProductionLossModel>>> GetLinkedLosses(int id, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            return Ok(await _svc.GetLinkedLossesAsync(id, farmId));
+        }
+
+        [HttpGet("{id:int}/linked-expenses")]
+        public async Task<ActionResult<IEnumerable<WaterProductionLinkedExpenseRow>>> GetLinkedExpenses(int id, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            return Ok(await _svc.GetLinkedExpensesAsync(id, farmId));
+        }
+
+        [HttpGet("{id:int}/linked-stock-txns")]
+        public async Task<ActionResult<IEnumerable<WaterProductionLinkedStockTxnRow>>> GetLinkedStockTxns(int id, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            return Ok(await _svc.GetLinkedStockTxnsAsync(id, farmId));
+        }
+    }
+
+    // =========================================================================
+    // Production Losses (Migration 067) — standalone Loss page.
+    // =========================================================================
+    [ApiController]
+    [Route("api/Water/production-losses")]
+    public class WaterProductionLossController : ControllerBase
+    {
+        private readonly IWaterProductionLossService _svc;
+        public WaterProductionLossController(IWaterProductionLossService svc) => _svc = svc;
+
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<WaterProductionLossModel>>> GetAll(
+            [FromQuery] string farmId,
+            [FromQuery] DateTime? fromDate,
+            [FromQuery] DateTime? toDate,
+            [FromQuery] string? status)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            return Ok(await _svc.GetAllAsync(farmId, fromDate, toDate, status));
+        }
+    }
+
+    // =========================================================================
+    // Production Recipes — per-finished-product bill of materials.
+    // Route shape matches the prompt: /products/{productId}/recipe
+    // =========================================================================
+    [ApiController]
+    [Route("api/Water/products/{productId:int}/recipe")]
+    public class WaterProductionRecipeController : ControllerBase
+    {
+        private readonly IWaterProductionRecipeService _svc;
+        public WaterProductionRecipeController(IWaterProductionRecipeService svc) => _svc = svc;
+
+        // Returns 200 with the recipe object, or 200 with null when the product
+        // has no recipe yet (frontend treats null as "set one up").
+        [HttpGet]
+        public async Task<ActionResult<WaterProductionRecipeModel?>> Get(int productId, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            var recipe = await _svc.GetByProductAsync(farmId, productId);
+            return Ok(recipe);
+        }
+
+        [HttpPut]
+        public async Task<ActionResult<int>> Upsert(int productId, [FromQuery] string farmId, [FromQuery] string? updatedBy,
+            [FromBody] WaterProductionRecipeUpsertRequest req)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            var id = await _svc.UpsertAsync(farmId, productId, req, updatedBy);
+            return Ok(new { WaterProductionRecipeId = id });
+        }
+
+        [HttpDelete("{recipeId:int}")]
+        public async Task<IActionResult> Delete(int productId, int recipeId, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            await _svc.DeleteAsync(farmId, recipeId);
+            return NoContent();
+        }
+    }
+
+    // =========================================================================
+    // Raw-material usage history endpoint — backs the Usage History tab on
+    // the Raw Materials page. The legacy /raw-material-usage endpoint exists
+    // but only filters by batchId/date; this one supports itemId too.
+    // =========================================================================
+    [ApiController]
+    [Route("api/Water/raw-material-usage/history")]
+    public class WaterRawMaterialUsageHistoryController : ControllerBase
+    {
+        private readonly IWaterProductionRecipeService _svc;
+        public WaterRawMaterialUsageHistoryController(IWaterProductionRecipeService svc) => _svc = svc;
+
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<WaterProductionMaterialUsageRow>>> Get(
+            [FromQuery] string farmId,
+            [FromQuery] int? itemId,
+            [FromQuery] DateTime? fromDate,
+            [FromQuery] DateTime? toDate)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            return Ok(await _svc.GetUsageHistoryAsync(farmId, itemId, fromDate, toDate));
+        }
     }
 
     [ApiController]

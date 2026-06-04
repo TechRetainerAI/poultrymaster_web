@@ -29,6 +29,26 @@ namespace PoultryFarmAPIWeb.Business
         Task ApproveAsync(int id, string farmId, string? approvedBy);
         Task CancelAsync(int id, string farmId);
         Task ReopenAsync(int id, string farmId, string? reopenedBy);
+        Task<List<WaterProductionMaterialUsageRow>> GetMaterialsUsedAsync(int batchId, string farmId);
+
+        // Migration 067: read-side helpers used by the Details view.
+        Task<List<WaterProductionLossModel>>          GetLinkedLossesAsync(int batchId, string farmId);
+        Task<List<WaterProductionLinkedExpenseRow>>   GetLinkedExpensesAsync(int batchId, string farmId);
+        Task<List<WaterProductionLinkedStockTxnRow>>  GetLinkedStockTxnsAsync(int batchId, string farmId);
+    }
+
+    // Migration 067: stand-alone loss list (Loss page).
+    public interface IWaterProductionLossService
+    {
+        Task<List<WaterProductionLossModel>> GetAllAsync(string farmId, DateTime? fromDate, DateTime? toDate, string? status);
+    }
+
+    public interface IWaterProductionRecipeService
+    {
+        Task<WaterProductionRecipeModel?> GetByProductAsync(string farmId, int waterProductId);
+        Task<int> UpsertAsync(string farmId, int waterProductId, WaterProductionRecipeUpsertRequest req, string? updatedBy);
+        Task DeleteAsync(string farmId, int recipeId);
+        Task<List<WaterProductionMaterialUsageRow>> GetUsageHistoryAsync(string farmId, int? rawMaterialItemId, DateTime? fromDate, DateTime? toDate);
     }
 
     public interface IWaterQualityTestService

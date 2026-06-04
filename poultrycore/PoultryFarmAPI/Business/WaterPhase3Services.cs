@@ -36,6 +36,9 @@ namespace PoultryFarmAPIWeb.Business
         Task<List<WaterLossRecordModel>> GetAllAsync(string farmId, string? lossType, DateTime? fromDate, DateTime? toDate);
         Task<int> InsertAsync(WaterLossRecordModel m);
         Task ApproveAsync(int id, string farmId, string? approvedBy);
+        // Migration 068: Pending → editable; Approved → Unapprove with reason.
+        Task UpdateAsync(WaterLossRecordModel m);
+        Task UnapproveAsync(int id, string farmId, string? unapprovedBy, string? reason);
     }
 
     public interface IWaterDailyClosingService
@@ -51,6 +54,13 @@ namespace PoultryFarmAPIWeb.Business
         Task<bool> DeleteAsync(int id, string farmId);
         /// <summary>Updates ManagerNotes on a Draft or Rejected closing. Same false-on-immutable contract as DeleteAsync.</summary>
         Task<bool> UpdateNotesAsync(int id, string farmId, string? managerNotes);
+        // Migration 068: Reopen an active closing + link a new submission as its superseder.
+        Task ReopenAsync(int id, string farmId, string? reopenedBy, string? reason);
+        Task LinkSupersededAsync(int newClosingId, string farmId, int previousClosingId);
+        // Migration 079: Reopen-then-Insert in one call. Returns new draft id.
+        Task<int> RecreateAsync(string farmId, DateTime closingDate, int predecessorClosingId,
+                                string? createdBy, decimal actualCashCounted,
+                                string? managerNotes, string? differenceReason);
     }
 
     public interface IWaterReportService
@@ -59,10 +69,14 @@ namespace PoultryFarmAPIWeb.Business
         Task<List<WaterRouteProfitabilityRow>> GetRouteProfitabilityAsync(string farmId, DateTime fromDate, DateTime toDate);
         Task<List<WaterDriverReconciliationRow>> GetDriverReconciliationAsync(string farmId, DateTime fromDate, DateTime toDate);
         Task<List<WaterRawMaterialVarianceRow>> GetRawMaterialVarianceAsync(string farmId, DateTime fromDate, DateTime toDate);
+        // Migration 066: Driver Collection Report (Prompt 2 #16)
+        Task<WaterDriverCollectionReport> GetDriverCollectionAsync(string farmId, DateTime fromDate, DateTime toDate, int? waterDriverId);
         Task<WaterDashboardExtendedModel> GetDashboardExtendedAsync(string farmId);
         // Migration 057: dashboard intelligence (gap #7)
         Task<List<WaterExpenseByCategoryRow>> GetExpenseByCategoryAsync(string farmId, DateTime fromDate, DateTime toDate);
         Task<List<WaterTopCustomerRow>> GetTopCustomersAsync(string farmId, DateTime fromDate, DateTime toDate, int topN);
+        // Migration 081: per-supplier purchase + expense rollup ("Supplier Report").
+        Task<List<WaterSupplierActivityRow>> GetSupplierActivityAsync(string farmId, DateTime? fromDate, DateTime? toDate);
     }
 
     // =========================================================================
@@ -201,6 +215,7 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@ReceivedByStaffId", (object?)m.ReceivedByStaffId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@CreatedBy", (object?)m.CreatedBy ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@SupplierId", (object?)m.SupplierId ?? DBNull.Value);
             await conn.OpenAsync();
             return Convert.ToInt32(await cmd.ExecuteScalarAsync());
         }
@@ -219,6 +234,7 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@AmountPaid", m.AmountPaid);
             cmd.Parameters.AddWithValue("@ReceiptUrl", (object?)m.ReceiptUrl ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@SupplierId", (object?)m.SupplierId ?? DBNull.Value);
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
         }
@@ -242,6 +258,7 @@ namespace PoultryFarmAPIWeb.Business
             Category                   = WaterRawMaterialItemService.HasCol(r, "Category") && !r.IsDBNull(r.GetOrdinal("Category")) ? r.GetString(r.GetOrdinal("Category")) : null,
             UnitOfMeasure              = WaterRawMaterialItemService.HasCol(r, "UnitOfMeasure") && !r.IsDBNull(r.GetOrdinal("UnitOfMeasure")) ? r.GetString(r.GetOrdinal("UnitOfMeasure")) : null,
             SupplierName               = r.IsDBNull(r.GetOrdinal("SupplierName")) ? null : r.GetString(r.GetOrdinal("SupplierName")),
+            SupplierId                 = WaterRawMaterialItemService.HasCol(r, "SupplierId") && !r.IsDBNull(r.GetOrdinal("SupplierId")) ? r.GetInt32(r.GetOrdinal("SupplierId")) : (int?)null,
             PurchaseDate               = r.GetDateTime(r.GetOrdinal("PurchaseDate")),
             Quantity                   = r.GetDecimal(r.GetOrdinal("Quantity")),
             UnitCost                   = r.GetDecimal(r.GetOrdinal("UnitCost")),
@@ -362,6 +379,40 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@WaterLossRecordId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@ApprovedBy", (object?)approvedBy ?? DBNull.Value);
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // Migration 068 — Pending records can be edited inline.
+        public async Task UpdateAsync(WaterLossRecordModel m)
+        {
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterLossRecord_Update", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@WaterLossRecordId", m.WaterLossRecordId);
+            cmd.Parameters.AddWithValue("@FarmId",              m.FarmId);
+            cmd.Parameters.AddWithValue("@LossDate",            m.LossDate);
+            cmd.Parameters.AddWithValue("@LossType",            m.LossType);
+            cmd.Parameters.AddWithValue("@WaterProductId",      (object?)m.WaterProductId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@QuantityBags",        (object?)m.QuantityBags ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@QuantitySachets",     (object?)m.QuantitySachets ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@EstimatedValue",      (object?)m.EstimatedValue ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ResponsibleStaffId",  (object?)m.ResponsibleStaffId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Reason",              (object?)m.Reason ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Notes",               (object?)m.Notes ?? DBNull.Value);
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // Migration 068 — Approved → Reopened (Pending). Cash impact reversed
+        // by the SP if any. After this the user can edit and Approve again.
+        public async Task UnapproveAsync(int id, string farmId, string? unapprovedBy, string? reason)
+        {
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterLossRecord_Unapprove", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@WaterLossRecordId", id);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@UnapprovedBy", (object?)unapprovedBy ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Reason",       (object?)reason       ?? DBNull.Value);
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
         }
@@ -494,6 +545,50 @@ namespace PoultryFarmAPIWeb.Business
             return Convert.ToInt32(result ?? 0) > 0;
         }
 
+        // Migration 068 — Reopen an active closing (marks IsActive=0, Status='Reopened')
+        // and link a new closing as its successor (SupersededByClosingId).
+        public async Task ReopenAsync(int id, string farmId, string? reopenedBy, string? reason)
+        {
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterDailyClosing_Reopen", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@WaterDailyClosingId", id);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@ReopenedBy", (object?)reopenedBy ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Reason",     (object?)reason     ?? DBNull.Value);
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task LinkSupersededAsync(int newClosingId, string farmId, int previousClosingId)
+        {
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterDailyClosing_LinkSuperseded", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@WaterDailyClosingId", previousClosingId);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@SupersededByClosingId", newClosingId);
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // Migration 079 — single-shot Recreate. The SP validates the predecessor
+        // is IsActive=0, creates a fresh Draft, and links them via SupersededByClosingId.
+        public async Task<int> RecreateAsync(string farmId, DateTime closingDate, int predecessorClosingId,
+                                             string? createdBy, decimal actualCashCounted,
+                                             string? managerNotes, string? differenceReason)
+        {
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterDailyClosing_Recreate", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@ClosingDate", closingDate.Date);
+            cmd.Parameters.AddWithValue("@PredecessorClosingId", predecessorClosingId);
+            cmd.Parameters.AddWithValue("@CreatedBy", (object?)createdBy ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ActualCashCounted", actualCashCounted);
+            cmd.Parameters.AddWithValue("@ManagerNotes", (object?)managerNotes ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@DifferenceReason", (object?)differenceReason ?? DBNull.Value);
+            await conn.OpenAsync();
+            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
         private static WaterDailyClosingModel Read(SqlDataReader r) => new()
         {
             WaterDailyClosingId  = r.GetInt32(r.GetOrdinal("WaterDailyClosingId")),
@@ -525,6 +620,13 @@ namespace PoultryFarmAPIWeb.Business
             RejectionReason      = r.IsDBNull(r.GetOrdinal("RejectionReason")) ? null : r.GetString(r.GetOrdinal("RejectionReason")),
             CreatedAt            = r.GetDateTime(r.GetOrdinal("CreatedAt")),
             UpdatedAt            = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
+            // Migration 068 — reopen/resubmit support. HasCol guards keep the
+            // Read working on databases that haven't applied 068 yet.
+            IsActive              = WaterRawMaterialItemService.HasCol(r, "IsActive") && !r.IsDBNull(r.GetOrdinal("IsActive")) ? r.GetBoolean(r.GetOrdinal("IsActive")) : true,
+            SupersededByClosingId = WaterRawMaterialItemService.HasCol(r, "SupersededByClosingId") && !r.IsDBNull(r.GetOrdinal("SupersededByClosingId")) ? r.GetInt32(r.GetOrdinal("SupersededByClosingId")) : (int?)null,
+            ReopenedBy            = WaterRawMaterialItemService.HasCol(r, "ReopenedBy") && !r.IsDBNull(r.GetOrdinal("ReopenedBy")) ? r.GetString(r.GetOrdinal("ReopenedBy")) : null,
+            ReopenedAt            = WaterRawMaterialItemService.HasCol(r, "ReopenedAt") && !r.IsDBNull(r.GetOrdinal("ReopenedAt")) ? r.GetDateTime(r.GetOrdinal("ReopenedAt")) : (DateTime?)null,
+            ReopenReason          = WaterRawMaterialItemService.HasCol(r, "ReopenReason") && !r.IsDBNull(r.GetOrdinal("ReopenReason")) ? r.GetString(r.GetOrdinal("ReopenReason")) : null,
         };
     }
 
@@ -627,6 +729,56 @@ namespace PoultryFarmAPIWeb.Business
             });
         }
 
+        public async Task<WaterDriverCollectionReport> GetDriverCollectionAsync(string farmId, DateTime fromDate, DateTime toDate, int? waterDriverId)
+        {
+            var report = new WaterDriverCollectionReport();
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterReport_DriverCollection", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@FromDate", fromDate);
+            cmd.Parameters.AddWithValue("@ToDate", toDate);
+            cmd.Parameters.AddWithValue("@WaterDriverId", (object?)waterDriverId ?? DBNull.Value);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+
+            while (await r.ReadAsync())
+            {
+                report.Detail.Add(new WaterDriverCollectionDetailRow
+                {
+                    WaterDriverId   = r.IsDBNull(r.GetOrdinal("WaterDriverId")) ? null : r.GetInt32(r.GetOrdinal("WaterDriverId")),
+                    DriverName      = r.IsDBNull(r.GetOrdinal("DriverName")) ? null : r.GetString(r.GetOrdinal("DriverName")),
+                    WaterProductId  = r.GetInt32(r.GetOrdinal("WaterProductId")),
+                    ProductName     = r.IsDBNull(r.GetOrdinal("ProductName")) ? null : r.GetString(r.GetOrdinal("ProductName")),
+                    BagsLoaded      = r.GetInt32(r.GetOrdinal("BagsLoaded")),
+                    BagsSold        = r.GetInt32(r.GetOrdinal("BagsSold")),
+                    BagsReturned    = r.GetInt32(r.GetOrdinal("BagsReturned")),
+                    BagsDamaged     = r.GetInt32(r.GetOrdinal("BagsDamaged")),
+                    ExpectedCash    = r.GetDecimal(r.GetOrdinal("ExpectedCash")),
+                    SalesValue      = r.GetDecimal(r.GetOrdinal("SalesValue")),
+                });
+            }
+            if (await r.NextResultAsync())
+            {
+                while (await r.ReadAsync())
+                {
+                    report.Totals.Add(new WaterDriverCollectionTotalsRow
+                    {
+                        WaterDriverId   = r.IsDBNull(r.GetOrdinal("WaterDriverId")) ? null : r.GetInt32(r.GetOrdinal("WaterDriverId")),
+                        DriverName      = r.IsDBNull(r.GetOrdinal("DriverName")) ? null : r.GetString(r.GetOrdinal("DriverName")),
+                        DeliveryRuns    = r.GetInt32(r.GetOrdinal("DeliveryRuns")),
+                        ReconciledRuns  = r.GetInt32(r.GetOrdinal("ReconciledRuns")),
+                        CashCollected   = r.GetDecimal(r.GetOrdinal("CashCollected")),
+                        MoMoCollected   = r.GetDecimal(r.GetOrdinal("MoMoCollected")),
+                        BankCollected   = r.GetDecimal(r.GetOrdinal("BankCollected")),
+                        CreditSales     = r.GetDecimal(r.GetOrdinal("CreditSales")),
+                        Shortage        = r.GetDecimal(r.GetOrdinal("Shortage")),
+                        Overage         = r.GetDecimal(r.GetOrdinal("Overage")),
+                    });
+                }
+            }
+            return report;
+        }
+
         public async Task<WaterDashboardExtendedModel> GetDashboardExtendedAsync(string farmId)
         {
             var model = new WaterDashboardExtendedModel();
@@ -679,6 +831,31 @@ namespace PoultryFarmAPIWeb.Business
                 CategoryName           = r.GetString(r.GetOrdinal("CategoryName")),
                 ExpenseCount           = r.GetInt32(r.GetOrdinal("ExpenseCount")),
                 TotalAmount            = r.GetDecimal(r.GetOrdinal("TotalAmount")),
+            });
+        }
+
+        public async Task<List<WaterSupplierActivityRow>> GetSupplierActivityAsync(string farmId, DateTime? fromDate, DateTime? toDate)
+        {
+            return await WaterRawMaterialItemService.ReadList("spWaterReport_SupplierActivity", _cs, c =>
+            {
+                c.Parameters.AddWithValue("@FarmId", farmId);
+                c.Parameters.AddWithValue("@FromDate", (object?)fromDate ?? DBNull.Value);
+                c.Parameters.AddWithValue("@ToDate",   (object?)toDate   ?? DBNull.Value);
+            }, r => new WaterSupplierActivityRow
+            {
+                WaterSupplierId     = r.GetInt32(r.GetOrdinal("WaterSupplierId")),
+                SupplierName        = r.GetString(r.GetOrdinal("SupplierName")),
+                SupplierType        = r.IsDBNull(r.GetOrdinal("SupplierType"))   ? null : r.GetString(r.GetOrdinal("SupplierType")),
+                ContactPerson       = r.IsDBNull(r.GetOrdinal("ContactPerson"))  ? null : r.GetString(r.GetOrdinal("ContactPerson")),
+                Phone               = r.IsDBNull(r.GetOrdinal("Phone"))          ? null : r.GetString(r.GetOrdinal("Phone")),
+                Email               = r.IsDBNull(r.GetOrdinal("Email"))          ? null : r.GetString(r.GetOrdinal("Email")),
+                TotalPurchaseAmount = r.GetDecimal(r.GetOrdinal("TotalPurchaseAmount")),
+                PurchaseCount       = r.GetInt32(r.GetOrdinal("PurchaseCount")),
+                LastPurchaseDate    = r.IsDBNull(r.GetOrdinal("LastPurchaseDate")) ? null : r.GetDateTime(r.GetOrdinal("LastPurchaseDate")),
+                TotalExpenseAmount  = r.GetDecimal(r.GetOrdinal("TotalExpenseAmount")),
+                ExpenseCount        = r.GetInt32(r.GetOrdinal("ExpenseCount")),
+                LastExpenseDate     = r.IsDBNull(r.GetOrdinal("LastExpenseDate")) ? null : r.GetDateTime(r.GetOrdinal("LastExpenseDate")),
+                OutstandingBalance  = r.GetDecimal(r.GetOrdinal("OutstandingBalance")),
             });
         }
 

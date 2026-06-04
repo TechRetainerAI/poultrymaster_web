@@ -1,0 +1,371 @@
+We need to enhance our water company management app with a proper Product Details page and connect production batches to raw material usage.
+
+Context:
+The app currently has a Products page where users can create water products using a modal with fields such as Name, SKU, Unit, Size, Unit Price, Notes, and Active. We also have a Raw Materials page where users can create raw material items and record purchases. We also have a Production Batch modal where users record production output such as batch number, production date, shift, machine, product, bags produced, sachets per bag, damaged bags, rejected sachets, electricity cost, fuel cost, labor cost, other cost, and notes.
+
+The problem:
+Right now, raw materials can be purchased and viewed, but there is no clean workflow for recording when raw materials are consumed during production. We need to fix this by attaching a production recipe/Bill of Materials to each finished product, and then using that recipe during production batch entry to record actual raw materials used.
+
+Core design principle:
+Do not list all raw materials on every production batch. Instead, each finished product should have a Production Recipe that defines the expected raw materials for that product. When the user records a production batch and selects a finished product, the app should auto-load the expected raw materials for that product and allow the user to confirm or adjust actual usage.
+
+Implementation requirements:
+
+1. Add Product Details page
+
+Create a new Product Details page that opens when the user clicks a product from the Products list.
+
+Route example:
+`/products/{productId}` or `/products/details/{productId}`
+
+The Products list should include a View/Details action or make the product name clickable.
+
+The Product Details page should show:
+
+* Product name
+* Product type
+* SKU
+* Unit
+* Size
+* Unit price
+* Current stock
+* Active status
+* Basic summary cards
+
+Use tabs or sections. For MVP, use these tabs:
+
+* Overview
+* Production Recipe
+* Settings
+
+Do not overbuild with all possible history tabs now. The Product Details page should mainly be a product setup/profile page, not a replacement for operational pages like Sales, Stock, Production, or Raw Materials.
+
+2. Product types
+
+Make sure products support product types. Use a field like:
+
+`ProductType`
+
+Possible values:
+
+* FinishedGood
+* RawMaterial
+* PackagingMaterial
+* Other
+
+Examples:
+
+* Sachet Water = FinishedGood
+* Bottled Water = FinishedGood
+* Rubber Roll = RawMaterial or PackagingMaterial
+* Packaging Bag = PackagingMaterial
+* Treatment Chemical = RawMaterial
+
+If the current Raw Materials page uses a separate table, either keep it but align it with the Product model, or migrate toward a shared Products model where raw materials and finished goods are both products with different ProductType values.
+
+3. Production Recipe tab
+
+Add a Production Recipe tab on Product Details for FinishedGood products only.
+
+If product type is FinishedGood, show:
+
+“Production Recipe”
+
+This recipe defines what raw materials are normally required to produce this finished product.
+
+Example layout:
+
+Finished Product: Sachet Water
+
+Raw Material | Quantity Needed | Per Output Quantity | Unit | Optional | Waste %
+Rubber Roll | 0.01 | 1 | bag | No | 0
+Packaging Bag | 1 | 1 | bag | No | 0
+Treatment Chemical | 0.002 | 1 | bag | Yes | 0
+
+Buttons:
+
+* Add Material
+* Edit Material
+* Remove Material
+* Save Recipe
+
+The user should be able to choose raw materials only from products with ProductType = RawMaterial or PackagingMaterial.
+
+Use simple language in the UI. Prefer “Production Recipe” over “Bill of Materials” because it is easier for small business users.
+
+4. Recipe database model
+
+Add tables similar to:
+
+ProductionRecipes:
+
+* RecipeId
+* CompanyId
+* FinishedProductId
+* RecipeName
+* IsDefault
+* IsActive
+* CreatedBy
+* CreatedAt
+* UpdatedBy
+* UpdatedAt
+
+ProductionRecipeItems:
+
+* RecipeItemId
+* RecipeId
+* RawMaterialProductId
+* QuantityPerOutputUnit
+* OutputUnit
+* WasteAllowancePercent
+* IsOptional
+* CreatedAt
+* UpdatedAt
+
+The recipe should belong to a CompanyId and FinishedProductId.
+
+5. Product creation flow
+
+Do not put the full production recipe inside the initial New Product modal. Keep the New Product modal simple.
+
+After a FinishedGood product is created, optionally show a prompt:
+
+“Product created successfully. Do you want to add a production recipe now?”
+
+Buttons:
+
+* Add Recipe
+* Later
+
+If the user clicks Add Recipe, navigate to the Product Details page → Production Recipe tab.
+
+6. Production batch modal enhancement
+
+Enhance the Record Production Batch modal with a new section:
+
+“Raw Materials Used”
+
+This section should appear after production output fields and before production costs.
+
+Current production output fields include:
+
+* Bags produced
+* Sachets per bag
+* Damaged bags
+* Rejected sachets
+
+New Raw Materials Used section should auto-load materials based on the selected finished product’s Production Recipe.
+
+Example:
+
+Raw Materials Used
+
+Material | Expected Qty | Actual Used | Unit | Available Stock | Estimated Cost
+Rubber Roll | 1.00 | [1.00] | roll | 10 rolls | GHC 10.00
+Packaging Bag | 100.00 | [100.00] | piece | 500 pieces | GHC 50.00
+Treatment Chemical | 0.20 | [0.20] | liter | 5 liters | GHC 5.00
+
+Buttons:
+
+* Add Material
+* Remove
+* Use Expected Quantities
+
+The user should be able to adjust Actual Used. The system should not force actual usage to equal expected usage.
+
+7. Expected usage calculation
+
+When the selected finished product has a recipe and the user enters quantity produced, calculate expected material usage.
+
+Formula:
+Expected Qty = Quantity Produced × QuantityPerOutputUnit
+
+Example:
+If Rubber Roll has QuantityPerOutputUnit = 0.01 per bag, and the user produces 100 bags:
+Expected Rubber Roll = 100 × 0.01 = 1 roll.
+
+If WasteAllowancePercent exists, optionally include it:
+Expected Qty = Quantity Produced × QuantityPerOutputUnit × (1 + WasteAllowancePercent / 100)
+
+8. Production batch save behavior
+
+When the user saves a completed production batch, the system should:
+
+A. Create or update the ProductionBatch record.
+
+B. Create ProductionMaterialUsage records for the raw materials used:
+
+* ProductionMaterialUsageId
+* ProductionBatchId
+* RawMaterialProductId
+* ExpectedQuantity
+* ActualQuantityUsed
+* UnitCost
+* TotalCost
+* Notes
+
+C. Create inventory transaction IN for the finished product:
+
+* ProductId = FinishedProductId
+* Direction = In
+* TransactionType = Production
+* Quantity = BagsProduced or finished quantity
+* SourceType = ProductionBatch
+* SourceId = ProductionBatchId
+* CompanyId = ActiveCompanyId
+
+D. Create inventory transaction OUT for each raw material used:
+
+* ProductId = RawMaterialProductId
+* Direction = Out
+* TransactionType = ProductionUsage
+* Quantity = ActualQuantityUsed
+* SourceType = ProductionBatch
+* SourceId = ProductionBatchId
+* CompanyId = ActiveCompanyId
+
+9. Cost calculation
+
+Production batch total cost should include:
+
+* Raw material cost
+* Electricity cost
+* Fuel cost
+* Labor cost
+* Other cost
+
+Total Production Cost =
+Raw Material Cost + Electricity + Fuel + Labor + Other
+
+Cost per bag =
+Total Production Cost / Bags Produced
+
+Show these summary values at the bottom of the modal:
+
+* Total sachets
+* Raw material cost
+* Other production costs
+* Total production cost
+* Cost per bag
+* Efficiency percentage
+
+10. Validation
+
+Add validation:
+
+* Finished product is required.
+* Bags produced must be greater than 0 to complete a production batch.
+* Actual raw material usage cannot be negative.
+* Warn if actual usage exceeds available stock.
+* Allow Save as Draft even if material usage is incomplete.
+* Do not allow Complete/Approve if required raw material usage is missing, unless user confirms an override.
+
+11. Draft vs Completed
+
+Support batch status:
+
+* Draft
+* Completed
+
+Draft:
+
+* Saves production data but should not finalize inventory transactions unless the current app already treats draft differently.
+* Can be edited later.
+
+Completed:
+
+* Creates final inventory transactions.
+* Updates finished goods stock.
+* Deducts raw materials stock.
+* Locks or restricts editing.
+
+If editing a completed batch is allowed, reverse and recreate related inventory transactions safely.
+
+12. Raw Materials page enhancement
+
+The Raw Materials page should remain responsible for:
+
+* Creating raw material items
+* Recording raw material purchases
+* Showing current stock
+* Showing purchase history
+
+Add a Usage History tab or section that shows where raw materials were consumed.
+
+Example:
+
+Date | Material | Qty Used | Source Batch | Finished Product
+2026-05-28 | Rubber Roll | 1 roll | B-20260528-0035940 | Sachet Water
+
+Do not make users record production usage from the Raw Materials page. Usage should come from Production Batches.
+
+13. Stock behavior rule
+
+Use this inventory logic:
+
+Raw material purchase = Stock In
+Production material usage = Raw material Stock Out
+Finished product production = Finished goods Stock In
+Sale/delivery = Finished goods Stock Out
+
+14. UI/UX notes
+
+Keep the Product Details page simple and clean.
+Do not duplicate all operational pages inside product details.
+Product details should mainly handle setup:
+
+* Overview
+* Production Recipe
+* Settings
+
+Operational pages remain:
+
+* Stock
+* Sales
+* Production Batches
+* Raw Materials
+* Payments
+* Reports
+
+The Production Batch page should use the recipe automatically, so users do not need to remember which materials are needed for each product.
+
+15. Expected final workflow
+
+The user should be able to:
+
+A. Create raw materials:
+
+* Rubber Roll
+* Packaging Bag
+* Treatment Chemical
+
+B. Record purchases of raw materials.
+
+C. Create finished product:
+
+* Sachet Water
+
+D. Open Product Details for Sachet Water.
+
+E. Configure Production Recipe:
+
+* Rubber Roll: 0.01 roll per bag
+* Packaging Bag: 1 piece per bag
+* Treatment Chemical: 0.002 liter per bag
+
+F. Record production batch:
+
+* Product = Sachet Water
+* Bags produced = 100
+* System auto-loads expected raw materials
+* User confirms actual usage
+* Save/Complete batch
+
+G. System automatically:
+
+* Increases Sachet Water stock
+* Decreases Rubber Roll stock
+* Decreases Packaging Bag stock
+* Decreases Treatment Chemical stock
+* Calculates production cost and cost per bag
+* Shows usage history on raw materials

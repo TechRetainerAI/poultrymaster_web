@@ -6,13 +6,16 @@
 -- name (from step 0). The backup path must be writable by the
 -- SQL Server service account on 34.39.109.13.
 --
+-- IMPORTANT: this server runs SQL Server on Linux. Use a Linux
+-- path (default: /var/opt/mssql/data/). Do NOT use Windows paths.
+--
 -- After the backup finishes, copy the .bak off the server
 -- (gsutil / scp) so you have an off-box copy.
 -- ============================================================
 
 DECLARE @db        sysname        = N'<PROD_DB_NAME>';
 DECLARE @timestamp NVARCHAR(20)   = FORMAT(SYSUTCDATETIME(), 'yyyyMMdd_HHmmss');
-DECLARE @path      NVARCHAR(4000) = N'C:\SQLBackups\' + @db + N'_preSchemaSync_' + @timestamp + N'.bak';
+DECLARE @path      NVARCHAR(4000) = N'/var/opt/mssql/data/' + @db + N'_preSchemaSync_' + @timestamp + N'.bak';
 DECLARE @sql       NVARCHAR(MAX);
 
 SET @sql = N'

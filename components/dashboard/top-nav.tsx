@@ -351,9 +351,9 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
 
   const deliveryGroup: NavGroup = {
     label: "Delivery",
+    // Issue 1 (test-report): Drivers moved into People > Staff (role=Driver).
     items: [
       { href: "/water-driver-returns", label: "Deliveries", icon: Truck },
-      { href: "/water-drivers",        label: "Drivers",    icon: Users2 },
       { href: "/water-vehicles",       label: "Vehicles",   icon: Truck },
       { href: "/water-routes",         label: "Routes",     icon: RouteIcon },
     ],

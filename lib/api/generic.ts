@@ -315,12 +315,38 @@ function withFarmId<T extends object>(input: T): T & { farmId: string } {
   return { ...input, farmId }
 }
 
+// Mirror of lib/api/water.ts → explainHttpError. We parse the Farm API's
+// GlobalExceptionMiddleware JSON ({ message, hint, sqlNumber, ... }) and
+// surface just the `.message` so toasts show "Customer payment cannot be
+// approved from status Cancelled" instead of "POST /Generic/... -> 500".
+function explainHttpError(method: string, endpoint: string, status: number, body: string): string {
+  if (!body) return `${method} ${endpoint} → HTTP ${status}`
+  let parsed: any = null
+  try { parsed = JSON.parse(body) } catch { /* not JSON */ }
+  if (parsed) {
+    if (typeof parsed.message === "string" && parsed.message) return parsed.message
+    if (typeof parsed.detail === "string"  && parsed.detail)  return parsed.detail
+    if (typeof parsed.title === "string"   && parsed.title)   return parsed.title
+    if (typeof parsed.error === "string"   && parsed.error)   return parsed.error
+    if (parsed.errors && typeof parsed.errors === "object") {
+      const lines: string[] = []
+      for (const k of Object.keys(parsed.errors)) {
+        const v = parsed.errors[k]
+        lines.push(`${k}: ${Array.isArray(v) ? v.join(", ") : String(v)}`)
+      }
+      if (lines.length) return lines.join(" · ")
+    }
+  }
+  const trimmed = body.trim().replace(/\s+/g, " ")
+  return trimmed.length > 400 ? trimmed.slice(0, 400) + "…" : trimmed
+}
+
 async function getJson<T>(endpoint: string): Promise<T> {
   const url = buildApiUrl(endpoint)
   const r = await fetch(url, { method: "GET", headers: getAuthHeaders() })
   if (!r.ok) {
     const text = await r.text().catch(() => "")
-    throw new Error(`GET ${endpoint} failed: ${r.status} ${text}`)
+    throw new Error(explainHttpError("GET", endpoint, r.status, text))
   }
   return (await r.json()) as T
 }
@@ -335,7 +361,7 @@ async function postJson<T>(endpoint: string, body: unknown): Promise<T | null> {
   if (r.status === 204) return null
   if (!r.ok) {
     const text = await r.text().catch(() => "")
-    throw new Error(`POST ${endpoint} failed: ${r.status} ${text}`)
+    throw new Error(explainHttpError("POST", endpoint, r.status, text))
   }
   const txt = await r.text()
   return txt ? (JSON.parse(txt) as T) : null
@@ -351,7 +377,7 @@ async function putJson<T>(endpoint: string, body: unknown): Promise<T | null> {
   if (r.status === 204) return null
   if (!r.ok) {
     const text = await r.text().catch(() => "")
-    throw new Error(`PUT ${endpoint} failed: ${r.status} ${text}`)
+    throw new Error(explainHttpError("PUT", endpoint, r.status, text))
   }
   const txt = await r.text()
   return txt ? (JSON.parse(txt) as T) : null
@@ -362,7 +388,7 @@ async function deleteResource(endpoint: string): Promise<void> {
   const r = await fetch(url, { method: "DELETE", headers: getAuthHeaders() })
   if (!r.ok && r.status !== 204) {
     const text = await r.text().catch(() => "")
-    throw new Error(`DELETE ${endpoint} failed: ${r.status} ${text}`)
+    throw new Error(explainHttpError("DELETE", endpoint, r.status, text))
   }
 }
 

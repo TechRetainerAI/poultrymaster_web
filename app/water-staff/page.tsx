@@ -24,7 +24,13 @@ import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import {
   listWaterStaff, createWaterStaff, updateWaterStaff, deleteWaterStaff,
-  type WaterStaff, type WaterStaffInput,
+  // Issue 1 (test-report): Staff is now the single source of truth for
+  // drivers. We surface License + Assigned vehicle in this form when
+  // role=Driver and quietly upsert the matching WaterDrivers row on save so
+  // the delivery flows (Vehicle Loading, Driver Returns, reports) that still
+  // read from /Water/drivers keep working.
+  listWaterVehicles, listWaterDrivers, createWaterDriver, updateWaterDriver,
+  type WaterStaff, type WaterStaffInput, type WaterVehicle, type WaterDriver,
 } from "@/lib/api/water"
 import { useCurrency } from "@/lib/currency"
 
@@ -54,6 +60,14 @@ export default function WaterStaffPage() {
   const cur = ""
 
   const [staff, setStaff] = useState<WaterStaff[]>([])
+  // Loaded only so the Driver-specific fields in the form have a vehicle
+  // picker and so we can locate / upsert the matching WaterDriver record.
+  const [vehicles, setVehicles] = useState<WaterVehicle[]>([])
+  const [drivers, setDrivers] = useState<WaterDriver[]>([])
+  // Local-only — the WaterStaff backend has no LicenseNumber column. On open
+  // we prefill from the matched WaterDriver row; on save we push back into
+  // the WaterDriver row.
+  const [licenseNumber, setLicenseNumber] = useState<string>("")
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
@@ -82,12 +96,38 @@ export default function WaterStaffPage() {
 
   async function load() {
     setLoading(true)
-    try { setStaff(await listWaterStaff(roleFilter === "ALL" ? undefined : roleFilter)) }
-    catch (e: any) { toast({ title: "Could not load staff", description: e?.message ?? String(e), variant: "destructive" }) }
+    // Run vehicles + drivers in parallel — staff page only blocks on staff
+    // itself, so a slow vehicle/driver fetch never delays the table render.
+    try {
+      const [s, v, d] = await Promise.allSettled([
+        listWaterStaff(roleFilter === "ALL" ? undefined : roleFilter),
+        listWaterVehicles(),
+        listWaterDrivers(),
+      ])
+      if (s.status === "fulfilled") setStaff(s.value)
+      else toast({ title: "Could not load staff", description: (s.reason as any)?.message ?? String(s.reason), variant: "destructive" })
+      if (v.status === "fulfilled") setVehicles(v.value)
+      if (d.status === "fulfilled") setDrivers(d.value)
+    }
     finally { setLoading(false) }
   }
 
-  function openNew() { setEditId(null); setForm(EMPTY); setOpen(true) }
+  // Find the WaterDriver row that mirrors a given staff member. Matched by
+  // exact name + (phone if both have one). Phone-only fallback keeps the
+  // mapping when a driver was added before the merge with no name match.
+  function findMatchingDriver(firstName: string, lastName: string, phone: string | null | undefined): WaterDriver | undefined {
+    const fullName = `${firstName} ${lastName}`.trim().toLowerCase()
+    const phoneTrim = (phone ?? "").trim()
+    return drivers.find((d) => {
+      const dn = (d.driverName ?? "").trim().toLowerCase()
+      const dp = (d.phoneNumber ?? "").trim()
+      if (dn === fullName && (phoneTrim === "" || dp === "" || dp === phoneTrim)) return true
+      if (phoneTrim !== "" && dp === phoneTrim) return true
+      return false
+    })
+  }
+
+  function openNew() { setEditId(null); setForm(EMPTY); setLicenseNumber(""); setOpen(true) }
   function openEdit(s: WaterStaff) {
     setEditId(s.waterStaffId)
     setForm({
@@ -97,6 +137,10 @@ export default function WaterStaffPage() {
       commissionRate: s.commissionRate, assignedWaterVehicleId: s.assignedWaterVehicleId, assignedWaterRouteId: s.assignedWaterRouteId,
       isActive: s.isActive, notes: s.notes ?? "",
     })
+    // Prefill license from the mirrored WaterDriver row, if any. Empty
+    // otherwise — only meaningful for role=Driver staff.
+    const match = findMatchingDriver(s.firstName, s.lastName, s.phoneNumber ?? null)
+    setLicenseNumber(match?.licenseNumber ?? "")
     setOpen(true)
   }
 
@@ -106,6 +150,38 @@ export default function WaterStaffPage() {
     try {
       if (editId) { await updateWaterStaff(editId, form); toast({ title: "Staff updated" }) }
       else        { await createWaterStaff(form);        toast({ title: "Staff added" }) }
+
+      // Issue 1 (test-report): when the saved staff member is a Driver,
+      // mirror the License + Assigned vehicle to the WaterDrivers table so
+      // the Delivery flows (Vehicle Loading, Driver Returns, reports) can
+      // keep picking from /Water/drivers. The pairing is by name+phone —
+      // see findMatchingDriver above. We swallow failures here because the
+      // staff record is already saved; a follow-up edit can retry.
+      if (form.role === "Driver") {
+        try {
+          const match = findMatchingDriver(form.firstName, form.lastName, form.phoneNumber ?? null)
+          const driverPayload = {
+            driverName: `${form.firstName} ${form.lastName}`.trim(),
+            phoneNumber: form.phoneNumber || null,
+            licenseNumber: licenseNumber.trim() || null,
+            defaultVehicleId: form.assignedWaterVehicleId ?? null,
+            isActive: form.isActive ?? true,
+            notes: form.notes ?? null,
+          }
+          if (match) {
+            await updateWaterDriver(match.waterDriverId, driverPayload)
+          } else {
+            await createWaterDriver(driverPayload)
+          }
+        } catch (driverErr: any) {
+          toast({
+            title: "Staff saved, but driver sync failed",
+            description: driverErr?.message ?? "Open the staff member again and Save to retry.",
+            variant: "destructive",
+          })
+        }
+      }
+
       setOpen(false); await load()
     } catch (e: any) { toast({ title: "Save failed", description: e?.message, variant: "destructive" }) }
     finally { setSaving(false) }
@@ -265,6 +341,40 @@ export default function WaterStaffPage() {
                 </div>
               </FormField>
             </FormSection>
+
+            {/* Issue 1 (test-report): driver-only fields. These two fields
+                show only when the role is Driver. Saving syncs the matching
+                WaterDriver row (see save() above) so Delivery flows that
+                pick from /Water/drivers continue to work. */}
+            {form.role === "Driver" && (
+              <FormSection title="Driver details" color="blue">
+                <FormField label="License number">
+                  <Input
+                    value={licenseNumber}
+                    onChange={(e) => setLicenseNumber(e.target.value)}
+                    placeholder="e.g. DVLA-0000-2026"
+                  />
+                </FormField>
+                <FormField label="Assigned vehicle">
+                  <Select
+                    value={String(form.assignedWaterVehicleId ?? "")}
+                    onValueChange={(v) => setForm({ ...form, assignedWaterVehicleId: v ? Number(v) : null })}
+                  >
+                    <SelectTrigger><SelectValue placeholder="(none)" /></SelectTrigger>
+                    <SelectContent>
+                      {vehicles.length === 0 && (
+                        <div className="px-2 py-1.5 text-sm text-slate-500">No vehicles. Add one on the Vehicles page first.</div>
+                      )}
+                      {vehicles.map((v) => (
+                        <SelectItem key={v.waterVehicleId} value={String(v.waterVehicleId)}>
+                          {v.vehicleName} ({v.vehicleType}){v.status !== "Active" ? ` — ${v.status}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormField>
+              </FormSection>
+            )}
 
             <FormSection title="Notes" color="slate" columns={1}>
               <FormField label="Notes">

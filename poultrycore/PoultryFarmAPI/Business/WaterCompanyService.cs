@@ -43,7 +43,37 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Notes",                 (object?)req.Notes                 ?? DBNull.Value);
             await c.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();
+            // spWaterCompany_Setup emits TWO result sets:
+            //   1) the verification readout from EXEC spWaterFinance_SeedDefaults
+            //      (ExpenseCategoryCount, CashAccountCount)
+            //   2) the profile row (WaterCompanyProfileId, FarmId, BrandName, ...)
+            // Reading the first one and calling Read() raises
+            // IndexOutOfRangeException("WaterCompanyProfileId") because that
+            // column isn't on the verification row. Skip past it explicitly.
+            // James (2026-05-30): "save failed: Error: WaterCompanyProfileId".
+            await SkipToProfileResultSetAsync(r);
             return await r.ReadAsync() ? Read(r) : null;
+        }
+
+        // Advances the reader past intermediate result sets (verification
+        // counts) until it finds one with a WaterCompanyProfileId column, or
+        // exhausts. Safe no-op when the SP only returns one result set.
+        private static async Task SkipToProfileResultSetAsync(System.Data.SqlClient.SqlDataReader r)
+        {
+            while (true)
+            {
+                var hasProfileColumn = false;
+                for (int i = 0; i < r.FieldCount; i++)
+                {
+                    if (string.Equals(r.GetName(i), "WaterCompanyProfileId", StringComparison.OrdinalIgnoreCase))
+                    {
+                        hasProfileColumn = true;
+                        break;
+                    }
+                }
+                if (hasProfileColumn) return;
+                if (!await r.NextResultAsync()) return;
+            }
         }
 
         public async Task<WaterCompanyProfileModel?> UpdateProfileAsync(string farmId, WaterCompanyUpdateRequest req)

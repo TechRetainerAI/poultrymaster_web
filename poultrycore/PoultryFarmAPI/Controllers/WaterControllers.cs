@@ -114,6 +114,19 @@ namespace PoultryFarmAPIWeb.Controllers
             await _svc.Delete(id, farmId);
             return NoContent();
         }
+
+        // Migration 082 — POST /Water/customers/create-defaults
+        // Idempotently creates GeneralSales / GeneralDelivery / GeneralCredit
+        // for the active farm. Returns 200 with one row per default type
+        // (wasCreated=false on rows that already existed).
+        [HttpPost("create-defaults")]
+        public async Task<ActionResult<IEnumerable<WaterDefaultCustomerResult>>> CreateDefaults(
+            [FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            var rows = await _svc.CreateDefaultsAsync(farmId);
+            return Ok(rows);
+        }
     }
 
     // =========================================================================

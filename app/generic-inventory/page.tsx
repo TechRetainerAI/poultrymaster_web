@@ -12,16 +12,16 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Input } from "@/components/ui/input"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Boxes, AlertTriangle, AlertCircle, Loader2, Search, ExternalLink, Filter } from "lucide-react"
+import { Boxes, AlertTriangle, AlertCircle, Loader2, ExternalLink, Filter } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
+import { useFmt } from "@/lib/currency"
 import { getProducts, type GenericProduct } from "@/lib/api/generic"
-
-const fmtGhc = (n?: number | null) => `GHC ${(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+import { ListFilters } from "@/components/ui/list-filters"
 
 function StatCard({ label, value, icon: Icon, accent }: { label: string; value: string | number; icon: any; accent?: "amber" | "rose" | "emerald" }) {
   const colors = accent === "amber" ? "bg-amber-100 text-amber-700"
@@ -47,6 +47,7 @@ export default function GenericInventoryPage() {
   const router = useRouter()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const logout = useLogout()
+  const fmtGhc = useFmt()
 
   const [products, setProducts] = useState<GenericProduct[]>([])
   const [loading, setLoading] = useState(true)
@@ -138,7 +139,7 @@ export default function GenericInventoryPage() {
                 <p className="text-sm text-slate-600">Stock-on-hand for every tracked product. Adjustments via Stock Adjustments page.</p>
               </div>
             </div>
-            <Button asChild variant="outline">
+            <Button asChild variant="outline" className="w-full sm:w-auto h-11 sm:h-10">
               <Link href="/generic-stock-adjustments"><ExternalLink className="h-4 w-4 mr-1" /> Stock adjustments</Link>
             </Button>
           </div>
@@ -152,33 +153,34 @@ export default function GenericInventoryPage() {
           </div>
 
           {/* Filters */}
-          <Card>
-            <CardContent className="p-3 flex flex-wrap gap-2">
-              <div className="relative flex-1 min-w-[220px]">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input placeholder="Search by name, SKU, barcode, category…" className="pl-9" value={q} onChange={(e) => setQ(e.target.value)} />
-              </div>
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger className="w-[180px]"><Filter className="h-4 w-4 mr-1" /><SelectValue placeholder="All categories" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={STATUS_ALL}>All categories</SelectItem>
-                  {categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Select value={stockStatus} onValueChange={setStockStatus}>
-                <SelectTrigger className="w-[160px]"><SelectValue placeholder="All status" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={STATUS_ALL}>All status</SelectItem>
-                  <SelectItem value="ok">In stock</SelectItem>
-                  <SelectItem value="low">Low stock</SelectItem>
-                  <SelectItem value="out">Out of stock</SelectItem>
-                </SelectContent>
-              </Select>
-              {(q || category !== STATUS_ALL || stockStatus !== STATUS_ALL) && (
-                <Button variant="ghost" size="sm" onClick={() => { setQ(""); setCategory(STATUS_ALL); setStockStatus(STATUS_ALL) }}>Clear filters</Button>
-              )}
-            </CardContent>
-          </Card>
+          <ListFilters
+            search={q} setSearch={setQ}
+            searchOnly
+            searchPlaceholder="Search by name, SKU, barcode, category…"
+            extras={
+              <>
+                <Select value={category} onValueChange={setCategory}>
+                  <SelectTrigger className="w-[180px]"><Filter className="h-4 w-4 mr-1" /><SelectValue placeholder="All categories" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={STATUS_ALL}>All categories</SelectItem>
+                    {categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={stockStatus} onValueChange={setStockStatus}>
+                  <SelectTrigger className="w-[160px]"><SelectValue placeholder="All status" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={STATUS_ALL}>All status</SelectItem>
+                    <SelectItem value="ok">In stock</SelectItem>
+                    <SelectItem value="low">Low stock</SelectItem>
+                    <SelectItem value="out">Out of stock</SelectItem>
+                  </SelectContent>
+                </Select>
+                {(category !== STATUS_ALL || stockStatus !== STATUS_ALL) && (
+                  <Button variant="ghost" size="sm" onClick={() => { setCategory(STATUS_ALL); setStockStatus(STATUS_ALL) }}>Reset extras</Button>
+                )}
+              </>
+            }
+          />
 
           {error && (
             <Card className="border-rose-200 bg-rose-50">
@@ -197,43 +199,71 @@ export default function GenericInventoryPage() {
                     : "No products match your filters."}
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Product</TableHead>
-                      <TableHead>SKU</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Unit</TableHead>
-                      <TableHead className="text-right">Cost</TableHead>
-                      <TableHead className="text-right">Selling</TableHead>
-                      <TableHead className="text-right">Stock</TableHead>
-                      <TableHead className="text-right">Min alert</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filtered.map((p) => {
-                      const st = status(p)
-                      return (
-                        <TableRow key={p.genericProductId}>
-                          <TableCell className="font-medium">{p.productName}</TableCell>
-                          <TableCell className="text-slate-600">{p.sku ?? "—"}</TableCell>
-                          <TableCell>{p.categoryName ?? "—"}</TableCell>
-                          <TableCell>{p.unitOfMeasure ?? "—"}</TableCell>
-                          <TableCell className="text-right tabular-nums">{fmtGhc(p.costPrice)}</TableCell>
-                          <TableCell className="text-right tabular-nums">{fmtGhc(p.sellingPrice)}</TableCell>
-                          <TableCell className="text-right tabular-nums font-semibold">
-                            {p.trackInventory ? (p.currentStock ?? 0).toLocaleString() : <span className="text-slate-400">n/a</span>}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums text-slate-500">
-                            {p.trackInventory ? ((p.minimumStockAlert ?? 0).toLocaleString() || "—") : "—"}
-                          </TableCell>
-                          <TableCell><ToneBadge tone={st.tone} label={st.label} /></TableCell>
+                <MobileCardList
+                  items={filtered}
+                  getKey={(p) => p.genericProductId}
+                  primary={(p) => p.productName}
+                  secondary={(p) => (
+                    <>
+                      {p.sku && <span>{p.sku}</span>}
+                      {p.categoryName && <><span>·</span><span>{p.categoryName}</span></>}
+                    </>
+                  )}
+                  trailing={(p) => {
+                    const st = status(p)
+                    return <ToneBadge tone={st.tone} label={st.label} />
+                  }}
+                  details={(p) => [
+                    { label: "SKU", value: p.sku ?? "—" },
+                    { label: "Category", value: p.categoryName ?? "—" },
+                    { label: "Unit", value: p.unitOfMeasure ?? "—" },
+                    { label: "Cost", value: fmtGhc(p.costPrice) },
+                    { label: "Selling", value: fmtGhc(p.sellingPrice) },
+                    { label: "Stock", value: p.trackInventory ? (p.currentStock ?? 0).toLocaleString() : "n/a" },
+                    { label: "Min alert", value: p.trackInventory ? ((p.minimumStockAlert ?? 0).toLocaleString() || "—") : "—" },
+                  ]}
+                  desktopTable={
+                    <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Product</TableHead>
+                          <TableHead>SKU</TableHead>
+                          <TableHead>Category</TableHead>
+                          <TableHead>Unit</TableHead>
+                          <TableHead className="text-right">Cost</TableHead>
+                          <TableHead className="text-right">Selling</TableHead>
+                          <TableHead className="text-right">Stock</TableHead>
+                          <TableHead className="text-right">Min alert</TableHead>
+                          <TableHead>Status</TableHead>
                         </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {filtered.map((p) => {
+                          const st = status(p)
+                          return (
+                            <TableRow key={p.genericProductId}>
+                              <TableCell className="font-medium">{p.productName}</TableCell>
+                              <TableCell className="text-slate-600">{p.sku ?? "—"}</TableCell>
+                              <TableCell>{p.categoryName ?? "—"}</TableCell>
+                              <TableCell>{p.unitOfMeasure ?? "—"}</TableCell>
+                              <TableCell className="text-right tabular-nums">{fmtGhc(p.costPrice)}</TableCell>
+                              <TableCell className="text-right tabular-nums">{fmtGhc(p.sellingPrice)}</TableCell>
+                              <TableCell className="text-right tabular-nums font-semibold">
+                                {p.trackInventory ? (p.currentStock ?? 0).toLocaleString() : <span className="text-slate-400">n/a</span>}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums text-slate-500">
+                                {p.trackInventory ? ((p.minimumStockAlert ?? 0).toLocaleString() || "—") : "—"}
+                              </TableCell>
+                              <TableCell><ToneBadge tone={st.tone} label={st.label} /></TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                    </div>
+                  }
+                />
               )}
             </CardContent>
           </Card>

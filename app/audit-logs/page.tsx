@@ -416,7 +416,7 @@ export default function AuditLogsPage() {
       </div>
 
       <Dialog open={!!viewLog} onOpenChange={(open) => !open && setViewLog(null)}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogContent className="w-[95vw] max-w-[1600px] max-h-[80vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>Audit log data</DialogTitle>
             <DialogDescription>

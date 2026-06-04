@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
+import { useToast } from "@/hooks/use-toast"
 import {
   getWaterDashboardSummary, listWaterExpenses, listWaterCashAccounts,
   listWaterPayrollRuns, listWaterMaintenanceDueAlerts, getWaterCompanyProfile,
@@ -20,15 +21,7 @@ import {
   type WaterPayrollRun, type WaterMaintenanceAlert, type WaterCompanyProfile,
 } from "@/lib/api/water"
 import { WaterIntelligenceSection } from "@/components/dashboard/water-intelligence"
-
-function fmtMoney(n: number) {
-  // Display as "GHC 1,234.56" to match the label the rest of the platform uses
-  // (DB profile.defaultCurrency = 'GHC'). Intl.NumberFormat won't accept "GHC"
-  // as a currency code (the ISO code is GHS), so format the number locally and
-  // prefix the label.
-  const num = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
-  return `GHC ${num}`
-}
+import { useFmt } from "@/lib/currency"
 
 function todayKey() {
   // YYYY-MM-DD in the user's local zone — matches the way ExpenseDate is rendered elsewhere
@@ -51,9 +44,12 @@ const SEVERITY_BG: Record<string, string> = {
 
 export default function WaterDashboardPage() {
   const router = useRouter()
+  const { toast } = useToast()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const activeFarmName = useAuthStore((s) => s.activeFarmName)
   const logout = useLogout()
+  // Subscribes to currency settings so the toggle drives this page too.
+  const fmtMoney = useFmt()
 
   const [summary, setSummary] = useState<WaterDashboardSummary | null>(null)
   const [expenses, setExpenses] = useState<WaterExpense[]>([])
@@ -63,7 +59,6 @@ export default function WaterDashboardPage() {
   const [profile, setProfile] = useState<WaterCompanyProfile | null>(null)
 
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     // Wait for Zustand persist to rehydrate before firing the API call —
@@ -107,7 +102,7 @@ export default function WaterDashboardPage() {
       // Only surface a top-level error when the core summary fails — secondary
       // data missing just leaves its tile at 0.
       if (summaryRes.status === "rejected") {
-        setError((summaryRes.reason as any)?.message ?? "Failed to load dashboard")
+        toast({ title: "Could not load dashboard", description: (summaryRes.reason as any)?.message ?? "Failed to load dashboard", variant: "destructive" })
       }
       setLoading(false)
     })()
@@ -155,12 +150,6 @@ export default function WaterDashboardPage() {
 
           {loading ? (
             <div className="flex items-center gap-2 text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
-          ) : error ? (
-            <Card className="border-red-200 bg-red-50">
-              <CardContent className="flex items-center gap-2 p-4 text-red-700">
-                <AlertCircle className="h-4 w-4" /> {error}
-              </CardContent>
-            </Card>
           ) : (
             <div className="space-y-6">
               {/* Maintenance alert banner — only when something is overdue or due soon. */}
@@ -194,7 +183,7 @@ export default function WaterDashboardPage() {
               {/* Money row — the daily-question tiles from the Water spec §15 */}
               <section>
                 <div className="mb-2 text-xs uppercase tracking-wide text-slate-500 font-medium">Money today</div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                   <StatLink href="/water-sales" icon={ShoppingCart} title="Today's sales" value={fmtMoney(summary?.salesToday ?? 0)} accent="emerald" />
                   <StatLink href="/water-expenses" icon={Receipt} title="Today's expenses" value={fmtMoney(todayExpenses)} accent="orange" />
                   <StatLink href="/water-sales" icon={TrendingUp} title="Today's profit (rough)" value={fmtMoney(todayProfit)} accent={todayProfit >= 0 ? "emerald" : "rose"} subtitle="Sales − approved expenses" />
@@ -205,7 +194,7 @@ export default function WaterDashboardPage() {
               {/* Month / receivables row */}
               <section>
                 <div className="mb-2 text-xs uppercase tracking-wide text-slate-500 font-medium">This month</div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                   <StatLink href="/water-sales" icon={ShoppingCart} title="Sales this month" value={fmtMoney(summary?.salesThisMonth ?? 0)} accent="amber" />
                   <StatLink href="/water-expenses" icon={Receipt} title="Expenses this month" value={fmtMoney(monthExpenses)} accent="orange" />
                   <StatLink href="/water-customers" icon={Wallet} title="Outstanding receivables" value={fmtMoney(summary?.outstandingReceivables ?? 0)} accent="rose" />
@@ -216,7 +205,7 @@ export default function WaterDashboardPage() {
               {/* Operations row — what existed before, slightly refactored */}
               <section>
                 <div className="mb-2 text-xs uppercase tracking-wide text-slate-500 font-medium">Operations</div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                   <StatLink href="/water-products" icon={Package}   title="Active products"  value={summary?.activeProducts ?? 0} accent="sky" />
                   <StatLink href="/water-customers" icon={Users}    title="Customers"        value={summary?.totalCustomers ?? 0} accent="emerald" />
                   <StatLink href="/water-stock"    icon={Droplets} title="Stock on hand"    value={summary?.totalStockOnHand ?? 0} suffix="units" accent="cyan" />
@@ -254,6 +243,13 @@ export default function WaterDashboardPage() {
 
 type Accent = "sky" | "emerald" | "cyan" | "orange" | "amber" | "rose"
 
+/**
+ * Stat tile in the farm-dashboard pattern (see components/dashboard/metrics-cards.tsx):
+ * white card · uppercase tracked title · bold value · solid-colour rounded
+ * icon box with a white icon. Same `accent` palette keys we had before;
+ * the icon box bg is now solid (bg-{color}-600) so the company-dashboards
+ * read identically to the farm dashboard.
+ */
 function StatLink({
   href, icon: Icon, title, value, suffix, accent, subtitle,
 }: {
@@ -265,29 +261,31 @@ function StatLink({
   accent: Accent
   subtitle?: string
 }) {
-  const accentMap: Record<Accent, string> = {
-    sky:     "text-sky-600 bg-sky-50",
-    emerald: "text-emerald-600 bg-emerald-50",
-    cyan:    "text-cyan-600 bg-cyan-50",
-    orange:  "text-orange-600 bg-orange-50",
-    amber:   "text-amber-600 bg-amber-50",
-    rose:    "text-rose-600 bg-rose-50",
+  const iconBg: Record<Accent, string> = {
+    sky:     "bg-sky-600",
+    emerald: "bg-emerald-600",
+    cyan:    "bg-cyan-600",
+    orange:  "bg-orange-500",
+    amber:   "bg-amber-500",
+    rose:    "bg-rose-600",
   }
   return (
     <Link href={href} className="block focus:outline-none">
-      <Card className="transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-sky-300">
-        <CardHeader className="flex flex-row items-center justify-between pb-1">
-          <CardTitle className="text-xs uppercase tracking-wide text-slate-500">{title}</CardTitle>
-          <div className={`rounded-md p-2 ${accentMap[accent]}`}>
-            <Icon className="h-4 w-4" />
+      <Card className="bg-white rounded-xl border border-slate-200 shadow-sm transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-sky-300">
+        <CardContent className="p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider truncate">{title}</p>
+              <p className="text-lg sm:text-xl font-bold text-slate-900 mt-1 leading-tight truncate">
+                {value}
+                {suffix ? <span className="text-sm font-medium text-slate-500 ml-1">{suffix}</span> : null}
+              </p>
+              {subtitle ? <p className="text-xs text-slate-500 mt-1 truncate">{subtitle}</p> : null}
+            </div>
+            <div className={`w-10 h-10 rounded-lg ${iconBg[accent]} flex items-center justify-center shrink-0`}>
+              <Icon className="w-5 h-5 text-white" />
+            </div>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-semibold text-slate-900">
-            {value}
-            {suffix ? <span className="text-sm text-slate-500 ml-1">{suffix}</span> : null}
-          </div>
-          {subtitle ? <div className="text-xs text-slate-500 mt-0.5">{subtitle}</div> : null}
         </CardContent>
       </Card>
     </Link>

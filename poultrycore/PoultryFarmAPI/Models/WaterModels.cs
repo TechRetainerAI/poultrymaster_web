@@ -27,6 +27,12 @@ namespace PoultryFarmAPIWeb.Models
 
         public bool IsActive { get; set; } = true;
 
+        // Migration 063: classifies products so finished goods are surfaced in
+        // sales/production, while raw/packaging materials power recipes only.
+        // Values: FinishedGood | RawMaterial | PackagingMaterial | Other.
+        [StringLength(30)]
+        public string ProductType { get; set; } = "FinishedGood";
+
         [StringLength(500)]
         public string? Notes { get; set; }
 
@@ -35,6 +41,17 @@ namespace PoultryFarmAPIWeb.Models
 
         // Computed by spWaterProduct_GetById / GetAll
         public int StockOnHand { get; set; }
+
+        // Migration 084: sachet-water support.
+        // BaseUnit is the smallest sellable unit (e.g. 'Sachet'). When
+        // IsSachetProduct=1, stock and sale-line BaseQuantity are stored in
+        // sachets so the same product can be sold by bag or by sachet without
+        // decimal drift.
+        [StringLength(20)] public string? BaseUnit { get; set; }
+        public int?     SachetsPerBag { get; set; }
+        public decimal? BagPrice      { get; set; }
+        public decimal? SachetPrice   { get; set; }
+        public bool     IsSachetProduct { get; set; }
     }
 
     public class WaterCustomerModel
@@ -69,6 +86,24 @@ namespace PoultryFarmAPIWeb.Models
         public DateTime? UpdatedDate { get; set; }
 
         public decimal OutstandingBalance { get; set; }
+
+        // Migration 082: system-managed default customers used as the posting
+        // target for Summary-only delivery sales and walk-in / unassigned-credit
+        // sales. The delete SP refuses to remove rows where IsSystemGenerated=1.
+        [StringLength(40)] public string? CustomerType        { get; set; }
+        [StringLength(40)] public string? DefaultCustomerType { get; set; }
+        public bool IsDefaultCustomer { get; set; }
+        public bool IsSystemGenerated { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+
+    // Returned by spWaterCustomer_CreateDefaults — one row per default type.
+    public class WaterDefaultCustomerResult
+    {
+        public int    WaterCustomerId     { get; set; }
+        public string DefaultCustomerType { get; set; } = string.Empty;
+        public string Name                { get; set; } = string.Empty;
+        public bool   WasCreated          { get; set; }
     }
 
     public class WaterStockTransactionModel
@@ -118,6 +153,13 @@ namespace PoultryFarmAPIWeb.Models
         public decimal UnitPrice { get; set; }
 
         public decimal LineTotal { get; set; }
+
+        // Migration 084: 'Bag' | 'Sachet' (free-text so future units don't need
+        // a model change). BaseQuantity is the equivalent in BaseUnit (sachets
+        // for sachet products) and powers stock deductions.
+        [StringLength(20)] public string? SellingUnit  { get; set; }
+        [StringLength(20)] public string? BaseUnit     { get; set; }
+        public decimal? BaseQuantity { get; set; }
     }
 
     public class WaterSaleModel

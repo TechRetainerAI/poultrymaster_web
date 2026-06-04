@@ -1,5 +1,6 @@
 using System.Data;
 using System.Data.SqlClient;
+using System.Text.Json;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -332,6 +333,14 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<int> InsertAsync(WaterVehicleLoadingModel m)
         {
+            // Migration 064: when Items has rows, send them as JSON and pass
+            // DBNull for the legacy singular product/bags/price. The SP picks
+            // the header product from the first item.
+            var hasItems = m.Items is { Count: > 0 };
+            string? itemsJson = hasItems
+                ? JsonSerializer.Serialize(m.Items, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })
+                : null;
+
             using var conn = new SqlConnection(_cs);
             using var cmd = new SqlCommand("spWaterVehicleLoading_Insert", conn) { CommandType = CommandType.StoredProcedure };
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
@@ -340,16 +349,59 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@WaterDriverId", (object?)m.WaterDriverId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@AssistantStaffId", (object?)m.AssistantStaffId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@WaterRouteId", (object?)m.WaterRouteId ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@WaterProductId", m.WaterProductId);
-            cmd.Parameters.AddWithValue("@BagsLoaded", m.BagsLoaded);
+            cmd.Parameters.AddWithValue("@WaterProductId", hasItems ? DBNull.Value : (object)m.WaterProductId);
+            cmd.Parameters.AddWithValue("@BagsLoaded", hasItems ? DBNull.Value : (object)m.BagsLoaded);
             cmd.Parameters.AddWithValue("@SachetsPerBag", m.SachetsPerBag);
-            cmd.Parameters.AddWithValue("@ExpectedSellingPricePerBag", m.ExpectedSellingPricePerBag);
+            cmd.Parameters.AddWithValue("@ExpectedSellingPricePerBag", hasItems ? DBNull.Value : (object)m.ExpectedSellingPricePerBag);
             cmd.Parameters.AddWithValue("@OpeningCashWithDriver", m.OpeningCashWithDriver);
             cmd.Parameters.AddWithValue("@LoadedByStaffId", (object?)m.LoadedByStaffId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@CreatedBy", (object?)m.CreatedBy ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ItemsJson", (object?)itemsJson ?? DBNull.Value);
             await conn.OpenAsync();
             return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        public async Task VoidAsync(int id, string farmId, string? voidedBy, string? reason)
+        {
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterVehicleLoading_Void", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@WaterVehicleLoadingId", id);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@VoidedBy", (object?)voidedBy ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Reason", (object?)reason ?? DBNull.Value);
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task<List<WaterVehicleLoadingItemModel>> GetItemsAsync(int loadingId, string farmId)
+        {
+            var list = new List<WaterVehicleLoadingItemModel>();
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterVehicleLoading_GetItems", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@WaterVehicleLoadingId", loadingId);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                list.Add(new WaterVehicleLoadingItemModel
+                {
+                    WaterVehicleLoadingItemId = r.GetInt32(r.GetOrdinal("WaterVehicleLoadingItemId")),
+                    WaterVehicleLoadingId     = r.GetInt32(r.GetOrdinal("WaterVehicleLoadingId")),
+                    WaterProductId            = r.GetInt32(r.GetOrdinal("WaterProductId")),
+                    ProductName               = r.IsDBNull(r.GetOrdinal("ProductName")) ? null : r.GetString(r.GetOrdinal("ProductName")),
+                    ProductUnit               = r.IsDBNull(r.GetOrdinal("ProductUnit"))  ? null : r.GetString(r.GetOrdinal("ProductUnit")),
+                    BagsLoaded                = r.GetInt32(r.GetOrdinal("BagsLoaded")),
+                    SachetsPerBag             = r.GetInt32(r.GetOrdinal("SachetsPerBag")),
+                    UnitPrice                 = r.GetDecimal(r.GetOrdinal("UnitPrice")),
+                    ExpectedAmount            = r.GetDecimal(r.GetOrdinal("ExpectedAmount")),
+                    Notes                     = r.IsDBNull(r.GetOrdinal("Notes")) ? null : r.GetString(r.GetOrdinal("Notes")),
+                    CreatedAt                 = r.GetDateTime(r.GetOrdinal("CreatedAt")),
+                    UpdatedAt                 = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
+                });
+            }
+            return list;
         }
 
         public async Task ApproveAsync(int id, string farmId, string? approvedBy)
@@ -369,6 +421,32 @@ namespace PoultryFarmAPIWeb.Business
             using var cmd = new SqlCommand("spWaterVehicleLoading_Cancel", conn) { CommandType = CommandType.StoredProcedure };
             cmd.Parameters.AddWithValue("@WaterVehicleLoadingId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // Migration 068 — Reload / Edit Load.
+        public async Task ReloadAsync(int id, WaterVehicleLoadingReloadInput input, string farmId, string? updatedBy)
+        {
+            string? itemsJson = null;
+            if (input.Items != null && input.Items.Count > 0)
+            {
+                itemsJson = JsonSerializer.Serialize(input.Items,
+                    new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            }
+
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterVehicleLoading_Reload", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@WaterVehicleLoadingId", id);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@WaterDriverId",         (object?)input.WaterDriverId         ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@WaterVehicleId",        (object?)input.WaterVehicleId        ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@WaterRouteId",          (object?)input.WaterRouteId          ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@LoadDate",              (object?)input.LoadDate              ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@OpeningCashWithDriver", (object?)input.OpeningCashWithDriver ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Notes",                 (object?)input.Notes                 ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ItemsJson",             (object?)itemsJson                   ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@UpdatedBy",             (object?)updatedBy                   ?? DBNull.Value);
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
         }
@@ -440,6 +518,13 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<int> InsertAsync(WaterDriverReturnModel m)
         {
+            // Migration 064: pass items/customer-sales/expenses as JSON when
+            // present. NULL = "no payload" — SP keeps legacy behavior.
+            var opts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+            string? itemsJson = (m.Items?.Count ?? 0) > 0 ? JsonSerializer.Serialize(m.Items, opts) : null;
+            string? customerSalesJson = (m.CustomerSales?.Count ?? 0) > 0 ? JsonSerializer.Serialize(m.CustomerSales, opts) : null;
+            string? expensesJson = (m.Expenses?.Count ?? 0) > 0 ? JsonSerializer.Serialize(m.Expenses, opts) : null;
+
             using var conn = new SqlConnection(_cs);
             using var cmd = new SqlCommand("spWaterDriverReturn_Insert", conn) { CommandType = CommandType.StoredProcedure };
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
@@ -453,11 +538,169 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@MoMoCollected", m.MoMoCollected);
             cmd.Parameters.AddWithValue("@BankCollected", m.BankCollected);
             cmd.Parameters.AddWithValue("@CreditSalesAmount", m.CreditSalesAmount);
+            cmd.Parameters.AddWithValue("@CashReturnedByDriver", m.CashReturnedByDriver);
+            cmd.Parameters.AddWithValue("@ApprovedDeliveryExpenses", m.ApprovedDeliveryExpenses);
             cmd.Parameters.AddWithValue("@ReconciledByStaffId", (object?)m.ReconciledByStaffId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@CreatedBy", (object?)m.CreatedBy ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ItemsJson", (object?)itemsJson ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@CustomerSalesJson", (object?)customerSalesJson ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ExpensesJson", (object?)expensesJson ?? DBNull.Value);
             await conn.OpenAsync();
             return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        public async Task<List<WaterDriverReturnItemModel>> GetItemsAsync(int returnId, string farmId)
+        {
+            var list = new List<WaterDriverReturnItemModel>();
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterDriverReturn_GetItems", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@WaterDriverReturnId", returnId);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                list.Add(new WaterDriverReturnItemModel
+                {
+                    WaterDriverReturnItemId = r.GetInt32(r.GetOrdinal("WaterDriverReturnItemId")),
+                    WaterDriverReturnId     = r.GetInt32(r.GetOrdinal("WaterDriverReturnId")),
+                    WaterProductId          = r.GetInt32(r.GetOrdinal("WaterProductId")),
+                    ProductName             = r.IsDBNull(r.GetOrdinal("ProductName")) ? null : r.GetString(r.GetOrdinal("ProductName")),
+                    BagsLoaded              = r.GetInt32(r.GetOrdinal("BagsLoaded")),
+                    BagsSold                = r.GetInt32(r.GetOrdinal("BagsSold")),
+                    BagsReturned            = r.GetInt32(r.GetOrdinal("BagsReturned")),
+                    BagsDamaged             = r.GetInt32(r.GetOrdinal("BagsDamaged")),
+                    UnitPrice               = r.GetDecimal(r.GetOrdinal("UnitPrice")),
+                    ExpectedSales           = r.GetDecimal(r.GetOrdinal("ExpectedSales")),
+                    Notes                   = r.IsDBNull(r.GetOrdinal("Notes")) ? null : r.GetString(r.GetOrdinal("Notes")),
+                    CreatedAt               = r.GetDateTime(r.GetOrdinal("CreatedAt")),
+                    UpdatedAt               = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
+                });
+            }
+            return list;
+        }
+
+        public async Task<List<WaterDriverReturnCustomerSaleRow>> GetCustomerSalesAsync(int returnId, string farmId)
+        {
+            var sales = new List<WaterDriverReturnCustomerSaleRow>();
+            var byId  = new Dictionary<int, WaterDriverReturnCustomerSaleRow>();
+
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterDriverReturn_GetCustomerSales", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@WaterDriverReturnId", returnId);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                var row = new WaterDriverReturnCustomerSaleRow
+                {
+                    WaterDriverReturnCustomerSaleId = r.GetInt32(r.GetOrdinal("WaterDriverReturnCustomerSaleId")),
+                    WaterDriverReturnId             = r.GetInt32(r.GetOrdinal("WaterDriverReturnId")),
+                    WaterCustomerId                 = r.IsDBNull(r.GetOrdinal("WaterCustomerId")) ? null : r.GetInt32(r.GetOrdinal("WaterCustomerId")),
+                    CustomerName                    = r.IsDBNull(r.GetOrdinal("CustomerName")) ? null : r.GetString(r.GetOrdinal("CustomerName")),
+                    CustomerLabel                   = r.IsDBNull(r.GetOrdinal("CustomerLabel")) ? null : r.GetString(r.GetOrdinal("CustomerLabel")),
+                    TotalAmount                     = r.GetDecimal(r.GetOrdinal("TotalAmount")),
+                    CashPaid                        = r.GetDecimal(r.GetOrdinal("CashPaid")),
+                    MoMoPaid                        = r.GetDecimal(r.GetOrdinal("MoMoPaid")),
+                    BankPaid                        = r.GetDecimal(r.GetOrdinal("BankPaid")),
+                    CreditAmount                    = r.GetDecimal(r.GetOrdinal("CreditAmount")),
+                    GeneratedWaterSaleId            = r.IsDBNull(r.GetOrdinal("GeneratedWaterSaleId")) ? null : r.GetInt32(r.GetOrdinal("GeneratedWaterSaleId")),
+                    Notes                           = r.IsDBNull(r.GetOrdinal("Notes")) ? null : r.GetString(r.GetOrdinal("Notes")),
+                    CreatedAt                       = r.GetDateTime(r.GetOrdinal("CreatedAt")),
+                    UpdatedAt                       = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
+                };
+                sales.Add(row);
+                byId[row.WaterDriverReturnCustomerSaleId] = row;
+            }
+
+            // Second result set: line items.
+            if (await r.NextResultAsync())
+            {
+                while (await r.ReadAsync())
+                {
+                    var saleId = r.GetInt32(r.GetOrdinal("WaterDriverReturnCustomerSaleId"));
+                    if (!byId.TryGetValue(saleId, out var sale)) continue;
+                    sale.Items.Add(new WaterDriverReturnCustomerSaleItemRow
+                    {
+                        WaterDriverReturnCustomerSaleItemId = r.GetInt32(r.GetOrdinal("WaterDriverReturnCustomerSaleItemId")),
+                        WaterDriverReturnCustomerSaleId     = saleId,
+                        WaterProductId                      = r.GetInt32(r.GetOrdinal("WaterProductId")),
+                        ProductName                         = r.IsDBNull(r.GetOrdinal("ProductName")) ? null : r.GetString(r.GetOrdinal("ProductName")),
+                        Quantity                            = r.GetInt32(r.GetOrdinal("Quantity")),
+                        UnitPrice                           = r.GetDecimal(r.GetOrdinal("UnitPrice")),
+                        LineTotal                           = r.GetDecimal(r.GetOrdinal("LineTotal")),
+                    });
+                }
+            }
+            return sales;
+        }
+
+        public async Task<List<WaterDeliveryExpenseModel>> GetExpensesAsync(int returnId, string farmId)
+        {
+            var list = new List<WaterDeliveryExpenseModel>();
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterDeliveryExpense_GetByReturn", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@WaterDriverReturnId", returnId);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                list.Add(new WaterDeliveryExpenseModel
+                {
+                    WaterDeliveryExpenseId = r.GetInt32(r.GetOrdinal("WaterDeliveryExpenseId")),
+                    FarmId                 = r.GetString(r.GetOrdinal("FarmId")),
+                    WaterDriverReturnId    = r.IsDBNull(r.GetOrdinal("WaterDriverReturnId")) ? null : r.GetInt32(r.GetOrdinal("WaterDriverReturnId")),
+                    WaterVehicleLoadingId  = r.IsDBNull(r.GetOrdinal("WaterVehicleLoadingId")) ? null : r.GetInt32(r.GetOrdinal("WaterVehicleLoadingId")),
+                    ExpenseCategory        = r.GetString(r.GetOrdinal("ExpenseCategory")),
+                    Amount                 = r.GetDecimal(r.GetOrdinal("Amount")),
+                    Description            = r.IsDBNull(r.GetOrdinal("Description")) ? null : r.GetString(r.GetOrdinal("Description")),
+                    IsApproved             = r.GetBoolean(r.GetOrdinal("IsApproved")),
+                    Notes                  = r.IsDBNull(r.GetOrdinal("Notes")) ? null : r.GetString(r.GetOrdinal("Notes")),
+                    CreatedBy              = r.IsDBNull(r.GetOrdinal("CreatedBy")) ? null : r.GetString(r.GetOrdinal("CreatedBy")),
+                    CreatedAt              = r.GetDateTime(r.GetOrdinal("CreatedAt")),
+                    UpdatedAt              = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
+                });
+            }
+            return list;
+        }
+
+        // Migration 085 — unified Expenses ledger.
+        public async Task<List<WaterDeliveryExpenseModel>> ListAllDeliveryExpensesAsync(string farmId, DateTime? fromDate, DateTime? toDate)
+        {
+            var list = new List<WaterDeliveryExpenseModel>();
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterDeliveryExpense_ListAll", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@FromDate", (object?)fromDate ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ToDate",   (object?)toDate   ?? DBNull.Value);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                list.Add(new WaterDeliveryExpenseModel
+                {
+                    WaterDeliveryExpenseId = r.GetInt32(r.GetOrdinal("WaterDeliveryExpenseId")),
+                    FarmId                 = r.GetString(r.GetOrdinal("FarmId")),
+                    WaterDriverReturnId    = r.IsDBNull(r.GetOrdinal("WaterDriverReturnId")) ? null : r.GetInt32(r.GetOrdinal("WaterDriverReturnId")),
+                    WaterVehicleLoadingId  = r.IsDBNull(r.GetOrdinal("WaterVehicleLoadingId")) ? null : r.GetInt32(r.GetOrdinal("WaterVehicleLoadingId")),
+                    ExpenseCategory        = r.GetString(r.GetOrdinal("ExpenseCategory")),
+                    Amount                 = r.GetDecimal(r.GetOrdinal("Amount")),
+                    Description            = r.IsDBNull(r.GetOrdinal("Description")) ? null : r.GetString(r.GetOrdinal("Description")),
+                    IsApproved             = r.GetBoolean(r.GetOrdinal("IsApproved")),
+                    Notes                  = r.IsDBNull(r.GetOrdinal("Notes")) ? null : r.GetString(r.GetOrdinal("Notes")),
+                    CreatedBy              = r.IsDBNull(r.GetOrdinal("CreatedBy")) ? null : r.GetString(r.GetOrdinal("CreatedBy")),
+                    CreatedAt              = r.GetDateTime(r.GetOrdinal("CreatedAt")),
+                    UpdatedAt              = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
+                    ReturnDate             = r.IsDBNull(r.GetOrdinal("ReturnDate"))    ? null : r.GetDateTime(r.GetOrdinal("ReturnDate")),
+                    ReturnStatus           = r.IsDBNull(r.GetOrdinal("ReturnStatus"))  ? null : r.GetString(r.GetOrdinal("ReturnStatus")),
+                    DriverName             = r.IsDBNull(r.GetOrdinal("DriverName"))    ? null : r.GetString(r.GetOrdinal("DriverName")),
+                    VehicleNumber          = r.IsDBNull(r.GetOrdinal("VehicleNumber")) ? null : r.GetString(r.GetOrdinal("VehicleNumber")),
+                });
+            }
+            return list;
         }
 
         public async Task ApproveAsync(int id, string farmId, string? approvedBy)
@@ -481,6 +724,76 @@ namespace PoultryFarmAPIWeb.Business
             await cmd.ExecuteNonQueryAsync();
         }
 
+        // Migration 071 — Uncancel a return so it can be re-reconciled. SP
+        // only flips Cancelled → Draft (RAISERROR otherwise). Symmetric with
+        // CancelAsync — no txn restoration needed because Draft returns never
+        // had derived rows in the first place.
+        public async Task UncancelAsync(int id, string farmId)
+        {
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterDriverReturn_Uncancel", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@WaterDriverReturnId", id);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // Migration 072 — admin-only hard delete of a Cancelled return. SP
+        // wipes the header + items + customer-sales (and their items) +
+        // delivery expenses in a single transaction. RAISERROR if the row
+        // isn't currently Cancelled. The controller adds the role check.
+        public async Task DeleteAsync(int id, string farmId)
+        {
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterDriverReturn_Delete", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@WaterDriverReturnId", id);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // Migration 068 — Reverse Reconciliation. Unwinds sales/payments/stock
+        // for an Approved return and flips it back to Draft.
+        public async Task ReverseAsync(int id, string farmId, string? reversedBy, string? reason)
+        {
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterDriverReturn_Reverse", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@WaterDriverReturnId", id);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@ReversedBy", (object?)reversedBy ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Reason",     (object?)reason     ?? DBNull.Value);
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // Migration 083 — Approve & Reconcile in one shot. Validates first
+        // (so the frontend table-level button can be called against a Draft
+        // without re-opening the modal), then materialises sales using the
+        // row's SalesPostingMode (Detailed | OneCustomer | Summary).
+        public async Task ApproveReconcileAsync(int id, string farmId, string? approvedBy)
+        {
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterDriverReturn_ApproveReconcile", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@WaterDriverReturnId", id);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@ApprovedBy", (object?)approvedBy ?? DBNull.Value);
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        // Migration 083 — set the posting mode + primary customer on a Draft.
+        public async Task UpdatePostingModeAsync(int id, string farmId, string salesPostingMode, int? primaryCustomerId)
+        {
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterDriverReturn_UpdatePostingMode", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@WaterDriverReturnId", id);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@SalesPostingMode", salesPostingMode);
+            cmd.Parameters.AddWithValue("@PrimaryCustomerId", (object?)primaryCustomerId ?? DBNull.Value);
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
         private static WaterDriverReturnModel Read(SqlDataReader r) => new()
         {
             WaterDriverReturnId         = r.GetInt32(r.GetOrdinal("WaterDriverReturnId")),
@@ -495,6 +808,9 @@ namespace PoultryFarmAPIWeb.Business
             MoMoCollected               = r.GetDecimal(r.GetOrdinal("MoMoCollected")),
             BankCollected               = r.GetDecimal(r.GetOrdinal("BankCollected")),
             CreditSalesAmount           = r.GetDecimal(r.GetOrdinal("CreditSalesAmount")),
+            // Migration 064 columns — tolerate older DBs by guarding on HasCol.
+            CashReturnedByDriver        = WaterVehicleService.HasCol(r, "CashReturnedByDriver") && !r.IsDBNull(r.GetOrdinal("CashReturnedByDriver")) ? r.GetDecimal(r.GetOrdinal("CashReturnedByDriver")) : 0m,
+            ApprovedDeliveryExpenses    = WaterVehicleService.HasCol(r, "ApprovedDeliveryExpenses") && !r.IsDBNull(r.GetOrdinal("ApprovedDeliveryExpenses")) ? r.GetDecimal(r.GetOrdinal("ApprovedDeliveryExpenses")) : 0m,
             TotalAccountedFor           = r.GetDecimal(r.GetOrdinal("TotalAccountedFor")),
             ShortageAmount              = r.GetDecimal(r.GetOrdinal("ShortageAmount")),
             OverageAmount               = r.GetDecimal(r.GetOrdinal("OverageAmount")),
@@ -516,6 +832,11 @@ namespace PoultryFarmAPIWeb.Business
             VehicleName                 = WaterVehicleService.HasCol(r, "VehicleName") && !r.IsDBNull(r.GetOrdinal("VehicleName")) ? r.GetString(r.GetOrdinal("VehicleName")) : null,
             DriverName                  = WaterVehicleService.HasCol(r, "DriverName") && !r.IsDBNull(r.GetOrdinal("DriverName")) ? r.GetString(r.GetOrdinal("DriverName")) : null,
             RouteName                   = WaterVehicleService.HasCol(r, "RouteName") && !r.IsDBNull(r.GetOrdinal("RouteName")) ? r.GetString(r.GetOrdinal("RouteName")) : null,
+
+            // Migration 083 — sales posting mode + primary customer. Older DBs
+            // won't have these columns; HasCol probe makes the reader tolerant.
+            SalesPostingMode            = WaterVehicleService.HasCol(r, "SalesPostingMode") && !r.IsDBNull(r.GetOrdinal("SalesPostingMode")) ? r.GetString(r.GetOrdinal("SalesPostingMode")) : null,
+            PrimaryCustomerId           = WaterVehicleService.HasCol(r, "PrimaryCustomerId") && !r.IsDBNull(r.GetOrdinal("PrimaryCustomerId")) ? r.GetInt32(r.GetOrdinal("PrimaryCustomerId")) : null,
         };
     }
 

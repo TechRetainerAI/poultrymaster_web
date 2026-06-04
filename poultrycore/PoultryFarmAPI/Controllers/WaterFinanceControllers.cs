@@ -293,4 +293,63 @@ namespace PoultryFarmAPIWeb.Controllers
             return Ok(new { WaterCustomerLedgerId = id, BalanceAfterTransaction = balance });
         }
     }
+
+    // ====================================================================
+    // Suppliers — migration 076. CRUD master list used by the standalone
+    // /water-suppliers page, the Setup tab, and the SupplierSelect dropdown
+    // on Expense + RawMaterialPurchase forms.
+    // ====================================================================
+    [ApiController]
+    [Route("api/Water/suppliers")]
+    public class WaterSupplierController : ControllerBase
+    {
+        private readonly IWaterSupplierService _svc;
+        public WaterSupplierController(IWaterSupplierService svc) => _svc = svc;
+
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<WaterSupplierModel>>> List(
+            [FromQuery] string farmId,
+            [FromQuery] bool includeInactive = false,
+            [FromQuery] bool includeDeleted = false,
+            [FromQuery] string? search = null)
+            => string.IsNullOrWhiteSpace(farmId)
+                ? BadRequest("Company ID is required.")
+                : Ok(await _svc.ListAsync(farmId, includeInactive, includeDeleted, search));
+
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult<WaterSupplierModel>> GetById(int id, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            var m = await _svc.GetByIdAsync(id, farmId);
+            return m is null ? NotFound() : Ok(m);
+        }
+
+        [HttpPost]
+        public async Task<ActionResult<WaterSupplierModel>> Create([FromBody] WaterSupplierModel m)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            if (string.IsNullOrWhiteSpace(m.FarmId)) return BadRequest("Company ID is required.");
+            var id = await _svc.InsertAsync(m);
+            var created = await _svc.GetByIdAsync(id, m.FarmId);
+            return CreatedAtAction(nameof(GetById), new { id, farmId = m.FarmId }, created);
+        }
+
+        [HttpPut("{id:int}")]
+        public async Task<ActionResult<WaterSupplierModel>> Update(int id, [FromBody] WaterSupplierModel m)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            if (string.IsNullOrWhiteSpace(m.FarmId)) return BadRequest("Company ID is required.");
+            m.WaterSupplierId = id;
+            await _svc.UpdateAsync(m);
+            return Ok(await _svc.GetByIdAsync(id, m.FarmId));
+        }
+
+        [HttpDelete("{id:int}")]
+        public async Task<IActionResult> Delete(int id, [FromQuery] string farmId, [FromQuery] string? deletedBy)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            await _svc.DeleteAsync(id, farmId, deletedBy);
+            return NoContent();
+        }
+    }
 }

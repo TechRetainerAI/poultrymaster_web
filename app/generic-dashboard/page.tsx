@@ -90,7 +90,7 @@ export default function GenericDashboardPage() {
           ) : (
             <>
               {/* Headline cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
                 <MetricCard
                   title="Today's sales"
                   value={fmtMoney(today!.todaySales)}
@@ -107,7 +107,7 @@ export default function GenericDashboardPage() {
                 <MetricCard title="Cash at hand"        value={fmtMoney(today!.cashAtHand)}         hint={`${cash.filter((a) => a.isActive).length} active account(s)`} accent="slate" />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
                 <MetricCard title="Inventory value" value={fmtMoney(today!.inventoryValue)} hint="At cost price" accent="cyan" icon={Boxes} />
                 <MetricCard title="Customer debt"   value={fmtMoney(today!.customerDebt)}   hint={`${alerts!.customersOwingCount} customer(s) owing`} accent="rose"  icon={Users}  />
                 <MetricCard title="Supplier debt"   value={fmtMoney(today!.supplierDebt)}   hint={`${alerts!.suppliersOwedCount} supplier(s) owed`}  accent="orange" icon={Truck}  />
@@ -244,26 +244,31 @@ function MetricCard({
   accent: "emerald" | "amber" | "sky" | "slate" | "cyan" | "rose" | "orange"
   icon?: any
 }) {
-  const accents: Record<string, string> = {
-    emerald: "text-emerald-600 bg-emerald-50",
-    amber:   "text-amber-600 bg-amber-50",
-    sky:     "text-sky-600 bg-sky-50",
-    slate:   "text-slate-600 bg-slate-100",
-    cyan:    "text-cyan-600 bg-cyan-50",
-    rose:    "text-rose-600 bg-rose-50",
-    orange:  "text-orange-600 bg-orange-50",
+  // Solid-colour icon box with white icon — matches the farm dashboard
+  // (see components/dashboard/metrics-cards.tsx). The Generic + Water + Farm
+  // dashboards now share one visual language.
+  const iconBg: Record<string, string> = {
+    emerald: "bg-emerald-600",
+    amber:   "bg-amber-500",
+    sky:     "bg-sky-600",
+    slate:   "bg-slate-600",
+    cyan:    "bg-cyan-600",
+    rose:    "bg-rose-600",
+    orange:  "bg-orange-500",
   }
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-1">
-        <CardTitle className="text-xs uppercase tracking-wide text-slate-500">{title}</CardTitle>
-        <div className={`rounded-md p-2 ${accents[accent]}`}>
-          <Icon className="h-4 w-4" />
+    <Card className="bg-white rounded-xl border border-slate-200 shadow-sm">
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider truncate">{title}</p>
+            <div className="text-lg sm:text-xl font-bold text-slate-900 mt-1 leading-tight truncate">{value}</div>
+            {hint && <div className="text-xs text-slate-500 mt-1 truncate">{hint}</div>}
+          </div>
+          <div className={`w-10 h-10 rounded-lg ${iconBg[accent]} flex items-center justify-center shrink-0`}>
+            <Icon className="w-5 h-5 text-white" />
+          </div>
         </div>
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-semibold text-slate-900">{value}</div>
-        {hint && <div className="text-xs text-slate-500 mt-1">{hint}</div>}
       </CardContent>
     </Card>
   )

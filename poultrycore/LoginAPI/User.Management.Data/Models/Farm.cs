@@ -38,8 +38,16 @@ namespace User.Management.Data.Models
 
     public class CreateCompanyRequest
     {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Name is required.")]
         public string Name { get; set; } = string.Empty;
-        public string Type { get; set; } = "Poultry";
+
+        // Type must be an explicit, valid value. A default of "Poultry" used to hide
+        // wire bugs (stale frontends or missing field would silently create Poultry farms).
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Type is required (Poultry, Water, or Generic).")]
+        [System.ComponentModel.DataAnnotations.RegularExpression("^(Poultry|Water|Generic)$",
+            ErrorMessage = "Type must be Poultry, Water, or Generic.")]
+        public string Type { get; set; } = string.Empty;
+
         public string? Email { get; set; }
         public string? PhoneNumber { get; set; }
     }

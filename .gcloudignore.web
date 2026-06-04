@@ -1,0 +1,23 @@
+# gcloud builds submit ignore list for the Next.js frontend (Cloud Build:
+# cloudbuild.web.yaml). Keep the upload tarball minimal — the frontend
+# doesn't need the .NET backends, build outputs, or local dev caches.
+.git/
+.next/
+node_modules/
+**/node_modules/
+**/bin/
+**/obj/
+**/.vs/
+**/*.user
+**/*.suo
+**/TestResults/
+**/publish/
+
+# The entire .NET tree — only the Next.js source at the repo root is needed
+# by the frontend Docker build.
+poultrycore/
+
+# Misc
+*.log
+*.tsbuildinfo
+.DS_Store

@@ -22,7 +22,7 @@ namespace User.Management.Data
             using var cmd = new SqlCommand("spCompany_Create", conn) { CommandType = CommandType.StoredProcedure };
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@Name", req.Name);
-            cmd.Parameters.AddWithValue("@Type", string.IsNullOrWhiteSpace(req.Type) ? "Poultry" : req.Type);
+            cmd.Parameters.AddWithValue("@Type", req.Type);
             cmd.Parameters.AddWithValue("@OwnerUserId", ownerUserId);
             cmd.Parameters.AddWithValue("@Email", (object?)req.Email ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@PhoneNumber", (object?)req.PhoneNumber ?? DBNull.Value);

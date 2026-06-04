@@ -168,62 +168,63 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   )
 
   // Water company nav items (shown when activeFarmType === "Water")
-  const waterCatalogItems = [
-    { href: "/water-products", label: "Products", icon: ShoppingBag },
-    { href: "/water-stock",    label: "Stock",    icon: Boxes },
-  ]
-  const waterSalesItems = [
-    { href: "/water-customers", label: "Customers", icon: Users },
-    { href: "/water-sales",     label: "Sales",     icon: ShoppingCart },
-    { href: "/water-payments",  label: "Payments",  icon: CreditCard },
-  ]
-  // James (2026-05-27) wanted the four daily-flow items to sit at the TOP LEVEL of
-  // the sidebar, not nested under a group header. The other group items stay where
-  // they were so operators still have a logical grouping for less-touched things
-  // (Machines, Boreholes, Vehicles, Routes, etc.).
-  const waterTopLevelItems = [
-    { href: "/water-production-batches", label: "Production batches", icon: Factory },
-    { href: "/water-raw-materials",      label: "Raw materials",      icon: Box },
-    { href: "/water-driver-returns",     label: "Driver returns",     icon: Truck },
+  // James (2026-06-02): regrouped to surface Delivery and Production as
+  // first-class sections (previously buried in Admin/Setup). Quick Links is
+  // the old "Daily operations" group but renamed and used as a fast-access
+  // shortcut bar — the items it points to also live in their canonical group
+  // so navigation stays consistent.
+  const waterQuickLinkItems = [
     { href: "/water-daily-closing",      label: "Daily Closing",      icon: FileText },
+    { href: "/water-driver-returns",     label: "Deliveries",         icon: Truck },
+    { href: "/water-production-batches", label: "Production Batches", icon: Factory },
+    { href: "/water-sales",              label: "Sales",              icon: ShoppingCart },
   ]
-  // Water — Production setup (machines + water source — Production batches moved to top-level)
+  // Issue 1 (test-report): the standalone "Drivers" entry was redundant with
+  // People > Staff (staff member with role=Driver). Removed from nav; drivers
+  // are now managed on the Staff page (which auto-syncs the WaterDrivers row
+  // delivery flows still pull from). The /water-drivers route file remains
+  // for bookmarks and shows a redirect notice.
+  const waterDeliveryItems = [
+    { href: "/water-driver-returns", label: "Deliveries", icon: Truck },
+    { href: "/water-vehicles",       label: "Vehicles",   icon: Truck },
+    { href: "/water-routes",         label: "Routes",     icon: RouteIcon },
+  ]
   const waterProductionItems = [
-    { href: "/water-machines",  label: "Machines",  icon: Cog },
-    { href: "/water-boreholes", label: "Boreholes", icon: Droplets },
+    { href: "/water-production-batches", label: "Production Batches", icon: Factory },
+    { href: "/water-products",           label: "Products",           icon: ShoppingBag },
+    { href: "/water-machines",           label: "Machines",           icon: Cog },
+    { href: "/water-boreholes",          label: "Boreholes",          icon: Droplets },
+    { href: "/water-maintenance",        label: "Maintenance",        icon: Wrench },
   ]
-  // Water — Distribution (Driver returns moved to top-level)
-  const waterDistributionItems = [
-    { href: "/water-drivers",  label: "Drivers",  icon: Users2 },
-    { href: "/water-vehicles", label: "Vehicles", icon: Truck },
-    { href: "/water-routes",   label: "Routes",   icon: RouteIcon },
-  ]
-  // Water — Inventory (Raw materials moved to top-level)
+  // Inventory absorbs Raw materials & supplies; Products moved out into the
+  // Production group above.
   const waterInventoryItems = [
-    { href: "/water-inventory",    label: "Inventory",      icon: Boxes },
-    { href: "/water-loss-records", label: "Damages & loss", icon: AlertTriangle },
+    { href: "/water-stock",             label: "Stock",                    icon: Boxes },
+    { href: "/water-inventory",         label: "Inventory",                icon: Boxes },
+    { href: "/water-raw-materials",     label: "Raw materials & supplies", icon: Box },
+    { href: "/water-loss-records",      label: "Damages & loss",           icon: AlertTriangle },
+    { href: "/water-production-losses", label: "Production losses",        icon: AlertTriangle },
   ]
-  // Water — Reports (W3)
-  const waterReportsItems = [
-    { href: "/water-reports", label: "Reports", icon: BarChart3 },
-  ]
-  // Water — Money (Daily Closing moved to top-level)
-  const waterMoneyItems = [
+  const waterSalesMoneyItems = [
+    { href: "/water-customers",     label: "Customers",       icon: Users },
+    { href: "/water-sales",         label: "Sales",           icon: ShoppingCart },
+    { href: "/water-payments",      label: "Payments",        icon: CreditCard },
     { href: "/water-expenses",      label: "Expenses",        icon: Receipt },
     { href: "/water-cash-accounts", label: "Cash & Accounts", icon: Wallet },
   ]
-  // Water — People (W6)
   const waterPeopleItems = [
     { href: "/water-staff",   label: "Staff",   icon: Users2 },
     { href: "/water-payroll", label: "Payroll", icon: Banknote },
   ]
-  // Water — Admin (W7 maintenance + unified Setup hub)
-  // /water-setup is the new tabbed hub for products/drivers/machines/routes/etc.
-  // /water-company-setup (company profile page) is now reachable via the
-  // dedicated /water-products link from inside /water-setup if needed.
+  const waterReportsItems = [
+    { href: "/water-reports", label: "Reports", icon: BarChart3 },
+  ]
+  // Admin / Setup now only carries the genuinely rare-touch config — the
+  // delivery/production fleet items moved into their own first-class groups.
   const waterAdminItems = [
-    { href: "/water-maintenance", label: "Maintenance", icon: Wrench },
-    { href: "/water-setup",       label: "Setup",       icon: Settings },
+    { href: "/water-setup",         label: "Setup",         icon: Settings },
+    { href: "/water-company-setup", label: "Company Setup", icon: Settings },
+    { href: "/water-suppliers",     label: "Suppliers",     icon: Truck },
   ]
 
   // Generic Company nav items (shown when activeFarmType === "Generic")
@@ -435,57 +436,38 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
         {isWater ? (
           <>
-            {/* Water — top-level daily-flow items (no group header — they sit at
-                the same nesting level as Dashboard so operators reach them in one
-                click instead of expanding a group). */}
-            {waterTopLevelItems.map((item) => (
-              <div key={item.href}>{renderNavItem(item)}</div>
-            ))}
+            {/* Water — Quick Links (shortcuts) → Delivery → Production →
+                Inventory → Sales & Money → People → Reports → Admin/Setup.
+                James 2026-06-02 reorg. */}
+            {renderGroup("Quick Links", waterQuickLinkItems, "waterQuickLinks")}
 
             <div className="border-t border-slate-800 mx-2" />
 
-            {/* Water — Catalog */}
-            {renderGroup("Catalog", waterCatalogItems, "waterCatalog")}
+            {renderGroup("Delivery", waterDeliveryItems, "waterDelivery")}
 
             <div className="border-t border-slate-800 mx-2" />
 
-            {/* Water — Production (W1) */}
             {renderGroup("Production", waterProductionItems, "waterProduction")}
 
             <div className="border-t border-slate-800 mx-2" />
 
-            {/* Water — Distribution (W2) */}
-            {renderGroup("Distribution", waterDistributionItems, "waterDistribution")}
-
-            <div className="border-t border-slate-800 mx-2" />
-
-            {/* Water — Sales */}
-            {renderGroup("Sales", waterSalesItems, "waterSales")}
-
-            <div className="border-t border-slate-800 mx-2" />
-
-            {/* Water — Inventory (raw materials + loss) */}
             {renderGroup("Inventory", waterInventoryItems, "waterInventory")}
 
             <div className="border-t border-slate-800 mx-2" />
 
-            {/* Water — Money (W4 finance + W3 daily closing) */}
-            {renderGroup("Money", waterMoneyItems, "waterMoney")}
+            {renderGroup("Sales & money", waterSalesMoneyItems, "waterSalesMoney")}
 
             <div className="border-t border-slate-800 mx-2" />
 
-            {/* Water — People (W6 staff + payroll) */}
             {renderGroup("People", waterPeopleItems, "waterPeople")}
 
             <div className="border-t border-slate-800 mx-2" />
 
-            {/* Water — Reports */}
             {renderGroup("Reports", waterReportsItems, "waterReports")}
 
             <div className="border-t border-slate-800 mx-2" />
 
-            {/* Water — Admin (W7 maintenance + W5 setup) */}
-            {renderGroup("Admin", waterAdminItems, "waterAdmin")}
+            {renderGroup("Admin / Setup", waterAdminItems, "waterAdmin")}
           </>
         ) : isGeneric ? (
           <>

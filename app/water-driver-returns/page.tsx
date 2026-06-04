@@ -332,6 +332,22 @@ export default function WaterDriverReturnsPage() {
     creditSalesAmount: 0,
     cashReturnedByDriver: 0,
   })
+  // Issue 4 (test-report): the "Money collected" section was showing Cash,
+  // MoMo, Bank, and Credit-sales as four always-visible inputs which crowded
+  // the dialog and asked the operator about methods that weren't even used.
+  // Switch to a method-picker model: only show inputs for methods the user
+  // has explicitly added (matches the report's suggested "How was payment
+  // made?" dropdown + "+ Add payment method" pattern). The underlying state
+  // shape stays the same so the breakdown-balance check and the save
+  // payload don't have to change.
+  type PayKey = "cashCollected" | "moMoCollected" | "bankCollected" | "creditSalesAmount"
+  const PAY_OPTIONS: { key: PayKey; label: string; hint: string }[] = [
+    { key: "cashCollected",     label: "Cash",          hint: "Physical cash the driver collected on the run." },
+    { key: "moMoCollected",     label: "Mobile Money",  hint: "Mobile Money (MTN, Vodafone, AirtelTigo)." },
+    { key: "bankCollected",     label: "Bank transfer", hint: "Bank transfers / cheque deposits received today." },
+    { key: "creditSalesAmount", label: "Credit sale",   hint: "Goods given on credit — to be paid later." },
+  ]
+  const [activePayMethods, setActivePayMethods] = useState<Set<PayKey>>(new Set())
   const [returnNotes, setReturnNotes] = useState("")
   const [breakdownOpen, setBreakdownOpen] = useState(false)
   const [breakdown, setBreakdown] = useState<BreakdownRow[]>([])
@@ -566,6 +582,15 @@ export default function WaterDriverReturnsPage() {
       creditSalesAmount:  r.creditSalesAmount  ?? 0,
       cashReturnedByDriver: r.cashReturnedByDriver ?? (l.openingCashWithDriver ?? 0),
     })
+    // Re-derive which payment methods to show as already-added: any field with
+    // a non-zero amount in the saved return must be visible so the operator
+    // can edit / clear it.
+    const active = new Set<PayKey>()
+    if ((r.cashCollected      ?? 0) > 0) active.add("cashCollected")
+    if ((r.moMoCollected      ?? 0) > 0) active.add("moMoCollected")
+    if ((r.bankCollected      ?? 0) > 0) active.add("bankCollected")
+    if ((r.creditSalesAmount  ?? 0) > 0) active.add("creditSalesAmount")
+    setActivePayMethods(active)
     setReturnDlg({ open: true, loading: l })
     try {
       const items = await listWaterDriverReturnItems(r.waterDriverReturnId)
@@ -602,6 +627,8 @@ export default function WaterDriverReturnsPage() {
       cashCollected: 0, moMoCollected: 0, bankCollected: 0,
       creditSalesAmount: 0, cashReturnedByDriver: l.openingCashWithDriver ?? 0,
     })
+    // Fresh return — operator picks methods via the dropdown.
+    setActivePayMethods(new Set())
     setReturnDlg({ open: true, loading: l })
     // Pull the multi-product items if the loading was created with them.
     try {
@@ -1651,29 +1678,112 @@ export default function WaterDriverReturnsPage() {
                 </div>
               </div>
 
-              {/* Payment summary — all amounts in GHC, made explicit so the
-                  operator never wonders "is this bags or money?" */}
-              <FormSection title={`Step 2 · Money collected${cur}`} color="green">
-                <FormField label="Cash" hint="Physical cash the driver collected on the run.">
-                  <NumberInput min={0} step="0.01" value={returnPayments.cashCollected}
-                    onChange={(e) => setReturnPayments({ ...returnPayments, cashCollected: Number(e.target.value) || 0 })} />
-                </FormField>
-                <FormField label="MoMo" hint="Mobile Money (MTN, Vodafone, AirtelTigo).">
-                  <NumberInput min={0} step="0.01" value={returnPayments.moMoCollected}
-                    onChange={(e) => setReturnPayments({ ...returnPayments, moMoCollected: Number(e.target.value) || 0 })} />
-                </FormField>
-                <FormField label="Bank" hint="Bank transfers / cheque deposits received today.">
-                  <NumberInput min={0} step="0.01" value={returnPayments.bankCollected}
-                    onChange={(e) => setReturnPayments({ ...returnPayments, bankCollected: Number(e.target.value) || 0 })} />
-                </FormField>
-                <FormField label="Credit sales" hint="Goods given on credit — to be paid later.">
-                  <NumberInput min={0} step="0.01" value={returnPayments.creditSalesAmount}
-                    onChange={(e) => setReturnPayments({ ...returnPayments, creditSalesAmount: Number(e.target.value) || 0 })} />
-                </FormField>
-                <FormField label="Cash returned by driver" hint="The driver's float coming back (the opening cash, minus any approved cash expenses). Not a sale." full>
-                  <NumberInput min={0} step="0.01" value={returnPayments.cashReturnedByDriver}
-                    onChange={(e) => setReturnPayments({ ...returnPayments, cashReturnedByDriver: Number(e.target.value) || 0 })} />
-                </FormField>
+              {/* Issue 4 (test-report): replaced the always-visible Cash /
+                  MoMo / Bank / Credit grid with a "+ Add payment method"
+                  picker. The operator chooses how payment was made first,
+                  then only the relevant input renders. Multiple methods can
+                  be added for split payments; a running total appears below
+                  so the operator can confirm it matches Expected before
+                  submitting. The underlying returnPayments shape (and the
+                  customer-breakdown balance check downstream) is unchanged. */}
+              <FormSection title={`Step 2 · Money collected${cur}`} color="green" columns={1}>
+                {(() => {
+                  const inactive = PAY_OPTIONS.filter((o) => !activePayMethods.has(o.key))
+                  const totalCollected =
+                    returnPayments.cashCollected +
+                    returnPayments.moMoCollected +
+                    returnPayments.bankCollected +
+                    returnPayments.creditSalesAmount
+                  function removeMethod(k: PayKey) {
+                    const next = new Set(activePayMethods)
+                    next.delete(k)
+                    setActivePayMethods(next)
+                    setReturnPayments({ ...returnPayments, [k]: 0 })
+                  }
+                  function addMethod(k: PayKey) {
+                    const next = new Set(activePayMethods)
+                    next.add(k)
+                    setActivePayMethods(next)
+                  }
+                  return (
+                    <div className="space-y-3">
+                      {activePayMethods.size === 0 ? (
+                        <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-sm text-slate-500">
+                          No payment methods added yet. Use <strong>How was payment made?</strong> below to add one.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {PAY_OPTIONS.filter((o) => activePayMethods.has(o.key)).map((o) => (
+                            <div key={o.key} className="flex items-end gap-2">
+                              <div className="flex-1">
+                                <FormField label={o.label} hint={o.hint}>
+                                  <NumberInput
+                                    min={0}
+                                    step="0.01"
+                                    value={returnPayments[o.key] as number}
+                                    onChange={(e) =>
+                                      setReturnPayments({
+                                        ...returnPayments,
+                                        [o.key]: Number(e.target.value) || 0,
+                                      })
+                                    }
+                                  />
+                                </FormField>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="mb-1 text-rose-600 hover:bg-rose-50"
+                                onClick={() => removeMethod(o.key)}
+                                title="Remove this payment method"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {inactive.length > 0 && (
+                        <div className="flex flex-wrap items-end gap-2">
+                          <div className="min-w-[14rem]">
+                            <Label className="text-xs text-slate-500">How was payment made?</Label>
+                            <Select
+                              value=""
+                              onValueChange={(v) => addMethod(v as PayKey)}
+                            >
+                              <SelectTrigger className="h-10">
+                                <SelectValue placeholder="+ Add payment method" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {inactive.map((o) => (
+                                  <SelectItem key={o.key} value={o.key}>{o.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          {activePayMethods.size > 0 && (
+                            <div className="text-xs text-slate-500 pb-2">
+                              Tip: add another method for split payments (e.g. part Cash + part MoMo).
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {activePayMethods.size > 0 && (
+                        <div className="flex items-center justify-end gap-2 border-t border-slate-200 pt-2 text-sm">
+                          <span className="text-slate-500">Total collected:</span>
+                          <span className="font-semibold tabular-nums">{gh(totalCollected)}</span>
+                        </div>
+                      )}
+
+                      <FormField label="Cash returned by driver" hint="The driver's float coming back (the opening cash, minus any approved cash expenses). Not a sale." full>
+                        <NumberInput min={0} step="0.01" value={returnPayments.cashReturnedByDriver}
+                          onChange={(e) => setReturnPayments({ ...returnPayments, cashReturnedByDriver: Number(e.target.value) || 0 })} />
+                      </FormField>
+                    </div>
+                  )
+                })()}
               </FormSection>
 
               {/* Migration 083 — Sales Posting Mode (moved above Step 3 per James

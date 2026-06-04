@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2, CalendarDays } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
@@ -19,6 +20,7 @@ import {
   getAttendance, getStaff, upsertAttendance,
   type GenericAttendanceStatus, type GenericStaff, type GenericStaffAttendance,
 } from "@/lib/api/generic"
+import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 
 const STATUSES: GenericAttendanceStatus[] = ["Present", "Absent", "Late", "HalfDay", "OffDay"]
 
@@ -48,6 +50,9 @@ export default function GenericAttendancePage() {
   const [date, setDate] = useState<string>(todayIso())
   const [staff, setStaff] = useState<GenericStaff[]>([])
   const [att, setAtt]     = useState<GenericStaffAttendance[]>([])
+  const [search, setSearch] = useState("")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
   const [loading, setLoading] = useState(true)
   const [savingId, setSavingId] = useState<number | null>(null)
 
@@ -93,6 +98,28 @@ export default function GenericAttendancePage() {
     } finally { setSavingId(null) }
   }
 
+  const visibleStaff = useMemo(() => {
+    // Stitch staff with the day's attendance row so search can hit
+    // status/notes too — then re-extract the staff array for rendering.
+    const stitched = staff.map((s) => {
+      const a = byStaff.get(s.genericStaffId)
+      return {
+        ...s,
+        staffName: `${s.firstName} ${s.lastName}`,
+        status: a?.status ?? "",
+        notes: a?.notes ?? "",
+        attendanceDate: a?.attendanceDate ?? date,
+      }
+    })
+    const filtered = filterByDateAndSearch(stitched, {
+      search, dateFrom, dateTo,
+      searchKeys: ["staffName", "status", "notes"],
+      dateKey: "attendanceDate",
+    })
+    const allowed = new Set(filtered.map((r) => r.genericStaffId))
+    return staff.filter((s) => allowed.has(s.genericStaffId))
+  }, [staff, byStaff, search, dateFrom, dateTo, date])
+
   const summary = useMemo(() => {
     const out = { Present: 0, Absent: 0, Late: 0, HalfDay: 0, OffDay: 0, NotRecorded: 0 }
     for (const s of staff) {
@@ -133,53 +160,104 @@ export default function GenericAttendancePage() {
           ) : staff.length === 0 ? (
             <Card><CardContent className="py-8 text-center text-slate-500">No active staff yet. Add staff first.</CardContent></Card>
           ) : (
+            <>
+            <ListFilters
+              search={search} setSearch={setSearch}
+              dateFrom={dateFrom} setDateFrom={setDateFrom}
+              dateTo={dateTo} setDateTo={setDateTo}
+              searchPlaceholder="Search staff name, status or notes"
+            />
             <Card>
               <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Staff</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Set status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {staff.map((s) => {
-                      const a = byStaff.get(s.genericStaffId)
-                      return (
-                        <TableRow key={s.genericStaffId}>
-                          <TableCell className="font-medium">{s.firstName} {s.lastName}</TableCell>
-                          <TableCell><Badge variant="outline">{s.role}</Badge></TableCell>
-                          <TableCell>
-                            {a
-                              ? <Badge className={statusBadgeClass(a.status)}>{a.status}</Badge>
-                              : <span className="text-slate-400 text-sm">Not recorded</span>}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Select
-                                value={a?.status ?? ""}
-                                onValueChange={(v) => setStatus(s.genericStaffId, v as GenericAttendanceStatus)}
-                                disabled={savingId === s.genericStaffId}
-                              >
-                                <SelectTrigger className="w-36">
-                                  <SelectValue placeholder="Set…" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {STATUSES.map((st) => <SelectItem key={st} value={st}>{st}</SelectItem>)}
-                                </SelectContent>
-                              </Select>
-                              {savingId === s.genericStaffId && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
-                            </div>
-                          </TableCell>
+                <MobileCardList
+                  items={visibleStaff}
+                  getKey={(s) => s.genericStaffId}
+                  primary={(s) => `${s.firstName} ${s.lastName}`}
+                  secondary={(s) => <Badge variant="outline">{s.role}</Badge>}
+                  trailing={(s) => {
+                    const a = byStaff.get(s.genericStaffId)
+                    return a
+                      ? <Badge className={statusBadgeClass(a.status)}>{a.status}</Badge>
+                      : <span className="text-slate-400 text-xs">Not recorded</span>
+                  }}
+                  details={(s) => {
+                    const a = byStaff.get(s.genericStaffId)
+                    return [
+                      { label: "Role", value: s.role },
+                      { label: "Status", value: a ? <Badge className={statusBadgeClass(a.status)}>{a.status}</Badge> : <span className="text-slate-400">Not recorded</span> },
+                    ]
+                  }}
+                  actions={(s) => {
+                    const a = byStaff.get(s.genericStaffId)
+                    return (
+                      <div className="flex-1 flex items-center gap-2">
+                        <Select
+                          value={a?.status ?? ""}
+                          onValueChange={(v) => setStatus(s.genericStaffId, v as GenericAttendanceStatus)}
+                          disabled={savingId === s.genericStaffId}
+                        >
+                          <SelectTrigger className="flex-1 h-10">
+                            <SelectValue placeholder="Set status…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {STATUSES.map((st) => <SelectItem key={st} value={st}>{st}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        {savingId === s.genericStaffId && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
+                      </div>
+                    )
+                  }}
+                  desktopTable={
+                    <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Staff</TableHead>
+                          <TableHead>Role</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Set status</TableHead>
                         </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {visibleStaff.map((s) => {
+                          const a = byStaff.get(s.genericStaffId)
+                          return (
+                            <TableRow key={s.genericStaffId}>
+                              <TableCell className="font-medium">{s.firstName} {s.lastName}</TableCell>
+                              <TableCell><Badge variant="outline">{s.role}</Badge></TableCell>
+                              <TableCell>
+                                {a
+                                  ? <Badge className={statusBadgeClass(a.status)}>{a.status}</Badge>
+                                  : <span className="text-slate-400 text-sm">Not recorded</span>}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <Select
+                                    value={a?.status ?? ""}
+                                    onValueChange={(v) => setStatus(s.genericStaffId, v as GenericAttendanceStatus)}
+                                    disabled={savingId === s.genericStaffId}
+                                  >
+                                    <SelectTrigger className="w-36">
+                                      <SelectValue placeholder="Set…" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {STATUSES.map((st) => <SelectItem key={st} value={st}>{st}</SelectItem>)}
+                                    </SelectContent>
+                                  </Select>
+                                  {savingId === s.genericStaffId && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                    </div>
+                  }
+                />
               </CardContent>
             </Card>
+            </>
           )}
         </main>
       </div>

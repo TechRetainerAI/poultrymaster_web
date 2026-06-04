@@ -22,12 +22,12 @@ import { Badge } from "@/components/ui/badge"
 import { Boxes, Box, ShoppingBag, AlertTriangle, AlertCircle, Loader2, Search, ExternalLink } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
+import { useToast } from "@/hooks/use-toast"
 import {
   listWaterProducts, listWaterRawMaterialItems,
   type WaterProduct, type WaterRawMaterialItem,
 } from "@/lib/api/water"
-
-const fmtGhc = (n?: number | null) => `GHC ${(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+import { useFmt } from "@/lib/currency"
 
 // Anything below this many units triggers a "low stock" badge for finished products.
 // Raw materials have their own per-item minimumStockAlert; we use that instead.
@@ -55,23 +55,24 @@ export default function WaterInventoryPage() {
   const router = useRouter()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const logout = useLogout()
+  const fmtGhc = useFmt()
+  const { toast } = useToast()
 
   const [products, setProducts] = useState<WaterProduct[]>([])
   const [rawItems, setRawItems] = useState<WaterRawMaterialItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [q, setQ] = useState("")
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Water") { router.replace("/dashboard"); return }
     let cancelled = false
     const load = async () => {
-      setLoading(true); setError(null)
+      setLoading(true)
       try {
         const [p, r] = await Promise.all([listWaterProducts(), listWaterRawMaterialItems()])
         if (!cancelled) { setProducts(p); setRawItems(r) }
       } catch (e: any) {
-        if (!cancelled) setError(e?.message ?? String(e))
+        if (!cancelled) toast({ title: "Could not load inventory", description: e?.message ?? String(e), variant: "destructive" })
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -150,17 +151,12 @@ export default function WaterInventoryPage() {
           </div>
 
           {/* Top stat cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             <StatCard label="Total items" value={loading ? "…" : counts.totalItems} icon={Boxes} />
             <StatCard label="Low stock" value={loading ? "…" : counts.low} icon={AlertTriangle} accent="amber" />
             <StatCard label="Out of stock" value={loading ? "…" : counts.out} icon={AlertCircle} accent="rose" />
           </div>
 
-          {error && (
-            <Card className="border-rose-200 bg-rose-50">
-              <CardContent className="flex items-center gap-2 p-3 text-rose-700"><AlertCircle className="h-4 w-4" /> {error}</CardContent>
-            </Card>
-          )}
 
           <Tabs defaultValue="products" className="w-full">
             <TabsList className="flex flex-wrap h-auto gap-1 bg-slate-100 p-1">
@@ -169,7 +165,7 @@ export default function WaterInventoryPage() {
                 <Badge variant="secondary" className="ml-2">{filteredProducts.length}</Badge>
               </TabsTrigger>
               <TabsTrigger value="raw" className="data-[state=active]:bg-white">
-                <Box className="h-4 w-4 mr-1.5" /> Raw materials
+                <Box className="h-4 w-4 mr-1.5" /> Raw materials &amp; supplies
                 <Badge variant="secondary" className="ml-2">{filteredRaw.length}</Badge>
               </TabsTrigger>
             </TabsList>
@@ -188,6 +184,7 @@ export default function WaterInventoryPage() {
                   ) : filteredProducts.length === 0 ? (
                     <div className="p-8 text-center text-slate-500">{q ? "No products match your search." : "No products yet."}</div>
                   ) : (
+                    <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -196,13 +193,22 @@ export default function WaterInventoryPage() {
                           <TableHead>Size</TableHead>
                           <TableHead>Unit</TableHead>
                           <TableHead className="text-right">Unit price</TableHead>
-                          <TableHead className="text-right">Stock on hand</TableHead>
+                          {/* Migration 084 — show both bag and sachet stock for
+                              sachet-water products. Non-sachet products only
+                              fill the Bags column. */}
+                          <TableHead className="text-right">Stock (Bags)</TableHead>
+                          <TableHead className="text-right">Stock (Sachets)</TableHead>
                           <TableHead>Status</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {filteredProducts.map((p) => {
                           const st = productStatus(p)
+                          const isSachet = !!p.isSachetProduct
+                          const sachetsPerBag = p.sachetsPerBag ?? 30
+                          // For sachet products, stockOnHand is in bags (rounded).
+                          // For accuracy, sachetCount = stockOnHand * SachetsPerBag.
+                          const sachetCount = isSachet ? (p.stockOnHand ?? 0) * sachetsPerBag : null
                           return (
                             <TableRow key={p.waterProductId}>
                               <TableCell className="font-medium">{p.name}</TableCell>
@@ -211,12 +217,16 @@ export default function WaterInventoryPage() {
                               <TableCell>{p.unit ?? "—"}</TableCell>
                               <TableCell className="text-right tabular-nums">{fmtGhc(p.unitPrice)}</TableCell>
                               <TableCell className="text-right tabular-nums font-semibold">{(p.stockOnHand ?? 0).toLocaleString()}</TableCell>
+                              <TableCell className="text-right tabular-nums text-slate-600">
+                                {sachetCount !== null ? sachetCount.toLocaleString() : "—"}
+                              </TableCell>
                               <TableCell><ToneBadge tone={st.tone} label={st.label} /></TableCell>
                             </TableRow>
                           )
                         })}
                       </TableBody>
                     </Table>
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -236,6 +246,7 @@ export default function WaterInventoryPage() {
                   ) : filteredRaw.length === 0 ? (
                     <div className="p-8 text-center text-slate-500">{q ? "No raw materials match your search." : "No raw materials yet."}</div>
                   ) : (
+                    <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -263,6 +274,7 @@ export default function WaterInventoryPage() {
                         })}
                       </TableBody>
                     </Table>
+                    </div>
                   )}
                 </CardContent>
               </Card>

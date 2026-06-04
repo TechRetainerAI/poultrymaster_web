@@ -1,5 +1,6 @@
 import { apiClient } from '@/lib/api/client'
-import { getAuthenticationApiUrl, persistFeaturePermissionsFromUserData } from '@/lib/api/auth'
+import { getAuthenticationApiUrl, persistFeaturePermissionsFromUserData, tryRefreshAccessToken } from '@/lib/api/auth'
+import { getAuthHeaders } from '@/lib/api/config'
 
 interface LoginCredentials {
   username: string
@@ -37,6 +38,7 @@ interface AuthResponse {
     phoneNumber?: string
     customerId?: string
     lastLoginTime?: string
+    twoFactorEnabled?: boolean
   }
 }
 
@@ -160,10 +162,44 @@ export class AuthService {
   }
 
   /**
-   * Get current user information
+   * Get current user information.
+   *
+   * Goes through the same-origin Login API proxy (not the Farm API axios
+   * instance — the Authentication routes only exist on the Login API). One
+   * automatic 401 → refresh → retry attempt so the 60-minute token expiry
+   * doesn't wipe the profile page until the user logs out and back in.
    */
   static async getCurrentUser(): Promise<AuthResponse['user']> {
-    return apiClient.get<AuthResponse['user']>('/api/Authentication/get-current-user')
+    const url = getAuthenticationApiUrl('get-current-user')
+    const doFetch = () => fetch(url, { headers: getAuthHeaders() })
+
+    let res = await doFetch()
+    if (res.status === 401 && (await tryRefreshAccessToken())) {
+      res = await doFetch()
+    }
+    if (!res.ok) {
+      const err: any = new Error(`getCurrentUser failed: ${res.status}`)
+      err.status = res.status
+      throw err
+    }
+    // Backend returns the EF/Identity ApplicationUser (PascalCase). The profile
+    // page already accepts a few case variants (phone vs phoneNumber, etc.)
+    // but normalize the common ones so it always finds what it needs.
+    const raw = await res.json()
+    return {
+      id: raw.id ?? raw.Id ?? '',
+      username: raw.userName ?? raw.UserName ?? raw.username ?? '',
+      email: raw.email ?? raw.Email ?? '',
+      farmId: raw.farmId ?? raw.FarmId ?? '',
+      farmName: raw.farmName ?? raw.FarmName ?? '',
+      isStaff: raw.isStaff ?? raw.IsStaff ?? false,
+      isSubscriber: raw.isSubscriber ?? raw.IsSubscriber ?? false,
+      firstName: raw.firstName ?? raw.FirstName ?? '',
+      lastName: raw.lastName ?? raw.LastName ?? '',
+      phoneNumber: raw.phoneNumber ?? raw.PhoneNumber ?? '',
+      phone: raw.phoneNumber ?? raw.PhoneNumber ?? '',
+      twoFactorEnabled: raw.twoFactorEnabled ?? raw.TwoFactorEnabled ?? false,
+    } as AuthResponse['user']
   }
 
   /**
