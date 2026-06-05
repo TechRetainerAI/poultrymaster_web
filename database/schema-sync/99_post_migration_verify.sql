@@ -1,7 +1,11 @@
 -- ============================================================
 -- Post-migration verification.
--- Run against the PROD database after migrations 001–024.
+-- Run against the PROD database after migrations 001–086.
 -- Every row in the final SELECT should read OK.
+--
+-- 2026-06-04 — strategy reversed: Water + Generic + Multi-company
+-- are now expected on prod. The old "SkipSet" negative checks were
+-- removed and positive checks for those modules were added.
 -- ============================================================
 
 SET NOCOUNT ON;
@@ -58,7 +62,9 @@ SELECT 1, 'ProductionRecord', 'EggCount column exists',
 
 INSERT @checks
 SELECT 3, 'ProductionRecord', 'EggGrade column exists',
-       CASE WHEN COL_LENGTH('dbo.ProductionRecord','EggGrade') IS NOT NULL THEN 'OK' ELSE 'MISSING' END, '';
+       CASE WHEN COL_LENGTH('dbo.ProductionRecord','EggGrade')  IS NOT NULL
+              OR COL_LENGTH('dbo.ProductionRecords','EggGrade') IS NOT NULL THEN 'OK' ELSE 'MISSING' END,
+       'Either singular or plural table — migration 001 unifies them';
 
 -- ------------------------------------------------------------
 -- 005 — Sales.Paid
@@ -124,17 +130,61 @@ SELECT 24, 'MainFlockBatch', 'Notes column exists',
        CASE WHEN COL_LENGTH('dbo.MainFlockBatch','Notes') IS NOT NULL THEN 'OK' ELSE 'MISSING' END, '';
 
 -- ------------------------------------------------------------
--- Negative checks — these should NOT exist on prod (water + multi-company)
+-- 025 — Multi-company (Water + Generic enabled on prod as of 2026-06-04)
 -- ------------------------------------------------------------
 INSERT @checks
-SELECT 25, 'SkipSet', 'WaterProducts NOT on prod',
-       CASE WHEN OBJECT_ID('dbo.WaterProducts','U') IS NULL THEN 'OK' ELSE 'UNEXPECTED' END,
-       'Should stay dev-only per instruction';
+SELECT 25, 'MultiCompany', 'Table dbo.UserFarms exists',
+       CASE WHEN OBJECT_ID('dbo.UserFarms','U') IS NOT NULL THEN 'OK' ELSE 'MISSING' END,
+       'Joins AspNetUsers to Farms by role';
 
 INSERT @checks
-SELECT 25, 'SkipSet', 'UserFarms NOT on prod',
-       CASE WHEN OBJECT_ID('dbo.UserFarms','U') IS NULL THEN 'OK' ELSE 'UNEXPECTED' END,
-       'Multi-company table — should stay dev-only';
+SELECT 25, 'MultiCompany', 'Farms.Type column exists',
+       CASE WHEN COL_LENGTH('dbo.Farms','Type') IS NOT NULL THEN 'OK' ELSE 'MISSING' END,
+       'Drives Poultry/Water/Generic sidebar switching';
+
+INSERT @checks
+SELECT 54, 'MultiCompany', 'spCompany_GetByUserId joins on FarmId (post-054)',
+       CASE WHEN OBJECT_DEFINITION(OBJECT_ID('dbo.spCompany_GetByUserId')) LIKE '%uf.FarmId = f.FarmId%'
+            THEN 'OK' ELSE 'STALE' END,
+       'Must join on Farms.FarmId, not Farms.Id';
+
+-- ------------------------------------------------------------
+-- 038-048 — Water module anchors
+-- ------------------------------------------------------------
+INSERT @checks
+SELECT 38, 'Water', 'Table dbo.WaterProducts exists',
+       CASE WHEN OBJECT_ID('dbo.WaterProducts','U') IS NOT NULL THEN 'OK' ELSE 'MISSING' END, '';
+
+INSERT @checks
+SELECT 76, 'Water', 'Table dbo.WaterSuppliers exists',
+       CASE WHEN OBJECT_ID('dbo.WaterSuppliers','U') IS NOT NULL THEN 'OK' ELSE 'MISSING' END, '';
+
+-- ------------------------------------------------------------
+-- 028-037 — Generic Company anchors
+-- ------------------------------------------------------------
+INSERT @checks
+SELECT 28, 'Generic', 'Table dbo.GenericCompanyProfiles exists',
+       CASE WHEN OBJECT_ID('dbo.GenericCompanyProfiles','U') IS NOT NULL THEN 'OK' ELSE 'MISSING' END, '';
+
+INSERT @checks
+SELECT 55, 'Generic', 'Table dbo.GenericStaff exists',
+       CASE WHEN OBJECT_ID('dbo.GenericStaff','U') IS NOT NULL THEN 'OK' ELSE 'MISSING' END, '';
+
+-- ------------------------------------------------------------
+-- 084 — Sachet inventory + SellingUnit on sale items
+-- ------------------------------------------------------------
+INSERT @checks
+SELECT 84, 'Water', 'spWaterSale_CreateV2 exists (sachet-aware)',
+       CASE WHEN OBJECT_ID('dbo.spWaterSale_CreateV2','P') IS NOT NULL THEN 'OK' ELSE 'MISSING' END, '';
+
+-- ------------------------------------------------------------
+-- 086 — sp_CreateFarm now creates UserFarms link
+-- ------------------------------------------------------------
+INSERT @checks
+SELECT 86, 'Auth', 'sp_CreateFarm writes UserFarms link',
+       CASE WHEN OBJECT_DEFINITION(OBJECT_ID('dbo.sp_CreateFarm')) LIKE '%UserFarms%'
+            THEN 'OK' ELSE 'STALE' END,
+       'Without this, signup creates a Farms row that the companies UI cannot see';
 
 -- ------------------------------------------------------------
 -- Data sanity: at least one flock for the current farm should now be selectable
