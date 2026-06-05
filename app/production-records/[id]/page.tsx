@@ -6,6 +6,7 @@ import { useEffect, useState } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { EGG_GRADE_OPTIONS, eggGradeFromApi, eggGradeToApi } from "@/lib/constants/egg-grade"
@@ -227,10 +228,10 @@ export default function EditProductionRecordPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="ageInWeeks" className="text-sm font-medium text-slate-700">Age in Weeks *</Label>
-                      <Input
+                      <NumberInput
                         id="ageInWeeks"
                         name="ageInWeeks"
-                        type="number"
+                        
                         value={formData.ageInWeeks}
                         onChange={handleChange}
                         required
@@ -241,10 +242,10 @@ export default function EditProductionRecordPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="ageInDays" className="text-sm font-medium text-slate-700">Age in Days *</Label>
-                      <Input
+                      <NumberInput
                         id="ageInDays"
                         name="ageInDays"
-                        type="number"
+                        
                         value={formData.ageInDays}
                         onChange={handleChange}
                         required
@@ -262,10 +263,10 @@ export default function EditProductionRecordPage() {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="space-y-2">
                       <Label htmlFor="production9AM" className="text-sm font-medium text-slate-700">9 AM *</Label>
-                      <Input
+                      <NumberInput
                         id="production9AM"
                         name="production9AM"
-                        type="number"
+                        
                         value={formData.production9AM}
                         onChange={handleChange}
                         required
@@ -276,10 +277,10 @@ export default function EditProductionRecordPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="production12PM" className="text-sm font-medium text-slate-700">12 PM *</Label>
-                      <Input
+                      <NumberInput
                         id="production12PM"
                         name="production12PM"
-                        type="number"
+                        
                         value={formData.production12PM}
                         onChange={handleChange}
                         required
@@ -290,10 +291,10 @@ export default function EditProductionRecordPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="production4PM" className="text-sm font-medium text-slate-700">4 PM *</Label>
-                      <Input
+                      <NumberInput
                         id="production4PM"
                         name="production4PM"
-                        type="number"
+                        
                         value={formData.production4PM}
                         onChange={handleChange}
                         required
@@ -304,10 +305,10 @@ export default function EditProductionRecordPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="brokenEggs" className="text-sm font-medium text-red-700">Broken Eggs</Label>
-                      <Input
+                      <NumberInput
                         id="brokenEggs"
                         name="brokenEggs"
-                        type="number"
+                        
                         value={formData.brokenEggs}
                         onChange={handleChange}
                         min="0"
@@ -317,10 +318,10 @@ export default function EditProductionRecordPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="meatyEggs" className="text-sm font-medium text-amber-800">Meaty Eggs</Label>
-                      <Input
+                      <NumberInput
                         id="meatyEggs"
                         name="meatyEggs"
-                        type="number"
+                        
                         value={formData.meatyEggs}
                         onChange={handleChange}
                         min="0"
@@ -331,10 +332,10 @@ export default function EditProductionRecordPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="softEggs" className="text-sm font-medium text-violet-800">Soft Eggs</Label>
-                      <Input
+                      <NumberInput
                         id="softEggs"
                         name="softEggs"
-                        type="number"
+                        
                         value={formData.softEggs}
                         onChange={handleChange}
                         min="0"
@@ -345,10 +346,10 @@ export default function EditProductionRecordPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="lostEggs" className="text-sm font-medium text-slate-700">Lost Eggs</Label>
-                      <Input
+                      <NumberInput
                         id="lostEggs"
                         name="lostEggs"
-                        type="number"
+                        
                         value={formData.lostEggs}
                         onChange={handleChange}
                         min="0"
@@ -385,10 +386,10 @@ export default function EditProductionRecordPage() {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="space-y-2">
                       <Label htmlFor="noOfBirds" className="text-sm font-medium text-slate-700">Number of Birds *</Label>
-                      <Input
+                      <NumberInput
                         id="noOfBirds"
                         name="noOfBirds"
-                        type="number"
+                        
                         value={formData.noOfBirds}
                         onChange={handleChange}
                         required
@@ -399,10 +400,10 @@ export default function EditProductionRecordPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="mortality" className="text-sm font-medium text-slate-700">Deaths *</Label>
-                      <Input
+                      <NumberInput
                         id="mortality"
                         name="mortality"
-                        type="number"
+                        
                         value={formData.mortality}
                         onChange={handleChange}
                         required
@@ -426,10 +427,10 @@ export default function EditProductionRecordPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <Label htmlFor="feedKg" className="text-sm font-medium text-slate-700">Feed (kg) *</Label>
-                      <Input
+                      <NumberInput
                         id="feedKg"
                         name="feedKg"
-                        type="number"
+                        
                         step="0.01"
                         value={formData.feedKg}
                         onChange={handleChange}

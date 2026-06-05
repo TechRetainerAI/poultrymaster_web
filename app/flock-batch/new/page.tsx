@@ -6,6 +6,7 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Bird, ArrowLeft, Loader2 } from "lucide-react"
@@ -186,9 +187,9 @@ export default function NewFlockBatchPage() {
                     <Label htmlFor="numberOfBirds" className="text-sm font-medium text-slate-700">
                       Number of Birds *
                     </Label>
-                    <Input
+                    <NumberInput
                       id="numberOfBirds"
-                      type="number"
+                      
                       min="1"
                       placeholder="e.g., 100"
                       value={formData.numberOfBirds}

@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -502,7 +503,7 @@ export default function InventoryPage() {
                     Add Item
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Add Inventory Item</DialogTitle>
                     <DialogDescription>
@@ -535,11 +536,11 @@ export default function InventoryPage() {
                         <div className="grid grid-cols-3 gap-4 p-4 bg-amber-50">
                           <div className="space-y-2">
                             <Label htmlFor="crates" className="text-sm">Crates (30 eggs)</Label>
-                            <Input id="crates" type="number" min="0" value={formData.crates || 0} onChange={(e) => { const crates = parseInt(e.target.value) || 0; const loose = formData.looseEggs || 0; const total = (crates * 30) + loose; setFormData(prev => ({ ...prev, crates, quantity: total, unit: "eggs" })) }} />
+                            <NumberInput id="crates"  min="0" value={formData.crates || 0} onChange={(e) => { const crates = parseInt(e.target.value) || 0; const loose = formData.looseEggs || 0; const total = (crates * 30) + loose; setFormData(prev => ({ ...prev, crates, quantity: total, unit: "eggs" })) }} />
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="looseEggs" className="text-sm">Loose Eggs</Label>
-                            <Input id="looseEggs" type="number" min="0" max="29" value={formData.looseEggs || 0} onChange={(e) => { const loose = parseInt(e.target.value) || 0; const crates = formData.crates || 0; const total = (crates * 30) + loose; setFormData(prev => ({ ...prev, looseEggs: loose, quantity: total, unit: "eggs" })) }} />
+                            <NumberInput id="looseEggs"  min="0" max="29" value={formData.looseEggs || 0} onChange={(e) => { const loose = parseInt(e.target.value) || 0; const crates = formData.crates || 0; const total = (crates * 30) + loose; setFormData(prev => ({ ...prev, looseEggs: loose, quantity: total, unit: "eggs" })) }} />
                           </div>
                           <div className="space-y-2">
                             <Label className="text-sm">Total Eggs</Label>
@@ -558,7 +559,7 @@ export default function InventoryPage() {
                       <div className="grid grid-cols-3 gap-4 p-4 bg-white">
                         <div className="space-y-2">
                           <Label htmlFor="quantity" className="text-sm font-medium text-slate-700">Quantity *</Label>
-                          <Input id="quantity" type="number" min="0" value={formData.quantity} onChange={(e) => setFormData(prev => ({ ...prev, quantity: parseFloat(e.target.value) || 0 }))} required disabled={isEggsCategory} className={isEggsCategory ? "bg-slate-50" : ""} />
+                          <NumberInput id="quantity"  min="0" value={formData.quantity} onChange={(e) => setFormData(prev => ({ ...prev, quantity: parseFloat(e.target.value) || 0 }))} required disabled={isEggsCategory} className={isEggsCategory ? "bg-slate-50" : ""} />
                           {isEggsCategory && <p className="text-xs text-slate-500">Auto-calculated from crates + eggs above</p>}
                         </div>
                         <div className="space-y-2">
@@ -567,7 +568,7 @@ export default function InventoryPage() {
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="unitPrice" className="text-sm font-medium text-slate-700">Unit Price</Label>
-                          <Input id="unitPrice" type="number" min="0" step="0.01" value={formData.unitPrice} onChange={(e) => setFormData(prev => ({ ...prev, unitPrice: parseFloat(e.target.value) || 0 }))} />
+                          <NumberInput id="unitPrice"  min="0" step="0.01" value={formData.unitPrice} onChange={(e) => setFormData(prev => ({ ...prev, unitPrice: parseFloat(e.target.value) || 0 }))} />
                         </div>
                       </div>
                     </div>
@@ -957,7 +958,7 @@ export default function InventoryPage() {
                 }
               }}
             >
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Edit Inventory Item</DialogTitle>
                   <DialogDescription>
@@ -990,11 +991,11 @@ export default function InventoryPage() {
                       <div className="grid grid-cols-3 gap-4 p-4 bg-amber-50">
                         <div className="space-y-2">
                           <Label htmlFor="edit-crates" className="text-sm">Crates (30 eggs)</Label>
-                          <Input id="edit-crates" type="number" min="0" value={formData.crates || 0} onChange={(e) => { const crates = parseInt(e.target.value) || 0; const loose = formData.looseEggs || 0; const total = (crates * 30) + loose; setFormData(prev => ({ ...prev, crates, quantity: total, unit: "eggs" })) }} />
+                          <NumberInput id="edit-crates"  min="0" value={formData.crates || 0} onChange={(e) => { const crates = parseInt(e.target.value) || 0; const loose = formData.looseEggs || 0; const total = (crates * 30) + loose; setFormData(prev => ({ ...prev, crates, quantity: total, unit: "eggs" })) }} />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="edit-looseEggs" className="text-sm">Loose Eggs</Label>
-                          <Input id="edit-looseEggs" type="number" min="0" max="29" value={formData.looseEggs || 0} onChange={(e) => { const loose = parseInt(e.target.value) || 0; const crates = formData.crates || 0; const total = (crates * 30) + loose; setFormData(prev => ({ ...prev, looseEggs: loose, quantity: total, unit: "eggs" })) }} />
+                          <NumberInput id="edit-looseEggs"  min="0" max="29" value={formData.looseEggs || 0} onChange={(e) => { const loose = parseInt(e.target.value) || 0; const crates = formData.crates || 0; const total = (crates * 30) + loose; setFormData(prev => ({ ...prev, looseEggs: loose, quantity: total, unit: "eggs" })) }} />
                         </div>
                         <div className="space-y-2">
                           <Label className="text-sm">Total Eggs</Label>
@@ -1013,7 +1014,7 @@ export default function InventoryPage() {
                     <div className="grid grid-cols-3 gap-4 p-4 bg-white">
                       <div className="space-y-2">
                         <Label htmlFor="edit-quantity" className="text-sm font-medium text-slate-700">Quantity *</Label>
-                        <Input id="edit-quantity" type="number" min="0" value={formData.quantity} onChange={(e) => setFormData(prev => ({ ...prev, quantity: parseFloat(e.target.value) || 0 }))} required disabled={isEggsCategory} className={isEggsCategory ? "bg-slate-50" : ""} />
+                        <NumberInput id="edit-quantity"  min="0" value={formData.quantity} onChange={(e) => setFormData(prev => ({ ...prev, quantity: parseFloat(e.target.value) || 0 }))} required disabled={isEggsCategory} className={isEggsCategory ? "bg-slate-50" : ""} />
                         {isEggsCategory && <p className="text-xs text-slate-500">Auto-calculated from crates + eggs</p>}
                       </div>
                       <div className="space-y-2">
@@ -1022,7 +1023,7 @@ export default function InventoryPage() {
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="edit-unitPrice" className="text-sm font-medium text-slate-700">Unit Price</Label>
-                        <Input id="edit-unitPrice" type="number" min="0" step="0.01" value={formData.unitPrice} onChange={(e) => setFormData(prev => ({ ...prev, unitPrice: parseFloat(e.target.value) || 0 }))} />
+                        <NumberInput id="edit-unitPrice"  min="0" step="0.01" value={formData.unitPrice} onChange={(e) => setFormData(prev => ({ ...prev, unitPrice: parseFloat(e.target.value) || 0 }))} />
                       </div>
                     </div>
                   </div>

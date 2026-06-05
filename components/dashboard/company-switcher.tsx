@@ -48,10 +48,15 @@ export function CompanySwitcher() {
     }
   }
 
-  // Fetch on mount when we have a token but no companies cached.
+  // Always refresh on mount when we have a token. The previous guard
+  // `companies.length === 0` meant a stale persisted list (e.g. containing
+  // a phantom farm that was deleted server-side) was never re-validated, so
+  // users could stay locked in a session pointing at a non-existent farm.
+  // /Companies/mine is cheap and `setCompanies` auto-evicts stale active
+  // farms (see auth-store.setCompanies — picks first if current is gone).
   useEffect(() => {
     const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null
-    if (token && companies.length === 0) {
+    if (token) {
       refresh()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -91,9 +96,13 @@ export function CompanySwitcher() {
       setActiveCompany(res.farmId, res.farmName, c.type, res.accessToken.token)
       toast({ title: `Switched to ${c.name}`, description: c.type === "Water" ? "Water company" : `${c.type} company` })
       setOpen(false)
-      // Land on the most useful page for the new type.
-      if (c.type === "Water") router.push("/water-dashboard")
-      else router.push("/dashboard")
+      // Land on the most useful page for the new type. Falling through to
+      // /dashboard for Generic was the bug behind "I switched to Generic but
+      // the nav is still showing flocks/houses": Poultry dashboard +
+      // Poultry top-nav. Each company type now lands on its own home.
+      if (c.type === "Water")        router.push("/water-dashboard")
+      else if (c.type === "Generic") router.push("/generic-dashboard")
+      else                           router.push("/dashboard")
     } catch (err: any) {
       toast({ title: "Switch failed", description: err?.message ?? String(err), variant: "destructive" })
     } finally {

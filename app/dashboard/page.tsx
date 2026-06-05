@@ -8,11 +8,26 @@ import { MetricsCards } from "@/components/dashboard/metrics-cards"
 import { DashboardCharts } from "@/components/dashboard/charts"
 import { Setup2FADialog } from "@/components/auth/setup-2fa-dialog"
 import { DEFAULT_LOGIN_API_HOST } from "@/lib/api/default-api-hosts"
+import { useAuthStore } from "@/lib/store/auth-store"
+import { useToast } from "@/hooks/use-toast"
 
 export default function DashboardPage() {
   const router = useRouter()
+  const { toast } = useToast()
+  const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const [show2FASetup, setShow2FASetup] = useState(false)
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false)
+
+  // /dashboard is the POULTRY dashboard. If the user's active company is
+  // Water or Generic, redirect to their dashboard so the right content
+  // shows immediately (previously the poultry dashboard flashed first
+  // and the user had to click Dashboard again to land on the right one).
+  // Wait for Zustand to hydrate before checking.
+  useEffect(() => {
+    if (activeFarmType === null || activeFarmType === undefined) return
+    if (activeFarmType === "Water")        router.replace("/water-dashboard")
+    else if (activeFarmType === "Generic") router.replace("/generic-dashboard")
+  }, [activeFarmType, router])
 
   // Check if user has 2FA enabled
   useEffect(() => {
@@ -53,13 +68,13 @@ export default function DashboardPage() {
         localStorage.setItem("twoFactorEnabled", "true")
         setTwoFactorEnabled(true)
         setShow2FASetup(false)
-        alert("2FA has been enabled! On your next login, you'll receive an OTP code via email.")
+        toast({ title: "2FA enabled", description: "Next login you'll get an OTP code via email." })
       } else {
-        alert(result.message || "Failed to enable 2FA. Please try again.")
+        toast({ title: "Couldn't enable 2FA", description: result.message || "Please try again.", variant: "destructive" })
       }
     } catch (error) {
       console.error("Error enabling 2FA:", error)
-      alert("Failed to enable 2FA. Please try again.")
+      toast({ title: "Couldn't enable 2FA", description: "Please try again.", variant: "destructive" })
     }
   }
 

@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Plus, Building2, Bird, Droplets, Loader2, Check, AlertCircle } from "lucide-react"
+import { Plus, Building2, Bird, Droplets, Loader2, Check } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -25,7 +25,6 @@ export default function CompaniesPage() {
 
   const [companies, setLocal] = useState<Company[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -34,11 +33,11 @@ export default function CompaniesPage() {
   })
 
   async function load() {
-    setLoading(true); setError(null)
+    setLoading(true)
     try {
       const list = await getMyCompanies()
       setLocal(list); setCompanies(list)
-    } catch (e: any) { setError(e?.message ?? String(e)) }
+    } catch (e: any) { toast({ title: "Could not load companies", description: e?.message ?? String(e), variant: "destructive" }) }
     finally { setLoading(false) }
   }
 
@@ -82,14 +81,6 @@ export default function CompaniesPage() {
             One login, multiple businesses. Create a poultry farm or a water business — switch between them anytime
             using the company switcher at the top of the page.
           </p>
-
-          {error && (
-            <Card className="border-red-200 bg-red-50 mb-4">
-              <CardContent className="flex items-center gap-2 p-3 text-red-700">
-                <AlertCircle className="h-4 w-4" /> {error}
-              </CardContent>
-            </Card>
-          )}
 
           <Card>
             <CardContent className="p-0">
@@ -150,8 +141,9 @@ export default function CompaniesPage() {
               <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v as CompanyType })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Water">Water (sales / distribution)</SelectItem>
+                  <SelectItem value="Water">Water (sachet / bottled water)</SelectItem>
                   <SelectItem value="Poultry">Poultry farm</SelectItem>
+                  <SelectItem value="Generic">Generic (shop / restaurant / hotel / salon / pharmacy / any small business)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -1,0 +1,1350 @@
+Absolutely. Here is a complete developer prompt for the **Deliveries, Setup, Filters, Reconciliation, Closing, Currency, and Reports completion work**.
+
+Title: Delivery Workflow, Setup Pages, Reversal Logic, Currency Settings, Filters, and Reports Completion
+
+We need to complete and clean up several remaining areas of the Water Company app so the operational workflow becomes reliable, auditable, and ready for real use.
+
+The areas that need changes are:
+
+1. Deliveries page actions and reconciliation workflow
+2. Delivery search and filter improvements
+3. Driver and route setup assignment persistence
+4. Raw material purchase integration with Expenses
+5. Loss Records page filter placement and edit/reversal workflow
+6. Daily closing resubmission/reversal support
+7. Setup page inline setup functionality
+8. Currency symbol configuration and display control
+9. Final reporting module with PDF export and future email support
+
+Please implement the changes below.
+
+---
+
+## 1. Deliveries Page: Add Clear Actions for Returns, Reconciliation, Details, Reversal, and Reloading
+
+The Deliveries page currently shows tabs such as:
+
+* Active Loads
+* Returns
+* Reconciled
+* Setup
+
+The issue is that the Returns tab shows many return records, but there is no clear action to reconcile, approve, view, or manage them.
+
+### Required changes
+
+On the Returns tab, add an Actions column.
+
+Each return row should clearly show available actions based on status.
+
+For return records that are not yet reconciled, show:
+
+* View Details
+* Reconcile / Approve
+* Edit Return, if the return has been saved but not reconciled
+* Delete/Cancel, if allowed by current business rules
+
+For reconciled records, show:
+
+* View Details
+* Reverse Reconciliation
+
+The user should not have to guess that clicking the date opens details. A clear `View Details` action must be available at the end of each row.
+
+The Reconciled tab should also have an Actions column with:
+
+* View Details
+* Reverse Reconciliation
+
+The Active Loads tab should have an Actions column with:
+
+* View Details
+* Record Return
+* Reload / Edit Load
+* Cancel Load, if allowed
+
+---
+
+## 2. Delivery Details View
+
+Add or improve the Delivery Details view so the user can clearly inspect a delivery run or return.
+
+The details view should show:
+
+* Delivery run ID or reference number
+* Load date
+* Driver
+* Vehicle
+* Route
+* Loaded products
+* Quantity loaded per product
+* Unit price per product
+* Expected amount
+* Return status
+* Sold quantity per product
+* Returned quantity per product
+* Damaged quantity per product
+* Cash collected
+* MoMo collected
+* Bank collected
+* Credit sales
+* Shortage
+* Overage
+* Customer breakdown, if entered
+* Linked sales records
+* Linked payment records
+* Linked inventory transactions
+* Reconciliation status
+* Reconciled by
+* Reconciled date
+* Reversal history, if any
+* Notes
+
+The details view should be read-only for reconciled records unless the user chooses Reverse Reconciliation.
+
+---
+
+## 3. Add Reverse Reconciliation Support
+
+Once a delivery has been reconciled, the user currently cannot edit or reverse it.
+
+Add the ability to reverse reconciliation so mistakes can be corrected.
+
+### Required behavior
+
+When the user clicks `Reverse Reconciliation`, show a confirmation modal:
+
+“Are you sure you want to reverse this reconciliation? This will undo the linked sales, payments, inventory movements, customer balance updates, and shortage/overage records created by this reconciliation. You can then edit and reconcile the delivery again.”
+
+The user must enter a reason for reversal.
+
+### Reversal should safely undo or mark inactive:
+
+* Sales records created from the delivery reconciliation
+* Sale items created from the delivery reconciliation
+* Payment records created from the delivery reconciliation
+* Customer balance impacts from credit sales
+* Inventory movements for sold, returned, and damaged goods
+* Shortage/overage records
+* Any linked delivery expense records, if applicable
+
+Preferred approach:
+
+Do not physically delete records if the system already supports status/inactive flags. Instead, mark linked records as reversed/inactive and create reversal audit records.
+
+All linked records should be traceable using:
+
+* SourceType = DeliveryRun
+* SourceId = DeliveryRunId
+
+After reversal:
+
+* Delivery status should move back to a state that allows editing and reconciliation again.
+* Example status: `ReturnedPendingReconciliation` or `Loaded`, depending on where the workflow should resume.
+* The user should be able to edit the return and reconcile again.
+
+Avoid duplicate records when the delivery is reconciled again.
+
+---
+
+## 4. Add Reload / Edit Load Support for Active Loads
+
+After a vehicle is loaded, the user needs a way to correct mistakes before return/reconciliation.
+
+Currently, once the vehicle is loaded, there is no clear way to reload or edit the load.
+
+Add a `Reload / Edit Load` action on active delivery runs.
+
+This should allow the user to correct:
+
+* Driver
+* Vehicle
+* Route
+* Product lines
+* Quantity loaded
+* Unit price
+* Opening cash with driver
+* Notes
+
+If inventory transfer was already created during loading, the system must safely update the inventory transfer.
+
+Preferred behavior:
+
+* Reverse the original warehouse-to-vehicle stock transfer.
+* Apply the corrected warehouse-to-vehicle stock transfer.
+* Keep an audit trail of the reload/edit.
+
+Do not allow reload/edit after the delivery has been reconciled unless reconciliation is reversed first.
+
+---
+
+## 5. Delivery Filters: Add Driver, Vehicle, and Route Dropdown Filters
+
+The Deliveries page currently has a search input with placeholder text similar to:
+
+“Search driver, vehicle or route”
+
+Keep the search input because it is useful.
+
+But also add separate dropdown filters for:
+
+* Driver
+* Vehicle
+* Route
+* Status, if not already present
+* Date range
+
+Each dropdown must include an `All` option.
+
+Examples:
+
+Driver:
+
+* All Drivers
+* Bismarck
+* Joe King
+
+Vehicle:
+
+* All Vehicles
+* Truck 1
+* Motor King 1
+
+Route:
+
+* All Routes
+* NKT Market
+* City Center
+
+The search box should continue to search freely across driver, vehicle, route, reference number, and notes.
+
+The dropdown filters should allow precise filtering.
+
+Filters should work together.
+
+Example:
+Driver = Bismarck
+Vehicle = All Vehicles
+Route = NKT Market
+Status = Loaded
+
+This should show only Bismarck’s active loads for NKT Market.
+
+---
+
+## 6. Driver Setup: Persist Assigned Vehicle
+
+On the Driver Setup page, when a vehicle is assigned to a driver and saved, the assigned vehicle is not showing on the driver list or details page.
+
+Fix this.
+
+### Required behavior
+
+When editing or creating a driver, if the user selects an assigned vehicle:
+
+* Save the assigned vehicle correctly.
+* Show the assigned vehicle in the Drivers list.
+* Show the assigned vehicle in the Driver Details page.
+* When loading a delivery run, if the driver has an assigned vehicle, optionally auto-select that vehicle.
+* Still allow the user to override the vehicle during loading if needed.
+
+Drivers list should show:
+
+* Name
+* Phone
+* License
+* Assigned Vehicle
+* Status
+* Actions
+
+---
+
+## 7. Routes Setup: Persist Default Vehicle
+
+On the Routes page, the Default Vehicle field is not being saved or displayed correctly.
+
+Fix this.
+
+### Required behavior
+
+When creating or editing a route, if the user selects a default vehicle:
+
+* Save the default vehicle correctly.
+* Show the default vehicle in the Routes list.
+* Show the default vehicle in Route Details.
+* When loading a delivery run, if the selected route has a default vehicle, optionally auto-select that vehicle.
+* If both driver and route have default vehicles, handle it clearly.
+
+Recommended behavior:
+
+* If driver has assigned vehicle, use driver’s vehicle first.
+* If driver has no assigned vehicle and route has default vehicle, use route default vehicle.
+* Allow manual override.
+
+Routes list should show:
+
+* Name
+* Area
+* Default Vehicle
+* Expected Customers
+* Expected Bags
+* Actions
+
+---
+
+## 8. Raw Material Purchase Should Create Expense Entry
+
+When a raw material purchase is recorded, it should create an entry in the Expenses page.
+
+A raw material purchase is a real cash/business expense.
+
+### Required behavior
+
+When recording a raw material purchase:
+
+* Create raw material stock-in record.
+* Create purchase record.
+* Create linked Expense record.
+
+Expense record should include:
+
+* CompanyId
+* ExpenseDate = PurchaseDate
+* ExpenseCategory = Raw Materials / Inventory Purchase
+* Amount = Purchase Total
+* PaymentMethod
+* Description
+* SourceType = RawMaterialPurchase
+* SourceId = RawMaterialPurchaseId
+* CreatedBy
+* CreatedAt
+
+The Expenses page should show the raw material purchase expense.
+
+Avoid duplicate expenses if the purchase is edited or saved more than once.
+
+If a raw material purchase is deleted/reversed, the linked expense should also be reversed, deleted, or marked inactive consistently.
+
+---
+
+## 9. Loss Records Page: Move Filters Above Score Cards
+
+On the Loss Records page, the filters currently appear below the score cards.
+
+Move all filters above the score cards.
+
+The type filter dropdown should be grouped with the other filters.
+
+New order should be:
+
+1. Page title and primary action button
+2. Filters section
+3. Score cards
+4. Loss records table
+
+Filters should include:
+
+* Search
+* Type
+* From date
+* To date
+* Status, if supported
+
+The Type dropdown should include:
+
+* All Types
+* Damaged Bags
+* Rejected Sachets
+* Production Damage
+* Delivery Damage
+* Manual Loss
+* Any other existing loss types
+
+---
+
+## 10. Move Filters Above Score Cards on All Pages
+
+Apply the same layout principle across the application.
+
+On all pages that have filters and score cards, filters should appear before the score cards.
+
+Standard page structure should be:
+
+1. Page title and action buttons
+2. Filters/search section
+3. Score cards/summary cards
+4. Data table/list
+
+Apply this consistently to pages such as:
+
+* Deliveries
+* Production Batches
+* Loss Records
+* Raw Materials
+* Sales
+* Payments
+* Expenses
+* Stock
+* Reports
+* Any other page with filters and score cards
+
+---
+
+## 11. Loss Records: Edit Pending and Unapprove Approved Records
+
+The Loss Records page needs better correction workflow.
+
+### Pending loss records
+
+If a loss record is Pending, allow:
+
+* View Details
+* Edit
+* Approve
+* Delete/Cancel, if supported
+
+### Approved loss records
+
+If a loss record is Approved, allow:
+
+* View Details
+* Unapprove
+* Reverse, if supported
+
+When the user clicks Unapprove:
+
+* Require a reason.
+* Change status from Approved back to Pending or Reopened.
+* Reverse any stock/inventory effect caused by approval.
+* Allow the user to edit the record.
+* Allow approval again after editing.
+
+Avoid duplicate inventory/loss impacts when the record is approved again.
+
+All unapprove/reapprove actions should be auditable.
+
+---
+
+## 12. Daily Closing: Allow Reopen/Resubmit Closing for a Day
+
+The Closing page needs the ability to resubmit closing for a given day.
+
+Business reason:
+A user may close a day, then later discover that additional sales, expenses, production, delivery returns, or losses were entered or corrected. The user must be able to reopen or resubmit the closing so the final daily summary reflects the corrected data.
+
+### Required behavior
+
+For a submitted daily closing, add an action:
+
+* View Details
+* Reopen / Undo Closing
+* Resubmit Closing
+
+Preferred workflow:
+
+When user clicks Reopen/Undo Closing:
+
+* Require a reason.
+* Mark the existing closing as Inactive, Reopened, or Superseded.
+* Do not physically delete the old closing.
+* Allow the user to generate and submit a new closing for the same date.
+
+The new closing should become the active closing for that day.
+
+The old closing should remain in history for audit purposes.
+
+Closing records should support:
+
+* ClosingDate
+* Status: Submitted, Reopened, Superseded, Active, Inactive, etc.
+* IsActive
+* SupersededByClosingId
+* ReopenedBy
+* ReopenedAt
+* ReopenReason
+* SubmittedBy
+* SubmittedAt
+
+Only one closing should be active for a given company and closing date.
+
+The closing details should show whether it replaced a previous closing.
+
+---
+
+## 13. Setup Page Should Support Full Inline Setup Without Leaving the Page
+
+The Water Company Setup page has tabs for setup data such as:
+
+* Products
+* Customers
+* Drivers
+* Vehicles
+* Routes
+* Machines
+* Boreholes
+* Raw Materials
+* Staff
+
+There are already full pages for these areas, but the setup page should allow the user to complete the full setup without leaving the setup page.
+
+### Required behavior
+
+Each setup tab should support the same core actions available on the full page:
+
+* View list
+* Add new
+* Edit
+* Delete/Deactivate, if supported
+* Search/filter where applicable
+* Save changes
+* Show validation errors
+* Refresh list after changes
+
+When the user clicks Add New from a setup tab, open the same modal used by the full page.
+
+Examples:
+
+From Setup → Drivers:
+
+* User clicks New Driver
+* New Driver modal opens
+* User saves
+* Driver appears immediately in Setup → Drivers
+* The same driver also appears on the full Drivers page
+
+From full Drivers page:
+
+* User adds/edits driver
+* The same updated data appears in Setup → Drivers
+
+The setup page and full pages must use the same underlying data and APIs.
+
+No separate duplicated setup data should be created.
+
+The setup page should become a central place where the user can configure all supporting data needed for day-to-day operations.
+
+---
+
+## 14. Fix Main Water Company Setup Page Not Working
+
+The main Water Company Setup page is currently showing a “Not Found” error.
+
+Fix this page.
+
+The page should load correctly and allow the user to view/edit the main business setup details, including:
+
+* Brand name
+* Business type
+* Water source
+* Production site address
+* Main location/town
+* Owner name
+* Phone
+* Default currency
+* Sachets per bag
+* Notes
+* Currency display preference
+* Any other existing setup fields
+
+The “Set up Water Company” button should save the setup correctly.
+
+If setup already exists, the page should load the existing setup and behave as an edit page, not as a first-time-only form.
+
+---
+
+## 15. Currency Symbol Configuration
+
+Currency symbols shown across the app should be configurable from the Water Company Setup page.
+
+The app currently shows values like:
+
+* GHC 100.00
+* GHC 19,500.00
+
+This should come from the company’s setup.
+
+### Required fields
+
+Add or confirm these setup fields:
+
+* CurrencyCode, example: GHS
+* CurrencySymbol, example: GHC or ₵
+* ShowCurrencySymbol, true/false
+
+The user should be able to choose whether to show or hide currency symbols across the app.
+
+Add a checkbox/toggle on the setup page:
+
+`Show currency symbol on pages`
+
+If checked:
+
+* Show values like `GHC 100.00`
+
+If unchecked:
+
+* Show values like `100.00`
+
+This should apply across all pages, including:
+
+* Dashboard
+* Sales
+* Payments
+* Expenses
+* Production Batches
+* Raw Materials
+* Deliveries
+* Loss Records
+* Stock
+* Reports
+* Closing
+* Customer balances
+* Any modal summaries
+
+The value should be company-specific.
+
+Do not hardcode `GHC` in individual pages.
+
+Use a shared currency formatting utility/helper so the display is consistent.
+
+---
+
+## 16. Reports Module
+
+Add a Reports module that gives the owner complete visibility into the water company.
+
+Each report should support:
+
+* Date range filter
+* Optional company filter if the system supports multiple companies
+* Relevant entity filters, such as product, customer, driver, route, vehicle, payment method, status
+* On-screen preview
+* Export to PDF
+* Clear totals and summary cards
+* Consistent currency formatting based on company setup
+* Future support for emailing reports to the owner
+
+### PDF export
+
+Each report should have an `Export PDF` button.
+
+The PDF should include:
+
+* Company name
+* Report title
+* Date range
+* Generated date/time
+* Generated by
+* Filters used
+* Summary totals
+* Detailed table
+* Page numbers if multi-page
+
+### Future email support
+
+Design the report generation so that later we can email any report to the owner.
+
+Add backend structure or placeholders where practical:
+
+* ReportType
+* Filters
+* GeneratedBy
+* GeneratedAt
+* PDF file/path/blob reference if applicable
+* EmailTo
+* EmailStatus
+* ScheduledSend support later
+
+Do not implement full email sending now unless email infrastructure already exists. But structure the report service so emailing later is straightforward.
+
+---
+
+# Required Reports
+
+Implement the following reports.
+
+## 16.1 Daily Business Summary Report
+
+Purpose:
+Shows the full daily performance of the business.
+
+Includes:
+
+* Total sales
+* Total payments collected
+* Total expenses
+* Total production cost
+* Total raw material purchases
+* Total losses
+* Total cash collected
+* Total MoMo collected
+* Total bank collected
+* Total credit sales
+* Net cash position
+* Estimated profit
+* Closing status
+
+Filters:
+
+* Date
+* Payment method
+* Status
+
+Export:
+
+* PDF
+
+---
+
+## 16.2 Profit and Loss Report
+
+Purpose:
+Shows revenue, costs, expenses, losses, and profit.
+
+Includes:
+
+* Sales revenue
+* Cost of goods produced/sold where available
+* Raw material costs consumed
+* Production costs
+* Expenses
+* Loss value
+* Gross profit
+* Net profit
+
+Filters:
+
+* Date range
+* Product
+* Business area/category if available
+
+Export:
+
+* PDF
+
+---
+
+## 16.3 Sales Report
+
+Purpose:
+Shows all sales within a period.
+
+Includes:
+
+* Sale date
+* Sale number
+* Customer
+* Products
+* Quantity
+* Total amount
+* Amount paid
+* Balance
+* Status
+* Source: Manual Sale or Delivery Run
+
+Filters:
+
+* Date range
+* Customer
+* Product
+* Status
+* Source
+* Payment status
+
+Export:
+
+* PDF
+
+---
+
+## 16.4 Payments Received Report
+
+Purpose:
+Shows collections received.
+
+Includes:
+
+* Payment date
+* Customer
+* Sale number
+* Amount
+* Payment method
+* Reference
+* Notes
+* Source
+
+Filters:
+
+* Date range
+* Customer
+* Payment method
+* Source
+
+Export:
+
+* PDF
+
+---
+
+## 16.5 Customer Balance / Receivables Report
+
+Purpose:
+Shows customers who owe money.
+
+Includes:
+
+* Customer
+* Total sales
+* Total paid
+* Outstanding balance
+* Last payment date
+* Last sale date
+* Aging if possible
+
+Filters:
+
+* Customer
+* Date range
+* Balance status
+* Aging bucket if available
+
+Export:
+
+* PDF
+
+---
+
+## 16.6 Production Report
+
+Purpose:
+Shows production activity and production efficiency.
+
+Includes:
+
+* Batch number
+* Production date
+* Machine
+* Product
+* Produced bags
+* Good bags
+* Damaged bags
+* Rejected sachets
+* Raw material cost
+* Other production costs
+* Total cost
+* Cost per bag
+* Efficiency
+* Status
+
+Filters:
+
+* Date range
+* Product
+* Machine
+* Status
+* Shift
+
+Export:
+
+* PDF
+
+---
+
+## 16.7 Raw Material Usage Report
+
+Purpose:
+Shows raw materials consumed in production.
+
+Includes:
+
+* Date
+* Production batch
+* Finished product
+* Raw material
+* Expected quantity
+* Actual quantity used
+* Unit cost
+* Total cost
+* Variance between expected and actual
+
+Filters:
+
+* Date range
+* Raw material
+* Finished product
+* Production batch
+
+Export:
+
+* PDF
+
+---
+
+## 16.8 Raw Material Purchase Report
+
+Purpose:
+Shows raw material purchases.
+
+Includes:
+
+* Purchase date
+* Raw material
+* Quantity
+* Unit cost
+* Total cost
+* Payment method
+* Supplier if available
+* Balance if purchase is unpaid/partially paid
+
+Filters:
+
+* Date range
+* Raw material
+* Supplier
+* Payment method
+
+Export:
+
+* PDF
+
+---
+
+## 16.9 Inventory / Stock Report
+
+Purpose:
+Shows stock position.
+
+Includes:
+
+* Product/material
+* Product type
+* Opening stock
+* Stock in
+* Stock out
+* Current stock
+* Unit
+* Stock value
+* Minimum alert
+* Status
+
+Filters:
+
+* Product type
+* Product/material
+* Low stock only
+* Date range if movement-based
+
+Export:
+
+* PDF
+
+---
+
+## 16.10 Stock Movement Report
+
+Purpose:
+Shows all inventory movements.
+
+Includes:
+
+* Date
+* Product/material
+* Movement type
+* Direction
+* Quantity
+* Source type
+* Source reference
+* Balance after movement if available
+
+Filters:
+
+* Date range
+* Product/material
+* Movement type
+* Source type
+
+Export:
+
+* PDF
+
+---
+
+## 16.11 Delivery Run Report
+
+Purpose:
+Shows delivery runs and their reconciliation status.
+
+Includes:
+
+* Date
+* Driver
+* Vehicle
+* Route
+* Products loaded
+* Quantity loaded
+* Quantity sold
+* Quantity returned
+* Quantity damaged
+* Expected cash
+* Cash/MoMo/Bank collected
+* Credit sales
+* Shortage
+* Overage
+* Status
+
+Filters:
+
+* Date range
+* Driver
+* Vehicle
+* Route
+* Status
+
+Export:
+
+* PDF
+
+---
+
+## 16.12 Driver Accountability Report
+
+Purpose:
+Shows driver performance and accountability.
+
+Includes:
+
+* Driver
+* Number of delivery runs
+* Total quantity loaded
+* Total quantity sold
+* Total quantity returned
+* Total damaged
+* Expected cash
+* Actual collected
+* Credit sales
+* Shortages
+* Overages
+* Loss/damage linked to driver
+
+Filters:
+
+* Date range
+* Driver
+* Route
+* Vehicle
+
+Export:
+
+* PDF
+
+---
+
+## 16.13 Route Performance Report
+
+Purpose:
+Shows performance by route.
+
+Includes:
+
+* Route
+* Number of delivery runs
+* Customers served
+* Quantity sold
+* Total sales
+* Collections
+* Credit sales
+* Shortages
+* Damages/losses
+
+Filters:
+
+* Date range
+* Route
+* Driver
+* Vehicle
+
+Export:
+
+* PDF
+
+---
+
+## 16.14 Vehicle Usage Report
+
+Purpose:
+Shows vehicle usage and performance.
+
+Includes:
+
+* Vehicle
+* Number of delivery runs
+* Drivers assigned
+* Routes served
+* Quantity loaded
+* Quantity sold
+* Damaged/returned quantities
+* Shortages
+* Related expenses if available
+
+Filters:
+
+* Date range
+* Vehicle
+* Driver
+* Route
+
+Export:
+
+* PDF
+
+---
+
+## 16.15 Expense Report
+
+Purpose:
+Shows expenses.
+
+Includes:
+
+* Date
+* Category
+* Amount
+* Payment method
+* Description
+* Source type
+* Source reference
+* Created by
+
+Filters:
+
+* Date range
+* Category
+* Payment method
+* Source type
+
+Export:
+
+* PDF
+
+---
+
+## 16.16 Loss Report
+
+Purpose:
+Shows damaged bags, rejected sachets, manual losses, and delivery losses.
+
+Includes:
+
+* Date
+* Loss type
+* Product
+* Bags lost
+* Sachets lost
+* Value
+* Reason
+* Source type
+* Status
+
+Filters:
+
+* Date range
+* Loss type
+* Product
+* Status
+* Source type
+
+Export:
+
+* PDF
+
+---
+
+## 16.17 Closing Report
+
+Purpose:
+Shows daily closing submissions and resubmissions.
+
+Includes:
+
+* Closing date
+* Sales total
+* Payments total
+* Expenses total
+* Production total
+* Losses
+* Cash summary
+* Submitted by
+* Submitted date
+* Status
+* Reopened/resubmitted history
+
+Filters:
+
+* Date range
+* Status
+* Submitted by
+
+Export:
+
+* PDF
+
+---
+
+## 16.18 Cash Flow Report
+
+Purpose:
+Shows cash inflows and outflows.
+
+Includes:
+
+* Opening cash
+* Cash sales
+* Payments received
+* Raw material purchases
+* Expenses
+* Delivery cash collections
+* Owner deposits/withdrawals if supported
+* Closing cash
+
+Filters:
+
+* Date range
+* Payment method
+* Source type
+
+Export:
+
+* PDF
+
+---
+
+## 16.19 Customer Sales History Report
+
+Purpose:
+Shows sales and payments for one or more customers.
+
+Includes:
+
+* Customer
+* Sale date
+* Products
+* Sale total
+* Amount paid
+* Balance
+* Payment history
+* Last payment date
+
+Filters:
+
+* Date range
+* Customer
+* Product
+* Status
+
+Export:
+
+* PDF
+
+---
+
+## 16.20 Product Performance Report
+
+Purpose:
+Shows performance by product.
+
+Includes:
+
+* Product
+* Quantity produced
+* Quantity sold
+* Revenue
+* Production cost
+* Cost per unit
+* Losses
+* Gross profit estimate
+* Current stock
+
+Filters:
+
+* Date range
+* Product
+* Product type
+
+Export:
+
+* PDF
+
+---
+
+## 17. Reports Page UI
+
+Create a Reports page with report cards or grouped categories.
+
+Suggested groups:
+
+Financial Reports:
+
+* Daily Business Summary
+* Profit and Loss
+* Cash Flow
+* Expense Report
+* Closing Report
+
+Sales and Customers:
+
+* Sales Report
+* Payments Received
+* Customer Balances
+* Customer Sales History
+
+Production and Inventory:
+
+* Production Report
+* Raw Material Usage
+* Raw Material Purchases
+* Inventory / Stock
+* Stock Movement
+* Product Performance
+
+Delivery and Operations:
+
+* Delivery Run Report
+* Driver Accountability
+* Route Performance
+* Vehicle Usage
+* Loss Report
+
+Each report card should have:
+
+* Report name
+* Short description
+* View Report button
+
+Inside each report:
+
+* Filters at the top
+* Summary cards
+* Table
+* Export PDF button
+* Future Email Report button placeholder, disabled or marked “Coming soon” if email is not ready
+
+---
+
+## 18. Final Expected Result
+
+After these changes:
+
+* Deliveries can be viewed, edited before reconciliation, reconciled, and reversed after reconciliation.
+* Active loads have clear View Details, Record Return, Reload/Edit Load actions.
+* Returns and Reconciled records have clear View Details and Reverse/Reconcile actions.
+* Driver and route vehicle assignments persist and display correctly.
+* Raw material purchases appear in Expenses.
+* Loss Records filters are above score cards.
+* Filters are above score cards across all pages.
+* Pending losses can be edited.
+* Approved losses can be unapproved, edited, and approved again.
+* Daily closing can be reopened/resubmitted for the same day while preserving history.
+* The setup page allows full inline setup without forcing navigation to full pages.
+* Main Water Company Setup page works and loads existing setup.
+* Currency display is configurable and consistent across all pages.
+* Reports module provides full business visibility with PDF export and future email support.

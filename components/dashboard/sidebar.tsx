@@ -39,6 +39,14 @@ import {
   Truck,
   Droplets,
   ShoppingBag,
+  Receipt,
+  Users2,
+  Banknote,
+  Wrench,
+  Factory,
+  Cog,
+  Box,
+  Route as RouteIcon,
 } from "lucide-react"
 import { InventoryLogo } from "@/components/auth/logo"
 import { useAlertsStore, type AlertItem } from "@/lib/store/alerts-store"
@@ -61,6 +69,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const openAlerts = useAlertsStore((s: { alerts: AlertItem[]; open: () => void }) => s.open)
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const isWater = activeFarmType === "Water"
+  const isGeneric = activeFarmType === "Generic"
   const { isCollapsed, toggle, isMobileOpen, toggleMobile, setMobileOpen, setCollapsed } = useSidebarStore()
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     farm: true,
@@ -159,14 +168,98 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   )
 
   // Water company nav items (shown when activeFarmType === "Water")
-  const waterCatalogItems = [
-    { href: "/water-products", label: "Products", icon: ShoppingBag },
-    { href: "/water-stock",    label: "Stock",    icon: Boxes },
+  // James (2026-06-02): regrouped to surface Delivery and Production as
+  // first-class sections (previously buried in Admin/Setup). Quick Links is
+  // the old "Daily operations" group but renamed and used as a fast-access
+  // shortcut bar — the items it points to also live in their canonical group
+  // so navigation stays consistent.
+  const waterQuickLinkItems = [
+    { href: "/water-daily-closing",      label: "Daily Closing",      icon: FileText },
+    { href: "/water-driver-returns",     label: "Deliveries",         icon: Truck },
+    { href: "/water-production-batches", label: "Production Batches", icon: Factory },
+    { href: "/water-sales",              label: "Sales",              icon: ShoppingCart },
   ]
-  const waterSalesItems = [
-    { href: "/water-customers", label: "Customers", icon: Users },
-    { href: "/water-sales",     label: "Sales",     icon: ShoppingCart },
-    { href: "/water-payments",  label: "Payments",  icon: CreditCard },
+  // Issue 1 (test-report): the standalone "Drivers" entry was redundant with
+  // People > Staff (staff member with role=Driver). Removed from nav; drivers
+  // are now managed on the Staff page (which auto-syncs the WaterDrivers row
+  // delivery flows still pull from). The /water-drivers route file remains
+  // for bookmarks and shows a redirect notice.
+  const waterDeliveryItems = [
+    { href: "/water-driver-returns", label: "Deliveries", icon: Truck },
+    { href: "/water-vehicles",       label: "Vehicles",   icon: Truck },
+    { href: "/water-routes",         label: "Routes",     icon: RouteIcon },
+  ]
+  const waterProductionItems = [
+    { href: "/water-production-batches", label: "Production Batches", icon: Factory },
+    { href: "/water-products",           label: "Products",           icon: ShoppingBag },
+    { href: "/water-machines",           label: "Machines",           icon: Cog },
+    { href: "/water-boreholes",          label: "Boreholes",          icon: Droplets },
+    { href: "/water-maintenance",        label: "Maintenance",        icon: Wrench },
+  ]
+  // Inventory absorbs Raw materials & supplies; Products moved out into the
+  // Production group above.
+  const waterInventoryItems = [
+    { href: "/water-stock",             label: "Stock",                    icon: Boxes },
+    { href: "/water-inventory",         label: "Inventory",                icon: Boxes },
+    { href: "/water-raw-materials",     label: "Raw materials & supplies", icon: Box },
+    { href: "/water-loss-records",      label: "Damages & loss",           icon: AlertTriangle },
+    { href: "/water-production-losses", label: "Production losses",        icon: AlertTriangle },
+  ]
+  const waterSalesMoneyItems = [
+    { href: "/water-customers",     label: "Customers",       icon: Users },
+    { href: "/water-sales",         label: "Sales",           icon: ShoppingCart },
+    { href: "/water-payments",      label: "Payments",        icon: CreditCard },
+    { href: "/water-expenses",      label: "Expenses",        icon: Receipt },
+    { href: "/water-cash-accounts", label: "Cash & Accounts", icon: Wallet },
+  ]
+  const waterPeopleItems = [
+    { href: "/water-staff",   label: "Staff",   icon: Users2 },
+    { href: "/water-payroll", label: "Payroll", icon: Banknote },
+  ]
+  const waterReportsItems = [
+    { href: "/water-reports", label: "Reports", icon: BarChart3 },
+  ]
+  // Admin / Setup now only carries the genuinely rare-touch config — the
+  // delivery/production fleet items moved into their own first-class groups.
+  const waterAdminItems = [
+    { href: "/water-setup",         label: "Setup",         icon: Settings },
+    { href: "/water-company-setup", label: "Company Setup", icon: Settings },
+    { href: "/water-suppliers",     label: "Suppliers",     icon: Truck },
+  ]
+
+  // Generic Company nav items (shown when activeFarmType === "Generic")
+  // /generic-inventory is the new at-a-glance stock page (products + cards
+  // + filters). /generic-stock-adjustments stays for actually changing stock.
+  const genericCatalogItems = [
+    { href: "/generic-products",          label: "Products",          icon: ShoppingBag },
+    { href: "/generic-inventory",         label: "Inventory",         icon: Boxes },
+    { href: "/generic-stock-adjustments", label: "Stock adjustments", icon: Boxes },
+  ]
+  const genericSalesItems = [
+    { href: "/generic-sales",              label: "Sales",             icon: ShoppingCart },
+    { href: "/generic-customers",          label: "Customers",         icon: Users },
+    { href: "/generic-customer-payments",  label: "Customer payments", icon: CreditCard },
+  ]
+  const genericPurchasingItems = [
+    { href: "/generic-suppliers",          label: "Suppliers",         icon: Truck },
+    { href: "/generic-purchases",          label: "Purchases",         icon: Package },
+    { href: "/generic-supplier-payments",  label: "Supplier payments", icon: CreditCard },
+    { href: "/generic-expenses",           label: "Expenses",          icon: DollarSign },
+  ]
+  const genericMoneyItems = [
+    { href: "/generic-cash",           label: "Cash & Accounts", icon: Wallet },
+    { href: "/generic-cash-transfers", label: "Cash transfers",  icon: Activity },
+    { href: "/generic-daily-closings", label: "Daily Closing",   icon: FileText },
+  ]
+  // Generic — People (Phase 6: staff + attendance + payroll, migrations 055/056)
+  const genericPeopleItems = [
+    { href: "/generic-staff",       label: "Staff",      icon: Users2 },
+    { href: "/generic-attendance",  label: "Attendance", icon: Activity },
+    { href: "/generic-payroll",     label: "Payroll",    icon: Banknote },
+  ]
+  const genericAdminItems = [
+    { href: "/generic-reports", label: "Reports", icon: BarChart3 },
+    { href: "/generic-setup",   label: "Setup",   icon: Settings },
   ]
 
   // Single items (no group)
@@ -332,9 +425,9 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         {/* Dashboard — route depends on active company type */}
         <div>
           {renderNavItem({
-            href: isWater ? "/water-dashboard" : "/dashboard",
+            href: isWater ? "/water-dashboard" : isGeneric ? "/generic-dashboard" : "/dashboard",
             label: "Dashboard",
-            icon: isWater ? Droplets : Home,
+            icon: isWater ? Droplets : isGeneric ? ShoppingBag : Home,
           })}
         </div>
 
@@ -343,13 +436,68 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
         {isWater ? (
           <>
-            {/* Water — Catalog */}
-            {renderGroup("Catalog", waterCatalogItems, "waterCatalog")}
+            {/* Water — Quick Links (shortcuts) → Delivery → Production →
+                Inventory → Sales & Money → People → Reports → Admin/Setup.
+                James 2026-06-02 reorg. */}
+            {renderGroup("Quick Links", waterQuickLinkItems, "waterQuickLinks")}
 
             <div className="border-t border-slate-800 mx-2" />
 
-            {/* Water — Sales */}
-            {renderGroup("Sales", waterSalesItems, "waterSales")}
+            {renderGroup("Delivery", waterDeliveryItems, "waterDelivery")}
+
+            <div className="border-t border-slate-800 mx-2" />
+
+            {renderGroup("Production", waterProductionItems, "waterProduction")}
+
+            <div className="border-t border-slate-800 mx-2" />
+
+            {renderGroup("Inventory", waterInventoryItems, "waterInventory")}
+
+            <div className="border-t border-slate-800 mx-2" />
+
+            {renderGroup("Sales & money", waterSalesMoneyItems, "waterSalesMoney")}
+
+            <div className="border-t border-slate-800 mx-2" />
+
+            {renderGroup("People", waterPeopleItems, "waterPeople")}
+
+            <div className="border-t border-slate-800 mx-2" />
+
+            {renderGroup("Reports", waterReportsItems, "waterReports")}
+
+            <div className="border-t border-slate-800 mx-2" />
+
+            {renderGroup("Admin / Setup", waterAdminItems, "waterAdmin")}
+          </>
+        ) : isGeneric ? (
+          <>
+            {/* Generic Company — Catalog */}
+            {renderGroup("Catalog", genericCatalogItems, "genericCatalog")}
+
+            <div className="border-t border-slate-800 mx-2" />
+
+            {/* Generic Company — Sales */}
+            {renderGroup("Sales", genericSalesItems, "genericSales")}
+
+            <div className="border-t border-slate-800 mx-2" />
+
+            {/* Generic Company — Purchasing */}
+            {renderGroup("Purchasing", genericPurchasingItems, "genericPurchasing")}
+
+            <div className="border-t border-slate-800 mx-2" />
+
+            {/* Generic Company — Money */}
+            {renderGroup("Money", genericMoneyItems, "genericMoney")}
+
+            <div className="border-t border-slate-800 mx-2" />
+
+            {/* Generic Company — People (Phase 6) */}
+            {renderGroup("People", genericPeopleItems, "genericPeople")}
+
+            <div className="border-t border-slate-800 mx-2" />
+
+            {/* Generic Company — Admin */}
+            {renderGroup("Admin", genericAdminItems, "genericAdmin")}
           </>
         ) : (
           <>
@@ -399,7 +547,8 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         <div className="space-y-0.5">
           {permissions.featureAccess.canViewReports && renderNavItem({ href: "/reports", label: "Reports", icon: BarChart3 })}
           {renderNavItem({ href: "/profile", label: "Account", icon: User })}
-          {renderNavItem({ href: "/resources", label: "Resources", icon: BookOpen })}
+          {/* Resources page is poultry-only (vaccination/feed/medication schedules for chickens). */}
+          {!isWater && !isGeneric && renderNavItem({ href: "/resources", label: "Resources", icon: BookOpen })}
           {renderNavItem(
             { href: "#", label: "Alerts", icon: Bell },
             true,
@@ -408,8 +557,11 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
           )}
           {renderNavItem({ href: "/companies", label: "Companies", icon: Building2 })}
           {permissions.featureAccess.canViewActivityLog && renderNavItem({ href: "/audit-logs", label: "Activity Log", icon: Activity })}
-          {permissions.featureAccess.canViewSettings && renderNavItem({ href: "/settings", label: "Settings", icon: Settings })}
-          {renderNavItem({ href: "/help", label: "Help Center", icon: HelpCircle })}
+          {/* /settings is the poultry farm-profile page. Water and Generic have their own
+              dedicated setup links inside their respective sidebar groups above. */}
+          {!isWater && !isGeneric && permissions.featureAccess.canViewSettings && renderNavItem({ href: "/settings", label: "Settings", icon: Settings })}
+          {/* /help is poultry-specific (flocks, eggs, vaccinations). */}
+          {!isWater && !isGeneric && renderNavItem({ href: "/help", label: "Help Center", icon: HelpCircle })}
           {renderNavItem({ href: "/terms", label: "Terms & Conditions", icon: ListTodo })}
         </div>
       </nav>

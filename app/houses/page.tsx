@@ -7,6 +7,7 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
@@ -21,7 +22,6 @@ export default function HousesPage() {
   const { toast } = useToast()
   const [houses, setHouses] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deletingHouse, setDeletingHouse] = useState<any | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -42,15 +42,14 @@ export default function HousesPage() {
   const load = async () => {
     try {
       setLoading(true)
-      setError("")
       const { userId, farmId } = getUserContext()
       if (!userId) throw new Error("User not found")
       if (!farmId) throw new Error("Farm not selected")
       const res = await getHouses(userId, farmId)
       if (res.success && res.data) setHouses(res.data as any[])
-      else setError(res.message || "Failed to load houses")
+      else toast({ title: "Could not load houses", description: res.message || "Failed to load houses", variant: "destructive" })
     } catch (e: any) {
-      setError(e?.message || "Failed to load houses")
+      toast({ title: "Could not load houses", description: e?.message || "Failed to load houses", variant: "destructive" })
     } finally {
       setLoading(false)
     }
@@ -91,7 +90,7 @@ export default function HousesPage() {
       setDialogOpen(false)
       await load()
     } catch (e: any) {
-      setError(e?.message || "Save failed")
+      toast({ title: "Save failed", description: e?.message || "Save failed", variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -145,10 +144,6 @@ export default function HousesPage() {
               </Button>
             </div>
 
-            {error && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">{error}</div>
-            )}
-
             {loading ? (
               <div className="text-center py-12 text-slate-600">Loading houses...</div>
             ) : houses.length === 0 ? (
@@ -199,7 +194,7 @@ export default function HousesPage() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-4xl w-[95vw] sm:max-w-[900px] max-h-[90vh] flex flex-col">
+        <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit House" : "Create New House"}</DialogTitle>
             <DialogDescription>
@@ -223,9 +218,9 @@ export default function HousesPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="capacity">Capacity (birds)</Label>
-                  <Input
+                  <NumberInput
                     id="capacity"
-                    type="number"
+                    
                     min="0"
                     value={capacity}
                     onChange={(e) => setCapacity(e.target.value)}

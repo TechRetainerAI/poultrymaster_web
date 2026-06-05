@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useAuthStore } from "@/lib/store/auth-store"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -159,6 +160,17 @@ const featureGuides = [
 
 export default function HelpPage() {
   const router = useRouter()
+  const activeFarmType = useAuthStore((s) => s.activeFarmType)
+
+  // /help is poultry-specific (flocks, eggs, birds, vaccinations). Send
+  // Water/Generic users to their dashboard until type-specific help pages
+  // exist. Wait for Zustand to hydrate before deciding.
+  useEffect(() => {
+    if (activeFarmType === null || activeFarmType === undefined) return
+    if (activeFarmType === "Water")        router.replace("/water-dashboard")
+    else if (activeFarmType === "Generic") router.replace("/generic-dashboard")
+  }, [activeFarmType, router])
+
   const [searchQuery, setSearchQuery] = useState("")
   const [openFAQ, setOpenFAQ] = useState<number | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string>("All")

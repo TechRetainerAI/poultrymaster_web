@@ -6,6 +6,7 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -24,6 +25,8 @@ export default function NewEggProductionPage() {
   const [error, setError] = useState("")
   const [flockBatches, setFlockBatches] = useState<FlockBatch[]>([])
   const [flocks, setFlocks] = useState<any[]>([])
+  // Batch filter (James 2026-05-27). Default "ALL" shows every arrived flock.
+  const [selectedBatchId, setSelectedBatchId] = useState<string>("ALL")
 
   const [formData, setFormData] = useState<Omit<EggProductionInput, "farmId" | "userId" | "totalProduction">>({
     flockId: 0,
@@ -237,10 +240,37 @@ export default function NewEggProductionPage() {
               <div className="space-y-4 p-6 bg-white rounded-lg shadow-sm">
                 <h3 className="text-lg font-semibold text-slate-900">Production Details</h3>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="space-y-2">
+                    <Label>Batch</Label>
+                    <Select value={selectedBatchId} onValueChange={(v) => {
+                      setSelectedBatchId(v)
+                      // Clear flockId if the current selection isn't in the new batch.
+                      if (v !== "ALL" && formData.flockId) {
+                        const fb = flocks.find((f: any) => f.flockId === formData.flockId)
+                        if (!fb || String(fb.batchId) !== v) {
+                          handleInputChange("flockId", 0)
+                        }
+                      }
+                    }} disabled={loading}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="All batches" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ALL">All batches</SelectItem>
+                        {flockBatches.map((b) => (
+                          <SelectItem key={b.batchId} value={String(b.batchId)}>
+                            {b.batchName || b.batchCode || `Batch #${b.batchId}`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="text-xs text-slate-500">Filters flocks below.</div>
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="flockId">Flock *</Label>
                     <Select
+                      value={formData.flockId ? String(formData.flockId) : undefined}
                       onValueChange={(value) => handleInputChange("flockId", parseInt(value))}
                       disabled={loading}
                     >
@@ -248,11 +278,14 @@ export default function NewEggProductionPage() {
                         <SelectValue placeholder="Select a flock" />
                       </SelectTrigger>
                       <SelectContent>
-                        {flocks.filter((flock: any) => flock.hasArrived).map((flock: any) => (
-                          <SelectItem key={flock.flockId} value={flock.flockId.toString()}>
-                            {flock.name}
-                          </SelectItem>
-                        ))}
+                        {flocks
+                          .filter((flock: any) => flock.hasArrived)
+                          .filter((flock: any) => selectedBatchId === "ALL" || String(flock.batchId) === selectedBatchId)
+                          .map((flock: any) => (
+                            <SelectItem key={flock.flockId} value={flock.flockId.toString()}>
+                              {flock.name}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -271,9 +304,9 @@ export default function NewEggProductionPage() {
 
                   <div className="space-y-2">
                     <Label htmlFor="totalProduction">Total Eggs Collected</Label>
-                    <Input
+                    <NumberInput
                       id="totalProduction"
-                      type="number"
+                      
                       min="0"
                       value={totalProduction}
                       disabled
@@ -282,9 +315,9 @@ export default function NewEggProductionPage() {
 
                   <div className="space-y-2">
                     <Label htmlFor="brokenEggs">Broken Eggs</Label>
-                    <Input
+                    <NumberInput
                       id="brokenEggs"
-                      type="number"
+                      
                       min="0"
                       value={formData.brokenEggs}
                       onChange={(e) => handleInputChange("brokenEggs", parseInt(e.target.value) || 0)}
@@ -322,11 +355,11 @@ export default function NewEggProductionPage() {
                   <div className="grid grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">Crates</Label>
-                      <Input type="number" min="0" value={morningCrates} onChange={(e) => setMorningCrates(parseInt(e.target.value) || 0)} disabled={loading} />
+                      <NumberInput min="0" value={morningCrates} onChange={(e) => setMorningCrates(parseInt(e.target.value) || 0)} disabled={loading} />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Loose Eggs</Label>
-                      <Input type="number" min="0" max="29" value={morningLoose} onChange={(e) => setMorningLoose(parseInt(e.target.value) || 0)} disabled={loading} />
+                      <NumberInput min="0" max="29" value={morningLoose} onChange={(e) => setMorningLoose(parseInt(e.target.value) || 0)} disabled={loading} />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Total</Label>
@@ -342,11 +375,11 @@ export default function NewEggProductionPage() {
                   <div className="grid grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">Crates</Label>
-                      <Input type="number" min="0" value={noonCrates} onChange={(e) => setNoonCrates(parseInt(e.target.value) || 0)} disabled={loading} />
+                      <NumberInput min="0" value={noonCrates} onChange={(e) => setNoonCrates(parseInt(e.target.value) || 0)} disabled={loading} />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Loose Eggs</Label>
-                      <Input type="number" min="0" max="29" value={noonLoose} onChange={(e) => setNoonLoose(parseInt(e.target.value) || 0)} disabled={loading} />
+                      <NumberInput min="0" max="29" value={noonLoose} onChange={(e) => setNoonLoose(parseInt(e.target.value) || 0)} disabled={loading} />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Total</Label>
@@ -362,11 +395,11 @@ export default function NewEggProductionPage() {
                   <div className="grid grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">Crates</Label>
-                      <Input type="number" min="0" value={eveningCrates} onChange={(e) => setEveningCrates(parseInt(e.target.value) || 0)} disabled={loading} />
+                      <NumberInput min="0" value={eveningCrates} onChange={(e) => setEveningCrates(parseInt(e.target.value) || 0)} disabled={loading} />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Loose Eggs</Label>
-                      <Input type="number" min="0" max="29" value={eveningLoose} onChange={(e) => setEveningLoose(parseInt(e.target.value) || 0)} disabled={loading} />
+                      <NumberInput min="0" max="29" value={eveningLoose} onChange={(e) => setEveningLoose(parseInt(e.target.value) || 0)} disabled={loading} />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Total</Label>

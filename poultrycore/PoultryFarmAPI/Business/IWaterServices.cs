@@ -18,6 +18,10 @@ namespace PoultryFarmAPIWeb.Business
         Task<WaterCustomerModel?> GetById(int id, string farmId);
         Task<List<WaterCustomerModel>> GetAll(string farmId);
         Task Delete(int id, string farmId);
+        // Migration 082: ensure the 3 system-managed default customers exist
+        // for this farm (GeneralSales / GeneralDelivery / GeneralCredit).
+        Task<List<WaterDefaultCustomerResult>> CreateDefaultsAsync(string farmId);
+        Task<WaterCustomerModel?> GetDefaultAsync(string farmId, string defaultCustomerType);
     }
 
     public interface IWaterStockService

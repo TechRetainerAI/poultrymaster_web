@@ -17,7 +17,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Ma
 BEGIN
     RAISERROR(N'024: dbo.MainFlockBatch not found. Run earlier migrations first.', 16, 1);
 END
-GO
+
 
 IF COL_LENGTH(N'dbo.MainFlockBatch', N'Notes') IS NULL
 BEGIN

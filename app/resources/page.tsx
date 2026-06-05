@@ -1,15 +1,17 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
+import { useAuthStore } from "@/lib/store/auth-store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -53,7 +55,17 @@ interface FeedFormulation {
 export default function ResourcesPage() {
   const router = useRouter()
   const { toast } = useToast()
+  const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const [activeTab, setActiveTab] = useState("vaccination")
+
+  // This page is poultry-only (vaccination schedules, feed formulations,
+  // medication schedules are all for chickens). Send Water/Generic users
+  // to their own dashboard. Wait for Zustand to hydrate before checking.
+  useEffect(() => {
+    if (activeFarmType === null || activeFarmType === undefined) return
+    if (activeFarmType === "Water")        router.replace("/water-dashboard")
+    else if (activeFarmType === "Generic") router.replace("/generic-dashboard")
+  }, [activeFarmType, router])
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; type: "vaccination" | "medication" | "feed"; name: string } | null>(null)
 
@@ -410,9 +422,9 @@ export default function ResourcesPage() {
                             <div className="grid grid-cols-2 gap-4">
                               <div className="space-y-2">
                                 <Label htmlFor="ageInWeeks">Age (Weeks)</Label>
-                                <Input
+                                <NumberInput
                                   id="ageInWeeks"
-                                  type="number"
+                                  
                                   min="0"
                                   value={vaccinationForm.ageInWeeks}
                                   onChange={(e) => setVaccinationForm(prev => ({ ...prev, ageInWeeks: parseInt(e.target.value) || 0 }))}
@@ -420,9 +432,9 @@ export default function ResourcesPage() {
                               </div>
                               <div className="space-y-2">
                                 <Label htmlFor="ageInDays">Age (Days)</Label>
-                                <Input
+                                <NumberInput
                                   id="ageInDays"
-                                  type="number"
+                                  
                                   min="0"
                                   value={vaccinationForm.ageInDays}
                                   onChange={(e) => setVaccinationForm(prev => ({ ...prev, ageInDays: parseInt(e.target.value) || 0 }))}
@@ -551,9 +563,9 @@ export default function ResourcesPage() {
                             <div className="grid grid-cols-2 gap-4">
                               <div className="space-y-2">
                                 <Label htmlFor="medAgeInWeeks">Age (Weeks)</Label>
-                                <Input
+                                <NumberInput
                                   id="medAgeInWeeks"
-                                  type="number"
+                                  
                                   min="0"
                                   value={medicationForm.ageInWeeks}
                                   onChange={(e) => setMedicationForm(prev => ({ ...prev, ageInWeeks: parseInt(e.target.value) || 0 }))}
@@ -561,9 +573,9 @@ export default function ResourcesPage() {
                               </div>
                               <div className="space-y-2">
                                 <Label htmlFor="medAgeInDays">Age (Days)</Label>
-                                <Input
+                                <NumberInput
                                   id="medAgeInDays"
-                                  type="number"
+                                  
                                   min="0"
                                   value={medicationForm.ageInDays}
                                   onChange={(e) => setMedicationForm(prev => ({ ...prev, ageInDays: parseInt(e.target.value) || 0 }))}
@@ -711,9 +723,9 @@ export default function ResourcesPage() {
                             <div className="grid grid-cols-2 gap-4">
                               <div className="space-y-2">
                                 <Label htmlFor="protein">Protein (%)</Label>
-                                <Input
+                                <NumberInput
                                   id="protein"
-                                  type="number"
+                                  
                                   min="0"
                                   step="0.1"
                                   value={feedForm.protein}
@@ -722,9 +734,9 @@ export default function ResourcesPage() {
                               </div>
                               <div className="space-y-2">
                                 <Label htmlFor="energy">Energy (kcal/kg)</Label>
-                                <Input
+                                <NumberInput
                                   id="energy"
-                                  type="number"
+                                  
                                   min="0"
                                   value={feedForm.energy}
                                   onChange={(e) => setFeedForm(prev => ({ ...prev, energy: parseFloat(e.target.value) || 0 }))}
@@ -819,11 +831,11 @@ export default function ResourcesPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="editVaccineWeeks">Age (Weeks)</Label>
-                <Input id="editVaccineWeeks" type="number" min="0" value={editVaccinationForm.ageInWeeks} onChange={(e) => setEditVaccinationForm((prev) => ({ ...prev, ageInWeeks: parseInt(e.target.value) || 0 }))} />
+                <NumberInput id="editVaccineWeeks"  min="0" value={editVaccinationForm.ageInWeeks} onChange={(e) => setEditVaccinationForm((prev) => ({ ...prev, ageInWeeks: parseInt(e.target.value) || 0 }))} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="editVaccineDays">Age (Days)</Label>
-                <Input id="editVaccineDays" type="number" min="0" value={editVaccinationForm.ageInDays} onChange={(e) => setEditVaccinationForm((prev) => ({ ...prev, ageInDays: parseInt(e.target.value) || 0 }))} />
+                <NumberInput id="editVaccineDays"  min="0" value={editVaccinationForm.ageInDays} onChange={(e) => setEditVaccinationForm((prev) => ({ ...prev, ageInDays: parseInt(e.target.value) || 0 }))} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -862,11 +874,11 @@ export default function ResourcesPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="editMedicationWeeks">Age (Weeks)</Label>
-                <Input id="editMedicationWeeks" type="number" min="0" value={editMedicationForm.ageInWeeks} onChange={(e) => setEditMedicationForm((prev) => ({ ...prev, ageInWeeks: parseInt(e.target.value) || 0 }))} />
+                <NumberInput id="editMedicationWeeks"  min="0" value={editMedicationForm.ageInWeeks} onChange={(e) => setEditMedicationForm((prev) => ({ ...prev, ageInWeeks: parseInt(e.target.value) || 0 }))} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="editMedicationDays">Age (Days)</Label>
-                <Input id="editMedicationDays" type="number" min="0" value={editMedicationForm.ageInDays} onChange={(e) => setEditMedicationForm((prev) => ({ ...prev, ageInDays: parseInt(e.target.value) || 0 }))} />
+                <NumberInput id="editMedicationDays"  min="0" value={editMedicationForm.ageInDays} onChange={(e) => setEditMedicationForm((prev) => ({ ...prev, ageInDays: parseInt(e.target.value) || 0 }))} />
               </div>
             </div>
             <div className="space-y-2">
@@ -913,11 +925,11 @@ export default function ResourcesPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="editFeedProtein">Protein (%)</Label>
-                <Input id="editFeedProtein" type="number" min="0" step="0.1" value={editFeedForm.protein} onChange={(e) => setEditFeedForm((prev) => ({ ...prev, protein: parseFloat(e.target.value) || 0 }))} />
+                <NumberInput id="editFeedProtein"  min="0" step="0.1" value={editFeedForm.protein} onChange={(e) => setEditFeedForm((prev) => ({ ...prev, protein: parseFloat(e.target.value) || 0 }))} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="editFeedEnergy">Energy (kcal/kg)</Label>
-                <Input id="editFeedEnergy" type="number" min="0" value={editFeedForm.energy} onChange={(e) => setEditFeedForm((prev) => ({ ...prev, energy: parseFloat(e.target.value) || 0 }))} />
+                <NumberInput id="editFeedEnergy"  min="0" value={editFeedForm.energy} onChange={(e) => setEditFeedForm((prev) => ({ ...prev, energy: parseFloat(e.target.value) || 0 }))} />
               </div>
             </div>
             <div className="space-y-2">

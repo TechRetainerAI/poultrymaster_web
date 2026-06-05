@@ -8,12 +8,14 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { AuthService } from "@/lib/services/auth.service"
 import { useAuthStore } from "@/lib/store/auth-store"
+import { useToast } from "@/hooks/use-toast"
 import { Shield } from "lucide-react"
 
 function Login2FAForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { login } = useAuthStore()
+  const { toast } = useToast()
   
   const userId = searchParams.get("userId")
   const userName = searchParams.get("userName")
@@ -76,7 +78,7 @@ function Login2FAForm() {
     try {
       // TODO: Implement resend OTP API call
       // await AuthService.resendOTP(userId)
-      alert("New OTP code sent to your email")
+      toast({ title: "OTP resent", description: "Check your email for the new code." })
     } catch (err) {
       setError("Failed to resend OTP code. Please try again.")
     } finally {

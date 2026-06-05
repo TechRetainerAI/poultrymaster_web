@@ -19,7 +19,9 @@
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.577 0.245 27.325);
+  /* Foreground used to match --destructive exactly — text on the destructive
+     toast/badge was red-on-red and invisible. Use near-white for contrast. */
+  --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
@@ -55,7 +57,9 @@
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
+  /* Dark-mode foreground also matched the destructive red — same legibility
+     bug. Use near-white so toast/badge text reads on either palette. */
+  --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.269 0 0);
   --input: oklch(0.269 0 0);
   --ring: oklch(0.439 0 0);
@@ -171,6 +175,21 @@ body {
   .bg-slate-50 > .flex-1 > main > div {
     width: 100%;
     min-width: 0;
+  }
+}
+
+/* Reserve space at the bottom of every dashboard scroll area so the floating
+   chat bubble (fixed bottom-20 right-8 on desktop, higher on mobile) does not
+   overlap the action column of the last visible table row. Without this, the
+   bubble lands on top of the row's delete icon. */
+.bg-slate-50 > .flex-1 > main {
+  padding-bottom: 9rem;
+}
+@media (max-width: 1023px) {
+  .bg-slate-50 > .flex-1 > main {
+    /* On mobile the chat bubble sits ~6.75rem above the bottom (clearing the
+       mobile bottom-nav), so reserve a bit more height for it. */
+    padding-bottom: 12rem;
   }
 }
 

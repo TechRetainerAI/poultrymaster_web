@@ -16,6 +16,8 @@ import { AuthService } from "@/lib/services/auth.service"
 import { useAuth } from "@/lib/hooks/use-auth"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { DEFAULT_LOGIN_API_HOST } from "@/lib/api/default-api-hosts"
+import { getAuthenticationApiUrl, tryRefreshAccessToken } from "@/lib/api/auth"
+import { getAuthHeaders } from "@/lib/api/config"
 
 export default function ProfilePage() {
   const router = useRouter()
@@ -169,52 +171,39 @@ export default function ProfilePage() {
     setError("")
 
     try {
-      const token = localStorage.getItem("auth_token")
-      const rawAdmin = process.env.NEXT_PUBLIC_ADMIN_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || DEFAULT_LOGIN_API_HOST
-      const baseUrl = rawAdmin.startsWith('http://') || rawAdmin.startsWith('https://') ? rawAdmin : `https://${rawAdmin}`
-      const response = await fetch(`${baseUrl}/api/Authentication/update-profile`, {
-        method: "PUT",
-        headers: {
-          "Authorization": token ? `Bearer ${token}` : "",
-          "Content-Type": "application/json",
-          accept: "*/*",
-        },
-        body: JSON.stringify({
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          email: formData.email,
-          phoneNumber: formData.phoneNumber,
-          farmName: formData.farmName,
-        }),
-      })
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          if (typeof window !== "undefined") {
-            localStorage.setItem("firstName", formData.firstName)
-            localStorage.setItem("lastName", formData.lastName)
-            localStorage.setItem("email", formData.email)
-            localStorage.setItem("phoneNumber", formData.phoneNumber)
-            localStorage.setItem("farmName", formData.farmName)
-          }
-          setProfile((prev) => prev ? ({
-            ...prev,
+      // Same-origin proxy → Login API. The previous code hit the Login API
+      // origin directly, which would 404 with a CORS preflight failure on most
+      // browsers and made it look like the save "worked" because the catch
+      // wrote to localStorage instead. One automatic refresh-then-retry on 401
+      // so an expired token doesn't kick the user back to login mid-edit.
+      const url = getAuthenticationApiUrl("update-profile")
+      const doFetch = () =>
+        fetch(url, {
+          method: "PUT",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
             firstName: formData.firstName,
             lastName: formData.lastName,
             email: formData.email,
             phoneNumber: formData.phoneNumber,
             farmName: formData.farmName,
-          }) : prev)
-          setSuccessMessage({
-            title: "Profile Updated Successfully!",
-            message: "Your profile information has been updated"
-          })
-          setShowSuccess(true)
-          setIsEditing(false)
-          return
-        }
+          }),
+        })
+
+      let response = await doFetch()
+      if (response.status === 401 && (await tryRefreshAccessToken())) {
+        response = await doFetch()
+      }
+
+      if (!response.ok) {
         const errorText = await response.text()
-        throw new Error(errorText || "Failed to update profile")
+        throw new Error(errorText || `Failed to update profile (HTTP ${response.status})`)
+      }
+
+      // Mirror farmName into localStorage so the dashboard header / sidebar
+      // pick it up without waiting for a /Companies/mine refresh.
+      if (typeof window !== "undefined" && formData.farmName) {
+        localStorage.setItem("farmName", formData.farmName)
       }
 
       setSuccessMessage({
@@ -243,44 +232,33 @@ export default function ProfilePage() {
     setError("")
 
     try {
-      const token = localStorage.getItem("auth_token")
-      const rawAdmin = process.env.NEXT_PUBLIC_ADMIN_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || DEFAULT_LOGIN_API_HOST
-      const baseUrl = rawAdmin.startsWith('http://') || rawAdmin.startsWith('https://') ? rawAdmin : `https://${rawAdmin}`
-      
-      const endpoint = enabled 
-        ? `${baseUrl}/api/Authentication/enable-2fa`
-        : `${baseUrl}/api/Authentication/disable-2fa`
-      
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Authorization": token ? `Bearer ${token}` : "",
-          "Content-Type": "application/json",
-          accept: "*/*",
-        },
-      })
+      // Same-origin proxy → Login API. The previous code hit the Login API
+      // origin directly and had a silent localStorage fallback on 404 that
+      // pretended 2FA was on — that's exactly why the login flow never
+      // actually challenged for an OTP. One refresh-then-retry on 401.
+      const url = getAuthenticationApiUrl(enabled ? "enable-2fa" : "disable-2fa")
+      const doFetch = () => fetch(url, { method: "POST", headers: getAuthHeaders() })
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          localStorage.setItem("twoFactorEnabled", enabled ? "true" : "false")
-          setProfile((prev) => prev ? ({ ...prev, twoFactorEnabled: enabled }) : prev)
-          setShowSuccess(true)
-          setIsToggling2FA(false)
-          return
-        }
-        
-        const errorText = await response.text()
-        throw new Error(errorText || `Failed to ${enabled ? 'enable' : 'disable'} 2FA`)
+      let response = await doFetch()
+      if (response.status === 401 && (await tryRefreshAccessToken())) {
+        response = await doFetch()
       }
 
-      const result = await response.json()
-      
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(errorText || `Failed to ${enabled ? 'enable' : 'disable'} 2FA (HTTP ${response.status})`)
+      }
+
       setProfile((prev) => prev ? ({ ...prev, twoFactorEnabled: enabled }) : prev)
-      localStorage.setItem("twoFactorEnabled", enabled ? "true" : "false")
-      
+      // Mirror to localStorage so the next login page render reads the latest
+      // state without waiting for a fresh getCurrentUser round-trip.
+      if (typeof window !== "undefined") {
+        localStorage.setItem("twoFactorEnabled", enabled ? "true" : "false")
+      }
+
       setSuccessMessage({
         title: enabled ? "2FA Enabled!" : "2FA Disabled!",
-        message: enabled 
+        message: enabled
           ? "Two-factor authentication has been enabled. You'll receive OTP codes via email during login."
           : "Two-factor authentication has been disabled. You can enable it again anytime from your profile."
       })

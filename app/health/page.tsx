@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -548,7 +549,7 @@ export default function HealthPage() {
                     Add Health Record
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-4xl w-[95vw] sm:max-w-[900px] max-h-[90vh] flex flex-col">
+                <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] flex flex-col">
                   <DialogHeader>
                     <DialogTitle>Create Health Record</DialogTitle>
                     <DialogDescription>
@@ -668,9 +669,9 @@ export default function HealthPage() {
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="waterConsumption">Dosage</Label>
-                          <Input
+                          <NumberInput
                             id="waterConsumption"
-                            type="number"
+                            
                             step="0.1"
                             min="0"
                             placeholder="e.g., 1ml per bird"
@@ -1147,7 +1148,7 @@ export default function HealthPage() {
                 }
               }}
             >
-              <DialogContent className="max-w-4xl w-[95vw] sm:max-w-[900px] max-h-[90vh] flex flex-col">
+              <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] flex flex-col">
                 <DialogHeader>
                   <DialogTitle>Edit Health Record</DialogTitle>
                   <DialogDescription>
@@ -1267,9 +1268,9 @@ export default function HealthPage() {
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="edit-waterConsumption">Dosage</Label>
-                        <Input
+                        <NumberInput
                           id="edit-waterConsumption"
-                          type="number"
+                          
                           step="0.1"
                           min="0"
                           placeholder="e.g., 1ml per bird"

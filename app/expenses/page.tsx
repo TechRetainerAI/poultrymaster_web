@@ -22,10 +22,12 @@ import {
 } from "@/lib/utils/expense-receipt"
 import { ExpenseReceiptField } from "@/components/expense/expense-receipt-field"
 import { getFlocks, type Flock } from "@/lib/api/flock"
+import { useBatchFlockSelect, BATCH_ALL } from "@/hooks/use-batch-flock-select"
 import { getUserContext } from "@/lib/utils/user-context"
-import { getValidFlocks, getFlocksForSelect } from "@/lib/utils/flock-utils"
+import { getValidFlocks, getFlocksForExpenseSelect, getFlockSelectEmptyHint } from "@/lib/utils/flock-utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
@@ -86,8 +88,17 @@ export default function ExpensesPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [createLoading, setCreateLoading] = useState(false)
   const [createError, setCreateError] = useState("")
-  const [flocksForSelect, setFlocksForSelect] = useState<{ value: string; label: string }[]>([])
-  const [flocksSelectLoading, setFlocksSelectLoading] = useState(false)
+  // Batch + Flock dropdowns (James 2026-05-27, repeated request on /expenses).
+  // The hook owns the valid-flock list + batch list + filter logic; we render
+  // the two <Select>s inside renderForm() below and pass the same hook state to
+  // both create and edit forms (one filter affects both since renderForm is shared).
+  const {
+    batchOptions,
+    selectedBatchId,
+    setSelectedBatchId,
+    flockOptions: flocksForSelect,
+    loading: flocksSelectLoading,
+  } = useBatchFlockSelect()
   const [createForm, setCreateForm] = useState({
     flockId: "", expenseDate: new Date().toISOString().split("T")[0], category: "", description: "", amount: "", paymentMethod: "",
   })
@@ -109,7 +120,8 @@ export default function ExpensesPage() {
   const [editHasDbAttachment, setEditHasDbAttachment] = useState(false)
 
   const expenseCategories = ["Feed", "Veterinary", "Equipment", "Labor", "Utilities", "Other"]
-  const paymentMethods = ["Cash", "Credit Card", "Bank Transfer", "Check", "Other"]
+  // Mobile Money added 2026-05-27 (James). Match /expenses/new and /expenses/[id].
+  const paymentMethods = ["Cash", "Mobile Money", "Credit Card", "Bank Transfer", "Check", "Other"]
 
   useEffect(() => {
     loadExpenses()
@@ -134,18 +146,10 @@ export default function ExpensesPage() {
     if (res.success && res.data) setAllFlocks(res.data)
   }
 
-  const loadFlocksForSelect = async () => {
-    setFlocksSelectLoading(true)
-    try {
-      await getValidFlocks()
-      const fs = getFlocksForSelect()
-      setFlocksForSelect(fs)
-    } catch (err) {
-      console.error("Error loading flocks:", err)
-    } finally {
-      setFlocksSelectLoading(false)
-    }
-  }
+  // Flock+Batch loading now lives in useBatchFlockSelect (hook above). Stub kept
+  // so existing call sites compile without renaming everywhere — it's a no-op
+  // because the hook auto-loads on mount and refreshes via its own state.
+  const loadFlocksForSelect = async () => { /* no-op: handled by useBatchFlockSelect */ }
 
   const loadExpenses = async () => {
     const { userId, farmId } = getUserContext()
@@ -473,7 +477,26 @@ export default function ExpensesPage() {
     <>
       <div className="rounded-xl border border-slate-200 overflow-hidden">
         <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Flock &amp; Date</div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-white">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-slate-700">Batch</Label>
+            <Select value={selectedBatchId} onValueChange={(v) => {
+              setSelectedBatchId(v)
+              // If the form's currently-selected flock isn't in the new batch's flocks,
+              // clear it so the user doesn't save against a now-hidden flock.
+              if (v !== BATCH_ALL && form.flockId && !flocksForSelect.some((f) => f.value === form.flockId)) {
+                setForm({ ...form, flockId: "" })
+              }
+            }}>
+              <SelectTrigger><SelectValue placeholder="All batches" /></SelectTrigger>
+              <SelectContent>
+                {batchOptions.map((b) => (
+                  <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="text-xs text-slate-500">Filters flocks below.</div>
+          </div>
           <div className="space-y-2">
             <Label className="text-sm font-medium text-slate-700">Select Flock *</Label>
             <Select value={form.flockId} onValueChange={(v) => setForm({ ...form, flockId: v })}>
@@ -482,7 +505,7 @@ export default function ExpensesPage() {
                 {flocksSelectLoading ? (
                   <SelectItem value="loading" disabled>Loading flocks...</SelectItem>
                 ) : flocksForSelect.length === 0 ? (
-                  <SelectItem value="none" disabled>No flocks available</SelectItem>
+                  <SelectItem value="none" disabled>{getFlockSelectEmptyHint("expense")}</SelectItem>
                 ) : (
                   flocksForSelect.map((f) => (
                     <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
@@ -511,7 +534,7 @@ export default function ExpensesPage() {
           </div>
           <div className="space-y-2">
             <Label className="text-sm font-medium text-slate-700">Amount *</Label>
-            <Input name="amount" type="number" step="0.01" min="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0.00" required disabled={isLoading} className="max-w-[200px]" />
+            <NumberInput name="amount"  step="0.01" min="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0.00" required disabled={isLoading} className="max-w-[200px]" />
           </div>
           <div className="space-y-2">
             <Label className="text-sm font-medium text-slate-700">Payment Method *</Label>
@@ -1010,7 +1033,7 @@ export default function ExpensesPage() {
 
       {/* Create Expense Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col gap-4 overflow-hidden p-6">
+        <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] flex flex-col gap-4 overflow-hidden p-6">
           <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2"><DollarSign className="w-5 h-5 text-green-600" /> Add Expense</DialogTitle>
             <DialogDescription>Record a new farm expense</DialogDescription>
@@ -1043,7 +1066,7 @@ export default function ExpensesPage() {
 
       {/* Edit Expense Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col gap-4 overflow-hidden p-6">
+        <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] flex flex-col gap-4 overflow-hidden p-6">
           <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2"><Pencil className="w-5 h-5 text-blue-600" /> Edit Expense</DialogTitle>
             <DialogDescription>Update expense information</DialogDescription>

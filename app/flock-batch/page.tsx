@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from "@/components/ui/pagination"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
@@ -975,7 +976,7 @@ export default function FlockBatchesPage() {
 
       {/* Flocks Dialog */}
       <Dialog open={flocksDialogOpen} onOpenChange={setFlocksDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-[1600px] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Flocks in Batch: {selectedBatch?.batchName}</DialogTitle>
             <DialogDescription>
@@ -1061,7 +1062,7 @@ export default function FlockBatchesPage() {
 
       {/* Create Flock Batch Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Bird className="w-5 h-5 text-green-600" /> Add New Flock Batch
@@ -1093,7 +1094,7 @@ export default function FlockBatchesPage() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-slate-700">Number of Birds *</Label>
-                  <Input type="number" min="1" placeholder="e.g., 100" value={createForm.numberOfBirds} onChange={(e) => {
+                  <NumberInput min="1" placeholder="e.g., 100" value={createForm.numberOfBirds} onChange={(e) => {
                     const n = parseInt(e.target.value) || 0
                     setCreateForm(prev => ({ ...prev, numberOfBirds: n, totalCost: prev.costPerChick > 0 ? +(prev.costPerChick * n).toFixed(2) : prev.totalCost }))
                   }} required disabled={createLoading} />
@@ -1106,18 +1107,18 @@ export default function FlockBatchesPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-slate-700">Cost Per Chick</Label>
-                  <Input type="number" min="0" step="0.01" placeholder="e.g., 2.50" value={createForm.costPerChick} onChange={(e) => {
+                  <NumberInput min="0" step="0.01" placeholder="e.g., 2.50" value={createForm.costPerChick} onChange={(e) => {
                     const c = parseFloat(e.target.value) || 0
                     setCreateForm(prev => ({ ...prev, costPerChick: c, totalCost: prev.numberOfBirds > 0 ? +(c * prev.numberOfBirds).toFixed(2) : prev.totalCost }))
                   }} disabled={createLoading} />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-slate-700">Total Cost</Label>
-                  <Input type="number" min="0" step="0.01" placeholder="Auto-calculated" value={createForm.totalCost} onChange={(e) => setCreateForm({ ...createForm, totalCost: parseFloat(e.target.value) || 0 })} disabled={createLoading} />
+                  <NumberInput min="0" step="0.01" placeholder="Auto-calculated" value={createForm.totalCost} onChange={(e) => setCreateForm({ ...createForm, totalCost: parseFloat(e.target.value) || 0 })} disabled={createLoading} />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-slate-700">Amount Paid (USD)</Label>
-                  <Input type="number" min="0" step="0.01" placeholder="e.g., 250.00" value={createForm.amountPaid} onChange={(e) => setCreateForm({ ...createForm, amountPaid: parseFloat(e.target.value) || 0 })} disabled={createLoading} />
+                  <NumberInput min="0" step="0.01" placeholder="e.g., 250.00" value={createForm.amountPaid} onChange={(e) => setCreateForm({ ...createForm, amountPaid: parseFloat(e.target.value) || 0 })} disabled={createLoading} />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-slate-700">Type</Label>
@@ -1177,7 +1178,7 @@ export default function FlockBatchesPage() {
 
       {/* Edit Flock Batch Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Pencil className="w-5 h-5 text-blue-600" /> Edit Flock Batch
@@ -1215,7 +1216,7 @@ export default function FlockBatchesPage() {
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-slate-700">Number of Birds *</Label>
-                    <Input type="number" min="1" placeholder="e.g., 100" value={editForm.numberOfBirds} onChange={(e) => {
+                    <NumberInput min="1" placeholder="e.g., 100" value={editForm.numberOfBirds} onChange={(e) => {
                       const n = parseInt(e.target.value) || 0
                       setEditForm(prev => ({ ...prev, numberOfBirds: n, totalCost: prev.costPerChick > 0 ? +(prev.costPerChick * n).toFixed(2) : prev.totalCost }))
                     }} required disabled={editLoading} />
@@ -1228,18 +1229,18 @@ export default function FlockBatchesPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white">
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-slate-700">Cost Per Chick</Label>
-                    <Input type="number" min="0" step="0.01" placeholder="e.g., 2.50" value={editForm.costPerChick} onChange={(e) => {
+                    <NumberInput min="0" step="0.01" placeholder="e.g., 2.50" value={editForm.costPerChick} onChange={(e) => {
                       const c = parseFloat(e.target.value) || 0
                       setEditForm(prev => ({ ...prev, costPerChick: c, totalCost: prev.numberOfBirds > 0 ? +(c * prev.numberOfBirds).toFixed(2) : prev.totalCost }))
                     }} disabled={editLoading} />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-slate-700">Total Cost</Label>
-                    <Input type="number" min="0" step="0.01" placeholder="Auto-calculated" value={editForm.totalCost} onChange={(e) => setEditForm({ ...editForm, totalCost: parseFloat(e.target.value) || 0 })} disabled={editLoading} />
+                    <NumberInput min="0" step="0.01" placeholder="Auto-calculated" value={editForm.totalCost} onChange={(e) => setEditForm({ ...editForm, totalCost: parseFloat(e.target.value) || 0 })} disabled={editLoading} />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-slate-700">Amount Paid (USD)</Label>
-                    <Input type="number" min="0" step="0.01" placeholder="e.g., 250.00" value={editForm.amountPaid} onChange={(e) => setEditForm({ ...editForm, amountPaid: parseFloat(e.target.value) || 0 })} disabled={editLoading} />
+                    <NumberInput min="0" step="0.01" placeholder="e.g., 250.00" value={editForm.amountPaid} onChange={(e) => setEditForm({ ...editForm, amountPaid: parseFloat(e.target.value) || 0 })} disabled={editLoading} />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-slate-700">Type</Label>

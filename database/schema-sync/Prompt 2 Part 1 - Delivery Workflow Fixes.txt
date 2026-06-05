@@ -1,0 +1,278 @@
+Title: Delivery Workflow Actions, Filters, Reconciliation Reversal, and Setup Persistence Fixes
+
+We need to complete and clean up the Delivery workflow in the Water Company app.
+
+The current Deliveries page has tabs such as Active Loads, Returns, Reconciled, and Setup. However, several workflow actions are missing or not clear enough. We need to make the delivery process fully auditable and correctable.
+
+Please implement the following changes.
+
+---
+
+## 1. Add Clear Actions on the Deliveries Page
+
+The Returns tab currently shows return records, but there is no clear action to reconcile, approve, view, or manage them.
+
+Add an Actions column to the Returns tab.
+
+For return records that are not yet reconciled, show:
+
+* View Details
+* Reconcile / Approve
+* Edit Return, if the return has been saved but not reconciled
+* Delete/Cancel, if supported
+
+For reconciled return records, show:
+
+* View Details
+* Reverse Reconciliation
+
+The user should not have to guess that clicking the date opens details. Add a clear `View Details` action at the end of each row.
+
+The Reconciled tab should also have an Actions column with:
+
+* View Details
+* Reverse Reconciliation
+
+The Active Loads tab should have an Actions column with:
+
+* View Details
+* Record Return
+* Reload / Edit Load
+* Cancel Load, if supported
+
+---
+
+## 2. Add Delivery Details View
+
+Add or improve the Delivery Details view so the user can inspect a delivery run or return clearly.
+
+The details view should show:
+
+* Delivery run ID or reference number
+* Load date
+* Driver
+* Vehicle
+* Route
+* Loaded products
+* Quantity loaded per product
+* Unit price per product
+* Expected amount
+* Return status
+* Sold quantity per product
+* Returned quantity per product
+* Damaged quantity per product
+* Cash collected
+* MoMo collected
+* Bank collected
+* Credit sales
+* Shortage
+* Overage
+* Customer breakdown, if entered
+* Linked sales records
+* Linked payment records
+* Linked inventory transactions
+* Reconciliation status
+* Reconciled by
+* Reconciled date
+* Reversal history, if any
+* Notes
+
+The details view should be read-only for reconciled records unless the user chooses Reverse Reconciliation.
+
+---
+
+## 3. Add Reverse Reconciliation Support
+
+Once a delivery has been reconciled, the user must be able to reverse the reconciliation if a mistake was made.
+
+Add a `Reverse Reconciliation` action.
+
+When clicked, show a confirmation modal:
+
+“Are you sure you want to reverse this reconciliation? This will undo the linked sales, payments, inventory movements, customer balance updates, and shortage/overage records created by this reconciliation. You can then edit and reconcile the delivery again.”
+
+The user must enter a reason for reversal.
+
+Reversal should safely undo or mark inactive:
+
+* Sales records created from the delivery reconciliation
+* Sale items created from the delivery reconciliation
+* Payment records created from the delivery reconciliation
+* Customer balance impacts from credit sales
+* Inventory movements for sold, returned, and damaged goods
+* Shortage/overage records
+* Any linked delivery expense records, if applicable
+
+Preferred approach:
+
+Do not physically delete records if the system supports status/inactive flags. Instead, mark linked records as reversed/inactive and create reversal audit records.
+
+All linked records should be traceable using:
+
+* SourceType = DeliveryRun
+* SourceId = DeliveryRunId
+
+After reversal:
+
+* Delivery status should move back to a state that allows editing and reconciliation again.
+* Example status: ReturnedPendingReconciliation or Loaded, depending on where the workflow should resume.
+* The user should be able to edit the return and reconcile again.
+
+Avoid duplicate records when the delivery is reconciled again.
+
+---
+
+## 4. Add Reload / Edit Load Support for Active Loads
+
+After a vehicle is loaded, the user needs a way to correct mistakes before return/reconciliation.
+
+Add a `Reload / Edit Load` action on active delivery runs.
+
+This should allow the user to correct:
+
+* Driver
+* Vehicle
+* Route
+* Product lines
+* Quantity loaded
+* Unit price
+* Opening cash with driver
+* Notes
+
+If inventory transfer was already created during loading, the system must safely update the inventory transfer.
+
+Preferred behavior:
+
+* Reverse the original warehouse-to-vehicle stock transfer.
+* Apply the corrected warehouse-to-vehicle stock transfer.
+* Keep an audit trail of the reload/edit.
+
+Do not allow reload/edit after the delivery has been reconciled unless reconciliation is reversed first.
+
+---
+
+## 5. Add Driver, Vehicle, and Route Dropdown Filters
+
+The Deliveries page currently has a search input with placeholder text like:
+
+“Search driver, vehicle or route”
+
+Keep this search input.
+
+Also add separate dropdown filters for:
+
+* Driver
+* Vehicle
+* Route
+* Status, if not already present
+* Date range
+
+Each dropdown must include an `All` option.
+
+Examples:
+
+Driver:
+
+* All Drivers
+* Bismarck
+* Joe King
+
+Vehicle:
+
+* All Vehicles
+* Truck 1
+* Motor King 1
+
+Route:
+
+* All Routes
+* NKT Market
+* City Center
+
+The search box should continue to search freely across driver, vehicle, route, reference number, and notes.
+
+The dropdown filters should support precise filtering and should work together.
+
+Example:
+
+Driver = Bismarck
+Vehicle = All Vehicles
+Route = NKT Market
+Status = Loaded
+
+This should show only Bismarck’s active loads for NKT Market.
+
+---
+
+## 6. Fix Driver Assigned Vehicle Persistence
+
+On the Driver Setup page, when a vehicle is assigned to a driver and saved, the assigned vehicle is not showing on the driver list or details page.
+
+Fix this.
+
+Required behavior:
+
+When creating or editing a driver, if the user selects an assigned vehicle:
+
+* Save the assigned vehicle correctly.
+* Show the assigned vehicle in the Drivers list.
+* Show the assigned vehicle in the Driver Details page.
+* When loading a delivery run, if the driver has an assigned vehicle, optionally auto-select that vehicle.
+* Still allow the user to override the vehicle during loading if needed.
+
+Drivers list should show:
+
+* Name
+* Phone
+* License
+* Assigned Vehicle
+* Status
+* Actions
+
+---
+
+## 7. Fix Route Default Vehicle Persistence
+
+On the Routes page, the Default Vehicle field is not being saved or displayed correctly.
+
+Fix this.
+
+Required behavior:
+
+When creating or editing a route, if the user selects a default vehicle:
+
+* Save the default vehicle correctly.
+* Show the default vehicle in the Routes list.
+* Show the default vehicle in Route Details.
+* When loading a delivery run, if the selected route has a default vehicle, optionally auto-select that vehicle.
+
+If both driver and route have default vehicles, use this behavior:
+
+* If driver has assigned vehicle, use driver’s vehicle first.
+* If driver has no assigned vehicle and route has default vehicle, use route default vehicle.
+* Always allow manual override.
+
+Routes list should show:
+
+* Name
+* Area
+* Default Vehicle
+* Expected Customers
+* Expected Bags
+* Actions
+
+---
+
+## Final Expected Result
+
+After these changes:
+
+* Active Loads have View Details, Record Return, Reload/Edit Load, and Cancel actions.
+* Returns have View Details, Reconcile/Approve, Edit Return, and Cancel actions where applicable.
+* Reconciled records have View Details and Reverse Reconciliation.
+* Reversed reconciliations safely undo linked sales, payments, inventory, customer balance, and shortage/overage impacts.
+* The user can correct a loaded vehicle before reconciliation.
+* Delivery filters support precise filtering by Driver, Vehicle, Route, Status, and Date.
+* Driver assigned vehicles persist and display correctly.
+* Route default vehicles persist and display correctly.
+* Delivery details are clearly viewable from each relevant tab.

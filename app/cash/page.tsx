@@ -7,9 +7,11 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Wallet, Copy, ChevronDown, ChevronUp, Mic, MicOff, Send, Plus, Pencil, Trash2 } from "lucide-react"
 import { getUserContext } from "@/lib/utils/user-context"
@@ -51,7 +53,6 @@ export default function CashPage() {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [summary, setSummary] = useState<CashSummary | null>(null)
-  const [error, setError] = useState("")
   const [askInput, setAskInput] = useState("")
   const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false)
   const [adjustmentForm, setAdjustmentForm] = useState({
@@ -72,6 +73,7 @@ export default function CashPage() {
   const [outFilter, setOutFilter] = useState("")
   const [sortKey, setSortKey] = useState<string | null>("date")
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
+  const [deleteAdjustmentId, setDeleteAdjustmentId] = useState<number | null>(null)
   const isMobile = useIsMobile()
   const recognitionRef = useRef<any>(null)
 
@@ -87,17 +89,16 @@ export default function CashPage() {
 
   const loadData = async () => {
     setLoading(true)
-    setError("")
     try {
       const res = await getCashSummary(userId!, farmId!)
       if (res.success && res.data) {
         setSummary(res.data)
       } else {
-        setError(res.message || "Failed to load cash summary")
+        toast({ title: "Could not load cash", description: res.message || "Failed to load cash summary", variant: "destructive" })
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to load cash data:", err)
-      setError("Failed to load cash data")
+      toast({ title: "Could not load cash", description: err?.message ?? "Failed to load cash data", variant: "destructive" })
     } finally {
       setLoading(false)
     }
@@ -248,17 +249,7 @@ export default function CashPage() {
       return
     }
 
-    const confirmed = window.confirm("Delete this cash adjustment?")
-    if (!confirmed) return
-
-    const res = await deleteCashAdjustment(adjustmentId, farmId)
-    if (!res.success) {
-      toast({ title: "Failed", description: res.message || "Failed to delete adjustment", variant: "destructive" })
-      return
-    }
-
-    toast({ title: "Deleted", description: "Cash adjustment deleted successfully." })
-    loadData()
+    setDeleteAdjustmentId(adjustmentId)
   }
 
   // Voice input (Web Speech API)
@@ -460,12 +451,6 @@ export default function CashPage() {
               </div>
             </div>
 
-            {error && (
-              <div className="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-                {error}
-              </div>
-            )}
-
             {/* Top Summary Card */}
             <Card className="border-emerald-200 bg-emerald-50/50">
               <CardHeader className="pb-2">
@@ -522,8 +507,8 @@ export default function CashPage() {
                         </div>
                         <div className="space-y-2">
                           <Label>Amount ({currency})</Label>
-                          <Input
-                            type="number"
+                          <NumberInput
+                            
                             step="0.01"
                             placeholder="0.00"
                             value={adjustmentForm.amount}
@@ -606,8 +591,8 @@ export default function CashPage() {
                   />
                   <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
                   <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-                  <Input type="number" step="0.01" placeholder="In >=" value={inFilter} onChange={(e) => setInFilter(e.target.value)} />
-                  <Input type="number" step="0.01" placeholder="Out >=" value={outFilter} onChange={(e) => setOutFilter(e.target.value)} />
+                  <NumberInput step="0.01" placeholder="In >=" value={inFilter} onChange={(e) => setInFilter(e.target.value)} />
+                  <NumberInput step="0.01" placeholder="Out >=" value={outFilter} onChange={(e) => setOutFilter(e.target.value)} />
                 </div>
                 <div className="pt-2">
                   <Button variant="outline" size="sm" onClick={clearFilters}>Reset Filters</Button>
@@ -772,6 +757,22 @@ export default function CashPage() {
           </div>
         </main>
       </div>
+
+      <ConfirmDeleteDialog
+        open={deleteAdjustmentId !== null}
+        onOpenChange={(o) => { if (!o) setDeleteAdjustmentId(null) }}
+        title="Delete cash adjustment?"
+        description="This cash adjustment will be permanently removed. This action cannot be undone."
+        successTitle="Deleted"
+        successDescription="Cash adjustment deleted successfully."
+        errorTitle="Delete failed"
+        onConfirm={async () => {
+          if (deleteAdjustmentId === null || !farmId) return { success: false, message: "Missing context" }
+          const res = await deleteCashAdjustment(deleteAdjustmentId, farmId)
+          if (res.success) loadData()
+          return res
+        }}
+      />
     </div>
   )
 }

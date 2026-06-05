@@ -14,6 +14,10 @@ namespace PoultryFarmAPIWeb.Business
             _connectionString = connectionString;
         }
 
+        // Migration 084: routes to spWaterSale_CreateV2 so per-line SellingUnit
+        // is honored and stock is deducted in BaseQuantity (sachets) when the
+        // product is flagged IsSachetProduct=1. Legacy callers that don't send
+        // SellingUnit get the product's default Unit, preserving prior behavior.
         public async Task<int> Create(CreateWaterSaleRequest req)
         {
             var itemsJson = JsonSerializer.Serialize(req.Items.Select(i => new
@@ -21,10 +25,11 @@ namespace PoultryFarmAPIWeb.Business
                 i.WaterProductId,
                 i.Quantity,
                 i.UnitPrice,
+                SellingUnit = i.SellingUnit,
             }));
 
             using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spWaterSale_Create", conn) { CommandType = CommandType.StoredProcedure };
+            using var cmd = new SqlCommand("spWaterSale_CreateV2", conn) { CommandType = CommandType.StoredProcedure };
             cmd.Parameters.AddWithValue("@FarmId", req.FarmId);
             cmd.Parameters.AddWithValue("@WaterCustomerId", (object?)req.WaterCustomerId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@SaleDate", (object?)req.SaleDate ?? DBNull.Value);
@@ -106,6 +111,17 @@ namespace PoultryFarmAPIWeb.Business
             Quantity        = r.GetInt32(r.GetOrdinal("Quantity")),
             UnitPrice       = r.GetDecimal(r.GetOrdinal("UnitPrice")),
             LineTotal       = r.GetDecimal(r.GetOrdinal("LineTotal")),
+            // Migration 084 — new selling-unit columns; absent on older sales.
+            SellingUnit     = HasCol(r, "SellingUnit")  && !r.IsDBNull(r.GetOrdinal("SellingUnit"))  ? r.GetString(r.GetOrdinal("SellingUnit"))  : null,
+            BaseUnit        = HasCol(r, "BaseUnit")     && !r.IsDBNull(r.GetOrdinal("BaseUnit"))     ? r.GetString(r.GetOrdinal("BaseUnit"))     : null,
+            BaseQuantity    = HasCol(r, "BaseQuantity") && !r.IsDBNull(r.GetOrdinal("BaseQuantity")) ? r.GetDecimal(r.GetOrdinal("BaseQuantity")) : null,
         };
+
+        private static bool HasCol(SqlDataReader r, string name)
+        {
+            for (int i = 0; i < r.FieldCount; i++)
+                if (r.GetName(i).Equals(name, StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
+        }
     }
 }

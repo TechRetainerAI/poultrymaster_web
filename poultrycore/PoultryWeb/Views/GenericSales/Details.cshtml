@@ -1,0 +1,117 @@
+@model PoultryWeb.Models.Generic.GenericSaleVm
+@{
+    Layout = "_GenericLayout";
+    ViewData["Title"] = $"Sale #{Model.GenericSaleId}";
+    string Money(decimal v) => $"GHC {v:N2}";
+
+    string StatusBadge(string s) => s switch
+    {
+        "Draft"     => "bg-secondary",
+        "Approved"  => "bg-success",
+        "Cancelled" => "bg-danger",
+        "Refunded"  => "bg-warning text-dark",
+        _           => "bg-light text-dark",
+    };
+}
+
+<div class="d-flex justify-content-between align-items-start mb-3">
+    <div>
+        <h4 class="mb-1">Sale #@Model.GenericSaleId
+            <span class="badge @StatusBadge(Model.Status) ms-2">@Model.Status</span>
+        </h4>
+        <div class="text-muted">@Model.SaleDate.ToString("yyyy-MM-dd HH:mm")</div>
+    </div>
+    <div class="d-flex gap-2">
+        @if (Model.Status == "Draft")
+        {
+            <form asp-action="Approve" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" value="@Model.GenericSaleId" />
+                <button class="btn btn-success">✓ Approve</button>
+            </form>
+            <form asp-action="Cancel" method="post"
+                  onsubmit="return confirm('Cancel this Draft sale?');">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" value="@Model.GenericSaleId" />
+                <button class="btn btn-outline-danger">✕ Cancel</button>
+            </form>
+        }
+        <a asp-action="Index" class="btn btn-outline-secondary">Back to list</a>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-7">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h6 class="text-uppercase text-muted small">Items</h6>
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Type</th>
+                            <th>Description</th>
+                            <th class="text-end">Qty</th>
+                            <th class="text-end">Unit price</th>
+                            <th class="text-end">Discount</th>
+                            <th class="text-end">Line total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var i in Model.Items)
+                    {
+                        <tr>
+                            <td><small class="text-muted">@i.ItemType</small></td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(i.Description))
+                                { @i.Description }
+                                else if (i.GenericProductId.HasValue)
+                                { <text>Product #@i.GenericProductId</text> }
+                                else if (i.GenericServiceId.HasValue)
+                                { <text>Service #@i.GenericServiceId</text> }
+                            </td>
+                            <td class="text-end">@i.Quantity.ToString("0.###")</td>
+                            <td class="text-end">@Money(i.UnitPrice)</td>
+                            <td class="text-end">@Money(i.DiscountAmount)</td>
+                            <td class="text-end fw-semibold">@Money(i.LineTotal)</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-5">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h6 class="text-uppercase text-muted small">Totals</h6>
+                <dl class="row mb-0">
+                    <dt class="col-7">Subtotal</dt>          <dd class="col-5 text-end">@Money(Model.SubtotalAmount)</dd>
+                    <dt class="col-7">Discount</dt>          <dd class="col-5 text-end">@Money(Model.DiscountAmount)</dd>
+                    <dt class="col-7">Tax</dt>               <dd class="col-5 text-end">@Money(Model.TaxAmount)</dd>
+                    <dt class="col-7 border-top pt-2"><strong>Total</strong></dt>
+                    <dd class="col-5 text-end border-top pt-2"><strong>@Money(Model.TotalAmount)</strong></dd>
+                    <dt class="col-7">Paid (@(Model.PaymentMethod ?? "—"))</dt>
+                    <dd class="col-5 text-end text-success">@Money(Model.AmountPaid)</dd>
+                    <dt class="col-7"><strong>Balance</strong></dt>
+                    <dd class="col-5 text-end @(Model.Balance > 0 ? "text-danger fw-bold" : "")">@Money(Model.Balance)</dd>
+                </dl>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mt-3">
+            <div class="card-body small">
+                <h6 class="text-uppercase text-muted small">Header</h6>
+                <div>Customer: <strong>@(Model.CustomerName ?? "Walk-in")</strong></div>
+                <div>Type: @Model.SalesType @(string.IsNullOrEmpty(Model.SalesChannel) ? "" : $"/ {Model.SalesChannel}")</div>
+                <div>Receipt: @(Model.ReceiptNumber ?? "—")</div>
+                <div>Payment status: <strong>@Model.PaymentStatus</strong></div>
+                @if (!string.IsNullOrEmpty(Model.Notes))
+                {
+                    <hr class="my-2" />
+                    <div>@Model.Notes</div>
+                }
+            </div>
+        </div>
+    </div>
+</div>

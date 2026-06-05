@@ -1,0 +1,638 @@
+We need to enhance the Delivery / Driver Returns workflow in our water company management app.
+
+Context:
+The app currently has separate pages to create Drivers, Vehicles, and Routes. It also has a Load Vehicle modal and a Driver Returns page. The Load Vehicle modal currently allows selecting Vehicle, Route, Product, Bags Loaded, Selling Price/Bag, Opening Cash with Driver, Sachets/Bag, and Notes. The Driver Returns page shows vehicles out, returns today, total shortages, active vehicles, loaded/reconciled statuses, and allows recording a return. The Record Driver Return modal captures Bags Sold, Bags Returned, Bags Damaged, Cash Collected, MoMo Collected, Bank Collected, Credit Sales, Notes, and calculates whether Sold + Returned + Damaged equals Loaded. It also calculates expected cash, collected amount, shortage, and overage.
+
+The app also already has a fully functioning Sales page and Payments page. The Sales page records sales by customer and items. The Payments page lists payments received.
+
+The problem:
+The current delivery implementation is good for summary-level reconciliation, but it does not yet fully support driver accountability, customer/shop-level delivery breakdown, credit sales tied to customers, warehouse-to-vehicle inventory transfer, vehicle/driver stock tracking, and automatic creation of Sales and Payments records from delivery returns.
+
+Core design principle:
+Do not build a separate sales system inside Delivery. Delivery should feed the existing Sales and Payments modules. The Sales table and Payments table should remain the source of truth for sales and collections. Delivery is the operational workflow used to load goods, send them out with a driver, reconcile returns, and optionally generate customer-level sales and payment records.
+
+Implementation quality expectation:
+Do not treat this as a temporary MVP that will require a major redesign later. Build the architecture solidly now so it can support real water company operations without large refactoring.
+
+The implementation should be practical and simple for users, but the data model must be strong enough to support:
+
+* Multiple products per delivery run
+* Multiple customers per delivery run
+* Multiple payment methods per customer sale
+* Customer credit balances
+* Driver accountability
+* Vehicle/driver stock tracking
+* Warehouse-to-vehicle inventory transfers
+* Returned and damaged stock handling
+* Sales and payment records generated from delivery reconciliation
+* Audit trail from delivery run to sales, payments, inventory, and customer balances
+
+The UI may remain simple when the company only has one product, but the backend and workflow must not be limited to one product.
+
+1. Rename the concept from only “Load Vehicle” to “Create Delivery Run / Load Driver”
+
+The UI button can still say “Load Vehicle” if desired, but the record should represent a Delivery Run.
+
+A delivery run should answer:
+
+* Which vehicle was loaded?
+* Which driver is responsible?
+* Which route is being served?
+* Which product(s) were loaded?
+* How many units were loaded for each product?
+* What is the expected cash for each product and for the full run?
+* Who loaded/approved the run?
+
+2. Add Driver assignment to Load Vehicle modal
+
+Update the Load Vehicle modal to include:
+
+Required:
+
+* Driver
+* Vehicle
+* Route
+* Product lines
+* Quantity loaded per product
+* Selling price per product
+
+Optional:
+
+* Assistant/Mate
+* Opening cash with driver
+* Sachets per bag or unit details where applicable
+* Notes
+
+The vehicle itself is not accountable for money or stock. The driver/person is accountable. Therefore DriverId must be captured when loading.
+
+3. Delivery run database model
+
+Use a header/detail structure.
+
+DeliveryRuns:
+
+* DeliveryRunId
+* CompanyId
+* DeliveryDate
+* DriverId
+* AssistantId nullable
+* VehicleId
+* RouteId
+* Status: Loaded, Returned, Reconciled, Cancelled
+* OpeningCashWithDriver
+* ExpectedCash
+* ActualCashCollected
+* ActualMoMoCollected
+* ActualBankCollected
+* CreditSalesAmount
+* ShortageAmount
+* OverageAmount
+* LoadedBy
+* ApprovedBy
+* ReconciledBy
+* CreatedAt
+* UpdatedAt
+* Notes
+
+DeliveryRunItems:
+
+* DeliveryRunItemId
+* DeliveryRunId
+* ProductId
+* QuantityLoaded
+* UnitPrice
+* QuantitySold
+* QuantityReturned
+* QuantityDamaged
+* ExpectedAmount
+* CreatedAt
+* UpdatedAt
+
+The delivery workflow must support multiple products per delivery run from the beginning.
+
+Even though many water companies may currently deliver only one main product, such as sachet water, the system should not be designed as if one product is the permanent limit. A single vehicle/driver may eventually carry different products on the same route, such as:
+
+* Sachet Water
+* Bottled Water 500ml
+* Bottled Water 1.5L
+* Dispenser Water
+* Ice packs or other related products
+
+The load modal should allow adding multiple product lines. If a company only sells one product, the UI will naturally contain one line. But the architecture and database should still support multiple lines.
+
+Example Load Vehicle UI:
+
+Product | Quantity Loaded | Unit Price | Expected Amount
+Sachet Water | 650 bags | GHC 30 | GHC 19,500
+Bottled Water 500ml | 50 packs | GHC 40 | GHC 2,000
+
+Total Expected Cash = sum of all line expected amounts.
+
+4. Inventory movement on load
+
+When a vehicle/driver is loaded, the system should transfer finished goods stock from the warehouse/factory to the vehicle/driver.
+
+Use inventory locations if available.
+
+Recommended locations:
+
+* Factory Warehouse
+* Vehicle/Driver location
+* Damaged Stock
+
+When loading:
+
+* Factory Warehouse stock decreases.
+* Vehicle/Driver stock increases.
+
+Example:
+Load 650 bags of Sachet Water to Motor King 1 / Driver Kofi.
+
+Create inventory transactions:
+
+* Factory Warehouse: TransferOut 650
+* Motor King 1 or Driver Kofi location: TransferIn 650
+
+For multiple products, create these transfer transactions for each product line in DeliveryRunItems.
+
+This enables the system to answer:
+
+* How many bags/products are in the factory?
+* How many bags/products are currently out with drivers?
+* Which driver/vehicle has which stock?
+
+If inventory locations are not implemented yet, add the data model now or prepare the transaction model to include FromLocationId and ToLocationId.
+
+5. Driver return modal should remain summary-based, but must support product-level reconciliation
+
+Keep the existing return summary concept, but extend it to support multiple products.
+
+For each product loaded, the return modal should allow recording:
+
+* Quantity sold
+* Quantity returned
+* Quantity damaged
+
+Validation rule per product:
+Quantity Sold + Quantity Returned + Quantity Damaged = Quantity Loaded
+
+The overall delivery run should be considered balanced only when every product line is balanced and the payment/credit totals reconcile correctly.
+
+Example return table:
+
+Product | Loaded | Sold | Returned | Damaged | Unit Price | Expected Sales
+Sachet Water | 650 | 600 | 45 | 5 | GHC 30 | GHC 18,000
+Bottled Water 500ml | 50 | 40 | 10 | 0 | GHC 40 | GHC 1,600
+
+Also keep the payment summary:
+
+* Cash collected
+* MoMo collected
+* Bank collected
+* Credit sales
+* Notes
+
+Keep shortage/overage calculation.
+
+6. Add optional Customer Sales Breakdown section
+
+Add an expandable section inside the return modal:
+
+Customer Sales Breakdown
+
+Fields per customer row:
+
+* Customer
+* Product/items sold
+* Quantity sold per product
+* Unit price
+* Total amount
+* Cash paid
+* MoMo paid
+* Bank paid
+* Credit amount
+* Notes
+
+A single customer sale during a delivery run may include one or more products.
+
+Example:
+Customer: Star K Store
+
+Items:
+
+* Sachet Water: 20 bags @ GHC 30
+* Bottled Water 500ml: 5 packs @ GHC 40
+
+Payment:
+
+* Cash: GHC 500
+* MoMo: GHC 200
+* Credit: GHC 100
+
+Buttons:
+
+* Add Customer Sale
+* Remove Row
+* Use Summary Only
+* Validate Breakdown
+
+The manager should be able to enter customer/shop sales during the return process based on what the driver wrote down in a delivery book, paper sheet, WhatsApp message, or verbal report.
+
+The driver does not need to use the app directly at this stage. The manager can record or confirm the information during return/reconciliation.
+
+7. Support two reconciliation modes
+
+Mode A: Summary-only return
+
+Use this when the business does not care about shop/customer breakdown or all sales are cash.
+
+The manager records:
+
+* Product-level sold/returned/damaged quantities
+* Cash/MoMo/Bank collected
+* Credit sales
+
+This reconciles the delivery run but may not create detailed customer sales unless a default walk-in/cash customer is used.
+
+Mode B: Customer-detailed return
+
+Use this when the business wants customer balances and shop sales history.
+
+The manager enters rows by customer/shop:
+
+* Customer
+* Product items sold
+* Payment split
+* Credit amount
+
+On approval, the system creates normal Sales and Payment records in the existing Sales and Payments modules.
+
+8. Credit sales must be tied to customers
+
+Do not leave credit sales only as one summary number.
+
+If Credit Sales > 0 and the return is being completed in detailed mode, require the credit amount to be assigned to one or more customers.
+
+Example:
+Customer: Star K Store
+Items:
+
+* Sachet Water: 100 bags @ GHC 30
+  Total: GHC 3,000
+  Cash: GHC 2,000
+  MoMo: GHC 500
+  Credit: GHC 500
+
+When approved:
+
+* Create Sale for Star K Store
+* Total = GHC 3,000
+* Paid = GHC 2,500
+* Balance = GHC 500
+* Status = PartiallyPaid
+* Create payment records for Cash and MoMo
+* Update customer balance
+
+If using summary-only mode and Credit Sales > 0, warn the user:
+“Credit sales are not assigned to customers. Customer balances will not be accurate unless credit is linked to customers.”
+
+Allow admin override if needed, but make the warning clear.
+
+9. Delivery return should create Sales and Payments records
+
+When the manager clicks Reconcile & Approve, and customer breakdown is provided, create records in the existing Sales module.
+
+For each customer breakdown entry, create one Sale record:
+
+* CompanyId
+* CustomerId
+* SaleDate
+* TotalAmount
+* AmountPaid
+* Balance
+* Status: Paid, PartiallyPaid, Pending
+* SourceType = DeliveryRun
+* SourceId = DeliveryRunId
+* DriverId
+* VehicleId
+* RouteId
+* Notes
+
+Create SaleItems:
+
+* SaleId
+* ProductId
+* Quantity
+* UnitPrice
+* LineTotal
+
+Create Payments:
+One payment record per payment method amount greater than zero:
+
+* SaleId
+* CustomerId
+* Amount
+* PaymentMethod: Cash, MoMo, Bank
+* PaymentDate
+* Reference
+* Note
+* SourceType = DeliveryRun
+* SourceId = DeliveryRunId
+
+The existing Sales page should show these generated delivery sales like normal sales, with a source indicator if possible.
+
+The existing Payments page should show delivery payments like normal payments, with Sale #, Customer, Amount, Method, Reference, and Note.
+
+10. Validate customer breakdown against delivery return summary
+
+If customer breakdown is entered, validate the breakdown against the return summary.
+
+Validate product quantities:
+
+* Total customer quantity sold per product = return quantity sold per product
+
+Validate payment totals:
+
+* Total customer cash = Summary Cash Collected
+* Total customer MoMo = Summary MoMo Collected
+* Total customer bank = Summary Bank Collected
+* Total customer credit = Summary Credit Sales
+
+If not balanced, show a clear warning:
+“Customer breakdown does not match the return summary.”
+
+Allow Save Draft, but do not allow Reconcile & Approve unless balanced or admin override is confirmed.
+
+11. Inventory movement on return
+
+On return/reconciliation, inventory should be reconciled per product.
+
+Example:
+Loaded = 650
+Sold = 600
+Returned = 45
+Damaged = 5
+
+The system should:
+
+* Remove sold quantity from vehicle/driver stock
+* Transfer returned quantity back to warehouse
+* Move damaged quantity to damaged stock or record inventory loss
+
+Example inventory transactions:
+
+* Vehicle/Driver stock: Out 600 as Sale/DeliverySale
+* Vehicle/Driver stock: TransferOut 45
+* Factory Warehouse: TransferIn 45
+* Vehicle/Driver stock: Out 5 as Damage
+* Damaged Stock or Inventory Loss: record 5 depending on current stock design
+
+The final vehicle/driver stock for that delivery run should become zero when reconciled.
+
+For multiple products, perform this inventory reconciliation separately for each DeliveryRunItem.
+
+12. Opening cash with driver
+
+Clarify the meaning of “Opening cash with driver.”
+
+It should mean cash float given to the driver, for example for change, fuel, or small expenses.
+
+If this field is kept, return reconciliation should handle it properly.
+
+Recommended fields:
+
+* OpeningCashWithDriver
+* CashCollectedFromSales
+* ApprovedDeliveryExpenses
+* CashReturnedByDriver
+
+Expected cash returned may be:
+Opening Cash + Cash Sales Collected - Approved Delivery Expenses
+
+If this is not fully implemented immediately, keep Opening Cash but add tooltip/help text:
+“Cash float given to driver before departure. This is separate from sales collected.”
+
+Do not let this field confuse expected sales cash.
+
+13. Delivery expenses
+
+Add optional delivery expenses to the return process.
+
+Examples:
+
+* Fuel
+* Loading boys
+* Toll/barrier
+* Minor repair
+* Phone credit
+* Other
+
+Fields:
+
+* ExpenseCategory
+* Amount
+* Description
+* Approved checkbox or approval status
+
+On approval, create normal Expense records if the app already has an Expense module.
+
+Delivery expenses should be traceable back to the DeliveryRun.
+
+14. Delivery page structure
+
+Rename or reorganize the current Driver Returns page into a broader Deliveries module.
+
+Recommended tabs:
+
+* Active Loads
+* Returns
+* Completed
+* Drivers
+* Vehicles
+* Routes
+
+Or keep Drivers, Vehicles, and Routes as separate pages, but the main page should feel like:
+
+Deliveries
+
+Cards:
+
+* Vehicles/Drivers Out
+* Returns Today
+* Total Shortages
+* Active Vehicles
+* Active Drivers
+
+Table:
+Active Delivery Runs
+
+Columns:
+
+* Date
+* Driver
+* Vehicle
+* Route
+* Products
+* Total Quantity Loaded
+* Expected Cash
+* Status
+* Actions
+
+Actions:
+
+* Record Return
+* View Details
+* Cancel Load
+
+15. Delivery Run Details page
+
+Create a Delivery Run Details view.
+
+It should show:
+
+* Driver
+* Vehicle
+* Route
+* Product/items loaded
+* Quantity loaded per product
+* Expected cash
+* Return summary
+* Customer breakdown
+* Payments collected
+* Credit sales
+* Shortage/overage
+* Inventory movement
+* Created sales/payment references
+* Delivery expenses
+* Notes and audit trail
+
+This gives the owner a full audit trail.
+
+16. Driver accountability report
+
+Add or prepare reporting for:
+
+Driver Collection Report:
+
+* Driver
+* Route
+* Vehicle
+* Products loaded
+* Quantity loaded per product
+* Quantity sold per product
+* Quantity returned per product
+* Quantity damaged per product
+* Expected cash
+* Cash/MoMo/Bank collected
+* Credit sales
+* Shortage
+* Overage
+* Status
+
+This will help the owner identify missing money and delivery performance.
+
+17. Customer balance integration
+
+If a customer buys on credit through a delivery run:
+
+* Create/update customer balance
+* Show it on Customer details
+* Show it on Sales page as PartiallyPaid or Pending
+* Allow future payment collection through the existing Payments/Sales Details workflow
+
+18. User roles
+
+For the current design:
+
+* Manager/Admin records and approves driver returns.
+* Driver does not need app access.
+* Driver can write down sales/customer information during the trip.
+* Manager enters or confirms those details during return/reconciliation.
+
+Future driver mobile entry can be added later, but the current solid workflow should not depend on drivers using the app in the field.
+
+19. Recommended final workflow
+
+A. Manager loads driver:
+
+* Select Driver
+* Select Vehicle
+* Select Route
+* Add one or more product lines
+* Enter quantity loaded and selling price for each product
+* Load & Approve
+
+System:
+
+* Creates DeliveryRun
+* Creates DeliveryRunItems
+* Transfers stock from warehouse to vehicle/driver per product
+* Marks run as Loaded
+
+B. Driver goes out:
+
+* Sells to shops
+* Writes shop/customer sales on paper, WhatsApp, or delivery sheet
+
+C. Driver returns:
+Manager opens Record Return.
+Manager enters product-level return summary:
+
+* Sold
+* Returned
+* Damaged
+
+Manager enters payment summary:
+
+* Cash
+* MoMo
+* Bank
+* Credit
+
+Optional but recommended:
+Manager enters customer sales breakdown with product items and payment split.
+
+D. Manager approves:
+System validates:
+
+* Sold + Returned + Damaged = Loaded for every product
+* Customer breakdown product quantities match product return summary
+* Payment/credit totals match
+* Credit sales are tied to customers when using detailed mode
+
+System creates:
+
+* Sales records
+* SaleItems
+* Payment records
+* Customer balances for credit
+* Inventory movements for sold/returned/damaged products
+* Delivery expenses where applicable
+* DeliveryRun status = Reconciled
+
+E. Owner sees:
+
+* Sales page updated
+* Payments page updated
+* Customer balances updated
+* Stock updated
+* Driver shortages/overages updated
+* Delivery summary updated
+* Delivery Run Details audit trail available
+
+20. Key non-negotiable improvements
+
+Implement these as core requirements:
+
+1. Add Driver to Load Vehicle / Delivery Run.
+2. Treat load as a Delivery Run, not just vehicle loading.
+3. Support multiple product lines per delivery run from the beginning.
+4. Reconcile sold/returned/damaged quantities per product.
+5. Add customer breakdown option to Record Return.
+6. Generate normal Sales and Payments from approved customer breakdown.
+7. Tie credit sales to customers.
+8. Transfer stock from warehouse to vehicle/driver on load and reconcile stock on return.
+9. Preserve summary-only return as a fast option, but warn clearly when credit sales are not assigned to customers.
+10. Maintain traceability from DeliveryRun to Sales, Payments, Inventory, Customer Balances, and Expenses.
+
+The goal is to keep the current working flow but make it complete, auditable, multi-product capable, and connected to Sales, Payments, Customers, Inventory, and Driver accountability.

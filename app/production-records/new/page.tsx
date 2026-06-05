@@ -6,13 +6,15 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { FileText, X } from "lucide-react"
-import { getFlocks } from "@/lib/api/flock"
 import { getUserContext } from "@/lib/utils/user-context"
+import { getFlocksForProductionSelect, getFlockSelectEmptyHint } from "@/lib/utils/flock-utils"
+import { useBatchFlockSelect, BATCH_ALL } from "@/hooks/use-batch-flock-select"
 import {
   createProductionRecord,
   getProductionRecords,
@@ -35,8 +37,18 @@ export default function NewProductionRecordPage() {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
-  const [flocks, setFlocks] = useState<any[]>([])
   const [flocksError, setFlocksError] = useState("")
+  // Batch + Flock dropdowns (James 2026-05-27 request: Batch dropdown above Flock,
+  // default "All"; choosing a batch narrows the Flock options below).
+  const {
+    batchOptions,
+    selectedBatchId,
+    setSelectedBatchId,
+    allFlocks,
+    flockOptions: flocksForSelect,
+    loading: batchFlockLoading,
+    error: batchFlockError,
+  } = useBatchFlockSelect()
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), [])
 
@@ -109,8 +121,8 @@ export default function NewProductionRecordPage() {
   const birdsLeft = (parseInt(form.numBirds) || 0) - (parseInt(form.mortality) || 0)
 
   const selectedFlock = useMemo(
-    () => flocks.find((f) => String(f.flockId) === form.flockId),
-    [flocks, form.flockId],
+    () => allFlocks.find((f) => String(f.flockId) === form.flockId),
+    [allFlocks, form.flockId],
   )
 
   const { ageWeeks, ageDays, ageYears } = useMemo(() => {
@@ -134,27 +146,25 @@ export default function NewProductionRecordPage() {
     }
   }, [selectedFlock, form.date])
 
-  // Load flocks
+  // Flocks/batches load via useBatchFlockSelect above. Surface the same
+  // empty-state hint the page used to show when no eligible flocks exist
+  // (preserves the "ARRIVED+ACTIVE only" wording rather than a generic message).
   useEffect(() => {
-    const load = async () => {
-      try {
-        setFlocksError("")
-        const { userId, farmId } = getUserContext()
-        if (!userId || !farmId) return
-        const res = await getFlocks(userId, farmId)
-        if (res.success && Array.isArray(res.data)) setFlocks(res.data)
-        else {
-          setFlocks([])
-          setFlocksError(res.message || "Failed to load flocks.")
-        }
-      } catch (e) {
-        console.error(e)
-        setFlocks([])
-        setFlocksError("Unable to load flocks. Please try again.")
-      }
+    if (batchFlockLoading) return
+    if (batchFlockError) { setFlocksError(batchFlockError); return }
+    setFlocksError(flocksForSelect.length === 0 ? getFlockSelectEmptyHint("production") : "")
+  }, [batchFlockLoading, batchFlockError, flocksForSelect.length])
+
+  // If the user picks a batch and their currently-selected flock isn't in it,
+  // clear the flockId so they don't accidentally save against a hidden flock.
+  useEffect(() => {
+    if (selectedBatchId === BATCH_ALL) return
+    if (!form.flockId) return
+    if (!flocksForSelect.some((o) => o.value === form.flockId)) {
+      setForm((prev) => ({ ...prev, flockId: "" }))
     }
-    load()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBatchId, flocksForSelect])
 
   // Load previous records to calculate birds left
   useEffect(() => {
@@ -184,7 +194,7 @@ export default function NewProductionRecordPage() {
               }))
             }
           } else {
-            const flock = flocks.find((f) => f.flockId === flockIdNum)
+            const flock = allFlocks.find((f) => f.flockId === flockIdNum)
             if (flock) {
               setPreviousBirdsLeft(flock.quantity || 0)
               if (!form.numBirds) {
@@ -205,7 +215,7 @@ export default function NewProductionRecordPage() {
     }
 
     loadPreviousRecords()
-  }, [form.flockId, form.date, flocks])
+  }, [form.flockId, form.date, allFlocks])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -378,6 +388,23 @@ export default function NewProductionRecordPage() {
                 </div>
                 <div className="grid grid-cols-12 gap-4 px-4 py-4">
                   <div className="col-span-12 md:col-span-6 space-y-2">
+                    <Label>Batch</Label>
+                    <Select value={selectedBatchId} onValueChange={setSelectedBatchId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="All batches" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {batchOptions.map((b) => (
+                          <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="text-xs text-slate-500">
+                      Filters the Flock dropdown below. Leave on "All batches" to see every flock.
+                    </div>
+                  </div>
+
+                  <div className="col-span-12 md:col-span-6 space-y-2">
                     <Label>Flock</Label>
                     <Select
                       value={form.flockId}
@@ -387,11 +414,17 @@ export default function NewProductionRecordPage() {
                         <SelectValue placeholder="Select flock" />
                       </SelectTrigger>
                       <SelectContent>
-                        {flocks.filter((f) => f.hasArrived).map((f) => (
-                          <SelectItem key={f.flockId} value={String(f.flockId)}>
-                            {f.name || `Flock ${f.flockId}`} (ID: {f.flockId})
+                        {flocksForSelect.length === 0 ? (
+                          <SelectItem value="none" disabled>
+                            {flocksError || getFlockSelectEmptyHint("production")}
                           </SelectItem>
-                        ))}
+                        ) : (
+                          flocksForSelect.map((f) => (
+                            <SelectItem key={f.value} value={f.value}>
+                              {f.label}
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                     {flocksError && (
@@ -432,11 +465,11 @@ export default function NewProductionRecordPage() {
                     <div className="grid grid-cols-3 gap-3">
                       <div className="space-y-1">
                         <Label className="text-xs">Crates ({EGGS_PER_CRATE} eggs)</Label>
-                        <Input type="number" min="0" value={morningCrates} onChange={(e) => setMorningCrates(parseInt(e.target.value) || 0)} />
+                        <NumberInput min="0" value={morningCrates} onChange={(e) => setMorningCrates(parseInt(e.target.value) || 0)} />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Loose Eggs</Label>
-                        <Input type="number" min="0" max="29" value={morningLoose} onChange={(e) => setMorningLoose(parseInt(e.target.value) || 0)} />
+                        <NumberInput min="0" max="29" value={morningLoose} onChange={(e) => setMorningLoose(parseInt(e.target.value) || 0)} />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Total</Label>
@@ -452,11 +485,11 @@ export default function NewProductionRecordPage() {
                     <div className="grid grid-cols-3 gap-3">
                       <div className="space-y-1">
                         <Label className="text-xs">Crates ({EGGS_PER_CRATE} eggs)</Label>
-                        <Input type="number" min="0" value={noonCrates} onChange={(e) => setNoonCrates(parseInt(e.target.value) || 0)} />
+                        <NumberInput min="0" value={noonCrates} onChange={(e) => setNoonCrates(parseInt(e.target.value) || 0)} />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Loose Eggs</Label>
-                        <Input type="number" min="0" max="29" value={noonLoose} onChange={(e) => setNoonLoose(parseInt(e.target.value) || 0)} />
+                        <NumberInput min="0" max="29" value={noonLoose} onChange={(e) => setNoonLoose(parseInt(e.target.value) || 0)} />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Total</Label>
@@ -472,11 +505,11 @@ export default function NewProductionRecordPage() {
                     <div className="grid grid-cols-3 gap-3">
                       <div className="space-y-1">
                         <Label className="text-xs">Crates ({EGGS_PER_CRATE} eggs)</Label>
-                        <Input type="number" min="0" value={eveningCrates} onChange={(e) => setEveningCrates(parseInt(e.target.value) || 0)} />
+                        <NumberInput min="0" value={eveningCrates} onChange={(e) => setEveningCrates(parseInt(e.target.value) || 0)} />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Loose Eggs</Label>
-                        <Input type="number" min="0" max="29" value={eveningLoose} onChange={(e) => setEveningLoose(parseInt(e.target.value) || 0)} />
+                        <NumberInput min="0" max="29" value={eveningLoose} onChange={(e) => setEveningLoose(parseInt(e.target.value) || 0)} />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Total</Label>
@@ -489,8 +522,8 @@ export default function NewProductionRecordPage() {
                   {/* Broken Eggs */}
                   <div className="col-span-12 md:col-span-6 p-3 bg-red-50 border border-red-200 rounded-lg space-y-2">
                     <Label className="text-red-800 font-semibold">Broken Eggs</Label>
-                    <Input
-                      type="number"
+                    <NumberInput
+                      
                       min="0"
                       value={form.brokenEggs}
                       onChange={(e) => setForm({ ...form, brokenEggs: e.target.value })}
@@ -502,8 +535,8 @@ export default function NewProductionRecordPage() {
                   <div className="col-span-12 grid grid-cols-3 gap-3">
                     <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-2">
                       <Label className="text-amber-800 font-semibold">Meaty Eggs</Label>
-                      <Input
-                        type="number"
+                      <NumberInput
+                        
                         min="0"
                         value={form.meatyEggs}
                         onChange={(e) => setForm({ ...form, meatyEggs: e.target.value })}
@@ -512,8 +545,8 @@ export default function NewProductionRecordPage() {
                     </div>
                     <div className="p-3 bg-violet-50 border border-violet-200 rounded-lg space-y-2">
                       <Label className="text-violet-800 font-semibold">Soft Eggs</Label>
-                      <Input
-                        type="number"
+                      <NumberInput
+                        
                         min="0"
                         value={form.softEggs}
                         onChange={(e) => setForm({ ...form, softEggs: e.target.value })}
@@ -522,8 +555,8 @@ export default function NewProductionRecordPage() {
                     </div>
                     <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
                       <Label className="text-slate-700 font-semibold">Lost Eggs</Label>
-                      <Input
-                        type="number"
+                      <NumberInput
+                        
                         min="0"
                         value={form.lostEggs}
                         onChange={(e) => setForm({ ...form, lostEggs: e.target.value })}
@@ -573,8 +606,8 @@ export default function NewProductionRecordPage() {
                 <div className="grid grid-cols-12 gap-4 px-4 py-4">
                   <div className="col-span-12 md:col-span-4 space-y-2">
                     <Label>Num of Birds</Label>
-                    <Input
-                      type="number"
+                    <NumberInput
+                      
                       min="0"
                       value={form.numBirds}
                       onChange={(e) =>
@@ -588,8 +621,8 @@ export default function NewProductionRecordPage() {
                   <div className="col-span-12 md:col-span-4 space-y-2">
                     <Label>Deaths</Label>
                     <p className="text-xs text-muted-foreground -mt-1 mb-1">Birds lost on this day.</p>
-                    <Input
-                      type="number"
+                    <NumberInput
+                      
                       min="0"
                       value={form.mortality}
                       onChange={(e) =>
@@ -628,8 +661,8 @@ export default function NewProductionRecordPage() {
                     <>
                       <div className="col-span-12 md:col-span-4 space-y-2">
                         <Label>Age (weeks)</Label>
-                        <Input
-                          type="number"
+                        <NumberInput
+                          
                           min="0"
                           value={manualWeeks}
                           onChange={(e) => setManualWeeks(e.target.value)}
@@ -638,8 +671,8 @@ export default function NewProductionRecordPage() {
                       </div>
                       <div className="col-span-12 md:col-span-4 space-y-2">
                         <Label>Age (years)</Label>
-                        <Input
-                          type="number"
+                        <NumberInput
+                          
                           min="0"
                           value={manualYears}
                           onChange={(e) => setManualYears(e.target.value)}
@@ -648,8 +681,8 @@ export default function NewProductionRecordPage() {
                       </div>
                       <div className="col-span-12 md:col-span-4 space-y-2">
                         <Label>Age (days)</Label>
-                        <Input
-                          type="number"
+                        <NumberInput
+                          
                           min="0"
                           value={manualDays}
                           onChange={(e) => setManualDays(e.target.value)}
@@ -702,8 +735,8 @@ export default function NewProductionRecordPage() {
                   </div>
                   <div className="col-span-12 md:col-span-4 space-y-2">
                     <Label>Feed (kg)</Label>
-                    <Input
-                      type="number"
+                    <NumberInput
+                      
                       step="0.01"
                       min="0"
                       value={form.feedKg}

@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from "@/components/ui/pagination"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
@@ -1006,8 +1007,8 @@ export default function FlocksPage() {
                           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div className="space-y-2">
                               <label className="text-xs font-medium text-slate-500">Min</label>
-                              <Input
-                                type="number"
+                              <NumberInput
+                                
                                 placeholder="Min"
                                 value={draftQuantityMin}
                                 onChange={(e) => setDraftQuantityMin(e.target.value || "")}
@@ -1016,8 +1017,8 @@ export default function FlocksPage() {
                             </div>
                             <div className="space-y-2">
                               <label className="text-xs font-medium text-slate-500">Max</label>
-                              <Input
-                                type="number"
+                              <NumberInput
+                                
                                 placeholder="Max"
                                 value={draftQuantityMax}
                                 onChange={(e) => setDraftQuantityMax(e.target.value || "")}
@@ -1095,16 +1096,16 @@ export default function FlocksPage() {
                 <Input type="date" placeholder="From" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[140px]" />
                 <Input type="date" placeholder="To" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[140px]" />
 
-                <Input
-                  type="number"
+                <NumberInput
+                  
                   placeholder="Min Quantity"
                   value={quantityMin}
                   onChange={(e) => handleQuantityMinChange(e.target.value)}
                   className="w-[120px]"
                 />
 
-                <Input
-                  type="number"
+                <NumberInput
+                  
                   placeholder="Max Quantity"
                   value={quantityMax}
                   onChange={(e) => handleQuantityMaxChange(e.target.value)}
@@ -1570,7 +1571,7 @@ export default function FlocksPage() {
 
       {/* Create Flock Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Bird className="w-5 h-5 text-green-600" /> Add New Flock
@@ -1610,7 +1611,7 @@ export default function FlocksPage() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-slate-700">Number of Birds *</Label>
-                  <Input type="number" min="1" placeholder="e.g., 100" value={createForm.quantity} onChange={(e) => setCreateForm({ ...createForm, quantity: parseInt(e.target.value) || 0 })} required disabled={createLoading} />
+                  <NumberInput min="1" placeholder="e.g., 100" value={createForm.quantity} onChange={(e) => setCreateForm({ ...createForm, quantity: parseInt(e.target.value) || 0 })} required disabled={createLoading} />
                   {createSelectedBatch && <p className="text-xs text-slate-500">Remaining: {createSelectedBatch.numberOfBirds - createForm.quantity} birds</p>}
                 </div>
                 <div className="space-y-2">
@@ -1682,7 +1683,7 @@ export default function FlocksPage() {
 
       {/* Edit Flock Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Pencil className="w-5 h-5 text-blue-600" /> Edit Flock
@@ -1728,7 +1729,7 @@ export default function FlocksPage() {
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-slate-700">Number of Birds *</Label>
-                    <Input type="number" min="1" placeholder="e.g., 100" value={editForm.quantity} onChange={(e) => setEditForm({ ...editForm, quantity: parseInt(e.target.value) || 0 })} required disabled={editLoading} />
+                    <NumberInput min="1" placeholder="e.g., 100" value={editForm.quantity} onChange={(e) => setEditForm({ ...editForm, quantity: parseInt(e.target.value) || 0 })} required disabled={editLoading} />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-slate-700">Assign to House</Label>

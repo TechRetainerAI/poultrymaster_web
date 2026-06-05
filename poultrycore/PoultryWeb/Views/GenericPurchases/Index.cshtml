@@ -1,0 +1,77 @@
+@model List<PoultryWeb.Models.Generic.GenericPurchaseVm>
+@{
+    Layout = "_GenericLayout";
+    ViewData["Title"] = "Purchases";
+    var status = ViewBag.Status as string;
+    string Money(decimal v) => $"GHC {v:N2}";
+    string Badge(string s) => s switch
+    {
+        "Draft"     => "bg-secondary",
+        "Approved"  => "bg-success",
+        "Cancelled" => "bg-danger",
+        _           => "bg-light text-dark"
+    };
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="btn-group btn-group-sm">
+        <a asp-action="Index" class="btn @(string.IsNullOrEmpty(status) ? "btn-primary" : "btn-outline-primary")">All</a>
+        <a asp-action="Index" asp-route-status="Draft"     class="btn @(status == "Draft"     ? "btn-primary" : "btn-outline-primary")">Draft</a>
+        <a asp-action="Index" asp-route-status="Approved"  class="btn @(status == "Approved"  ? "btn-primary" : "btn-outline-primary")">Approved</a>
+        <a asp-action="Index" asp-route-status="Cancelled" class="btn @(status == "Cancelled" ? "btn-primary" : "btn-outline-primary")">Cancelled</a>
+    </div>
+    <small class="text-muted">Create purchases via API (Part 2 will add a UI form).</small>
+</div>
+
+@if (!Model.Any())
+{
+    <div class="alert alert-info">No purchases yet.</div>
+}
+else
+{
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>#</th>
+                        <th>Date</th>
+                        <th>Supplier</th>
+                        <th>Invoice</th>
+                        <th class="text-end">Total</th>
+                        <th class="text-end">Paid</th>
+                        <th class="text-end">Balance</th>
+                        <th>Status</th>
+                        <th class="text-end"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var p in Model)
+                {
+                    <tr>
+                        <td>#@p.GenericPurchaseId</td>
+                        <td>@p.PurchaseDate.ToString("yyyy-MM-dd")</td>
+                        <td>@(p.SupplierName ?? "—")</td>
+                        <td>@(p.InvoiceNumber ?? "—")</td>
+                        <td class="text-end">@Money(p.TotalAmount)</td>
+                        <td class="text-end">@Money(p.AmountPaid)</td>
+                        <td class="text-end @(p.Balance > 0 ? "text-danger fw-semibold" : "")">@Money(p.Balance)</td>
+                        <td><span class="badge @Badge(p.Status)">@p.Status</span></td>
+                        <td class="text-end">
+                            @if (p.Status == "Draft")
+                            {
+                                <form asp-action="Approve" method="post" class="d-inline"
+                                      onsubmit="return confirm('Approve this purchase? Inventory and cash will be updated.');">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@p.GenericPurchaseId" />
+                                    <button class="btn btn-sm btn-success">Approve</button>
+                                </form>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

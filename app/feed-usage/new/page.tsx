@@ -6,6 +6,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -13,16 +14,23 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { Package, ArrowLeft, Loader2 } from "lucide-react"
 import { createFeedUsage, type FeedUsageInput } from "@/lib/api/feed-usage"
 import { getUserContext } from "@/lib/utils/user-context"
-import { getValidFlocks, getFlocksForSelect } from "@/lib/utils/flock-utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { getProductionRecords, createProductionRecord, updateProductionRecord, type ProductionRecordInput } from "@/lib/api/production-record"
+import { useBatchFlockSelect, BATCH_ALL } from "@/hooks/use-batch-flock-select"
 
 export default function NewFeedUsagePage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
-  const [flocks, setFlocks] = useState<{ value: string; label: string }[]>([])
-  const [flocksLoading, setFlocksLoading] = useState(true)
+  // Batch + Flock dropdowns (James 2026-05-27).
+  const {
+    batchOptions,
+    selectedBatchId,
+    setSelectedBatchId,
+    flockOptions: flocks,
+    loading: flocksLoading,
+    error: batchFlockError,
+  } = useBatchFlockSelect()
   
   const [formData, setFormData] = useState({
     flockId: "",
@@ -52,26 +60,26 @@ export default function NewFeedUsagePage() {
       return
     }
     
-    loadFlocks()
+    // Flocks load via the useBatchFlockSelect hook above.
   }, [])
 
-  const loadFlocks = async () => {
-    try {
-      setFlocksLoading(true)
-      await getValidFlocks()
-      const flocksForSelect = getFlocksForSelect()
-      setFlocks(flocksForSelect)
-      
-      if (flocksForSelect.length === 0) {
-        setError("No active flocks found. Please create a flock first.")
-      }
-    } catch (error) {
-      console.error("[v0] Error loading flocks:", error)
-      setError("Failed to load flocks. Please try again.")
-    } finally {
-      setFlocksLoading(false)
+  // Surface the same "no active flocks" error the page used to show.
+  useEffect(() => {
+    if (flocksLoading) return
+    if (batchFlockError) { setError(batchFlockError); return }
+    if (flocks.length === 0) setError("No active flocks found. Please create a flock first.")
+    else setError("")
+  }, [flocksLoading, batchFlockError, flocks.length])
+
+  // Clear the chosen flock if it's no longer in the filtered list.
+  useEffect(() => {
+    if (selectedBatchId === BATCH_ALL) return
+    if (!formData.flockId) return
+    if (!flocks.some((o) => o.value === formData.flockId)) {
+      setFormData((prev) => ({ ...prev, flockId: "" }))
     }
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBatchId, flocks])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value })
@@ -245,7 +253,21 @@ export default function NewFeedUsagePage() {
               {/* Section: Flock & Date */}
               <div className="rounded-xl border border-slate-200 overflow-hidden">
                 <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Flock &amp; Date</div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-white">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Batch</Label>
+                    <Select value={selectedBatchId} onValueChange={setSelectedBatchId} disabled={flocksLoading || loading}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="All batches" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {batchOptions.map((b) => (
+                          <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="text-xs text-slate-500">Filters flocks below.</div>
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="flockId" className="text-sm font-medium text-slate-700">
                       Select Flock *
@@ -307,10 +329,10 @@ export default function NewFeedUsagePage() {
                     <Label htmlFor="quantityKg" className="text-sm font-medium text-slate-700">
                       Quantity (kg) *
                     </Label>
-                    <Input
+                    <NumberInput
                       id="quantityKg"
                       name="quantityKg"
-                      type="number"
+                      
                       step="0.1"
                       min="0"
                       placeholder="e.g., 25.5"

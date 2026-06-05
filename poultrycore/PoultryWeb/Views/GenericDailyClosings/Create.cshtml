@@ -1,0 +1,51 @@
+@model PoultryWeb.Models.Generic.GenericDailyClosingCreateVm
+@{
+    Layout = "_GenericLayout";
+    ViewData["Title"] = "Close today";
+}
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <h5 class="card-title">Daily closing</h5>
+        <p class="text-muted">
+            Enter only the cash you counted. The system will automatically calculate
+            today's sales, expenses, customer payments, supplier payments, expected cash,
+            and the cash difference from the immutable ledgers.
+        </p>
+
+        <form asp-action="Create" method="post" class="row g-3">
+            @Html.AntiForgeryToken()
+
+            <div class="col-md-4">
+                <label class="form-label">Closing date</label>
+                <input asp-for="ClosingDate" type="date" class="form-control" required />
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">Opening cash (optional)</label>
+                <input asp-for="OpeningCash" type="number" step="0.01" class="form-control" />
+                <small class="text-muted">Leave blank to default to yesterday's closing or cash-account opening balances.</small>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">Actual cash counted *</label>
+                <input asp-for="ActualCashCounted" type="number" step="0.01" min="0" class="form-control" required />
+            </div>
+
+            <div class="col-12">
+                <label class="form-label">Manager notes</label>
+                <textarea asp-for="ManagerNotes" rows="2" class="form-control" maxlength="2000"></textarea>
+            </div>
+
+            <div class="col-12">
+                <label class="form-label">Cash difference reason (if any)</label>
+                <textarea asp-for="DifferenceReason" rows="2" class="form-control" maxlength="500"></textarea>
+            </div>
+
+            <div class="col-12 d-flex justify-content-end gap-2">
+                <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">Create & submit</button>
+            </div>
+        </form>
+    </div>
+</div>

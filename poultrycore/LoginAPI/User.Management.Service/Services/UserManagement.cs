@@ -124,13 +124,37 @@ namespace User.Management.Service.Services
                 var result = await _userManager.CreateAsync(user, registerUser.Password);
                 if (result.Succeeded)
                 {
+                    // Belt-and-braces: some Identity store configurations don't persist
+                    // ApplicationUser custom columns (FirstName/LastName/PhoneNumber/FarmName/
+                    // EmailConfirmed) on the initial CreateAsync. AdminService.CreateEmployeeAsync
+                    // hit the same issue and worked around it with an explicit UpdateAsync —
+                    // mirror that here so /profile shows what the user actually typed at signup.
+                    user.FirstName       = registerUser.FirstName;
+                    user.LastName        = registerUser.LastName;
+                    user.PhoneNumber     = registerUser.PhoneNumber;
+                    user.FarmName        = registerUser.FarmName;
+                    user.EmailConfirmed  = true;
+                    var ensureFields = await _userManager.UpdateAsync(user);
+                    if (!ensureFields.Succeeded)
+                    {
+                        // Console matches the diagnostic style used elsewhere in this
+                        // codebase (e.g. SubscriptionDAL). Failure here is non-fatal — the
+                        // user still exists, just with stale profile columns we can repair
+                        // later on /profile save.
+                        Console.WriteLine(
+                            $"[CreateUserWithTokenAsync] UpdateAsync after CreateAsync failed for {user.UserName}: " +
+                            string.Join("; ", ensureFields.Errors.Select(e => e.Description)));
+                    }
 
-                    // 2. Create the farm and get farmId
+                    // 2. Create the farm and get farmId.
+                    // CompanyType is validated [Required] + RegularExpression on the
+                    // request model — ModelState rejection runs before this method,
+                    // so by the time we get here it's a valid value.
                     Farm farm = new Farm
                     {
                         FarmId = farmId,
                         Name = registerUser.FarmName,
-                        Type = "Poultry",
+                        Type = registerUser.CompanyType!,
                         Email = registerUser.Email,
                         PhoneNumber = registerUser.PhoneNumber
                     };
