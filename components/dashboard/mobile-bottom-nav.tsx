@@ -109,7 +109,8 @@ export function MobileBottomNav() {
           // Quick Links shortcuts (the most-used daily flows)
           { href: "/water-daily-closing", label: "Daily Closing",     icon: FileText },
           { href: "/water-driver-returns", label: "Deliveries",       icon: Truck },
-          // Delivery group — Issue 1 (test-report): Drivers folded into People > Staff (role=Driver).
+          // Delivery group
+          { href: "/water-drivers",       label: "Drivers",           icon: Users2 },
           { href: "/water-vehicles",      label: "Vehicles",          icon: Truck },
           { href: "/water-routes",        label: "Routes",            icon: Activity },
           // Production group

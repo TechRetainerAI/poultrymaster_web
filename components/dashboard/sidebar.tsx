@@ -179,13 +179,9 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/water-production-batches", label: "Production Batches", icon: Factory },
     { href: "/water-sales",              label: "Sales",              icon: ShoppingCart },
   ]
-  // Issue 1 (test-report): the standalone "Drivers" entry was redundant with
-  // People > Staff (staff member with role=Driver). Removed from nav; drivers
-  // are now managed on the Staff page (which auto-syncs the WaterDrivers row
-  // delivery flows still pull from). The /water-drivers route file remains
-  // for bookmarks and shows a redirect notice.
   const waterDeliveryItems = [
     { href: "/water-driver-returns", label: "Deliveries", icon: Truck },
+    { href: "/water-drivers",        label: "Drivers",    icon: Users2 },
     { href: "/water-vehicles",       label: "Vehicles",   icon: Truck },
     { href: "/water-routes",         label: "Routes",     icon: RouteIcon },
   ]
