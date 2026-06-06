@@ -415,7 +415,7 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
 
   return (
     <div className="hidden lg:block bg-sky-600 border-b border-sky-700">
-      <div className="flex items-center gap-1 px-4 py-1.5 nav-rail-scroll">
+      <div className="flex items-center gap-1 px-4 pt-1.5 pb-2.5 nav-rail-scroll">
         <NavLink item={{ href: "/water-dashboard", label: "Dashboard", icon: Droplets }} />
         <div className="h-5 w-px bg-white/30 mx-1" />
         <NavDropdown group={quickLinksGroup} />
@@ -465,7 +465,7 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
 
   return (
     <div className="hidden lg:block bg-emerald-600 border-b border-emerald-700">
-      <div className="flex items-center gap-1 px-4 py-1.5 nav-rail-scroll">
+      <div className="flex items-center gap-1 px-4 pt-1.5 pb-2.5 nav-rail-scroll">
         <NavLink item={{ href: "/generic-dashboard",          label: "Dashboard",         icon: Home }} />
         <div className="h-5 w-px bg-white/30 mx-1" />
         <NavLink item={{ href: "/generic-products",           label: "Products",          icon: ShoppingBag }} />
@@ -569,7 +569,7 @@ export function TopNavigation() {
   return (
     <>
       <div className="hidden lg:block bg-orange-500 border-b border-orange-600">
-        <div className="flex items-center gap-1 px-4 py-1.5 nav-rail-scroll">
+        <div className="flex items-center gap-1 px-4 pt-1.5 pb-2.5 nav-rail-scroll">
           <NavLink item={{ href: "/dashboard", label: "Dashboard", icon: Home }} />
           <div className="h-5 w-px bg-white/30 mx-1" />
           <NavDropdown group={farmGroup} />

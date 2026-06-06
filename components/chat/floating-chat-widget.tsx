@@ -449,13 +449,53 @@ export function FloatingChatWidget() {
                 variant="outline"
                 size="sm"
                 className="w-full justify-start"
+                disabled={loading}
                 onClick={async () => {
+                  // Tester report (2026-06-06): "Clicking New Chat does nothing".
+                  // Root cause: when showUserList is already true (the default
+                  // state on dialog open), both state setters below are no-ops,
+                  // and loadChatableUsers's staff branch is synchronous so the
+                  // "Loading users..." flash never shows. Make the click always
+                  // produce a visible state change.
                   setShowUserList(true)
                   setActiveThread(null)
-                  // Reload chatable users when clicking "New Chat"
-                  if (farmId) {
-                    await loadChatableUsers()
+                  if (!farmId) {
+                    toast.error("Couldn't start a new chat", {
+                      description: "Your farm context isn't loaded yet. Please refresh and try again.",
+                    })
+                    return
                   }
+                  setLoading(true)
+                  try {
+                    await loadChatableUsers()
+                    // Floor the loading flash so the click registers visually
+                    // even when the list is built from cached threads.
+                    await new Promise((r) => setTimeout(r, 250))
+                  } finally {
+                    setLoading(false)
+                  }
+                  // Read the latest list off the setter so this isn't stale.
+                  setChatableUsers((current) => {
+                    if (current.length === 0) {
+                      toast.info(
+                        isStaff
+                          ? "No conversations yet"
+                          : "No staff members available to chat",
+                        {
+                          description: isStaff
+                            ? "Ask a farm admin to message you first — staff can't start a thread until they have one."
+                            : "Once you've added employees on the Employees page, they'll show up here.",
+                        },
+                      )
+                    } else {
+                      toast.success("Chat list refreshed", {
+                        description: `${current.length} ${
+                          current.length === 1 ? "person" : "people"
+                        } available to chat`,
+                      })
+                    }
+                    return current
+                  })
                 }}
               >
                 <Users className="h-4 w-4 mr-2" />

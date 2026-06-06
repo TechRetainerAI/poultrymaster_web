@@ -140,7 +140,12 @@ body {
   overflow-y: auto;
 }
 
-/* Desktop top nav rail: horizontal scroll with a visible thin bar when items overflow */
+/* Desktop top nav rail: horizontal scroll with a visible thin bar when items
+ * overflow. The rail's inner container also applies `pb-2.5` in JSX so the 8px
+ * scrollbar sits below the active pills instead of clipping their bottom edge
+ * (visible previously as "the highlighted tab bar is cut off" on widths where
+ * the rail overflows — common on Water/Generic since they have many groups).
+ */
 .nav-rail-scroll {
   overflow-x: auto;
   overflow-y: hidden;

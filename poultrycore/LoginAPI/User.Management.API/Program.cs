@@ -18,7 +18,11 @@ using SubscriptionService = User.Management.Service.Services.SubscriptionService
 
 var builder = WebApplication.CreateBuilder(args);
 
-
+// Optional appsettings.Local.json — gitignored overlay for local-dev secrets
+// (e.g. EmailConfiguration.Password = Gmail App Password). Loaded after the
+// committed Development overlay so it wins. Not loaded in containerized
+// Cloud Run since the file is never shipped; prod uses env vars.
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
 
 // For Entity Framework
 var configuration = builder.Configuration;

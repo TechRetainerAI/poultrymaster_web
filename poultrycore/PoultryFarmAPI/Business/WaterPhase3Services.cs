@@ -265,6 +265,10 @@ namespace PoultryFarmAPIWeb.Business
             TotalCost                  = r.GetDecimal(r.GetOrdinal("TotalCost")),
             PaymentMethod              = r.IsDBNull(r.GetOrdinal("PaymentMethod")) ? null : r.GetString(r.GetOrdinal("PaymentMethod")),
             AmountPaid                 = r.GetDecimal(r.GetOrdinal("AmountPaid")),
+            // Balance comes from migration 087's altered GetAll SP. Guarded with
+            // HasCol so older deployments still read without throwing — they'll
+            // just report Balance = 0 (same as before this fix).
+            Balance                    = WaterRawMaterialItemService.HasCol(r, "Balance") && !r.IsDBNull(r.GetOrdinal("Balance")) ? r.GetDecimal(r.GetOrdinal("Balance")) : 0m,
             ReceiptUrl                 = r.IsDBNull(r.GetOrdinal("ReceiptUrl")) ? null : r.GetString(r.GetOrdinal("ReceiptUrl")),
             ReceivedByStaffId          = r.IsDBNull(r.GetOrdinal("ReceivedByStaffId")) ? null : r.GetInt32(r.GetOrdinal("ReceivedByStaffId")),
             Notes                      = r.IsDBNull(r.GetOrdinal("Notes")) ? null : r.GetString(r.GetOrdinal("Notes")),

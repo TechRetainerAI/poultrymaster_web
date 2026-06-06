@@ -91,6 +91,32 @@ export async function createCompany(input: CreateCompanyInput): Promise<Company>
   return lower<Company>(await res.json())
 }
 
+// Pick the company that matches the user's signed-in farmId. Falls back to the
+// first company so newly-promoted users (FarmId in JWT may briefly diverge from
+// UserFarms membership) still land somewhere usable instead of getting stuck on
+// the Poultry default. Used by the login + 2FA pages right after authentication
+// to populate auth-store.activeFarmType before routing — without this, the
+// sidebar/dashboard renders the Poultry nav for a Water/Generic signup until
+// the user manually opens the company switcher.
+export async function resolveActiveCompanyForUser(farmId: string | null): Promise<Company | null> {
+  try {
+    const list = await getMyCompanies()
+    if (!list.length) return null
+    const match = farmId ? list.find((c) => c.farmId === farmId) : undefined
+    return match ?? list[0]
+  } catch {
+    return null
+  }
+}
+
+// Map a CompanyType to the right "home" route. Mirrors the routing the
+// company-switcher does on switch (see components/dashboard/company-switcher.tsx).
+export function dashboardHomeForType(type: CompanyType | null | undefined): string {
+  if (type === "Water") return "/water-dashboard"
+  if (type === "Generic") return "/generic-dashboard"
+  return "/dashboard"
+}
+
 export async function switchCompany(farmId: string): Promise<SwitchFarmResponse> {
   const res = await loginApiFetch("/Companies/switch", {
     method: "POST",

@@ -135,7 +135,13 @@ export function MobileBottomNav() {
           { href: "/water-reports",       label: "Reports",           icon: BarChart3 },
           { href: "/water-driver-report", label: "Driver report",     icon: BarChart3 },
           { href: "/water-suppliers",     label: "Suppliers",         icon: Truck },
-          { href: "/water-company-setup", label: "Setup",             icon: Settings },
+          // Match desktop sidebar (components/dashboard/sidebar.tsx waterAdminItems):
+          // "Setup" → /water-setup, "Company Setup" → /water-company-setup. The
+          // earlier mobile rail collapsed both into a single "Setup" entry that
+          // pointed at /water-company-setup, so tapping it landed users on the
+          // wrong page vs. desktop.
+          { href: "/water-setup",         label: "Setup",             icon: Settings },
+          { href: "/water-company-setup", label: "Company Setup",     icon: Settings },
           { href: "/profile",             label: "Account",           icon: User },
           ...(permissions.featureAccess.canViewActivityLog
             ? [{ href: "/audit-logs", label: "Activity Log", icon: Activity }] : []),

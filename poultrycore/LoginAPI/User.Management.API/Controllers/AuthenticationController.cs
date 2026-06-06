@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication.OAuth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -400,11 +401,47 @@ namespace User.Management.API.Controllers
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            var user = await _userManager.FindByEmailAsync(model.Email);
-            if (user == null)
-                return Ok(); // Do not reveal if the user does not exist
+            // Belt-and-braces: the previous code only wrapped _emailService.SendEmail
+            // in try/catch, so anything that threw earlier (DB connection, Identity
+            // DataProtection token-provider blow-up, etc.) bubbled to ASP.NET's
+            // default 500 with an empty body — surfaced in the browser as
+            // `Forgot password error: {}` with no useful signal. Widen the catch so
+            // the entire handler returns a readable 503 + log on ANY failure.
+            ApplicationUser? user;
+            string token;
+            try
+            {
+                // NOTE: do NOT use UserManager.FindByEmailAsync here. It uses
+                // SingleOrDefaultAsync internally, which throws
+                // InvalidOperationException("Sequence contains more than one
+                // element") when the legacy AspNetUsers table has multiple rows
+                // with the same NormalizedEmail (a real condition on this
+                // instance — at least 5 emails are duplicated). The login path
+                // GetOtpByLoginAsync solves the same issue with FirstOrDefault.
+                // Mirror that here: pick a deterministic single row (lowest Id)
+                // and proceed. Reset-email will go to the canonical account; data
+                // hygiene of removing the dupes is tracked separately.
+                var normalizedEmail = model.Email?.Trim().ToUpperInvariant();
+                user = await _userManager.Users
+                    .Where(u => u.NormalizedEmail == normalizedEmail)
+                    .OrderBy(u => u.Id)
+                    .FirstOrDefaultAsync();
+                if (user == null)
+                    return Ok(); // Do not reveal if the user does not exist
 
-            var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+                token = await _userManager.GeneratePasswordResetTokenAsync(user);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ForgotPassword: pre-send failure for {Email}", model.Email);
+                return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                    new Response
+                    {
+                        Status = "Error",
+                        Message = "Couldn't start the password-reset flow right now. Please try again in a minute or contact support.",
+                    });
+            }
+
             //Encoding the token before sending it - so that when clicked upon in the browser, it does not change. Actually the browser will decode it
             //and we will have it exactly as it is when it hits the endpoint -- We need to send the token exactly as it is in order to succeed the function call
             token = System.Net.WebUtility.UrlEncode(token);
@@ -462,7 +499,14 @@ namespace User.Management.API.Controllers
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            var user = await _userManager.FindByEmailAsync(model.Email);
+            // Same SingleOrDefaultAsync-throws-on-dupes guard as ForgotPassword.
+            // Must resolve to the SAME row ForgotPassword picked (lowest Id) so
+            // the issued reset token is valid for the chosen user.
+            var normalizedEmail = model.Email?.Trim().ToUpperInvariant();
+            var user = await _userManager.Users
+                .Where(u => u.NormalizedEmail == normalizedEmail)
+                .OrderBy(u => u.Id)
+                .FirstOrDefaultAsync();
             if (user == null)
                 return Ok(); // Do not reveal if the user does not exist
 

@@ -41,6 +41,12 @@ const EMPTY: FormState = {
   status: "Active", notes: null,
 }
 
+// Used as `max` on past-only date inputs (Last maintenance, Purchase date) and
+// `min` on future-only inputs (Next maintenance). Mirrors water-boreholes which
+// already does the right thing — bringing machines in line so users can't pick
+// a last-maintenance date in the future.
+const today = new Date().toISOString().slice(0, 10)
+
 export default function WaterMachinesPage() {
   const router = useRouter()
   const { toast } = useToast()
@@ -96,6 +102,15 @@ export default function WaterMachinesPage() {
 
   async function save() {
     if (!form.machineName.trim()) return toast({ title: "Machine name required", variant: "destructive" })
+    // Belt-and-braces: the date inputs above are gated with `max={today}`, but
+    // a user can still paste/type a future value. Reject explicitly so the
+    // browser-level constraint isn't the only line of defence.
+    if (form.lastMaintenanceDate && form.lastMaintenanceDate > today) {
+      return toast({ title: "Last maintenance can't be in the future", variant: "destructive" })
+    }
+    if (form.purchaseDate && form.purchaseDate > today) {
+      return toast({ title: "Purchase date can't be in the future", variant: "destructive" })
+    }
     setSaving(true)
     try {
       if (editId) { await updateWaterMachine(editId, form); toast({ title: "Machine updated" }) }
@@ -225,7 +240,7 @@ export default function WaterMachinesPage() {
                 <NumberInput min={0} value={form.capacityPerHour ?? ""} onChange={(e) => setForm({ ...form, capacityPerHour: e.target.value ? Number(e.target.value) : null })} />
               </FormField>
               <FormField label="Purchase date">
-                <Input type="date" value={form.purchaseDate ?? ""} onChange={(e) => setForm({ ...form, purchaseDate: e.target.value || null })} />
+                <Input type="date" max={today} value={form.purchaseDate ?? ""} onChange={(e) => setForm({ ...form, purchaseDate: e.target.value || null })} />
               </FormField>
               <FormField label="Status" full>
                 <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
@@ -240,10 +255,10 @@ export default function WaterMachinesPage() {
                 <NumberInput min={0} value={form.maintenanceFrequencyDays ?? ""} onChange={(e) => setForm({ ...form, maintenanceFrequencyDays: e.target.value ? Number(e.target.value) : null })} />
               </FormField>
               <FormField label="Last maintenance">
-                <Input type="date" value={form.lastMaintenanceDate ?? ""} onChange={(e) => setForm({ ...form, lastMaintenanceDate: e.target.value || null })} />
+                <Input type="date" max={today} value={form.lastMaintenanceDate ?? ""} onChange={(e) => setForm({ ...form, lastMaintenanceDate: e.target.value || null })} />
               </FormField>
               <FormField label="Next maintenance">
-                <Input type="date" value={form.nextMaintenanceDate ?? ""} onChange={(e) => setForm({ ...form, nextMaintenanceDate: e.target.value || null })} />
+                <Input type="date" min={today} value={form.nextMaintenanceDate ?? ""} onChange={(e) => setForm({ ...form, nextMaintenanceDate: e.target.value || null })} />
               </FormField>
             </FormSection>
 

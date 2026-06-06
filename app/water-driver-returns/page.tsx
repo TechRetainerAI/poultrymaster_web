@@ -332,22 +332,6 @@ export default function WaterDriverReturnsPage() {
     creditSalesAmount: 0,
     cashReturnedByDriver: 0,
   })
-  // Issue 4 (test-report): the "Money collected" section was showing Cash,
-  // MoMo, Bank, and Credit-sales as four always-visible inputs which crowded
-  // the dialog and asked the operator about methods that weren't even used.
-  // Switch to a method-picker model: only show inputs for methods the user
-  // has explicitly added (matches the report's suggested "How was payment
-  // made?" dropdown + "+ Add payment method" pattern). The underlying state
-  // shape stays the same so the breakdown-balance check and the save
-  // payload don't have to change.
-  type PayKey = "cashCollected" | "moMoCollected" | "bankCollected" | "creditSalesAmount"
-  const PAY_OPTIONS: { key: PayKey; label: string; hint: string }[] = [
-    { key: "cashCollected",     label: "Cash",          hint: "Physical cash the driver collected on the run." },
-    { key: "moMoCollected",     label: "Mobile Money",  hint: "Mobile Money (MTN, Vodafone, AirtelTigo)." },
-    { key: "bankCollected",     label: "Bank transfer", hint: "Bank transfers / cheque deposits received today." },
-    { key: "creditSalesAmount", label: "Credit sale",   hint: "Goods given on credit — to be paid later." },
-  ]
-  const [activePayMethods, setActivePayMethods] = useState<Set<PayKey>>(new Set())
   const [returnNotes, setReturnNotes] = useState("")
   const [breakdownOpen, setBreakdownOpen] = useState(false)
   const [breakdown, setBreakdown] = useState<BreakdownRow[]>([])
@@ -582,15 +566,6 @@ export default function WaterDriverReturnsPage() {
       creditSalesAmount:  r.creditSalesAmount  ?? 0,
       cashReturnedByDriver: r.cashReturnedByDriver ?? (l.openingCashWithDriver ?? 0),
     })
-    // Re-derive which payment methods to show as already-added: any field with
-    // a non-zero amount in the saved return must be visible so the operator
-    // can edit / clear it.
-    const active = new Set<PayKey>()
-    if ((r.cashCollected      ?? 0) > 0) active.add("cashCollected")
-    if ((r.moMoCollected      ?? 0) > 0) active.add("moMoCollected")
-    if ((r.bankCollected      ?? 0) > 0) active.add("bankCollected")
-    if ((r.creditSalesAmount  ?? 0) > 0) active.add("creditSalesAmount")
-    setActivePayMethods(active)
     setReturnDlg({ open: true, loading: l })
     try {
       const items = await listWaterDriverReturnItems(r.waterDriverReturnId)
@@ -627,8 +602,6 @@ export default function WaterDriverReturnsPage() {
       cashCollected: 0, moMoCollected: 0, bankCollected: 0,
       creditSalesAmount: 0, cashReturnedByDriver: l.openingCashWithDriver ?? 0,
     })
-    // Fresh return — operator picks methods via the dropdown.
-    setActivePayMethods(new Set())
     setReturnDlg({ open: true, loading: l })
     // Pull the multi-product items if the loading was created with them.
     try {
@@ -1564,111 +1537,109 @@ export default function WaterDriverReturnsPage() {
                   <span className="text-xs font-normal text-amber-50">Sold + Returned + Damaged must equal Loaded</span>
                 </div>
 
-                {/* Desktop table — only on xl+ (1280px) where all 7+ columns
-                    fit comfortably. Below that, the card stack reads cleaner
-                    than a horizontally-scrolled table. */}
-                <div className="hidden xl:block overflow-x-auto bg-white">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Product</TableHead>
-                        <TableHead className="text-right">Loaded (bags)</TableHead>
-                        <TableHead className="text-right">Sold (bags)</TableHead>
-                        <TableHead className="text-right">Returned (bags)</TableHead>
-                        <TableHead className="text-right">Damaged (bags)</TableHead>
-                        <TableHead className="text-right">Unit price{cur}</TableHead>
-                        <TableHead className="text-right">Expected{cur}</TableHead>
-                        <TableHead></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {returnItems.map((it, idx) => {
-                        const total = it.bagsSold + it.bagsReturned + it.bagsDamaged
-                        const balanced = total === it.bagsLoaded
-                        return (
-                          <TableRow key={idx} className={!balanced ? "bg-amber-50" : ""}>
-                            <TableCell className="font-medium">{it.productName}</TableCell>
-                            <TableCell className="text-right tabular-nums">{it.bagsLoaded}</TableCell>
-                            <TableCell className="text-right">
-                              <NumberInput min={0} value={it.bagsSold}
-                                onChange={(e) => updateReturnItem(idx, { bagsSold: Number(e.target.value) || 0 })}
-                                className="w-20 ml-auto text-right" />
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <NumberInput min={0} value={it.bagsReturned}
-                                onChange={(e) => updateReturnItem(idx, { bagsReturned: Number(e.target.value) || 0 })}
-                                className="w-20 ml-auto text-right" />
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <NumberInput min={0} value={it.bagsDamaged}
-                                onChange={(e) => updateReturnItem(idx, { bagsDamaged: Number(e.target.value) || 0 })}
-                                className="w-20 ml-auto text-right" />
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <NumberInput min={0} step="0.01" value={it.unitPrice}
-                                onChange={(e) => updateReturnItem(idx, { unitPrice: Number(e.target.value) || 0 })}
-                                className="w-24 ml-auto text-right" />
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">{gh(it.bagsSold * it.unitPrice)}</TableCell>
-                            <TableCell className="text-right text-xs whitespace-nowrap">
-                              {balanced
-                                ? <span className="text-emerald-600">✓</span>
-                                : <span className="text-amber-700">{total - it.bagsLoaded > 0 ? `+${total - it.bagsLoaded}` : total - it.bagsLoaded}</span>}
-                            </TableCell>
-                          </TableRow>
-                        )
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-
-                {/* Mobile / tablet / small-laptop card stack — used everywhere
-                    up to xl: so 1024-1280px laptops see this cleaner layout
-                    instead of the cramped 7-column table. */}
-                <div className="xl:hidden bg-white p-3 space-y-3">
+                {/* James (2026-06-05): drop the desktop horizontal-scroll
+                    8-column table and use a single card-per-product layout at
+                    every breakpoint. Inside each card, fields render as
+                    label-on-left / value-on-right rows in a 2-column grid on
+                    sm+ (1 column on mobile) so the operator sees Loaded /
+                    Sold / Returned / Damaged / Unit price / Expected without
+                    horizontal scrolling, matching Step 2's pattern. */}
+                <div className="bg-white p-4 space-y-4">
                   {returnItems.map((it, idx) => {
                     const total = it.bagsSold + it.bagsReturned + it.bagsDamaged
                     const balanced = total === it.bagsLoaded
+                    const expected = it.bagsSold * it.unitPrice
+                    // One reconciliation row: label on left (truncate), input/value on right
+                    // (fixed-width so columns align across rows). Defined inline (not as a
+                    // local component) so React doesn't unmount/remount the inputs on each
+                    // render — which would drop keystroke focus while typing.
+                    const rowClass = "flex items-center justify-between gap-3 min-w-0"
+                    const labelClass = "text-sm text-slate-700 truncate"
+                    const valueWrapClass = "w-32 sm:w-36 shrink-0"
                     return (
-                      <div key={idx} className={`rounded-lg border p-3 space-y-3 ${balanced ? "border-slate-200 bg-white" : "border-amber-300 bg-amber-50"}`}>
+                      <div
+                        key={idx}
+                        className={`rounded-lg border p-4 space-y-3 ${
+                          balanced ? "border-slate-200 bg-white" : "border-amber-300 bg-amber-50"
+                        }`}
+                      >
+                        {/* Card header: product name + balance status */}
                         <div className="flex items-center justify-between gap-2">
-                          <div className="min-w-0">
-                            <div className="font-semibold text-slate-900 break-words">{it.productName}</div>
-                            <div className="text-xs text-slate-500">Loaded: <span className="tabular-nums font-medium">{it.bagsLoaded}</span> bags</div>
+                          <div className="font-semibold text-slate-900 break-words min-w-0">
+                            {it.productName}
                           </div>
-                          <div className={`text-xs whitespace-nowrap font-semibold ${balanced ? "text-emerald-600" : "text-amber-700"}`}>
-                            {balanced ? "✓ Balanced" : (total - it.bagsLoaded > 0 ? `+${total - it.bagsLoaded}` : `${total - it.bagsLoaded}`)}
+                          <div
+                            className={`text-xs whitespace-nowrap font-semibold ${
+                              balanced ? "text-emerald-600" : "text-amber-700"
+                            }`}
+                          >
+                            {balanced
+                              ? "✓ Balanced"
+                              : total - it.bagsLoaded > 0
+                                ? `+${total - it.bagsLoaded}`
+                                : `${total - it.bagsLoaded}`}
                           </div>
                         </div>
-                        <div className="grid grid-cols-3 gap-2">
-                          <div>
-                            <label className="text-xs text-slate-500">Sold</label>
-                            <NumberInput min={0} value={it.bagsSold}
-                              onChange={(e) => updateReturnItem(idx, { bagsSold: Number(e.target.value) || 0 })}
-                              className="text-right" />
+
+                        {/* 2 cols on sm+, 1 col on mobile. Reads down-then-right:
+                            Loaded, Returned, Unit price (left); Sold, Damaged,
+                            Expected (right). All fields visible at once — no scroll. */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+                          <div className={rowClass}>
+                            <div className={labelClass}>Loaded (bags)</div>
+                            <div className={valueWrapClass}>
+                              <div className="text-right tabular-nums font-medium pr-3">{it.bagsLoaded}</div>
+                            </div>
                           </div>
-                          <div>
-                            <label className="text-xs text-slate-500">Returned</label>
-                            <NumberInput min={0} value={it.bagsReturned}
-                              onChange={(e) => updateReturnItem(idx, { bagsReturned: Number(e.target.value) || 0 })}
-                              className="text-right" />
+                          <div className={rowClass}>
+                            <div className={labelClass}>Sold (bags)</div>
+                            <div className={valueWrapClass}>
+                              <NumberInput
+                                className="text-right tabular-nums"
+                                min={0}
+                                value={it.bagsSold}
+                                onChange={(e) => updateReturnItem(idx, { bagsSold: Number(e.target.value) || 0 })}
+                              />
+                            </div>
                           </div>
-                          <div>
-                            <label className="text-xs text-slate-500">Damaged</label>
-                            <NumberInput min={0} value={it.bagsDamaged}
-                              onChange={(e) => updateReturnItem(idx, { bagsDamaged: Number(e.target.value) || 0 })}
-                              className="text-right" />
+                          <div className={rowClass}>
+                            <div className={labelClass}>Returned (bags)</div>
+                            <div className={valueWrapClass}>
+                              <NumberInput
+                                className="text-right tabular-nums"
+                                min={0}
+                                value={it.bagsReturned}
+                                onChange={(e) => updateReturnItem(idx, { bagsReturned: Number(e.target.value) || 0 })}
+                              />
+                            </div>
                           </div>
-                          <div>
-                            <label className="text-xs text-slate-500">Unit price{cur}</label>
-                            <NumberInput min={0} step="0.01" value={it.unitPrice}
-                              onChange={(e) => updateReturnItem(idx, { unitPrice: Number(e.target.value) || 0 })}
-                              className="text-right" />
+                          <div className={rowClass}>
+                            <div className={labelClass}>Damaged (bags)</div>
+                            <div className={valueWrapClass}>
+                              <NumberInput
+                                className="text-right tabular-nums"
+                                min={0}
+                                value={it.bagsDamaged}
+                                onChange={(e) => updateReturnItem(idx, { bagsDamaged: Number(e.target.value) || 0 })}
+                              />
+                            </div>
                           </div>
-                          <div className="col-span-2 flex items-end justify-end text-sm">
-                            <div className="text-right">
-                              <div className="text-xs text-slate-500">Expected{cur}</div>
-                              <div className="font-semibold tabular-nums">{gh(it.bagsSold * it.unitPrice)}</div>
+                          <div className={rowClass}>
+                            <div className={labelClass}>Unit price{cur}</div>
+                            <div className={valueWrapClass}>
+                              <NumberInput
+                                className="text-right tabular-nums"
+                                min={0}
+                                step="0.01"
+                                value={it.unitPrice}
+                                onChange={(e) => updateReturnItem(idx, { unitPrice: Number(e.target.value) || 0 })}
+                              />
+                            </div>
+                          </div>
+                          <div className={rowClass}>
+                            <div className={labelClass}>Expected{cur}</div>
+                            <div className={valueWrapClass}>
+                              <div className="text-right tabular-nums font-semibold pr-3">{gh(expected)}</div>
                             </div>
                           </div>
                         </div>
@@ -1678,112 +1649,64 @@ export default function WaterDriverReturnsPage() {
                 </div>
               </div>
 
-              {/* Issue 4 (test-report): replaced the always-visible Cash /
-                  MoMo / Bank / Credit grid with a "+ Add payment method"
-                  picker. The operator chooses how payment was made first,
-                  then only the relevant input renders. Multiple methods can
-                  be added for split payments; a running total appears below
-                  so the operator can confirm it matches Expected before
-                  submitting. The underlying returnPayments shape (and the
-                  customer-breakdown balance check downstream) is unchanged. */}
+              {/* Payment summary — all amounts in GHC. James (2026-06-05) asked
+                  for a label-on-left / input-on-right layout so the section
+                  reads like a table of "this is the field, this is the value"
+                  rather than the FormField grid that put labels above inputs.
+                  All four collection-method rows are always visible (no
+                  dropdown / no "+ Add method" picker — operator fills the ones
+                  they used and leaves the rest at 0). Cash returned sits below
+                  a divider since it's a float reconciliation, not a sale. */}
               <FormSection title={`Step 2 · Money collected${cur}`} color="green" columns={1}>
-                {(() => {
-                  const inactive = PAY_OPTIONS.filter((o) => !activePayMethods.has(o.key))
-                  const totalCollected =
-                    returnPayments.cashCollected +
-                    returnPayments.moMoCollected +
-                    returnPayments.bankCollected +
-                    returnPayments.creditSalesAmount
-                  function removeMethod(k: PayKey) {
-                    const next = new Set(activePayMethods)
-                    next.delete(k)
-                    setActivePayMethods(next)
-                    setReturnPayments({ ...returnPayments, [k]: 0 })
-                  }
-                  function addMethod(k: PayKey) {
-                    const next = new Set(activePayMethods)
-                    next.add(k)
-                    setActivePayMethods(next)
-                  }
-                  return (
-                    <div className="space-y-3">
-                      {activePayMethods.size === 0 ? (
-                        <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-sm text-slate-500">
-                          No payment methods added yet. Use <strong>How was payment made?</strong> below to add one.
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {PAY_OPTIONS.filter((o) => activePayMethods.has(o.key)).map((o) => (
-                            <div key={o.key} className="flex items-end gap-2">
-                              <div className="flex-1">
-                                <FormField label={o.label} hint={o.hint}>
-                                  <NumberInput
-                                    min={0}
-                                    step="0.01"
-                                    value={returnPayments[o.key] as number}
-                                    onChange={(e) =>
-                                      setReturnPayments({
-                                        ...returnPayments,
-                                        [o.key]: Number(e.target.value) || 0,
-                                      })
-                                    }
-                                  />
-                                </FormField>
-                              </div>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="mb-1 text-rose-600 hover:bg-rose-50"
-                                onClick={() => removeMethod(o.key)}
-                                title="Remove this payment method"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {inactive.length > 0 && (
-                        <div className="flex flex-wrap items-end gap-2">
-                          <div className="min-w-[14rem]">
-                            <Label className="text-xs text-slate-500">How was payment made?</Label>
-                            <Select
-                              value=""
-                              onValueChange={(v) => addMethod(v as PayKey)}
-                            >
-                              <SelectTrigger className="h-10">
-                                <SelectValue placeholder="+ Add payment method" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {inactive.map((o) => (
-                                  <SelectItem key={o.key} value={o.key}>{o.label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          {activePayMethods.size > 0 && (
-                            <div className="text-xs text-slate-500 pb-2">
-                              Tip: add another method for split payments (e.g. part Cash + part MoMo).
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {activePayMethods.size > 0 && (
-                        <div className="flex items-center justify-end gap-2 border-t border-slate-200 pt-2 text-sm">
-                          <span className="text-slate-500">Total collected:</span>
-                          <span className="font-semibold tabular-nums">{gh(totalCollected)}</span>
-                        </div>
-                      )}
-
-                      <FormField label="Cash returned by driver" hint="The driver's float coming back (the opening cash, minus any approved cash expenses). Not a sale." full>
-                        <NumberInput min={0} step="0.01" value={returnPayments.cashReturnedByDriver}
-                          onChange={(e) => setReturnPayments({ ...returnPayments, cashReturnedByDriver: Number(e.target.value) || 0 })} />
-                      </FormField>
+                {[
+                  { key: "cashCollected",     label: "Cash",          hint: "Physical cash the driver collected on the run." },
+                  { key: "moMoCollected",     label: "MoMo",          hint: "Mobile Money (MTN, Vodafone, AirtelTigo)." },
+                  { key: "bankCollected",     label: "Bank",          hint: "Bank transfers / cheque deposits received today." },
+                  { key: "creditSalesAmount", label: "Credit sales",  hint: "Goods given on credit — to be paid later." },
+                ].map((row) => (
+                  <div key={row.key} className="flex items-center justify-between gap-3 min-w-0">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium text-slate-700">{row.label}</div>
+                      <div className="text-[11px] text-slate-500 truncate">{row.hint}</div>
                     </div>
-                  )
-                })()}
+                    <div className="w-40 sm:w-48 shrink-0">
+                      <NumberInput
+                        className="text-right tabular-nums"
+                        min={0}
+                        step="0.01"
+                        value={returnPayments[row.key as keyof typeof returnPayments]}
+                        onChange={(e) =>
+                          setReturnPayments({
+                            ...returnPayments,
+                            [row.key]: Number(e.target.value) || 0,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between gap-3 min-w-0 border-t border-slate-200 pt-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-slate-700">Cash returned by driver</div>
+                    <div className="text-[11px] text-slate-500 truncate">
+                      The driver's float coming back (opening cash, minus any approved cash expenses). Not a sale.
+                    </div>
+                  </div>
+                  <div className="w-40 sm:w-48 shrink-0">
+                    <NumberInput
+                      className="text-right tabular-nums"
+                      min={0}
+                      step="0.01"
+                      value={returnPayments.cashReturnedByDriver}
+                      onChange={(e) =>
+                        setReturnPayments({
+                          ...returnPayments,
+                          cashReturnedByDriver: Number(e.target.value) || 0,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
               </FormSection>
 
               {/* Migration 083 — Sales Posting Mode (moved above Step 3 per James

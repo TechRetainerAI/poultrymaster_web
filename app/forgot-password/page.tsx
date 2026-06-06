@@ -9,10 +9,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ChevronLeft } from "lucide-react"
 import { forgotPassword } from "@/lib/api/auth"
+import { useToast } from "@/hooks/use-toast"
 import Link from "next/link"
 
 export default function ForgotPasswordPage() {
   const router = useRouter()
+  const { toast } = useToast()
   const [email, setEmail] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
@@ -27,12 +29,18 @@ export default function ForgotPasswordPage() {
 
     if (result.success) {
       setSuccess(true)
+      // Mirror the success view as a toast too — testers reported "no
+      // success/error message" because the inline view is easy to miss when
+      // the user is mid-scroll on small viewports.
+      toast({ title: "Reset code sent", description: "Check your email for the code." })
       // Redirect to reset password page with email
       setTimeout(() => {
         router.push(`/reset-password?email=${encodeURIComponent(email)}`)
       }, 2000)
     } else {
-      setError(result.message || "Failed to send reset code. Please try again.")
+      const message = result.message || "Failed to send reset code. Please try again."
+      setError(message)
+      toast({ title: "Couldn't send reset code", description: message, variant: "destructive" })
     }
 
     setIsLoading(false)
@@ -160,7 +168,10 @@ export default function ForgotPasswordPage() {
             <div className="space-y-2">
               <Input
                 id="email"
+                name="email"
                 type="email"
+                autoComplete="email"
+                inputMode="email"
                 placeholder="Enter your email address"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}

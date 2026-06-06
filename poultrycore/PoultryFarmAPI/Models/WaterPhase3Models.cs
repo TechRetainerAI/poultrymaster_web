@@ -42,6 +42,10 @@ namespace PoultryFarmAPIWeb.Models
         public decimal TotalCost { get; set; }
         [StringLength(30)] public string? PaymentMethod { get; set; }
         public decimal AmountPaid { get; set; }
+        // Outstanding balance = TotalCost - AmountPaid. Computed in the SP
+        // (migration 087); read-only here. Without this column the raw materials
+        // list rendered Balance as 0.00 even when a part-payment was made.
+        public decimal Balance { get; set; }
         [StringLength(500)] public string? ReceiptUrl { get; set; }
         public int? ReceivedByStaffId { get; set; }
         [StringLength(500)] public string? Notes { get; set; }

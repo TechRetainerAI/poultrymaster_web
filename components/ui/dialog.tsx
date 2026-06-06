@@ -54,11 +54,21 @@ function DialogContent({
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
+  // Radix logs "Missing `Description` or `aria-describedby={undefined}` for
+  // {DialogContent}" when a Content has neither a DialogDescription child nor
+  // an explicit aria-describedby. Default to `undefined` here so the warning
+  // never fires on dialogs without a description — Radix's docs name
+  // `aria-describedby={undefined}` as the explicit opt-out. Dialogs that DO
+  // include a <DialogDescription> still get auto-linked because Radix's
+  // Description Provider merges its id via context, independent of this prop.
+  const ariaDescribedBy =
+    'aria-describedby' in props ? props['aria-describedby'] : undefined
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
+        aria-describedby={ariaDescribedBy}
         className={cn(
           // Default modal width bumped from sm:max-w-lg (512px) to sm:max-w-2xl (672px).
           // Most data-entry dialogs were cramped, especially the water/generic forms

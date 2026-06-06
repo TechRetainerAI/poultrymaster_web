@@ -21,6 +21,11 @@ yarn-error.log*
 .env*
 !.env.example
 
+# Local-dev overlays for the .NET APIs (contain SMTP / DB / JWT secrets).
+# Loaded via builder.Configuration.AddJsonFile(..., optional: true) in Program.cs.
+appsettings.Local.json
+**/appsettings.Local.json
+
 # vercel
 .vercel
 

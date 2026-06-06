@@ -109,9 +109,18 @@ export default function WaterSalesPage() {
     [draftItems],
   )
 
+  // Only Finished Goods are sellable. RawMaterial / PackagingMaterial belong on
+  // /water-raw-materials and the production-batch recipe pickers — they were
+  // leaking into the Sales dropdown because the previous filter only checked
+  // `isActive`. Migration 063 added ProductType for exactly this distinction.
+  const saleableProducts = useMemo(
+    () => products.filter((p) => p.isActive && p.productType === "FinishedGood"),
+    [products],
+  )
+
   function addLine() {
-    if (products.length === 0) return toast({ title: "Add a product first" })
-    const first = products[0]
+    if (saleableProducts.length === 0) return toast({ title: "Add a finished-good product first" })
+    const first = saleableProducts[0]
     const unit = unitOptionsFor(first)[0]
     setDraftItems((d) => [...d, {
       waterProductId: first.waterProductId,
@@ -455,7 +464,7 @@ export default function WaterSalesPage() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {products.filter((p) => p.isActive).map((p) => (
+                              {saleableProducts.map((p) => (
                                 <SelectItem key={p.waterProductId} value={String(p.waterProductId)}>
                                   {/* Stack name + stock so the product cell
                                       doesn't have to fit "Sachet water (sachet) · stock 300"

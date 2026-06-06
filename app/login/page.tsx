@@ -13,6 +13,12 @@ import { Eye, EyeOff, Lock, User } from "lucide-react"
 import { login } from "@/lib/api/auth"
 import Link from "next/link"
 import { SuccessModal } from "@/components/auth/success-modal"
+import { useAuthStore } from "@/lib/store/auth-store"
+import {
+  resolveActiveCompanyForUser,
+  dashboardHomeForType,
+  type CompanyType,
+} from "@/lib/api/companies"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -23,6 +29,10 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [showSuccess, setShowSuccess] = useState(false)
+  // Home route resolved from /Companies/mine after a successful login. Used by
+  // the SuccessModal's "Go to Dashboard" button so Water/Generic signups don't
+  // land on the Poultry dashboard.
+  const [postLoginHome, setPostLoginHome] = useState<string>("/dashboard")
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -62,7 +72,7 @@ export default function LoginPage() {
       }
       
       console.log("[Login] No 2FA required, showing success modal")
-      
+
       // Check if user is an employee and log it
       const isStaff = localStorage.getItem("isStaff") === "true"
       if (isStaff) {
@@ -70,7 +80,30 @@ export default function LoginPage() {
       } else {
         console.log("[Login] Admin login successful")
       }
-      
+
+      // Resolve company type so the post-login landing is correct.
+      // LoginResponse doesn't carry FarmType (see LoginAPI/.../LoginResponse.cs),
+      // so without this the Water/Generic sidebar+dashboard would not appear
+      // until the user manually opened the company switcher. Failure here is
+      // non-fatal: we fall back to /dashboard (Poultry).
+      try {
+        const farmId = typeof window !== "undefined" ? localStorage.getItem("farmId") : null
+        const company = await resolveActiveCompanyForUser(farmId)
+        if (company) {
+          const token =
+            typeof window !== "undefined" ? localStorage.getItem("auth_token") ?? undefined : undefined
+          useAuthStore.getState().setActiveCompany(
+            company.farmId,
+            company.name,
+            company.type as CompanyType,
+            token,
+          )
+          setPostLoginHome(dashboardHomeForType(company.type as CompanyType))
+        }
+      } catch (e) {
+        console.warn("[Login] Could not resolve company type post-login:", e)
+      }
+
       setShowSuccess(true)
     } else {
       // Show user-friendly error message
@@ -100,7 +133,7 @@ export default function LoginPage() {
 
   const handleSuccessClose = () => {
     setShowSuccess(false)
-    router.push("/dashboard")
+    router.push(postLoginHome)
   }
 
   return (

@@ -10,6 +10,11 @@ import { AuthService } from "@/lib/services/auth.service"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { Shield } from "lucide-react"
+import {
+  resolveActiveCompanyForUser,
+  dashboardHomeForType,
+  type CompanyType,
+} from "@/lib/api/companies"
 
 function Login2FAForm() {
   const router = useRouter()
@@ -62,8 +67,28 @@ function Login2FAForm() {
         console.log("[2FA Login] Employee status stored - isStaff:", isStaff)
       }
 
-      // Redirect to dashboard
-      router.push("/dashboard")
+      // Resolve company type so Water/Generic users land on their own dashboard
+      // (LoginResponse doesn't carry FarmType — see Login API LoginResponse.cs).
+      let home = "/dashboard"
+      try {
+        const farmId =
+          response.user?.farmId ||
+          (typeof window !== "undefined" ? localStorage.getItem("farmId") : null)
+        const company = await resolveActiveCompanyForUser(farmId)
+        if (company) {
+          useAuthStore.getState().setActiveCompany(
+            company.farmId,
+            company.name,
+            company.type as CompanyType,
+            response.token,
+          )
+          home = dashboardHomeForType(company.type as CompanyType)
+        }
+      } catch (e) {
+        console.warn("[2FA Login] Could not resolve company type post-login:", e)
+      }
+
+      router.push(home)
     } catch (err: any) {
       setError(err?.response?.data?.message || "Invalid OTP code. Please try again.")
     } finally {

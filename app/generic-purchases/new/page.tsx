@@ -193,25 +193,58 @@ export default function NewGenericPurchasePage() {
                   </Button>
                 </CardHeader>
                 <CardContent className="p-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Product</TableHead>
-                        <TableHead className="w-[110px] text-right">Qty</TableHead>
-                        <TableHead className="w-[130px] text-right">Unit cost</TableHead>
-                        <TableHead className="w-[130px] text-right">Discount</TableHead>
-                        <TableHead className="w-[130px] text-right">Line total</TableHead>
-                        <TableHead className="w-[40px]"></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {rows.map((r, idx) => {
-                        const line = r.quantity * r.unitCost - r.discountAmount
-                        return (
-                          <TableRow key={idx}>
-                            <TableCell>
+                  {/* Same responsive split as generic-sales/new: dense table
+                      on lg+, two-column card-per-row on phones/tablets. */}
+                  <div className="hidden lg:block">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Product</TableHead>
+                          <TableHead className="w-[110px] text-right">Qty</TableHead>
+                          <TableHead className="w-[130px] text-right">Unit cost</TableHead>
+                          <TableHead className="w-[130px] text-right">Discount</TableHead>
+                          <TableHead className="w-[130px] text-right">Line total</TableHead>
+                          <TableHead className="w-[40px]"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {rows.map((r, idx) => {
+                          const line = r.quantity * r.unitCost - r.discountAmount
+                          return (
+                            <TableRow key={idx}>
+                              <TableCell>
+                                <Select value={r.genericProductId ? String(r.genericProductId) : ""} onValueChange={(v) => onPickProduct(idx, v)}>
+                                  <SelectTrigger className="h-8"><SelectValue placeholder="— select —" /></SelectTrigger>
+                                  <SelectContent>
+                                    {products.map((p) => (
+                                      <SelectItem key={p.genericProductId} value={String(p.genericProductId)}>
+                                        {p.productName}{p.sku ? ` (${p.sku})` : ""}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                              <TableCell><NumberInput className="h-8 text-right"  step="0.001" min="0" value={r.quantity} onChange={(e) => updateRow(idx, { quantity: Number(e.target.value) || 0 })} /></TableCell>
+                              <TableCell><NumberInput className="h-8 text-right"  step="0.01" min="0" value={r.unitCost} onChange={(e) => updateRow(idx, { unitCost: Number(e.target.value) || 0 })} /></TableCell>
+                              <TableCell><NumberInput className="h-8 text-right"  step="0.01" min="0" value={r.discountAmount} onChange={(e) => updateRow(idx, { discountAmount: Number(e.target.value) || 0 })} /></TableCell>
+                              <TableCell className="text-right font-semibold">{fmt(line)}</TableCell>
+                              <TableCell><Button size="icon" variant="ghost" onClick={() => setRows((rs) => rs.filter((_, i) => i !== idx))}><X className="h-4 w-4 text-rose-600" /></Button></TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  <div className="lg:hidden p-3 space-y-3">
+                    {rows.map((r, idx) => {
+                      const line = r.quantity * r.unitCost - r.discountAmount
+                      return (
+                        <div key={idx} className="rounded-lg border border-slate-200 bg-white p-3 space-y-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 min-w-0">
                               <Select value={r.genericProductId ? String(r.genericProductId) : ""} onValueChange={(v) => onPickProduct(idx, v)}>
-                                <SelectTrigger className="h-8"><SelectValue placeholder="— select —" /></SelectTrigger>
+                                <SelectTrigger className="h-9"><SelectValue placeholder="— select product —" /></SelectTrigger>
                                 <SelectContent>
                                   {products.map((p) => (
                                     <SelectItem key={p.genericProductId} value={String(p.genericProductId)}>
@@ -220,17 +253,33 @@ export default function NewGenericPurchasePage() {
                                   ))}
                                 </SelectContent>
                               </Select>
-                            </TableCell>
-                            <TableCell><NumberInput className="h-8 text-right"  step="0.001" min="0" value={r.quantity} onChange={(e) => updateRow(idx, { quantity: Number(e.target.value) || 0 })} /></TableCell>
-                            <TableCell><NumberInput className="h-8 text-right"  step="0.01" min="0" value={r.unitCost} onChange={(e) => updateRow(idx, { unitCost: Number(e.target.value) || 0 })} /></TableCell>
-                            <TableCell><NumberInput className="h-8 text-right"  step="0.01" min="0" value={r.discountAmount} onChange={(e) => updateRow(idx, { discountAmount: Number(e.target.value) || 0 })} /></TableCell>
-                            <TableCell className="text-right font-semibold">{fmt(line)}</TableCell>
-                            <TableCell><Button size="icon" variant="ghost" onClick={() => setRows((rs) => rs.filter((_, i) => i !== idx))}><X className="h-4 w-4 text-rose-600" /></Button></TableCell>
-                          </TableRow>
-                        )
-                      })}
-                    </TableBody>
-                  </Table>
+                            </div>
+                            <Button size="icon" variant="ghost" className="shrink-0" onClick={() => setRows((rs) => rs.filter((_, i) => i !== idx))}>
+                              <X className="h-4 w-4 text-rose-600" />
+                            </Button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-xs text-slate-500">Qty</label>
+                              <NumberInput className="h-9 text-right tabular-nums" step="0.001" min="0" value={r.quantity} onChange={(e) => updateRow(idx, { quantity: Number(e.target.value) || 0 })} />
+                            </div>
+                            <div>
+                              <label className="text-xs text-slate-500">Unit cost</label>
+                              <NumberInput className="h-9 text-right tabular-nums" step="0.01" min="0" value={r.unitCost} onChange={(e) => updateRow(idx, { unitCost: Number(e.target.value) || 0 })} />
+                            </div>
+                            <div>
+                              <label className="text-xs text-slate-500">Discount</label>
+                              <NumberInput className="h-9 text-right tabular-nums" step="0.01" min="0" value={r.discountAmount} onChange={(e) => updateRow(idx, { discountAmount: Number(e.target.value) || 0 })} />
+                            </div>
+                            <div>
+                              <label className="text-xs text-slate-500">Line total</label>
+                              <div className="h-9 flex items-center justify-end font-semibold tabular-nums pr-2">{fmt(line)}</div>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </CardContent>
               </Card>
 
