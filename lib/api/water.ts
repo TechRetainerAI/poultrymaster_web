@@ -3,7 +3,8 @@ import { farmApiUrl, getAuthHeaders, getUserContext } from "./config"
 // ----- Types -----
 // Migration 063 introduces ProductType so finished goods are separated from
 // raw/packaging materials in the Products list and Recipe pickers.
-export type WaterProductType = "FinishedGood" | "RawMaterial" | "PackagingMaterial" | "Other"
+// #10: expanded product-type list (added Consumable, SparePart, Service).
+export type WaterProductType = "FinishedGood" | "RawMaterial" | "PackagingMaterial" | "Consumable" | "SparePart" | "Service" | "Other"
 
 export interface WaterProduct {
   waterProductId: number
@@ -27,6 +28,13 @@ export interface WaterProduct {
   bagPrice?: number | null
   sachetPrice?: number | null
   isSachetProduct?: boolean
+  // Migration 092 — Packaging & Pricing (#8/#9/#10). unit = Inventory Unit,
+  // sizeMl = Size Per Unit, sachetsPerBag = Units Per Package, bagPrice/
+  // sachetPrice = selling prices.
+  sizeUnit?: string | null
+  packagingUnit?: string | null
+  defaultSalesUnit?: string | null
+  productCategory?: string | null
 }
 
 export interface WaterProductInput {
@@ -44,6 +52,11 @@ export interface WaterProductInput {
   bagPrice?: number | null
   sachetPrice?: number | null
   isSachetProduct?: boolean
+  // Migration 092 — Packaging & Pricing (#8/#9/#10).
+  sizeUnit?: string | null
+  packagingUnit?: string | null
+  defaultSalesUnit?: string | null
+  productCategory?: string | null
 }
 
 export interface WaterCustomer {
@@ -1332,6 +1345,8 @@ export interface WaterDriver {
   // Legacy alias — accepted by some older callers. New code should use
   // defaultVehicleId. Kept here to keep callers compiling during rollout.
   assignedWaterVehicleId?: number | null
+  // #18 — links the driver to its AspNetUsers employee.
+  employeeUserId?: string | null
 }
 
 export interface WaterVehicle {
@@ -1584,6 +1599,24 @@ export const updateWaterDriver = (id: number, input: Omit<WaterDriver, "waterDri
 export const deleteWaterDriver = (id: number) =>
   jsend<void>(`/Water/drivers/${id}?farmId=${encodeURIComponent(activeFarmId())}`, "DELETE")
 
+// #18 — drivers sourced from employees-with-driver-role (+ legacy standalone).
+export const listWaterDriversForFarm = () =>
+  jget<WaterDriver[]>(`/Water/drivers/list-for-farm?farmId=${encodeURIComponent(activeFarmId())}`)
+
+// #18 — make an existing employee a driver (assigns role + upserts profile).
+export const createWaterDriverFromEmployee = (input: {
+  employeeUserId: string; role?: string; licenseNumber?: string | null;
+  defaultVehicleId?: number | null; defaultRouteId?: number | null;
+  basePay?: number | null; commissionPerBag?: number | null; notes?: string | null
+}) =>
+  jsend<WaterDriver>(`/Water/drivers/from-employee`, "POST", { ...input, farmId: activeFarmId() })
+
+export const getEmployeeJobRoles = (employeeUserId: string) =>
+  jget<string[]>(`/Water/drivers/job-roles?farmId=${encodeURIComponent(activeFarmId())}&employeeUserId=${encodeURIComponent(employeeUserId)}`)
+
+export const setEmployeeJobRoles = (employeeUserId: string, rolesCsv: string) =>
+  jsend<void>(`/Water/drivers/job-roles`, "POST", { farmId: activeFarmId(), employeeUserId, rolesCsv })
+
 // ----- Vehicle loadings (Load Vehicle action)
 export const listWaterVehicleLoadings = (opts?: { status?: string; fromDate?: string; toDate?: string }) => {
   const qs = new URLSearchParams({ farmId: activeFarmId() })
@@ -1814,6 +1847,19 @@ export const updateWaterRawMaterialPurchase = (id: number, input: Omit<WaterRawM
   jsend<void>(`/Water/raw-material-purchases/${id}`, "PUT", { ...input, waterRawMaterialPurchaseId: id, farmId: activeFarmId() })
 export const deleteWaterRawMaterialPurchase = (id: number) =>
   jsend<void>(`/Water/raw-material-purchases/${id}?farmId=${encodeURIComponent(activeFarmId())}`, "DELETE")
+
+// Record a follow-up payment against an outstanding purchase balance. Posts its
+// own expense + cash-out on the backend; returns the new outstanding balance.
+export const payWaterRawMaterialPurchaseBalance = (
+  id: number,
+  input: { amount: number; paymentMethod?: string; paymentDate?: string },
+) =>
+  jsend<{ balance: number }>(`/Water/raw-material-purchases/${id}/pay-balance`, "POST", {
+    farmId: activeFarmId(),
+    amount: input.amount,
+    paymentMethod: input.paymentMethod ?? "Cash",
+    paymentDate: input.paymentDate || null,
+  })
 
 // ----- Loss records
 export const listWaterLossRecords = (opts?: { lossType?: string; fromDate?: string; toDate?: string }) => {

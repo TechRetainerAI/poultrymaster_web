@@ -12,8 +12,10 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { Badge } from "@/components/ui/badge"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { FormSection, FormField } from "@/components/ui/form-section"
 import { Plus, Boxes, Loader2 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
@@ -22,6 +24,11 @@ import {
   listWaterStockTransactions, addWaterStockTransaction, listWaterProducts,
   type WaterStockTransaction, type WaterProduct,
 } from "@/lib/api/water"
+
+// #23: stock entries typed in by hand use these txn types; everything else
+// (Production, ProductionConsume, Sale, DeliveryOut, …) is system-generated.
+const MANUAL_TXN_TYPES = ["Restock", "Adjust", "Return", "Manual", "Opening"]
+const isManualTxn = (txnType?: string | null) => MANUAL_TXN_TYPES.includes((txnType ?? "").trim())
 
 export default function WaterStockPage() {
   const router = useRouter()
@@ -36,14 +43,20 @@ export default function WaterStockPage() {
   const [dateTo, setDateTo] = useState("")
   const [loading, setLoading] = useState(true)
   const [filterProductId, setFilterProductId] = useState<number | null>(null)
+  // #23: distinguish stock typed in by hand from stock the system moved
+  // (production output/consumption, sales, deliveries). Filter defaults to all.
+  const [sourceFilter, setSourceFilter] = useState<"all" | "manual" | "system">("all")
 
   const visibleTxns = useMemo(
     () => filterByDateAndSearch(txns, {
       search, dateFrom, dateTo,
       searchKeys: ["productName", "txnType", "note"],
       dateKey: "createdDate",
-    }),
-    [txns, search, dateFrom, dateTo],
+    }).filter((t) =>
+      sourceFilter === "all" ? true :
+      sourceFilter === "manual" ? isManualTxn(t.txnType) : !isManualTxn(t.txnType),
+    ),
+    [txns, search, dateFrom, dateTo, sourceFilter],
   )
 
   const [open, setOpen] = useState(false)
@@ -109,10 +122,19 @@ export default function WaterStockPage() {
                 value={filterProductId ? String(filterProductId) : "0"}
                 onValueChange={(v) => setFilterProductId(v === "0" ? null : parseInt(v, 10))}
               >
-                <SelectTrigger className="w-[220px]"><SelectValue placeholder="All products" /></SelectTrigger>
+                <SelectTrigger className="w-[200px]"><SelectValue placeholder="All products" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="0">All products</SelectItem>
                   {products.map((p) => <SelectItem key={p.waterProductId} value={String(p.waterProductId)}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              {/* #23: entry-source filter (default All). */}
+              <Select value={sourceFilter} onValueChange={(v) => setSourceFilter(v as any)}>
+                <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All entries</SelectItem>
+                  <SelectItem value="manual">Manual only</SelectItem>
+                  <SelectItem value="system">System only</SelectItem>
                 </SelectContent>
               </Select>
               <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-1" /> New entry</Button>
@@ -160,6 +182,9 @@ export default function WaterStockPage() {
                       ),
                     },
                     { label: "Unit cost", value: t.unitCost?.toFixed(2) ?? "—" },
+                    { label: "Source", value: isManualTxn(t.txnType)
+                        ? <Badge className="bg-blue-100 text-blue-700">Manual</Badge>
+                        : <Badge variant="outline">System</Badge> },
                     { label: "Note", value: t.note ?? "—" },
                   ]}
                   desktopTable={
@@ -170,6 +195,7 @@ export default function WaterStockPage() {
                           <TableHead>Date</TableHead>
                           <TableHead>Product</TableHead>
                           <TableHead>Type</TableHead>
+                          <TableHead>Source</TableHead>
                           <TableHead className="text-right">Qty</TableHead>
                           <TableHead className="text-right">Unit cost</TableHead>
                           <TableHead>Note</TableHead>
@@ -181,6 +207,7 @@ export default function WaterStockPage() {
                             <TableCell>{new Date(t.createdDate).toLocaleString()}</TableCell>
                             <TableCell>{t.productName}</TableCell>
                             <TableCell>{t.txnType}</TableCell>
+                            <TableCell>{isManualTxn(t.txnType) ? <Badge className="bg-blue-100 text-blue-700">Manual</Badge> : <Badge variant="outline">System</Badge>}</TableCell>
                             <TableCell className={`text-right tabular-nums ${t.quantity < 0 ? "text-rose-600" : "text-emerald-600"}`}>
                               {t.quantity > 0 ? `+${t.quantity}` : t.quantity}
                             </TableCell>
@@ -199,36 +226,46 @@ export default function WaterStockPage() {
         </main>
       </div>
 
+      {/* #24: styled popup matching the other dialogs (FormSection layout). */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>New stock entry</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div><Label>Product *</Label>
-              <Select value={form.productId ? String(form.productId) : ""} onValueChange={(v) => setForm({ ...form, productId: parseInt(v, 10) })}>
-                <SelectTrigger><SelectValue placeholder="Pick a product…" /></SelectTrigger>
-                <SelectContent>
-                  {products.map((p) => <SelectItem key={p.waterProductId} value={String(p.waterProductId)}>{p.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div><Label>Type</Label>
-              <Select value={form.txnType} onValueChange={(v) => setForm({ ...form, txnType: v as any })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Restock">Restock (add stock)</SelectItem>
-                  <SelectItem value="Adjust">Adjust (signed)</SelectItem>
-                  <SelectItem value="Return">Return (add back)</SelectItem>
-                </SelectContent>
-              </Select></div>
-            <div><Label>Quantity {form.txnType === "Adjust" ? "(signed)" : ""}</Label>
-              <NumberInput value={form.quantity || ""} onChange={(e) => setForm({ ...form, quantity: parseInt(e.target.value || "0", 10) })} /></div>
-            <div><Label>Unit cost (optional, for restocks)</Label>
-              <NumberInput step="0.01" min={0} value={form.unitCost ?? ""} onChange={(e) => setForm({ ...form, unitCost: e.target.value === "" ? undefined : parseFloat(e.target.value) })} /></div>
-            <div><Label>Note</Label>
-              <Input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></div>
-            <div className="flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-              <Button onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
+        <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Boxes className="w-5 h-5 text-sky-600" /> New stock entry</DialogTitle>
+            <DialogDescription>Manually record a restock, adjustment, or return. Shows as a “Manual” entry on the list.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <FormSection title="Stock entry" color="sky">
+              <FormField label="Product *" full>
+                <Select value={form.productId ? String(form.productId) : ""} onValueChange={(v) => setForm({ ...form, productId: parseInt(v, 10) })}>
+                  <SelectTrigger><SelectValue placeholder="Pick a product…" /></SelectTrigger>
+                  <SelectContent>
+                    {products.map((p) => <SelectItem key={p.waterProductId} value={String(p.waterProductId)}>{p.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </FormField>
+              <FormField label="Type">
+                <Select value={form.txnType} onValueChange={(v) => setForm({ ...form, txnType: v as any })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Restock">Restock (add stock)</SelectItem>
+                    <SelectItem value="Adjust">Adjust (signed)</SelectItem>
+                    <SelectItem value="Return">Return (add back)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FormField>
+              <FormField label={`Quantity ${form.txnType === "Adjust" ? "(signed)" : ""}`}>
+                <NumberInput value={form.quantity || ""} onChange={(e) => setForm({ ...form, quantity: parseInt(e.target.value || "0", 10) })} />
+              </FormField>
+              <FormField label="Unit cost (optional, for restocks)">
+                <NumberInput step="0.01" min={0} value={form.unitCost ?? ""} onChange={(e) => setForm({ ...form, unitCost: e.target.value === "" ? undefined : parseFloat(e.target.value) })} />
+              </FormField>
+              <FormField label="Note" full>
+                <Input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
+              </FormField>
+            </FormSection>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button onClick={save} disabled={saving}>{saving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</>) : "Save entry"}</Button>
             </div>
           </div>
         </DialogContent>

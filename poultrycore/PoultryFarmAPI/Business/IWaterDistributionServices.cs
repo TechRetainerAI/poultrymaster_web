@@ -9,6 +9,11 @@ namespace PoultryFarmAPIWeb.Business
         Task<int> InsertAsync(WaterDriverModel m);
         Task UpdateAsync(WaterDriverModel m);
         Task DeleteAsync(int id, string farmId);
+        // #18 — merged employee/driver model.
+        Task<List<WaterDriverModel>> ListForFarmAsync(string farmId);
+        Task<WaterDriverModel?> UpsertForEmployeeAsync(WaterDriverFromEmployeeRequest req);
+        Task SetJobRolesAsync(string employeeUserId, string farmId, string? rolesCsv);
+        Task<List<string>> GetJobRolesAsync(string employeeUserId, string farmId);
     }
 
     public interface IWaterVehicleService

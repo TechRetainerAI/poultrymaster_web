@@ -40,6 +40,22 @@ namespace PoultryFarmAPIWeb.Models
         [StringLength(500)] public string? Notes { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
+        // #18 — links the driver to its AspNetUsers employee (merged model).
+        [StringLength(450)] public string? EmployeeUserId { get; set; }
+    }
+
+    // #18 — request to make an existing employee a driver (set role + upsert profile).
+    public class WaterDriverFromEmployeeRequest
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public string EmployeeUserId { get; set; } = string.Empty;
+        public string Role { get; set; } = "Driver";
+        public string? LicenseNumber { get; set; }
+        public int? DefaultVehicleId { get; set; }
+        public int? DefaultRouteId { get; set; }
+        public decimal? BasePay { get; set; }
+        public decimal? CommissionPerBag { get; set; }
+        public string? Notes { get; set; }
     }
 
     public class WaterVehicleModel

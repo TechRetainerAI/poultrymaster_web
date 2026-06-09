@@ -18,7 +18,7 @@ import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
-import { Plus, Pencil, Trash2, Loader2, ShoppingBag, PackagePlus, ChefHat } from "lucide-react"
+import { Plus, Pencil, Trash2, Loader2, ShoppingBag, PackagePlus, ChefHat, ExternalLink } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -27,14 +27,44 @@ import {
   addWaterStockTransaction, type WaterProduct, type WaterProductInput, type WaterProductType,
 } from "@/lib/api/water"
 
-const EMPTY: WaterProductInput = { name: "", sku: "", sizeMl: undefined, unit: "sachet", unitPrice: 0, isActive: true, productType: "FinishedGood", notes: "" }
+const EMPTY: WaterProductInput = {
+  name: "", sku: "", sizeMl: undefined, sizeUnit: "ml",
+  unit: "Sachet", unitPrice: 0, isActive: true, productType: "FinishedGood", notes: "",
+  packagingUnit: "Bag", sachetsPerBag: 30, defaultSalesUnit: "Bag",
+  bagPrice: 0, sachetPrice: 0, productCategory: "Sachet Water", isSachetProduct: true,
+}
 
 const PRODUCT_TYPES: { value: WaterProductType; label: string; hint?: string }[] = [
   { value: "FinishedGood",      label: "Finished good",      hint: "Sold to customers, e.g. sachet water" },
   { value: "RawMaterial",       label: "Raw material",       hint: "Consumed during production" },
   { value: "PackagingMaterial", label: "Packaging material", hint: "Rolls, bags, etc." },
+  { value: "Consumable",        label: "Consumable" },
+  { value: "SparePart",         label: "Spare part" },
+  { value: "Service",           label: "Service" },
   { value: "Other",             label: "Other" },
 ]
+
+// #9/#10 dropdown lists (final).
+const INVENTORY_UNITS = ["Sachet", "Bottle", "Dispenser Bottle", "Cup", "Container", "Piece", "Litre", "Other"]
+const PACKAGING_UNITS = ["Bag", "Pack", "Crate", "Carton", "Case", "Bundle", "Tray", "Pallet", "None — Sold individually", "Other"]
+const SIZE_UNITS = ["ml", "L", "cl", "g", "kg", "Other"]
+const PRODUCT_CATEGORIES = [
+  "Sachet Water", "Bottled Water", "Dispenser Water", "Bulk Water", "Packaging Materials",
+  "Water Treatment Materials", "Cleaning Supplies", "Machine Parts", "Vehicle Supplies", "Other",
+]
+
+// Fills the legacy/derived columns from the Packaging & Pricing inputs so the
+// rest of the app (sales, inventory, stock conversion) keeps working:
+//   baseUnit        = inventory unit
+//   isSachetProduct = there is >1 inventory unit per package
+//   unitPrice       = price of the chosen default sales unit
+function deriveProduct(f: WaterProductInput): WaterProductInput {
+  const perPkg = f.sachetsPerBag ?? 0
+  const sellsByUnit = f.defaultSalesUnit && f.unit && f.defaultSalesUnit === f.unit
+  const unitPrice = sellsByUnit ? (f.sachetPrice ?? f.bagPrice ?? f.unitPrice ?? 0)
+                                : (f.bagPrice ?? f.sachetPrice ?? f.unitPrice ?? 0)
+  return { ...f, baseUnit: f.unit ?? null, isSachetProduct: perPkg > 1, unitPrice }
+}
 
 export default function WaterProductsPage() {
   const router = useRouter()
@@ -95,7 +125,7 @@ export default function WaterProductsPage() {
     if (!form.name.trim()) return toast({ title: "Name required", variant: "destructive" })
     setSaving(true)
     try {
-      const created = await createWaterProduct(form)
+      const created = await createWaterProduct(deriveProduct(form))
       toast({ title: "Product created" })
       setCreateOpen(false); setForm(EMPTY); await load()
       // Recipe nudge only applies to finished goods — raw/packaging materials
@@ -109,7 +139,15 @@ export default function WaterProductsPage() {
 
   function openEdit(p: WaterProduct) {
     setEditId(p.waterProductId)
-    setForm({ name: p.name, sku: p.sku ?? "", sizeMl: p.sizeMl ?? undefined, unit: p.unit ?? "", unitPrice: p.unitPrice, isActive: p.isActive, productType: p.productType ?? "FinishedGood", notes: p.notes ?? "" })
+    setForm({
+      name: p.name, sku: p.sku ?? "", sizeMl: p.sizeMl ?? undefined, sizeUnit: p.sizeUnit ?? "ml",
+      unit: p.unit ?? "Sachet", unitPrice: p.unitPrice, isActive: p.isActive,
+      productType: p.productType ?? "FinishedGood", notes: p.notes ?? "",
+      packagingUnit: p.packagingUnit ?? "Bag", sachetsPerBag: p.sachetsPerBag ?? 30,
+      defaultSalesUnit: p.defaultSalesUnit ?? (p.packagingUnit ?? "Bag"),
+      bagPrice: p.bagPrice ?? 0, sachetPrice: p.sachetPrice ?? 0,
+      productCategory: p.productCategory ?? "", isSachetProduct: p.isSachetProduct ?? false,
+    })
     setEditOpen(true)
   }
 
@@ -117,7 +155,7 @@ export default function WaterProductsPage() {
     if (!editId) return
     setSaving(true)
     try {
-      await updateWaterProduct(editId, form)
+      await updateWaterProduct(editId, deriveProduct(form))
       toast({ title: "Product updated" })
       setEditOpen(false); setEditId(null); setForm(EMPTY); await load()
     } catch (e: any) { toast({ title: "Update failed", description: e?.message, variant: "destructive" }) }
@@ -203,17 +241,27 @@ export default function WaterProductsPage() {
                     { label: "Stock", value: p.stockOnHand },
                   ]}
                   actions={(p) => (
-                    <>
-                      <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openRestock(p)}>
-                        <PackagePlus className="h-4 w-4 mr-1" /> Restock
-                      </Button>
-                      <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openEdit(p)}>
-                        <Pencil className="h-4 w-4 mr-1" /> Edit
-                      </Button>
-                      <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 border-red-200" onClick={() => setDeleteTarget(p)}>
-                        <Trash2 className="h-4 w-4 mr-1" /> Delete
-                      </Button>
-                    </>
+                    <div className="flex w-full flex-col gap-2">
+                      {/* #7: explicit link to the product details page, so users
+                          don't have to switch to table format to find it. */}
+                      <Link
+                        href={`/water-products/${p.waterProductId}`}
+                        className="inline-flex items-center justify-center gap-1 h-10 rounded-md border border-sky-200 text-sky-700 text-sm font-medium hover:bg-sky-50"
+                      >
+                        <ExternalLink className="h-4 w-4" /> Go to Product Details
+                      </Link>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openRestock(p)}>
+                          <PackagePlus className="h-4 w-4 mr-1" /> Restock
+                        </Button>
+                        <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openEdit(p)}>
+                          <Pencil className="h-4 w-4 mr-1" /> Edit
+                        </Button>
+                        <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 border-red-200" onClick={() => setDeleteTarget(p)}>
+                          <Trash2 className="h-4 w-4 mr-1" /> Delete
+                        </Button>
+                      </div>
+                    </div>
                   )}
                   desktopTable={
                     <div className="overflow-x-auto">
@@ -358,6 +406,14 @@ function ProductDialog({
   onSubmit: () => void
 }) {
   const isEdit = /edit/i.test(title)
+  // Dynamic labels (#10): "Units Per Bag/Pack/Crate…" and price labels follow
+  // the chosen packaging + inventory units.
+  const pkg = form.packagingUnit && form.packagingUnit !== "None — Sold individually" ? form.packagingUnit : "Package"
+  const inv = form.unit || "Unit"
+  // Default Sales Unit options are generated from the selected units.
+  const salesUnitOptions = Array.from(new Set([form.unit, form.packagingUnit].filter(
+    (u): u is string => !!u && u !== "None — Sold individually",
+  )))
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
@@ -384,17 +440,54 @@ function ProductDialog({
             <FormField label="SKU">
               <Input value={form.sku ?? ""} onChange={(e) => setForm({ ...form, sku: e.target.value })} />
             </FormField>
-            <FormField label="Unit">
-              <Input placeholder="sachet / bottle / gallon" value={form.unit ?? ""} onChange={(e) => setForm({ ...form, unit: e.target.value })} />
+            <FormField label="Product category">
+              <Select value={form.productCategory ?? ""} onValueChange={(v) => setForm({ ...form, productCategory: v })}>
+                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                <SelectContent>{PRODUCT_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+              </Select>
             </FormField>
           </FormSection>
 
-          <FormSection title="Details" color="blue">
-            <FormField label="Size (ml)">
-              <NumberInput value={form.sizeMl ?? ""} onChange={(e) => setForm({ ...form, sizeMl: e.target.value === "" ? undefined : parseInt(e.target.value, 10) })} />
+          <FormSection title="Packaging & Pricing" color="blue">
+            <FormField label="Size per unit">
+              <div className="flex gap-2">
+                <NumberInput className="flex-1" value={form.sizeMl ?? ""} onChange={(e) => setForm({ ...form, sizeMl: e.target.value === "" ? undefined : parseInt(e.target.value, 10) })} />
+                <Select value={form.sizeUnit ?? "ml"} onValueChange={(v) => setForm({ ...form, sizeUnit: v })}>
+                  <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                  <SelectContent>{SIZE_UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
             </FormField>
-            <FormField label="Unit price *">
-              <NumberInput min={0} step="0.01" value={form.unitPrice} onChange={(e) => setForm({ ...form, unitPrice: parseFloat(e.target.value || "0") })} />
+            <FormField label="Inventory unit *">
+              <Select value={form.unit ?? ""} onValueChange={(v) => setForm({ ...form, unit: v, defaultSalesUnit: form.defaultSalesUnit || v })}>
+                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                <SelectContent>{INVENTORY_UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+              </Select>
+            </FormField>
+            <FormField label="Packaging unit *">
+              <Select value={form.packagingUnit ?? ""} onValueChange={(v) => setForm({ ...form, packagingUnit: v, defaultSalesUnit: form.defaultSalesUnit || v })}>
+                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                <SelectContent>{PACKAGING_UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+              </Select>
+            </FormField>
+            <FormField label={`Units per ${pkg} *`}>
+              <NumberInput min={0} value={form.sachetsPerBag ?? ""} onChange={(e) => setForm({ ...form, sachetsPerBag: e.target.value === "" ? null : parseInt(e.target.value, 10) })} />
+            </FormField>
+            <FormField label="Default sales unit *">
+              <Select value={form.defaultSalesUnit ?? ""} onValueChange={(v) => setForm({ ...form, defaultSalesUnit: v })}>
+                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                <SelectContent>
+                  {salesUnitOptions.length === 0
+                    ? <div className="px-2 py-1.5 text-sm text-slate-500">Pick inventory / packaging unit first.</div>
+                    : salesUnitOptions.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </FormField>
+            <FormField label={`Selling price per ${pkg} *`}>
+              <NumberInput min={0} step="0.01" value={form.bagPrice ?? ""} onChange={(e) => setForm({ ...form, bagPrice: e.target.value === "" ? null : parseFloat(e.target.value) })} />
+            </FormField>
+            <FormField label={`Selling price per ${inv}`}>
+              <NumberInput min={0} step="0.01" value={form.sachetPrice ?? ""} onChange={(e) => setForm({ ...form, sachetPrice: e.target.value === "" ? null : parseFloat(e.target.value) })} />
             </FormField>
             <FormField label="Active" full>
               <label className="flex items-center gap-2 text-sm">

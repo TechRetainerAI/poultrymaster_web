@@ -16,6 +16,7 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -184,49 +185,70 @@ export default function WaterInventoryPage() {
                   ) : filteredProducts.length === 0 ? (
                     <div className="p-8 text-center text-slate-500">{q ? "No products match your search." : "No products yet."}</div>
                   ) : (
-                    <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Name</TableHead>
-                          <TableHead>SKU</TableHead>
-                          <TableHead>Size</TableHead>
-                          <TableHead>Unit</TableHead>
-                          <TableHead className="text-right">Unit price</TableHead>
-                          {/* Migration 084 — show both bag and sachet stock for
-                              sachet-water products. Non-sachet products only
-                              fill the Bags column. */}
-                          <TableHead className="text-right">Stock (Bags)</TableHead>
-                          <TableHead className="text-right">Stock (Sachets)</TableHead>
-                          <TableHead>Status</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredProducts.map((p) => {
-                          const st = productStatus(p)
-                          const isSachet = !!p.isSachetProduct
-                          const sachetsPerBag = p.sachetsPerBag ?? 30
-                          // For sachet products, stockOnHand is in bags (rounded).
-                          // For accuracy, sachetCount = stockOnHand * SachetsPerBag.
-                          const sachetCount = isSachet ? (p.stockOnHand ?? 0) * sachetsPerBag : null
-                          return (
-                            <TableRow key={p.waterProductId}>
-                              <TableCell className="font-medium">{p.name}</TableCell>
-                              <TableCell className="text-slate-600">{p.sku ?? "—"}</TableCell>
-                              <TableCell>{p.sizeMl ? `${p.sizeMl} ml` : "—"}</TableCell>
-                              <TableCell>{p.unit ?? "—"}</TableCell>
-                              <TableCell className="text-right tabular-nums">{fmtGhc(p.unitPrice)}</TableCell>
-                              <TableCell className="text-right tabular-nums font-semibold">{(p.stockOnHand ?? 0).toLocaleString()}</TableCell>
-                              <TableCell className="text-right tabular-nums text-slate-600">
-                                {sachetCount !== null ? sachetCount.toLocaleString() : "—"}
-                              </TableCell>
-                              <TableCell><ToneBadge tone={st.tone} label={st.label} /></TableCell>
+                    <MobileCardList
+                      items={filteredProducts}
+                      getKey={(p) => p.waterProductId}
+                      primary={(p) => p.name}
+                      secondary={(p) => {
+                        const st = productStatus(p)
+                        return <ToneBadge tone={st.tone} label={st.label} />
+                      }}
+                      details={(p) => {
+                        // Treat unit "sachet" as sachet-bearing even when the
+                        // legacy IsSachetProduct flag wasn't set (#10.2).
+                        const isSachet = !!p.isSachetProduct || (p.unit ?? "").trim().toLowerCase() === "sachet"
+                        const sachetsPerBag = p.sachetsPerBag ?? 30
+                        const sachetCount = isSachet ? (p.stockOnHand ?? 0) * sachetsPerBag : null
+                        return [
+                          { label: "SKU", value: p.sku ?? "—" },
+                          { label: "Size", value: p.sizeMl ? `${p.sizeMl} ${p.sizeUnit ?? "ml"}` : "—" },
+                          { label: "Unit", value: p.unit ?? "—" },
+                          { label: "Unit price", value: fmtGhc(p.unitPrice) },
+                          { label: "Stock (Bags)", value: (p.stockOnHand ?? 0).toLocaleString() },
+                          { label: "Stock (Sachets)", value: sachetCount !== null ? sachetCount.toLocaleString() : "—" },
+                        ]
+                      }}
+                      desktopTable={
+                        <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Name</TableHead>
+                              <TableHead>SKU</TableHead>
+                              <TableHead>Size</TableHead>
+                              <TableHead>Unit</TableHead>
+                              <TableHead className="text-right">Unit price</TableHead>
+                              <TableHead className="text-right">Stock (Bags)</TableHead>
+                              <TableHead className="text-right">Stock (Sachets)</TableHead>
+                              <TableHead>Status</TableHead>
                             </TableRow>
-                          )
-                        })}
-                      </TableBody>
-                    </Table>
-                    </div>
+                          </TableHeader>
+                          <TableBody>
+                            {filteredProducts.map((p) => {
+                              const st = productStatus(p)
+                              const isSachet = !!p.isSachetProduct || (p.unit ?? "").trim().toLowerCase() === "sachet"
+                              const sachetsPerBag = p.sachetsPerBag ?? 30
+                              const sachetCount = isSachet ? (p.stockOnHand ?? 0) * sachetsPerBag : null
+                              return (
+                                <TableRow key={p.waterProductId}>
+                                  <TableCell className="font-medium">{p.name}</TableCell>
+                                  <TableCell className="text-slate-600">{p.sku ?? "—"}</TableCell>
+                                  <TableCell>{p.sizeMl ? `${p.sizeMl} ${p.sizeUnit ?? "ml"}` : "—"}</TableCell>
+                                  <TableCell>{p.unit ?? "—"}</TableCell>
+                                  <TableCell className="text-right tabular-nums">{fmtGhc(p.unitPrice)}</TableCell>
+                                  <TableCell className="text-right tabular-nums font-semibold">{(p.stockOnHand ?? 0).toLocaleString()}</TableCell>
+                                  <TableCell className="text-right tabular-nums text-slate-600">
+                                    {sachetCount !== null ? sachetCount.toLocaleString() : "—"}
+                                  </TableCell>
+                                  <TableCell><ToneBadge tone={st.tone} label={st.label} /></TableCell>
+                                </TableRow>
+                              )
+                            })}
+                          </TableBody>
+                        </Table>
+                        </div>
+                      }
+                    />
                   )}
                 </CardContent>
               </Card>

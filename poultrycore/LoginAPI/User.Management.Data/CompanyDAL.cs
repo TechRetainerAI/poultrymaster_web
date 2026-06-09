@@ -84,6 +84,26 @@ namespace User.Management.Data
             return result is bool b && b;
         }
 
+        public async Task AddMemberAsync(string userId, string farmId, string role)
+        {
+            // Idempotent link into UserFarms — the table spCompany_GetByUserId
+            // (/Companies/mine) joins on. Without this row a freshly-created staff
+            // member resolves to no company at login and lands on the Poultry
+            // default dashboard instead of their company's (Water/Generic). No SP
+            // exists for a plain membership insert, so this is inline + guarded.
+            using var conn = new SqlConnection(_connectionString);
+            using var cmd = new SqlCommand(
+                @"IF NOT EXISTS (SELECT 1 FROM dbo.UserFarms WHERE UserId = @UserId AND FarmId = @FarmId)
+                      INSERT INTO dbo.UserFarms (UserId, FarmId, Role) VALUES (@UserId, @FarmId, @Role);",
+                conn);
+            cmd.Parameters.AddWithValue("@UserId", userId);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@Role", string.IsNullOrWhiteSpace(role) ? "Staff" : role);
+
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
         public async Task UpdateAsync(string farmId, CreateCompanyRequest req)
         {
             using var conn = new SqlConnection(_connectionString);

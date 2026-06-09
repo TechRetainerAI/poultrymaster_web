@@ -68,14 +68,23 @@ function TabLink({
       href={item.href}
       prefetch={true}
       className={cn(
-        "flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] flex-1 py-2 px-1 rounded-lg transition-colors active:bg-white/10",
+        "flex flex-col items-center justify-center gap-1 min-h-[44px] min-w-[44px] flex-1 py-1.5 px-1 transition-colors",
         isActive ? palette.activeText : palette.inactive,
       )}
       aria-label={item.label}
       aria-current={isActive ? "page" : undefined}
     >
-      <Icon className="h-6 w-6 shrink-0" strokeWidth={isActive ? 2.5 : 2} />
-      <span className="text-[10px] font-medium truncate max-w-full">{item.label}</span>
+      {/* Material-style active pill behind the icon for a clearer, more premium
+          active state than colour-only. */}
+      <span
+        className={cn(
+          "flex items-center justify-center h-7 w-12 rounded-full transition-colors",
+          isActive ? "bg-white/20" : "bg-transparent",
+        )}
+      >
+        <Icon className="h-[22px] w-[22px] shrink-0" strokeWidth={isActive ? 2.5 : 2} />
+      </span>
+      <span className="text-[10px] font-medium truncate max-w-full leading-none">{item.label}</span>
     </Link>
   )
 }
@@ -254,7 +263,7 @@ export function MobileBottomNav() {
   return (
     <nav
       className={cn(
-        "lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t pb-[env(safe-area-inset-bottom)]",
+        "lg:hidden fixed bottom-0 left-0 right-0 z-40 border-t pb-[env(safe-area-inset-bottom)] shadow-[0_-2px_10px_rgba(0,0,0,0.15)]",
         config.bg, config.borderTop,
       )}
       role="navigation"
@@ -273,7 +282,7 @@ export function MobileBottomNav() {
           <SheetTrigger asChild>
             <button
               className={cn(
-                "flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] flex-1 py-2 px-1 rounded-lg transition-colors active:bg-white/10",
+                "flex flex-col items-center justify-center gap-1 min-h-[44px] min-w-[44px] flex-1 py-1.5 px-1 transition-colors",
                 config.moreItems.some(
                   (i) => pathname === i.href || pathname.startsWith(`${i.href}/`)
                 )
@@ -282,8 +291,15 @@ export function MobileBottomNav() {
               )}
               aria-label="More"
             >
-              <MoreHorizontal className="h-6 w-6 shrink-0" />
-              <span className="text-[10px] font-medium">More</span>
+              {(() => {
+                const moreActive = config.moreItems.some((i) => pathname === i.href || pathname.startsWith(`${i.href}/`))
+                return (
+                  <span className={cn("flex items-center justify-center h-7 w-12 rounded-full transition-colors", moreActive ? "bg-white/20" : "bg-transparent")}>
+                    <MoreHorizontal className="h-[22px] w-[22px] shrink-0" />
+                  </span>
+                )
+              })()}
+              <span className="text-[10px] font-medium leading-none">More</span>
             </button>
           </SheetTrigger>
           <SheetContent side="bottom" className="rounded-t-2xl max-h-[75vh] pb-[env(safe-area-inset-bottom)]">

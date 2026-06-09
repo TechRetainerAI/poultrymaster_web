@@ -91,22 +91,24 @@ export function ListFilters({
 
       {showDates && (
         <>
-          <div>
-            <Label className="text-xs text-slate-500">From</Label>
+          {/* #19: label + picker inline on one row each, so the From/To filter
+              takes 2 rows on mobile instead of 4. */}
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Label className="text-xs text-slate-500 shrink-0 w-10">From</Label>
             <Input
               type="date"
               value={dateFrom ?? ""}
               onChange={(e) => setDateFrom!(e.target.value)}
-              className="w-full sm:w-[160px]"
+              className="flex-1 sm:w-[160px] sm:flex-none"
             />
           </div>
-          <div>
-            <Label className="text-xs text-slate-500">To</Label>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Label className="text-xs text-slate-500 shrink-0 w-10">To</Label>
             <Input
               type="date"
               value={dateTo ?? ""}
               onChange={(e) => setDateTo!(e.target.value)}
-              className="w-full sm:w-[160px]"
+              className="flex-1 sm:w-[160px] sm:flex-none"
             />
           </div>
         </>

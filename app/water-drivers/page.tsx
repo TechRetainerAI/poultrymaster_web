@@ -11,18 +11,21 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { FormSection, FormField } from "@/components/ui/form-section"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Pencil, Trash2, Loader2, Users2, AlertCircle } from "lucide-react"
+import { Plus, Pencil, Trash2, Loader2, Users2, AlertCircle, UserPlus } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import {
   listWaterDrivers, createWaterDriver, updateWaterDriver, deleteWaterDriver,
-  listWaterVehicles,
-  type WaterDriver, type WaterVehicle,
+  listWaterVehicles, listWaterRoutes, listWaterDriversForFarm, createWaterDriverFromEmployee,
+  type WaterDriver, type WaterVehicle, type WaterRoute,
 } from "@/lib/api/water"
+import { getEmployees, type Employee } from "@/lib/api/admin"
 
 type FormState = Omit<WaterDriver, "waterDriverId" | "farmId">
 const EMPTY: FormState = {
@@ -41,11 +44,22 @@ export default function WaterDriversPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const [routes, setRoutes] = useState<WaterRoute[]>([])
   const [open, setOpen] = useState(false)
   const [editId, setEditId] = useState<number | null>(null)
   const [form, setForm] = useState<FormState>(EMPTY)
   const [saving, setSaving] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<WaterDriver | null>(null)
+
+  // #18 — "Add existing employee as driver" flow.
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [empOpen, setEmpOpen] = useState(false)
+  const [empSaving, setEmpSaving] = useState(false)
+  const [empForm, setEmpForm] = useState({
+    employeeUserId: "", role: "Driver", licenseNumber: "",
+    defaultVehicleId: null as number | null, defaultRouteId: null as number | null,
+    basePay: 0, commissionPerBag: 0, notes: "",
+  })
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Water") { router.replace("/dashboard"); return }
@@ -56,10 +70,38 @@ export default function WaterDriversPage() {
   async function load() {
     setLoading(true); setError(null)
     try {
-      const [ds, vs] = await Promise.all([listWaterDrivers(), listWaterVehicles()])
-      setDrivers(ds); setVehicles(vs)
+      // #18 — list drivers as employees-with-driver-role (+ legacy standalone).
+      const [ds, vs, rs] = await Promise.all([listWaterDriversForFarm(), listWaterVehicles(), listWaterRoutes()])
+      setDrivers(ds); setVehicles(vs); setRoutes(rs)
+      // Employees for the "add existing employee" picker (best-effort).
+      try { const er = await getEmployees(); if (er.success && er.data) setEmployees(er.data) } catch {}
     } catch (e: any) { setError(e?.message ?? String(e)) }
     finally { setLoading(false) }
+  }
+
+  function openAddEmployee() {
+    setEmpForm({ employeeUserId: "", role: "Driver", licenseNumber: "", defaultVehicleId: null, defaultRouteId: null, basePay: 0, commissionPerBag: 0, notes: "" })
+    setEmpOpen(true)
+  }
+
+  async function saveEmployeeDriver() {
+    if (!empForm.employeeUserId) return toast({ title: "Pick an employee", variant: "destructive" })
+    setEmpSaving(true)
+    try {
+      await createWaterDriverFromEmployee({
+        employeeUserId: empForm.employeeUserId,
+        role: empForm.role,
+        licenseNumber: empForm.licenseNumber || null,
+        defaultVehicleId: empForm.defaultVehicleId,
+        defaultRouteId: empForm.defaultRouteId,
+        basePay: empForm.basePay || null,
+        commissionPerBag: empForm.commissionPerBag || null,
+        notes: empForm.notes || null,
+      })
+      toast({ title: "Employee assigned as driver" })
+      setEmpOpen(false); await load()
+    } catch (e: any) { toast({ title: "Could not assign driver", description: e?.message, variant: "destructive" }) }
+    finally { setEmpSaving(false) }
   }
 
   function openNew() { setEditId(null); setForm(EMPTY); setOpen(true) }
@@ -108,7 +150,10 @@ export default function WaterDriversPage() {
             <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
               <Users2 className="h-6 w-6 text-sky-600" /> Drivers
             </h1>
-            <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> New driver</Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={openAddEmployee}><UserPlus className="h-4 w-4 mr-1" /> Add existing employee</Button>
+              <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> New driver</Button>
+            </div>
           </div>
 
           {error && (
@@ -124,33 +169,59 @@ export default function WaterDriversPage() {
               ) : drivers.length === 0 ? (
                 <div className="p-8 text-center text-slate-500">No drivers yet. Add one to assign a vehicle.</div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Phone</TableHead>
-                      <TableHead>License</TableHead>
-                      <TableHead>Assigned vehicle</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {drivers.map((d) => (
-                      <TableRow key={d.waterDriverId}>
-                        <TableCell className="font-medium">{d.driverName}</TableCell>
-                        <TableCell>{d.phoneNumber ?? "—"}</TableCell>
-                        <TableCell>{d.licenseNumber ?? "—"}</TableCell>
-                        <TableCell>{vehicleLabel(d.assignedWaterVehicleId)}</TableCell>
-                        <TableCell>{d.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="outline">Inactive</Badge>}</TableCell>
-                        <TableCell className="text-right">
-                          <Button size="sm" variant="ghost" onClick={() => openEdit(d)}><Pencil className="h-4 w-4" /></Button>
-                          <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(d)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <MobileCardList
+                  items={drivers}
+                  getKey={(d) => d.waterDriverId}
+                  primary={(d) => d.driverName}
+                  secondary={(d) => (
+                    d.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="outline">Inactive</Badge>
+                  )}
+                  details={(d) => [
+                    { label: "Phone", value: d.phoneNumber ?? "—" },
+                    { label: "License", value: d.licenseNumber ?? "—" },
+                    { label: "Assigned vehicle", value: vehicleLabel(d.assignedWaterVehicleId) },
+                    { label: "Status", value: d.isActive ? "Active" : "Inactive" },
+                  ]}
+                  actions={(d) => (
+                    <>
+                      <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openEdit(d)}>
+                        <Pencil className="h-4 w-4 mr-1" /> Edit
+                      </Button>
+                      <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 border-red-200" onClick={() => setDeleteTarget(d)}>
+                        <Trash2 className="h-4 w-4 mr-1" /> Delete
+                      </Button>
+                    </>
+                  )}
+                  desktopTable={
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Phone</TableHead>
+                          <TableHead>License</TableHead>
+                          <TableHead>Assigned vehicle</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {drivers.map((d) => (
+                          <TableRow key={d.waterDriverId}>
+                            <TableCell className="font-medium">{d.driverName}</TableCell>
+                            <TableCell>{d.phoneNumber ?? "—"}</TableCell>
+                            <TableCell>{d.licenseNumber ?? "—"}</TableCell>
+                            <TableCell>{vehicleLabel(d.assignedWaterVehicleId)}</TableCell>
+                            <TableCell>{d.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="outline">Inactive</Badge>}</TableCell>
+                            <TableCell className="text-right">
+                              <Button size="sm" variant="ghost" onClick={() => openEdit(d)}><Pencil className="h-4 w-4" /></Button>
+                              <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(d)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  }
+                />
               )}
             </CardContent>
           </Card>
@@ -158,42 +229,126 @@ export default function WaterDriversPage() {
       </div>
 
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setEditId(null) }}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>{editId ? "Edit driver" : "New driver"}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2"><Label>Driver name *</Label>
-              <Input value={form.driverName} onChange={(e) => setForm({ ...form, driverName: e.target.value })} /></div>
-            <div><Label>Phone</Label>
-              <Input value={form.phoneNumber ?? ""} onChange={(e) => setForm({ ...form, phoneNumber: e.target.value || null })} /></div>
-            <div><Label>License number</Label>
-              <Input value={form.licenseNumber ?? ""} onChange={(e) => setForm({ ...form, licenseNumber: e.target.value || null })} /></div>
-            <div className="col-span-2"><Label>Assigned vehicle</Label>
-              <Select
-                value={String(form.assignedWaterVehicleId ?? "")}
-                onValueChange={(v) => setForm({ ...form, assignedWaterVehicleId: v ? Number(v) : null })}
-              >
-                <SelectTrigger><SelectValue placeholder="(none)" /></SelectTrigger>
-                <SelectContent>
-                  {vehicles.length === 0 && (
-                    <div className="px-2 py-1.5 text-sm text-slate-500">No vehicles. Add one on the Vehicles page first.</div>
-                  )}
-                  {vehicles.map((v) => (
-                    <SelectItem key={v.waterVehicleId} value={String(v.waterVehicleId)}>
-                      {v.vehicleName} ({v.vehicleType}){v.status !== "Active" ? ` — ${v.status}` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select></div>
-            <div className="col-span-2 flex items-center justify-between rounded border p-2">
-              <Label>Active</Label>
-              <Switch checked={form.isActive} onCheckedChange={(v) => setForm({ ...form, isActive: v })} />
+        <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users2 className="w-5 h-5 text-sky-600" /> {editId ? "Edit driver" : "New driver"}
+            </DialogTitle>
+            <DialogDescription>Enter the driver's details and assign a vehicle.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <FormSection title="Driver details" color="indigo">
+              <FormField label="Driver name *" full>
+                <Input value={form.driverName} onChange={(e) => setForm({ ...form, driverName: e.target.value })} />
+              </FormField>
+              <FormField label="Phone">
+                <Input value={form.phoneNumber ?? ""} onChange={(e) => setForm({ ...form, phoneNumber: e.target.value || null })} />
+              </FormField>
+              <FormField label="License number">
+                <Input value={form.licenseNumber ?? ""} onChange={(e) => setForm({ ...form, licenseNumber: e.target.value || null })} />
+              </FormField>
+              <FormField label="Assigned vehicle" full>
+                <Select
+                  value={String(form.assignedWaterVehicleId ?? "")}
+                  onValueChange={(v) => setForm({ ...form, assignedWaterVehicleId: v ? Number(v) : null })}
+                >
+                  <SelectTrigger><SelectValue placeholder="(none)" /></SelectTrigger>
+                  <SelectContent>
+                    {vehicles.length === 0 && (
+                      <div className="px-2 py-1.5 text-sm text-slate-500">No vehicles. Add one on the Vehicles page first.</div>
+                    )}
+                    {vehicles.map((v) => (
+                      <SelectItem key={v.waterVehicleId} value={String(v.waterVehicleId)}>
+                        {v.vehicleName} ({v.vehicleType}){v.status !== "Active" ? ` — ${v.status}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+              <FormField label="Active" full>
+                <div className="flex items-center justify-between rounded border p-2">
+                  <span className="text-sm text-slate-700">Active</span>
+                  <Switch checked={form.isActive} onCheckedChange={(v) => setForm({ ...form, isActive: v })} />
+                </div>
+              </FormField>
+            </FormSection>
+
+            <FormSection title="Notes" color="slate" columns={1}>
+              <FormField label="Notes">
+                <Input value={form.notes ?? ""} onChange={(e) => setForm({ ...form, notes: e.target.value || null })} />
+              </FormField>
+            </FormSection>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button type="button" onClick={() => setOpen(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
+              <Button onClick={save} disabled={saving}>
+                {saving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</>) : "Save"}
+              </Button>
             </div>
-            <div className="col-span-2"><Label>Notes</Label>
-              <Input value={form.notes ?? ""} onChange={(e) => setForm({ ...form, notes: e.target.value || null })} /></div>
           </div>
-          <div className="flex justify-end gap-2 pt-3">
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
+        </DialogContent>
+      </Dialog>
+
+      {/* #18 — assign an existing employee as a driver. */}
+      <Dialog open={empOpen} onOpenChange={setEmpOpen}>
+        <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><UserPlus className="w-5 h-5 text-sky-600" /> Add existing employee as driver</DialogTitle>
+            <DialogDescription>Pick an employee and assign them a driver role. A driver always belongs to an employee record.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <FormSection title="Employee & role" color="indigo">
+              <FormField label="Employee *" full>
+                <Select value={empForm.employeeUserId} onValueChange={(v) => setEmpForm({ ...empForm, employeeUserId: v })}>
+                  <SelectTrigger><SelectValue placeholder="Select an employee" /></SelectTrigger>
+                  <SelectContent>
+                    {employees.length === 0
+                      ? <div className="px-2 py-1.5 text-sm text-slate-500">No employees found. Create one on the Employees page first.</div>
+                      : employees.map((e) => (
+                          <SelectItem key={e.id} value={e.id}>{e.firstName} {e.lastName} — {e.phoneNumber || e.email}</SelectItem>
+                        ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+              <FormField label="Role">
+                <Select value={empForm.role} onValueChange={(v) => setEmpForm({ ...empForm, role: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Driver">Driver</SelectItem>
+                    <SelectItem value="MotorKingRider">Motor King Rider</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FormField>
+              <FormField label="License number">
+                <Input value={empForm.licenseNumber} onChange={(e) => setEmpForm({ ...empForm, licenseNumber: e.target.value })} />
+              </FormField>
+            </FormSection>
+
+            <FormSection title="Assignment & pay" color="amber">
+              <FormField label="Default vehicle">
+                <Select value={String(empForm.defaultVehicleId ?? "")} onValueChange={(v) => setEmpForm({ ...empForm, defaultVehicleId: v ? Number(v) : null })}>
+                  <SelectTrigger><SelectValue placeholder="(none)" /></SelectTrigger>
+                  <SelectContent>
+                    {vehicles.map((v) => <SelectItem key={v.waterVehicleId} value={String(v.waterVehicleId)}>{v.vehicleName}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </FormField>
+              <FormField label="Default route">
+                <Select value={String(empForm.defaultRouteId ?? "")} onValueChange={(v) => setEmpForm({ ...empForm, defaultRouteId: v ? Number(v) : null })}>
+                  <SelectTrigger><SelectValue placeholder="(none)" /></SelectTrigger>
+                  <SelectContent>
+                    {routes.map((r) => <SelectItem key={r.waterRouteId} value={String(r.waterRouteId)}>{r.routeName}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </FormField>
+            </FormSection>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button type="button" variant="outline" onClick={() => setEmpOpen(false)}>Cancel</Button>
+              <Button onClick={saveEmployeeDriver} disabled={empSaving}>
+                {empSaving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</>) : "Assign as driver"}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

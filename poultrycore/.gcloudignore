@@ -4,6 +4,9 @@
 **/obj/
 **/node_modules/
 **/.vs/
+**/.next/
+**/out/
+**/*.tsbuildinfo
 **/*.user
 **/*.suo
 **/TestResults/

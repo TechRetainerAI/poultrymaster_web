@@ -22,6 +22,7 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -142,48 +143,62 @@ function SetupSection<T>({ tab }: { tab: SetupTab<T> }) {
             No {tab.label.toLowerCase()} yet. Click <span className="font-medium">Add {tab.label.toLowerCase()}</span> above to create your first one.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                {tab.columns.map((c) => <TableHead key={c.header}>{c.header}</TableHead>)}
-                {(tab.delete || tab.Modal) && <TableHead className="text-right">Actions</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.map((item) => (
-                <TableRow key={tab.idOf(item)}>
-                  {tab.columns.map((c) => <TableCell key={c.header}>{c.accessor(item)}</TableCell>)}
-                  {(tab.delete || tab.Modal) && (
-                    <TableCell className="text-right whitespace-nowrap">
-                      {tab.Modal && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setModalState(item)}
-                          title={`Edit ${tab.label.toLowerCase()}`}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
+          /* #20: cards on mobile, table on desktop (was table-only). The generic
+             column config drives both, so every setup tab gets cards at once. */
+          <MobileCardList
+            items={items}
+            getKey={(item) => tab.idOf(item)}
+            primary={(item) => tab.labelOf(item)}
+            secondary={(item) => tab.columns.length > 1 ? <span>{tab.columns[1].accessor(item)}</span> : null}
+            details={(item) => tab.columns.map((c) => ({ label: c.header, value: c.accessor(item) }))}
+            actions={(tab.delete || tab.Modal) ? (item) => (
+              <>
+                {tab.Modal && (
+                  <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => setModalState(item)}>
+                    <Pencil className="h-4 w-4 mr-1" /> Edit
+                  </Button>
+                )}
+                {tab.delete && (
+                  <Button size="sm" variant="outline" className="flex-1 h-10 text-rose-600 border-rose-200" onClick={() => setDeleteTarget(item)}>
+                    <Trash2 className="h-4 w-4 mr-1" /> Delete
+                  </Button>
+                )}
+              </>
+            ) : undefined}
+            desktopTable={
+              <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    {tab.columns.map((c) => <TableHead key={c.header}>{c.header}</TableHead>)}
+                    {(tab.delete || tab.Modal) && <TableHead className="text-right">Actions</TableHead>}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {items.map((item) => (
+                    <TableRow key={tab.idOf(item)}>
+                      {tab.columns.map((c) => <TableCell key={c.header}>{c.accessor(item)}</TableCell>)}
+                      {(tab.delete || tab.Modal) && (
+                        <TableCell className="text-right whitespace-nowrap">
+                          {tab.Modal && (
+                            <Button size="sm" variant="ghost" onClick={() => setModalState(item)} title={`Edit ${tab.label.toLowerCase()}`}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {tab.delete && (
+                            <Button size="sm" variant="ghost" className="text-rose-600 hover:bg-rose-50" onClick={() => setDeleteTarget(item)} title={`Delete ${tab.label.toLowerCase()}`}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </TableCell>
                       )}
-                      {tab.delete && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-rose-600 hover:bg-rose-50"
-                          onClick={() => setDeleteTarget(item)}
-                          title={`Delete ${tab.label.toLowerCase()}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          </div>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              </div>
+            }
+          />
         )}
       </CardContent>
       <ConfirmDeleteDialog
@@ -425,9 +440,10 @@ export default function WaterSetupPage() {
               Choose setup area
             </div>
             {/* Pill-style tabs (Three Prompts §8): clear hover/active state,
-                cursor-pointer, icon + label, horizontal scroll on small screens
-                so the row never crops. */}
-            <TabsList className="flex w-full flex-nowrap overflow-x-auto h-auto gap-1.5 rounded-lg bg-slate-100 p-1.5">
+                cursor-pointer, icon + label. Wrap to multiple rows so every tab
+                is visible on mobile (was overflow-x-auto, which cropped the last
+                tabs off-screen — feedback #1). */}
+            <TabsList className="flex w-full flex-wrap h-auto gap-1.5 rounded-lg bg-slate-100 p-1.5">
               {/* Prompt 2 §14/§15 — company-level settings live in their own
                   tab so the rest of the per-entity tabs stay focused. */}
               <TabsTrigger

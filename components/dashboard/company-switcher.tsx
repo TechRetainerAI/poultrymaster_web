@@ -15,7 +15,7 @@ function typeIcon(type: string) {
   return Building2
 }
 
-export function CompanySwitcher() {
+export function CompanySwitcher({ fullWidth = false }: { fullWidth?: boolean } = {}) {
   const router = useRouter()
   const { toast } = useToast()
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -120,7 +120,8 @@ export function CompanySwitcher() {
         onClick={() => { updatePos(); setOpen((o) => !o) }}
         className={cn(
           "flex items-center gap-2 rounded-md border border-slate-700 bg-slate-800 px-3 py-1.5",
-          "text-sm text-white hover:bg-slate-700 transition-colors min-w-0 max-w-[260px]"
+          "text-sm text-white hover:bg-slate-700 transition-colors min-w-0",
+          fullWidth ? "w-full max-w-none" : "max-w-[260px]"
         )}
       >
         <ActiveIcon className="h-4 w-4 shrink-0 text-orange-300" />

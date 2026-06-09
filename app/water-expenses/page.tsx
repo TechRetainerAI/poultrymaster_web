@@ -56,8 +56,12 @@ function unifiedStatus(e: UnifiedExpense): string {
   // reflects whether the operator ticked "Approved" on the row + whether the
   // parent driver return has been reconciled.
   if (e.kind === "Direct") return e.row.status
+  // #31: once the parent driver return is Approved (or its loading Reconciled),
+  // the delivery expense is approved too — the old check only matched
+  // "Reconciled", so an approved return's expenses wrongly stayed "Submitted".
+  if (e.row.returnStatus === "Approved" || e.row.returnStatus === "Reconciled") return "Approved"
   if (!e.row.isApproved) return "Draft"
-  return e.row.returnStatus === "Reconciled" ? "Approved" : "Submitted"
+  return "Submitted"
 }
 
 const EMPTY: WaterExpenseInput = {

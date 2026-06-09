@@ -23,19 +23,38 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<WaterFarmSettingsModel?> GetAsync(string farmId)
         {
+            // Read through spCompany_GetCurrency rather than a direct SELECT on
+            // dbo.Farms: the Farm API login only has EXECUTE on dbo SPs (Farms is
+            // owned by the Login API), and a raw inline SELECT is not covered by
+            // ownership chaining — it 500s with "SELECT permission denied on Farms"
+            // wherever the login lacks a direct grant (see migration 089).
             using var conn = new SqlConnection(_cs);
-            // Farms has both Id (PK) and the legacy FarmId column — the
-            // frontend stores the FarmId column in localStorage (see the
-            // "misplaced GUID" issue), so resolve by either.
-            using var cmd = new SqlCommand(@"
-                SELECT TOP 1 ISNULL(FarmId, Id) AS Id, Name,
-                       ISNULL(CurrencyCode,   N'GHS') AS CurrencyCode,
-                       ISNULL(CurrencySymbol, N'GHC') AS CurrencySymbol,
-                       ISNULL(ShowCurrencySymbol, 1)  AS ShowCurrencySymbol
-                FROM   dbo.Farms WHERE FarmId = @FarmId OR Id = @FarmId", conn);
+            using var cmd = new SqlCommand("spCompany_GetCurrency", conn) { CommandType = CommandType.StoredProcedure };
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await conn.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();
+            return await ReadSettingsAsync(r);
+        }
+
+        public async Task<WaterFarmSettingsModel?> UpdateCurrencyAsync(
+            string farmId, string currencyCode, string currencySymbol, bool showCurrencySymbol)
+        {
+            // The SP both updates and returns the row, so we read its result set
+            // here instead of a second round-trip through GetAsync — avoiding the
+            // inline Farms SELECT entirely.
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spCompany_UpdateCurrency", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@CurrencyCode",       currencyCode);
+            cmd.Parameters.AddWithValue("@CurrencySymbol",     currencySymbol);
+            cmd.Parameters.AddWithValue("@ShowCurrencySymbol", showCurrencySymbol);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            return await ReadSettingsAsync(r);
+        }
+
+        private static async Task<WaterFarmSettingsModel?> ReadSettingsAsync(SqlDataReader r)
+        {
             if (!await r.ReadAsync()) return null;
             return new WaterFarmSettingsModel
             {
@@ -45,20 +64,6 @@ namespace PoultryFarmAPIWeb.Business
                 CurrencySymbol     = r.GetString(3),
                 ShowCurrencySymbol = r.GetBoolean(4),
             };
-        }
-
-        public async Task<WaterFarmSettingsModel?> UpdateCurrencyAsync(
-            string farmId, string currencyCode, string currencySymbol, bool showCurrencySymbol)
-        {
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spCompany_UpdateCurrency", conn) { CommandType = CommandType.StoredProcedure };
-            cmd.Parameters.AddWithValue("@FarmId", farmId);
-            cmd.Parameters.AddWithValue("@CurrencyCode",       currencyCode);
-            cmd.Parameters.AddWithValue("@CurrencySymbol",     currencySymbol);
-            cmd.Parameters.AddWithValue("@ShowCurrencySymbol", showCurrencySymbol);
-            await conn.OpenAsync();
-            await cmd.ExecuteNonQueryAsync();
-            return await GetAsync(farmId);
         }
     }
 }

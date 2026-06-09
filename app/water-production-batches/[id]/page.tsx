@@ -238,7 +238,9 @@ export default function WaterProductionBatchDetailsPage() {
                             <div><span className="text-slate-500">Expected:</span> {(m.expectedQuantityUsed ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} {m.unitOfMeasure ?? ""}</div>
                             <div><span className="text-slate-500">Actual:</span> {m.quantityUsed.toLocaleString(undefined, { maximumFractionDigits: 3 })} {m.unitOfMeasure ?? ""}</div>
                             <div><span className="text-slate-500">Variance:</span> <span className={Math.abs(m.variance) > 0 ? "text-amber-700" : ""}>{m.variance.toLocaleString(undefined, { maximumFractionDigits: 3 })}</span></div>
-                            <div className="text-right"><span className="text-slate-500">Cost:</span> <span className="font-semibold">{m.totalCost ? gh(m.totalCost) : "—"}</span></div>
+                            {/* #22b: surface unit cost / cost per piece on mobile too. */}
+                            <div><span className="text-slate-500">Unit cost:</span> {m.unitCost ? gh(m.unitCost) : "—"}</div>
+                            <div className="col-span-2 text-right"><span className="text-slate-500">Cost:</span> <span className="font-semibold">{m.totalCost ? gh(m.totalCost) : "—"}</span></div>
                           </div>
                         </div>
                       ))}
@@ -252,32 +254,51 @@ export default function WaterProductionBatchDetailsPage() {
                 {stockTxns.length === 0 ? (
                   <p className="text-sm text-slate-500">None yet — batch is not Approved or stock impact has been reversed.</p>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Product</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead className="text-right">Quantity</TableHead>
-                          <TableHead className="text-right">Unit cost</TableHead>
-                          <TableHead>Note</TableHead>
-                          <TableHead>Date</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {stockTxns.map((t) => (
-                          <TableRow key={t.waterStockTransactionId}>
-                            <TableCell>{t.productName ?? `#${t.waterProductId}`}</TableCell>
-                            <TableCell>{t.txnType ?? "—"}</TableCell>
-                            <TableCell className="text-right tabular-nums">{t.quantity.toLocaleString()}</TableCell>
-                            <TableCell className="text-right tabular-nums">{t.unitCost != null ? gh(t.unitCost) : "—"}</TableCell>
-                            <TableCell className="text-slate-600">{t.note ?? "—"}</TableCell>
-                            <TableCell className="whitespace-nowrap">{t.createdAt.split("T")[0]}</TableCell>
+                  <>
+                    {/* #22b: cards on mobile (nicer than a clipped table), table on desktop. */}
+                    <div className="lg:hidden space-y-2">
+                      {stockTxns.map((t) => (
+                        <div key={t.waterStockTransactionId} className="rounded-md border border-slate-200 bg-white p-3 text-sm">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium text-slate-900 min-w-0 truncate">{t.productName ?? `#${t.waterProductId}`}</span>
+                            <Badge variant="outline" className="shrink-0">{t.txnType ?? "—"}</Badge>
+                          </div>
+                          <div className="mt-1 grid grid-cols-2 gap-2 text-xs">
+                            <div><span className="text-slate-500">Quantity:</span> <span className="tabular-nums">{t.quantity.toLocaleString()}</span></div>
+                            <div><span className="text-slate-500">Unit cost:</span> <span className="tabular-nums">{t.unitCost != null ? gh(t.unitCost) : "—"}</span></div>
+                            <div className="col-span-2"><span className="text-slate-500">Date:</span> {t.createdAt.split("T")[0]}</div>
+                            {t.note && <div className="col-span-2 text-slate-600">{t.note}</div>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="hidden lg:block overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Product</TableHead>
+                            <TableHead>Type</TableHead>
+                            <TableHead className="text-right">Quantity</TableHead>
+                            <TableHead className="text-right">Unit cost</TableHead>
+                            <TableHead>Note</TableHead>
+                            <TableHead>Date</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
+                        </TableHeader>
+                        <TableBody>
+                          {stockTxns.map((t) => (
+                            <TableRow key={t.waterStockTransactionId}>
+                              <TableCell>{t.productName ?? `#${t.waterProductId}`}</TableCell>
+                              <TableCell>{t.txnType ?? "—"}</TableCell>
+                              <TableCell className="text-right tabular-nums">{t.quantity.toLocaleString()}</TableCell>
+                              <TableCell className="text-right tabular-nums">{t.unitCost != null ? gh(t.unitCost) : "—"}</TableCell>
+                              <TableCell className="text-slate-600">{t.note ?? "—"}</TableCell>
+                              <TableCell className="whitespace-nowrap">{t.createdAt.split("T")[0]}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </>
                 )}
               </Section>
 

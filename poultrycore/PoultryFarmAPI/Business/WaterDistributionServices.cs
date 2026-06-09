@@ -83,6 +83,62 @@ namespace PoultryFarmAPIWeb.Business
             await cmd.ExecuteNonQueryAsync();
         }
 
+        // #18 — drivers for a farm = employees with Driver/MotorKingRider role
+        // UNIONed with legacy standalone drivers (spWaterDriver_ListForFarm).
+        public async Task<List<WaterDriverModel>> ListForFarmAsync(string farmId)
+        {
+            var list = new List<WaterDriverModel>();
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterDriver_ListForFarm", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await conn.OpenAsync();
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync()) list.Add(ReadLite(reader));
+            return list;
+        }
+
+        public async Task<WaterDriverModel?> UpsertForEmployeeAsync(WaterDriverFromEmployeeRequest req)
+        {
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterDriver_UpsertForEmployee", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@FarmId", req.FarmId);
+            cmd.Parameters.AddWithValue("@EmployeeUserId", req.EmployeeUserId);
+            cmd.Parameters.AddWithValue("@Role", string.IsNullOrWhiteSpace(req.Role) ? "Driver" : req.Role);
+            cmd.Parameters.AddWithValue("@LicenseNumber", (object?)req.LicenseNumber ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@DefaultVehicleId", (object?)req.DefaultVehicleId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@DefaultRouteId", (object?)req.DefaultRouteId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@BasePay", (object?)req.BasePay ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@CommissionPerBag", (object?)req.CommissionPerBag ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Notes", (object?)req.Notes ?? DBNull.Value);
+            await conn.OpenAsync();
+            using var reader = await cmd.ExecuteReaderAsync();
+            return await reader.ReadAsync() ? ReadLite(reader) : null;
+        }
+
+        public async Task SetJobRolesAsync(string employeeUserId, string farmId, string? rolesCsv)
+        {
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spEmployeeJobRole_Set", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@EmployeeUserId", employeeUserId);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@RolesCsv", (object?)rolesCsv ?? DBNull.Value);
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task<List<string>> GetJobRolesAsync(string employeeUserId, string farmId)
+        {
+            var roles = new List<string>();
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spEmployeeJobRole_GetByEmployee", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@EmployeeUserId", employeeUserId);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await conn.OpenAsync();
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync()) roles.Add(reader.GetString(0));
+            return roles;
+        }
+
         private static WaterDriverModel Read(SqlDataReader r) => new()
         {
             WaterDriverId    = r.GetInt32(r.GetOrdinal("WaterDriverId")),
@@ -99,6 +155,32 @@ namespace PoultryFarmAPIWeb.Business
             CreatedAt        = r.GetDateTime(r.GetOrdinal("CreatedAt")),
             UpdatedAt        = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
         };
+
+        // Reader for the merged list / upsert result set (no CreatedAt/UpdatedAt;
+        // includes EmployeeUserId). Tolerates the synthetic WaterDriverId=0 rows
+        // for employees without a profile row yet.
+        private static WaterDriverModel ReadLite(SqlDataReader r)
+        {
+            int Ord(string n) { for (int i = 0; i < r.FieldCount; i++) if (string.Equals(r.GetName(i), n, StringComparison.OrdinalIgnoreCase)) return i; return -1; }
+            decimal? Dec(string n) { var o = Ord(n); return o < 0 || r.IsDBNull(o) ? (decimal?)null : Convert.ToDecimal(r.GetValue(o)); }
+            int? Int(string n) { var o = Ord(n); return o < 0 || r.IsDBNull(o) ? (int?)null : Convert.ToInt32(r.GetValue(o)); }
+            string? Str(string n) { var o = Ord(n); return o < 0 || r.IsDBNull(o) ? null : r.GetValue(o)?.ToString(); }
+            return new WaterDriverModel
+            {
+                WaterDriverId    = Int("WaterDriverId") ?? 0,
+                FarmId           = Str("FarmId") ?? string.Empty,
+                DriverName       = Str("DriverName") ?? string.Empty,
+                PhoneNumber      = Str("PhoneNumber"),
+                LicenseNumber    = Str("LicenseNumber"),
+                DefaultVehicleId = Int("DefaultVehicleId"),
+                DefaultRouteId   = Int("DefaultRouteId"),
+                BasePay          = Dec("BasePay"),
+                CommissionPerBag = Dec("CommissionPerBag"),
+                IsActive         = (Ord("IsActive") >= 0 && !r.IsDBNull(Ord("IsActive"))) && Convert.ToBoolean(r.GetValue(Ord("IsActive"))),
+                Notes            = Str("Notes"),
+                EmployeeUserId   = Str("EmployeeUserId"),
+            };
+        }
     }
 
     // =========================================================================

@@ -390,14 +390,9 @@ export function FloatingChatWidget() {
 
   return (
     <>
-      {/* Floating Chat Button */}
-      <Button
-        onClick={() => setIsOpen(true)}
-        className="fixed z-50 h-14 w-14 rounded-full shadow-lg bg-blue-600 hover:bg-blue-700 max-lg:bottom-[calc(6.75rem+env(safe-area-inset-bottom,0px))] max-lg:right-4 lg:bottom-20 lg:right-8"
-        size="icon"
-      >
-        <MessageCircle className="h-6 w-6" />
-      </Button>
+      {/* #4b: floating chat button removed — chat now opens only from the header
+          bell (useChatStore.openChat → isGlobalOpen sync above), so it sticks in
+          the top menu like the notification icon instead of floating on pages. */}
 
       {/* Chat Dialog */}
       <Dialog open={isOpen} onOpenChange={(open) => {

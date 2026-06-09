@@ -84,6 +84,25 @@ namespace PoultryFarmAPIWeb.Controllers
             await _svc.DeleteAsync(id, farmId);
             return NoContent();
         }
+
+        // Record a follow-up payment against an outstanding purchase balance.
+        // Posts its own expense + cash-out and returns the new outstanding balance.
+        [HttpPost("{id:int}/pay-balance")] public async Task<IActionResult> PayBalance(int id, [FromBody] PayBalanceRequest body)
+        {
+            if (body is null || string.IsNullOrWhiteSpace(body.FarmId)) return BadRequest("Company ID is required.");
+            if (body.Amount <= 0) return BadRequest("Payment amount must be greater than 0.");
+            var balance = await _svc.PayBalanceAsync(id, body.FarmId, body.Amount, body.PaymentMethod, body.PaymentDate, body.CreatedBy);
+            return Ok(new { Balance = balance });
+        }
+    }
+
+    public class PayBalanceRequest
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+        public string? PaymentMethod { get; set; }
+        public DateTime? PaymentDate { get; set; }
+        public string? CreatedBy { get; set; }
     }
 
     [ApiController]

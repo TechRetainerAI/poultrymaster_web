@@ -259,16 +259,15 @@ function MetricCard({
   return (
     <Card className="bg-white rounded-xl border border-slate-200 shadow-sm">
       <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider truncate">{title}</p>
-            <div className="text-lg sm:text-xl font-bold text-slate-900 mt-1 leading-tight truncate">{value}</div>
-            {hint && <div className="text-xs text-slate-500 mt-1 truncate">{hint}</div>}
-          </div>
-          <div className={`w-10 h-10 rounded-lg ${iconBg[accent]} flex items-center justify-center shrink-0`}>
-            <Icon className="w-5 h-5 text-white" />
+        {/* #4a: icon on the title row so the value gets full card width. */}
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wider truncate">{title}</p>
+          <div className={`w-8 h-8 rounded-lg ${iconBg[accent]} flex items-center justify-center shrink-0`}>
+            <Icon className="w-4 h-4 text-white" />
           </div>
         </div>
+        <div className="text-xl sm:text-2xl font-bold text-slate-900 mt-2 leading-tight truncate">{value}</div>
+        {hint && <div className="text-xs text-slate-500 mt-1 truncate">{hint}</div>}
       </CardContent>
     </Card>
   )

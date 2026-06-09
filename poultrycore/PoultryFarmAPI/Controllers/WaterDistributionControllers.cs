@@ -45,6 +45,40 @@ namespace PoultryFarmAPIWeb.Controllers
             await _svc.DeleteAsync(id, farmId);
             return NoContent();
         }
+
+        // #18 — drivers as employees-with-driver-role (+ legacy standalone rows).
+        [HttpGet("list-for-farm")] public async Task<ActionResult<IEnumerable<WaterDriverModel>>> ListForFarm([FromQuery] string farmId)
+            => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.ListForFarmAsync(farmId));
+
+        // #18 — make an existing employee a driver (assign role + upsert profile, one tx).
+        [HttpPost("from-employee")] public async Task<ActionResult<WaterDriverModel>> CreateFromEmployee([FromBody] WaterDriverFromEmployeeRequest req)
+        {
+            if (req is null || string.IsNullOrWhiteSpace(req.FarmId)) return BadRequest("Company ID is required.");
+            if (string.IsNullOrWhiteSpace(req.EmployeeUserId)) return BadRequest("Employee is required.");
+            var created = await _svc.UpsertForEmployeeAsync(req);
+            return Ok(created);
+        }
+
+        // #18 — read/replace an employee's job roles (Driver, Salesperson, …).
+        [HttpGet("job-roles")] public async Task<ActionResult<IEnumerable<string>>> GetJobRoles([FromQuery] string farmId, [FromQuery] string employeeUserId)
+            => (string.IsNullOrWhiteSpace(farmId) || string.IsNullOrWhiteSpace(employeeUserId))
+                ? BadRequest("Company ID and employee are required.")
+                : Ok(await _svc.GetJobRolesAsync(employeeUserId, farmId));
+
+        [HttpPost("job-roles")] public async Task<IActionResult> SetJobRoles([FromBody] WaterEmployeeJobRolesRequest req)
+        {
+            if (req is null || string.IsNullOrWhiteSpace(req.FarmId) || string.IsNullOrWhiteSpace(req.EmployeeUserId))
+                return BadRequest("Company ID and employee are required.");
+            await _svc.SetJobRolesAsync(req.EmployeeUserId, req.FarmId, req.RolesCsv);
+            return NoContent();
+        }
+    }
+
+    public class WaterEmployeeJobRolesRequest
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public string EmployeeUserId { get; set; } = string.Empty;
+        public string? RolesCsv { get; set; }
     }
 
     [ApiController]

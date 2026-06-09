@@ -23,6 +23,7 @@ namespace PoultryFarmAPIWeb.Business
         Task<int> InsertAsync(WaterRawMaterialPurchaseModel m);
         Task UpdateAsync(WaterRawMaterialPurchaseModel m);
         Task DeleteAsync(int id, string farmId);
+        Task<decimal> PayBalanceAsync(int id, string farmId, decimal amount, string? paymentMethod, DateTime? paymentDate, string? createdBy);
     }
 
     public interface IWaterRawMaterialUsageService
@@ -247,6 +248,21 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task<decimal> PayBalanceAsync(int id, string farmId, decimal amount, string? paymentMethod, DateTime? paymentDate, string? createdBy)
+        {
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterRawMaterialPurchase_PayBalance", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@WaterRawMaterialPurchaseId", id);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@Amount", amount);
+            cmd.Parameters.AddWithValue("@PaymentMethod", (object?)paymentMethod ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@PaymentDate", (object?)paymentDate ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@CreatedBy", (object?)createdBy ?? DBNull.Value);
+            await conn.OpenAsync();
+            var result = await cmd.ExecuteScalarAsync();
+            return result is null || result is DBNull ? 0m : Convert.ToDecimal(result);
         }
 
         private static WaterRawMaterialPurchaseModel Read(SqlDataReader r) => new()
@@ -642,6 +658,15 @@ namespace PoultryFarmAPIWeb.Business
         private readonly string _cs;
         public WaterReportService(string cs) => _cs = cs;
 
+        // Reads a numeric column as decimal regardless of whether SQL Server
+        // returned it as Int32 (e.g. SUM of INT columns) or Decimal. r.GetDecimal
+        // throws "Unable to cast Int32 to Decimal" on integer columns.
+        private static decimal Dec(SqlDataReader r, string col)
+        {
+            var o = r.GetOrdinal(col);
+            return r.IsDBNull(o) ? 0m : Convert.ToDecimal(r.GetValue(o));
+        }
+
         public async Task<WaterPeriodPnLModel?> GetPeriodPnLAsync(string farmId, DateTime fromDate, DateTime toDate)
         {
             using var conn = new SqlConnection(_cs);
@@ -679,14 +704,17 @@ namespace PoultryFarmAPIWeb.Business
             {
                 WaterRouteId      = r.GetInt32(r.GetOrdinal("WaterRouteId")),
                 RouteName         = r.GetString(r.GetOrdinal("RouteName")),
-                TotalBagsLoaded   = r.GetDecimal(r.GetOrdinal("TotalBagsLoaded")),
-                TotalBagsSold     = r.GetDecimal(r.GetOrdinal("TotalBagsSold")),
-                TotalBagsReturned = r.GetDecimal(r.GetOrdinal("TotalBagsReturned")),
-                TotalBagsLost     = r.GetDecimal(r.GetOrdinal("TotalBagsLost")),
-                TotalRevenue      = r.GetDecimal(r.GetOrdinal("TotalRevenue")),
-                TotalShortages    = r.GetDecimal(r.GetOrdinal("TotalShortages")),
-                TotalOverages     = r.GetDecimal(r.GetOrdinal("TotalOverages")),
-                NetRouteIncome    = r.GetDecimal(r.GetOrdinal("NetRouteIncome")),
+                // The bag columns are SUM()s of INT columns, so SQL Server returns
+                // them as Int32 — r.GetDecimal() throws "Unable to cast Int32 to
+                // Decimal". Convert.ToDecimal tolerates both int and decimal.
+                TotalBagsLoaded   = Dec(r, "TotalBagsLoaded"),
+                TotalBagsSold     = Dec(r, "TotalBagsSold"),
+                TotalBagsReturned = Dec(r, "TotalBagsReturned"),
+                TotalBagsLost     = Dec(r, "TotalBagsLost"),
+                TotalRevenue      = Dec(r, "TotalRevenue"),
+                TotalShortages    = Dec(r, "TotalShortages"),
+                TotalOverages     = Dec(r, "TotalOverages"),
+                NetRouteIncome    = Dec(r, "NetRouteIncome"),
             });
         }
 

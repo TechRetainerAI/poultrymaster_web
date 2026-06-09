@@ -260,7 +260,7 @@ export default function WaterProductionBatchesPage() {
     }
   }
 
-  async function save() {
+  async function save(andApprove = false) {
     if (!form.batchNumber.trim()) return toast({ title: "Batch number is required", variant: "destructive" })
     if (!form.waterProductId)     return toast({ title: "Pick a product first", variant: "destructive" })
     if (form.bagsProduced <= 0)   return toast({ title: "Bags produced must be greater than zero", variant: "destructive" })
@@ -302,15 +302,22 @@ export default function WaterProductionBatchesPage() {
         machineScope: form.machineScope,
         materialsUsed,
       }
+      let approveId: number | null = editingId
       if (editingId != null) {
         await updateWaterProductionBatch(editingId, payload as any)
-        toast({ title: "Production batch updated" })
+        if (!andApprove) toast({ title: "Production batch updated" })
       } else {
-        await createWaterProductionBatch(payload as any)
-        toast({ title: "Production batch saved as Draft", description: "Approve to add to inventory." })
+        const created = await createWaterProductionBatch(payload as any)
+        approveId = (created as any)?.waterProductionBatchId ?? null
+        if (!andApprove) toast({ title: "Production batch saved as Draft", description: "Approve to add to inventory." })
+      }
+      // #26: approve right from the popup so the operator skips the list round-trip.
+      if (andApprove && approveId != null) {
+        await approveWaterProductionBatch(approveId)
+        toast({ title: "Batch saved & approved — bags added to inventory" })
       }
       setOpen(false); setEditingId(null); await load()
-    } catch (e: any) { toast({ title: editingId != null ? "Update failed" : "Save failed", description: e?.message, variant: "destructive" }) }
+    } catch (e: any) { toast({ title: andApprove ? "Save & approve failed" : (editingId != null ? "Update failed" : "Save failed"), description: e?.message, variant: "destructive" }) }
     finally { setSaving(false) }
   }
 
@@ -437,11 +444,13 @@ export default function WaterProductionBatchesPage() {
           />
 
           {/* Score cards now sit AFTER the filters, per Prompt 2 §10. */}
-          <div className="mt-3 mb-3 grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Today's bags (good)</div><div className="text-xl font-semibold tabular-nums">{totals.todayBags.toLocaleString()}</div></CardContent></Card>
-            <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Month's bags (good)</div><div className="text-xl font-semibold tabular-nums">{totals.monthBags.toLocaleString()}</div></CardContent></Card>
-            <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Pending approval</div><div className="text-xl font-semibold">{totals.draftCount}</div></CardContent></Card>
-            <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Active machines</div><div className="text-xl font-semibold">{machines.filter(m => m.status === "Active").length}</div></CardContent></Card>
+          {/* #19: smaller scorecards (4 across even on mobile, tighter padding)
+              to free vertical space for the batch list below. */}
+          <div className="mt-3 mb-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <Card><CardContent className="p-2.5"><div className="text-[11px] leading-tight text-slate-500">Today's bags (good)</div><div className="text-base font-semibold tabular-nums">{totals.todayBags.toLocaleString()}</div></CardContent></Card>
+            <Card><CardContent className="p-2.5"><div className="text-[11px] leading-tight text-slate-500">Month's bags (good)</div><div className="text-base font-semibold tabular-nums">{totals.monthBags.toLocaleString()}</div></CardContent></Card>
+            <Card><CardContent className="p-2.5"><div className="text-[11px] leading-tight text-slate-500">Pending approval</div><div className="text-base font-semibold">{totals.draftCount}</div></CardContent></Card>
+            <Card><CardContent className="p-2.5"><div className="text-[11px] leading-tight text-slate-500">Active machines</div><div className="text-base font-semibold">{machines.filter(m => m.status === "Active").length}</div></CardContent></Card>
           </div>
 
           <Card>
@@ -458,6 +467,8 @@ export default function WaterProductionBatchesPage() {
                   secondary={(b) => (
                     <>
                       <span>{b.productionDate ? b.productionDate.split("T")[0] : "—"}</span>
+                      {/* #19: surface the machine name on the production entry. */}
+                      <Badge variant="outline">{b.machineScope === "AllMachines" ? "All Machines" : (b.machineName ?? "—")}</Badge>
                       <Badge className={STATUS_COLORS[b.status] ?? ""}>{b.status}</Badge>
                     </>
                   )}
@@ -687,10 +698,15 @@ export default function WaterProductionBatchesPage() {
                 </div>
               </div>
               <div className="p-4 bg-white">
+                {/* #25.1: expected quantities are applied by default on load —
+                    make that explicit so the operator knows (and can adjust). */}
                 <div className="text-xs text-slate-500 mb-2">
-                  {hasRecipe
-                    ? "Auto-loaded from this product's recipe. Adjust actual usage if needed."
-                    : "This product has no recipe — add materials manually or set one up in Product details."}
+                  {hasRecipe ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-700 px-2 py-0.5 text-[11px] font-medium">✓ Using expected quantities</span>
+                      <span>Auto-applied from this product's recipe — adjust actual usage below if it differs.</span>
+                    </span>
+                  ) : "This product has no recipe — add materials manually or set one up in Product details."}
                 </div>
 
               {recipeLoading ? (
@@ -806,8 +822,10 @@ export default function WaterProductionBatchesPage() {
                     {materialRows.map((row, idx) => {
                       const overStock = row.actualQuantity > row.availableStock
                       const cost = row.actualQuantity * row.unitCost
+                      // #25.2: thicker outer border so each material block is
+                      // clearly separated from the next.
                       return (
-                        <div key={idx} className={`rounded-md border p-3 space-y-3 bg-white ${overStock ? "border-amber-300" : "border-slate-200"}`}>
+                        <div key={idx} className={`rounded-lg border-2 p-3 space-y-3 bg-white ${overStock ? "border-amber-400" : "border-slate-300"}`}>
                           {/* Row 1: Material picker spans full width on phones,
                               shares space with the inputs on md+ screens. */}
                           <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
@@ -930,10 +948,14 @@ export default function WaterProductionBatchesPage() {
               <div><span className="text-slate-500">Efficiency:</span> <span className="font-semibold tabular-nums">{efficiency.toFixed(1)}%</span></div>
             </div>
 
-            <div className="flex gap-3 justify-end pt-2 sticky bottom-0 bg-white pb-1">
-              <Button type="button" onClick={() => setOpen(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
-              <Button onClick={save} disabled={saving}>
+            <div className="flex flex-wrap gap-3 justify-end pt-2 sticky bottom-0 bg-white pb-1">
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button variant="outline" onClick={() => save(false)} disabled={saving}>
                 {saving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</>) : editingId != null ? "Save changes" : "Save as Draft"}
+              </Button>
+              {/* #26: approve right inside the popup (record + edit). */}
+              <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={() => save(true)} disabled={saving}>
+                <CheckCircle2 className="h-4 w-4 mr-1" /> Save &amp; Approve
               </Button>
             </div>
           </div>

@@ -25,7 +25,8 @@ function flattenErrors(errors: unknown): string[] {
 }
 
 const USERNAME_RE = /^[A-Za-z0-9._-]{3,30}$/
-const GHANA_PHONE_RE = /^(0\d{9}|\+?233\d{9})$/
+// Accepts any country: optional leading + and 7–15 digits (E.164), or a local 0-prefixed number.
+const PHONE_RE = /^(\+?\d{7,15}|0\d{6,14})$/
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -68,9 +69,9 @@ export default function RegisterPage() {
       return
     }
 
-    const phoneClean = formData.phoneNumber.replace(/[\s-]/g, "")
-    if (!GHANA_PHONE_RE.test(phoneClean)) {
-      setError("Phone number must be a Ghana number: 0XXXXXXXXX or +233XXXXXXXXX.")
+    const phoneClean = formData.phoneNumber.replace(/[\s()-]/g, "")
+    if (!PHONE_RE.test(phoneClean)) {
+      setError("Please enter a valid phone number, including the country code (e.g. +233XXXXXXXXX or +1XXXXXXXXXX).")
       return
     }
 

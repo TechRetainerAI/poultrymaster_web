@@ -32,6 +32,11 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@BagPrice",        (object?)m.BagPrice        ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@SachetPrice",     (object?)m.SachetPrice     ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@IsSachetProduct", m.IsSachetProduct);
+            // Migration 092 — Packaging & Pricing fields.
+            cmd.Parameters.AddWithValue("@SizeUnit",         (object?)m.SizeUnit         ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@PackagingUnit",    (object?)m.PackagingUnit    ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@DefaultSalesUnit", (object?)m.DefaultSalesUnit ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ProductCategory",  (object?)m.ProductCategory  ?? DBNull.Value);
 
             await conn.OpenAsync();
             var result = await cmd.ExecuteScalarAsync();
@@ -58,6 +63,11 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@BagPrice",        (object?)m.BagPrice        ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@SachetPrice",     (object?)m.SachetPrice     ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@IsSachetProduct", m.IsSachetProduct);
+            // Migration 092 — Packaging & Pricing fields.
+            cmd.Parameters.AddWithValue("@SizeUnit",         (object?)m.SizeUnit         ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@PackagingUnit",    (object?)m.PackagingUnit    ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@DefaultSalesUnit", (object?)m.DefaultSalesUnit ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ProductCategory",  (object?)m.ProductCategory  ?? DBNull.Value);
 
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
@@ -124,6 +134,11 @@ namespace PoultryFarmAPIWeb.Business
             BagPrice       = HasCol(r, "BagPrice")        && !r.IsDBNull(r.GetOrdinal("BagPrice"))        ? r.GetDecimal(r.GetOrdinal("BagPrice"))                : null,
             SachetPrice    = HasCol(r, "SachetPrice")     && !r.IsDBNull(r.GetOrdinal("SachetPrice"))     ? r.GetDecimal(r.GetOrdinal("SachetPrice"))             : null,
             IsSachetProduct= HasCol(r, "IsSachetProduct") && r.GetBoolean(r.GetOrdinal("IsSachetProduct")),
+            // Migration 092 — Packaging & Pricing fields.
+            SizeUnit         = HasCol(r, "SizeUnit")         && !r.IsDBNull(r.GetOrdinal("SizeUnit"))         ? r.GetString(r.GetOrdinal("SizeUnit"))         : null,
+            PackagingUnit    = HasCol(r, "PackagingUnit")    && !r.IsDBNull(r.GetOrdinal("PackagingUnit"))    ? r.GetString(r.GetOrdinal("PackagingUnit"))    : null,
+            DefaultSalesUnit = HasCol(r, "DefaultSalesUnit") && !r.IsDBNull(r.GetOrdinal("DefaultSalesUnit")) ? r.GetString(r.GetOrdinal("DefaultSalesUnit")) : null,
+            ProductCategory  = HasCol(r, "ProductCategory")  && !r.IsDBNull(r.GetOrdinal("ProductCategory"))  ? r.GetString(r.GetOrdinal("ProductCategory"))  : null,
         };
 
         private static bool HasCol(SqlDataReader r, string n)

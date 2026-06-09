@@ -52,6 +52,14 @@ namespace PoultryFarmAPIWeb.Models
         public decimal? BagPrice      { get; set; }
         public decimal? SachetPrice   { get; set; }
         public bool     IsSachetProduct { get; set; }
+
+        // Migration 092: Packaging & Pricing redesign (feedback #8/#9/#10).
+        // Unit = Inventory Unit, SizeMl = Size Per Unit, SachetsPerBag = Units
+        // Per Package, BagPrice/SachetPrice = selling prices.
+        [StringLength(20)] public string? SizeUnit { get; set; }
+        [StringLength(30)] public string? PackagingUnit { get; set; }
+        [StringLength(30)] public string? DefaultSalesUnit { get; set; }
+        [StringLength(60)] public string? ProductCategory { get; set; }
     }
 
     public class WaterCustomerModel

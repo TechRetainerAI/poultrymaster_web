@@ -15,13 +15,15 @@ namespace User.Management.Service.Services
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly IUserProfileDAL _userProfileDAL;
         private readonly ISubscriptionDAL _subscriptionDal;
+        private readonly ICompanyDAL _companyDal;
 
-        public AdminService(UserManager<ApplicationUser> userManager, RoleManager<IdentityRole> roleManager, IUserProfileDAL userProfileDAL, ISubscriptionDAL subscriptionDal)
+        public AdminService(UserManager<ApplicationUser> userManager, RoleManager<IdentityRole> roleManager, IUserProfileDAL userProfileDAL, ISubscriptionDAL subscriptionDal, ICompanyDAL companyDal)
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _userProfileDAL = userProfileDAL;
             _subscriptionDal = subscriptionDal;
+            _companyDal = companyDal;
         }
 
         public async Task<List<ApplicationUser>> GetEmployeesByFarmIdAsync(string farmId)
@@ -207,6 +209,27 @@ namespace User.Management.Service.Services
 
                 Console.WriteLine($"Success: Employee '{employee.UserName}' (ID: {employee.Id}) created successfully in AspNetUsers table with IsStaff=true and EmailConfirmed=true");
                 Console.WriteLine($"Login Info - UserName: '{verifyEmployee.UserName}', NormalizedUserName: '{verifyEmployee.NormalizedUserName}', Email: '{verifyEmployee.Email}', NormalizedEmail: '{verifyEmployee.NormalizedEmail}'");
+
+                // Link the staff member to their farm in UserFarms. /Companies/mine
+                // (spCompany_GetByUserId) joins this table to resolve a user's
+                // companies + Type. Without the row, a new employee resolves to no
+                // company at login and is dumped on the Poultry default dashboard
+                // instead of their company's (e.g. a Water employee landing on the
+                // poultry "farm"). Guarded — a failure here must not fail employee
+                // creation; the 086 backfill / a later edit can heal it.
+                if (!string.IsNullOrEmpty(verifyEmployee.FarmId))
+                {
+                    try
+                    {
+                        await _companyDal.AddMemberAsync(verifyEmployee.Id, verifyEmployee.FarmId, "Staff");
+                        Console.WriteLine($"Linked employee '{employee.UserName}' to farm {verifyEmployee.FarmId} in UserFarms (Role=Staff)");
+                    }
+                    catch (Exception linkEx)
+                    {
+                        Console.WriteLine($"Warning: Employee created but UserFarms link failed: {linkEx.Message}. The user may land on the default dashboard until linked.");
+                    }
+                }
+
                 return verifyEmployee; // Return the verified employee from database
             }
             catch (Exception ex)

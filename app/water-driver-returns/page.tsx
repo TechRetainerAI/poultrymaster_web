@@ -313,6 +313,8 @@ export default function WaterDriverReturnsPage() {
     waterRouteId: 0,
     openingCashWithDriver: 0,
     notes: "",
+    // #29 — operator can pick the load date (defaults to today).
+    loadDate: new Date().toISOString().split("T")[0],
   })
   const [loadItems, setLoadItems] = useState<LoadItem[]>([])
   const [savingLoad, setSavingLoad] = useState(false)
@@ -343,7 +345,8 @@ export default function WaterDriverReturnsPage() {
   //   Detailed     = use customer breakdown rows (legacy)
   //   OneCustomer  = post entire delivery sale to primaryCustomerId
   //   Summary      = post to GeneralDelivery default customer
-  const [postingMode, setPostingMode] = useState<"Detailed" | "OneCustomer" | "Summary">("Detailed")
+  // #15: default to "Post all sales to one customer".
+  const [postingMode, setPostingMode] = useState<"Detailed" | "OneCustomer" | "Summary">("OneCustomer")
   const [primaryCustomerId, setPrimaryCustomerId] = useState<number | null>(null)
 
   useEffect(() => {
@@ -351,6 +354,13 @@ export default function WaterDriverReturnsPage() {
     void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFarmType])
+
+  // #15: "Summary only" is not allowed once there are credit sales — flip the
+  // operator to the detailed/one-customer flow so the credit lands on a real customer.
+  useEffect(() => {
+    if (postingMode === "Summary" && returnPayments.creditSalesAmount > 0) setPostingMode("OneCustomer")
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [returnPayments.creditSalesAmount, postingMode])
 
   async function load() {
     setLoading(true)
@@ -399,6 +409,7 @@ export default function WaterDriverReturnsPage() {
       waterRouteId: routes[0]?.waterRouteId ?? 0,
       openingCashWithDriver: 0,
       notes: "",
+      loadDate: new Date().toISOString().split("T")[0],
     })
     // Seed with a single product line — single-product companies see one row,
     // multi-product companies just click "Add product".
@@ -421,6 +432,7 @@ export default function WaterDriverReturnsPage() {
       waterRouteId:          l.waterRouteId          ?? 0,
       openingCashWithDriver: l.openingCashWithDriver ?? 0,
       notes:                 l.notes                 ?? "",
+      loadDate:              (l.loadDate ?? new Date().toISOString()).split("T")[0],
     })
     // Pre-fill the items the same way openReturnDlg does so the operator sees
     // their previously-loaded products/quantities/prices, ready to edit.
@@ -500,6 +512,7 @@ export default function WaterDriverReturnsPage() {
           waterRouteId:          loadForm.waterRouteId   || null,
           openingCashWithDriver: loadForm.openingCashWithDriver,
           notes:                 loadForm.notes,
+          loadDate:              new Date(loadForm.loadDate).toISOString(),
           items:                 itemsPayload,
         } as any)
         toast({ title: "Delivery run updated" })
@@ -511,7 +524,7 @@ export default function WaterDriverReturnsPage() {
           waterRouteId:          loadForm.waterRouteId     || null as any,
           openingCashWithDriver: loadForm.openingCashWithDriver,
           notes:                 loadForm.notes,
-          loadDate:              new Date().toISOString(),
+          loadDate:              new Date(loadForm.loadDate).toISOString(),
           // bagsLoaded is required by the existing API type; the SP recomputes
           // it from the items array when present. Send a dummy value to satisfy
           // TS — the SP ignores it.
@@ -752,6 +765,13 @@ export default function WaterDriverReturnsPage() {
     && breakdown.some(r => r.creditAmount > 0 && !r.waterCustomerId)
 
   const expensesTotal = expenses.reduce((s, e) => s + (e.isApproved ? e.amount : 0), 0)
+
+  // #32: the cash the driver returns must reconcile with the float they left with
+  // (opening cash) less any approved expenses paid from that float. Flag a
+  // mismatch and block Approve & Reconcile until it balances (Draft is allowed).
+  const openingCashFloat = returnDlg.loading?.openingCashWithDriver ?? 0
+  const expectedFloatBack = Math.max(openingCashFloat - expensesTotal, 0)
+  const floatBalanced = Math.abs((returnPayments.cashReturnedByDriver ?? 0) - expectedFloatBack) < 0.01
 
   // Migration 083 — save Draft then immediately call Approve & Reconcile.
   // Convenience wrapper for the "Approve & Reconcile" button at the bottom of
@@ -1303,19 +1323,33 @@ export default function WaterDriverReturnsPage() {
                 </Select>
               </FormField>
               <FormField label="Assistant (optional)">
-                <Select value={String(loadForm.assistantStaffId)} onValueChange={(v) => setLoadForm({ ...loadForm, assistantStaffId: Number(v) })}>
-                  <SelectTrigger><SelectValue placeholder="Pick assistant" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="0">— none —</SelectItem>
-                    {staff.filter(s => s.isActive).map(s => (
-                      <SelectItem key={s.waterStaffId} value={String(s.waterStaffId)}>{s.firstName} {s.lastName}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {/* #27: list all active employees, but exclude whoever is the
+                    selected driver — a person cannot assist themselves. */}
+                {(() => {
+                  const driverName = drivers.find(d => d.waterDriverId === loadForm.waterDriverId)?.driverName?.trim().toLowerCase()
+                  const assistants = staff.filter(s => s.isActive && `${s.firstName} ${s.lastName}`.trim().toLowerCase() !== driverName)
+                  return (
+                    <Select value={String(loadForm.assistantStaffId)} onValueChange={(v) => setLoadForm({ ...loadForm, assistantStaffId: Number(v) })}>
+                      <SelectTrigger><SelectValue placeholder="Pick assistant" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0">— none —</SelectItem>
+                        {assistants.length === 0
+                          ? <div className="px-2 py-1.5 text-sm text-slate-500">No other employees available.</div>
+                          : assistants.map(s => (
+                              <SelectItem key={s.waterStaffId} value={String(s.waterStaffId)}>{s.firstName} {s.lastName}</SelectItem>
+                            ))}
+                      </SelectContent>
+                    </Select>
+                  )
+                })()}
               </FormField>
               <FormField label={`Opening cash with driver${cur}`} hint="Cash float given to driver before departure (change, fuel, small expenses). Separate from sales cash.">
                 <NumberInput min={0} step="0.01" value={loadForm.openingCashWithDriver}
                   onChange={(e) => setLoadForm({ ...loadForm, openingCashWithDriver: Number(e.target.value) || 0 })} />
+              </FormField>
+              {/* #29 — pick the load date (defaults to today). */}
+              <FormField label="Load date">
+                <Input type="date" value={loadForm.loadDate} onChange={(e) => setLoadForm({ ...loadForm, loadDate: e.target.value })} />
               </FormField>
             </FormSection>
 
@@ -1581,14 +1615,21 @@ export default function WaterDriverReturnsPage() {
                           </div>
                         </div>
 
-                        {/* 2 cols on sm+, 1 col on mobile. Reads down-then-right:
-                            Loaded, Returned, Unit price (left); Sold, Damaged,
-                            Expected (right). All fields visible at once — no scroll. */}
+                        {/* #13: 2 cols, row-major order →
+                            Loaded | Expected
+                            Sold   | Unit price
+                            Returned | Damaged */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
                           <div className={rowClass}>
                             <div className={labelClass}>Loaded (bags)</div>
                             <div className={valueWrapClass}>
                               <div className="text-right tabular-nums font-medium pr-3">{it.bagsLoaded}</div>
+                            </div>
+                          </div>
+                          <div className={rowClass}>
+                            <div className={labelClass}>Expected{cur}</div>
+                            <div className={valueWrapClass}>
+                              <div className="text-right tabular-nums font-semibold pr-3">{gh(expected)}</div>
                             </div>
                           </div>
                           <div className={rowClass}>
@@ -1599,6 +1640,18 @@ export default function WaterDriverReturnsPage() {
                                 min={0}
                                 value={it.bagsSold}
                                 onChange={(e) => updateReturnItem(idx, { bagsSold: Number(e.target.value) || 0 })}
+                              />
+                            </div>
+                          </div>
+                          <div className={rowClass}>
+                            <div className={labelClass}>Unit price{cur}</div>
+                            <div className={valueWrapClass}>
+                              <NumberInput
+                                className="text-right tabular-nums"
+                                min={0}
+                                step="0.01"
+                                value={it.unitPrice}
+                                onChange={(e) => updateReturnItem(idx, { unitPrice: Number(e.target.value) || 0 })}
                               />
                             </div>
                           </div>
@@ -1624,24 +1677,6 @@ export default function WaterDriverReturnsPage() {
                               />
                             </div>
                           </div>
-                          <div className={rowClass}>
-                            <div className={labelClass}>Unit price{cur}</div>
-                            <div className={valueWrapClass}>
-                              <NumberInput
-                                className="text-right tabular-nums"
-                                min={0}
-                                step="0.01"
-                                value={it.unitPrice}
-                                onChange={(e) => updateReturnItem(idx, { unitPrice: Number(e.target.value) || 0 })}
-                              />
-                            </div>
-                          </div>
-                          <div className={rowClass}>
-                            <div className={labelClass}>Expected{cur}</div>
-                            <div className={valueWrapClass}>
-                              <div className="text-right tabular-nums font-semibold pr-3">{gh(expected)}</div>
-                            </div>
-                          </div>
                         </div>
                       </div>
                     )
@@ -1658,33 +1693,55 @@ export default function WaterDriverReturnsPage() {
                   they used and leaves the rest at 0). Cash returned sits below
                   a divider since it's a float reconciliation, not a sale. */}
               <FormSection title={`Step 2 · Money collected${cur}`} color="green" columns={1}>
-                {[
-                  { key: "cashCollected",     label: "Cash",          hint: "Physical cash the driver collected on the run." },
-                  { key: "moMoCollected",     label: "MoMo",          hint: "Mobile Money (MTN, Vodafone, AirtelTigo)." },
-                  { key: "bankCollected",     label: "Bank",          hint: "Bank transfers / cheque deposits received today." },
-                  { key: "creditSalesAmount", label: "Credit sales",  hint: "Goods given on credit — to be paid later." },
-                ].map((row) => (
-                  <div key={row.key} className="flex items-center justify-between gap-3 min-w-0">
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium text-slate-700">{row.label}</div>
-                      <div className="text-[11px] text-slate-500 truncate">{row.hint}</div>
+                {/* #14: two items per row; only "Cash returned by driver" (below)
+                    keeps its own full-width row. */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+                  {[
+                    { key: "cashCollected",     label: "Cash",          hint: "Physical cash the driver collected on the run." },
+                    { key: "moMoCollected",     label: "MoMo",          hint: "Mobile Money (MTN, Vodafone, AirtelTigo)." },
+                    { key: "bankCollected",     label: "Bank",          hint: "Bank transfers / cheque deposits received today." },
+                    { key: "creditSalesAmount", label: "Credit sales",  hint: "Goods given on credit — to be paid later." },
+                  ].map((row) => (
+                    <div key={row.key} className="flex items-center justify-between gap-3 min-w-0">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium text-slate-700">{row.label}</div>
+                        <div className="text-[11px] text-slate-500 truncate">{row.hint}</div>
+                      </div>
+                      <div className="w-28 sm:w-36 shrink-0">
+                        <NumberInput
+                          className="text-right tabular-nums"
+                          min={0}
+                          step="0.01"
+                          value={returnPayments[row.key as keyof typeof returnPayments]}
+                          onChange={(e) =>
+                            setReturnPayments({
+                              ...returnPayments,
+                              [row.key]: Number(e.target.value) || 0,
+                            })
+                          }
+                        />
+                      </div>
                     </div>
-                    <div className="w-40 sm:w-48 shrink-0">
-                      <NumberInput
-                        className="text-right tabular-nums"
-                        min={0}
-                        step="0.01"
-                        value={returnPayments[row.key as keyof typeof returnPayments]}
-                        onChange={(e) =>
-                          setReturnPayments({
-                            ...returnPayments,
-                            [row.key]: Number(e.target.value) || 0,
-                          })
-                        }
-                      />
-                    </div>
+                  ))}
+                </div>
+                {/* #30: Unaccounted cash = expected sales not covered by cash/MoMo/
+                    bank/credit. Read-only so the operator sees money gaps at a glance. */}
+                <div className="flex items-center justify-between gap-3 min-w-0 rounded-md bg-slate-50 px-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-slate-700">Unaccounted cash{cur}</div>
+                    <div className="text-[11px] text-slate-500 truncate">Expected sales minus everything collected (cash + MoMo + bank + credit).</div>
                   </div>
-                ))}
+                  <div className={`shrink-0 text-right font-semibold tabular-nums ${shortage > 0 ? "text-rose-600" : overage > 0 ? "text-amber-600" : "text-slate-700"}`}>
+                    {shortage > 0 ? gh(shortage) : overage > 0 ? `+${gh(overage)} over` : gh(0)}
+                  </div>
+                </div>
+                {!floatBalanced && (
+                  <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+                    Cash returned ({gh(returnPayments.cashReturnedByDriver ?? 0)}) doesn't match the expected float of {gh(expectedFloatBack)}
+                    {expensesTotal > 0 ? ` (opening ${gh(openingCashFloat)} − approved expenses ${gh(expensesTotal)})` : ` (opening cash ${gh(openingCashFloat)})`}.
+                    You can still save as Draft, but Approve &amp; Reconcile is blocked until it balances.
+                  </div>
+                )}
                 <div className="flex items-center justify-between gap-3 min-w-0 border-t border-slate-200 pt-3">
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium text-slate-700">Cash returned by driver</div>
@@ -1718,21 +1775,13 @@ export default function WaterDriverReturnsPage() {
                   the sale. */}
               <FormSection title="How should this delivery sale be posted?" color="purple" columns={1}>
                 <div className="space-y-2 text-sm">
-                  <label className="flex items-start gap-2 cursor-pointer">
-                    <input type="radio" className="mt-1" checked={postingMode === "Detailed"}    onChange={() => setPostingMode("Detailed")} />
-                    <span><strong>Detailed customer breakdown</strong><br/>
-                      <span className="text-slate-500">Record real customer/shop sales one-by-one using the Customer breakdown below.</span></span>
-                  </label>
+                  {/* #15: order = One customer (default) → Summary → Detailed. */}
                   <label className="flex items-start gap-2 cursor-pointer">
                     <input type="radio" className="mt-1" checked={postingMode === "OneCustomer"} onChange={() => setPostingMode("OneCustomer")} />
                     <span><strong>Post all sales to one customer</strong><br/>
                       <span className="text-slate-500">Posts the entire delivery sale to the customer below.</span></span>
                   </label>
-                  <label className="flex items-start gap-2 cursor-pointer">
-                    <input type="radio" className="mt-1" checked={postingMode === "Summary"}     onChange={() => setPostingMode("Summary")} />
-                    <span><strong>Summary only</strong><br/>
-                      <span className="text-slate-500">Posts to the company's <em>General Delivery Customer</em>. No per-shop tracking.</span></span>
-                  </label>
+                  {/* OneCustomer dropdown sits directly under its radio. */}
                   {postingMode === "OneCustomer" && (
                     <div className="pl-6">
                       <Select value={primaryCustomerId ? String(primaryCustomerId) : ""} onValueChange={(v) => setPrimaryCustomerId(v ? Number(v) : null)}>
@@ -1745,12 +1794,29 @@ export default function WaterDriverReturnsPage() {
                       </Select>
                     </div>
                   )}
-                  {postingMode === "Summary" && returnPayments.creditSalesAmount > 0 && (
-                    <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-                      Credit sales will be assigned to <strong>General Delivery Customer</strong> (or
-                      <strong> General Credit Customer</strong> if it exists) because customer breakdown is not being used.
-                    </div>
-                  )}
+
+                  {/* #15: Summary only is disabled when there are credit sales —
+                      credit must be tracked against a real customer (option 1 or 3). */}
+                  <label className={`flex items-start gap-2 ${returnPayments.creditSalesAmount > 0 ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}>
+                    <input
+                      type="radio"
+                      className="mt-1"
+                      disabled={returnPayments.creditSalesAmount > 0}
+                      checked={postingMode === "Summary"}
+                      onChange={() => { if (returnPayments.creditSalesAmount <= 0) setPostingMode("Summary") }}
+                    />
+                    <span><strong>Summary only</strong><br/>
+                      <span className="text-slate-500">Posts to the company's <em>General Delivery Customer</em>. No per-shop tracking.</span>
+                      {returnPayments.creditSalesAmount > 0 && (
+                        <span className="block text-amber-700">Unavailable while there are credit sales — pick option 1 or 3.</span>
+                      )}</span>
+                  </label>
+
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input type="radio" className="mt-1" checked={postingMode === "Detailed"}    onChange={() => setPostingMode("Detailed")} />
+                    <span><strong>Detailed customer breakdown</strong><br/>
+                      <span className="text-slate-500">Record real customer/shop sales one-by-one. The breakdown appears right below when selected.</span></span>
+                  </label>
                 </div>
               </FormSection>
 
@@ -1766,8 +1832,8 @@ export default function WaterDriverReturnsPage() {
                 >
                   <div className="flex items-center gap-2">
                     {breakdownOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                    <span className="font-medium text-sm">Step 3 · Customer sales breakdown</span>
-                    <span className="text-xs text-slate-500">— optional, posts to Sales + Payments on approve</span>
+                    <span className="font-medium text-sm">Customer sales breakdown</span>
+                    <span className="text-xs text-slate-500">— record each customer/shop sale; posts to Sales + Payments on approve</span>
                   </div>
                   <span className="text-xs text-slate-500">{breakdown.length} customer{breakdown.length === 1 ? "" : "s"}</span>
                 </button>
@@ -2125,7 +2191,7 @@ export default function WaterDriverReturnsPage() {
                 {/* Migration 083 §2 — single-shot Approve & Reconcile. Same validation
                     as Draft + immediate spWaterDriverReturn_ApproveReconcile call. */}
                 <Button onClick={saveAndApproveReconcile}
-                  disabled={savingReturn || !overallBalanced || !perItemBalanced || (postingMode === "OneCustomer" && !primaryCustomerId)}
+                  disabled={savingReturn || !overallBalanced || !perItemBalanced || !floatBalanced || (postingMode === "OneCustomer" && !primaryCustomerId)}
                   title="Validate, save, and finalize reconciliation in one step."
                   className="w-full sm:w-auto h-11 sm:h-10 bg-emerald-600 hover:bg-emerald-700 text-white"
                 >

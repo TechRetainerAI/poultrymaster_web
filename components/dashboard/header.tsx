@@ -238,10 +238,10 @@ export function DashboardHeader() {
               variant="ghost"
               size="icon"
               onClick={() => toggleMobile()}
-              className="text-slate-300 hover:text-white hover:bg-slate-800 h-10 w-10 shrink-0"
+              className="text-slate-300 hover:text-white hover:bg-slate-800 h-12 w-12 shrink-0"
               aria-label="Toggle sidebar"
             >
-              <Menu className="h-5 w-5" />
+              <Menu className="h-7 w-7" />
             </Button>
 
             {!isMobileOpen && (
@@ -281,27 +281,11 @@ export function DashboardHeader() {
             </div>
           </div>
 
-          <div className="px-1">
-            <CompanySwitcher />
+          <div className="w-full">
+            <CompanySwitcher fullWidth />
           </div>
-
-          <form onSubmit={handleSearch} className="w-full min-w-0">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-              <Input
-                type="text"
-                placeholder="Search..."
-                value={searchQuery}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
-                    handleSearchChange('')
-                  }
-                }}
-                className="pl-10 min-h-[44px] bg-slate-800 border-slate-700 text-white placeholder:text-slate-400 focus:bg-slate-700 focus:border-slate-600"
-              />
-            </div>
-          </form>
+          {/* Search bar removed on mobile per request — global search remains
+              available on desktop and via the in-page list filters. */}
         </div>
       </header>
 

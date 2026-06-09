@@ -18,7 +18,7 @@ import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2 } from "lucide-react"
+import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -26,6 +26,7 @@ import { useFmt } from "@/lib/currency"
 import {
   listWaterRawMaterialItems, createWaterRawMaterialItem, updateWaterRawMaterialItem, deleteWaterRawMaterialItem,
   listWaterRawMaterialPurchases, createWaterRawMaterialPurchase, updateWaterRawMaterialPurchase, deleteWaterRawMaterialPurchase,
+  payWaterRawMaterialPurchaseBalance,
   listWaterRawMaterialUsageHistory,
   type WaterRawMaterialItem, type WaterRawMaterialPurchase, type WaterProductionMaterialUsageRow,
 } from "@/lib/api/water"
@@ -65,8 +66,38 @@ export default function WaterRawMaterialsPage() {
   const [purchaseForm, setPurchaseForm] = useState({
     waterRawMaterialItemId: 0, supplierId: null as number | null, purchaseDate: new Date().toISOString().split("T")[0],
     quantity: 0, unitCost: 0, paymentMethod: "Cash", amountPaid: 0, receiptUrl: "", notes: "",
+    // #12: purchase vs production costing. quantity = Purchase Quantity.
+    totalPurchaseCost: 0, purchaseUnit: "", productionUnit: "", productionUnitsPerPurchaseUnit: 1,
   })
   const [deletePurchaseTarget, setDeletePurchaseTarget] = useState<WaterRawMaterialPurchase | null>(null)
+
+  // Pay-balance dialog (records a follow-up payment against an outstanding purchase).
+  const [payTarget, setPayTarget] = useState<WaterRawMaterialPurchase | null>(null)
+  const [payForm, setPayForm] = useState({ amount: 0, paymentMethod: "Cash", paymentDate: new Date().toISOString().split("T")[0] })
+  const [paySaving, setPaySaving] = useState(false)
+
+  function openPayBalance(p: WaterRawMaterialPurchase) {
+    setPayTarget(p)
+    setPayForm({ amount: p.balance ?? 0, paymentMethod: "Cash", paymentDate: new Date().toISOString().split("T")[0] })
+  }
+
+  async function submitPayBalance() {
+    if (!payTarget) return
+    const outstanding = payTarget.balance ?? 0
+    if (payForm.amount <= 0) { toast({ title: "Enter an amount greater than 0", variant: "destructive" }); return }
+    if (payForm.amount > outstanding) { toast({ title: `Amount exceeds the outstanding balance (${gh(outstanding)})`, variant: "destructive" }); return }
+    setPaySaving(true)
+    try {
+      await payWaterRawMaterialPurchaseBalance(payTarget.waterRawMaterialPurchaseId, {
+        amount: payForm.amount, paymentMethod: payForm.paymentMethod, paymentDate: payForm.paymentDate,
+      })
+      toast({ title: "Balance payment recorded", description: "An expense was posted for the amount paid." })
+      setPayTarget(null)
+      await load()
+    } catch (e: any) {
+      toast({ title: "Could not record payment", description: e?.message, variant: "destructive" })
+    } finally { setPaySaving(false) }
+  }
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Water") { router.replace("/dashboard"); return }
@@ -109,10 +140,12 @@ export default function WaterRawMaterialsPage() {
 
   function openNewPurchase() {
     setEditPurchaseId(null)
+    const it0 = items[0]
     setPurchaseForm({
-      waterRawMaterialItemId: items[0]?.waterRawMaterialItemId ?? 0,
+      waterRawMaterialItemId: it0?.waterRawMaterialItemId ?? 0,
       supplierId: null, purchaseDate: new Date().toISOString().split("T")[0],
       quantity: 0, unitCost: 0, paymentMethod: "Cash", amountPaid: 0, receiptUrl: "", notes: "",
+      totalPurchaseCost: 0, purchaseUnit: it0?.unitOfMeasure ?? "", productionUnit: it0?.unitOfMeasure ?? "", productionUnitsPerPurchaseUnit: 1,
     })
     setPurchaseOpen(true)
   }
@@ -129,31 +162,53 @@ export default function WaterRawMaterialsPage() {
       amountPaid: p.amountPaid ?? 0,
       receiptUrl: p.receiptUrl ?? "",
       notes: p.notes ?? "",
+      // Existing records were stored at production level; show factor 1 so the
+      // computed fields reconcile to the saved quantity/cost.
+      totalPurchaseCost: Number((p.quantity * p.unitCost).toFixed(2)),
+      purchaseUnit: items.find(i => i.waterRawMaterialItemId === p.waterRawMaterialItemId)?.unitOfMeasure ?? "",
+      productionUnit: items.find(i => i.waterRawMaterialItemId === p.waterRawMaterialItemId)?.unitOfMeasure ?? "",
+      productionUnitsPerPurchaseUnit: 1,
     })
     setPurchaseOpen(true)
   }
 
   async function savePurchase() {
     if (!purchaseForm.waterRawMaterialItemId) return toast({ title: "Pick an item", variant: "destructive" })
-    if (purchaseForm.quantity <= 0) return toast({ title: "Quantity must be > 0", variant: "destructive" })
+    if (purchaseForm.quantity <= 0) return toast({ title: "Purchase quantity must be > 0", variant: "destructive" })
+    if (purchaseForm.totalPurchaseCost <= 0) return toast({ title: "Total purchase cost must be > 0", variant: "destructive" })
+    // #12: stock + cost are tracked at the PRODUCTION level. With a factor of 1
+    // (no conversion) these equal the purchase quantity and unit cost.
+    const factor = purchaseForm.productionUnitsPerPurchaseUnit || 1
+    const prodQty = purchaseForm.quantity * factor
+    const prodUnitCost = prodQty > 0 ? Number((purchaseForm.totalPurchaseCost / prodQty).toFixed(4)) : 0
+    // Keep the purchase-level detail traceable in the note.
+    const costNote = factor !== 1
+      ? `[${purchaseForm.quantity} ${purchaseForm.purchaseUnit || "purch.unit"} → ${prodQty} ${purchaseForm.productionUnit || "prod.unit"} @ ${purchaseForm.totalPurchaseCost} total]`
+      : ""
+    const mergedNotes = [purchaseForm.notes, costNote].filter(Boolean).join(" ") || null
     try {
       if (editPurchaseId != null) {
         await updateWaterRawMaterialPurchase(editPurchaseId, {
           purchaseDate: purchaseForm.purchaseDate,
-          quantity: purchaseForm.quantity,
-          unitCost: purchaseForm.unitCost,
+          quantity: prodQty,
+          unitCost: prodUnitCost,
           paymentMethod: purchaseForm.paymentMethod,
           amountPaid: purchaseForm.amountPaid,
           receiptUrl: purchaseForm.receiptUrl || null,
-          notes: purchaseForm.notes || null,
+          notes: mergedNotes,
           supplierId: purchaseForm.supplierId,
         } as any)
         toast({ title: "Purchase updated — stock adjusted" })
       } else {
         await createWaterRawMaterialPurchase({
-          ...purchaseForm,
+          waterRawMaterialItemId: purchaseForm.waterRawMaterialItemId,
+          purchaseDate: purchaseForm.purchaseDate,
+          quantity: prodQty,
+          unitCost: prodUnitCost,
+          paymentMethod: purchaseForm.paymentMethod,
+          amountPaid: purchaseForm.amountPaid,
           receiptUrl: purchaseForm.receiptUrl || null,
-          notes: purchaseForm.notes || null,
+          notes: mergedNotes,
           supplierId: purchaseForm.supplierId,
         } as any)
         toast({ title: "Purchase recorded — stock updated" })
@@ -380,6 +435,11 @@ export default function WaterRawMaterialsPage() {
                       ]}
                       actions={(p) => (
                         <>
+                          {(p.balance ?? 0) > 0 && (
+                            <Button size="sm" variant="outline" className="flex-1 h-10 text-emerald-700 border-emerald-200" onClick={() => openPayBalance(p)}>
+                              <Wallet className="h-4 w-4 mr-1" /> Pay balance
+                            </Button>
+                          )}
                           <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openEditPurchase(p)}>
                             <Pencil className="h-4 w-4 mr-1" /> Edit
                           </Button>
@@ -406,6 +466,9 @@ export default function WaterRawMaterialsPage() {
                                 <TableCell>{p.paymentMethod ?? "—"}</TableCell>
                                 <TableCell className={`text-right tabular-nums ${(p.balance ?? 0) > 0 ? "text-rose-600" : ""}`}>{gh(p.balance ?? 0)}</TableCell>
                                 <TableCell className="text-right">
+                                  {(p.balance ?? 0) > 0 && (
+                                    <Button size="sm" variant="ghost" className="text-emerald-700" onClick={() => openPayBalance(p)}><Wallet className="h-4 w-4" /></Button>
+                                  )}
                                   <Button size="sm" variant="ghost" onClick={() => openEditPurchase(p)}><Pencil className="h-4 w-4" /></Button>
                                   <Button size="sm" variant="ghost" onClick={() => setDeletePurchaseTarget(p)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
                                 </TableCell>
@@ -503,14 +566,52 @@ export default function WaterRawMaterialsPage() {
               </FormField>
             </FormSection>
 
-            <FormSection title="Quantity & Pricing" color="blue">
-              <FormField label="Quantity *">
-                <NumberInput min={0} step="0.001" value={purchaseForm.quantity} onChange={(e) => setPurchaseForm({ ...purchaseForm, quantity: Number(e.target.value) || 0 })} />
-              </FormField>
-              <FormField label="Unit cost *">
-                <NumberInput min={0} step="0.01" value={purchaseForm.unitCost} onChange={(e) => setPurchaseForm({ ...purchaseForm, unitCost: Number(e.target.value) || 0 })} />
-              </FormField>
-            </FormSection>
+            {(() => {
+              const pq = purchaseForm.quantity || 0
+              const total = purchaseForm.totalPurchaseCost || 0
+              const factor = purchaseForm.productionUnitsPerPurchaseUnit || 1
+              const purchaseUnitCost = pq > 0 ? total / pq : 0
+              const prodQty = pq * factor
+              const prodUnitCost = prodQty > 0 ? total / prodQty : 0
+              const pu = purchaseForm.purchaseUnit || "unit"
+              const prodU = purchaseForm.productionUnit || "unit"
+              return (
+                <>
+                  <FormSection title="Purchase Quantity & Production Costing" color="blue">
+                    <FormField label="Purchase unit *">
+                      <Input value={purchaseForm.purchaseUnit} onChange={(e) => setPurchaseForm({ ...purchaseForm, purchaseUnit: e.target.value })} placeholder="e.g. Roll" />
+                    </FormField>
+                    <FormField label="Purchase quantity *">
+                      <NumberInput min={0} step="0.001" value={purchaseForm.quantity} onChange={(e) => setPurchaseForm({ ...purchaseForm, quantity: Number(e.target.value) || 0 })} />
+                    </FormField>
+                    <FormField label="Total purchase cost *">
+                      <NumberInput min={0} step="0.01" value={purchaseForm.totalPurchaseCost} onChange={(e) => setPurchaseForm({ ...purchaseForm, totalPurchaseCost: Number(e.target.value) || 0 })} />
+                    </FormField>
+                    <FormField label="Purchase unit cost">
+                      <Input readOnly disabled value={`${gh(purchaseUnitCost)}${pu ? ` per ${pu}` : ""}`} className="bg-slate-50" />
+                    </FormField>
+                  </FormSection>
+
+                  <FormSection title="Production Conversion" color="indigo">
+                    <FormField label="Production unit *">
+                      <Input value={purchaseForm.productionUnit} onChange={(e) => setPurchaseForm({ ...purchaseForm, productionUnit: e.target.value })} placeholder="e.g. Piece" />
+                    </FormField>
+                    <FormField label="Production units per purchase unit *">
+                      <NumberInput min={1} step="1" value={purchaseForm.productionUnitsPerPurchaseUnit} onChange={(e) => setPurchaseForm({ ...purchaseForm, productionUnitsPerPurchaseUnit: Number(e.target.value) || 1 })} />
+                    </FormField>
+                    <FormField label="Production-level quantity">
+                      <Input readOnly disabled value={`${prodQty.toLocaleString()}${prodU ? ` ${prodU}` : ""}`} className="bg-slate-50" />
+                    </FormField>
+                    <FormField label="Production-level unit cost">
+                      <Input readOnly disabled value={`${gh(prodUnitCost)}${prodU ? ` per ${prodU}` : ""}`} className="bg-slate-50" />
+                    </FormField>
+                    <FormField label="" full>
+                      <p className="text-xs text-slate-500">If the purchase and production units are the same, set this to 1 — no conversion is applied.</p>
+                    </FormField>
+                  </FormSection>
+                </>
+              )
+            })()}
 
             <FormSection title="Payment" color="amber">
               <FormField label="Amount paid">
@@ -528,9 +629,9 @@ export default function WaterRawMaterialsPage() {
             </FormSection>
 
             <div className="border-t pt-2 text-sm">
-              <span className="text-slate-500">Total:</span> <span className="font-semibold tabular-nums">{gh(purchaseForm.quantity * purchaseForm.unitCost)}</span>
+              <span className="text-slate-500">Total:</span> <span className="font-semibold tabular-nums">{gh(purchaseForm.totalPurchaseCost)}</span>
               {" · "}
-              <span className="text-slate-500">Balance:</span> <span className="font-semibold tabular-nums">{gh(Math.max((purchaseForm.quantity * purchaseForm.unitCost) - purchaseForm.amountPaid, 0))}</span>
+              <span className="text-slate-500">Balance:</span> <span className="font-semibold tabular-nums">{gh(Math.max(purchaseForm.totalPurchaseCost - purchaseForm.amountPaid, 0))}</span>
             </div>
             <div className="flex gap-3 justify-end pt-2">
               <Button type="button" onClick={() => setPurchaseOpen(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
@@ -572,6 +673,40 @@ export default function WaterRawMaterialsPage() {
           }
         }}
       />
+
+      {/* Pay balance dialog — records a follow-up payment against an outstanding purchase. */}
+      <Dialog open={!!payTarget} onOpenChange={(o) => { if (!o) setPayTarget(null) }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Wallet className="h-5 w-5 text-emerald-600" /> Pay balance</DialogTitle>
+            <DialogDescription>
+              {payTarget ? `${payTarget.itemName ?? "Purchase"} — outstanding ${gh(payTarget.balance ?? 0)} of ${gh(payTarget.totalCost ?? (payTarget.quantity * payTarget.unitCost))}. This records an expense for the amount paid.` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <FormSection title="Payment" color="amber">
+              <FormField label="Amount paid *">
+                <NumberInput min={0} step="0.01" value={payForm.amount} onChange={(e) => setPayForm({ ...payForm, amount: Number(e.target.value) || 0 })} />
+              </FormField>
+              <FormField label="Payment method">
+                <Select value={payForm.paymentMethod} onValueChange={(v) => setPayForm({ ...payForm, paymentMethod: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{PAYMENT_METHODS.filter(m => m !== "Credit").map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                </Select>
+              </FormField>
+              <FormField label="Payment date">
+                <Input type="date" value={payForm.paymentDate} onChange={(e) => setPayForm({ ...payForm, paymentDate: e.target.value })} />
+              </FormField>
+            </FormSection>
+            <div className="flex gap-3 justify-end pt-2">
+              <Button type="button" variant="outline" onClick={() => setPayTarget(null)}>Cancel</Button>
+              <Button onClick={submitPayBalance} disabled={paySaving}>
+                {paySaving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</>) : "Record payment"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

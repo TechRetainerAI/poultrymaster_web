@@ -273,19 +273,19 @@ function StatLink({
     <Link href={href} className="block focus:outline-none">
       <Card className="bg-white rounded-xl border border-slate-200 shadow-sm transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-sky-300">
         <CardContent className="p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-wider truncate">{title}</p>
-              <p className="text-lg sm:text-xl font-bold text-slate-900 mt-1 leading-tight truncate">
-                {value}
-                {suffix ? <span className="text-sm font-medium text-slate-500 ml-1">{suffix}</span> : null}
-              </p>
-              {subtitle ? <p className="text-xs text-slate-500 mt-1 truncate">{subtitle}</p> : null}
-            </div>
-            <div className={`w-10 h-10 rounded-lg ${iconBg[accent]} flex items-center justify-center shrink-0`}>
-              <Icon className="w-5 h-5 text-white" />
+          {/* #4a: icon sits on the TITLE row (top-right) so the value below gets
+              the full card width — no longer squeezed beside the icon. */}
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider truncate">{title}</p>
+            <div className={`w-8 h-8 rounded-lg ${iconBg[accent]} flex items-center justify-center shrink-0`}>
+              <Icon className="w-4 h-4 text-white" />
             </div>
           </div>
+          <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-2 leading-tight truncate">
+            {value}
+            {suffix ? <span className="text-sm font-medium text-slate-500 ml-1">{suffix}</span> : null}
+          </p>
+          {subtitle ? <p className="text-xs text-slate-500 mt-1 truncate">{subtitle}</p> : null}
         </CardContent>
       </Card>
     </Link>

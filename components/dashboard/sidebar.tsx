@@ -541,7 +541,10 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
         {/* System */}
         <div className="space-y-0.5">
-          {permissions.featureAccess.canViewReports && renderNavItem({ href: "/reports", label: "Reports", icon: BarChart3 })}
+          {/* #28: the generic /reports page is poultry-only. Water and Generic
+              companies have their own Reports links (water-reports / generic-reports),
+              so showing this one too sent water users to the wrong (poultry) page. */}
+          {permissions.featureAccess.canViewReports && !isWater && !isGeneric && renderNavItem({ href: "/reports", label: "Reports", icon: BarChart3 })}
           {renderNavItem({ href: "/profile", label: "Account", icon: User })}
           {/* Resources page is poultry-only (vaccination/feed/medication schedules for chickens). */}
           {!isWater && !isGeneric && renderNavItem({ href: "/resources", label: "Resources", icon: BookOpen })}

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
 import {
   ArrowLeft, Loader2, Truck, Receipt, Users, Package, Coins,
 } from "lucide-react"
@@ -176,26 +177,39 @@ export default function WaterDeliveryRunDetailsPage() {
                 {items.length === 0 ? (
                   <Empty>No item rows. Legacy single-product loading.</Empty>
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Product</TableHead>
-                        <TableHead className="text-right">Loaded (bags)</TableHead>
-                        <TableHead className="text-right">Unit price{cur}</TableHead>
-                        <TableHead className="text-right">Expected{cur}</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {items.map(it => (
-                        <TableRow key={it.waterVehicleLoadingItemId}>
-                          <TableCell className="font-medium">{it.productName ?? `Product #${it.waterProductId}`}</TableCell>
-                          <TableCell className="text-right tabular-nums">{it.bagsLoaded}</TableCell>
-                          <TableCell className="text-right tabular-nums">{gh(it.unitPrice)}</TableCell>
-                          <TableCell className="text-right tabular-nums">{gh(it.expectedAmount ?? it.bagsLoaded * it.unitPrice)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                  <MobileCardList
+                    items={items}
+                    getKey={(it) => it.waterVehicleLoadingItemId}
+                    primary={(it) => it.productName ?? `Product #${it.waterProductId}`}
+                    secondary={(it) => <span>{it.bagsLoaded} bags · {gh(it.expectedAmount ?? it.bagsLoaded * it.unitPrice)}</span>}
+                    details={(it) => [
+                      { label: "Loaded (bags)", value: it.bagsLoaded },
+                      { label: `Unit price${cur}`, value: gh(it.unitPrice) },
+                      { label: `Expected${cur}`, value: gh(it.expectedAmount ?? it.bagsLoaded * it.unitPrice) },
+                    ]}
+                    desktopTable={
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Product</TableHead>
+                            <TableHead className="text-right">Loaded (bags)</TableHead>
+                            <TableHead className="text-right">Unit price{cur}</TableHead>
+                            <TableHead className="text-right">Expected{cur}</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {items.map(it => (
+                            <TableRow key={it.waterVehicleLoadingItemId}>
+                              <TableCell className="font-medium">{it.productName ?? `Product #${it.waterProductId}`}</TableCell>
+                              <TableCell className="text-right tabular-nums">{it.bagsLoaded}</TableCell>
+                              <TableCell className="text-right tabular-nums">{gh(it.unitPrice)}</TableCell>
+                              <TableCell className="text-right tabular-nums">{gh(it.expectedAmount ?? it.bagsLoaded * it.unitPrice)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    }
+                  />
                 )}
               </Section>
 
@@ -223,32 +237,48 @@ export default function WaterDeliveryRunDetailsPage() {
                       {ret.approvedAt && <span className="ml-2">at {ret.approvedAt.split(".")[0].replace("T", " ")}</span>}
                     </div>
                     {retItems.length > 0 ? (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Product</TableHead>
-                            <TableHead className="text-right">Loaded</TableHead>
-                            <TableHead className="text-right">Sold</TableHead>
-                            <TableHead className="text-right">Returned</TableHead>
-                            <TableHead className="text-right">Damaged</TableHead>
-                            <TableHead className="text-right">Unit price{cur}</TableHead>
-                            <TableHead className="text-right">Sales{cur}</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {retItems.map(ri => (
-                            <TableRow key={ri.waterDriverReturnItemId}>
-                              <TableCell className="font-medium">{ri.productName ?? `Product #${ri.waterProductId}`}</TableCell>
-                              <TableCell className="text-right tabular-nums">{ri.bagsLoaded}</TableCell>
-                              <TableCell className="text-right tabular-nums">{ri.bagsSold}</TableCell>
-                              <TableCell className="text-right tabular-nums">{ri.bagsReturned}</TableCell>
-                              <TableCell className="text-right tabular-nums">{ri.bagsDamaged}</TableCell>
-                              <TableCell className="text-right tabular-nums">{gh(ri.unitPrice)}</TableCell>
-                              <TableCell className="text-right tabular-nums">{gh(ri.expectedSales ?? ri.bagsSold * ri.unitPrice)}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                      <MobileCardList
+                        items={retItems}
+                        getKey={(ri) => ri.waterDriverReturnItemId}
+                        primary={(ri) => ri.productName ?? `Product #${ri.waterProductId}`}
+                        secondary={(ri) => <span>Sold {ri.bagsSold} · {gh(ri.expectedSales ?? ri.bagsSold * ri.unitPrice)}</span>}
+                        details={(ri) => [
+                          { label: "Loaded", value: ri.bagsLoaded },
+                          { label: "Sold", value: ri.bagsSold },
+                          { label: "Returned", value: ri.bagsReturned },
+                          { label: "Damaged", value: ri.bagsDamaged },
+                          { label: `Unit price${cur}`, value: gh(ri.unitPrice) },
+                          { label: `Sales${cur}`, value: gh(ri.expectedSales ?? ri.bagsSold * ri.unitPrice) },
+                        ]}
+                        desktopTable={
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Product</TableHead>
+                                <TableHead className="text-right">Loaded</TableHead>
+                                <TableHead className="text-right">Sold</TableHead>
+                                <TableHead className="text-right">Returned</TableHead>
+                                <TableHead className="text-right">Damaged</TableHead>
+                                <TableHead className="text-right">Unit price{cur}</TableHead>
+                                <TableHead className="text-right">Sales{cur}</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {retItems.map(ri => (
+                                <TableRow key={ri.waterDriverReturnItemId}>
+                                  <TableCell className="font-medium">{ri.productName ?? `Product #${ri.waterProductId}`}</TableCell>
+                                  <TableCell className="text-right tabular-nums">{ri.bagsLoaded}</TableCell>
+                                  <TableCell className="text-right tabular-nums">{ri.bagsSold}</TableCell>
+                                  <TableCell className="text-right tabular-nums">{ri.bagsReturned}</TableCell>
+                                  <TableCell className="text-right tabular-nums">{ri.bagsDamaged}</TableCell>
+                                  <TableCell className="text-right tabular-nums">{gh(ri.unitPrice)}</TableCell>
+                                  <TableCell className="text-right tabular-nums">{gh(ri.expectedSales ?? ri.bagsSold * ri.unitPrice)}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        }
+                      />
                     ) : (
                       <div className="text-xs text-slate-500">Legacy single-product return — totals: sold {ret.bagsSold}, returned {ret.bagsReturned}, damaged {ret.bagsDamaged}.</div>
                     )}
@@ -287,26 +317,14 @@ export default function WaterDeliveryRunDetailsPage() {
                               )}
                             </div>
                             {cs.items.length > 0 && (
-                              <Table>
-                                <TableHeader>
-                                  <TableRow>
-                                    <TableHead>Product</TableHead>
-                                    <TableHead className="text-right">Qty (bags)</TableHead>
-                                    <TableHead className="text-right">Price{cur}</TableHead>
-                                    <TableHead className="text-right">Total{cur}</TableHead>
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                  {cs.items.map(it => (
-                                    <TableRow key={it.waterDriverReturnCustomerSaleItemId}>
-                                      <TableCell className="font-medium">{it.productName ?? `Product #${it.waterProductId}`}</TableCell>
-                                      <TableCell className="text-right tabular-nums">{it.quantity}</TableCell>
-                                      <TableCell className="text-right tabular-nums">{gh(it.unitPrice)}</TableCell>
-                                      <TableCell className="text-right tabular-nums">{gh(it.lineTotal)}</TableCell>
-                                    </TableRow>
-                                  ))}
-                                </TableBody>
-                              </Table>
+                              <div className="space-y-1">
+                                {cs.items.map(it => (
+                                  <div key={it.waterDriverReturnCustomerSaleItemId} className="flex items-center justify-between gap-2 text-sm rounded bg-slate-50 px-2 py-1.5">
+                                    <span className="font-medium min-w-0 truncate">{it.productName ?? `Product #${it.waterProductId}`}</span>
+                                    <span className="shrink-0 tabular-nums text-slate-600">{it.quantity} × {gh(it.unitPrice)} = <span className="font-semibold text-slate-900">{gh(it.lineTotal)}</span></span>
+                                  </div>
+                                ))}
+                              </div>
                             )}
                             <div className="border-t mt-2 pt-2 text-xs grid grid-cols-2 md:grid-cols-5 gap-2">
                               <div><span className="text-slate-500">Total:</span> <span className="font-semibold tabular-nums">{gh(cs.totalAmount)}</span></div>
@@ -330,30 +348,48 @@ export default function WaterDeliveryRunDetailsPage() {
                     {expenses.length === 0 ? (
                       <Empty>No delivery expenses logged.</Empty>
                     ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Category</TableHead>
-                            <TableHead className="text-right">Amount{cur}</TableHead>
-                            <TableHead>Description</TableHead>
-                            <TableHead>Status</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {expenses.map(e => (
-                            <TableRow key={e.waterDeliveryExpenseId}>
-                              <TableCell>{e.expenseCategory}</TableCell>
-                              <TableCell className="text-right tabular-nums">{gh(e.amount)}</TableCell>
-                              <TableCell className="text-slate-600">{e.description ?? "—"}</TableCell>
-                              <TableCell>
-                                <Badge className={e.isApproved ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}>
-                                  {e.isApproved ? "Approved" : "Pending"}
-                                </Badge>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                      <MobileCardList
+                        items={expenses}
+                        getKey={(e) => e.waterDeliveryExpenseId}
+                        primary={(e) => e.expenseCategory}
+                        secondary={(e) => (
+                          <>
+                            <span>{gh(e.amount)}</span>
+                            <Badge className={e.isApproved ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}>{e.isApproved ? "Approved" : "Pending"}</Badge>
+                          </>
+                        )}
+                        details={(e) => [
+                          { label: `Amount${cur}`, value: gh(e.amount) },
+                          { label: "Description", value: e.description ?? "—" },
+                          { label: "Status", value: e.isApproved ? "Approved" : "Pending" },
+                        ]}
+                        desktopTable={
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Category</TableHead>
+                                <TableHead className="text-right">Amount{cur}</TableHead>
+                                <TableHead>Description</TableHead>
+                                <TableHead>Status</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {expenses.map(e => (
+                                <TableRow key={e.waterDeliveryExpenseId}>
+                                  <TableCell>{e.expenseCategory}</TableCell>
+                                  <TableCell className="text-right tabular-nums">{gh(e.amount)}</TableCell>
+                                  <TableCell className="text-slate-600">{e.description ?? "—"}</TableCell>
+                                  <TableCell>
+                                    <Badge className={e.isApproved ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}>
+                                      {e.isApproved ? "Approved" : "Pending"}
+                                    </Badge>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        }
+                      />
                     )}
                   </Section>
                 </>
