@@ -17,7 +17,7 @@
 
 import { Label } from "@/components/ui/label"
 import {
-  Select, SelectContent, SelectGroup, SelectItem, SelectLabel,
+  Select, SelectContent, SelectGroup, SelectItem,
   SelectSeparator, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import { PERIOD_GROUPS, periodToRange, type DateRange, type PeriodKey } from "@/lib/date-ranges"
@@ -45,10 +45,11 @@ export function PeriodSelect({
       >
         <SelectTrigger className={className}><SelectValue placeholder="Select period" /></SelectTrigger>
         <SelectContent>
+          {/* Visually grouped (matching James's "Best display order" mockup):
+              separators between groups, no category headings. */}
           {PERIOD_GROUPS.map((g, gi) => (
             <SelectGroup key={g.label}>
               {gi > 0 && <SelectSeparator />}
-              <SelectLabel>{g.label}</SelectLabel>
               {g.options.map((o) => (
                 <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
               ))}
