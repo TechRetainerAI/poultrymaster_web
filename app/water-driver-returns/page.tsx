@@ -52,7 +52,9 @@ const LOAD_STATUS: Record<string, string> = {
   Cancelled: "bg-slate-100 text-slate-700",
 }
 
-const EXPENSE_CATEGORIES = ["Fuel", "LoadingBoys", "Toll", "Repair", "PhoneCredit", "Other"]
+const EXPENSE_CATEGORIES = ["Fuel", "ChopMoney", "LoadingBoys", "Toll", "Repair", "PhoneCredit", "Other"]
+// Display label: split PascalCase so "ChopMoney" → "Chop Money" (value stays raw).
+const prettyCategory = (c: string) => c.replace(/([a-z])([A-Z])/g, "$1 $2")
 
 // In-memory shapes for the dialogs. Closer to the UI than the API types.
 type LoadItem = {
@@ -2071,7 +2073,7 @@ export default function WaterDriverReturnsPage() {
                                   <TableCell>
                                     <Select value={e.expenseCategory} onValueChange={(v) => updateExpense(idx, { expenseCategory: v })}>
                                       <SelectTrigger><SelectValue /></SelectTrigger>
-                                      <SelectContent>{EXPENSE_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                                      <SelectContent>{EXPENSE_CATEGORIES.map(c => <SelectItem key={c} value={c}>{prettyCategory(c)}</SelectItem>)}</SelectContent>
                                     </Select>
                                   </TableCell>
                                   <TableCell className="text-right">
@@ -2105,7 +2107,7 @@ export default function WaterDriverReturnsPage() {
                                   <label className="text-xs text-slate-500">Category</label>
                                   <Select value={e.expenseCategory} onValueChange={(v) => updateExpense(idx, { expenseCategory: v })}>
                                     <SelectTrigger><SelectValue /></SelectTrigger>
-                                    <SelectContent>{EXPENSE_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                                    <SelectContent>{EXPENSE_CATEGORIES.map(c => <SelectItem key={c} value={c}>{prettyCategory(c)}</SelectItem>)}</SelectContent>
                                   </Select>
                                 </div>
                                 <div>
