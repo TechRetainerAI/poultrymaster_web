@@ -31,7 +31,10 @@ export default function ProfitLossReportPage() {
 
   useEffect(() => { void load() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [fromDate, toDate])
 
-  const gross = pnl ? (pnl.totalIncome ?? 0) - (pnl.totalProductionCost ?? 0) - (pnl.totalRawMaterialCost ?? 0) : 0
+  // Field names must match the SP result (productionCost / rawMaterialCost /
+  // totalExpenses=operating / totalLosses). The old code read totalProductionCost
+  // & totalRawMaterialCost which don't exist, so gross showed full income.
+  const gross = pnl ? (pnl.totalIncome ?? 0) - (pnl.productionCost ?? 0) - (pnl.rawMaterialCost ?? 0) : 0
   const net = pnl ? gross - (pnl.totalExpenses ?? 0) - (pnl.totalLosses ?? 0) : 0
 
   return (
@@ -56,8 +59,8 @@ export default function ProfitLossReportPage() {
           <TableHeader><TableRow><TableHead>Line</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
           <TableBody>
             <TableRow><TableCell>Total income (sales)</TableCell><TableCell className="text-right tabular-nums">{fmtMoney(pnl.totalIncome ?? 0)}</TableCell></TableRow>
-            <TableRow><TableCell>Less: production cost</TableCell><TableCell className="text-right tabular-nums">({fmtMoney(pnl.totalProductionCost ?? 0)})</TableCell></TableRow>
-            <TableRow><TableCell>Less: raw material cost</TableCell><TableCell className="text-right tabular-nums">({fmtMoney(pnl.totalRawMaterialCost ?? 0)})</TableCell></TableRow>
+            <TableRow><TableCell>Less: production cost</TableCell><TableCell className="text-right tabular-nums">({fmtMoney(pnl.productionCost ?? 0)})</TableCell></TableRow>
+            <TableRow><TableCell>Less: raw material cost (paid)</TableCell><TableCell className="text-right tabular-nums">({fmtMoney(pnl.rawMaterialCost ?? 0)})</TableCell></TableRow>
             <TableRow className="font-semibold"><TableCell>Gross profit</TableCell><TableCell className="text-right tabular-nums">{fmtMoney(gross)}</TableCell></TableRow>
             <TableRow><TableCell>Less: operating expenses</TableCell><TableCell className="text-right tabular-nums">({fmtMoney(pnl.totalExpenses ?? 0)})</TableCell></TableRow>
             <TableRow><TableCell>Less: losses</TableCell><TableCell className="text-right tabular-nums">({fmtMoney(pnl.totalLosses ?? 0)})</TableCell></TableRow>

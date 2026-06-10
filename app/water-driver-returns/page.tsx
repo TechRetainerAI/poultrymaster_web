@@ -337,6 +337,8 @@ export default function WaterDriverReturnsPage() {
     cashReturnedByDriver: 0,
   })
   const [returnNotes, setReturnNotes] = useState("")
+  // Operator-pickable return date (defaults to today; editable, incl. on edit).
+  const [returnDate, setReturnDate] = useState(new Date().toISOString().split("T")[0])
   const [breakdownOpen, setBreakdownOpen] = useState(false)
   const [breakdown, setBreakdown] = useState<BreakdownRow[]>([])
   const [expensesOpen, setExpensesOpen] = useState(false)
@@ -569,6 +571,7 @@ export default function WaterDriverReturnsPage() {
   // operator previously recorded (instead of the "all sold, no money" default).
   async function prefillFromExistingReturn(l: WaterVehicleLoading, r: WaterDriverReturn) {
     setReturnNotes(r.notes ?? "")
+    setReturnDate((r.returnDate ?? new Date().toISOString()).split("T")[0])
     setBreakdownOpen(false)
     setExpensesOpen(false)
     setBreakdown([])
@@ -608,6 +611,7 @@ export default function WaterDriverReturnsPage() {
   // ===== Driver Return handlers =====
   async function openReturnDlg(l: WaterVehicleLoading) {
     setReturnNotes("")
+    setReturnDate((l.loadDate ?? new Date().toISOString()).split("T")[0])
     setBreakdownOpen(false)
     setExpensesOpen(false)
     setBreakdown([])
@@ -821,7 +825,7 @@ export default function WaterDriverReturnsPage() {
     try {
       const created = await createWaterDriverReturn({
         waterVehicleLoadingId: returnDlg.loading.waterVehicleLoadingId,
-        returnDate: new Date().toISOString(),
+        returnDate: new Date(returnDate).toISOString(),
         bagsSold: totalSold,
         bagsReturned: totalReturned,
         bagsDamaged: totalDamaged,
@@ -1523,6 +1527,11 @@ export default function WaterDriverReturnsPage() {
             // the real reason inner tables/inputs were spilling out of the
             // dialog and triggering a page-level horizontal scrollbar).
             <div className="space-y-4 min-w-0 w-full">
+              {/* Return date — defaults to the load date; editable (incl. on edit). */}
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-slate-600 shrink-0">Return date</label>
+                <Input type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} className="max-w-[200px]" />
+              </div>
               {/* At-a-glance summary so the operator always sees the bag
                   balance and money totals without scrolling. */}
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">

@@ -688,6 +688,7 @@ namespace PoultryFarmAPIWeb.Business
                 TotalExpenses    = r.GetDecimal(r.GetOrdinal("TotalExpenses")),
                 RawMaterialCost  = r.GetDecimal(r.GetOrdinal("RawMaterialCost")),
                 ProductionCost   = r.GetDecimal(r.GetOrdinal("ProductionCost")),
+                TotalLosses      = r.GetDecimal(r.GetOrdinal("TotalLosses")),
                 NetProfit        = r.GetDecimal(r.GetOrdinal("NetProfit")),
                 ProfitMarginPct  = r.GetDecimal(r.GetOrdinal("ProfitMarginPct")),
                 BagsProduced     = r.GetInt32(r.GetOrdinal("BagsProduced")),

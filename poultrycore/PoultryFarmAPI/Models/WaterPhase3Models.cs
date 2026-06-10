@@ -160,6 +160,7 @@ namespace PoultryFarmAPIWeb.Models
         public decimal TotalExpenses { get; set; }
         public decimal RawMaterialCost { get; set; }
         public decimal ProductionCost { get; set; }
+        public decimal TotalLosses { get; set; }
         public decimal NetProfit { get; set; }
         public decimal ProfitMarginPct { get; set; }
         public int BagsProduced { get; set; }

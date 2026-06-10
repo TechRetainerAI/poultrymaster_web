@@ -1984,6 +1984,7 @@ export interface WaterPeriodPnL {
   totalExpenses: number
   rawMaterialCost: number
   productionCost: number
+  totalLosses: number
   netProfit: number
   profitMarginPct: number
   bagsProduced: number
