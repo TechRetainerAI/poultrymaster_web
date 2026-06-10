@@ -30,6 +30,10 @@ type ConfirmDeleteDialogProps = {
   errorTitle?: string
   onConfirm: () => Promise<unknown> | unknown
   onSuccess?: () => void
+  /** 'destructive' (red, default) or 'default' (primary) for non-delete confirms. */
+  tone?: 'destructive' | 'default'
+  /** Busy-state label (defaults to "Deleting…"). */
+  busyLabel?: string
 }
 
 function extractErrorMessage(err: unknown, fallback: string): string {
@@ -80,6 +84,8 @@ export function ConfirmDeleteDialog({
   errorTitle = 'Delete failed',
   onConfirm,
   onSuccess,
+  tone = 'destructive',
+  busyLabel = 'Deleting…',
 }: ConfirmDeleteDialogProps) {
   const { toast } = useToast()
   const [isDeleting, setIsDeleting] = React.useState(false)
@@ -148,12 +154,16 @@ export function ConfirmDeleteDialog({
           <AlertDialogAction
             onClick={handleConfirm}
             disabled={isDeleting}
-            className={cn(buttonVariants({ variant: 'destructive' }))}
+            className={cn(
+              tone === 'destructive'
+                ? buttonVariants({ variant: 'destructive' })
+                : 'bg-emerald-600 text-white hover:bg-emerald-700',
+            )}
           >
             {isDeleting ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Deleting…
+                {busyLabel}
               </>
             ) : (
               confirmLabel

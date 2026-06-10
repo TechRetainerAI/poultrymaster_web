@@ -141,24 +141,9 @@ export default function WaterDriverReturnsPage() {
   // happy path creates+approves in one shot (createWaterDriverReturn already
   // calls approve internally); these handlers cover Drafts that were left
   // behind by a partial save (e.g. approve failed after insert).
-  async function approveDraftReturn(r: WaterDriverReturn) {
-    // Migration 083 — table-level Approve & Reconcile. Same SP as the modal
-    // button, with confirmation prompt the spec asked for.
-    const ok = typeof window !== "undefined"
-      ? window.confirm(
-          "Are you sure you want to approve and reconcile this return? " +
-          "This will finalize the return, update inventory, post sales/payments if applicable, " +
-          "and mark the delivery as reconciled.",
-        )
-      : true
-    if (!ok) return
-    try {
-      await approveReconcileWaterDriverReturn(r.waterDriverReturnId)
-      toast({ title: "Return reconciled" })
-      await load()
-    } catch (e: any) {
-      toast({ title: "Approve & Reconcile failed", description: e?.message, variant: "destructive" })
-    }
+  // Open the styled confirmation; the dialog (below) runs the actual SP.
+  function approveDraftReturn(r: WaterDriverReturn) {
+    setApproveTarget(r)
   }
 
   async function cancelDraftReturn(r: WaterDriverReturn) {
@@ -175,6 +160,8 @@ export default function WaterDriverReturnsPage() {
   // belts: UI button only renders when permissions.isAdmin, and the SP
   // RAISERRORs if Status != 'Cancelled'.
   const [deleteTarget, setDeleteTarget] = useState<WaterDriverReturn | null>(null)
+  // Styled approve-&-reconcile confirmation (replaces the native window.confirm).
+  const [approveTarget, setApproveTarget] = useState<WaterDriverReturn | null>(null)
   async function performDeleteCancelledReturn(r: WaterDriverReturn) {
     try { await deleteWaterDriverReturn(r.waterDriverReturnId); toast({ title: `Cancelled return #${r.waterDriverReturnId} deleted` }); await load() }
     catch (e: any) { toast({ title: "Delete failed", description: e?.message, variant: "destructive" }) }
@@ -2238,6 +2225,25 @@ export default function WaterDriverReturnsPage() {
         errorTitle="Delete failed"
         onConfirm={async () => {
           if (deleteTarget) await performDeleteCancelledReturn(deleteTarget)
+        }}
+      />
+
+      {/* Styled Approve & Reconcile confirmation (replaces the native confirm). */}
+      <ConfirmDeleteDialog
+        open={!!approveTarget}
+        onOpenChange={(o) => { if (!o) setApproveTarget(null) }}
+        tone="default"
+        title="Approve & reconcile this return?"
+        description="This finalizes the return, updates inventory, posts sales/payments if applicable, and marks the delivery as reconciled."
+        confirmLabel="Approve & Reconcile"
+        busyLabel="Working…"
+        successTitle="Return reconciled"
+        errorTitle="Approve & Reconcile failed"
+        onConfirm={async () => {
+          if (approveTarget) {
+            await approveReconcileWaterDriverReturn(approveTarget.waterDriverReturnId)
+            await load()
+          }
         }}
       />
 
