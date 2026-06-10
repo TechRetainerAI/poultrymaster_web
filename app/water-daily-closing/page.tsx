@@ -405,24 +405,19 @@ export default function WaterDailyClosingPage() {
                   <Tile label="Credit sales" value={gh(view.creditSales)} />
                   <Tile label="Driver shortages" value={gh(view.driverShortages)} accent={view.driverShortages ? "rose" : undefined} />
                 </div>
+                {/* N11: explain how Cash at hand is derived. */}
+                <p className="mt-2 text-xs text-slate-500">
+                  Cash at hand = (Total income − Credit sales) + Customer collections − Raw-material spend.
+                  It is the cash that should physically be on hand from today's activity.
+                </p>
               </div>
 
               {/* Submit form is now reachable from BOTH Draft and Rejected. Operators were stuck on
                   rejected closings with no way to address the manager's feedback and resubmit. */}
               {(view.status === "Draft" || view.status === "Rejected") && (
                 <div className="border-t pt-4 space-y-3 bg-slate-50 -mx-6 px-6 py-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="font-semibold text-slate-700">
-                      {view.status === "Draft" ? "Submit for approval" : "Address feedback and re-submit"}
-                    </div>
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline" onClick={saveNotesEdit}>
-                        <Pencil className="h-4 w-4 mr-1" /> Save notes only
-                      </Button>
-                      <Button size="sm" variant="ghost" className="text-rose-600 hover:bg-rose-50" onClick={() => setDeleteTarget(view)}>
-                        <Trash2 className="h-4 w-4 mr-1" /> Delete
-                      </Button>
-                    </div>
+                  <div className="font-semibold text-slate-700">
+                    {view.status === "Draft" ? "Submit for approval" : "Address feedback and re-submit"}
                   </div>
                   {view.rejectionReason && (
                     <div className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
@@ -444,7 +439,14 @@ export default function WaterDailyClosingPage() {
                     <div className="col-span-2"><Label>Manager notes</Label>
                       <Textarea rows={3} value={submitForm.managerNotes} onChange={(e) => setSubmitForm({ ...submitForm, managerNotes: e.target.value })} /></div>
                   </div>
-                  <div className="flex justify-end gap-2 pt-2">
+                  {/* N11: all actions grouped at the bottom (were stranded mid-page). */}
+                  <div className="flex flex-wrap justify-end gap-2 pt-2 border-t mt-2">
+                    <Button size="sm" variant="ghost" className="text-rose-600 hover:bg-rose-50 mr-auto" onClick={() => setDeleteTarget(view)}>
+                      <Trash2 className="h-4 w-4 mr-1" /> Delete
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={saveNotesEdit}>
+                      <Pencil className="h-4 w-4 mr-1" /> Save notes only
+                    </Button>
                     <Button onClick={submitClosing}>
                       <CheckCircle2 className="h-4 w-4 mr-1" />
                       {view.status === "Rejected" ? "Resubmit for approval" : "Submit for approval"}

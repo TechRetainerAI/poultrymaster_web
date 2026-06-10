@@ -217,6 +217,8 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@CreatedBy", (object?)m.CreatedBy ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@SupplierId", (object?)m.SupplierId ?? DBNull.Value);
+            // N2: exact total the operator entered (SP falls back to Qty*UnitCost if 0).
+            cmd.Parameters.AddWithValue("@TotalCost", m.TotalCost > 0 ? m.TotalCost : (object)DBNull.Value);
             await conn.OpenAsync();
             return Convert.ToInt32(await cmd.ExecuteScalarAsync());
         }
@@ -236,6 +238,7 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@ReceiptUrl", (object?)m.ReceiptUrl ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@SupplierId", (object?)m.SupplierId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@TotalCost", m.TotalCost > 0 ? m.TotalCost : (object)DBNull.Value);
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
         }

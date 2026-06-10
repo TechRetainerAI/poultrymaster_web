@@ -306,7 +306,25 @@ export default function WaterProductionBatchDetailsPage() {
                 {expenses.length === 0 ? (
                   <p className="text-sm text-slate-500">No production-linked expenses for this batch.</p>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <>
+                    {/* N5: cards on mobile, table on desktop. */}
+                    <div className="lg:hidden space-y-2">
+                      {expenses.map((e) => (
+                        <div key={e.waterExpenseId} className="rounded-md border border-slate-200 bg-white p-3 text-sm">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium text-slate-900 min-w-0 truncate">{e.categoryName ?? "—"}</span>
+                            <span className="shrink-0 font-semibold tabular-nums">{gh(e.amount)}</span>
+                          </div>
+                          <div className="mt-1 grid grid-cols-2 gap-2 text-xs">
+                            <div><span className="text-slate-500">Payment:</span> {e.paymentMethod ?? "—"}{e.cashAccountName ? ` · ${e.cashAccountName}` : ""}</div>
+                            <div><span className="text-slate-500">Status:</span> {e.status ?? "—"}</div>
+                            <div className="col-span-2"><span className="text-slate-500">Date:</span> {e.expenseDate?.split("T")[0]}</div>
+                            {e.description && <div className="col-span-2 text-slate-600">{e.description}</div>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="hidden lg:block overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -334,7 +352,8 @@ export default function WaterProductionBatchDetailsPage() {
                         ))}
                       </TableBody>
                     </Table>
-                  </div>
+                    </div>
+                  </>
                 )}
               </Section>
 
@@ -342,7 +361,24 @@ export default function WaterProductionBatchDetailsPage() {
                 {losses.length === 0 ? (
                   <p className="text-sm text-slate-500">No damage / rejected loss records for this batch.</p>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <>
+                    <div className="lg:hidden space-y-2">
+                      {losses.map((l) => (
+                        <div key={l.waterProductionLossId} className="rounded-md border border-slate-200 bg-white p-3 text-sm">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium text-slate-900">{l.lossType}</span>
+                            <span className="shrink-0 font-semibold tabular-nums">{gh(l.totalValue)}</span>
+                          </div>
+                          <div className="mt-1 grid grid-cols-2 gap-2 text-xs">
+                            <div><span className="text-slate-500">Date:</span> {l.lossDate.split("T")[0]}</div>
+                            <div><span className="text-slate-500">Status:</span> {l.status}</div>
+                            <div><span className="text-slate-500">Bags:</span> {l.bagsLost.toLocaleString()} ({gh(l.bagsLossValue)})</div>
+                            <div><span className="text-slate-500">Sachets:</span> {l.sachetsLost.toLocaleString()} ({gh(l.sachetsLossValue)})</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="hidden lg:block overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -371,7 +407,8 @@ export default function WaterProductionBatchDetailsPage() {
                         ))}
                       </TableBody>
                     </Table>
-                  </div>
+                    </div>
+                  </>
                 )}
               </Section>
 

@@ -52,10 +52,12 @@ export interface MobileCardListProps<T> {
   emptyState?: ReactNode
   /** Optional badge / status pill rendered to the right of the chevron. */
   trailing?: (item: T) => ReactNode
+  /** Detail pages (#N4): start cards expanded and hide the "view table" toggle. */
+  alwaysExpanded?: boolean
 }
 
 export function MobileCardList<T>({
-  items, getKey, primary, secondary, details, actions, desktopTable, emptyState, trailing,
+  items, getKey, primary, secondary, details, actions, desktopTable, emptyState, trailing, alwaysExpanded = false,
 }: MobileCardListProps<T>) {
   const [showTable, setShowTable] = useState(false)
 
@@ -79,6 +81,7 @@ export function MobileCardList<T>({
             {items.map((item) => (
               <Collapsible
                 key={getKey(item)}
+                defaultOpen={alwaysExpanded}
                 className="group rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden"
               >
                 <div className="p-3 active:bg-slate-50/80 transition-colors">
@@ -121,6 +124,7 @@ export function MobileCardList<T>({
               </Collapsible>
             ))}
 
+            {!alwaysExpanded && (
             <div className="px-1 pt-2">
               <Button
                 variant="ghost"
@@ -131,6 +135,7 @@ export function MobileCardList<T>({
                 View table format <ChevronDown className="h-4 w-4 ml-1" />
               </Button>
             </div>
+            )}
           </div>
         ) : (
           <>

@@ -891,19 +891,16 @@ export default function WaterDriverReturnsPage() {
       // row's existing Approve button already runs spWaterDriverReturn_Approve,
       // so no other change is needed.
 
-      // If we got here from an Edit on a Draft return, cancel the OLD Draft
-      // so the user is left with exactly one active Draft per loading. We
-      // do this after the new Insert succeeds so a failed save doesn't
-      // wipe their previous attempt.
+      // N12: editing a Draft return must leave EXACTLY ONE record. Previously we
+      // cancelled the old Draft (leaving a stray Cancelled row that confused the
+      // closing). Now we DELETE it outright after the new Insert succeeds, so
+      // there is only the replacement return.
       const editedFrom = editReturnTargetRef.current
       if (editedFrom) {
-        try { await cancelWaterDriverReturn(editedFrom.waterDriverReturnId) }
+        try { await deleteWaterDriverReturn(editedFrom.waterDriverReturnId) }
         catch (e: any) {
-          // Don't fail the whole save just because the cancel of the old
-          // Draft 500'd — surface as a warning so the user knows there's a
-          // dangling old row to clean up.
           toast({
-            title: "New Draft saved, but couldn't clean up the old one",
+            title: "New return saved, but couldn't remove the old one",
             description: `Old return #${editedFrom.waterDriverReturnId}: ${e?.message ?? String(e)}`,
             variant: "destructive",
           })
@@ -1325,20 +1322,20 @@ export default function WaterDriverReturnsPage() {
                 </Select>
               </FormField>
               <FormField label="Assistant (optional)">
-                {/* #27: list all active employees, but exclude whoever is the
-                    selected driver — a person cannot assist themselves. */}
+                {/* N8: list all DRIVERS (the staff list is empty for water cos),
+                    excluding whoever is the selected driver — a person cannot
+                    assist themselves. */}
                 {(() => {
-                  const driverName = drivers.find(d => d.waterDriverId === loadForm.waterDriverId)?.driverName?.trim().toLowerCase()
-                  const assistants = staff.filter(s => s.isActive && `${s.firstName} ${s.lastName}`.trim().toLowerCase() !== driverName)
+                  const assistants = drivers.filter(d => d.isActive && d.waterDriverId !== loadForm.waterDriverId)
                   return (
                     <Select value={String(loadForm.assistantStaffId)} onValueChange={(v) => setLoadForm({ ...loadForm, assistantStaffId: Number(v) })}>
                       <SelectTrigger><SelectValue placeholder="Pick assistant" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="0">— none —</SelectItem>
                         {assistants.length === 0
-                          ? <div className="px-2 py-1.5 text-sm text-slate-500">No other employees available.</div>
-                          : assistants.map(s => (
-                              <SelectItem key={s.waterStaffId} value={String(s.waterStaffId)}>{s.firstName} {s.lastName}</SelectItem>
+                          ? <div className="px-2 py-1.5 text-sm text-slate-500">No other drivers available.</div>
+                          : assistants.map(d => (
+                              <SelectItem key={d.waterDriverId} value={String(d.waterDriverId)}>{d.driverName}</SelectItem>
                             ))}
                       </SelectContent>
                     </Select>
@@ -2193,7 +2190,7 @@ export default function WaterDriverReturnsPage() {
                 {/* Migration 083 §2 — single-shot Approve & Reconcile. Same validation
                     as Draft + immediate spWaterDriverReturn_ApproveReconcile call. */}
                 <Button onClick={saveAndApproveReconcile}
-                  disabled={savingReturn || !overallBalanced || !perItemBalanced || !floatBalanced || (postingMode === "OneCustomer" && !primaryCustomerId)}
+                  disabled={savingReturn || !overallBalanced || !perItemBalanced || (postingMode === "OneCustomer" && !primaryCustomerId)}
                   title="Validate, save, and finalize reconciliation in one step."
                   className="w-full sm:w-auto h-11 sm:h-10 bg-emerald-600 hover:bg-emerald-700 text-white"
                 >

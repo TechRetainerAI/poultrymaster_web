@@ -162,11 +162,10 @@ export default function WaterRawMaterialsPage() {
       amountPaid: p.amountPaid ?? 0,
       receiptUrl: p.receiptUrl ?? "",
       notes: p.notes ?? "",
-      // Existing records were stored at production level; show factor 1 so the
-      // computed fields reconcile to the saved quantity/cost.
-      totalPurchaseCost: Number((p.quantity * p.unitCost).toFixed(2)),
+      // N2: use the stored exact total when present.
+      totalPurchaseCost: Number((p.totalCost ?? (p.quantity * p.unitCost)).toFixed(2)),
       purchaseUnit: items.find(i => i.waterRawMaterialItemId === p.waterRawMaterialItemId)?.unitOfMeasure ?? "",
-      productionUnit: items.find(i => i.waterRawMaterialItemId === p.waterRawMaterialItemId)?.unitOfMeasure ?? "",
+      productionUnit: "",
       productionUnitsPerPurchaseUnit: 1,
     })
     setPurchaseOpen(true)
@@ -176,26 +175,22 @@ export default function WaterRawMaterialsPage() {
     if (!purchaseForm.waterRawMaterialItemId) return toast({ title: "Pick an item", variant: "destructive" })
     if (purchaseForm.quantity <= 0) return toast({ title: "Purchase quantity must be > 0", variant: "destructive" })
     if (purchaseForm.totalPurchaseCost <= 0) return toast({ title: "Total purchase cost must be > 0", variant: "destructive" })
-    // #12: stock + cost are tracked at the PRODUCTION level. With a factor of 1
-    // (no conversion) these equal the purchase quantity and unit cost.
-    const factor = purchaseForm.productionUnitsPerPurchaseUnit || 1
-    const prodQty = purchaseForm.quantity * factor
-    const prodUnitCost = prodQty > 0 ? Number((purchaseForm.totalPurchaseCost / prodQty).toFixed(4)) : 0
-    // Keep the purchase-level detail traceable in the note.
-    const costNote = factor !== 1
-      ? `[${purchaseForm.quantity} ${purchaseForm.purchaseUnit || "purch.unit"} → ${prodQty} ${purchaseForm.productionUnit || "prod.unit"} @ ${purchaseForm.totalPurchaseCost} total]`
-      : ""
-    const mergedNotes = [purchaseForm.notes, costNote].filter(Boolean).join(" ") || null
+    // N2: send the EXACT total the operator entered (the SP stores it verbatim);
+    // quantity is in the item's unit. No production conversion (removed per new feedback).
+    const qty = purchaseForm.quantity
+    const total = Number(purchaseForm.totalPurchaseCost.toFixed(2))
+    const unitCost = purchaseForm.unitCost || (qty > 0 ? total / qty : 0)
     try {
       if (editPurchaseId != null) {
         await updateWaterRawMaterialPurchase(editPurchaseId, {
           purchaseDate: purchaseForm.purchaseDate,
-          quantity: prodQty,
-          unitCost: prodUnitCost,
+          quantity: qty,
+          unitCost,
+          totalCost: total,
           paymentMethod: purchaseForm.paymentMethod,
           amountPaid: purchaseForm.amountPaid,
           receiptUrl: purchaseForm.receiptUrl || null,
-          notes: mergedNotes,
+          notes: purchaseForm.notes || null,
           supplierId: purchaseForm.supplierId,
         } as any)
         toast({ title: "Purchase updated — stock adjusted" })
@@ -203,12 +198,13 @@ export default function WaterRawMaterialsPage() {
         await createWaterRawMaterialPurchase({
           waterRawMaterialItemId: purchaseForm.waterRawMaterialItemId,
           purchaseDate: purchaseForm.purchaseDate,
-          quantity: prodQty,
-          unitCost: prodUnitCost,
+          quantity: qty,
+          unitCost,
+          totalCost: total,
           paymentMethod: purchaseForm.paymentMethod,
           amountPaid: purchaseForm.amountPaid,
           receiptUrl: purchaseForm.receiptUrl || null,
-          notes: mergedNotes,
+          notes: purchaseForm.notes || null,
           supplierId: purchaseForm.supplierId,
         } as any)
         toast({ title: "Purchase recorded — stock updated" })
@@ -543,7 +539,7 @@ export default function WaterRawMaterialsPage() {
           <div className="space-y-4">
             <FormSection title="Item, Supplier & Date" color="indigo">
               <FormField label={`Item${editPurchaseId != null ? " (fixed — delete and recreate to change item)" : ""}`} full>
-                <Select value={String(purchaseForm.waterRawMaterialItemId)} onValueChange={(v) => setPurchaseForm({ ...purchaseForm, waterRawMaterialItemId: Number(v) })} disabled={editPurchaseId != null}>
+                <Select value={String(purchaseForm.waterRawMaterialItemId)} onValueChange={(v) => { const id = Number(v); const it = items.find(i => i.waterRawMaterialItemId === id); setPurchaseForm({ ...purchaseForm, waterRawMaterialItemId: id, purchaseUnit: it?.unitOfMeasure ?? purchaseForm.purchaseUnit }) }} disabled={editPurchaseId != null}>
                   <SelectTrigger><SelectValue placeholder="Pick item" /></SelectTrigger>
                   <SelectContent>{items.filter(i => i.isActive || i.waterRawMaterialItemId === purchaseForm.waterRawMaterialItemId).map(i => <SelectItem key={i.waterRawMaterialItemId} value={String(i.waterRawMaterialItemId)}>{i.itemName} ({i.unitOfMeasure ?? "—"})</SelectItem>)}</SelectContent>
                 </Select>
@@ -567,49 +563,31 @@ export default function WaterRawMaterialsPage() {
             </FormSection>
 
             {(() => {
-              const pq = purchaseForm.quantity || 0
-              const total = purchaseForm.totalPurchaseCost || 0
-              const factor = purchaseForm.productionUnitsPerPurchaseUnit || 1
-              const purchaseUnitCost = pq > 0 ? total / pq : 0
-              const prodQty = pq * factor
-              const prodUnitCost = prodQty > 0 ? total / prodQty : 0
-              const pu = purchaseForm.purchaseUnit || "unit"
-              const prodU = purchaseForm.productionUnit || "unit"
+              const qty = purchaseForm.quantity || 0
+              // N1: two-way unit-cost <-> total-cost binding (both editable).
+              const setUnitCost = (u: number) => setPurchaseForm({ ...purchaseForm, unitCost: u, totalPurchaseCost: Number((qty * u).toFixed(2)) })
+              const setTotal    = (t: number) => setPurchaseForm({ ...purchaseForm, totalPurchaseCost: t, unitCost: qty > 0 ? Number((t / qty).toFixed(4)) : 0 })
+              const setQty      = (q: number) => setPurchaseForm({ ...purchaseForm, quantity: q, totalPurchaseCost: Number((q * (purchaseForm.unitCost || 0)).toFixed(2)) })
               return (
-                <>
-                  <FormSection title="Purchase Quantity & Production Costing" color="blue">
-                    <FormField label="Purchase unit *">
-                      <Input value={purchaseForm.purchaseUnit} onChange={(e) => setPurchaseForm({ ...purchaseForm, purchaseUnit: e.target.value })} placeholder="e.g. Roll" />
-                    </FormField>
-                    <FormField label="Purchase quantity *">
-                      <NumberInput min={0} step="0.001" value={purchaseForm.quantity} onChange={(e) => setPurchaseForm({ ...purchaseForm, quantity: Number(e.target.value) || 0 })} />
-                    </FormField>
-                    <FormField label="Total purchase cost *">
-                      <NumberInput min={0} step="0.01" value={purchaseForm.totalPurchaseCost} onChange={(e) => setPurchaseForm({ ...purchaseForm, totalPurchaseCost: Number(e.target.value) || 0 })} />
-                    </FormField>
-                    <FormField label="Purchase unit cost">
-                      <Input readOnly disabled value={`${gh(purchaseUnitCost)}${pu ? ` per ${pu}` : ""}`} className="bg-slate-50" />
-                    </FormField>
-                  </FormSection>
-
-                  <FormSection title="Production Conversion" color="indigo">
-                    <FormField label="Production unit *">
-                      <Input value={purchaseForm.productionUnit} onChange={(e) => setPurchaseForm({ ...purchaseForm, productionUnit: e.target.value })} placeholder="e.g. Piece" />
-                    </FormField>
-                    <FormField label="Production units per purchase unit *">
-                      <NumberInput min={1} step="1" value={purchaseForm.productionUnitsPerPurchaseUnit} onChange={(e) => setPurchaseForm({ ...purchaseForm, productionUnitsPerPurchaseUnit: Number(e.target.value) || 1 })} />
-                    </FormField>
-                    <FormField label="Production-level quantity">
-                      <Input readOnly disabled value={`${prodQty.toLocaleString()}${prodU ? ` ${prodU}` : ""}`} className="bg-slate-50" />
-                    </FormField>
-                    <FormField label="Production-level unit cost">
-                      <Input readOnly disabled value={`${gh(prodUnitCost)}${prodU ? ` per ${prodU}` : ""}`} className="bg-slate-50" />
-                    </FormField>
-                    <FormField label="" full>
-                      <p className="text-xs text-slate-500">If the purchase and production units are the same, set this to 1 — no conversion is applied.</p>
-                    </FormField>
-                  </FormSection>
-                </>
+                <FormSection title="Quantity & Pricing" color="blue">
+                  <FormField label="Purchase unit *">
+                    {/* N1: auto-populated from the item's unit of measure; editable. */}
+                    <Input value={purchaseForm.purchaseUnit} onChange={(e) => setPurchaseForm({ ...purchaseForm, purchaseUnit: e.target.value })} placeholder="e.g. Roll, Bag, Litre" />
+                  </FormField>
+                  <FormField label="Purchase quantity *">
+                    <NumberInput min={0} step="0.001" value={purchaseForm.quantity} onChange={(e) => setQty(Number(e.target.value) || 0)} />
+                  </FormField>
+                  <FormField label="Purchase unit cost *">
+                    {/* N1/N2: free field; editing it recomputes the total (and vice-versa). */}
+                    <NumberInput min={0} step="0.0001" value={purchaseForm.unitCost} onChange={(e) => setUnitCost(Number(e.target.value) || 0)} />
+                  </FormField>
+                  <FormField label="Total purchase cost *">
+                    <NumberInput min={0} step="0.01" value={purchaseForm.totalPurchaseCost} onChange={(e) => setTotal(Number(e.target.value) || 0)} />
+                  </FormField>
+                  <FormField label="" full>
+                    <p className="text-xs text-slate-500">Enter the unit cost and we calculate the total, or enter the total and we calculate the unit cost. The total is saved exactly as entered.</p>
+                  </FormField>
+                </FormSection>
               )
             })()}
 

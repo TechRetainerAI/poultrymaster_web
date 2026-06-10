@@ -92,12 +92,14 @@ class ApiClient {
               originalRequest.headers.Authorization = `Bearer ${token}`
               return this.client(originalRequest)
             }
+            // No refresh token available — the session is over. Fall through to
+            // the catch so we log out completely (N7).
+            throw new Error('No refresh token')
           } catch (refreshError) {
             this.processQueue(refreshError, null)
-            // Redirect to login on refresh failure
-            if (typeof window !== 'undefined') {
-              window.location.href = '/login'
-            }
+            // N7: when the session truly expires, log the user out COMPLETELY —
+            // clear every auth artefact so the app can't re-hydrate a stale login.
+            this.clearAllAuthAndRedirect()
             return Promise.reject(refreshError)
           } finally {
             this.isRefreshing = false
@@ -140,6 +142,23 @@ class ApiClient {
     this.token = token
     if (refreshToken !== undefined) {
       this.refreshToken = refreshToken
+    }
+  }
+
+  // N7: wipe every auth artefact (in-memory + persisted) and send the user to
+  // the login screen, so an expired session can't silently re-hydrate.
+  private clearAllAuthAndRedirect() {
+    this.token = null
+    this.refreshToken = null
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('auth_token')
+        localStorage.removeItem('auth-storage')
+        localStorage.removeItem('farmId')
+        localStorage.removeItem('farmName')
+        localStorage.removeItem('farmType')
+      } catch {}
+      if (window.location.pathname !== '/login') window.location.href = '/login'
     }
   }
 

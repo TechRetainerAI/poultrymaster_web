@@ -177,7 +177,7 @@ export default function WaterDeliveryRunDetailsPage() {
                 {items.length === 0 ? (
                   <Empty>No item rows. Legacy single-product loading.</Empty>
                 ) : (
-                  <MobileCardList
+                  <MobileCardList alwaysExpanded
                     items={items}
                     getKey={(it) => it.waterVehicleLoadingItemId}
                     primary={(it) => it.productName ?? `Product #${it.waterProductId}`}
@@ -237,7 +237,7 @@ export default function WaterDeliveryRunDetailsPage() {
                       {ret.approvedAt && <span className="ml-2">at {ret.approvedAt.split(".")[0].replace("T", " ")}</span>}
                     </div>
                     {retItems.length > 0 ? (
-                      <MobileCardList
+                      <MobileCardList alwaysExpanded
                         items={retItems}
                         getKey={(ri) => ri.waterDriverReturnItemId}
                         primary={(ri) => ri.productName ?? `Product #${ri.waterProductId}`}
@@ -283,13 +283,25 @@ export default function WaterDeliveryRunDetailsPage() {
                       <div className="text-xs text-slate-500">Legacy single-product return — totals: sold {ret.bagsSold}, returned {ret.bagsReturned}, damaged {ret.bagsDamaged}.</div>
                     )}
 
-                    {/* Payments collected */}
-                    <div className="border-t mt-3 pt-3 grid grid-cols-2 md:grid-cols-5 gap-2 text-sm">
-                      <div><span className="text-slate-500">Cash:</span> <span className="font-semibold tabular-nums">{gh(ret.cashCollected)}</span></div>
-                      <div><span className="text-slate-500">MoMo:</span> <span className="font-semibold tabular-nums">{gh(ret.moMoCollected)}</span></div>
-                      <div><span className="text-slate-500">Bank:</span> <span className="font-semibold tabular-nums">{gh(ret.bankCollected)}</span></div>
-                      <div><span className="text-slate-500">Credit:</span> <span className="font-semibold tabular-nums">{gh(ret.creditSalesAmount)}</span></div>
-                      <div><span className="text-slate-500">Driver float returned:</span> <span className="font-semibold tabular-nums">{gh(ret.cashReturnedByDriver ?? 0)}</span></div>
+                  </Section>
+
+                  {/* N4/N9: dedicated, clearly-labelled Money collected section
+                      with its own tiles — incl. Unaccounted cash (the shortfall). */}
+                  <Section title={`Money collected${cur}`} icon={<Coins className="h-4 w-4 text-slate-500" />}>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {[
+                        { label: "Cash", value: ret.cashCollected, tone: "" },
+                        { label: "MoMo", value: ret.moMoCollected, tone: "" },
+                        { label: "Bank", value: ret.bankCollected, tone: "" },
+                        { label: "Credit sales", value: ret.creditSalesAmount, tone: (ret.creditSalesAmount ?? 0) > 0 ? "text-rose-600" : "" },
+                        { label: "Driver float returned", value: ret.cashReturnedByDriver ?? 0, tone: "" },
+                        { label: "Unaccounted cash", value: ret.shortageAmount ?? 0, tone: (ret.shortageAmount ?? 0) > 0 ? "text-rose-600" : "" },
+                      ].map((m) => (
+                        <div key={m.label} className="rounded-lg border border-slate-200 bg-white p-3">
+                          <div className="text-xs text-slate-500">{m.label}</div>
+                          <div className={`text-lg font-semibold tabular-nums ${m.tone}`}>{gh(m.value)}</div>
+                        </div>
+                      ))}
                     </div>
                   </Section>
 
@@ -348,7 +360,7 @@ export default function WaterDeliveryRunDetailsPage() {
                     {expenses.length === 0 ? (
                       <Empty>No delivery expenses logged.</Empty>
                     ) : (
-                      <MobileCardList
+                      <MobileCardList alwaysExpanded
                         items={expenses}
                         getKey={(e) => e.waterDeliveryExpenseId}
                         primary={(e) => e.expenseCategory}

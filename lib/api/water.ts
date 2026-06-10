@@ -1841,9 +1841,9 @@ export const listWaterRawMaterialPurchases = (opts?: { fromDate?: string; toDate
   if (opts?.toDate) qs.append("toDate", opts.toDate)
   return jget<WaterRawMaterialPurchase[]>(`/Water/raw-material-purchases?${qs.toString()}`)
 }
-export const createWaterRawMaterialPurchase = (input: Omit<WaterRawMaterialPurchase, "waterRawMaterialPurchaseId" | "farmId" | "itemName" | "totalCost" | "balance">) =>
+export const createWaterRawMaterialPurchase = (input: Omit<WaterRawMaterialPurchase, "waterRawMaterialPurchaseId" | "farmId" | "itemName" | "balance">) =>
   jsend<{ waterRawMaterialPurchaseId: number }>(`/Water/raw-material-purchases`, "POST", { ...input, farmId: activeFarmId() })
-export const updateWaterRawMaterialPurchase = (id: number, input: Omit<WaterRawMaterialPurchase, "waterRawMaterialPurchaseId" | "farmId" | "itemName" | "totalCost" | "balance" | "waterRawMaterialItemId">) =>
+export const updateWaterRawMaterialPurchase = (id: number, input: Omit<WaterRawMaterialPurchase, "waterRawMaterialPurchaseId" | "farmId" | "itemName" | "balance" | "waterRawMaterialItemId">) =>
   jsend<void>(`/Water/raw-material-purchases/${id}`, "PUT", { ...input, waterRawMaterialPurchaseId: id, farmId: activeFarmId() })
 export const deleteWaterRawMaterialPurchase = (id: number) =>
   jsend<void>(`/Water/raw-material-purchases/${id}?farmId=${encodeURIComponent(activeFarmId())}`, "DELETE")
