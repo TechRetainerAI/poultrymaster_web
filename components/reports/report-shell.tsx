@@ -26,6 +26,8 @@ import { Loader2, ArrowLeft, Printer, AlertCircle, Mail } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useFarmSettingsStore } from "@/lib/currency"
 import { useLogout } from "@/hooks/use-logout"
+import { PeriodSelect } from "@/components/ui/period-select"
+import { rangeToPeriod } from "@/lib/date-ranges"
 
 export interface ReportShellProps {
   title: string
@@ -127,6 +129,14 @@ export function ReportShell({
             {/* Filters row — hidden in print to keep the PDF tight. */}
             {(onFromDateChange || filters || onRefresh) && (
               <div className="print:hidden mb-4 flex items-end gap-2 flex-wrap">
+                {onFromDateChange && onToDateChange && (
+                  <PeriodSelect
+                    value={rangeToPeriod(fromDate ?? "", toDate ?? "")}
+                    onChange={(_p, range) => {
+                      if (range) { onFromDateChange(range.from); onToDateChange(range.to) }
+                    }}
+                  />
+                )}
                 {onFromDateChange && (
                   <div>
                     <Label className="text-xs">From</Label>

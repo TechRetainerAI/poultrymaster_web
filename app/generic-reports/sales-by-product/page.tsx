@@ -1,6 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { PeriodSelect } from "@/components/ui/period-select"
+import { rangeToPeriod } from "@/lib/date-ranges"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -65,6 +67,7 @@ export default function SalesByProductPage() {
 
           <Card className="mb-4">
             <CardContent className="flex flex-wrap items-end gap-3 pt-6">
+              <PeriodSelect value={rangeToPeriod(range.fromDate, range.toDate)} onChange={(_p, rg) => { if (rg) setRange({ fromDate: rg.from, toDate: rg.to }) }} />
               <div><Label>From</Label><Input type="date" value={range.fromDate} onChange={(e) => setRange((r) => ({ ...r, fromDate: e.target.value }))} /></div>
               <div><Label>To</Label><Input type="date" value={range.toDate} onChange={(e) => setRange((r) => ({ ...r, toDate: e.target.value }))} /></div>
               <Button onClick={load} disabled={loading}>{loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Run</Button>

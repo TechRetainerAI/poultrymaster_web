@@ -19,6 +19,8 @@ import {
   getWaterPeriodPnL, getWaterRouteProfitability, getWaterDriverReconciliation, getWaterRawMaterialVariance,
   type WaterPeriodPnL, type WaterRouteProfitabilityRow, type WaterDriverReconciliationRow, type WaterRawMaterialVarianceRow,
 } from "@/lib/api/water"
+import { PeriodSelect } from "@/components/ui/period-select"
+import { rangeToPeriod } from "@/lib/date-ranges"
 
 // Helpers for the default date range — last 7 days
 function isoDate(d: Date) { return d.toISOString().split("T")[0] }
@@ -88,6 +90,7 @@ export default function WaterReportsPage() {
 
           <Card className="mb-4">
             <CardContent className="p-4 flex flex-wrap items-end gap-3">
+              <PeriodSelect value={rangeToPeriod(fromDate, toDate)} onChange={(_p, rg) => { if (rg) { setFromDate(rg.from); setToDate(rg.to) } }} />
               <div><Label>From</Label>
                 <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} /></div>
               <div><Label>To</Label>

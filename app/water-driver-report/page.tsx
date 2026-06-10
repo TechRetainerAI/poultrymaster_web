@@ -20,10 +20,8 @@ import {
   type WaterDriverCollectionReport, type WaterDriver,
 } from "@/lib/api/water"
 import { useFmt, useCurrency } from "@/lib/currency"
-function isoToday() { return new Date().toISOString().slice(0, 10) }
-function isoNDaysAgo(n: number) {
-  const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10)
-}
+import { PeriodSelect } from "@/components/ui/period-select"
+import { periodToRange, type PeriodKey } from "@/lib/date-ranges"
 
 export default function WaterDriverCollectionReportPage() {
   const router = useRouter()
@@ -41,8 +39,10 @@ export default function WaterDriverCollectionReportPage() {
   // column header. Force empty so headers stay clean regardless of toggle.
   const cur = ""
 
-  const [fromDate, setFromDate] = useState(isoNDaysAgo(30))
-  const [toDate,   setToDate]   = useState(isoToday())
+  const def = periodToRange("last30")!
+  const [fromDate, setFromDate] = useState(def.from)
+  const [toDate,   setToDate]   = useState(def.to)
+  const [period,   setPeriod]   = useState<PeriodKey>("last30")
   const [driverId, setDriverId] = useState<number>(0) // 0 = all drivers
 
   const [drivers, setDrivers] = useState<WaterDriver[]>([])
@@ -56,12 +56,12 @@ export default function WaterDriverCollectionReportPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFarmType])
 
-  async function load() {
+  async function load(fromOverride?: string, toOverride?: string) {
     setBusy(true)
     try {
       const [ds, rep] = await Promise.all([
         listWaterDrivers().catch(() => []),
-        getWaterDriverCollection(fromDate, toDate, driverId || undefined),
+        getWaterDriverCollection(fromOverride ?? fromDate, toOverride ?? toDate, driverId || undefined),
       ])
       setDrivers(ds); setReport(rep)
     } catch (e: any) {
@@ -72,20 +72,15 @@ export default function WaterDriverCollectionReportPage() {
     }
   }
 
-  // Group detail rows by driver so the table reads as "for each driver, here
-  // are their products" — that's how the prompt describes the Driver
-  // Collection Report.
-  const grouped = useMemo(() => {
-    type DetailRow = WaterDriverCollectionReport["detail"][number]
-    type Group = { driverId: number | null; driverName: string; rows: DetailRow[] }
-    if (!report) return [] as Group[]
-    const map = new Map<string, Group>()
-    for (const r of report.detail) {
-      const key = String(r.waterDriverId ?? "__none__")
-      if (!map.has(key)) map.set(key, { driverId: r.waterDriverId ?? null, driverName: r.driverName ?? "Unassigned", rows: [] })
-      map.get(key)!.rows.push(r)
-    }
-    return Array.from(map.values()).sort((a, b) => a.driverName.localeCompare(b.driverName))
+  // All delivery detail rows in ONE flat list (sorted by driver, then product)
+  // so the report shows a single consolidated "Deliveries" list/table instead
+  // of one table per driver.
+  const flatDetail = useMemo(() => {
+    if (!report) return [] as WaterDriverCollectionReport["detail"]
+    return [...report.detail].sort((a, b) =>
+      (a.driverName ?? "Unassigned").localeCompare(b.driverName ?? "Unassigned")
+      || (a.productName ?? "").localeCompare(b.productName ?? ""),
+    )
   }, [report])
 
   const headlineTotals = useMemo(() => {
@@ -118,11 +113,18 @@ export default function WaterDriverCollectionReportPage() {
           {/* Filters */}
           <Card className="mb-4">
             <CardContent className="p-3 flex flex-wrap items-end gap-3">
+              <PeriodSelect
+                value={period}
+                onChange={(p, range) => {
+                  setPeriod(p)
+                  if (range) { setFromDate(range.from); setToDate(range.to); void load(range.from, range.to) }
+                }}
+              />
               <div><Label className="text-xs">From</Label>
-                <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-40" />
+                <Input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPeriod("custom") }} className="w-40" />
               </div>
               <div><Label className="text-xs">To</Label>
-                <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-40" />
+                <Input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setPeriod("custom") }} className="w-40" />
               </div>
               <div><Label className="text-xs">Driver</Label>
                 <Select value={String(driverId)} onValueChange={(v) => setDriverId(Number(v))}>
@@ -163,6 +165,7 @@ export default function WaterDriverCollectionReportPage() {
                 <CardContent className="p-0">
                   <MobileCardList
                     items={report.totals}
+                    defaultOpen
                     getKey={(t) => t.waterDriverId ?? `none-${t.driverName}`}
                     primary={(t) => t.driverName ?? "Unassigned"}
                     secondary={(t) => (
@@ -220,64 +223,70 @@ export default function WaterDriverCollectionReportPage() {
                 </CardContent>
               </Card>
 
-              {/* Per-driver per-product detail (the actual prompt-spec content). */}
-              {grouped.map(g => (
-                <Card key={g.driverId ?? `none-${g.driverName}`} className="mb-4">
-                  <CardContent className="p-4">
-                    <div className="mb-2 font-medium text-slate-800">{g.driverName}</div>
-                    <MobileCardList
-                      items={g.rows}
-                      getKey={(r) => r.waterProductId}
-                      primary={(r) => r.productName ?? `Product #${r.waterProductId}`}
-                      secondary={(r) => (
-                        <>
-                          <span>{r.bagsSold}/{r.bagsLoaded} sold</span>
-                          <span>·</span>
-                          <span>{gh(r.salesValue)}</span>
-                        </>
-                      )}
-                      details={(r) => [
-                        { label: "Loaded (bags)", value: r.bagsLoaded },
-                        { label: "Sold (bags)", value: r.bagsSold },
-                        { label: "Returned (bags)", value: r.bagsReturned },
-                        { label: "Damaged (bags)", value: r.bagsDamaged },
-                        { label: `Expected${cur}`, value: gh(r.expectedCash) },
-                        { label: `Sales${cur}`, value: gh(r.salesValue) },
-                      ]}
-                      desktopTable={
-                        <div className="overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Product</TableHead>
-                              <TableHead className="text-right">Loaded (bags)</TableHead>
-                              <TableHead className="text-right">Sold (bags)</TableHead>
-                              <TableHead className="text-right">Returned (bags)</TableHead>
-                              <TableHead className="text-right">Damaged (bags)</TableHead>
-                              <TableHead className="text-right">Expected{cur}</TableHead>
-                              <TableHead className="text-right">Sales{cur}</TableHead>
+              {/* Per-delivery detail — ALL drivers/products in ONE list so there
+                  is a single "View table format" at the bottom (not one table
+                  per driver). Cards open by default; each card/table row shows
+                  which driver the delivery belongs to. */}
+              <Card className="mb-4">
+                <CardContent className="p-0">
+                  <div className="px-4 pt-4 font-medium text-slate-800">Deliveries</div>
+                  <MobileCardList
+                    items={flatDetail}
+                    defaultOpen
+                    getKey={(r) => `${r.waterDriverId ?? "none"}-${r.waterProductId}`}
+                    primary={(r) => `${r.driverName ?? "Unassigned"} · ${r.productName ?? `Product #${r.waterProductId}`}`}
+                    secondary={(r) => (
+                      <>
+                        <span>{r.bagsSold}/{r.bagsLoaded} sold</span>
+                        <span>·</span>
+                        <span>{gh(r.salesValue)}</span>
+                      </>
+                    )}
+                    details={(r) => [
+                      { label: "Driver", value: r.driverName ?? "Unassigned" },
+                      { label: "Product", value: r.productName ?? `Product #${r.waterProductId}` },
+                      { label: "Loaded (bags)", value: r.bagsLoaded },
+                      { label: "Sold (bags)", value: r.bagsSold },
+                      { label: "Returned (bags)", value: r.bagsReturned },
+                      { label: "Damaged (bags)", value: r.bagsDamaged },
+                      { label: `Expected${cur}`, value: gh(r.expectedCash) },
+                      { label: `Sales${cur}`, value: gh(r.salesValue) },
+                    ]}
+                    desktopTable={
+                      <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Driver</TableHead>
+                            <TableHead>Product</TableHead>
+                            <TableHead className="text-right">Loaded (bags)</TableHead>
+                            <TableHead className="text-right">Sold (bags)</TableHead>
+                            <TableHead className="text-right">Returned (bags)</TableHead>
+                            <TableHead className="text-right">Damaged (bags)</TableHead>
+                            <TableHead className="text-right">Expected{cur}</TableHead>
+                            <TableHead className="text-right">Sales{cur}</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {flatDetail.map((r, i) => (
+                            <TableRow key={`${r.waterDriverId ?? "none"}-${r.waterProductId}-${i}`}>
+                              <TableCell className="font-medium">{r.driverName ?? "Unassigned"}</TableCell>
+                              <TableCell>{r.productName ?? `Product #${r.waterProductId}`}</TableCell>
+                              <TableCell className="text-right tabular-nums">{r.bagsLoaded}</TableCell>
+                              <TableCell className="text-right tabular-nums">{r.bagsSold}</TableCell>
+                              <TableCell className="text-right tabular-nums">{r.bagsReturned}</TableCell>
+                              <TableCell className="text-right tabular-nums">{r.bagsDamaged}</TableCell>
+                              <TableCell className="text-right tabular-nums">{gh(r.expectedCash)}</TableCell>
+                              <TableCell className="text-right tabular-nums">{gh(r.salesValue)}</TableCell>
                             </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {g.rows.map(r => (
-                              <TableRow key={`${r.waterProductId}`}>
-                                <TableCell className="font-medium">{r.productName ?? `Product #${r.waterProductId}`}</TableCell>
-                                <TableCell className="text-right tabular-nums">{r.bagsLoaded}</TableCell>
-                                <TableCell className="text-right tabular-nums">{r.bagsSold}</TableCell>
-                                <TableCell className="text-right tabular-nums">{r.bagsReturned}</TableCell>
-                                <TableCell className="text-right tabular-nums">{r.bagsDamaged}</TableCell>
-                                <TableCell className="text-right tabular-nums">{gh(r.expectedCash)}</TableCell>
-                                <TableCell className="text-right tabular-nums">{gh(r.salesValue)}</TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                        </div>
-                      }
-                    />
-                  </CardContent>
-                </Card>
-              ))}
+                          ))}
+                        </TableBody>
+                      </Table>
+                      </div>
+                    }
+                  />
+                </CardContent>
+              </Card>
             </>
           )}
         </main>

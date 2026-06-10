@@ -14,6 +14,8 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { getPeriodPnL, type GenericPeriodPnL } from "@/lib/api/generic"
+import { PeriodSelect } from "@/components/ui/period-select"
+import { rangeToPeriod } from "@/lib/date-ranges"
 
 function fmt(n: number) {
   return new Intl.NumberFormat(undefined, { style: "currency", currency: "GHS", maximumFractionDigits: 2 }).format(n)
@@ -64,6 +66,7 @@ export default function PeriodPnLPage() {
 
           <Card className="mb-4">
             <CardContent className="flex flex-wrap items-end gap-3 pt-6">
+              <PeriodSelect value={rangeToPeriod(range.fromDate, range.toDate)} onChange={(_p, rg) => { if (rg) setRange({ fromDate: rg.from, toDate: rg.to }) }} />
               <div>
                 <Label>From</Label>
                 <Input type="date" value={range.fromDate} onChange={(e) => setRange((r) => ({ ...r, fromDate: e.target.value }))} />

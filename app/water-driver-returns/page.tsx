@@ -33,6 +33,8 @@ import {
   listWaterDriverReturns, createWaterDriverReturn, approveWaterDriverReturn, cancelWaterDriverReturn,
   reverseWaterDriverReturn, uncancelWaterDriverReturn, deleteWaterDriverReturn,
   listWaterVehicleLoadingItems, listWaterDriverReturnItems,
+  // Restore the saved customer breakdown + delivery expenses when editing a return.
+  listWaterDriverReturnCustomerSales, listWaterDriverReturnExpenses,
   listWaterVehicles, listWaterRoutes, listWaterProducts, listWaterDrivers, listWaterStaff, listWaterCustomers,
   // Migration 083 — Approve & Reconcile in one shot + posting-mode persistence.
   approveReconcileWaterDriverReturn, updateWaterDriverReturnPostingMode,
@@ -564,6 +566,14 @@ export default function WaterDriverReturnsPage() {
     setBreakdown([])
     setExpenses([])
     setOverrideMismatch(false)
+    // Restore how the sale was posted + which customer it was posted to, so the
+    // dialog reopens on the same option the operator originally chose (instead
+    // of resetting to the OneCustomer default with no customer selected).
+    const mode = (r.salesPostingMode === "Detailed" || r.salesPostingMode === "OneCustomer" || r.salesPostingMode === "Summary")
+      ? r.salesPostingMode
+      : "OneCustomer"
+    setPostingMode(mode)
+    setPrimaryCustomerId(r.primaryCustomerId ?? null)
     setReturnPayments({
       cashCollected:      r.cashCollected      ?? 0,
       moMoCollected:      r.moMoCollected      ?? 0,
@@ -573,7 +583,13 @@ export default function WaterDriverReturnsPage() {
     })
     setReturnDlg({ open: true, loading: l })
     try {
-      const items = await listWaterDriverReturnItems(r.waterDriverReturnId)
+      // Items, saved per-customer breakdown, and delivery expenses in parallel.
+      const [items, customerSales, savedExpenses] = await Promise.all([
+        listWaterDriverReturnItems(r.waterDriverReturnId),
+        listWaterDriverReturnCustomerSales(r.waterDriverReturnId).catch(() => []),
+        listWaterDriverReturnExpenses(r.waterDriverReturnId).catch(() => []),
+      ])
+
       if (items.length > 0) {
         setReturnItems(items.map(it => ({
           waterProductId: it.waterProductId,
@@ -588,6 +604,36 @@ export default function WaterDriverReturnsPage() {
         // Fallback: treat as fresh return-from-loading. Same behavior as
         // openReturnDlg in the no-items case.
         await openReturnDlg(l)
+      }
+
+      // Restore the detailed customer breakdown (Detailed mode).
+      if (customerSales.length > 0) {
+        setBreakdown(customerSales.map(cs => ({
+          waterCustomerId: cs.waterCustomerId ?? null,
+          customerLabel: cs.customerLabel ?? cs.customerName ?? "",
+          cashPaid: cs.cashPaid ?? 0,
+          moMoPaid: cs.moMoPaid ?? 0,
+          bankPaid: cs.bankPaid ?? 0,
+          creditAmount: cs.creditAmount ?? 0,
+          notes: cs.notes ?? "",
+          items: (cs.items ?? []).map(it => ({
+            waterProductId: it.waterProductId,
+            quantity: it.quantity,
+            unitPrice: it.unitPrice ?? 0,
+          })),
+        })))
+        if (mode === "Detailed") setBreakdownOpen(true)
+      }
+
+      // Restore the delivery expenses (fuel, toll, chop money, etc.).
+      if (savedExpenses.length > 0) {
+        setExpenses(savedExpenses.map(e => ({
+          expenseCategory: e.expenseCategory,
+          amount: e.amount ?? 0,
+          description: e.description ?? "",
+          isApproved: e.isApproved ?? true,
+        })))
+        setExpensesOpen(true)
       }
     } catch (e) {
       console.warn("prefill from existing return failed; falling back to fresh dialog", e)

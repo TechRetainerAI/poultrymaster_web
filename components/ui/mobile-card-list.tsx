@@ -54,10 +54,12 @@ export interface MobileCardListProps<T> {
   trailing?: (item: T) => ReactNode
   /** Detail pages (#N4): start cards expanded and hide the "view table" toggle. */
   alwaysExpanded?: boolean
+  /** Start cards expanded but KEEP the "view table format" toggle available. */
+  defaultOpen?: boolean
 }
 
 export function MobileCardList<T>({
-  items, getKey, primary, secondary, details, actions, desktopTable, emptyState, trailing, alwaysExpanded = false,
+  items, getKey, primary, secondary, details, actions, desktopTable, emptyState, trailing, alwaysExpanded = false, defaultOpen = false,
 }: MobileCardListProps<T>) {
   const [showTable, setShowTable] = useState(false)
 
@@ -81,7 +83,7 @@ export function MobileCardList<T>({
             {items.map((item) => (
               <Collapsible
                 key={getKey(item)}
-                defaultOpen={alwaysExpanded}
+                defaultOpen={alwaysExpanded || defaultOpen}
                 className="group rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden"
               >
                 <div className="p-3 active:bg-slate-50/80 transition-colors">
