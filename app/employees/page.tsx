@@ -13,6 +13,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Plus, Pencil, Trash2, Mail, Phone, UserCog, Users, Calendar, LogIn, Search, RefreshCw, Loader2, Save, User, ChevronDown, ChevronUp, Download } from "lucide-react"
 import { exportTableToPdf, emailTableAsPdf, type PdfExportOptions } from "@/lib/utils/pdf-export"
 import { getEmployees, getEmployee, createEmployee, updateEmployee, deleteEmployee, getTodayLogins, type Employee, type CreateEmployeeData, type UpdateEmployeeData } from "@/lib/api/admin"
+import { getEmployeeJobRoles, setEmployeeJobRoles } from "@/lib/api/water"
+import { useAuthStore } from "@/lib/store/auth-store"
+// #18 Phase 3: water job roles assignable per employee (a person can hold several).
+const WATER_JOB_ROLES = ["Driver", "MotorKingRider", "Salesperson", "Loader", "Supervisor", "Cashier", "Other"]
 import { getUserContext } from "@/lib/utils/user-context"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { usePermissions } from "@/hooks/use-permissions"
@@ -216,6 +220,9 @@ export default function EmployeesPage() {
   const [editFetching, setEditFetching] = useState(false)
   const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null)
   const [showEditStaffPermissions, setShowEditStaffPermissions] = useState(false)
+  // #18 Phase 3: water job roles for the employee being edited (water companies only).
+  const isWaterCompany = useAuthStore((s) => s.activeFarmType) === "Water"
+  const [editRoles, setEditRoles] = useState<string[]>([])
   const [editForm, setEditForm] = useState({
     firstName: "", lastName: "", phoneNumber: "", email: "", userName: "", createdDate: "",
     isAdmin: false, adminTitle: "", adminPermissions: { ...DEFAULT_ADMIN_PERMISSIONS },
@@ -306,6 +313,11 @@ export default function EmployeesPage() {
     setEditFetching(true)
     setShowEditStaffPermissions(false)
     setIsEditDialogOpen(true)
+    setEditRoles([])
+    // #18 Phase 3: load the employee's water job roles (best-effort; water only).
+    if (isWaterCompany) {
+      getEmployeeJobRoles(employeeId).then((r) => setEditRoles(Array.isArray(r) ? r : [])).catch(() => {})
+    }
 
     try {
       const result = await getEmployee(employeeId)
@@ -391,6 +403,10 @@ export default function EmployeesPage() {
         adminPermissions: editForm.adminPermissions,
         featurePermissions: editForm.featurePermissions,
       })
+      // #18 Phase 3: persist water job roles (best-effort — never block the save).
+      if (isWaterCompany) {
+        try { await setEmployeeJobRoles(editingEmployeeId, editRoles.join(",")) } catch {}
+      }
       toast({ title: "Success!", description: "Employee updated successfully." })
       setIsEditDialogOpen(false)
       loadEmployees()
@@ -933,6 +949,27 @@ export default function EmployeesPage() {
                   </div>
                 </div>
               </div>
+              {/* #18 Phase 3: assign one or more water job roles to this employee. */}
+              {isWaterCompany && (
+                <div className="rounded-xl border border-slate-200 overflow-hidden">
+                  <div className="bg-amber-600 px-4 py-2 text-sm font-semibold text-white">Job roles</div>
+                  <div className="p-4 bg-white">
+                    <p className="text-xs text-slate-500 mb-2">A person can hold several roles (e.g. Driver + Salesperson). Drivers also appear on the Drivers page.</p>
+                    <div className="flex flex-wrap gap-2">
+                      {WATER_JOB_ROLES.map((role) => {
+                        const on = editRoles.includes(role)
+                        return (
+                          <button type="button" key={role} disabled={editLoading}
+                            onClick={() => setEditRoles(on ? editRoles.filter(r => r !== role) : [...editRoles, role])}
+                            className={`px-3 py-1.5 rounded-full border text-sm ${on ? "bg-amber-600 text-white border-amber-600" : "bg-white text-slate-600 border-slate-300"}`}>
+                            {role.replace(/([a-z])([A-Z])/g, "$1 $2")}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="rounded-xl border border-slate-200 overflow-hidden">
                 <div className="bg-slate-600 px-4 py-2 text-sm font-semibold text-white">Account Information</div>
                 <div className="p-4 bg-white space-y-3">
