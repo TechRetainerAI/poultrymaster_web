@@ -25,7 +25,7 @@ import {
   listWaterVehicles, listWaterRoutes, listWaterDriversForFarm, createWaterDriverFromEmployee,
   type WaterDriver, type WaterVehicle, type WaterRoute,
 } from "@/lib/api/water"
-import { getEmployees, type Employee } from "@/lib/api/admin"
+import { getEmployees, createEmployee, type Employee, type CreateEmployeeData } from "@/lib/api/admin"
 
 type FormState = Omit<WaterDriver, "waterDriverId" | "farmId">
 const EMPTY: FormState = {
@@ -37,6 +37,8 @@ export default function WaterDriversPage() {
   const router = useRouter()
   const { toast } = useToast()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
+  const activeFarmId = useAuthStore((s) => s.activeFarmId)
+  const activeFarmName = useAuthStore((s) => s.activeFarmName)
   const logout = useLogout()
 
   const [drivers, setDrivers] = useState<WaterDriver[]>([])
@@ -55,10 +57,14 @@ export default function WaterDriversPage() {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [empOpen, setEmpOpen] = useState(false)
   const [empSaving, setEmpSaving] = useState(false)
+  // #18 Phase 2: "existing" picks an employee; "new" creates the employee then makes them a driver.
+  const [empMode, setEmpMode] = useState<"existing" | "new">("existing")
   const [empForm, setEmpForm] = useState({
     employeeUserId: "", role: "Driver", licenseNumber: "",
     defaultVehicleId: null as number | null, defaultRouteId: null as number | null,
     basePay: 0, commissionPerBag: 0, notes: "",
+    // new-employee fields
+    firstName: "", lastName: "", phoneNumber: "", email: "", userName: "", password: "",
   })
 
   useEffect(() => {
@@ -79,17 +85,49 @@ export default function WaterDriversPage() {
     finally { setLoading(false) }
   }
 
-  function openAddEmployee() {
-    setEmpForm({ employeeUserId: "", role: "Driver", licenseNumber: "", defaultVehicleId: null, defaultRouteId: null, basePay: 0, commissionPerBag: 0, notes: "" })
+  function openAddEmployee(mode: "existing" | "new" = "existing") {
+    setEmpMode(mode)
+    setEmpForm({
+      employeeUserId: "", role: "Driver", licenseNumber: "", defaultVehicleId: null, defaultRouteId: null,
+      basePay: 0, commissionPerBag: 0, notes: "",
+      firstName: "", lastName: "", phoneNumber: "", email: "", userName: "", password: "",
+    })
     setEmpOpen(true)
   }
 
   async function saveEmployeeDriver() {
-    if (!empForm.employeeUserId) return toast({ title: "Pick an employee", variant: "destructive" })
     setEmpSaving(true)
     try {
+      let employeeUserId = empForm.employeeUserId
+
+      // #18 Phase 2: create the employee first, then make them a driver.
+      if (empMode === "new") {
+        const fn = empForm.firstName.trim(), ln = empForm.lastName.trim()
+        if (!fn || !ln) { toast({ title: "First and last name are required", variant: "destructive" }); return }
+        if (!empForm.userName.trim() || !/^[a-zA-Z0-9_]+$/.test(empForm.userName)) { toast({ title: "Username required (letters, digits, underscore)", variant: "destructive" }); return }
+        if (empForm.password.length < 4) { toast({ title: "Password must be at least 4 characters", variant: "destructive" }); return }
+        // Dedup: warn if an employee already matches by name / phone / email / username.
+        const dup = employees.find(e =>
+          (empForm.phoneNumber && e.phoneNumber && e.phoneNumber.trim() === empForm.phoneNumber.trim()) ||
+          (empForm.email && e.email && e.email.trim().toLowerCase() === empForm.email.trim().toLowerCase()) ||
+          (e.userName && e.userName.trim().toLowerCase() === empForm.userName.trim().toLowerCase()) ||
+          (`${e.firstName} ${e.lastName}`.trim().toLowerCase() === `${fn} ${ln}`.toLowerCase()))
+        if (dup && !window.confirm(`An employee that looks like this already exists (${dup.firstName} ${dup.lastName} · ${dup.phoneNumber || dup.email}). Create a new one anyway?`)) return
+        const payload: CreateEmployeeData = {
+          firstName: fn, lastName: ln, phoneNumber: empForm.phoneNumber.trim(),
+          email: empForm.email.trim() || `${empForm.userName.trim()}@noemail.local`,
+          userName: empForm.userName.trim(), password: empForm.password,
+          farmId: activeFarmId ?? "", farmName: activeFarmName ?? "",
+        }
+        const res = await createEmployee(payload)
+        if (!res.success || !res.data?.id) { toast({ title: "Could not create employee", description: res.message, variant: "destructive" }); return }
+        employeeUserId = res.data.id
+      } else {
+        if (!empForm.employeeUserId) { toast({ title: "Pick an employee", variant: "destructive" }); return }
+      }
+
       await createWaterDriverFromEmployee({
-        employeeUserId: empForm.employeeUserId,
+        employeeUserId,
         role: empForm.role,
         licenseNumber: empForm.licenseNumber || null,
         defaultVehicleId: empForm.defaultVehicleId,
@@ -98,9 +136,9 @@ export default function WaterDriversPage() {
         commissionPerBag: empForm.commissionPerBag || null,
         notes: empForm.notes || null,
       })
-      toast({ title: "Employee assigned as driver" })
+      toast({ title: empMode === "new" ? "Employee created & made a driver" : "Employee assigned as driver" })
       setEmpOpen(false); await load()
-    } catch (e: any) { toast({ title: "Could not assign driver", description: e?.message, variant: "destructive" }) }
+    } catch (e: any) { toast({ title: "Could not save driver", description: e?.message, variant: "destructive" }) }
     finally { setEmpSaving(false) }
   }
 
@@ -151,8 +189,8 @@ export default function WaterDriversPage() {
               <Users2 className="h-6 w-6 text-sky-600" /> Drivers
             </h1>
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={openAddEmployee}><UserPlus className="h-4 w-4 mr-1" /> Add existing employee</Button>
-              <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> New driver</Button>
+              <Button variant="outline" onClick={() => openAddEmployee("existing")}><UserPlus className="h-4 w-4 mr-1" /> Existing employee</Button>
+              <Button onClick={() => openAddEmployee("new")}><Plus className="h-4 w-4 mr-1" /> New employee &amp; driver</Button>
             </div>
           </div>
 
@@ -293,23 +331,42 @@ export default function WaterDriversPage() {
       <Dialog open={empOpen} onOpenChange={setEmpOpen}>
         <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><UserPlus className="w-5 h-5 text-sky-600" /> Add existing employee as driver</DialogTitle>
-            <DialogDescription>Pick an employee and assign them a driver role. A driver always belongs to an employee record.</DialogDescription>
+            <DialogTitle className="flex items-center gap-2"><UserPlus className="w-5 h-5 text-sky-600" /> {empMode === "new" ? "New employee & driver" : "Add existing employee as driver"}</DialogTitle>
+            <DialogDescription>A driver always belongs to an employee record — pick an existing one or create a new employee here.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <FormSection title="Employee & role" color="indigo">
+            {/* #18 Phase 2: choose existing vs new employee. */}
+            <div className="inline-flex rounded-lg border border-slate-200 p-0.5 text-sm">
+              <button type="button" onClick={() => setEmpMode("existing")} className={`px-3 py-1.5 rounded-md ${empMode === "existing" ? "bg-sky-600 text-white" : "text-slate-600"}`}>Existing employee</button>
+              <button type="button" onClick={() => setEmpMode("new")} className={`px-3 py-1.5 rounded-md ${empMode === "new" ? "bg-sky-600 text-white" : "text-slate-600"}`}>New employee</button>
+            </div>
+
+            {empMode === "new" ? (
+              <FormSection title="New employee details" color="indigo">
+                <FormField label="First name *"><Input value={empForm.firstName} onChange={(e) => setEmpForm({ ...empForm, firstName: e.target.value })} /></FormField>
+                <FormField label="Last name *"><Input value={empForm.lastName} onChange={(e) => setEmpForm({ ...empForm, lastName: e.target.value })} /></FormField>
+                <FormField label="Phone"><Input value={empForm.phoneNumber} onChange={(e) => setEmpForm({ ...empForm, phoneNumber: e.target.value })} /></FormField>
+                <FormField label="Email"><Input value={empForm.email} onChange={(e) => setEmpForm({ ...empForm, email: e.target.value })} placeholder="optional" /></FormField>
+                <FormField label="Username *"><Input value={empForm.userName} onChange={(e) => setEmpForm({ ...empForm, userName: e.target.value })} /></FormField>
+                <FormField label="Password *"><Input type="password" value={empForm.password} onChange={(e) => setEmpForm({ ...empForm, password: e.target.value })} /></FormField>
+              </FormSection>
+            ) : null}
+
+            <FormSection title={empMode === "new" ? "Driver role" : "Employee & role"} color="indigo">
+              {empMode === "existing" && (
               <FormField label="Employee *" full>
                 <Select value={empForm.employeeUserId} onValueChange={(v) => setEmpForm({ ...empForm, employeeUserId: v })}>
                   <SelectTrigger><SelectValue placeholder="Select an employee" /></SelectTrigger>
                   <SelectContent>
                     {employees.length === 0
-                      ? <div className="px-2 py-1.5 text-sm text-slate-500">No employees found. Create one on the Employees page first.</div>
+                      ? <div className="px-2 py-1.5 text-sm text-slate-500">No employees found — use “New employee”.</div>
                       : employees.map((e) => (
                           <SelectItem key={e.id} value={e.id}>{e.firstName} {e.lastName} — {e.phoneNumber || e.email}</SelectItem>
                         ))}
                   </SelectContent>
                 </Select>
               </FormField>
+              )}
               <FormField label="Role">
                 <Select value={empForm.role} onValueChange={(v) => setEmpForm({ ...empForm, role: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -346,7 +403,7 @@ export default function WaterDriversPage() {
             <div className="flex justify-end gap-3 pt-2">
               <Button type="button" variant="outline" onClick={() => setEmpOpen(false)}>Cancel</Button>
               <Button onClick={saveEmployeeDriver} disabled={empSaving}>
-                {empSaving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</>) : "Assign as driver"}
+                {empSaving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</>) : (empMode === "new" ? "Create & make driver" : "Assign as driver")}
               </Button>
             </div>
           </div>
