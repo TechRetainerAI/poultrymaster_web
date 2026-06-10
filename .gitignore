@@ -17,9 +17,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (keep .env.example for local setup)
+# env files (keep the templates for local setup)
 .env*
 !.env.example
+!.env.local.example
 
 # Local-dev overlays for the .NET APIs (contain SMTP / DB / JWT secrets).
 # Loaded via builder.Configuration.AddJsonFile(..., optional: true) in Program.cs.
