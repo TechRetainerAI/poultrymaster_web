@@ -10,6 +10,10 @@ type decides which menus and features show.
 > The fastest way to get running is **Option A** — start only the website and
 > point it at the live development server. You do **not** need .NET or a database
 > for that.
+>
+> 📘 **Setting up from a brand-new computer? Read [SETUP.md](SETUP.md)** — the
+> full step-by-step guide: every tool to install (with download links), how to
+> load the database, and how to run all the services.
 
 ---
 
