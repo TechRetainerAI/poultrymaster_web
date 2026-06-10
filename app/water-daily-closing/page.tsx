@@ -46,6 +46,7 @@ export default function WaterDailyClosingPage() {
   const router = useRouter()
   const { toast } = useToast()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
+  const activeFarmName = useAuthStore((s) => s.activeFarmName)
   const logout = useLogout()
 
   const [closings, setClosings] = useState<WaterDailyClosing[]>([])
@@ -350,7 +351,7 @@ export default function WaterDailyClosingPage() {
       {/* New closing */}
       <Dialog open={newDlg} onOpenChange={setNewDlg}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Start daily closing</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Start daily closing{activeFarmName ? ` — ${activeFarmName}` : ""}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-slate-600">
               Creates a draft pulling today's production, sales, expenses, cash, and driver returns.
@@ -374,7 +375,7 @@ export default function WaterDailyClosingPage() {
               {view && (
                 <>
                   <FileText className="h-5 w-5 text-sky-600" />
-                  <span>Closing: {view.closingDate.split("T")[0]}</span>
+                  <span>Closing: {view.closingDate.split("T")[0]}{activeFarmName ? ` — ${activeFarmName}` : ""}</span>
                   <Badge className={STATUS_COLORS[view.status]}>{view.status}</Badge>
                 </>
               )}
