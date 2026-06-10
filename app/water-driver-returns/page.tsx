@@ -1010,15 +1010,20 @@ export default function WaterDriverReturnsPage() {
                     <MobileCardList
                       items={visibleReturns}
                       getKey={(r) => r.waterDriverReturnId}
-                      primary={(r) => `${r.returnDate.split("T")[0]} · ${r.bagsSold} sold`}
+                      primary={(r) => `${r.vehicleName ?? "Vehicle —"} · ${r.bagsSold} bags sold`}
                       secondary={(r) => (
                         <>
-                          <span>Cash {gh(r.cashCollected)}</span>
-                          {(r.shortageAmount ?? 0) > 0 && <span className="text-rose-600">Short {gh(r.shortageAmount ?? 0)}</span>}
+                          <span>{r.returnDate.split("T")[0]}</span>
+                          {r.driverName && <span>· {r.driverName}</span>}
+                          {r.routeName && <span>· {r.routeName}</span>}
+                          {(r.shortageAmount ?? 0) > 0 && <span className="text-rose-600">· Short {gh(r.shortageAmount ?? 0)}</span>}
                         </>
                       )}
                       details={(r) => [
                         { label: "Date", value: r.returnDate.split("T")[0] },
+                        { label: "Vehicle", value: r.vehicleName ?? "—" },
+                        { label: "Driver", value: r.driverName ?? "—" },
+                        { label: "Route", value: r.routeName ?? "—" },
                         { label: "Status", value: r.status },
                         { label: "Sold (bags)", value: r.bagsSold },
                         { label: "Returned (bags)", value: r.bagsReturned },
@@ -1078,6 +1083,8 @@ export default function WaterDriverReturnsPage() {
                             <TableHeader>
                               <TableRow>
                                 <TableHead>Date</TableHead>
+                                <TableHead>Vehicle</TableHead>
+                                <TableHead>Driver</TableHead>
                                 <TableHead>Status</TableHead>
                                 <TableHead className="text-right">Sold (bags)</TableHead>
                                 <TableHead className="text-right">Returned (bags)</TableHead>
@@ -1093,6 +1100,8 @@ export default function WaterDriverReturnsPage() {
                               {visibleReturns.map((r) => (
                             <TableRow key={r.waterDriverReturnId}>
                               <TableCell>{r.returnDate.split("T")[0]}</TableCell>
+                              <TableCell className="font-medium">{r.vehicleName ?? "—"}</TableCell>
+                              <TableCell>{r.driverName ?? "—"}</TableCell>
                               <TableCell><Badge className={r.status === "Approved" ? "bg-green-100 text-green-700" : r.status === "Cancelled" ? "bg-slate-100 text-slate-600" : "bg-amber-100 text-amber-700"}>{r.status}</Badge></TableCell>
                               <TableCell className="text-right tabular-nums">{r.bagsSold}</TableCell>
                               <TableCell className="text-right tabular-nums">{r.bagsReturned}</TableCell>
