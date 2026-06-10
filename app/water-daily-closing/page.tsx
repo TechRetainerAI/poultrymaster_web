@@ -391,7 +391,7 @@ export default function WaterDailyClosingPage() {
                   <Tile label="Bags sold" value={String(view.bagsSold ?? 0)} />
                   <Tile label="Bags returned" value={String(view.bagsReturned ?? 0)} />
                   <Tile label="Bags damaged" value={String(view.bagsDamaged ?? 0)} />
-                  <Tile label="Closing stock" value={String(view.closingStock ?? 0)} />
+                  <Tile label="Closing stock" value={String(view.closingStockBags ?? view.closingStock ?? 0)} />
                 </div>
               </div>
               {/* Money tiles */}
@@ -404,7 +404,7 @@ export default function WaterDailyClosingPage() {
                   <Tile label="MoMo balance" value={gh(view.moMoBalance)} />
                   <Tile label="Bank balance" value={gh(view.bankBalance)} />
                   <Tile label="Credit sales" value={gh(view.creditSales)} />
-                  <Tile label="Driver shortages" value={gh(view.driverShortages)} accent={view.driverShortages ? "rose" : undefined} />
+                  <Tile label="Driver shortages" value={gh(view.driverShortagesTotal ?? view.driverShortages)} accent={(view.driverShortagesTotal ?? view.driverShortages) ? "rose" : undefined} />
                 </div>
                 {/* N11: explain how Cash at hand is derived. */}
                 <p className="mt-2 text-xs text-slate-500">

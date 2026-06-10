@@ -632,6 +632,8 @@ namespace PoultryFarmAPIWeb.Business
             CreditSales          = r.GetDecimal(r.GetOrdinal("CreditSales")),
             CustomerCollections  = r.GetDecimal(r.GetOrdinal("CustomerCollections")),
             DriverShortagesTotal = r.GetDecimal(r.GetOrdinal("DriverShortagesTotal")),
+            MoMoBalance          = WaterRawMaterialItemService.HasCol(r, "MoMoBalance") && !r.IsDBNull(r.GetOrdinal("MoMoBalance")) ? r.GetDecimal(r.GetOrdinal("MoMoBalance")) : 0m,
+            BankBalance          = WaterRawMaterialItemService.HasCol(r, "BankBalance") && !r.IsDBNull(r.GetOrdinal("BankBalance")) ? r.GetDecimal(r.GetOrdinal("BankBalance")) : 0m,
             ManagerNotes         = r.IsDBNull(r.GetOrdinal("ManagerNotes")) ? null : r.GetString(r.GetOrdinal("ManagerNotes")),
             DifferenceReason     = r.IsDBNull(r.GetOrdinal("DifferenceReason")) ? null : r.GetString(r.GetOrdinal("DifferenceReason")),
             Status               = r.GetString(r.GetOrdinal("Status")),

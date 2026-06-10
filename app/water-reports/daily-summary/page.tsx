@@ -29,7 +29,7 @@ import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import {
   listWaterProductionBatches, listWaterExpenses, listWaterDailyClosings,
-  listWaterProductionLosses, listWaterRawMaterialPurchases,
+  listWaterProductionLosses, listWaterRawMaterialPurchases, listWaterDriverReturns,
 } from "@/lib/api/water"
 import { useFmt } from "@/lib/currency"
 import { useFarmSettingsStore } from "@/lib/currency"
@@ -44,6 +44,20 @@ type Summary = {
   expensesByCategory: Record<string, number>
   losses: number
   closingStatus: string | null
+  // Income block — sourced from the day's closing when present (authoritative,
+  // already de-dups delivery-run sales), else computed from driver returns.
+  income: {
+    total: number
+    cash: number
+    moMo: number
+    bank: number
+    creditSales: number
+    customerCollections: number
+    bagsSold: number
+    driverShortages: number
+    /** where the income figures came from, for the footnote */
+    source: "closing" | "returns" | "none"
+  }
 }
 
 export default function DailyBusinessSummaryPage() {
@@ -70,12 +84,13 @@ export default function DailyBusinessSummaryPage() {
     try {
       const onDate = (d?: string | null) => d?.startsWith(date) ?? false
 
-      const [batches, expenses, closings, losses, purchases] = await Promise.all([
+      const [batches, expenses, closings, losses, purchases, returns] = await Promise.all([
         listWaterProductionBatches().catch(() => []),
         listWaterExpenses().catch(() => []),
         listWaterDailyClosings().catch(() => []),
         listWaterProductionLosses({ fromDate: date, toDate: date }).catch(() => []),
         listWaterRawMaterialPurchases().catch(() => []),
+        listWaterDriverReturns({ fromDate: date, toDate: date }).catch(() => []),
       ])
 
       const day = batches.filter((b: any) => onDate(b.productionDate) && b.status === "Approved")
@@ -96,6 +111,43 @@ export default function DailyBusinessSummaryPage() {
       const lossesTotal = (losses ?? []).reduce((s: number, l: any) => s + (l.totalValue ?? 0), 0)
 
       const closing = closings.find((c: any) => (c.closingDate ?? "").startsWith(date))
+
+      // Income: prefer the day's closing (authoritative — it already merges
+      // storefront + delivery-run/driver sales without double counting). When no
+      // closing exists yet, fall back to the day's driver returns (clean money
+      // split); storefront-only days without a closing will read 0 until closed.
+      const dayReturns = (returns ?? []).filter(
+        (r: any) => onDate(r.returnDate) && (r.status === "Approved" || r.status === "Draft"),
+      )
+      const income = closing
+        ? {
+            total: closing.totalIncome ?? 0,
+            cash: Math.max(0, (closing.cashAtHand ?? 0)), // best-effort cash figure
+            moMo: closing.moMoBalance ?? 0,
+            bank: closing.bankBalance ?? 0,
+            creditSales: closing.creditSales ?? 0,
+            customerCollections: closing.customerCollections ?? 0,
+            bagsSold: closing.bagsSold ?? 0,
+            driverShortages: closing.driverShortagesTotal ?? closing.driverShortages ?? 0,
+            source: "closing" as const,
+          }
+        : dayReturns.length
+          ? {
+              total: dayReturns.reduce((s: number, r: any) => s + (r.cashCollected ?? 0) + (r.moMoCollected ?? 0) + (r.bankCollected ?? 0) + (r.creditSalesAmount ?? 0), 0),
+              cash: dayReturns.reduce((s: number, r: any) => s + (r.cashCollected ?? 0), 0),
+              moMo: dayReturns.reduce((s: number, r: any) => s + (r.moMoCollected ?? 0), 0),
+              bank: dayReturns.reduce((s: number, r: any) => s + (r.bankCollected ?? 0), 0),
+              creditSales: dayReturns.reduce((s: number, r: any) => s + (r.creditSalesAmount ?? 0), 0),
+              customerCollections: 0,
+              bagsSold: dayReturns.reduce((s: number, r: any) => s + (r.bagsSold ?? 0), 0),
+              driverShortages: dayReturns.reduce((s: number, r: any) => s + (r.shortageAmount ?? 0), 0),
+              source: "returns" as const,
+            }
+          : {
+              total: 0, cash: 0, moMo: 0, bank: 0, creditSales: 0,
+              customerCollections: 0, bagsSold: 0, driverShortages: 0, source: "none" as const,
+            }
+
       setSummary({
         productionGoodBags,
         productionCost,
@@ -104,6 +156,7 @@ export default function DailyBusinessSummaryPage() {
         expensesByCategory,
         losses: lossesTotal,
         closingStatus: closing?.status ?? null,
+        income,
       })
     } catch (e: any) {
       toast({ title: "Could not load daily summary", description: e?.message ?? String(e), variant: "destructive" })
@@ -153,6 +206,28 @@ export default function DailyBusinessSummaryPage() {
               <p className="text-slate-500 text-sm">No data for this date.</p>
             ) : (
               <>
+                {/* Income */}
+                <section className="mb-4">
+                  <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-600 mb-2">Income</h2>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 print:gap-2">
+                    <SumCard label="Total income" value={fmtMoney(summary.income.total)} accent="green" />
+                    <SumCard label="Cash" value={fmtMoney(summary.income.cash)} />
+                    <SumCard label="MoMo" value={fmtMoney(summary.income.moMo)} />
+                    <SumCard label="Bank" value={fmtMoney(summary.income.bank)} />
+                    <SumCard label="Credit sales" value={fmtMoney(summary.income.creditSales)} />
+                    <SumCard label="Customer collections" value={fmtMoney(summary.income.customerCollections)} />
+                    <SumCard label="Bags sold" value={summary.income.bagsSold.toLocaleString()} />
+                    <SumCard label="Driver shortages" value={fmtMoney(summary.income.driverShortages)} accent={summary.income.driverShortages ? "rose" : undefined} />
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2">
+                    {summary.income.source === "closing"
+                      ? "Income figures are taken from the day's closing (storefront + delivery sales combined)."
+                      : summary.income.source === "returns"
+                        ? "No closing for this day yet — income is computed from the day's driver returns. Create the closing for the full picture."
+                        : "No sales, driver returns, or closing recorded for this date."}
+                  </p>
+                </section>
+
                 {/* Summary cards */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 print:gap-2">
                   <SumCard label="Good bags produced" value={summary.productionGoodBags.toLocaleString()} />
@@ -204,12 +279,13 @@ export default function DailyBusinessSummaryPage() {
   )
 }
 
-function SumCard({ label, value, accent }: { label: string; value: string; accent?: "rose" }) {
+function SumCard({ label, value, accent }: { label: string; value: string; accent?: "rose" | "green" }) {
+  const accentClass = accent === "rose" ? "text-rose-700" : accent === "green" ? "text-emerald-700" : ""
   return (
     <Card className="print:border print:shadow-none">
       <CardContent className="p-4 print:p-3">
         <div className="text-xs uppercase tracking-wider text-slate-500">{label}</div>
-        <div className={`text-lg sm:text-xl font-semibold tabular-nums mt-1 ${accent === "rose" ? "text-rose-700" : ""}`}>{value}</div>
+        <div className={`text-lg sm:text-xl font-semibold tabular-nums mt-1 ${accentClass}`}>{value}</div>
       </CardContent>
     </Card>
   )

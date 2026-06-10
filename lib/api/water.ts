@@ -1802,6 +1802,8 @@ export interface WaterDailyClosing {
   bagsReturned?: number
   bagsDamaged?: number
   closingStock?: number
+  /** Backend column name (ClosingStockBags). Prefer this over closingStock. */
+  closingStockBags?: number
   totalIncome?: number
   totalExpenses?: number
   cashAtHand?: number
@@ -1810,6 +1812,8 @@ export interface WaterDailyClosing {
   creditSales?: number
   customerCollections?: number
   driverShortages?: number
+  /** Backend column name (DriverShortagesTotal). Prefer this over driverShortages. */
+  driverShortagesTotal?: number
   actualCashCounted?: number
   cashDifference?: number
   managerNotes?: string | null

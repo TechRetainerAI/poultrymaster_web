@@ -117,6 +117,10 @@ namespace PoultryFarmAPIWeb.Models
         public decimal CreditSales { get; set; }
         public decimal CustomerCollections { get; set; }
         public decimal DriverShortagesTotal { get; set; }
+        // MoMo / Bank money collected for the day (driver returns + customer
+        // payments by method). Informational tiles on the closing.
+        public decimal MoMoBalance { get; set; }
+        public decimal BankBalance { get; set; }
         [StringLength(2000)] public string? ManagerNotes { get; set; }
         [StringLength(500)] public string? DifferenceReason { get; set; }
         [StringLength(20)] public string Status { get; set; } = WaterDailyClosingStatus.Draft;
