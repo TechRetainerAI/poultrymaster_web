@@ -320,12 +320,16 @@ export default function WaterExpensesPage() {
                     { label: "Paid to", value: e.row.driverName ?? "—" },
                     {
                       label: "Source",
-                      value: e.row.waterDriverReturnId ? (
+                      // The /water-driver-returns/[id] route resolves :id as a
+                      // WaterVehicleLoadingId (the delivery), NOT a return id — so
+                      // link by the loading the expense's return belongs to, or
+                      // the page opens an unrelated delivery on a different date.
+                      value: e.row.waterVehicleLoadingId ? (
                         <Link
-                          href={`/water-driver-returns/${e.row.waterDriverReturnId}`}
+                          href={`/water-driver-returns/${e.row.waterVehicleLoadingId}`}
                           className="inline-flex items-center gap-1 text-rose-700 hover:underline"
                         >
-                          <Truck className="h-3.5 w-3.5" /> Delivery #{e.row.waterDriverReturnId}
+                          <Truck className="h-3.5 w-3.5" /> Delivery #{e.row.waterVehicleLoadingId}
                         </Link>
                       ) : "Delivery",
                     },
@@ -414,12 +418,12 @@ export default function WaterExpensesPage() {
                               <TableCell className="whitespace-nowrap">{d.driverName ?? "—"}</TableCell>
                               <TableCell>—</TableCell>
                               <TableCell className="whitespace-nowrap">
-                                {d.waterDriverReturnId ? (
+                                {d.waterVehicleLoadingId ? (
                                   <Link
-                                    href={`/water-driver-returns/${d.waterDriverReturnId}`}
+                                    href={`/water-driver-returns/${d.waterVehicleLoadingId}`}
                                     className="inline-flex items-center gap-1 text-rose-700 hover:underline"
                                   >
-                                    <Truck className="h-3.5 w-3.5" /> Delivery #{d.waterDriverReturnId}
+                                    <Truck className="h-3.5 w-3.5" /> Delivery #{d.waterVehicleLoadingId}
                                   </Link>
                                 ) : (
                                   <span className="inline-flex items-center gap-1 text-rose-700">

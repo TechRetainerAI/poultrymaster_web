@@ -92,7 +92,18 @@ export default function WaterDeliveryRunDetailsPage() {
       setLoading(l)
       setItems(loadingItems)
 
-      const r = allReturns.find(x => x.waterVehicleLoadingId === loadingId)
+      // A loading can have several returns over its life (an original that was
+      // reversed/cancelled, plus the active one). Show the CURRENT return —
+      // prefer a non-Cancelled status, then the most-recent (highest id) — so the
+      // page matches the expense/source link that points here.
+      const forLoading = allReturns.filter(x => x.waterVehicleLoadingId === loadingId)
+      const r =
+        [...forLoading].sort((a, b) => {
+          const ac = a.status === "Cancelled" ? 1 : 0
+          const bc = b.status === "Cancelled" ? 1 : 0
+          if (ac !== bc) return ac - bc // non-Cancelled first
+          return (b.waterDriverReturnId ?? 0) - (a.waterDriverReturnId ?? 0) // latest first
+        })[0]
       setRet(r ?? null)
       if (r) {
         const [ri, cs, ex] = await Promise.all([
