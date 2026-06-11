@@ -1056,7 +1056,7 @@ export default function WaterDriverReturnsPage() {
                     <MobileCardList
                       items={visibleReturns}
                       getKey={(r) => r.waterDriverReturnId}
-                      primary={(r) => `${r.vehicleName ?? "Vehicle —"} · ${r.bagsSold} bags sold`}
+                      primary={(r) => `Delivery #${r.waterVehicleLoadingId} · ${r.vehicleName ?? "Vehicle —"} · ${r.bagsSold} bags sold`}
                       secondary={(r) => (
                         <>
                           <span>{r.returnDate.split("T")[0]}</span>
@@ -1066,6 +1066,7 @@ export default function WaterDriverReturnsPage() {
                         </>
                       )}
                       details={(r) => [
+                        { label: "Delivery #", value: r.waterVehicleLoadingId },
                         { label: "Date", value: r.returnDate.split("T")[0] },
                         { label: "Vehicle", value: r.vehicleName ?? "—" },
                         { label: "Driver", value: r.driverName ?? "—" },
@@ -1128,6 +1129,7 @@ export default function WaterDriverReturnsPage() {
                           <Table>
                             <TableHeader>
                               <TableRow>
+                                <TableHead>Delivery #</TableHead>
                                 <TableHead>Date</TableHead>
                                 <TableHead>Vehicle</TableHead>
                                 <TableHead>Driver</TableHead>
@@ -1145,6 +1147,7 @@ export default function WaterDriverReturnsPage() {
                             <TableBody>
                               {visibleReturns.map((r) => (
                             <TableRow key={r.waterDriverReturnId}>
+                              <TableCell className="font-medium tabular-nums">#{r.waterVehicleLoadingId}</TableCell>
                               <TableCell>{r.returnDate.split("T")[0]}</TableCell>
                               <TableCell className="font-medium">{r.vehicleName ?? "—"}</TableCell>
                               <TableCell>{r.driverName ?? "—"}</TableCell>
