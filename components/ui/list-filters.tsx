@@ -37,6 +37,11 @@ import { type ReactNode } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
+import {
+  Select, SelectContent, SelectGroup, SelectItem,
+  SelectSeparator, SelectTrigger, SelectValue,
+} from "@/components/ui/select"
+import { PERIOD_GROUPS, periodToRange, rangeToPeriod } from "@/lib/date-ranges"
 import { Search, X } from "lucide-react"
 
 export interface ListFiltersProps {
@@ -68,6 +73,10 @@ export function ListFilters({
   const activeCount =
     (search ? 1 : 0) + (dateFrom ? 1 : 0) + (dateTo ? 1 : 0)
 
+  // Period dropdown reflects the current From/To (a matching preset, else
+  // Custom). Picking a preset fills both dates at once.
+  const period = dateFrom && dateTo ? rangeToPeriod(dateFrom, dateTo) : "custom"
+
   function clearAll() {
     setSearch("")
     setDateFrom?.("")
@@ -91,6 +100,33 @@ export function ListFilters({
 
       {showDates && (
         <>
+          {/* Period preset — picking one fills From/To; editing From/To by hand
+              flips this back to "Custom Date Range". */}
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Label className="text-xs text-slate-500 shrink-0 w-10">Period</Label>
+            <Select
+              value={period}
+              onValueChange={(v) => {
+                const r = periodToRange(v as never)
+                if (r) { setDateFrom!(r.from); setDateTo!(r.to) }
+              }}
+            >
+              <SelectTrigger className="flex-1 sm:w-[160px] sm:flex-none">
+                <SelectValue placeholder="Select period" />
+              </SelectTrigger>
+              <SelectContent>
+                {/* Grouped by spacing (James's "Best display order" mockup). */}
+                {PERIOD_GROUPS.map((g, gi) => (
+                  <SelectGroup key={g.label}>
+                    {gi > 0 && <SelectSeparator />}
+                    {g.options.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           {/* #19: label + picker inline on one row each, so the From/To filter
               takes 2 rows on mobile instead of 4. */}
           <div className="flex items-center gap-2 w-full sm:w-auto">
