@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Plus, Trash2, Loader2, ShoppingCart, X, Wallet, Ban, CheckCircle2 } from "lucide-react"
+import { Plus, Trash2, Loader2, ShoppingCart, X, Wallet, Ban, CheckCircle2, Receipt } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -579,57 +579,90 @@ export default function WaterSalesPage() {
 
       {/* Detail dialog */}
       <Dialog open={!!detailSale} onOpenChange={(o) => { if (!o) setDetailSale(null) }}>
-        <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-xl max-h-[90vh] overflow-y-auto p-0 gap-0">
           {detailSale && (
             <>
-              <DialogHeader>
-                <DialogTitle>Sale #{detailSale.waterSaleId} · <StatusBadge status={detailSale.status} /></DialogTitle>
+              <DialogHeader className="px-5 pt-5 pb-3 border-b">
+                <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-100 text-sky-600">
+                    <Receipt className="h-4 w-4" />
+                  </span>
+                  <span>Sale #{detailSale.waterSaleId}</span>
+                  <StatusBadge status={detailSale.status} />
+                </DialogTitle>
               </DialogHeader>
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div><span className="text-slate-500">Customer:</span> {detailSale.customerName ?? "Walk-in"}</div>
-                  <div><span className="text-slate-500">Date:</span> {new Date(detailSale.saleDate).toLocaleString()}</div>
-                  <div><span className="text-slate-500">Total:</span> <span className="tabular-nums">{detailSale.totalAmount.toFixed(2)}</span></div>
-                  <div><span className="text-slate-500">Paid:</span> <span className="tabular-nums">{detailSale.amountPaid.toFixed(2)}</span></div>
-                  <div className="col-span-2"><span className="text-slate-500">Balance:</span> <span className={`tabular-nums font-semibold ${detailSale.balance > 0 ? "text-rose-600" : "text-emerald-600"}`}>{detailSale.balance.toFixed(2)}</span></div>
+
+              <div className="px-5 py-4 space-y-4">
+                {/* Customer + date */}
+                <div className="rounded-lg border bg-slate-50/70 divide-y text-sm">
+                  <div className="flex items-center justify-between px-3 py-2">
+                    <span className="text-slate-500">Customer</span>
+                    <span className="font-medium text-slate-900">{detailSale.customerName ?? "Walk-in"}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-3 py-2">
+                    <span className="text-slate-500">Date</span>
+                    <span className="text-slate-700">{new Date(detailSale.saleDate).toLocaleString()}</span>
+                  </div>
                 </div>
-                <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Selling Unit</TableHead>
-                      <TableHead className="text-right">Quantity</TableHead>
-                      <TableHead className="text-right">Unit Price</TableHead>
-                      <TableHead className="text-right">Line Total</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {detailSale.items.map((it: WaterSaleItem) => (
-                      <TableRow key={it.waterSaleItemId}>
-                        <TableCell>{it.productName}</TableCell>
-                        <TableCell className="text-slate-600">
-                          {it.sellingUnit ?? "—"}
-                          {it.baseUnit && it.baseQuantity != null && it.sellingUnit && it.sellingUnit !== it.baseUnit
-                            ? <span className="text-xs text-slate-400 ml-1">({Number(it.baseQuantity).toLocaleString()} {it.baseUnit})</span>
-                            : null}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">{it.quantity}</TableCell>
-                        <TableCell className="text-right tabular-nums">{it.unitPrice.toFixed(2)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{(it.lineTotal ?? it.quantity * it.unitPrice).toFixed(2)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+
+                {/* Money tiles */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="rounded-lg border p-3">
+                    <div className="text-[11px] uppercase tracking-wide text-slate-500">Total</div>
+                    <div className="mt-0.5 text-lg font-semibold tabular-nums">{detailSale.totalAmount.toFixed(2)}</div>
+                  </div>
+                  <div className="rounded-lg border p-3">
+                    <div className="text-[11px] uppercase tracking-wide text-slate-500">Paid</div>
+                    <div className="mt-0.5 text-lg font-semibold tabular-nums text-emerald-700">{detailSale.amountPaid.toFixed(2)}</div>
+                  </div>
+                  <div className="rounded-lg border p-3">
+                    <div className="text-[11px] uppercase tracking-wide text-slate-500">Balance</div>
+                    <div className={`mt-0.5 text-lg font-semibold tabular-nums ${detailSale.balance > 0 ? "text-rose-600" : "text-emerald-700"}`}>{detailSale.balance.toFixed(2)}</div>
+                  </div>
                 </div>
-                <div className="flex justify-end gap-2 pt-2">
-                  {detailSale.status !== "Cancelled" && detailSale.balance > 0 && (
-                    <Button onClick={() => openPay(detailSale)}>
-                      <Wallet className="h-4 w-4 mr-1" /> Record payment
-                    </Button>
-                  )}
-                  <Button variant="ghost" onClick={() => setDetailSale(null)}>Close</Button>
+
+                {/* Items */}
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Items</div>
+                  <div className="rounded-lg border overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-slate-50 hover:bg-slate-50">
+                          <TableHead>Product</TableHead>
+                          <TableHead>Selling Unit</TableHead>
+                          <TableHead className="text-right">Qty</TableHead>
+                          <TableHead className="text-right">Unit Price</TableHead>
+                          <TableHead className="text-right">Line Total</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {detailSale.items.map((it: WaterSaleItem) => (
+                          <TableRow key={it.waterSaleItemId}>
+                            <TableCell className="font-medium">{it.productName}</TableCell>
+                            <TableCell className="text-slate-600">
+                              {it.sellingUnit ?? "—"}
+                              {it.baseUnit && it.baseQuantity != null && it.sellingUnit && it.sellingUnit !== it.baseUnit
+                                ? <span className="text-xs text-slate-400 ml-1">({Number(it.baseQuantity).toLocaleString()} {it.baseUnit})</span>
+                                : null}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">{it.quantity}</TableCell>
+                            <TableCell className="text-right tabular-nums">{it.unitPrice.toFixed(2)}</TableCell>
+                            <TableCell className="text-right tabular-nums font-medium">{(it.lineTotal ?? it.quantity * it.unitPrice).toFixed(2)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </div>
+              </div>
+
+              <div className="flex justify-end gap-2 px-5 py-3 border-t bg-slate-50/50">
+                {detailSale.status !== "Cancelled" && detailSale.balance > 0 && (
+                  <Button onClick={() => openPay(detailSale)}>
+                    <Wallet className="h-4 w-4 mr-1" /> Record payment
+                  </Button>
+                )}
+                <Button variant="outline" onClick={() => setDetailSale(null)}>Close</Button>
               </div>
             </>
           )}
