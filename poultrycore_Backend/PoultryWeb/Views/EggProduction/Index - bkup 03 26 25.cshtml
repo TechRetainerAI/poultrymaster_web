@@ -1,0 +1,157 @@
+﻿@model IEnumerable<PoultryWeb.Models.EggProductionModel>
+
+@{
+    ViewBag.Title = "Egg Production List";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@section Styles {
+    <style>
+
+    </style>
+}
+
+<div class="split-container">
+    <div class="left-panel">
+        <h2>Egg Production Management</h2>
+        <table class="egg-table" id="eggTable">
+            <thead>
+                <tr>
+                    <th>Flock ID</th>
+                    <th>Date</th>
+                    <th>Egg Count</th>
+                    <th>Broken</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Model)
+                {
+                    <tr data-production-id="@item.ProductionId">
+                        <td>@item.FlockId</td>
+                        <td>@item.ProductionDate.ToShortDateString()</td>
+                        <td>@item.EggCount</td>
+                        <td>@item.BrokenEggs</td>
+                        <td>
+                            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); confirmDelete(@item.ProductionId)">
+                                Delete
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <div class="right-panel">
+        <h4 id="defaultMessage">Select a row to edit or view details</h4>
+        <div id="editContainer"></div>
+    </div>
+</div>
+
+<div class="bottom-bar">
+    <button class="btn btn-primary btn-create" onclick="openCreateProduction()">Create New Production</button>
+</div>
+
+<!-- Optional custom modal for fancy confirm -->
+<div id="customModalOverlay">
+    <div id="customModalBox">
+        <h4 id="modalTitle"></h4>
+        <p id="modalMessage"></p>
+        <div id="modalButtons"></div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var table = document.getElementById('eggTable');
+            table.addEventListener('click', function(e) {
+                var row = e.target.closest('tr[data-production-id]');
+                // skip if user clicked the delete button
+                if (row && !e.target.closest('.btn-danger')) {
+                    var productionId = row.getAttribute('data-production-id');
+                    loadEditPartial(productionId);
+                }
+            });
+        });
+
+        function openCreateProduction() {
+            fetch('/EggProduction/CreatePartial')
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('defaultMessage').style.display = 'none';
+                    document.getElementById('editContainer').innerHTML = html;
+                })
+                .catch(err => console.error('Error loading create partial:', err));
+        }
+
+        function loadEditPartial(productionId) {
+            fetch('/EggProduction/EditPartial/' + productionId)
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('defaultMessage').style.display = 'none';
+                    document.getElementById('editContainer').innerHTML = html;
+                })
+                .catch(err => console.error('Error loading edit partial:', err));
+        }
+
+        function loadDeletePartial(productionId) {
+            fetch('/EggProduction/DeletePartial/' + productionId)
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('defaultMessage').style.display = 'none';
+                    document.getElementById('editContainer').innerHTML = html;
+                })
+                .catch(err => console.error('Error loading delete partial:', err));
+        }
+
+        function closeRightPanel() {
+            document.getElementById('editContainer').innerHTML = '';
+            document.getElementById('defaultMessage').style.display = '';
+        }
+
+        // --- Optional custom confirm dialog ---
+        function openCustomDialog(title, message, confirmText, onConfirm, onCancel) {
+            document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalMessage').innerText = message;
+            let buttons = document.getElementById('modalButtons');
+            buttons.innerHTML = '';
+
+            let confirmBtn = document.createElement('button');
+            confirmBtn.classList.add('btn','btn-primary','me-2');
+            confirmBtn.innerText = confirmText || 'OK';
+            confirmBtn.onclick = function() {
+                closeCustomDialog();
+                if (onConfirm) onConfirm();
+            };
+            buttons.appendChild(confirmBtn);
+
+            let cancelBtn = document.createElement('button');
+            cancelBtn.classList.add('btn','btn-secondary');
+            cancelBtn.innerText = 'Cancel';
+            cancelBtn.onclick = function() {
+                closeCustomDialog();
+                if (onCancel) onCancel();
+            };
+            buttons.appendChild(cancelBtn);
+
+            document.getElementById('customModalOverlay').style.display = 'block';
+        }
+        function closeCustomDialog() {
+            document.getElementById('customModalOverlay').style.display = 'none';
+        }
+
+        // If you want a fancy confirm before loading the delete partial
+        function confirmDelete(productionId) {
+            openCustomDialog(
+                'Delete Record',
+                'Are you sure you want to delete Production #' + productionId + '?',
+                'Yes, Delete',
+                function() {
+                    loadDeletePartial(productionId);
+                },
+                function() {}
+            );
+        }
+    </script>
+}

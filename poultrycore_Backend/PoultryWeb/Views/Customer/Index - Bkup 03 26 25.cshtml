@@ -1,0 +1,160 @@
+﻿@model IEnumerable<PoultryWeb.Models.CustomerModel>
+
+@{
+    ViewBag.Title = "Customers";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@section Styles {
+    <style>
+
+    </style>
+}
+
+<div class="split-container">
+    <!-- Left Panel: list of customers -->
+    <div class="left-panel">
+        <h2>Customer Management</h2>
+        <table class="customer-table" id="customerTable">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>Delete</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var c in Model)
+                {
+                    <tr data-customer-id="@c.CustomerId">
+                        <td>@c.Name</td>
+                        <td>@c.ContactEmail</td>
+                        <td>@c.ContactPhone</td>
+                        <td>
+                            <button class="btn btn-danger btn-sm"
+                                    onclick="event.stopPropagation(); confirmDeleteCustomer(@c.CustomerId)">
+                                Delete
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <!-- Right Panel: partial forms -->
+    <div class="right-panel">
+        <h4 id="defaultMessage">Select a row to edit or view details</h4>
+        <div id="editContainer"></div>
+    </div>
+</div>
+
+<div class="bottom-bar">
+    <button class="btn btn-primary btn-create" onclick="openCreateCustomer()">Create New Customer</button>
+</div>
+
+<!-- optional custom confirm modal -->
+<div id="customModalOverlay">
+    <div id="customModalBox">
+        <h4 id="modalTitle"></h4>
+        <p id="modalMessage"></p>
+        <div id="modalButtons"></div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var table = document.getElementById('customerTable');
+            if (table) {
+                table.addEventListener('click', function(e) {
+                    var row = e.target.closest('tr[data-customer-id]');
+                    // skip if user clicked the 'delete' button
+                    if (row && !e.target.closest('.btn-danger')) {
+                        var customerId = row.getAttribute('data-customer-id');
+                        loadEditPartial(customerId);
+                    }
+                });
+            }
+        });
+
+        function openCreateCustomer() {
+            fetch('/Customer/CreatePartial')
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('defaultMessage').style.display = 'none';
+                    document.getElementById('editContainer').innerHTML = html;
+                })
+                .catch(err => console.error('Error loading create partial:', err));
+        }
+
+        function loadEditPartial(customerId) {
+            fetch('/Customer/EditPartial/' + customerId)
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('defaultMessage').style.display = 'none';
+                    document.getElementById('editContainer').innerHTML = html;
+                })
+                .catch(err => console.error('Error loading edit partial:', err));
+        }
+
+        function loadDeletePartial(customerId) {
+            fetch('/Customer/DeletePartial/' + customerId)
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('defaultMessage').style.display = 'none';
+                    document.getElementById('editContainer').innerHTML = html;
+                })
+                .catch(err => console.error('Error loading delete partial:', err));
+        }
+
+        function closeRightPanel() {
+            document.getElementById('editContainer').innerHTML = '';
+            document.getElementById('defaultMessage').style.display = '';
+        }
+
+        // optional fancy confirm
+        function openCustomDialog(title, message, confirmText, confirmCallback, cancelCallback) {
+            document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalMessage').innerText = message;
+            let btnDiv = document.getElementById('modalButtons');
+            btnDiv.innerHTML = '';
+
+            let confirmBtn = document.createElement('button');
+            confirmBtn.classList.add('btn','btn-primary','me-2');
+            confirmBtn.innerText = confirmText || 'OK';
+            confirmBtn.onclick = function() {
+                closeCustomDialog();
+                if (confirmCallback) confirmCallback();
+            };
+            btnDiv.appendChild(confirmBtn);
+
+            let cancelBtn = document.createElement('button');
+            cancelBtn.classList.add('btn','btn-secondary');
+            cancelBtn.innerText = 'Cancel';
+            cancelBtn.onclick = function() {
+                closeCustomDialog();
+                if (cancelCallback) cancelCallback();
+            };
+            btnDiv.appendChild(cancelBtn);
+
+            document.getElementById('customModalOverlay').style.display = 'block';
+        }
+
+        function closeCustomDialog() {
+            document.getElementById('customModalOverlay').style.display = 'none';
+        }
+
+        function confirmDeleteCustomer(customerId) {
+            openCustomDialog(
+                'Delete Customer',
+                'Are you sure you want to delete customer #' + customerId + '?',
+                'Yes, Delete',
+                function() {
+                    loadDeletePartial(customerId);
+                },
+                function() {}
+            );
+        }
+    </script>
+}

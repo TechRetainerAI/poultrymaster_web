@@ -1,0 +1,194 @@
+﻿@model PoultryWeb.Models.ProductionRecordViewModel
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+<div class="container-fluid">
+    <form id="editProductionForm" asp-controller="ProductionRecord" asp-action="Edit" method="post" class="needs-validation" novalidate>
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="Id" />
+
+        <div asp-validation-summary="ModelOnly" class="text-danger mb-2"></div>
+
+        <div class="row g-3">
+
+            <div class="col-md-3">
+                <label asp-for="Date" class="form-label">Date</label>
+                <input asp-for="Date" class="form-control" type="date" />
+                <span asp-validation-for="Date" class="text-danger"></span>
+            </div>
+
+            <div class="col-md-3">
+                <label asp-for="AgeInWeeks" class="form-label">Age (weeks)</label>
+                <input asp-for="AgeInWeeks" class="form-control" type="number" min="0" />
+                <span asp-validation-for="AgeInWeeks" class="text-danger"></span>
+            </div>
+
+            <div class="col-md-3">
+                <label asp-for="NoOfBirds" class="form-label">No. of Birds</label>
+                <input asp-for="NoOfBirds" class="form-control" type="number" min="0" />
+                <span asp-validation-for="NoOfBirds" class="text-danger"></span>
+            </div>
+
+            <div class="col-md-3">
+                <label asp-for="Mortality" class="form-label">Mortality</label>
+                <input asp-for="Mortality" class="form-control" type="number" min="0" />
+                <span asp-validation-for="Mortality" class="text-danger"></span>
+            </div>
+
+            <div class="col-md-3">
+                <label asp-for="NoOfBirdsLeft" class="form-label">Birds Left</label>
+                <div class="input-group">
+                    <input asp-for="NoOfBirdsLeft" class="form-control" type="number" min="0" />
+                    <button type="button" class="btn btn-outline-secondary" id="btnRecalcLeft" title="Recalculate: Birds - Mortality">
+                        Recalc
+                    </button>
+                </div>
+                <div class="form-text">
+                    <input class="form-check-input me-1" type="checkbox" id="autoLeft" checked />
+                    <label class="form-check-label" for="autoLeft">Auto-calc from Birds − Mortality</label>
+                </div>
+                <span asp-validation-for="NoOfBirdsLeft" class="text-danger"></span>
+            </div>
+
+            <div class="col-md-3">
+                <label asp-for="FeedKg" class="form-label">Feed (Kg)</label>
+                <input asp-for="FeedKg" class="form-control" type="number" step="0.01" min="0" />
+                <span asp-validation-for="FeedKg" class="text-danger"></span>
+            </div>
+
+            <div class="col-md-6">
+                <label asp-for="Medication" class="form-label">Medication</label>
+                <input asp-for="Medication" class="form-control" maxlength="255" />
+                <span asp-validation-for="Medication" class="text-danger"></span>
+            </div>
+
+            <div class="col-md-3">
+                <label asp-for="Production9AM" class="form-label">Production 9AM</label>
+                <input asp-for="Production9AM" class="form-control prod-input" type="number" min="0" />
+                <span asp-validation-for="Production9AM" class="text-danger"></span>
+            </div>
+
+            <div class="col-md-3">
+                <label asp-for="Production12PM" class="form-label">Production 12PM</label>
+                <input asp-for="Production12PM" class="form-control prod-input" type="number" min="0" />
+                <span asp-validation-for="Production12PM" class="text-danger"></span>
+            </div>
+
+            <div class="col-md-3">
+                <label asp-for="Production4PM" class="form-label">Production 4PM</label>
+                <input asp-for="Production4PM" class="form-control prod-input" type="number" min="0" />
+                <span asp-validation-for="Production4PM" class="text-danger"></span>
+            </div>
+
+            <div class="col-md-3">
+                <label asp-for="TotalProduction" class="form-label">Total Production</label>
+                <div class="input-group">
+                    <input asp-for="TotalProduction" class="form-control" type="number" min="0" />
+                    <button type="button" class="btn btn-outline-secondary" id="btnRecalcTotal" title="Recalculate total">
+                        Recalc
+                    </button>
+                </div>
+                <div class="form-text">
+                    <input class="form-check-input me-1" type="checkbox" id="autoTotal" checked />
+                    <label class="form-check-label" for="autoTotal">Auto-sum 9AM + 12PM + 4PM</label>
+                </div>
+                <span asp-validation-for="TotalProduction" class="text-danger"></span>
+            </div>
+
+        </div>
+
+        <div class="d-flex justify-content-end gap-2 mt-4">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="btnSave">Save</button>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        (function () {
+            const form = document.getElementById('editProductionForm');
+
+            const el = {
+                birds: document.getElementById('NoOfBirds'),
+                mort: document.getElementById('Mortality'),
+                left: document.getElementById('NoOfBirdsLeft'),
+                feed: document.getElementById('FeedKg'),
+                p9: document.getElementById('Production9AM'),
+                p12: document.getElementById('Production12PM'),
+                p4: document.getElementById('Production4PM'),
+                total: document.getElementById('TotalProduction'),
+                autoLeft: document.getElementById('autoLeft'),
+                autoTotal: document.getElementById('autoTotal'),
+                btnRecalcLeft: document.getElementById('btnRecalcLeft'),
+                btnRecalcTotal: document.getElementById('btnRecalcTotal'),
+            };
+
+            function toInt(x) { const n = parseInt(x ?? '0', 10); return isNaN(n) ? 0 : n; }
+            function toDec(x) { const n = parseFloat(x ?? '0'); return isNaN(n) ? 0 : n; }
+
+            function recalcLeft() {
+                if (!el.autoLeft.checked) return;
+                const left = Math.max(0, toInt(el.birds.value) - toInt(el.mort.value));
+                el.left.value = left;
+            }
+
+            function recalcTotal() {
+                if (!el.autoTotal.checked) return;
+                const t = toInt(el.p9.value) + toInt(el.p12.value) + toInt(el.p4.value);
+                el.total.value = t;
+            }
+
+            ['input', 'change'].forEach(evt => {
+                el.birds.addEventListener(evt, recalcLeft);
+                el.mort.addEventListener(evt, recalcLeft);
+                el.p9.addEventListener(evt, recalcTotal);
+                el.p12.addEventListener(evt, recalcTotal);
+                el.p4.addEventListener(evt, recalcTotal);
+            });
+
+            el.btnRecalcLeft.addEventListener('click', () => { const was = el.autoLeft.checked; el.autoLeft.checked = true; recalcLeft(); el.autoLeft.checked = was; });
+            el.btnRecalcTotal.addEventListener('click', () => { const was = el.autoTotal.checked; el.autoTotal.checked = true; recalcTotal(); el.autoTotal.checked = was; });
+
+            // Initial compute on load
+            recalcLeft();
+            recalcTotal();
+
+            // AJAX submit
+            form.addEventListener('submit', async function (e) {
+                e.preventDefault();
+
+                // MVC validation (if any) should already be applied; we just post the form
+                const url = form.getAttribute('action') + '/' + document.getElementById('Id').value;
+                const token = form.querySelector('input[name="__RequestVerificationToken"]')?.value;
+
+                const formData = new FormData(form);
+                try {
+                    const res = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'RequestVerificationToken': token ?? '' },
+                        body: formData,
+                    });
+
+                    if (!res.ok) {
+                        const text = await res.text();
+                        console.warn('Save failed', res.status, text);
+                        alert('Save failed. Please review the form and try again.');
+                        return;
+                    }
+
+                    // Close modal
+                    const modalEl = document.getElementById('prodModal');
+                    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                    modal.hide();
+
+                    // Refresh list (simple way)
+                    window.location.reload();
+                } catch (err) {
+                    console.error(err);
+                    alert('An unexpected error occurred while saving.');
+                }
+            });
+        })();
+    </script>
+}

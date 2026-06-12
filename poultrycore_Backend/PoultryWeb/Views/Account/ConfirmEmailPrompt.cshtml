@@ -1,0 +1,104 @@
+﻿@*@{
+    ViewData["Title"] = "Confirm Your Email";
+}
+
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card mt-5">
+                <div class="card-header">
+                    <h2>Registration Successful</h2>
+                </div>
+                <div class="card-body text-center">
+                    <p>Thank you for registering. Please check your email for a confirmation link.</p>
+                    <p>If you do not receive the email within a few minutes, check your spam folder or try again.</p>
+                    <a href="@Url.Action("Login", "Account")" class="btn btn-primary">Go to Login</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+*@
+
+@{
+    ViewData["Title"] = "Confirm Your Email";
+}
+
+<style>
+    .confirmation-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        /*height: 100vh;*/
+        background-color: #f3f3f3;
+        margin-top: 5%;
+    }
+
+    .confirmation-card {
+        background-color: #fff;
+        border: 1px solid #ddd;
+        padding: 30px;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        text-align: center;
+        max-width: 400px;
+        width: 100%;
+    }
+
+    .confirmation-card img {
+        width: 100px;
+        margin-bottom: 20px;
+    }
+
+    .confirmation-card h2 {
+        font-size: 1.5rem;
+        color: #333;
+        margin-bottom: 10px;
+    }
+
+    .confirmation-card p {
+        color: #666;
+        margin-bottom: 30px;
+    }
+
+    .confirmation-card .btn {
+        background-color: #007bff;
+        color: #fff;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        font-size: 1rem;
+        text-decoration: none;
+        display: inline-block;
+    }
+
+    .confirmation-card .btn:hover {
+        background-color: #0056b3;
+    }
+
+    .confirmation-card .footer-text {
+        margin-top: 20px;
+        font-size: 0.9rem;
+        color: #666;
+    }
+
+    .confirmation-card .footer-text a {
+        color: #007bff;
+        text-decoration: none;
+    }
+
+    .confirmation-card .footer-text a:hover {
+        text-decoration: underline;
+    }
+</style>
+
+<div class="confirmation-container">
+    <div class="confirmation-card">
+        @*<img src="https://via.placeholder.com/100" alt="Email Confirmation Icon" />*@
+        <h2>Please confirm your email address</h2>
+        <p>Thank you for registering. We are happy to have you.</p>
+        <p>Please take a second to make sure we have your correct email address.</p>
+        <h3>Please check your email for a confirmation link.</h3>
+        @*<p>If you do not receive the email within a few minutes, check your spam folder or try again.</p>*@
+    </div>
+</div>

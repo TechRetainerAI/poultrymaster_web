@@ -1,0 +1,106 @@
+﻿@model DashboardViewModel
+@{
+    ViewBag.Title = "Farm Overview Dashboard";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@section Styles {
+    <style>
+        .dashboard-cards {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            flex: 1 1 200px;
+            padding: 20px;
+            border-radius: 10px;
+            background: #f8f9fa;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+            .card h3 {
+                font-size: 1.5rem;
+            }
+
+        canvas {
+            margin-bottom: 40px;
+        }
+    </style>
+}
+
+<h2>Dashboard Overview</h2>
+
+<div class="dashboard-cards">
+    <div class="card">
+        <h6>Eggs Today</h6>
+        <h3>@Model.TotalEggsToday</h3>
+    </div>
+    <div class="card">
+        <h6>Feed Used (kg)</h6>
+        <h3>@Model.FeedUsedTodayKg</h3>
+    </div>
+    <div class="card">
+        <h6>Sales Today</h6>
+        <h3>₵@Model.SalesToday</h3>
+    </div>
+    <div class="card">
+        <h6>Expenses Today</h6>
+        <h3>₵@Model.ExpensesToday</h3>
+    </div>
+    <div class="card">
+        <h6>Active Flocks</h6>
+        <h3>@Model.ActiveFlocks</h3>
+    </div>
+</div>
+
+<h4>Production & Performance</h4>
+
+<canvas id="eggsChart" height="100"></canvas>
+<canvas id="feedChart" height="100"></canvas>
+<canvas id="salesExpensesChart" height="100"></canvas>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        function renderLineChart(canvasId, labels, data, label, color) {
+            new Chart(document.getElementById(canvasId), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: label,
+                        data: data,
+                        borderColor: color,
+                        backgroundColor: color + "33",
+                        fill: true,
+                        tension: 0.3
+                    }]
+                }
+            });
+        }
+
+        renderLineChart("eggsChart",
+        @Html.Raw(Json.Serialize(Model.EggChart.Select(x => x.Label))),
+        @Html.Raw(Json.Serialize(Model.EggChart.Select(x => x.Value))),
+            "Egg Production",
+            "#42a5f5");
+
+        renderLineChart("feedChart",
+        @Html.Raw(Json.Serialize(Model.FeedChart.Select(x => x.Label))),
+        @Html.Raw(Json.Serialize(Model.FeedChart.Select(x => x.Value))),
+            "Feed Used",
+            "#66bb6a");
+
+        renderLineChart("salesExpensesChart",
+        @Html.Raw(Json.Serialize(Model.SalesChart.Select(x => x.Label))),
+        @Html.Raw(Json.Serialize(Model.SalesChart.Select(x => x.Value))),
+            "Sales",
+            "#29b6f6");
+
+        // Optionally add another line for expenses
+    </script>
+}

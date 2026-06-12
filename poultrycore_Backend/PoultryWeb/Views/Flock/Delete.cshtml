@@ -1,0 +1,39 @@
+﻿@model PoultryWeb.Models.FlockModel
+
+@{
+    ViewBag.Title = "Delete Flock";
+}
+
+<h2>Delete Flock</h2>
+
+<h3>Are you sure you want to delete this flock?</h3>
+<hr />
+
+<dl class="dl-horizontal">
+    <dt>Flock ID</dt>
+    <dd>@Html.DisplayFor(model => model.FlockId)</dd>
+
+    <dt>Name</dt>
+    <dd>@Html.DisplayFor(model => model.Name)</dd>
+
+    <dt>Breed</dt>
+    <dd>@Html.DisplayFor(model => model.Breed)</dd>
+
+    <dt>Quantity</dt>
+    <dd>@Html.DisplayFor(model => model.Quantity)</dd>
+
+    <dt>Start Date</dt>
+    <dd>@Html.DisplayFor(model => model.StartDate)</dd>
+
+    <dt>Active</dt>
+    <dd>@Html.DisplayFor(model => model.Active)</dd>
+</dl>
+
+@using (Html.BeginForm("DeleteConfirmed", "Flock", FormMethod.Post))
+{
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(m => m.FlockId)
+
+    <input type="submit" value="Delete" class="btn btn-danger" />
+    @Html.ActionLink("Cancel", "Index")
+}

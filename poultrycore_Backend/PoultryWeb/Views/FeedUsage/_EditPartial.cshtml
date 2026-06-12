@@ -1,0 +1,34 @@
+﻿@model PoultryWeb.Models.FeedUsageModel
+
+<h4>Edit Feed Usage (ID: @Model.FeedUsageId)</h4>
+
+<form asp-action="Edit" asp-controller="FeedUsage" method="post">
+    @Html.AntiForgeryToken()
+
+    <input type="hidden" asp-for="UserId" value="0" />
+
+    <input type="hidden" asp-for="FeedUsageId" />
+
+    <div class="mb-3">
+        <label asp-for="FlockId" class="form-label"></label>
+        <input asp-for="FlockId" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="UsageDate" class="form-label"></label>
+        <input asp-for="UsageDate" class="form-control" type="date" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="FeedType" class="form-label"></label>
+        <input asp-for="FeedType" class="form-control" />
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="QuantityKg" class="form-label"></label>
+        <input asp-for="QuantityKg" class="form-control" />
+    </div>
+
+    <button type="submit" class="btn btn-primary">Save</button>
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+</form>

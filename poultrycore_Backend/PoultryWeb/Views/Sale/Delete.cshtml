@@ -1,0 +1,35 @@
+﻿@model PoultryWeb.Models.SaleModel
+
+@{
+    ViewBag.Title = "Delete Sale";
+}
+
+<h2>Delete Sale</h2>
+
+<h3>Are you sure you want to delete this record?</h3>
+<hr />
+
+<dl class="dl-horizontal">
+    <dt>Sale ID</dt>
+    <dd>@Model.SaleId</dd>
+
+    <dt>Date</dt>
+    <dd>@Model.SaleDate.ToShortDateString()</dd>
+
+    <dt>Product</dt>
+    <dd>@Model.Product</dd>
+
+    <dt>Quantity</dt>
+    <dd>@Model.Quantity</dd>
+
+    <dt>Total Amount</dt>
+    <dd>@Model.TotalAmount</dd>
+</dl>
+
+@using (Html.BeginForm("DeleteConfirmed", "Sale", FormMethod.Post))
+{
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(m => m.SaleId)
+    <input type="submit" class="btn btn-danger" value="Delete" />
+    @Html.ActionLink("Cancel", "Index", null, new { @class = "btn btn-secondary" })
+}

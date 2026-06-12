@@ -1,0 +1,17 @@
+﻿@model PoultryWeb.Models.CustomerModel
+
+<h4>Delete Customer (ID: @Model.CustomerId)</h4>
+
+<p>Are you sure you want to delete this customer?</p>
+<ul>
+    <li><strong>Name:</strong> @Model.Name</li>
+    <li><strong>Email:</strong> @Model.ContactEmail</li>
+    <li><strong>Phone:</strong> @Model.ContactPhone</li>
+</ul>
+
+<form asp-action="DeleteConfirmed" asp-controller="Customer" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="CustomerId" />
+    <button type="submit" class="btn btn-danger">Yes, Delete</button>
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+</form>

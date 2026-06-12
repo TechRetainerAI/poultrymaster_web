@@ -1,0 +1,40 @@
+﻿@model ReportRequestModel
+@{
+    ViewBag.Title = "Report Export";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<h2>Generate Report</h2>
+
+<form id="reportForm" method="post">
+    <div class="form-group">
+        <label>Report Type</label>
+        <select name="ReportType" class="form-control">
+            <option value="EggProduction">Egg Production</option>
+            <option value="Sales">Sales</option>
+            <option value="Expenses">Expenses</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label>Start Date</label>
+        <input name="StartDate" type="date" class="form-control" value="@Model.StartDate.ToString("yyyy-MM-dd")" />
+    </div>
+    <div class="form-group">
+        <label>End Date</label>
+        <input name="EndDate" type="date" class="form-control" value="@Model.EndDate.ToString("yyyy-MM-dd")" />
+    </div>
+    <input type="hidden" id="reportAction" name="reportAction" value="" />
+    <button type="submit" class="btn btn-success" onclick="submitReport('ExportCsv')">Export as CSV</button>
+    <button type="submit" class="btn btn-primary" onclick="submitReport('ExportPdf')">Export as PDF</button>
+    <button type="submit" class="btn btn-info" onclick="submitReport('ExportExcel')">Export as Excel</button>
+</form>
+
+@section Scripts {
+    <script>
+        function submitReport(action) {
+            const form = document.getElementById('reportForm');
+            form.action = `/Reports/${action}`;
+            document.getElementById('reportAction').value = action;
+        }
+    </script>
+}

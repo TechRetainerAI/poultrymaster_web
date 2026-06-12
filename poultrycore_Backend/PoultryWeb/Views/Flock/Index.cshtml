@@ -1,0 +1,265 @@
+﻿@model IEnumerable<PoultryWeb.Models.FlockModel>
+
+@{
+    ViewBag.Title = "Flock Management";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<style>
+    .flock-container {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+    }
+
+    .table-section {
+        flex: 1 1 100%;
+        min-width: 300px;
+        padding: 20px;
+    }
+
+    .bottom-bar {
+        text-align: center;
+        padding: 15px;
+        border-top: 1px solid #ddd;
+    }
+
+    .modal-lg {
+        max-width: 800px;
+    }
+
+    .filter-form {
+        display: flex;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+        align-items: flex-end;
+        width: 100%;
+    }
+
+        .filter-form label {
+            display: inline-block;
+            margin-right: 0.5rem;
+            white-space: nowrap;
+        }
+
+        .filter-form .form-control {
+            display: inline-block;
+            width: auto;
+        }
+
+    .dataTables_wrapper .dataTables_length,
+    .dataTables_wrapper .dataTables_filter {
+        display: inline-block;
+        margin-right: 1rem;
+    }
+
+    .dataTables_wrapper .dataTables_length {
+        float: left;
+    }
+
+    .dataTables_wrapper .dataTables_filter {
+        float: right;
+    }
+
+    .table-responsive {
+        max-height: 500px;
+        overflow-y: auto;
+    }
+</style>
+
+<div class="flock-container">
+    <div class="table-section">
+        <h2>Flock Management</h2>
+
+        <form id="filterForm" class="filter-form row w-100">
+            <div class="col-md-3 d-flex align-items-center">
+                <label for="breedFilter" class="me-2">Breed</label>
+                <input type="text" id="breedFilter" class="form-control" placeholder="Enter breed" />
+            </div>
+            <div class="col-md-2 d-flex align-items-center">
+                <label for="fromDate" class="me-2">From</label>
+                <input type="date" id="fromDate" class="form-control" />
+            </div>
+            <div class="col-md-2 d-flex align-items-center">
+                <label for="toDate" class="me-2">To</label>
+                <input type="date" id="toDate" class="form-control" />
+            </div>
+            <div class="col-md-1 d-flex align-items-center">
+                <button type="button" class="btn btn-primary me-2" onclick="applyFilter()">View</button>
+            </div>
+            <div class="col-md-4 d-flex justify-content-end align-items-center">
+                <button class="btn btn-success me-2" onclick="exportCSV()">Export CSV</button>
+                <button class="btn btn-danger" onclick="exportPDF()">Export PDF</button>
+            </div>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-striped" id="flockTable">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" class="toggle-col" data-col="0" checked /> Name</th>
+                        <th><input type="checkbox" class="toggle-col" data-col="1" checked /> Breed</th>
+                        <th><input type="checkbox" class="toggle-col" data-col="2" checked /> Quantity</th>
+                        <th><input type="checkbox" class="toggle-col" data-col="3" checked /> Start Date</th>
+                        <th><input type="checkbox" class="toggle-col" data-col="4" checked /> Active</th>
+                        <th><input type="checkbox" class="toggle-col" data-col="5" checked /> Delete</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model)
+                    {
+                        <tr data-flock-id="@item.FlockId">
+                            <td>@item.Name</td>
+                            <td>@item.Breed</td>
+                            <td>@item.Quantity</td>
+                            <td>@item.StartDate.ToShortDateString()</td>
+                            <td>@(item.Active ? "Yes" : "No")</td>
+                            <td>
+                                <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); confirmDeleteFlock(@item.FlockId)">Delete</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="bottom-bar">
+    <button class="btn btn-primary" onclick="openCreateFlock()">
+        <i class="bi bi-plus-circle"></i> Create New Flock
+    </button>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="flockModal" tabindex="-1" aria-labelledby="flockModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="flockModalLabel">Flock</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="editContainer"></div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script>
+        let flockTable;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            flockTable = new DataTable('#flockTable', {
+                pageLength: 10,
+                scrollY: '300px',
+                scrollCollapse: true,
+                ordering: true
+            });
+
+            document.querySelectorAll('.toggle-col').forEach(cb => {
+                cb.addEventListener('change', function () {
+                    const column = flockTable.column(this.dataset.col);
+                    column.visible(this.checked);
+                });
+            });
+
+            document.getElementById('flockTable').addEventListener('click', function (e) {
+                var row = e.target.closest('tr[data-flock-id]');
+                if (row && !e.target.closest('.btn-danger')) {
+                    var flockId = row.getAttribute('data-flock-id');
+                    loadEditPartial(flockId);
+                }
+            });
+        });
+
+        function applyFilter() {
+            const breed = document.getElementById('breedFilter').value.toLowerCase();
+            const fromDate = document.getElementById('fromDate').value;
+            const toDate = document.getElementById('toDate').value;
+
+            const rows = document.querySelectorAll('#flockTable tbody tr');
+            rows.forEach(row => {
+                const rowBreed = row.children[1].textContent.toLowerCase();
+                const rowStart = row.children[3].textContent;
+                const show = (!breed || rowBreed.includes(breed)) &&
+                             (!fromDate || new Date(rowStart) >= new Date(fromDate)) &&
+                             (!toDate || new Date(rowStart) <= new Date(toDate));
+                row.style.display = show ? '' : 'none';
+            });
+        }
+
+        function openCreateFlock() {
+            fetch('/Flock/CreatePartial')
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('flockModalLabel').innerText = 'Create Flock';
+                    document.getElementById('editContainer').innerHTML = html;
+                    new bootstrap.Modal(document.getElementById('flockModal')).show();
+                });
+        }
+
+        function loadEditPartial(flockId) {
+            fetch('/Flock/EditPartial/' + flockId)
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('flockModalLabel').innerText = 'Edit Flock (ID: ' + flockId + ')';
+                    document.getElementById('editContainer').innerHTML = html;
+                    new bootstrap.Modal(document.getElementById('flockModal')).show();
+                });
+        }
+
+        function loadDeletePartial(flockId) {
+            fetch('/Flock/DeletePartial/' + flockId)
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('flockModalLabel').innerText = 'Delete Flock';
+                    document.getElementById('editContainer').innerHTML = html;
+                    new bootstrap.Modal(document.getElementById('flockModal')).show();
+                });
+        }
+
+        function confirmDeleteFlock(flockId) {
+            loadDeletePartial(flockId);
+        }
+
+        function exportCSV() {
+            let csvContent = "data:text/csv;charset=utf-8,Name,Breed,Quantity,Start Date,Active\n";
+            document.querySelectorAll('#flockTable tbody tr').forEach(row => {
+                if (row.style.display !== 'none') {
+                    const cols = Array.from(row.children).slice(0, 5).map(td => td.textContent.trim());
+                    csvContent += cols.join(",") + "\n";
+                }
+            });
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "Flock_Report.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function exportPDF() {
+            const doc = new jspdf.jsPDF();
+            doc.text("Flock Report", 20, 10);
+
+            let rowData = [];
+            document.querySelectorAll('#flockTable tbody tr').forEach(row => {
+                if (row.style.display !== 'none') {
+                    const cols = Array.from(row.children).slice(0, 5).map(td => td.textContent.trim());
+                    rowData.push(cols);
+                }
+            });
+
+            doc.autoTable({
+                head: [["Name", "Breed", "Quantity", "Start Date", "Active"]],
+                body: rowData
+            });
+
+            doc.save("Flock_Report.pdf");
+        }
+    </script>
+}

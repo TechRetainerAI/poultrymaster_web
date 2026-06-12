@@ -1,0 +1,194 @@
+﻿@model IEnumerable<PoultryWeb.Models.FlockModel>
+
+@{
+    ViewBag.Title = "Flock List";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@section Styles {
+    <style>
+        
+    </style>
+}
+
+<div class="split-container">
+    <!-- LEFT PANEL: Table of Flocks -->
+    <div class="left-panel">
+        <h2>Flock Management</h2>
+        <table class="flock-table" id="flockTable">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Breed</th>
+                    <th>Quantity</th>
+                    <th>Start Date</th>
+                    <th>Active</th>
+                    <th>Delete</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Model)
+                {
+                    <tr data-flock-id="@item.FlockId">
+                        <td>@item.Name</td>
+                        <td>@item.Breed</td>
+                        <td>@item.Quantity</td>
+                        <td>@item.StartDate.ToShortDateString()</td>
+                        <td>@(item.Active ? "Yes" : "No")</td>
+                        <td>
+                            <!-- A button that calls loadDeletePartial, but let's show a custom confirm modal first -->
+                            <button class="btn btn-danger btn-sm"
+                                    onclick="event.stopPropagation(); confirmDeleteFlock(@item.FlockId)">
+                                Delete
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- RIGHT PANEL: partial container -->
+    <div class="right-panel">
+        <h4 id="defaultMessage">Select a row to edit or view details</h4>
+        <div id="editContainer"></div>
+    </div>
+</div>
+
+<!-- BOTTOM BAR: 'Create New' button -->
+<div class="bottom-bar">
+    <button class="btn btn-primary btn-create" onclick="openCreateFlock()">Create New Flock</button>
+</div>
+
+<!-- OPTIONAL: A hidden custom modal overlay for fancy confirmations -->
+<div id="customModalOverlay">
+    <div id="customModalBox">
+        <h4 id="modalTitle"></h4>
+        <p id="modalMessage"></p>
+        <div id="modalButtons"></div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // On DOM load, attach row-click for Edit
+        document.addEventListener('DOMContentLoaded', function() {
+            var table = document.getElementById('flockTable');
+            if (table) {
+                table.addEventListener('click', function(e) {
+                    var row = e.target.closest('tr[data-flock-id]');
+                    // If user didn't click the 'Delete' button specifically
+                    if (row && !e.target.closest('button.btn-danger')) {
+                        var flockId = row.getAttribute('data-flock-id');
+                        loadEditPartial(flockId);
+                    }
+                });
+            }
+        });
+
+        // LOAD PARTIALS (Create/Edit/Delete)
+
+        function openCreateFlock() {
+            fetch('/Flock/CreatePartial')
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('defaultMessage').style.display = 'none';
+                    document.getElementById('editContainer').innerHTML = html;
+                })
+                .catch(err => console.error('Error loading create partial:', err));
+        }
+
+        function loadEditPartial(flockId) {
+            fetch('/Flock/EditPartial/' + flockId)
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('defaultMessage').style.display = 'none';
+                    document.getElementById('editContainer').innerHTML = html;
+                })
+                .catch(err => console.error('Error loading edit partial:', err));
+        }
+
+        function loadDeletePartial(flockId) {
+            fetch('/Flock/DeletePartial/' + flockId)
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('defaultMessage').style.display = 'none';
+                    document.getElementById('editContainer').innerHTML = html;
+                })
+                .catch(err => console.error('Error loading delete partial:', err));
+        }
+
+        // CANCEL: Clears the right panel
+        function closeRightPanel() {
+            document.getElementById('editContainer').innerHTML = '';
+            document.getElementById('defaultMessage').style.display = '';
+        }
+
+        // --- NICE DIALOG (MODAL) functions ---
+
+        // Show the modal overlay
+        function openCustomDialog(title, message, confirmText, confirmCallback, cancelCallback) {
+            document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalMessage').innerText = message;
+
+            let buttonsDiv = document.getElementById('modalButtons');
+            buttonsDiv.innerHTML = '';
+
+            // Confirm button
+            let confirmBtn = document.createElement('button');
+            confirmBtn.classList.add('btn', 'btn-primary', 'me-2');
+            confirmBtn.innerText = confirmText || 'OK';
+            confirmBtn.onclick = function() {
+                closeCustomDialog();
+                if (confirmCallback) confirmCallback();
+            };
+            buttonsDiv.appendChild(confirmBtn);
+
+            // Cancel button
+            let cancelBtn = document.createElement('button');
+            cancelBtn.classList.add('btn', 'btn-secondary');
+            cancelBtn.innerText = 'Cancel';
+            cancelBtn.onclick = function() {
+                closeCustomDialog();
+                if (cancelCallback) cancelCallback();
+            };
+            buttonsDiv.appendChild(cancelBtn);
+
+            document.getElementById('customModalOverlay').style.display = 'block';
+        }
+
+        function closeCustomDialog() {
+            document.getElementById('customModalOverlay').style.display = 'none';
+        }
+
+        // Example usage: confirm before loading the delete partial
+        function confirmDeleteFlock(flockId) {
+            openCustomDialog(
+                'Delete Flock',
+                'Are you sure you want to delete flock #' + flockId + '?',
+                'Yes, Delete',
+                function() {
+                    // confirmCallback: load the partial in the right panel
+                    loadDeletePartial(flockId);
+                    // Directly redirect to the DeleteConfirmed action
+                    //window.location.href = "/Flock/DeleteConfirmed?flockId=" + flockId;
+                    // Use fetch() to POST to /Flock/DeleteConfirmed
+                     //fetch('/Flock/DeletePartial/' + flockId {
+                     //    method: "POST"
+                     //})
+                     //.then(response => {
+                     //    if (!response.ok) throw new Error("Deletion failed.");
+                     //    // Possibly refresh the page or reload data
+                     //    window.location.reload();
+                     //})
+                     //.catch(err => {
+                     //    console.error("Error while deleting:", err);
+                     //});
+                },
+                function() {
+                    // cancelCallback: do nothing
+                }
+            );
+        }
+    </script>
+}

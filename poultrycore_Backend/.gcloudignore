@@ -1,0 +1,20 @@
+# Cloud Build / Run source when context is poultrycore/
+.git/
+**/bin/
+**/obj/
+**/node_modules/
+**/.vs/
+**/.next/
+**/out/
+**/*.tsbuildinfo
+**/*.user
+**/*.suo
+**/TestResults/
+**/publish/
+
+# Login API Dockerfile only COPYs LoginAPI/ — everything else is dead weight for this build
+PoultryPro/
+PoultryFarmAPI/
+PoultryWeb/
+API/
+Other sql files for Crypto software/

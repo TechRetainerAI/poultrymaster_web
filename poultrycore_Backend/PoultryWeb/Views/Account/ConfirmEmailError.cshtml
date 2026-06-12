@@ -1,0 +1,89 @@
+﻿@*@{
+    ViewData["Title"] = "Email Confirmation";
+}
+
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card mt-5">
+                <div class="card-header">
+                    <h2>Email Confirmation</h2>
+                </div>
+                <div class="card-body text-center">
+                    <h3 class="text-danger">Error</h3>
+                    <p>There was an error confirming your email. Please try again or contact support.</p>
+                    <a href="@Url.Action("Support", "Home")" class="btn btn-secondary">Go to Support</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+*@
+
+
+@{
+    ViewData["Title"] = "Email Confirmation Error";
+}
+
+<style>
+    .confirmation-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        /*height: 100vh;*/
+        background-color: #f3f3f3;
+        margin-top: 5%;
+    }
+
+    .confirmation-card {
+        background-color: #fff;
+        border: 1px solid #ddd;
+        padding: 30px;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        text-align: center;
+        max-width: 400px;
+        width: 100%;
+    }
+
+    .confirmation-card img {
+        width: 80px;
+        margin-bottom: 20px;
+    }
+
+    .confirmation-card h2 {
+        font-size: 1.5rem;
+        color: #333;
+        margin-bottom: 10px;
+    }
+
+    .confirmation-card p {
+        color: #666;
+        margin-bottom: 30px;
+    }
+
+    .confirmation-card .btn {
+        background-color: #6c757d;
+        color: #fff;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        font-size: 1rem;
+        text-decoration: none;
+        display: inline-block;
+    }
+
+    .confirmation-card .btn:hover {
+        background-color: #5a6268;
+    }
+</style>
+
+<div class="confirmation-container">
+    <div class="confirmation-card">
+        @*<img src="https://via.placeholder.com/80" alt="Error Icon" />*@
+        <h2>Email Confirmation Error</h2>
+        <h3 class="text-danger">Error</h3>
+        <p>There was an error confirming your email. Please try again or contact support.</p>
+        <a href="@Url.Action("Support", "Home")" class="btn">Go to Support</a>
+    </div>
+</div>

@@ -1,0 +1,131 @@
+﻿@model PoultryWeb.Models.Authentication.SignUp.RegisterUser
+
+@{
+    ViewData["Title"] = "Register";
+    Layout = "_AuthLayout.cshtml";
+}
+
+
+<h2>Register</h2>
+
+<div class="alert alert-danger" data-bind="visible: registrationFailed, text: errorMessage"></div>
+
+<form data-bind="submit: register">
+    <div class="form-group">
+        <label for="FirstName">First Name</label>
+        <input type="text" id="FirstName" name="FirstName" class="form-control" data-bind="value: firstName, valueUpdate: 'input'" required>
+        <span class="text-danger" data-bind="visible: firstNameError, text: firstNameErrorMessage"></span>
+    </div>
+
+    <div class="form-group">
+        <label for="LastName">Last Name</label>
+        <input type="text" id="LastName" name="LastName" class="form-control" data-bind="value: lastName, valueUpdate: 'input'" required>
+        <span class="text-danger" data-bind="visible: lastNameError, text: lastNameErrorMessage"></span>
+    </div>
+
+    
+    <div class="form-group">
+        <label for="Username">Username</label>
+        <input type="username" id="Username" name="Username" class="form-control" data-bind="value: username, valueUpdate: 'input'" required>
+        <span class="text-danger" data-bind="visible: usernameError, text: usernameErrorMessage"></span>
+    </div>
+
+    <div class="form-group">
+        <label for="Email">Email</label>
+        <input type="email" id="Email" name="Email" class="form-control" data-bind="value: email, valueUpdate: 'input'" required>
+        <span class="text-danger" data-bind="visible: emailError, text: emailErrorMessage"></span>
+    </div>
+    
+    <div class="form-group">
+        <label for="Password">Password</label>
+        <input type="password" id="Password" name="Password" class="form-control" data-bind="value: password, valueUpdate: 'input'" required>
+        <span class="text-danger" data-bind="visible: passwordError, text: passwordErrorMessage"></span>
+    </div>
+
+    <div class="form-group">
+        <label for="ConfirmPassword">Confirm Password</label>
+        <input type="password" id="ConfirmPassword" name="ConfirmPassword" class="form-control" data-bind="value: confirmPassword, valueUpdate: 'input'" required>
+        <span class="text-danger" data-bind="visible: confirmPasswordError, text: confirmPasswordErrorMessage"></span>
+    </div>
+
+    <div class="form-group">
+        <button type="submit" class="btn btn-primary">Register</button>
+    </div>
+</form>
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/knockout/3.5.1/knockout-min.js"></script>
+    <script>
+        function ViewModel() {
+            var self = this;
+
+            self.firstName = ko.observable('');
+            self.lastName = ko.observable('');
+            self.username = ko.observable('');
+            self.email = ko.observable('');
+            self.password = ko.observable('');
+            self.confirmPassword = ko.observable('');
+            self.registrationFailed = ko.observable(false);
+            self.errorMessage = ko.observable('');
+
+            self.firstNameError = ko.computed(function() {
+                return !self.firstName();
+            });
+            self.lastNameError = ko.computed(function() {
+                return !self.lastName();
+            });
+            self.usernameError = ko.computed(function() {
+                var username = self.username();
+                return !username;
+            });
+            self.emailError = ko.computed(function() {
+                var email = self.email();
+                return !email;
+            });
+            self.passwordError = ko.computed(function() {
+                var password = self.password();
+                return !password || password.length < 6;
+            });
+            self.confirmPasswordError = ko.computed(function() {
+                var confirmPassword = self.confirmPassword();
+                return !confirmPassword || confirmPassword !== self.password();
+            });
+
+            self.firstNameErrorMessage = ko.observable('First name is required.');
+            self.lastNameErrorMessage = ko.observable('Last name is required.');
+            self.usernameErrorMessage = ko.observable('Please enter a valid email.');
+            self.emailErrorMessage = ko.observable('Please enter a valid email.');
+            self.passwordErrorMessage = ko.observable('Password must be at least 6 characters long.');
+            self.confirmPasswordErrorMessage = ko.observable('Passwords must match.');
+
+            self.register = function(formElement) {
+                // Perform an AJAX request to submit the form data
+                if (!self.firstNameError() && !self.lastNameError() && !self.usernameError() && !self.emailError() && !self.passwordError() && !self.confirmPasswordError()) {
+                    $.ajax({
+                        url: '@Url.Action("Register", "Account")',
+                        type: 'POST',
+                        contentType: 'application/json',
+                        data: ko.toJSON({ firstName: self.firstName, lastName: self.lastName, username: self.username, email: self.email, password: self.password }),
+                        success: function(result) {
+                            if (result.success) {
+                                window.location.href = '@Url.Action("ConfirmEmailPrompt", "Account")'; // Redirect on success
+                            } else {
+                                self.registrationFailed(true);
+                                self.errorMessage(result.message || 'Registration failed. Please try again.');
+                            }
+                        },
+                        error: function() {
+                            self.registrationFailed(true);
+                            self.errorMessage('Error processing your registration.');
+                        }
+                    });
+                } else {
+                    self.registrationFailed(true);
+                    self.errorMessage('Please check your entries and try again.');
+                }
+            };
+        }
+
+        ko.applyBindings(new ViewModel());
+    </script>
+}

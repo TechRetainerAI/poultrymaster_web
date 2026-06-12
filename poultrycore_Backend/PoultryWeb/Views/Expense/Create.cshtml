@@ -1,0 +1,69 @@
+﻿@model PoultryWeb.Models.ExpenseModel
+
+@{
+    ViewBag.Title = "Create Expense";
+}
+
+<h2>Create Expense</h2>
+
+@using (Html.BeginForm("Create", "Expense", FormMethod.Post))
+{
+    @Html.AntiForgeryToken()
+
+    <div class="form-horizontal">
+        <div class="form-group">
+            @Html.LabelFor(m => m.ExpenseDate, new { @class = "control-label col-md-2" })
+            <div class="col-md-6">
+                @Html.TextBoxFor(m => m.ExpenseDate, new { @class = "form-control", type = "date" })
+                @Html.ValidationMessageFor(m => m.ExpenseDate)
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(m => m.Category, new { @class = "control-label col-md-2" })
+            <div class="col-md-6">
+                @Html.TextBoxFor(m => m.Category, new { @class = "form-control" })
+                @Html.ValidationMessageFor(m => m.Category)
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(m => m.Amount, new { @class = "control-label col-md-2" })
+            <div class="col-md-6">
+                @Html.TextBoxFor(m => m.Amount, new { @class = "form-control" })
+                @Html.ValidationMessageFor(m => m.Amount)
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(m => m.Description, new { @class = "control-label col-md-2" })
+            <div class="col-md-6">
+                @Html.TextBoxFor(m => m.Description, new { @class = "form-control" })
+                @Html.ValidationMessageFor(m => m.Description)
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(m => m.PaymentMethod, new { @class = "control-label col-md-2" })
+            <div class="col-md-6">
+                @Html.TextBoxFor(m => m.PaymentMethod, new { @class = "form-control" })
+                @Html.ValidationMessageFor(m => m.PaymentMethod)
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(m => m.FlockId, new { @class = "control-label col-md-2" })
+            <div class="col-md-6">
+                @Html.TextBoxFor(m => m.FlockId, new { @class = "form-control" })
+                @Html.ValidationMessageFor(m => m.FlockId)
+            </div>
+        </div>
+
+        <div class="form-group">
+            <div class="col-md-offset-2 col-md-6">
+                <input type="submit" value="Create" class="btn btn-primary" />
+                @Html.ActionLink("Cancel", "Index", null, new { @class = "btn btn-secondary" })
+            </div>
+        </div>
+    </div>
+}

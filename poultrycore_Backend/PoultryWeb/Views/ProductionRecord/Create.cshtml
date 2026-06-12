@@ -1,0 +1,54 @@
+﻿@model PoultryWeb.Models.ProductionRecordViewModel
+
+<h1>Create Production Record</h1>
+<form asp-action="Create" method="post">
+    <div>
+        <label asp-for="FarmId"></label>
+        <input asp-for="FarmId" />
+    </div>
+    <div>
+        <label asp-for="AgeInWeeks"></label>
+        <input asp-for="AgeInWeeks" />
+    </div>
+    <div>
+        <label asp-for="Date"></label>
+        <input asp-for="Date" type="date" />
+    </div>
+    <div>
+        <label asp-for="NoOfBirds"></label>
+        <input asp-for="NoOfBirds" />
+    </div>
+    <div>
+        <label asp-for="Mortality"></label>
+        <input asp-for="Mortality" />
+    </div>
+    <div>
+        <label asp-for="NoOfBirdsLeft"></label>
+        <input asp-for="NoOfBirdsLeft" />
+    </div>
+    <div>
+        <label asp-for="FeedKg"></label>
+        <input asp-for="FeedKg" />
+    </div>
+    <div>
+        <label asp-for="Medication"></label>
+        <input asp-for="Medication" />
+    </div>
+    <div>
+        <label asp-for="Production9AM"></label>
+        <input asp-for="Production9AM" />
+    </div>
+    <div>
+        <label asp-for="Production12PM"></label>
+        <input asp-for="Production12PM" />
+    </div>
+    <div>
+        <label asp-for="Production4PM"></label>
+        <input asp-for="Production4PM" />
+    </div>
+    <div>
+        <label asp-for="TotalProduction"></label>
+        <input asp-for="TotalProduction" />
+    </div>
+    <button type="submit">Submit</button>
+</form>

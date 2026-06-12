@@ -1,0 +1,37 @@
+﻿@{
+    Layout = "_Layout"; // Specify your layout file if you have one
+}
+
+<style>
+    body {
+        background-color: #f7f7f7; /* Light grey background */
+    }
+    .card {
+        border-radius: 15px; /* Rounded corners for the card */
+    }
+    .card-title {
+        color: #5a5a5a; /* Dark grey text for the card title */
+    }
+    .btn-danger {
+        width: 150px; /* Fixed width for the logout button */
+    }
+</style>
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow">
+                <div class="card-body">
+                    <h3 class="card-title text-center">Logout</h3>
+                    <p class="text-center">Are you sure you want to log out?</p>
+                    
+                    <!-- Logout Form -->
+                    <form method="post" action="/Account/Logout" class="d-flex justify-content-center">
+                        <button type="submit" class="btn btn-danger btn-lg">Logout</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+

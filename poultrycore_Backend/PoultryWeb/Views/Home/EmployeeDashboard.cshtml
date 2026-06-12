@@ -1,0 +1,169 @@
+@{
+    ViewBag.Title = "Employee Dashboard - Poultry Farm";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@section Styles {
+    <style>
+        .hero {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 60px 20px;
+            text-align: center;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+        
+        .hero h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .welcome-message {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #2196f3;
+        }
+        
+        .staff-badge {
+            background: #2196f3;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            display: inline-block;
+            margin-left: 10px;
+        }
+        
+        .info-box {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+    </style>
+}
+
+<!-- HERO SECTION -->
+<div class="hero">
+    <h1>👨‍🌾 Employee Dashboard</h1>
+    <p>View and record daily farm operations</p>
+</div>
+
+<!-- WELCOME MESSAGE -->
+<div class="welcome-message">
+    <strong>Welcome, @ViewBag.UserName!</strong> 
+    <span class="staff-badge">STAFF</span>
+    <br />
+    <small>Farm: @ViewBag.FarmName</small>
+</div>
+
+<!-- INFO BOX -->
+<div class="info-box">
+    <strong>ℹ️ Employee Access:</strong> You can view all farm data and add new records. 
+    For editing or deleting records, please contact your farm administrator.
+</div>
+
+<!-- MODULE CARDS - Limited Access -->
+<div class="container module-cards">
+    
+    <div class="card module-card">
+        <div class="card-header">
+            📊 Dashboard & Reports
+        </div>
+        <div class="card-body">
+            <p>View farm analytics and statistics.</p>
+            <a href="@Url.Action("Index", "Dashboard")" class="btn btn-info">View Dashboard</a>
+        </div>
+    </div>
+
+    <div class="card module-card">
+        <div class="card-header">
+            🐔 Flock Management
+        </div>
+        <div class="card-body">
+            <p>View flock information and health records.</p>
+            <a href="@Url.Action("Index", "Flock")" class="btn btn-info">View Flocks</a>
+        </div>
+    </div>
+
+    <div class="card module-card">
+        <div class="card-header">
+            🥚 Egg Production
+        </div>
+        <div class="card-body">
+            <p>Record daily egg production and view statistics.</p>
+            <a href="@Url.Action("Index", "EggProduction")" class="btn btn-info">Record Production</a>
+        </div>
+    </div>
+
+    <div class="card module-card">
+        <div class="card-header">
+            🌾 Feed Usage
+        </div>
+        <div class="card-body">
+            <p>Record daily feed consumption for each flock.</p>
+            <a href="@Url.Action("Index", "FeedUsage")" class="btn btn-info">Record Feed Usage</a>
+        </div>
+    </div>
+
+    <div class="card module-card">
+        <div class="card-header">
+            💰 Sales
+        </div>
+        <div class="card-body">
+            <p>View sales records and revenue.</p>
+            <a href="@Url.Action("Index", "Sale")" class="btn btn-info">View Sales</a>
+        </div>
+    </div>
+
+    <div class="card module-card">
+        <div class="card-header">
+            💵 Expenses
+        </div>
+        <div class="card-body">
+            <p>View farm expenses and costs.</p>
+            <a href="@Url.Action("Index", "Expense")" class="btn btn-info">View Expenses</a>
+        </div>
+    </div>
+
+    <div class="card module-card">
+        <div class="card-header">
+            📦 Inventory
+        </div>
+        <div class="card-body">
+            <p>View stock levels and inventory items.</p>
+            <a href="@Url.Action("Index", "Inventory")" class="btn btn-info">View Inventory</a>
+        </div>
+    </div>
+
+    <div class="card module-card">
+        <div class="card-header">
+            👤 Customers
+        </div>
+        <div class="card-body">
+            <p>View customer information and contacts.</p>
+            <a href="@Url.Action("Index", "Customer")" class="btn btn-info">View Customers</a>
+        </div>
+    </div>
+
+    <div class="card module-card">
+        <div class="card-header">
+            📋 Production Records
+        </div>
+        <div class="card-body">
+            <p>Record daily production including eggs, mortality, and health updates.</p>
+            <a href="@Url.Action("Index", "ProductionRecord")" class="btn btn-info">Record Daily Production</a>
+        </div>
+    </div>
+</div>
+
+<div class="mt-4 text-center text-muted">
+    <small>
+        <strong>Need help?</strong> Contact your farm administrator for additional access or support.
+    </small>
+</div>
+
