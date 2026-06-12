@@ -191,9 +191,24 @@ namespace PoultryFarmAPIWeb.Business
                     Notes                = reader.IsDBNull(reader.GetOrdinal("Notes")) ? null : reader.GetString(reader.GetOrdinal("Notes")),
                     CreatedAt            = reader.GetDateTime(reader.GetOrdinal("CreatedAt")),
                     UpdatedAt            = reader.IsDBNull(reader.GetOrdinal("UpdatedAt")) ? null : reader.GetDateTime(reader.GetOrdinal("UpdatedAt")),
+                    NegativeBalancePolicy = HasCol(reader, "NegativeBalancePolicy") && !reader.IsDBNull(reader.GetOrdinal("NegativeBalancePolicy"))
+                                            ? reader.GetString(reader.GetOrdinal("NegativeBalancePolicy")) : "DoNotAllow",
+                    NegativeBalanceLimit  = HasCol(reader, "NegativeBalanceLimit") && !reader.IsDBNull(reader.GetOrdinal("NegativeBalanceLimit"))
+                                            ? reader.GetDecimal(reader.GetOrdinal("NegativeBalanceLimit")) : 0m,
+                    LastReconciledAt      = HasCol(reader, "LastReconciledAt") && !reader.IsDBNull(reader.GetOrdinal("LastReconciledAt"))
+                                            ? reader.GetDateTime(reader.GetOrdinal("LastReconciledAt")) : (DateTime?)null,
+                    LastReconciledBalance = HasCol(reader, "LastReconciledBalance") && !reader.IsDBNull(reader.GetOrdinal("LastReconciledBalance"))
+                                            ? reader.GetDecimal(reader.GetOrdinal("LastReconciledBalance")) : (decimal?)null,
                 });
             }
             return list;
+        }
+
+        private static bool HasCol(SqlDataReader r, string name)
+        {
+            for (int i = 0; i < r.FieldCount; i++)
+                if (string.Equals(r.GetName(i), name, StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
         }
 
         public async Task<int> InsertCashAccountAsync(GenericCashAccountModel m)
@@ -206,6 +221,8 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@OpeningBalance", m.OpeningBalance);
             cmd.Parameters.AddWithValue("@AllowNegativeBalance", m.AllowNegativeBalance);
             cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@NegativeBalancePolicy", string.IsNullOrWhiteSpace(m.NegativeBalancePolicy) ? DBNull.Value : m.NegativeBalancePolicy);
+            cmd.Parameters.AddWithValue("@NegativeBalanceLimit", m.NegativeBalanceLimit);
 
             await conn.OpenAsync();
             return Convert.ToInt32(await cmd.ExecuteScalarAsync());
@@ -222,6 +239,8 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@AllowNegativeBalance", m.AllowNegativeBalance);
             cmd.Parameters.AddWithValue("@IsActive", m.IsActive);
             cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@NegativeBalancePolicy", string.IsNullOrWhiteSpace(m.NegativeBalancePolicy) ? DBNull.Value : m.NegativeBalancePolicy);
+            cmd.Parameters.AddWithValue("@NegativeBalanceLimit", m.NegativeBalanceLimit);
 
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();

@@ -313,5 +313,145 @@ namespace PoultryFarmAPIWeb.Controllers
             var newId = await _cash.InsertAdjustmentAsync(farmId, req, createdBy, approvedBy);
             return Created(string.Empty, new { GenericCashTransactionId = newId });
         }
+
+        // Record Money In: owner contribution, loan received, supplier refund, other income.
+        [HttpPost("money-in")]
+        public async Task<IActionResult> MoneyIn(
+            string farmId,
+            [FromBody] GenericCashMovementRequest req,
+            [FromQuery] string? createdBy,
+            [FromQuery] string? approvedBy)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            if (!GenericCashMovementTypes.CashIn.Contains(req.MovementType, StringComparer.OrdinalIgnoreCase))
+                return BadRequest($"MovementType must be one of: {string.Join(", ", GenericCashMovementTypes.CashIn)}.");
+
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+
+            var newId = await _cash.PostMovementAsync(farmId, "CashIn", req, createdBy, approvedBy);
+            return Created(string.Empty, new { GenericCashTransactionId = newId });
+        }
+
+        // Record Money Out: owner withdrawal, loan repayment, customer refund, other cash-out.
+        [HttpPost("money-out")]
+        public async Task<IActionResult> MoneyOut(
+            string farmId,
+            [FromBody] GenericCashMovementRequest req,
+            [FromQuery] string? createdBy,
+            [FromQuery] string? approvedBy)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            if (!GenericCashMovementTypes.CashOut.Contains(req.MovementType, StringComparer.OrdinalIgnoreCase))
+                return BadRequest($"MovementType must be one of: {string.Join(", ", GenericCashMovementTypes.CashOut)}.");
+
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+
+            var newId = await _cash.PostMovementAsync(farmId, "CashOut", req, createdBy, approvedBy);
+            return Created(string.Empty, new { GenericCashTransactionId = newId });
+        }
+
+        // Account details header (totals + last-reconciled + unreconciled count).
+        [HttpGet("accounts/{accountId:int}/details")]
+        public async Task<ActionResult<GenericCashAccountDetailsModel>> GetAccountDetails(string farmId, int accountId)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+
+            var details = await _cash.GetAccountDetailsAsync(accountId, farmId);
+            return details is null ? NotFound() : Ok(details);
+        }
+
+        // Ledger-vs-stored-balance report (flags drift per account).
+        [HttpGet("ledger-report")]
+        public async Task<ActionResult<IEnumerable<GenericCashLedgerReportRow>>> GetLedgerReport(string farmId)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            return Ok(await _cash.GetLedgerReportAsync(farmId));
+        }
+
+        // Company default cash-account mappings (preselect accounts per workflow).
+        [HttpGet("defaults")]
+        public async Task<ActionResult<IEnumerable<GenericCashAccountDefaultModel>>> GetDefaults(string farmId)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            return Ok(await _cash.GetDefaultsAsync(farmId));
+        }
+
+        [HttpPut("defaults")]
+        public async Task<IActionResult> UpsertDefault(string farmId, [FromBody] GenericCashAccountDefaultRequest req)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            await _cash.UpsertDefaultAsync(farmId, req.DefaultKey, req.GenericCashAccountId);
+            return NoContent();
+        }
+
+        // Post a multi-method payment allocation set (split across accounts) for one source.
+        [HttpPost("allocations")]
+        public async Task<IActionResult> PostAllocations(
+            string farmId,
+            [FromBody] GenericCashAllocationsRequest req,
+            [FromQuery] string? createdBy,
+            [FromQuery] string? approvedBy)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            if (!string.Equals(req.Direction, "CashIn", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(req.Direction, "CashOut", StringComparison.OrdinalIgnoreCase))
+                return BadRequest("Direction must be CashIn or CashOut.");
+
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+
+            var count = await _cash.PostAllocationsAsync(farmId, req, createdBy, approvedBy);
+            return Created(string.Empty, new { Allocations = count });
+        }
+
+        // Reconcile an account against an actual count; posts the difference as a
+        // ReconciliationAdjustment and records the last-reconciled point.
+        [HttpPost("reconciliations")]
+        public async Task<IActionResult> Reconcile(
+            string farmId,
+            [FromBody] GenericCashReconciliationRequest req,
+            [FromQuery] string? requestedBy,
+            [FromQuery] string? approvedBy)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+
+            var newId = await _cash.CreateReconciliationAsync(farmId, req, requestedBy, approvedBy);
+            return Created(string.Empty, new { GenericCashReconciliationId = newId });
+        }
+
+        [HttpGet("accounts/{accountId:int}/reconciliations")]
+        public async Task<ActionResult<IEnumerable<GenericCashReconciliationModel>>> GetReconciliations(
+            string farmId, int accountId)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+
+            return Ok(await _cash.GetReconciliationsByAccountAsync(accountId, farmId));
+        }
+
+        // Reverse an existing Approved cash transaction: posts an equal-and-opposite
+        // entry linked via ReversalOfTransactionId and marks the original Reversed.
+        [HttpPost("transactions/{transactionId:long}/reverse")]
+        public async Task<IActionResult> Reverse(
+            string farmId,
+            long transactionId,
+            [FromQuery] string? reversedBy,
+            [FromQuery] string? reason)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+
+            var newId = await _cash.ReverseAsync(transactionId, farmId, reversedBy, reason);
+            return Created(string.Empty, new { GenericCashTransactionId = newId });
+        }
     }
 }

@@ -185,6 +185,15 @@ namespace PoultryFarmAPIWeb.Models
 
         public bool AllowNegativeBalance { get; set; }
 
+        // Tiered negative-balance policy (migration 110). The bit above is kept in
+        // sync for legacy procs: DoNotAllow/AllowWithApproval => false, else true.
+        // 'DoNotAllow' | 'AllowWithApproval' | 'AllowUpToLimit' | 'AlwaysAllow'
+        [StringLength(20)]
+        public string NegativeBalancePolicy { get; set; } = "DoNotAllow";
+
+        [Range(0, double.MaxValue)]
+        public decimal NegativeBalanceLimit { get; set; }
+
         public bool IsActive { get; set; } = true;
 
         [StringLength(500)]
@@ -192,6 +201,10 @@ namespace PoultryFarmAPIWeb.Models
 
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
+
+        // Reconciliation tracking (migration 111).
+        public DateTime? LastReconciledAt { get; set; }
+        public decimal? LastReconciledBalance { get; set; }
     }
 
     public class GenericCustomerTypeModel
