@@ -1,0 +1,99 @@
+﻿@*@{
+    ViewData["Title"] = "Email Confirmation";
+}
+
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card mt-5">
+                <div class="card-header">
+                    <h2>Email Confirmation</h2>
+                </div>
+                <div class="card-body text-center">
+                    <h3 class="text-success">Success!</h3>
+                    <p>Your email has been confirmed successfully.</p>
+                    <a href="@Url.Action("Login", "Account")" class="btn btn-primary">Go to Login</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+*@
+
+@{
+    ViewData["Title"] = "Email Confirmation";
+}
+
+<style>
+    .confirmation-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-top: 5%;
+        /*height: 100vh;*/
+        background-color: #f3f3f3;
+        /*background-color: #ffe4e1;*/ /* Light pink background for the active tab */
+    }
+
+    .confirmation-card {
+        background-color: #fff;
+        border: 1px solid #ddd;
+        padding: 30px;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        text-align: center;
+        max-width: 400px;
+        width: 100%;
+    }
+
+    .confirmation-card img {
+        width: 80px;
+        margin-bottom: 20px;
+    }
+
+    .confirmation-card h2 {
+        font-size: 1.5rem;
+        color: #333;
+        margin-bottom: 10px;
+    }
+
+    .confirmation-card h3 {
+        font-size: 1.2rem;
+        color: #666;
+        margin-bottom: 20px;
+    }
+
+    .confirmation-card p {
+        color: #666;
+        margin-bottom: 30px;
+    }
+
+    .confirmation-card .btn {
+        background-color: #007bff;
+        color: #fff;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        font-size: 1rem;
+        text-decoration: none;
+        display: inline-block;
+    }
+
+    .confirmation-card .btn:hover {
+        background-color: #0056b3;
+    }
+</style>
+
+<div class="confirmation-container">
+    <div class="confirmation-card">
+        @*<img src="https://via.placeholder.com/80" alt="Email Confirmed Icon" />*@
+        <h2>Account Activated Successfully</h2>
+        <br/>
+        <p>
+            Thank you, your email has been verified. Your account is now active.
+            Please use the link below to login to your account.
+        </p>
+        <a href="@Url.Action("Login", "Account")" class="btn">Login</a>
+        <p>Thank you for choosing Us!</p>
+    </div>
+</div>

@@ -1,0 +1,46 @@
+﻿@model PoultryWeb.Models.SaleModel
+
+@{
+    ViewBag.Title = "Sale Details";
+}
+
+<h2>Sale Details</h2>
+
+<dl class="dl-horizontal">
+    <dt>Sale ID</dt>
+    <dd>@Model.SaleId</dd>
+
+    <dt>Date</dt>
+    <dd>@Model.SaleDate.ToShortDateString()</dd>
+
+    <dt>Product</dt>
+    <dd>@Model.Product</dd>
+
+    <dt>Quantity</dt>
+    <dd>@Model.Quantity</dd>
+
+    <dt>Unit Price</dt>
+    <dd>@Model.UnitPrice</dd>
+
+    <dt>Total Amount</dt>
+    <dd>@Model.TotalAmount</dd>
+
+    <dt>Payment Method</dt>
+    <dd>@Model.PaymentMethod</dd>
+
+    <dt>Customer</dt>
+    <dd>@Model.CustomerName</dd>
+
+    <dt>Flock ID</dt>
+    <dd>@Model.FlockId</dd>
+
+    <dt>Description</dt>
+    <dd>@Model.SaleDescription</dd>
+
+    <dt>Created Date</dt>
+    <dd>@Model.CreatedDate</dd>
+</dl>
+
+<p>
+    @Html.ActionLink("Back to List", "Index", null, new { @class = "btn btn-secondary" })
+</p>

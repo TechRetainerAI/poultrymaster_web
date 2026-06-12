@@ -1,0 +1,234 @@
+@model PoultryWeb.Models.Generic.GenericSaleCreateVm
+@{
+    Layout = "_GenericLayout";
+    ViewData["Title"] = "New sale";
+    var customers    = ViewBag.Customers    as List<PoultryWeb.Models.Generic.GenericCustomerVm>    ?? new();
+    var products     = ViewBag.Products     as List<PoultryWeb.Models.Generic.GenericProductVm>     ?? new();
+    var cashAccounts = ViewBag.CashAccounts as List<PoultryWeb.Models.Generic.GenericCashAccountVm> ?? new();
+
+    string[] saleTypes = new[] { "WalkInSale", "CustomerSale", "ProductSale", "ServiceSale", "MixedSale", "CreditSale", "OnlineSale", "DeliverySale", "WholesaleSale", "RetailSale" };
+    string[] payMethods = new[] { "Cash", "MoMo", "Bank", "Card", "Mixed", "Credit" };
+}
+
+<form asp-action="Create" method="post" class="row g-3" id="saleForm">
+    @Html.AntiForgeryToken()
+
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div class="col-12">
+            <div asp-validation-summary="All" class="alert alert-danger"></div>
+        </div>
+    }
+
+    @* Header *@
+    <div class="col-md-3">
+        <label class="form-label">Sale date</label>
+        <input asp-for="SaleDate" type="date" class="form-control" />
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">Sales type</label>
+        <select asp-for="SalesType" class="form-select">
+            @foreach (var t in saleTypes)
+            { <option value="@t" selected="@(Model.SalesType == t)">@t</option> }
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">Customer (optional)</label>
+        <select asp-for="GenericCustomerId" class="form-select">
+            <option value="">— Walk-in —</option>
+            @foreach (var c in customers)
+            { <option value="@c.GenericCustomerId">@c.CustomerName</option> }
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">Receipt no.</label>
+        <input asp-for="ReceiptNumber" class="form-control" maxlength="60" />
+    </div>
+
+    @* Items *@
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0">Items</h6>
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="addItemRow()">+ Add row</button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0" id="itemsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 100px">Type</th>
+                                <th>Product</th>
+                                <th style="width: 110px" class="text-end">Quantity</th>
+                                <th style="width: 130px" class="text-end">Unit price</th>
+                                <th style="width: 130px" class="text-end">Discount</th>
+                                <th style="width: 140px" class="text-end">Line total</th>
+                                <th style="width: 40px"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="itemsBody">
+                        @for (int i = 0; i < Model.Items.Count; i++)
+                        {
+                            var item = Model.Items[i];
+                            <tr class="item-row">
+                                <td>
+                                    <select name="Items[@i].ItemType" class="form-select form-select-sm">
+                                        <option value="Product" selected="@(item.ItemType == "Product")">Product</option>
+                                        <option value="Service" selected="@(item.ItemType == "Service")">Service</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <select name="Items[@i].GenericProductId" class="form-select form-select-sm item-product" onchange="onProductChange(this)">
+                                        <option value="">— select —</option>
+                                        @foreach (var p in products)
+                                        {
+                                            <option value="@p.GenericProductId"
+                                                    data-price="@p.SellingPrice"
+                                                    selected="@(item.GenericProductId == p.GenericProductId)">
+                                                @p.ProductName @(string.IsNullOrEmpty(p.SKU) ? "" : $"({p.SKU})")
+                                            </option>
+                                        }
+                                    </select>
+                                </td>
+                                <td>
+                                    <input name="Items[@i].Quantity" type="number" step="0.001" min="0.001" value="@item.Quantity"
+                                           class="form-control form-control-sm text-end item-qty" oninput="recalcRow(this)" />
+                                </td>
+                                <td>
+                                    <input name="Items[@i].UnitPrice" type="number" step="0.01" min="0" value="@item.UnitPrice"
+                                           class="form-control form-control-sm text-end item-price" oninput="recalcRow(this)" />
+                                </td>
+                                <td>
+                                    <input name="Items[@i].DiscountAmount" type="number" step="0.01" min="0" value="@item.DiscountAmount"
+                                           class="form-control form-control-sm text-end item-disc" oninput="recalcRow(this)" />
+                                </td>
+                                <td class="text-end item-total fw-semibold">0.00</td>
+                                <td><button type="button" class="btn btn-sm btn-link text-danger" onclick="this.closest('tr').remove(); recalcTotals();">✕</button></td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* Payment *@
+    <div class="col-md-3">
+        <label class="form-label">Discount (header, GHC)</label>
+        <input asp-for="HeaderDiscountAmount" type="number" step="0.01" min="0" class="form-control" oninput="recalcTotals()" />
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">Tax (GHC)</label>
+        <input asp-for="TaxAmount" type="number" step="0.01" min="0" class="form-control" oninput="recalcTotals()" />
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">Amount paid (GHC)</label>
+        <input asp-for="AmountPaid" type="number" step="0.01" min="0" class="form-control" />
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">Payment method</label>
+        <select asp-for="PaymentMethod" class="form-select">
+            @foreach (var p in payMethods)
+            { <option value="@p" selected="@(Model.PaymentMethod == p)">@p</option> }
+        </select>
+    </div>
+    <div class="col-md-6">
+        <label class="form-label">Cash account (receives payment)</label>
+        <select asp-for="GenericCashAccountId" class="form-select">
+            <option value="">— none / credit sale —</option>
+            @foreach (var a in cashAccounts.Where(x => x.IsActive))
+            { <option value="@a.GenericCashAccountId">@a.AccountName (@a.AccountType)</option> }
+        </select>
+    </div>
+    <div class="col-md-6 d-flex align-items-end">
+        <div class="alert alert-light w-100 mb-0">
+            <div class="d-flex justify-content-between">
+                <span>Subtotal:</span> <span id="liveSubtotal">0.00</span>
+            </div>
+            <div class="d-flex justify-content-between">
+                <strong>Total:</strong> <strong id="liveTotal">0.00</strong>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12">
+        <label class="form-label">Notes</label>
+        <textarea asp-for="Notes" rows="2" class="form-control" maxlength="1000"></textarea>
+    </div>
+
+    <div class="col-12 d-flex justify-content-end gap-2">
+        <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+        <button type="submit" class="btn btn-primary">Create as Draft</button>
+    </div>
+</form>
+
+@section Scripts {
+<script>
+    function addItemRow() {
+        const tbody = document.getElementById('itemsBody');
+        const idx = tbody.querySelectorAll('tr.item-row').length;
+        const products = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+            products.Select(p => new { id = p.GenericProductId, name = p.ProductName, sku = p.SKU, price = p.SellingPrice })));
+
+        const opts = products.map(p =>
+            `<option value="${p.id}" data-price="${p.price}">${p.name} ${p.sku ? '(' + p.sku + ')' : ''}</option>`
+        ).join('');
+
+        const row = document.createElement('tr');
+        row.className = 'item-row';
+        row.innerHTML = `
+            <td>
+                <select name="Items[${idx}].ItemType" class="form-select form-select-sm">
+                    <option value="Product">Product</option><option value="Service">Service</option>
+                </select>
+            </td>
+            <td>
+                <select name="Items[${idx}].GenericProductId" class="form-select form-select-sm item-product" onchange="onProductChange(this)">
+                    <option value="">— select —</option>${opts}
+                </select>
+            </td>
+            <td><input name="Items[${idx}].Quantity"       type="number" step="0.001" min="0.001" value="1" class="form-control form-control-sm text-end item-qty"   oninput="recalcRow(this)" /></td>
+            <td><input name="Items[${idx}].UnitPrice"      type="number" step="0.01"  min="0"     value="0" class="form-control form-control-sm text-end item-price" oninput="recalcRow(this)" /></td>
+            <td><input name="Items[${idx}].DiscountAmount" type="number" step="0.01"  min="0"     value="0" class="form-control form-control-sm text-end item-disc"  oninput="recalcRow(this)" /></td>
+            <td class="text-end item-total fw-semibold">0.00</td>
+            <td><button type="button" class="btn btn-sm btn-link text-danger" onclick="this.closest('tr').remove(); recalcTotals();">✕</button></td>
+        `;
+        tbody.appendChild(row);
+    }
+
+    function onProductChange(sel) {
+        const opt = sel.options[sel.selectedIndex];
+        const price = parseFloat(opt.getAttribute('data-price') || '0');
+        const row = sel.closest('tr');
+        if (!isNaN(price) && price > 0) {
+            row.querySelector('.item-price').value = price.toFixed(2);
+        }
+        recalcRow(sel);
+    }
+
+    function recalcRow(el) {
+        const row = el.closest('tr');
+        const qty   = parseFloat(row.querySelector('.item-qty')?.value)   || 0;
+        const price = parseFloat(row.querySelector('.item-price')?.value) || 0;
+        const disc  = parseFloat(row.querySelector('.item-disc')?.value)  || 0;
+        const line  = (qty * price) - disc;
+        row.querySelector('.item-total').innerText = line.toFixed(2);
+        recalcTotals();
+    }
+
+    function recalcTotals() {
+        let subtotal = 0;
+        document.querySelectorAll('.item-total').forEach(td => {
+            subtotal += parseFloat(td.innerText) || 0;
+        });
+        const headerDisc = parseFloat(document.getElementById('HeaderDiscountAmount')?.value) || 0;
+        const tax        = parseFloat(document.getElementById('TaxAmount')?.value) || 0;
+        const total      = subtotal - headerDisc + tax;
+        document.getElementById('liveSubtotal').innerText = subtotal.toFixed(2);
+        document.getElementById('liveTotal').innerText    = total.toFixed(2);
+    }
+
+    document.querySelectorAll('.item-row').forEach(r => recalcRow(r.querySelector('.item-qty')));
+</script>
+}

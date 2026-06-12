@@ -1,0 +1,28 @@
+﻿@model PoultryWeb.Models.FeedUsageModel
+
+@{
+    ViewBag.Title = "Feed Usage - Details";
+}
+
+<h2>Feed Usage Details</h2>
+
+<dl class="dl-horizontal">
+    <dt>ID</dt>
+    <dd>@Model.FeedUsageId</dd>
+
+    <dt>Flock ID</dt>
+    <dd>@Model.FlockId</dd>
+
+    <dt>Usage Date</dt>
+    <dd>@Model.UsageDate.ToShortDateString()</dd>
+
+    <dt>Feed Type</dt>
+    <dd>@Model.FeedType</dd>
+
+    <dt>Quantity (Kg)</dt>
+    <dd>@Model.QuantityKg</dd>
+</dl>
+
+<p>
+    @Html.ActionLink("Back to List", "Index")
+</p>

@@ -1,0 +1,11 @@
+# Root build context — keep image small and avoid junk in Cloud Build
+**/.git
+**/.vs
+**/bin
+**/obj
+**/out
+**/publish
+**/*.user
+**/node_modules
+**/publish.zip
+Other sql files for Crypto software

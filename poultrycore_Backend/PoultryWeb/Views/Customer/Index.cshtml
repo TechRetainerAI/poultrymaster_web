@@ -1,0 +1,364 @@
+﻿@model IEnumerable<PoultryWeb.Models.CustomerModel>
+
+@{
+    ViewBag.Title = "Customer Management";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<style>
+    .page-header {
+        border-bottom: 1px solid #e0e0e0;
+        margin-bottom: 1.5rem;
+        padding-bottom: 0.5rem;
+    }
+
+    .table-container {
+        background-color: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .filter-section {
+        background-color: #f8f9fa;
+        border-radius: 6px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .action-buttons {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 1.5rem;
+        padding-top: 1rem;
+        border-top: 1px solid #e9ecef;
+    }
+
+    .table thead th {
+        border-bottom: 2px solid #dee2e6;
+        font-weight: 600;
+        color: #495057;
+    }
+
+    .table tbody tr:hover {
+        background-color: #f8f9fa;
+        cursor: pointer;
+    }
+
+    .column-toggle {
+        display: flex;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+        .column-toggle input {
+            margin-right: 0.5rem;
+        }
+
+    .btn-action {
+        margin-right: 0.5rem;
+    }
+
+    .table-responsive {
+        max-height: 500px;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 2rem;
+        color: #6c757d;
+    }
+</style>
+
+<div class="container-fluid">
+    <div class="page-header">
+        <h1 class="h3">Customer Management</h1>
+        <p class="text-muted">Manage your customer information and contacts</p>
+    </div>
+
+    <div class="table-container">
+        <div class="filter-section">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label for="nameFilter" class="form-label">Name</label>
+                    <input type="text" id="nameFilter" class="form-control" placeholder="Filter by name">
+                </div>
+                <div class="col-md-4">
+                    <label for="emailFilter" class="form-label">Email</label>
+                    <input type="text" id="emailFilter" class="form-control" placeholder="Filter by email">
+                </div>
+                <div class="col-md-4">
+                    <button type="button" class="btn btn-primary w-100" onclick="applyFilter()">
+                        <i class="bi bi-funnel"></i> Apply Filters
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h5 class="mb-0">Customer List</h5>
+            </div>
+            <div class="d-flex">
+                <button class="btn btn-outline-success btn-sm me-2" onclick="exportCSV()">
+                    <i class="bi bi-file-earmark-spreadsheet"></i> Export CSV
+                </button>
+                <button class="btn btn-outline-danger btn-sm" onclick="exportPDF()">
+                    <i class="bi bi-file-earmark-pdf"></i> Export PDF
+                </button>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover" id="customerTable">
+                <thead>
+                    <tr>
+                        <th>
+                            <div class="column-toggle">
+                                <input type="checkbox" class="toggle-col" data-col="0" checked>
+                                <span>Name</span>
+                            </div>
+                        </th>
+                        <th>
+                            <div class="column-toggle">
+                                <input type="checkbox" class="toggle-col" data-col="1" checked>
+                                <span>Email</span>
+                            </div>
+                        </th>
+                        <th>
+                            <div class="column-toggle">
+                                <input type="checkbox" class="toggle-col" data-col="2" checked>
+                                <span>Phone</span>
+                            </div>
+                        </th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Any())
+                    {
+                        foreach (var c in Model)
+                        {
+                            <tr data-customer-id="@c.CustomerId">
+                                <td>@c.Name</td>
+                                <td>@c.ContactEmail</td>
+                                <td>@c.ContactPhone</td>
+                                <td>
+                                    <button class="btn btn-outline-primary btn-sm btn-action" onclick="event.stopPropagation(); loadEditPartial(@c.CustomerId)">
+                                        <i class="bi bi-pencil"></i> Edit
+                                    </button>
+                                    <button class="btn btn-outline-danger btn-sm" onclick="event.stopPropagation(); confirmDelete(@c.CustomerId)">
+                                        <i class="bi bi-trash"></i> Delete
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="4" class="empty-state">
+                                <i class="bi bi-people display-4"></i>
+                                <p class="mt-2">No customers found. Create your first customer to get started.</p>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="action-buttons">
+            <div class="text-muted">
+                Showing @Model.Count() customer(s)
+            </div>
+            <button class="btn btn-primary" onclick="openCreateCustomer()">
+                <i class="bi bi-plus-circle"></i> Create New Customer
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="customerModal" tabindex="-1" aria-labelledby="customerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="customerModalLabel">Customer Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="editContainer"></div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+
+    <script>
+        let customerTable;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            // Initialize DataTable if there are records
+            if (@Model.Count() > 0) {
+                customerTable = new DataTable('#customerTable', {
+                    pageLength: 10,
+                    scrollY: '400px',
+                    scrollCollapse: true,
+                    ordering: true,
+                    responsive: true,
+                    language: {
+                        emptyTable: "No customers available",
+                        zeroRecords: "No matching customers found"
+                    }
+                });
+
+                // Set up column toggling
+                document.querySelectorAll('.toggle-col').forEach(cb => {
+                    cb.addEventListener('change', function () {
+                        const column = customerTable.column(this.dataset.col);
+                        column.visible(this.checked);
+                    });
+                });
+            }
+
+            // Set up row click for editing
+            document.getElementById('customerTable').addEventListener('click', function (e) {
+                var row = e.target.closest('tr[data-customer-id]');
+                if (row && !e.target.closest('button')) {
+                    var id = row.getAttribute('data-customer-id');
+                    loadEditPartial(id);
+                }
+            });
+        });
+
+        function applyFilter() {
+            const name = document.getElementById('nameFilter').value.toLowerCase();
+            const email = document.getElementById('emailFilter').value.toLowerCase();
+
+            const rows = document.querySelectorAll('#customerTable tbody tr[data-customer-id]');
+            let visibleCount = 0;
+
+            rows.forEach(row => {
+                const nameText = row.children[0].textContent.toLowerCase();
+                const emailText = row.children[1].textContent.toLowerCase();
+                const show = (!name || nameText.includes(name)) && (!email || emailText.includes(email));
+                row.style.display = show ? '' : 'none';
+                if (show) visibleCount++;
+            });
+
+            // Update the record count
+            const countElement = document.querySelector('.action-buttons .text-muted');
+            if (countElement) {
+                countElement.textContent = `Showing ${visibleCount} customer(s)`;
+            }
+        }
+
+        function openCreateCustomer() {
+            fetch('/Customer/CreatePartial')
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('customerModalLabel').innerText = 'Create New Customer';
+                    document.getElementById('editContainer').innerHTML = html;
+                    new bootstrap.Modal(document.getElementById('customerModal')).show();
+                })
+                .catch(error => {
+                    console.error('Error loading create form:', error);
+                    alert('Error loading customer creation form');
+                });
+        }
+
+        function loadEditPartial(id) {
+            fetch('/Customer/EditPartial/' + id)
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('customerModalLabel').innerText = 'Edit Customer';
+                    document.getElementById('editContainer').innerHTML = html;
+                    new bootstrap.Modal(document.getElementById('customerModal')).show();
+                })
+                .catch(error => {
+                    console.error('Error loading edit form:', error);
+                    alert('Error loading customer edit form');
+                });
+        }
+
+        function confirmDelete(id) {
+            if (confirm('Are you sure you want to delete this customer?')) {
+                fetch('/Customer/Delete/' + id, {
+                    method: 'POST',
+                    headers: {
+                        'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]').value
+                    }
+                })
+                .then(response => {
+                    if (response.ok) {
+                        location.reload(); // Refresh the page to reflect changes
+                    } else {
+                        alert('Error deleting customer');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error deleting customer');
+                });
+            }
+        }
+
+        function exportCSV() {
+            let csvContent = "data:text/csv;charset=utf-8,Name,Email,Phone\n";
+            document.querySelectorAll('#customerTable tbody tr[data-customer-id]').forEach(row => {
+                if (row.style.display !== 'none') {
+                    const cols = Array.from(row.children).slice(0, 3).map(td => `"${td.textContent.trim()}"`);
+                    csvContent += cols.join(",") + "\n";
+                }
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "Customer_Report.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function exportPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            // Add title
+            doc.setFontSize(16);
+            doc.text("Customer Report", 14, 15);
+
+            // Add date
+            doc.setFontSize(10);
+            doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 22);
+
+            // Prepare table data
+            let tableData = [];
+            document.querySelectorAll('#customerTable tbody tr[data-customer-id]').forEach(row => {
+                if (row.style.display !== 'none') {
+                    const cols = Array.from(row.children).slice(0, 3).map(td => td.textContent.trim());
+                    tableData.push(cols);
+                }
+            });
+
+            // Add table
+            doc.autoTable({
+                startY: 30,
+                head: [['Name', 'Email', 'Phone']],
+                body: tableData,
+                theme: 'grid',
+                headStyles: { fillColor: [66, 139, 202] }
+            });
+
+            doc.save("Customer_Report.pdf");
+        }
+    </script>
+}

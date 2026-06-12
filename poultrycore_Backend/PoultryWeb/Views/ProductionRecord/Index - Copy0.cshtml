@@ -1,0 +1,47 @@
+﻿@model IEnumerable<PoultryWeb.Models.ProductionRecordViewModel>
+
+<h1>Production Records</h1>
+<a asp-action="Create">Create New Record</a>
+<table>
+    <thead>
+        <tr>
+            <th>FarmId</th>
+            <th>AgeInWeeks</th>
+            <th>Date</th>
+            <th>NoOfBirds</th>
+            <th>Mortality</th>
+            <th>NoOfBirdsLeft</th>
+            <th>Feed (Kg)</th>
+            <th>Medication</th>
+            <th>Production (9AM)</th>
+            <th>Production (12PM)</th>
+            <th>Production (4PM)</th>
+            <th>TotalProduction</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var record in Model)
+        {
+            <tr>
+                <td>@record.FarmId</td>
+                <td>@record.AgeInWeeks</td>
+                <td>@record.Date.ToShortDateString()</td>
+                <td>@record.NoOfBirds</td>
+                <td>@record.Mortality</td>
+                <td>@record.NoOfBirdsLeft</td>
+                <td>@record.FeedKg</td>
+                <td>@record.Medication</td>
+                <td>@record.Production9AM</td>
+                <td>@record.Production12PM</td>
+                <td>@record.Production4PM</td>
+                <td>@record.TotalProduction</td>
+                <td>
+                    <a asp-action="Edit" asp-route-id="@record.Id">Edit</a> |
+                    <a asp-action="Details" asp-route-id="@record.Id">Details</a> |
+                    <a asp-action="Delete" asp-route-id="@record.Id">Delete</a>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

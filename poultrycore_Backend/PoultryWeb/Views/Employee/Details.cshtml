@@ -1,0 +1,101 @@
+@model PoultryWeb.Models.EmployeeModel
+
+@{
+    ViewBag.Title = "Employee Details";
+}
+
+<div class="container-fluid">
+    <h2>Employee Details</h2>
+    <p class="text-muted">View employee information</p>
+
+    <div class="card">
+        <div class="card-body">
+            <dl class="dl-horizontal">
+                <dt>@Html.DisplayNameFor(m => m.FirstName)</dt>
+                <dd>@Html.DisplayFor(m => m.FirstName)</dd>
+
+                <dt>@Html.DisplayNameFor(m => m.LastName)</dt>
+                <dd>@Html.DisplayFor(m => m.LastName)</dd>
+
+                <dt>@Html.DisplayNameFor(m => m.Email)</dt>
+                <dd>@Html.DisplayFor(m => m.Email)</dd>
+
+                <dt>@Html.DisplayNameFor(m => m.PhoneNumber)</dt>
+                <dd>@Html.DisplayFor(m => m.PhoneNumber)</dd>
+
+                <dt>@Html.DisplayNameFor(m => m.UserName)</dt>
+                <dd>@Html.DisplayFor(m => m.UserName)</dd>
+
+                <dt>@Html.DisplayNameFor(m => m.FarmName)</dt>
+                <dd>@Html.DisplayFor(m => m.FarmName)</dd>
+
+                <dt>@Html.DisplayNameFor(m => m.IsStaff)</dt>
+                <dd>
+                    @if (Model.IsStaff)
+                    {
+                        <span class="badge badge-info">Staff Member</span>
+                    }
+                    else
+                    {
+                        <span class="badge badge-secondary">Not Staff</span>
+                    }
+                </dd>
+
+                <dt>@Html.DisplayNameFor(m => m.EmailConfirmed)</dt>
+                <dd>
+                    @if (Model.EmailConfirmed)
+                    {
+                        <span class="badge badge-success">Confirmed</span>
+                    }
+                    else
+                    {
+                        <span class="badge badge-warning">Pending</span>
+                    }
+                </dd>
+            </dl>
+
+            <hr />
+
+            <div class="form-group">
+                <a href="@Url.Action("Edit", "Employee", new { id = Model.Id })" class="btn btn-warning">
+                    <i class="glyphicon glyphicon-edit"></i> Edit
+                </a>
+                <a href="@Url.Action("Delete", "Employee", new { id = Model.Id })" class="btn btn-danger">
+                    <i class="glyphicon glyphicon-trash"></i> Delete
+                </a>
+                <a href="@Url.Action("Index", "Employee")" class="btn btn-default">
+                    <i class="glyphicon glyphicon-arrow-left"></i> Back to List
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .card {
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        border-radius: 5px;
+        border: none;
+        margin-top: 20px;
+    }
+    
+    .card-body {
+        padding: 30px;
+    }
+    
+    .dl-horizontal dt {
+        width: 180px;
+        font-weight: 600;
+    }
+    
+    .dl-horizontal dd {
+        margin-left: 200px;
+        margin-bottom: 15px;
+    }
+    
+    .badge {
+        padding: 5px 10px;
+        font-size: 14px;
+    }
+</style>
+

@@ -1,0 +1,88 @@
+﻿@model PoultryWeb.Models.SaleModel
+
+@{
+    ViewBag.Title = "Edit Sale";
+}
+
+<h2>Edit Sale</h2>
+
+@using (Html.BeginForm("Edit", "Sale", FormMethod.Post, new { id = Model.SaleId }))
+{
+    @Html.AntiForgeryToken()
+    @Html.HiddenFor(m => m.SaleId)
+
+    <div class="form-horizontal">
+
+        <div class="form-group">
+            @Html.LabelFor(m => m.SaleDate, new { @class = "control-label col-md-2" })
+            <div class="col-md-6">
+                @Html.TextBoxFor(m => m.SaleDate, "{0:yyyy-MM-dd}", new { @class = "form-control", type = "date" })
+                @Html.ValidationMessageFor(m => m.SaleDate)
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(m => m.Product, new { @class = "control-label col-md-2" })
+            <div class="col-md-6">
+                @Html.TextBoxFor(m => m.Product, new { @class = "form-control" })
+                @Html.ValidationMessageFor(m => m.Product)
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(m => m.Quantity, new { @class = "control-label col-md-2" })
+            <div class="col-md-6">
+                @Html.TextBoxFor(m => m.Quantity, new { @class = "form-control" })
+                @Html.ValidationMessageFor(m => m.Quantity)
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(m => m.UnitPrice, new { @class = "control-label col-md-2" })
+            <div class="col-md-6">
+                @Html.TextBoxFor(m => m.UnitPrice, new { @class = "form-control" })
+                @Html.ValidationMessageFor(m => m.UnitPrice)
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(m => m.PaymentMethod, new { @class = "control-label col-md-2" })
+            <div class="col-md-6">
+                @Html.TextBoxFor(m => m.PaymentMethod, new { @class = "form-control" })
+                @Html.ValidationMessageFor(m => m.PaymentMethod)
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(m => m.CustomerName, new { @class = "control-label col-md-2" })
+            <div class="col-md-6">
+                @Html.TextBoxFor(m => m.CustomerName, new { @class = "form-control" })
+                @Html.ValidationMessageFor(m => m.CustomerName)
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(m => m.FlockId, new { @class = "control-label col-md-2" })
+            <div class="col-md-6">
+                @Html.TextBoxFor(m => m.FlockId, new { @class = "form-control" })
+                @Html.ValidationMessageFor(m => m.FlockId)
+            </div>
+        </div>
+
+        <div class="form-group">
+            @Html.LabelFor(m => m.SaleDescription, new { @class = "control-label col-md-2" })
+            <div class="col-md-6">
+                @Html.TextBoxFor(m => m.SaleDescription, new { @class = "form-control" })
+                @Html.ValidationMessageFor(m => m.SaleDescription)
+            </div>
+        </div>
+
+        <div class="form-group">
+            <div class="col-md-offset-2 col-md-6">
+                <input type="submit" value="Save" class="btn btn-primary" />
+                @Html.ActionLink("Cancel", "Index", null, new { @class = "btn btn-secondary" })
+            </div>
+        </div>
+
+    </div>
+}

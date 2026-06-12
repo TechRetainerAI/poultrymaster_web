@@ -1,0 +1,12 @@
+# Login API — SQL Server connection string template
+# Set the real value in User Secrets, appsettings.Development.json (local only), or Cloud Run:
+#   ConnectionStrings__ConnStr
+#
+# If your host uses a port other than 1433, use: Data Source=195.250.26.22,PORT
+
+Data Source=195.250.26.22,1433;Initial Catalog=poultry2_Prod;Persist Security Info=False;User ID=poultry2_ProdUser;Password=YOUR_PASSWORD_HERE;Pooling=True;MultipleActiveResultSets=True;Encrypt=True;TrustServerCertificate=True;Connect Timeout=30;
+
+# Alternate (if you still use the older catalog + login from hosting):
+# Data Source=195.250.26.22,1433;Initial Catalog=poultry2_;Persist Security Info=False;User ID=poultry2_poultryCore;Password=YOUR_PASSWORD_HERE;Pooling=True;MultipleActiveResultSets=True;Encrypt=True;TrustServerCertificate=True;Connect Timeout=30;
+#
+# Do not use "Command Timeout=..." in the connection string — only "Connect Timeout" / "Connection Timeout" are valid for SqlConnection.

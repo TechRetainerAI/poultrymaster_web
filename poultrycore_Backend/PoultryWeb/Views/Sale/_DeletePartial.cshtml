@@ -1,0 +1,18 @@
+﻿@model PoultryWeb.Models.SaleModel
+
+<h4>Delete Sale (ID: @Model.SaleId)</h4>
+
+<p>Are you sure you want to delete this sale record?</p>
+<ul>
+    <li><strong>Product:</strong> @Model.Product</li>
+    <li><strong>Date:</strong> @Model.SaleDate.ToShortDateString()</li>
+    <li><strong>Quantity:</strong> @Model.Quantity</li>
+    <li><strong>Unit Price:</strong> @Model.UnitPrice</li>
+</ul>
+
+<form asp-action="DeleteConfirmed" asp-controller="Sale" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="SaleId" />
+    <button type="submit" class="btn btn-danger">Yes, Delete</button>
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+</form>

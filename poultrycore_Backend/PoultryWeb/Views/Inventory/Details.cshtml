@@ -1,0 +1,66 @@
+﻿@model PoultryWeb.Models.InventoryItemModel
+
+@{
+    ViewBag.Title = "Inventory - Details";
+    var transactions = ViewBag.Transactions as List<PoultryWeb.Models.InventoryTransactionModel> ?? new List<PoultryWeb.Models.InventoryTransactionModel>();
+}
+
+<h2>Item Details</h2>
+
+<dl class="dl-horizontal">
+    <dt>Item ID</dt>
+    <dd>@Model.ItemId</dd>
+
+    <dt>Item Name</dt>
+    <dd>@Model.ItemName</dd>
+
+    <dt>Category</dt>
+    <dd>@Model.Category</dd>
+
+    <dt>Quantity In Stock</dt>
+    <dd>@Model.QuantityInStock</dd>
+
+    <dt>Unit of Measure</dt>
+    <dd>@Model.UnitOfMeasure</dd>
+
+    <dt>Reorder Level</dt>
+    <dd>@Model.ReorderLevel</dd>
+
+    <dt>Is Active</dt>
+    <dd>@(Model.IsActive ? "Yes" : "No")</dd>
+</dl>
+
+<hr />
+<h4>Transaction History</h4>
+
+<p>
+    @Html.ActionLink("Add Transaction", "AddTransaction", new { itemId = Model.ItemId }, new { @class = "btn btn-success" })
+</p>
+
+<table class="table table-bordered">
+    <thead>
+        <tr>
+            <th>Transaction ID</th>
+            <th>Date</th>
+            <th>Quantity Change</th>
+            <th>Transaction Type</th>
+            <th>Remarks</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var tx in transactions)
+        {
+            <tr>
+                <td>@tx.TransactionId</td>
+                <td>@tx.TransactionDate.ToShortDateString()</td>
+                <td>@tx.QuantityChange</td>
+                <td>@tx.TransactionType</td>
+                <td>@tx.Remarks</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<p>
+    @Html.ActionLink("Back to List", "Index", new { }, new { @class = "btn btn-secondary" })
+</p>

@@ -1,0 +1,275 @@
+﻿@model IEnumerable<PoultryWeb.Models.FeedUsageModel>
+
+@{
+    ViewBag.Title = "Feed Usage Management";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<style>
+    .feed-container {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+    }
+
+    .table-section {
+        flex: 1 1 100%;
+        min-width: 300px;
+        padding: 20px;
+    }
+
+    .bottom-bar {
+        text-align: center;
+        padding: 15px;
+        border-top: 1px solid #ddd;
+    }
+
+    .modal-lg {
+        max-width: 800px;
+    }
+
+    .filter-form {
+        display: flex;
+        flex-wrap: wrap;
+        /* gap: 1rem; */
+        margin-bottom: 1rem;
+        align-items: flex-end;
+        width: 100%;
+    }
+
+        .filter-form label {
+            display: inline-block;
+            margin-right: 0.5rem;
+            white-space: nowrap;
+        }
+
+        .filter-form .form-control {
+            display: inline-block;
+            width: auto;
+        }
+
+    .dataTables_wrapper .dataTables_length {
+        float: left;
+    }
+
+    .dataTables_wrapper .dataTables_filter {
+        float: right;
+    }
+
+    .table-responsive {
+        max-height: 500px;
+        overflow-y: auto;
+    }
+</style>
+
+<div class="feed-container">
+    <div class="table-section">
+        <h2>Feed Usage Management</h2>
+
+        <form id="filterForm" class="filter-form row w-100">
+            <div class="col-md-2 d-flex align-items-center">
+                <label for="startDate" class="me-2">From:</label>
+                <input type="date" id="startDate" class="form-control" />
+            </div>
+            <div class="col-md-2 d-flex align-items-center">
+                <label for="endDate" class="me-2">To:</label>
+                <input type="date" id="endDate" class="form-control" />
+            </div>
+            <div class="col-md-3 d-flex align-items-center">
+                <label for="feedTypeFilter" class="me-2">Feed Type</label>
+                <input type="text" id="feedTypeFilter" class="form-control" placeholder="Enter feed type" />
+            </div>
+            <div class="col-md-2 d-flex align-items-center">
+                <button type="button" class="btn btn-primary me-2" onclick="applyFilter()">View</button>
+            </div>
+            <div class="col-md-3 d-flex justify-content-end align-items-center">
+                <button class="btn btn-success me-2" onclick="exportCSV()">Export CSV</button>
+                <button class="btn btn-danger" onclick="exportPDF()">Export PDF</button>
+            </div>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-striped" id="usageTable">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" class="toggle-col" data-col="0" checked /> Flock ID</th>
+                        <th><input type="checkbox" class="toggle-col" data-col="1" checked /> Date</th>
+                        <th><input type="checkbox" class="toggle-col" data-col="2" checked /> Feed Type</th>
+                        <th><input type="checkbox" class="toggle-col" data-col="3" checked /> Quantity (Kg)</th>
+                        <th><input type="checkbox" class="toggle-col" data-col="4" checked /> Delete</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model)
+                    {
+                        <tr data-usage-id="@item.FeedUsageId">
+                            <td>@item.FlockId</td>
+                            <td>@item.UsageDate.ToShortDateString()</td>
+                            <td>@item.FeedType</td>
+                            <td>@item.QuantityKg</td>
+                            <td>
+                                <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); confirmDelete(@item.FeedUsageId)">
+                                    <i class="bi bi-trash"></i> Delete
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <th colspan="3" class="text-end">Total:</th>
+                        <th id="totalQuantity">0.00</th>
+                        <th></th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="bottom-bar">
+    <button class="btn btn-primary" onclick="openCreateUsage()">
+        <i class="bi bi-plus-circle"></i> Create New Feed Usage
+    </button>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="usageModal" tabindex="-1" aria-labelledby="usageModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="usageModalLabel">Feed Usage</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="editContainer"></div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script>
+        let usageTable;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            usageTable = new DataTable('#usageTable', {
+                pageLength: 10,
+                scrollY: '300px',
+                scrollCollapse: true,
+                ordering: true,
+                drawCallback: function () {
+                    updateTotal();
+                }
+            });
+
+            document.querySelectorAll('.toggle-col').forEach(cb => {
+                cb.addEventListener('change', function () {
+                    const column = usageTable.column(this.dataset.col);
+                    column.visible(this.checked);
+                });
+            });
+
+            document.getElementById('usageTable').addEventListener('click', function (e) {
+                const row = e.target.closest('tr[data-usage-id]');
+                if (row && !e.target.closest('.btn-danger')) {
+                    const id = row.getAttribute('data-usage-id');
+                    loadEditPartial(id);
+                }
+            });
+        });
+
+        function applyFilter() {
+            const start = document.getElementById('startDate').value;
+            const end = document.getElementById('endDate').value;
+            const feedType = document.getElementById('feedTypeFilter').value.toLowerCase();
+
+            const rows = document.querySelectorAll('#usageTable tbody tr');
+            rows.forEach(row => {
+                const date = row.children[1].textContent;
+                const type = row.children[2].textContent.toLowerCase();
+                const show = (!start || new Date(date) >= new Date(start)) &&
+                             (!end || new Date(date) <= new Date(end)) &&
+                             (!feedType || type.includes(feedType));
+                row.style.display = show ? '' : 'none';
+            });
+            updateTotal();
+        }
+
+        function updateTotal() {
+            let total = 0.0;
+            document.querySelectorAll('#usageTable tbody tr').forEach(row => {
+                if (row.style.display !== 'none') {
+                    total += parseFloat(row.children[3].textContent) || 0;
+                }
+            });
+            document.getElementById('totalQuantity').innerText = total.toFixed(2);
+        }
+
+        function openCreateUsage() {
+            fetch('/FeedUsage/CreatePartial')
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('usageModalLabel').innerText = 'Create Feed Usage';
+                    document.getElementById('editContainer').innerHTML = html;
+                    new bootstrap.Modal(document.getElementById('usageModal')).show();
+                });
+        }
+
+        function loadEditPartial(id) {
+            fetch('/FeedUsage/EditPartial/' + id)
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('usageModalLabel').innerText = 'Edit Feed Usage';
+                    document.getElementById('editContainer').innerHTML = html;
+                    new bootstrap.Modal(document.getElementById('usageModal')).show();
+                });
+        }
+
+        function loadDeletePartial(id) {
+            fetch('/FeedUsage/DeletePartial/' + id)
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById('usageModalLabel').innerText = 'Delete Feed Usage';
+                    document.getElementById('editContainer').innerHTML = html;
+                    new bootstrap.Modal(document.getElementById('usageModal')).show();
+                });
+        }
+
+        function confirmDelete(id) {
+            loadDeletePartial(id);
+        }
+
+        function exportCSV() {
+            let csv = "data:text/csv;charset=utf-8,Flock ID,Date,Feed Type,Quantity\n";
+            document.querySelectorAll('#usageTable tbody tr').forEach(row => {
+                if (row.style.display !== 'none') {
+                    let cols = Array.from(row.children).slice(0, 4).map(td => td.textContent.trim());
+                    csv += cols.join(',') + "\n";
+                }
+            });
+            const encoded = encodeURI(csv);
+            const link = document.createElement("a");
+            link.setAttribute("href", encoded);
+            link.setAttribute("download", "Feed_Usage_Report.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function exportPDF() {
+            const doc = new jspdf.jsPDF();
+            doc.text("Feed Usage Report", 20, 10);
+            const data = [];
+            document.querySelectorAll('#usageTable tbody tr').forEach(row => {
+                if (row.style.display !== 'none') {
+                    const cols = Array.from(row.children).slice(0, 4).map(td => td.textContent.trim());
+                    data.push(cols);
+                }
+            });
+            doc.autoTable({ head: [["Flock ID", "Date", "Feed Type", "Quantity"]], body: data });
+            doc.save("Feed_Usage_Report.pdf");
+        }
+    </script>
+}

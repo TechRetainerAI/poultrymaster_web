@@ -1,0 +1,41 @@
+﻿@model IEnumerable<PoultryWeb.Models.FlockModel>
+
+@{
+    ViewBag.Title = "Flock Index";
+}
+
+<h2>Flock List</h2>
+
+<p>
+    @Html.ActionLink("Create New Flock", "Create")
+</p>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Breed</th>
+            <th>Quantity</th>
+            <th>Start Date</th>
+            <th>Active</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+        {
+            <tr>
+                <td>@Html.DisplayFor(m => item.Name)</td>
+                <td>@Html.DisplayFor(m => item.Breed)</td>
+                <td>@Html.DisplayFor(m => item.Quantity)</td>
+                <td>@Html.DisplayFor(m => item.StartDate)</td>
+                <td>@Html.DisplayFor(m => item.Active)</td>
+                <td>
+                    @Html.ActionLink("Details", "Details", new { id = item.FlockId }) |
+                    @Html.ActionLink("Edit", "Edit", new { id = item.FlockId }) |
+                    @Html.ActionLink("Delete", "Delete", new { id = item.FlockId })
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

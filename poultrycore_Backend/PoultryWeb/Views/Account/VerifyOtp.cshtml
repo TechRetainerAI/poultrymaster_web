@@ -1,0 +1,101 @@
+﻿@model PoultryWeb.Models.Authentication.User.Otp
+
+@{
+    ViewData["Title"] = "Two-Step Verification";
+}
+
+<style>
+    .verification-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        /*height: 100vh;*/
+        background-color: #f3f3f3;
+    }
+
+    .verification-card {
+        background-color: #fff;
+        border: 1px solid #ddd;
+        padding: 20px;
+        border-radius: 5px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        text-align: center;
+        max-width: 350px;
+        width: 100%;
+        margin-top: 5%;
+    }
+
+    .verification-card h2 {
+        margin-bottom: 20px;
+        font-size: 1.5rem;
+        color: #111;
+    }
+
+    .verification-card label {
+        display: block;
+        text-align: left;
+        margin-bottom: 5px;
+        font-weight: bold;
+    }
+
+    .verification-card input[type="text"] {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        margin-bottom: 20px;
+        font-size: 1rem;
+    }
+
+    .verification-card input[type="checkbox"] {
+        margin-right: 5px;
+    }
+
+    .verification-card button {
+        background-color: #ff9900;
+        color: #fff;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        font-size: 1rem;
+        cursor: pointer;
+    }
+
+    .verification-card a {
+        display: block;
+        margin-top: 15px;
+        font-size: 0.9rem;
+        color: #0073bb;
+    }
+
+    .verification-card a:hover {
+        text-decoration: underline;
+    }
+</style>
+
+<div class="verification-container">
+    <div class="verification-card">
+        @*<img src="https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg" alt="Amazon Logo" style="width: 100px; margin-bottom: 20px;">*@
+        <h2>Two-Step Verification</h2>
+        <p>For added security, please enter the One Time Password (OTP) generated and sent to your email.</p>
+        <form asp-action="VerifyAndLoginWithOTP" method="post">
+            <input type="hidden" asp-for="UserId" />
+            <input type="hidden" asp-for="UserName" />
+            <div>
+                <label asp-for="OtpCode">Enter OTP:</label>
+                <input asp-for="OtpCode" class="form-control" type="text" />
+                <span asp-validation-for="OtpCode" class="text-danger"></span>
+            </div>
+            @*<div>
+                <input type="checkbox" id="dont-require-otp" name="dont-require-otp" />
+                <label for="dont-require-otp">Don't require OTP on this browser</label>
+            </div>*@
+            <button type="submit">Sign-In</button>
+        </form>
+        @*<a href="#">Didn't receive the OTP?</a>*@
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}

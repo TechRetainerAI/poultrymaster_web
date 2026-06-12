@@ -1,0 +1,41 @@
+﻿@model IEnumerable<PoultryWeb.Models.CustomerModel>
+
+@{
+    ViewBag.Title = "Customers - Index";
+}
+
+<h2>Customer List</h2>
+
+<p>
+    @Html.ActionLink("Create New Customer", "Create", "Customer", null, new { @class = "btn btn-primary" })
+</p>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Contact Email</th>
+            <th>Phone</th>
+            <th>Address</th>
+            <th>City</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var c in Model)
+        {
+            <tr>
+                <td>@c.Name</td>
+                <td>@c.ContactEmail</td>
+                <td>@c.ContactPhone</td>
+                <td>@c.Address</td>
+                <td>@c.City</td>
+                <td>
+                    @Html.ActionLink("Details", "Details", new { id = c.CustomerId }) |
+                    @Html.ActionLink("Edit", "Edit", new { id = c.CustomerId }) |
+                    @Html.ActionLink("Delete", "Delete", new { id = c.CustomerId })
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

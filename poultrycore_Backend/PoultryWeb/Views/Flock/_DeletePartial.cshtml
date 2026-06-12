@@ -1,0 +1,20 @@
+﻿@model PoultryWeb.Models.FlockModel
+
+<h4>Delete Flock (@Model.FlockId)</h4>
+
+<p>Are you sure you want to delete the following flock?</p>
+<ul>
+    <li><strong>Name:</strong> @Model.Name</li>
+    <li><strong>Breed:</strong> @Model.Breed</li>
+    <li><strong>Quantity:</strong> @Model.Quantity</li>
+    <li><strong>Start Date:</strong> @Model.StartDate</li>
+    <li><strong>Active:</strong> @Model.Active</li>
+</ul>
+
+
+<form asp-action="DeleteConfirmed" asp-controller="Flock" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="FlockId" />
+    <button type="submit" class="btn btn-danger">Yes, Delete</button>
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+</form>

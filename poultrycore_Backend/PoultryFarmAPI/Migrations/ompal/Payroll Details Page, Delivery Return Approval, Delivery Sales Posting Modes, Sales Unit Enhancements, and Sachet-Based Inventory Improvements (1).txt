@@ -1,0 +1,961 @@
+Title: Payroll Details Page, Delivery Return Approval, Delivery Sales Posting Modes, Sales Unit Enhancements, and Sachet-Based Inventory Improvements
+
+We need to implement several final workflow improvements in the Water Company app.
+
+These changes cover:
+
+* Full Payroll Run Details page with year-to-date values
+* Delivery Return Approve & Reconcile action
+* Flexible delivery sales posting modes
+* Default customer behavior for summary-only delivery returns
+* Sales modal improvements for bag and sachet sales
+* Internal sachet-based inventory handling
+* Inventory page display showing both bags and sachets
+
+Please implement the changes below.
+
+---
+
+## 1. Create Full Payroll Run Details Page
+
+Payroll currently opens in a small modal. This is too limited for audit, source linking, year-to-date payroll totals, and future reporting.
+
+Create a full Payroll Run Details page.
+
+Suggested route:
+
+`/payroll/runs/{payrollRunId}`
+
+or
+
+`/payroll/{payrollId}/details`
+
+The Payroll list should allow the user to open this full details page.
+
+Expense source links for payroll-generated expenses should route directly to this full payroll details page.
+
+### Payroll Run Details page should show:
+
+* Payroll run period
+* Payroll status
+* Gross total
+* Total deductions
+* Net total
+* Cash account
+* Payment method, if available
+* Created by
+* Created date
+* Approved by
+* Approved date
+* Paid by
+* Paid date
+* Reopened by
+* Reopened date
+* Reopen reason, if applicable
+* Notes
+
+### Employee breakdown section
+
+Show the employee/staff payroll breakdown in a full-width table.
+
+Columns should include:
+
+* Staff
+* Basic pay
+* Daily pay
+* Commission
+* Bonus
+* Deductions
+* Gross
+* Net
+
+The full page should make this easier to read than the current small modal.
+
+### Year-to-date payroll summary
+
+Add a Year-to-Date section for the payroll year.
+
+Show totals for the selected year:
+
+* YTD gross paid
+* YTD deductions
+* YTD net paid
+* Total payroll runs
+* Total staff paid
+
+Also show YTD breakdown per staff member:
+
+* Staff
+* YTD gross
+* YTD basic
+* YTD daily
+* YTD commission
+* YTD bonus
+* YTD deductions
+* YTD net
+
+The YTD values should be calculated from approved/paid payroll runs for the same company and year.
+
+### Linked expense section
+
+Since approved/paid payroll creates an expense, the payroll details page should show the linked expense.
+
+Show:
+
+* Expense category
+* Expense amount
+* Expense date
+* Expense status
+* Source
+* View Expense link
+
+The relationship should work both ways:
+
+* Expenses page → Payroll source link opens Payroll Run Details
+* Payroll Run Details → Linked Expense opens Expense Details
+
+### Payroll actions
+
+Show actions based on payroll status.
+
+For Draft/Pending/Reopened payroll:
+
+* Edit
+* Approve / Mark as Paid
+* Delete
+* View Details
+
+For Approved/Paid payroll:
+
+* View Details
+* Reopen / Unapprove
+* View Linked Expense
+* Export PDF, if available
+
+### Expected behavior
+
+* Payroll no longer depends only on a small modal for details.
+* Payroll details page shows full payroll audit information.
+* Payroll details page shows year-to-date payroll totals.
+* Payroll-generated expense links route to this payroll details page.
+* Payroll details page links back to the generated expense.
+* Payroll details page supports reopen/unapprove/edit workflow based on status.
+
+---
+
+## 2. Restore Approve & Reconcile Action for Delivery Returns
+
+The Record Return modal currently only shows a button like:
+
+`Record return (Draft)`
+
+Previously, there was an approval/reconciliation action inside the modal, but it is now missing.
+
+Bring back the Approve & Reconcile action.
+
+### Required modal buttons
+
+At the bottom of the Record Return modal, show:
+
+* Cancel
+* Record return (Draft)
+* Approve & Reconcile
+
+The Draft button should save the return without finalizing reconciliation.
+
+The Approve & Reconcile button should validate the return and finalize reconciliation immediately.
+
+### Validation before Approve & Reconcile
+
+Only allow Approve & Reconcile when the return is valid.
+
+Validation should include:
+
+* Sold + Returned + Damaged = Loaded for every product line
+* Cash, MoMo, Bank, Credit, shortage, and overage calculations are valid
+* Customer sales breakdown matches summary if customer breakdown is used
+* Required fields are completed
+
+If validation fails, show a clear error message and do not reconcile.
+
+### Approve & Reconcile behavior
+
+When the user clicks Approve & Reconcile from the modal:
+
+* Save the return values
+* Create or update the return record
+* Finalize reconciliation
+* Post sales records if sales posting requires it
+* Post payment records if applicable
+* Update customer balances for credit sales
+* Update inventory for sold, returned, and damaged quantities
+* Create any linked expenses or shortage/overage records if applicable
+* Set delivery run status to Reconciled
+
+### Add Approve & Reconcile to main Deliveries table
+
+If a return has been saved as Draft, the main Deliveries table should show:
+
+* Approve & Reconcile
+
+This allows the user to approve/reconcile directly from the table without reopening the modal.
+
+The table-level Approve & Reconcile action should run the same validation as the modal.
+
+If the draft return is complete and balanced, approve it directly after confirmation.
+
+If the draft return is missing required data or is not balanced, show an error and direct the user to open/edit the return.
+
+### Confirmation for table-level approval
+
+When the user clicks Approve & Reconcile from the table, show:
+
+“Are you sure you want to approve and reconcile this return? This will finalize the return, update inventory, post sales/payments if applicable, and mark the delivery as reconciled.”
+
+Buttons:
+
+* Cancel
+* Approve & Reconcile
+
+### Delivery return actions by status
+
+For Draft returns, actions should include:
+
+* View Details
+* Edit Return
+* Approve & Reconcile
+* Cancel/Delete, if supported
+
+For Reconciled returns, actions should include:
+
+* View Details
+* Reverse Reconciliation
+
+Use the same backend reconciliation service for both modal approval and table-level approval.
+
+Do not duplicate reconciliation logic in the UI.
+
+### Expected behavior
+
+* User can save a return as Draft.
+* User can approve and reconcile immediately from the modal.
+* User can approve and reconcile a draft return directly from the main table.
+* Approve & Reconcile only succeeds when the return is valid and balanced.
+* Reconciled returns update inventory, sales, payments, customer balances, and status correctly.
+
+---
+
+## 3. Add Delivery Return Sales Posting Modes
+
+The current Customer Sales Breakdown section is too detailed for many water businesses.
+
+Many users have too many customers and cannot realistically record every shop/customer during delivery returns.
+
+We need to support flexible sales posting modes.
+
+Add a section called:
+
+`Sales Posting Mode`
+
+or
+
+`How should this delivery sale be posted?`
+
+Provide three options:
+
+1. Detailed customer breakdown
+2. Post all sales to one customer
+3. Summary only
+
+---
+
+## 4. Detailed Customer Breakdown Mode
+
+This is the existing detailed customer tracking mode.
+
+Use this mode when the business wants to record real customer/shop sales one by one.
+
+Example:
+
+* Star K Store bought 20 bags
+* Ama Shop bought 15 bags
+* Kojo Store bought 30 bags
+
+This mode should create separate sales, payments, and credit balances for the selected customers.
+
+Keep the current Customer Sales Breakdown feature available for businesses that want detailed tracking.
+
+---
+
+## 5. Post All Sales to One Customer Mode
+
+This mode is for businesses that do not want to record every shop/customer, but still want the delivery sale tied to a selected customer account.
+
+When this mode is selected, show a customer dropdown.
+
+Example grouped customers:
+
+* Amadu - City Center Route Customers
+* Bismarck - NKT Market Customers
+* Driver A - Route A Customers
+* General Route Customers
+
+The user selects one customer, and the entire delivery return is posted to that customer.
+
+### Behavior
+
+If the delivery return summary is:
+
+* Sold: 100 bags
+* Cash: 500
+* MoMo: 200
+* Bank: 0
+* Credit: 100
+* Total sales: 800
+
+And selected customer is:
+
+`Amadu - City Center Route Customers`
+
+Then create one sale:
+
+* Customer = Amadu - City Center Route Customers
+* SourceType = DeliveryRun
+* SourceId = DeliveryRunId
+* TotalAmount = Cash + MoMo + Bank + Credit
+* PaidAmount = Cash + MoMo + Bank
+* Balance = Credit
+* Status = Paid or PartiallyPaid
+
+Create sale items from the product sold quantities on the return.
+
+If multiple products are sold, create multiple sale items under the same sale.
+
+Create one payment record per payment method greater than zero:
+
+* Cash payment
+* MoMo payment
+* Bank payment
+
+If credit is greater than zero, the credit balance should be assigned to the selected customer.
+
+This mode keeps Sales, Payments, Customer Balances, Reports, and Delivery Reconciliation working without forcing shop-by-shop tracking.
+
+---
+
+## 6. Summary Only Mode Should Use Default Customer
+
+When the user selects Summary Only, the system should still assign the sale to a customer.
+
+Every sale must have a CustomerId.
+
+If the user does not choose a customer, use the company’s Default Customer automatically.
+
+### Seed default customer when water company is created
+
+When a water company is created, automatically create one default customer.
+
+Recommended default customer name:
+
+`General Delivery Customer`
+
+Alternative acceptable names:
+
+* Default Customer
+* Walk-in / General Customer
+* All Other Customers
+* Unassigned Delivery Customer
+
+Recommended fields:
+
+* CustomerName = General Delivery Customer
+* CustomerType = Default/System
+* IsDefaultCustomer = true
+* IsSystemGenerated = true
+* IsActive = true
+* CompanyId = current company
+
+### Summary Only behavior
+
+If the user selects Summary Only:
+
+* Do not require customer breakdown.
+* Do not require customer selection.
+* Automatically post the delivery sale to the company’s default customer.
+* Create sale items from the product sold quantities.
+* Create payment records from Cash/MoMo/Bank collected.
+* Assign Credit Sales to the default customer if credit exists.
+
+If Summary Only has credit sales, show a warning:
+
+“Credit sales will be assigned to General Delivery Customer because customer breakdown is not being used.”
+
+This warning should not block the user unless the business rules require it.
+
+### Final sales posting rules
+
+Use these rules:
+
+* Detailed breakdown = use selected customers from breakdown rows.
+* Post all sales to one customer = use the selected grouped customer.
+* Summary only = use the company’s Default Customer automatically.
+
+### Expected behavior
+
+* Customer-by-customer tracking remains available.
+* Businesses that do not track every customer can still post delivery sales cleanly.
+* Summary-only returns still create proper sales and payments.
+* Credit sales always have a customer balance destination.
+* Reports remain complete because every sale has a CustomerId.
+
+---
+
+## 7. Enhance Record Sale Modal Field Labels
+
+The current Record Sale modal line item has unclear inputs.
+
+It currently looks like:
+
+Product dropdown | 1 | 1
+
+The user does not know that the second field is Quantity and the third field is Unit Price.
+
+Update the sale line layout so each field is clearly labeled.
+
+Each sale line should show:
+
+* Product
+* Selling Unit
+* Quantity
+* Unit Price
+* Line Total
+
+Example layout:
+
+Product | Selling Unit | Quantity | Unit Price | Line Total
+
+For stacked/smaller modal layout, show labels above each field.
+
+### Required changes
+
+The Add Line section should clearly identify:
+
+* Product dropdown
+* Selling Unit dropdown
+* Quantity input
+* Unit Price input
+* Line Total display
+* Remove line action
+
+The UI should no longer show unlabeled numeric fields.
+
+---
+
+## 8. Support Selling Both Bags and Single Sachets
+
+The Sales modal should support both bag-level and sachet-level sales.
+
+Sachet Water should support at least two selling units:
+
+* Bag
+* Sachet
+
+The user should be able to record:
+
+* Customer buys 2 bags
+* Customer buys 5 sachets
+* Customer buys both bags and sachets on separate sale lines if needed
+
+### Sales line behavior
+
+Each sale line should include:
+
+* Product
+* Selling Unit
+* Quantity
+* Unit Price
+* Line Total
+
+Example 1:
+
+* Product = Sachet Water
+* Selling Unit = Bag
+* Quantity = 2
+* Unit Price = 30
+* Line Total = 60
+
+Example 2:
+
+* Product = Sachet Water
+* Selling Unit = Sachet
+* Quantity = 5
+* Unit Price = 1
+* Line Total = 5
+
+The unit price should auto-fill based on the selected selling unit, but remain editable.
+
+---
+
+## 9. Product Setup Should Support Prices Per Selling Unit
+
+Sachet Water should support default selling prices for:
+
+* Bag price
+* Sachet price
+
+The Sales page should auto-fill Unit Price based on selected Selling Unit.
+
+Example:
+
+* Selling Unit = Bag → Unit Price = Bag Price
+* Selling Unit = Sachet → Unit Price = Sachet Price
+
+The user should still be able to override the price on the sale line.
+
+These prices should also be usable by delivery returns where products are sold by bag or sachet.
+
+---
+
+## 10. Store Sachet Water Stock Internally in Sachets
+
+Use the best inventory approach for sachet water.
+
+Sachet water stock should be stored internally using the smallest sellable unit:
+
+`Sachets`
+
+Reason:
+The business can sell both full bags and individual sachets.
+
+Storing stock as sachets avoids decimal bag quantities and makes stock validation cleaner.
+
+### Base inventory unit
+
+For Sachet Water:
+
+* BaseUnit = Sachet
+* StockQuantity = total sachets
+
+Example:
+
+If 1 bag = 30 sachets:
+
+* 100 bags produced = 3,000 sachets added to stock
+* 1 bag sold = 30 sachets deducted
+* 5 sachets sold = 5 sachets deducted
+
+Use the company setup value:
+
+`SachetsPerBag`
+
+Do not hardcode 30.
+
+---
+
+## 11. Production Should Add Sachets to Inventory
+
+Production can still be entered in bags.
+
+When production is recorded:
+
+* Bags Produced
+* Damaged Bags
+* Good Bags
+* Sachets Per Bag
+
+Use:
+
+`Good Bags = Bags Produced - Damaged Bags`
+
+Inventory added should be:
+
+`Good Bags × SachetsPerBag`
+
+Example:
+
+* Bags Produced = 100
+* Damaged Bags = 2
+* Good Bags = 98
+* Sachets Per Bag = 30
+
+Inventory added:
+
+`98 × 30 = 2,940 sachets`
+
+The production record can still display bags, but the stock transaction should store quantity in sachets.
+
+---
+
+## 12. Sales Should Deduct Sachet Stock Based on Selling Unit
+
+When selling sachet water, deduct inventory based on selected Selling Unit.
+
+If Selling Unit = Bag:
+
+`Quantity Sold × SachetsPerBag`
+
+Example:
+
+2 bags sold:
+
+`2 × 30 = 60 sachets deducted`
+
+If Selling Unit = Sachet:
+
+`Quantity Sold`
+
+Example:
+
+5 sachets sold:
+
+`5 sachets deducted`
+
+Validation should check against available sachets.
+
+Example:
+
+Available stock = 9,750 sachets
+
+Selling 326 bags requires:
+
+`326 × 30 = 9,780 sachets`
+
+This should be blocked.
+
+Selling 325 bags should be allowed.
+
+Selling 10 sachets should be allowed if at least 10 sachets are available.
+
+---
+
+## 13. Delivery Loading and Returns Should Use Sachet Conversion
+
+Delivery loading and return reconciliation should also use sachet conversion internally.
+
+If delivery loading is entered in bags:
+
+* Load 100 bags = 3,000 sachets moved from warehouse to vehicle/driver stock
+
+If returned in bags:
+
+* Returned 10 bags = 300 sachets returned
+
+If damaged in bags:
+
+* Damaged 2 bags = 60 sachets recorded as damaged
+
+If later delivery supports individual sachets, deduct directly in sachets.
+
+Delivery stock movements should use the same base inventory unit logic as sales and production.
+
+---
+
+## 14. Inventory Page Should Display Stock in Both Bags and Sachets
+
+The Inventory page currently shows only one Stock on Hand value.
+
+Update it to show both bag equivalent and sachet quantity.
+
+For Sachet Water, display:
+
+`325 bags / 9,750 sachets`
+
+or use two separate columns:
+
+* Stock on Hand (Bags)
+* Stock on Hand (Sachets)
+
+Recommended columns for Finished Products tab:
+
+* Name
+* SKU
+* Size
+* Unit
+* Unit Price
+* Stock Bags
+* Stock Sachets
+* Status
+
+Example:
+
+Sachet Water | Sachet | 500ml | sachet | 1.00 | 325 bags | 9,750 sachets | In stock
+
+The totals should be calculated from the base stock quantity in sachets.
+
+Formula:
+
+`Stock Bags = Stock Sachets / SachetsPerBag`
+
+If there is a remainder, display clearly.
+
+Example:
+
+`325 bags + 5 sachets / 9,755 sachets`
+
+or
+
+`325.17 bags / 9,755 sachets`
+
+Choose the clearest display for the app.
+
+---
+
+## 15. Stock Movement Should Store Base Quantity and Display Friendly Quantity
+
+Inventory transactions should store quantity in the base unit.
+
+For Sachet Water:
+
+* BaseUnit = Sachet
+* BaseQuantity = number of sachets
+
+The UI can display both the base quantity and the friendly converted quantity.
+
+Examples:
+
+Production Batch:
+
+* BaseQuantity = +3,000 sachets
+* DisplayQuantity = +100 bags
+
+Sale of 2 bags:
+
+* BaseQuantity = -60 sachets
+* DisplayQuantity = -2 bags
+
+Sale of 5 sachets:
+
+* BaseQuantity = -5 sachets
+* DisplayQuantity = -5 sachets
+
+Reports should also use this logic.
+
+---
+
+## 16. Reports Should Show Both Sachets and Bag Equivalents
+
+Reports should support both base unit and converted display.
+
+Reports should be able to show:
+
+* Total sachets produced
+* Total bags equivalent produced
+* Total sachets sold
+* Total bags equivalent sold
+* Current stock in sachets
+* Current stock in bags
+* Stock movement in sachets
+* Stock movement in bag equivalents
+
+This should apply to:
+
+* Inventory Report
+* Stock Movement Report
+* Production Report
+* Sales Report
+* Delivery Report
+* Product Performance Report
+* Daily Business Summary where relevant
+
+---
+
+## 17. Update Sales, Delivery, Reports, Inventory, and Stock Movement to Respect Selling Unit
+
+The selected Selling Unit should be stored with sale items and delivery sale items.
+
+Relevant records should include:
+
+* ProductId
+* SellingUnit
+* Quantity
+* UnitPrice
+* LineTotal
+* BaseUnit
+* BaseQuantity
+
+Example:
+
+Sale line:
+
+* Product = Sachet Water
+* SellingUnit = Bag
+* Quantity = 2
+* BaseUnit = Sachet
+* BaseQuantity = 60
+
+Sale line:
+
+* Product = Sachet Water
+* SellingUnit = Sachet
+* Quantity = 5
+* BaseUnit = Sachet
+* BaseQuantity = 5
+
+This allows reports and inventory to stay correct.
+
+---
+
+## 18. Expected Final Behavior
+
+After these changes:
+
+* Payroll has a full details page with YTD totals.
+* Payroll expense source links can route directly to payroll details.
+* Delivery return modal has both Record Draft and Approve & Reconcile.
+* Draft delivery returns can be approved/reconciled directly from the table.
+* Delivery return sales can be posted using detailed customers, one grouped customer, or summary-only default customer.
+* Every delivery sale has a CustomerId.
+* Summary-only delivery sales post to the company’s Default Customer.
+* Sales modal fields are clearly labeled.
+* Sales support both bag and single-sachet purchases.
+* Product setup supports default prices for bag and sachet.
+* Sachet water stock is stored internally in sachets.
+* Production adds sachet stock based on good bags.
+* Sales deduct sachet stock based on selling unit.
+* Delivery loading/returns/damages use sachet conversion internally.
+* Inventory page shows both bags and sachets.
+* Stock movement stores base quantity and displays friendly converted quantity.
+* Reports show both sachets and bag equivalents where relevant.
+
+
+
+
+Prompt 2: Title: Add Button to Create Default System Customers
+
+We need to add a feature on the Customer Setup page that creates all required default/system customers for the selected company.
+
+These default customers are needed so the app can record sales, delivery returns, payments, and credit balances even when the business does not want to track every real customer individually.
+
+Add a button on the Customer Setup page:
+
+`Create Default Customers`
+
+or:
+
+`Create Missing Default Customers`
+
+When clicked, the system should check whether the required default customers already exist for the current company. If any are missing, create only the missing ones. Do not create duplicates.
+
+Required default customers:
+
+1. General Sales Customer
+
+Purpose:
+Used for normal direct sales where the buyer is not being tracked individually.
+
+Examples:
+
+* Walk-in sale
+* Cash customer
+* Unknown buyer
+* Small one-time customer
+
+Suggested fields:
+
+* CustomerName = General Sales Customer
+* CustomerType = SystemDefault
+* DefaultCustomerType = GeneralSales
+* IsDefaultCustomer = true
+* IsSystemGenerated = true
+* IsActive = true
+* CompanyId = current company
+
+2. General Delivery Customer
+
+Purpose:
+Used for delivery returns when the user selects Summary Only and does not want customer-by-customer tracking.
+
+Examples:
+
+* Driver returns with summary totals only
+* No shop/customer breakdown entered
+* All delivery sales posted to one default customer
+
+Suggested fields:
+
+* CustomerName = General Delivery Customer
+* CustomerType = SystemDefault
+* DefaultCustomerType = GeneralDelivery
+* IsDefaultCustomer = true
+* IsSystemGenerated = true
+* IsActive = true
+* CompanyId = current company
+
+3. General Credit Customer
+
+Purpose:
+Used when credit sales exist but the business does not know or does not want to track the exact customer.
+
+Examples:
+
+* Credit sales entered without detailed customer breakdown
+* Unassigned customer balance
+* Unknown credit customer
+
+Suggested fields:
+
+* CustomerName = General Credit Customer
+* CustomerType = SystemDefault
+* DefaultCustomerType = GeneralCredit
+* IsDefaultCustomer = true
+* IsSystemGenerated = true
+* IsActive = true
+* CompanyId = current company
+
+Behavior requirements:
+
+1. Add the button to the Customer Setup page.
+
+2. The button should create only missing default customers.
+
+3. The button should not duplicate customers if they already exist.
+
+4. The system should check by CompanyId and DefaultCustomerType, not only by customer name.
+
+5. If all default customers already exist, show a message:
+
+`All default customers already exist.`
+
+6. If some customers are created, show a message:
+
+`Default customers created successfully.`
+
+7. Default/system customers should appear in the customer list, but they should be visually identifiable.
+
+Example:
+
+* Show a small badge: System
+* Or show Type = System Default
+
+8. Default/system customers should not be accidentally deleted.
+
+If delete is allowed, show a strong warning or block deletion if the customer has linked sales, payments, or balances.
+
+9. These customers should be available in customer dropdowns where appropriate.
+
+10. Delivery return behavior should use these defaults:
+
+* Detailed Customer Breakdown = use selected real customers.
+* Post All Sales to One Customer = use the selected customer from dropdown.
+* Summary Only = automatically use General Delivery Customer.
+* If Summary Only has credit sales and no specific customer is selected, assign the credit balance to General Credit Customer or General Delivery Customer based on the business rule selected.
+
+Recommended rule:
+
+* Summary-only normal sales should go to General Delivery Customer.
+* Unassigned credit sales should go to General Credit Customer.
+
+11. Direct manual sales behavior should use General Sales Customer when the user selects a walk-in/default customer.
+
+12. These default customers should be created automatically when a new water company is created.
+
+13. The Customer Setup button should still exist so users can recreate missing defaults later if needed.
+
+14. Reports should include these customers like normal customers, but should display their system/default type clearly.
+
+Expected final behavior:
+
+The user can click `Create Default Customers` on the Customer Setup page, and the system will ensure that General Sales Customer, General Delivery Customer, and General Credit Customer exist for the current company.
+
+The app can then safely post walk-in sales, summary-only delivery sales, and unassigned credit sales without breaking sales, payments, customer balances, or reports.
+

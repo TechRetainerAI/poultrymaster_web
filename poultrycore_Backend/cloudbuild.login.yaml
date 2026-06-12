@@ -1,0 +1,61 @@
+# Cloud Build: User.Management.API (Login API) → Artifact Registry → Cloud Run
+#
+# Default `cloudbuild.yaml` in this repo builds PoultryFarmAPI only (poultrymaster-farm-api-git).
+# Use THIS file for the Login / payments service (poultrymaster-api-git).
+#
+# GCP → Cloud Build → Triggers → New trigger → Push to branch
+#   Configuration: Cloud Build configuration file
+#   Location: Repository → cloudbuild.login.yaml
+#
+# Manual from poultrycore/:
+#   gcloud builds submit --config cloudbuild.login.yaml .
+#
+# From monorepo parent folder instead:
+#   gcloud builds submit poultrycore --config poultrycore/cloudbuild.login.yaml
+# Or: cloudbuild.login.yaml at repo root + --ignore-file=.gcloudignore.login (see parent folder).
+
+# Use $BUILD_ID for image tags: it is set on every build. $COMMIT_SHA is empty for
+# manual `gcloud builds submit`, which produced invalid refs (.../service:) and docker exit 125.
+
+substitutions:
+  _REGION: europe-west1
+  _SERVICE_NAME: poultrymaster-api-git
+  _AR_REPO_PATH: cloud-run-source-deploy/techretainerai-poultrymaster_api
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_AR_REPO_PATH/$_SERVICE_NAME:$BUILD_ID
+      - -t
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_AR_REPO_PATH/$_SERVICE_NAME:latest
+      - -f
+      - Dockerfile
+      - .
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_AR_REPO_PATH/$_SERVICE_NAME:$BUILD_ID
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_AR_REPO_PATH/$_SERVICE_NAME:latest
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - $_SERVICE_NAME
+      - --image=$_REGION-docker.pkg.dev/$PROJECT_ID/$_AR_REPO_PATH/$_SERVICE_NAME:$BUILD_ID
+      - --region=$_REGION
+      - --platform=managed
+      - --port=8080
+      - --allow-unauthenticated
+      - --quiet
+
+options:
+  logging: CLOUD_LOGGING_ONLY
