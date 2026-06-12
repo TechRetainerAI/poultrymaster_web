@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, Users, Bell, User, Menu } from "lucide-react"
+import { Search, Users, MessageCircle, User, Menu } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useChatStore } from "@/lib/store/chat-store"
@@ -206,9 +206,10 @@ export function DashboardHeader() {
                 onClick={() => openChat()}
                 variant="ghost"
                 size="icon"
+                aria-label="Open chat"
                 className="text-slate-300 hover:text-white hover:bg-slate-800 relative min-h-[44px] min-w-[44px] lg:min-h-0 lg:min-w-0"
               >
-                <Bell className="h-5 w-5" />
+                <MessageCircle className="h-5 w-5" />
                 {unread > 0 && (
                   <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-600 text-white text-[10px] rounded-full flex items-center justify-center">
                     {unread > 99 ? '99+' : unread}
@@ -238,10 +239,10 @@ export function DashboardHeader() {
               variant="ghost"
               size="icon"
               onClick={() => toggleMobile()}
-              className="text-slate-300 hover:text-white hover:bg-slate-800 h-12 w-12 shrink-0"
+              className="text-slate-300 hover:text-white hover:bg-slate-800 h-10 w-10 shrink-0"
               aria-label="Toggle sidebar"
             >
-              <Menu className="h-7 w-7" />
+              <Menu className="h-6 w-6" />
             </Button>
 
             {!isMobileOpen && (
@@ -256,9 +257,10 @@ export function DashboardHeader() {
                   onClick={() => openChat()}
                   variant="ghost"
                   size="icon"
+                  aria-label="Open chat"
                   className="text-slate-300 hover:text-white hover:bg-slate-800 relative h-10 w-10"
                 >
-                  <Bell className="h-5 w-5" />
+                  <MessageCircle className="h-5 w-5" />
                   {unread > 0 && (
                     <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-600 text-white text-[10px] rounded-full flex items-center justify-center">
                       {unread > 99 ? '99+' : unread}

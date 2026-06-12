@@ -174,9 +174,9 @@ export default function WaterInventoryPage() {
             <TabsContent value="products" className="mt-4">
               <Card>
                 <CardContent className="p-0">
-                  <div className="flex items-center justify-between p-3 border-b bg-slate-50">
-                    <div className="text-sm text-slate-600">Sachets, bottles, dispensers. Stock = SUM(WaterStockTransactions).</div>
-                    <Button asChild size="sm" variant="outline">
+                  <div className="flex flex-col gap-2 p-3 border-b bg-slate-50 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 text-sm text-slate-600">Sachets, bottles, dispensers. Stock = SUM(WaterStockTransactions).</div>
+                    <Button asChild size="sm" variant="outline" className="w-full shrink-0 sm:w-auto">
                       <Link href="/water-products"><ExternalLink className="h-4 w-4 mr-1" /> Manage products</Link>
                     </Button>
                   </div>

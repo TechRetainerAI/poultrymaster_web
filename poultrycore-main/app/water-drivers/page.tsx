@@ -184,13 +184,13 @@ export default function WaterDriversPage() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <DashboardHeader />
         <main className="flex-1 overflow-auto p-4 md:p-6">
-          <div className="mb-4 flex items-center justify-between gap-2">
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
               <Users2 className="h-6 w-6 text-sky-600" /> Drivers
             </h1>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={() => openAddEmployee("existing")}><UserPlus className="h-4 w-4 mr-1" /> Existing employee</Button>
-              <Button onClick={() => openAddEmployee("new")}><Plus className="h-4 w-4 mr-1" /> New employee &amp; driver</Button>
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+              <Button variant="outline" className="w-full sm:w-auto" onClick={() => openAddEmployee("existing")}><UserPlus className="h-4 w-4 mr-1" /> Existing employee</Button>
+              <Button className="w-full sm:w-auto" onClick={() => openAddEmployee("new")}><Plus className="h-4 w-4 mr-1" /> New employee &amp; driver</Button>
             </div>
           </div>
 

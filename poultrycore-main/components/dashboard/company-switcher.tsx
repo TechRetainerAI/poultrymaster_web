@@ -118,14 +118,19 @@ export function CompanySwitcher({ fullWidth = false }: { fullWidth?: boolean } =
         ref={triggerRef}
         type="button"
         onClick={() => { updatePos(); setOpen((o) => !o) }}
+        aria-label="Switch company"
         className={cn(
-          "flex items-center gap-2 rounded-md border border-slate-700 bg-slate-800 px-3 py-1.5",
-          "text-sm text-white hover:bg-slate-700 transition-colors min-w-0",
+          // Styled as a distinct company-switcher pill (icon badge + switch
+          // chevron) so it doesn't read like the removed search input.
+          "flex items-center gap-2.5 rounded-lg border border-slate-700 bg-slate-800/80 py-1.5 pl-2 pr-3",
+          "text-sm text-white hover:bg-slate-700 hover:border-slate-600 transition-colors min-w-0",
           fullWidth ? "w-full max-w-none" : "max-w-[260px]"
         )}
       >
-        <ActiveIcon className="h-4 w-4 shrink-0 text-orange-300" />
-        <div className="flex min-w-0 flex-col items-start leading-tight">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-700/70 ring-1 ring-inset ring-white/10">
+          <ActiveIcon className="h-4 w-4 text-orange-300" />
+        </span>
+        <div className="flex min-w-0 flex-1 flex-col items-start leading-tight">
           <span className="text-[10px] uppercase tracking-wide text-slate-400">Company</span>
           <span className="truncate font-medium">{activeFarmName ?? "Select…"}</span>
         </div>

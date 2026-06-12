@@ -436,29 +436,29 @@ export default function WaterSetupPage() {
           </div>
 
           <Tabs defaultValue="company" className="w-full">
-            <div className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+            <div className="mb-2.5 text-sm font-semibold text-slate-800">
               Choose setup area
             </div>
-            {/* Pill-style tabs (Three Prompts §8): clear hover/active state,
-                cursor-pointer, icon + label. Wrap to multiple rows so every tab
-                is visible on mobile (was overflow-x-auto, which cropped the last
-                tabs off-screen — feedback #1). */}
-            <TabsList className="flex w-full flex-wrap h-auto gap-1.5 rounded-lg bg-slate-100 p-1.5">
+            {/* Card-tile tabs: each setup area is a distinct white tile with a
+                clear active state, so the list reads as an organized grid of
+                choices rather than a flat run of same-weight pills (visual
+                hierarchy feedback #1). Wraps to multiple rows on mobile. */}
+            <TabsList className="grid h-auto w-full grid-cols-2 gap-2 bg-transparent p-0 sm:flex sm:flex-wrap">
               {/* Prompt 2 §14/§15 — company-level settings live in their own
                   tab so the rest of the per-entity tabs stay focused. */}
               <TabsTrigger
                 value="company"
-                className="shrink-0 cursor-pointer rounded-md border border-transparent px-3 py-1.5 text-slate-700 transition hover:bg-white hover:border-slate-200 data-[state=active]:border-sky-300 data-[state=active]:bg-white data-[state=active]:text-sky-700 data-[state=active]:shadow-sm"
+                className="shrink-0 cursor-pointer justify-start rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-slate-700 shadow-sm transition hover:border-sky-300 hover:text-sky-700 data-[state=active]:border-sky-500 data-[state=active]:bg-sky-50 data-[state=active]:text-sky-700 data-[state=active]:shadow"
               >
-                <DollarSign className="h-4 w-4 mr-1.5" /> Company
+                <DollarSign className="h-4 w-4 mr-1.5 shrink-0" /> Company
               </TabsTrigger>
               {tabs.map((t) => (
                 <TabsTrigger
                   key={t.key}
                   value={t.key}
-                  className="shrink-0 cursor-pointer rounded-md border border-transparent px-3 py-1.5 text-slate-700 transition hover:bg-white hover:border-slate-200 data-[state=active]:border-sky-300 data-[state=active]:bg-white data-[state=active]:text-sky-700 data-[state=active]:shadow-sm"
+                  className="shrink-0 cursor-pointer justify-start rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-slate-700 shadow-sm transition hover:border-sky-300 hover:text-sky-700 data-[state=active]:border-sky-500 data-[state=active]:bg-sky-50 data-[state=active]:text-sky-700 data-[state=active]:shadow"
                 >
-                  <t.icon className="h-4 w-4 mr-1.5" />
+                  <t.icon className="h-4 w-4 mr-1.5 shrink-0" />
                   {t.label}
                 </TabsTrigger>
               ))}
