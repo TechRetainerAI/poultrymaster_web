@@ -1371,31 +1371,36 @@ export default function WaterDriverReturnsPage() {
                 </Select>
               </FormField>
               <FormField label="Assistant (optional)">
-                {/* #27: the assistant is an EMPLOYEE, so list active staff
-                    (AssistantStaffId stores a waterStaffId). Exclude whoever is
-                    the selected driver — a person cannot assist themselves; we
-                    match by name since drivers/staff are separate rows that the
-                    staff page keeps in sync by full name. */}
+                {/* The assistant can be another DRIVER (a 2nd person on the
+                    truck) OR an office staff member — list both, excluding
+                    whoever is the selected driver. AssistantStaffId is a loose
+                    int (no FK), so storing either id is fine. */}
                 {(() => {
                   const driverName = drivers
                     .find(d => d.waterDriverId === loadForm.waterDriverId)
                     ?.driverName?.trim().toLowerCase()
-                  const assistants = staff.filter(s =>
+                  const driverOpts = drivers.filter(d => d.isActive && d.waterDriverId !== loadForm.waterDriverId)
+                  const staffOpts = staff.filter(s =>
                     s.isActive && !s.isDeleted &&
                     `${s.firstName} ${s.lastName}`.trim().toLowerCase() !== driverName,
                   )
+                  const hasAny = driverOpts.length + staffOpts.length > 0
                   return (
                     <Select value={String(loadForm.assistantStaffId)} onValueChange={(v) => setLoadForm({ ...loadForm, assistantStaffId: Number(v) })}>
                       <SelectTrigger><SelectValue placeholder="Pick assistant" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="0">— none —</SelectItem>
-                        {assistants.length === 0
-                          ? <div className="px-2 py-1.5 text-sm text-slate-500">No employees available — add them on the Staff page.</div>
-                          : assistants.map(s => (
-                              <SelectItem key={s.waterStaffId} value={String(s.waterStaffId)}>
-                                {s.firstName} {s.lastName}{s.role ? ` · ${s.role}` : ""}
-                              </SelectItem>
-                            ))}
+                        {!hasAny && <div className="px-2 py-1.5 text-sm text-slate-500">No other drivers or staff available.</div>}
+                        {driverOpts.map(d => (
+                          <SelectItem key={`d${d.waterDriverId}`} value={String(d.waterDriverId)}>
+                            {d.driverName} · Driver
+                          </SelectItem>
+                        ))}
+                        {staffOpts.map(s => (
+                          <SelectItem key={`s${s.waterStaffId}`} value={String(s.waterStaffId)}>
+                            {s.firstName} {s.lastName}{s.role ? ` · ${s.role}` : ""}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   )

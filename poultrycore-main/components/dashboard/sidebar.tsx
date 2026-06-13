@@ -208,8 +208,12 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/water-expenses",      label: "Expenses",        icon: Receipt },
     { href: "/water-cash-accounts", label: "Cash & Accounts", icon: Wallet },
   ]
+  // James: group Employees + Payroll under People and hide the Staff item.
+  // Employees stays admin-gated (it was previously the standalone Admin item).
   const waterPeopleItems = [
-    { href: "/water-staff",   label: "Staff",   icon: Users2 },
+    ...((permissions.isAdmin || permissions.featureAccess.canSeeEmployees)
+      ? [{ href: "/employees", label: "Employees", icon: UserCog }]
+      : []),
     { href: "/water-payroll", label: "Payroll", icon: Banknote },
   ]
   const waterReportsItems = [
@@ -526,8 +530,9 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
           </>
         )}
 
-        {/* Admin */}
-        {(permissions.isAdmin || permissions.featureAccess.canSeeEmployees) && (
+        {/* Admin — Employees. Hidden for Water: it now lives under the
+            water People group (James 2026-06-13). */}
+        {!isWater && (permissions.isAdmin || permissions.featureAccess.canSeeEmployees) && (
           <>
             <div className="border-t border-slate-800 mx-2" />
             <div className="space-y-0.5">
