@@ -408,7 +408,7 @@ export default function WaterDailyClosingPage() {
                 </div>
                 {/* N11: explain how Cash at hand is derived. */}
                 <p className="mt-2 text-xs text-slate-500">
-                  Cash at hand = (Total income − Credit sales) + Customer collections − Raw-material spend.
+                  Cash at hand = Total income − Credit sales − Total expenses.
                   It is the cash that should physically be on hand from today's activity.
                 </p>
               </div>
