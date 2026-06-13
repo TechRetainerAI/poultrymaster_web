@@ -148,7 +148,11 @@ export function usePermissions(): UserPermissions {
     }
 
     const hasAdminRole = roles.includes("Admin") || roles.includes("FarmAdmin") || roles.includes("Owner")
-    const isAdmin = hasAdminRole || isSubscriber || !isStaff
+    // #D: a staff member can be explicitly flagged admin on their account
+    // (AspNetUsers.IsAdmin); the login response carries it. Honor it so
+    // staff-admins (e.g. Christy) get Delete and other admin-only actions.
+    const isAdminFlag = localStorage.getItem("isAdmin") === "true"
+    const isAdmin = isAdminFlag || hasAdminRole || isSubscriber || !isStaff
     const isStaffOnly = isStaff && !isAdmin
 
     let storedFeatureAccess: Partial<FeatureAccessPermissions> = {}

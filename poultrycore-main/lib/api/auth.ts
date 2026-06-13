@@ -590,6 +590,12 @@ export async function login(data: LoginData): Promise<ApiResponse> {
       // Store user flags - handle both case variations
       localStorage.setItem("isStaff", String(isStaff))
       localStorage.setItem("isSubscriber", String(isSubscriber))
+      // #D: an employee can be flagged IsAdmin on their account (e.g. Christy).
+      // The backend already returns it; persist it so usePermissions can grant
+      // admin-only actions (Delete, etc.) to staff-admins. Staff WITHOUT this
+      // flag stay non-admin.
+      const isAdminFlag = userData.isAdmin === true || userData.IsAdmin === true
+      localStorage.setItem("isAdmin", String(isAdminFlag))
 
       persistFeaturePermissionsFromUserData(userData, isStaff)
       
