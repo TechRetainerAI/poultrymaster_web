@@ -1757,6 +1757,9 @@ export interface WaterRawMaterialPurchase {
   paymentMethod?: string | null
   amountPaid?: number
   balance?: number
+  // Which cash account the payment leaves (mirrors WaterExpense). The Insert SP
+  // honors it when set, else falls back to the first active account.
+  waterCashAccountId?: number | null
   receiptUrl?: string | null
   notes?: string | null
 }

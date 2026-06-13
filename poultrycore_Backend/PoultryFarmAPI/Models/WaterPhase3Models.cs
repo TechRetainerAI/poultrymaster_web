@@ -42,6 +42,9 @@ namespace PoultryFarmAPIWeb.Models
         public decimal TotalCost { get; set; }
         [StringLength(30)] public string? PaymentMethod { get; set; }
         public decimal AmountPaid { get; set; }
+        // Which cash account the payment leaves. NULL => SP falls back to the
+        // first active account (legacy behavior).
+        public int? WaterCashAccountId { get; set; }
         // Outstanding balance = TotalCost - AmountPaid. Computed in the SP
         // (migration 087); read-only here. Without this column the raw materials
         // list rendered Balance as 0.00 even when a part-payment was made.

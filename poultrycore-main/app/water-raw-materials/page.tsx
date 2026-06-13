@@ -28,7 +28,9 @@ import {
   listWaterRawMaterialPurchases, createWaterRawMaterialPurchase, updateWaterRawMaterialPurchase, deleteWaterRawMaterialPurchase,
   payWaterRawMaterialPurchaseBalance,
   listWaterRawMaterialUsageHistory,
+  listWaterCashAccounts,
   type WaterRawMaterialItem, type WaterRawMaterialPurchase, type WaterProductionMaterialUsageRow,
+  type WaterCashAccount,
 } from "@/lib/api/water"
 import { SupplierSelect } from "@/components/water/supplier-select"
 
@@ -50,6 +52,7 @@ export default function WaterRawMaterialsPage() {
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [purchases, setPurchases] = useState<WaterRawMaterialPurchase[]>([])
+  const [accounts, setAccounts] = useState<WaterCashAccount[]>([])
   // Loaded lazily when the user opens the Usage History tab.
   const [usage, setUsage] = useState<WaterProductionMaterialUsageRow[]>([])
   const [usageLoaded, setUsageLoaded] = useState(false)
@@ -66,6 +69,8 @@ export default function WaterRawMaterialsPage() {
   const [purchaseForm, setPurchaseForm] = useState({
     waterRawMaterialItemId: 0, supplierId: null as number | null, purchaseDate: new Date().toISOString().split("T")[0],
     quantity: 0, unitCost: 0, paymentMethod: "Cash", amountPaid: 0, receiptUrl: "", notes: "",
+    // Which cash account the payment comes out of (like Expenses). null until picked.
+    waterCashAccountId: null as number | null,
     // #12: purchase vs production costing. quantity = Purchase Quantity.
     totalPurchaseCost: 0, purchaseUnit: "", productionUnit: "", productionUnitsPerPurchaseUnit: 1,
   })
@@ -107,7 +112,7 @@ export default function WaterRawMaterialsPage() {
 
   async function load() {
     setLoading(true)
-    try { const [is, ps] = await Promise.all([listWaterRawMaterialItems(), listWaterRawMaterialPurchases()]); setItems(is); setPurchases(ps) }
+    try { const [is, ps, accs] = await Promise.all([listWaterRawMaterialItems(), listWaterRawMaterialPurchases(), listWaterCashAccounts()]); setItems(is); setPurchases(ps); setAccounts(accs) }
     catch (e: any) { toast({ title: "Could not load raw materials", description: e?.message ?? String(e), variant: "destructive" }) }
     finally { setLoading(false) }
   }
@@ -145,6 +150,7 @@ export default function WaterRawMaterialsPage() {
       waterRawMaterialItemId: it0?.waterRawMaterialItemId ?? 0,
       supplierId: null, purchaseDate: new Date().toISOString().split("T")[0],
       quantity: 0, unitCost: 0, paymentMethod: "Cash", amountPaid: 0, receiptUrl: "", notes: "",
+      waterCashAccountId: null,
       totalPurchaseCost: 0, purchaseUnit: it0?.unitOfMeasure ?? "", productionUnit: it0?.unitOfMeasure ?? "", productionUnitsPerPurchaseUnit: 1,
     })
     setPurchaseOpen(true)
@@ -160,6 +166,7 @@ export default function WaterRawMaterialsPage() {
       unitCost: p.unitCost,
       paymentMethod: p.paymentMethod ?? "Cash",
       amountPaid: p.amountPaid ?? 0,
+      waterCashAccountId: p.waterCashAccountId ?? null,
       receiptUrl: p.receiptUrl ?? "",
       notes: p.notes ?? "",
       // N2: use the stored exact total when present.
@@ -175,6 +182,9 @@ export default function WaterRawMaterialsPage() {
     if (!purchaseForm.waterRawMaterialItemId) return toast({ title: "Pick an item", variant: "destructive" })
     if (purchaseForm.quantity <= 0) return toast({ title: "Purchase quantity must be > 0", variant: "destructive" })
     if (purchaseForm.totalPurchaseCost <= 0) return toast({ title: "Total purchase cost must be > 0", variant: "destructive" })
+    // Like Expenses: a non-credit payment must say which cash account it leaves.
+    if (purchaseForm.paymentMethod !== "Credit" && purchaseForm.amountPaid > 0 && !purchaseForm.waterCashAccountId)
+      return toast({ title: "Pick the cash account to pay from", variant: "destructive" })
     // N2: send the EXACT total the operator entered (the SP stores it verbatim);
     // quantity is in the item's unit. No production conversion (removed per new feedback).
     const qty = purchaseForm.quantity
@@ -189,6 +199,7 @@ export default function WaterRawMaterialsPage() {
           totalCost: total,
           paymentMethod: purchaseForm.paymentMethod,
           amountPaid: purchaseForm.amountPaid,
+          waterCashAccountId: purchaseForm.paymentMethod === "Credit" ? null : purchaseForm.waterCashAccountId,
           receiptUrl: purchaseForm.receiptUrl || null,
           notes: purchaseForm.notes || null,
           supplierId: purchaseForm.supplierId,
@@ -203,6 +214,7 @@ export default function WaterRawMaterialsPage() {
           totalCost: total,
           paymentMethod: purchaseForm.paymentMethod,
           amountPaid: purchaseForm.amountPaid,
+          waterCashAccountId: purchaseForm.paymentMethod === "Credit" ? null : purchaseForm.waterCashAccountId,
           receiptUrl: purchaseForm.receiptUrl || null,
           notes: purchaseForm.notes || null,
           supplierId: purchaseForm.supplierId,
@@ -594,6 +606,24 @@ export default function WaterRawMaterialsPage() {
             <FormSection title="Payment" color="amber">
               <FormField label="Amount paid">
                 <NumberInput min={0} step="0.01" value={purchaseForm.amountPaid} onChange={(e) => setPurchaseForm({ ...purchaseForm, amountPaid: Number(e.target.value) || 0 })} />
+              </FormField>
+              {/* #2: choose which cash account the payment leaves (same as the
+                  Expenses form). Not required for Credit / nothing-paid. */}
+              <FormField label={`Cash account${purchaseForm.paymentMethod !== "Credit" && purchaseForm.amountPaid > 0 ? " *" : ""}`}>
+                <Select
+                  value={purchaseForm.waterCashAccountId ? String(purchaseForm.waterCashAccountId) : ""}
+                  onValueChange={(v) => setPurchaseForm({ ...purchaseForm, waterCashAccountId: v ? Number(v) : null })}
+                  disabled={purchaseForm.paymentMethod === "Credit"}
+                >
+                  <SelectTrigger><SelectValue placeholder={purchaseForm.paymentMethod === "Credit" ? "(not required for credit)" : "Pick account"} /></SelectTrigger>
+                  <SelectContent>
+                    {accounts.filter(a => a.isActive).length === 0
+                      ? <div className="px-2 py-1.5 text-sm text-slate-500">No cash accounts — add one on Cash &amp; Accounts.</div>
+                      : accounts.filter(a => a.isActive).map(a => (
+                          <SelectItem key={a.waterCashAccountId} value={String(a.waterCashAccountId)}>{a.accountName} ({a.currentBalance.toFixed(2)})</SelectItem>
+                        ))}
+                  </SelectContent>
+                </Select>
               </FormField>
               <FormField label="Receipt URL">
                 <Input value={purchaseForm.receiptUrl} onChange={(e) => setPurchaseForm({ ...purchaseForm, receiptUrl: e.target.value })} />
