@@ -138,10 +138,12 @@ export default function WaterCashAccountsPage() {
             <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
               <Wallet className="h-6 w-6 text-sky-600" /> Cash accounts
             </h1>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={reconcile}><RefreshCw className="h-4 w-4 mr-1" /> Reconcile</Button>
-              <Button variant="outline" onClick={() => setXferDlg(true)}><ArrowLeftRight className="h-4 w-4 mr-1" /> Transfer</Button>
-              <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> New account</Button>
+            {/* Buttons fill the row and wrap on mobile so "New account" is never
+                clipped off-screen; natural-width and right-aligned from sm:. */}
+            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+              <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={reconcile}><RefreshCw className="h-4 w-4 mr-1" /> Reconcile</Button>
+              <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={() => setXferDlg(true)}><ArrowLeftRight className="h-4 w-4 mr-1" /> Transfer</Button>
+              <Button className="flex-1 sm:flex-none whitespace-nowrap" onClick={openNew}><Plus className="h-4 w-4 mr-1" /> New account</Button>
             </div>
           </div>
 
