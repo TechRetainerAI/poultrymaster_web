@@ -846,6 +846,13 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Reason",     (object?)reason     ?? DBNull.Value);
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
+
+            // #1: undo the cash posted to accounts on approval. Idempotent.
+            using var revCmd = new SqlCommand("spWaterDriverReturn_ReverseCashAccounts", conn) { CommandType = CommandType.StoredProcedure };
+            revCmd.Parameters.AddWithValue("@WaterDriverReturnId", id);
+            revCmd.Parameters.AddWithValue("@FarmId", farmId);
+            revCmd.Parameters.AddWithValue("@ReversedBy", (object?)reversedBy ?? DBNull.Value);
+            await revCmd.ExecuteNonQueryAsync();
         }
 
         // Migration 083 — Approve & Reconcile in one shot. Validates first
@@ -861,6 +868,14 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@ApprovedBy", (object?)approvedBy ?? DBNull.Value);
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
+
+            // #1 (James 2026-06-13): post the collected cash/MoMo/bank to cash
+            // accounts so the Cash Accounts balances move. Idempotent.
+            using var postCmd = new SqlCommand("spWaterDriverReturn_PostCashAccounts", conn) { CommandType = CommandType.StoredProcedure };
+            postCmd.Parameters.AddWithValue("@WaterDriverReturnId", id);
+            postCmd.Parameters.AddWithValue("@FarmId", farmId);
+            postCmd.Parameters.AddWithValue("@PostedBy", (object?)approvedBy ?? DBNull.Value);
+            await postCmd.ExecuteNonQueryAsync();
         }
 
         // Migration 083 — set the posting mode + primary customer on a Draft.
