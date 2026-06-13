@@ -127,25 +127,29 @@ export function ListFilters({
               </SelectContent>
             </Select>
           </div>
-          {/* #19: label + picker inline on one row each, so the From/To filter
-              takes 2 rows on mobile instead of 4. */}
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <Label className="text-xs text-slate-500 shrink-0 w-10">From</Label>
-            <Input
-              type="date"
-              value={dateFrom ?? ""}
-              onChange={(e) => setDateFrom!(e.target.value)}
-              className="flex-1 sm:w-[160px] sm:flex-none"
-            />
-          </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <Label className="text-xs text-slate-500 shrink-0 w-10">To</Label>
-            <Input
-              type="date"
-              value={dateTo ?? ""}
-              onChange={(e) => setDateTo!(e.target.value)}
-              className="flex-1 sm:w-[160px] sm:flex-none"
-            />
+          {/* #19: From + To share ONE row on mobile (two columns, label above
+              its picker) so the whole date filter is just Period + dates = 2
+              rows, not 4. On desktop the grid wrapper dissolves (sm:contents)
+              and From/To sit inline next to Period exactly as before. */}
+          <div className="grid grid-cols-2 gap-2 w-full sm:contents">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2 sm:w-auto min-w-0">
+              <Label className="text-xs text-slate-500 shrink-0 sm:w-10">From</Label>
+              <Input
+                type="date"
+                value={dateFrom ?? ""}
+                onChange={(e) => setDateFrom!(e.target.value)}
+                className="w-full sm:w-[160px]"
+              />
+            </div>
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2 sm:w-auto min-w-0">
+              <Label className="text-xs text-slate-500 shrink-0 sm:w-10">To</Label>
+              <Input
+                type="date"
+                value={dateTo ?? ""}
+                onChange={(e) => setDateTo!(e.target.value)}
+                className="w-full sm:w-[160px]"
+              />
+            </div>
           </div>
         </>
       )}
