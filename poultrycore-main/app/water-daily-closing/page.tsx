@@ -404,11 +404,14 @@ export default function WaterDailyClosingPage() {
                   <Tile label="MoMo balance" value={gh(view.moMoBalance)} />
                   <Tile label="Bank balance" value={gh(view.bankBalance)} />
                   <Tile label="Credit sales" value={gh(view.creditSales)} />
+                  {/* Walk-in / customer cash received that is NOT part of Total
+                      income; surfaced so Cash at hand visibly adds up. */}
+                  <Tile label="Customer collections" value={gh(view.customerCollections ?? 0)} />
                   <Tile label="Driver shortages" value={gh(view.driverShortagesTotal ?? view.driverShortages)} accent={(view.driverShortagesTotal ?? view.driverShortages) ? "rose" : undefined} />
                 </div>
                 {/* N11: explain how Cash at hand is derived. */}
                 <p className="mt-2 text-xs text-slate-500">
-                  Cash at hand = Total income − Credit sales − Total expenses.
+                  Cash at hand = (Total income − Credit sales) + Customer collections − Total expenses.
                   It is the cash that should physically be on hand from today's activity.
                 </p>
               </div>
