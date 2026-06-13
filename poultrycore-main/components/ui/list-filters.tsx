@@ -179,22 +179,24 @@ export function filterByDateAndSearch<T extends Record<string, any>>(
   },
 ): T[] {
   const s = (opts.search ?? "").trim().toLowerCase()
-  const from = opts.dateFrom ? new Date(opts.dateFrom) : null
-  const to = opts.dateTo ? new Date(opts.dateTo) : null
-  if (to) {
-    // Make the comparison inclusive of the entire 'to' day.
-    to.setHours(23, 59, 59, 999)
-  }
+  // The period dropdown and the From/To inputs all produce yyyy-mm-dd strings.
+  const from = opts.dateFrom || null
+  const to = opts.dateTo || null
 
   return items.filter((row) => {
-    // Date check
+    // Date check — compare CALENDAR DAYS as yyyy-mm-dd strings, inclusive of
+    // both ends. We deliberately do NOT compare Date instants: the previous
+    // version parsed the yyyy-mm-dd bounds as UTC midnight but then called
+    // to.setHours(23,59,59,999) in *local* time, so in any non-UTC timezone the
+    // 'to' boundary landed hours early and silently dropped same-day afternoon/
+    // evening rows — making the period filter look broken on every list page.
     if ((from || to) && opts.dateKey) {
       const raw = row[opts.dateKey as keyof T]
-      if (raw) {
-        const d = new Date(raw as any)
-        if (!Number.isNaN(d.getTime())) {
-          if (from && d < from) return false
-          if (to && d > to) return false
+      if (raw != null && raw !== "") {
+        const day = toCalendarDay(raw)
+        if (day) {
+          if (from && day < from) return false
+          if (to && day > to) return false
         }
       }
     }
@@ -208,4 +210,24 @@ export function filterByDateAndSearch<T extends Record<string, any>>(
     }
     return true
   })
+}
+
+/**
+ * The yyyy-mm-dd calendar day a row's date value represents. For the API's
+ * date strings (e.g. "2026-06-12T09:30:00") we take the literal date prefix —
+ * this matches exactly how the lists render the value (both `toLocaleString()`
+ * on a no-offset string and `split("T")[0]`) and is timezone-independent.
+ * Non-string / non-ISO values fall back to local calendar components.
+ */
+function toCalendarDay(raw: unknown): string | null {
+  if (typeof raw === "string") {
+    const m = raw.match(/^(\d{4}-\d{2}-\d{2})/)
+    if (m) return m[1]
+  }
+  const d = new Date(raw as any)
+  if (Number.isNaN(d.getTime())) return null
+  const y = d.getFullYear()
+  const mo = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${mo}-${day}`
 }
