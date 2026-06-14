@@ -1,5 +1,6 @@
 import { DEFAULT_LOGIN_API_ORIGIN } from "@/lib/api/default-api-hosts"
 import { getAuthHeaders } from "./config"
+import { forceReauth } from "./session-expiry"
 
 
 function buildAdminApiUrl(endpoint: string): string {
@@ -154,6 +155,7 @@ export async function getEmployees(): Promise<ApiResponse<Employee[]>> {
       
       // Handle authentication errors
       if (response.status === 401) {
+        forceReauth()
         return {
           success: false,
           message: "Your session has expired. Please log in again to continue.",
@@ -595,6 +597,7 @@ export async function getTodayLogins(): Promise<ApiResponse<Employee[]>> {
       console.error("[Admin API] Today logins error:", errorText)
       
       if (response.status === 401) {
+        forceReauth()
         return {
           success: false,
           message: "Your session has expired. Please log in again to continue.",

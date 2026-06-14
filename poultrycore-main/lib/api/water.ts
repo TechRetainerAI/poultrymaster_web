@@ -1,4 +1,5 @@
 import { farmApiUrl, getAuthHeaders, getUserContext } from "./config"
+import { forceReauth } from "./session-expiry"
 
 // ----- Types -----
 // Migration 063 introduces ProductType so finished goods are separated from
@@ -231,6 +232,7 @@ function explainHttpError(method: string, path: string, status: number, body: st
 async function jget<T>(path: string): Promise<T> {
   const res = await fetch(farmApiUrl(path), { headers: getAuthHeaders() })
   if (!res.ok) {
+    if (res.status === 401) forceReauth()   // Doc3-D: expired session -> login
     const t = await res.text().catch(() => "")
     throw new Error(explainHttpError("GET", path, res.status, t))
   }
@@ -242,6 +244,7 @@ async function jsend<T>(path: string, method: "POST" | "PUT" | "DELETE", body?: 
   if (body !== undefined) init.body = JSON.stringify(body)
   const res = await fetch(farmApiUrl(path), init)
   if (!res.ok) {
+    if (res.status === 401) forceReauth()   // Doc3-D: expired session -> login
     const t = await res.text().catch(() => "")
     throw new Error(explainHttpError(method, path, res.status, t))
   }
