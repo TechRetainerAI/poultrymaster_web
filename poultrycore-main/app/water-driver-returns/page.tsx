@@ -525,9 +525,18 @@ export default function WaterDriverReturnsPage() {
           items:                 itemsPayload,
         } as any)
         // Approve immediately so stock moves out — matches the "load and go"
-        // operator flow.
-        if (created?.waterVehicleLoadingId) {
+        // operator flow. The create makes a Draft; approve promotes it to
+        // Loaded. If approve fails we must NOT leave the orphan Draft behind —
+        // it shows up as a confusing "duplicate" next to the real Loaded row.
+        if (!created?.waterVehicleLoadingId) {
+          throw new Error("The load was created but the server did not return its id — please retry.")
+        }
+        try {
           await approveWaterVehicleLoading(created.waterVehicleLoadingId)
+        } catch (apErr: any) {
+          // Roll back the stuck Draft so it can't masquerade as a duplicate.
+          try { await voidWaterVehicleLoading(created.waterVehicleLoadingId, "Auto-voided: load could not be confirmed") } catch { /* best effort */ }
+          throw new Error(apErr?.message ? `Load could not be confirmed: ${apErr.message}` : "Load could not be confirmed — please retry.")
         }
         toast({ title: "Delivery run loaded — stock moved out" })
       }
