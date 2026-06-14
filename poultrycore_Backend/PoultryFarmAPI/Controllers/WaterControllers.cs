@@ -203,6 +203,15 @@ namespace PoultryFarmAPIWeb.Controllers
             await _svc.Cancel(id, farmId);
             return NoContent();
         }
+
+        // Hard-delete a direct sale. The SP rejects delivery-sourced sales.
+        [HttpDelete("{id:int}")]
+        public async Task<IActionResult> Delete(int id, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            await _svc.Delete(id, farmId);
+            return NoContent();
+        }
     }
 
     // =========================================================================

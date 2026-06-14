@@ -85,6 +85,18 @@ namespace PoultryFarmAPIWeb.Business
             await cmd.ExecuteNonQueryAsync();
         }
 
+        // Hard-delete a direct sale (restores stock, removes payments + items).
+        // The SP rejects delivery-sourced sales.
+        public async Task Delete(int id, string farmId)
+        {
+            using var conn = new SqlConnection(_connectionString);
+            using var cmd = new SqlCommand("spWaterSale_Delete", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@WaterSaleId", id);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
         private static WaterSaleModel ReadHeader(SqlDataReader r) => new()
         {
             WaterSaleId     = r.GetInt32(r.GetOrdinal("WaterSaleId")),
@@ -100,6 +112,9 @@ namespace PoultryFarmAPIWeb.Business
             CreatedDate     = r.GetDateTime(r.GetOrdinal("CreatedDate")),
             CreatedBy       = r.IsDBNull(r.GetOrdinal("CreatedBy")) ? null : r.GetString(r.GetOrdinal("CreatedBy")),
             UpdatedDate     = r.IsDBNull(r.GetOrdinal("UpdatedDate")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedDate")),
+            // Migration 111 — where the sale came from (NULL/Direct vs DeliveryRun).
+            SourceType      = HasCol(r, "SourceType") && !r.IsDBNull(r.GetOrdinal("SourceType")) ? r.GetString(r.GetOrdinal("SourceType")) : null,
+            SourceId        = HasCol(r, "SourceId")   && !r.IsDBNull(r.GetOrdinal("SourceId"))   ? r.GetInt32(r.GetOrdinal("SourceId"))   : (int?)null,
         };
 
         private static WaterSaleItemModel ReadItem(SqlDataReader r) => new()

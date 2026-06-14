@@ -144,6 +144,10 @@ export interface WaterSale {
   createdDate: string
   createdBy?: string | null
   updatedDate?: string | null
+  // Where the sale came from: null/"" = direct sale; "DeliveryRun" = created by
+  // a driver return (cannot be deleted on the Sales page).
+  sourceType?: string | null
+  sourceId?: number | null
   items: WaterSaleItem[]
 }
 
@@ -334,6 +338,9 @@ export const createWaterSale = (input: CreateWaterSaleInput) =>
 
 export const cancelWaterSale = (id: number) =>
   jsend<void>(`/Water/sales/${id}/cancel?farmId=${encodeURIComponent(activeFarmId())}`, "POST")
+// Hard-delete a direct sale. The backend rejects delivery-sourced sales.
+export const deleteWaterSale = (id: number) =>
+  jsend<void>(`/Water/sales/${id}?farmId=${encodeURIComponent(activeFarmId())}`, "DELETE")
 
 // ----- Payments -----
 export const listWaterPayments = () =>

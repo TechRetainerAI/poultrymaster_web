@@ -36,6 +36,7 @@ namespace PoultryFarmAPIWeb.Business
         Task<WaterSaleModel?> GetById(int id, string farmId);
         Task<List<WaterSaleModel>> GetAll(string farmId);
         Task Cancel(int id, string farmId);
+        Task Delete(int id, string farmId);
     }
 
     public interface IWaterPaymentService
