@@ -200,7 +200,7 @@ export default function WaterStaffPage() {
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
-              <Users2 className="h-6 w-6 text-sky-600" /> Water staff
+              <Users2 className="h-6 w-6 text-sky-600" /> Employees
             </h1>
             <div className="flex flex-wrap items-center gap-2">
               <Select value={roleFilter} onValueChange={setRoleFilter}>

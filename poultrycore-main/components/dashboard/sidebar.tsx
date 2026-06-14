@@ -209,10 +209,11 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/water-cash-accounts", label: "Cash & Accounts", icon: Wallet },
   ]
   // James: group Employees + Payroll under People and hide the Staff item.
-  // Employees stays admin-gated (it was previously the standalone Admin item).
+  // "Employees" points at the water staff page (/water-staff) — the global
+  // /employees page redirects water users to the dashboard. Admin-gated.
   const waterPeopleItems = [
     ...((permissions.isAdmin || permissions.featureAccess.canSeeEmployees)
-      ? [{ href: "/employees", label: "Employees", icon: UserCog }]
+      ? [{ href: "/water-staff", label: "Employees", icon: UserCog }]
       : []),
     { href: "/water-payroll", label: "Payroll", icon: Banknote },
   ]

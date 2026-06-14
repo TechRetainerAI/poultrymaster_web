@@ -456,10 +456,10 @@ export default function WaterSetupPage() {
                 <TabsTrigger
                   key={t.key}
                   value={t.key}
-                  className="shrink-0 cursor-pointer justify-start rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-slate-700 shadow-sm transition hover:border-sky-300 hover:text-sky-700 data-[state=active]:border-sky-500 data-[state=active]:bg-sky-50 data-[state=active]:text-sky-700 data-[state=active]:shadow"
+                  className="shrink-0 cursor-pointer items-start justify-start whitespace-normal text-left leading-tight rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-slate-700 shadow-sm transition hover:border-sky-300 hover:text-sky-700 data-[state=active]:border-sky-500 data-[state=active]:bg-sky-50 data-[state=active]:text-sky-700 data-[state=active]:shadow"
                 >
-                  <t.icon className="h-4 w-4 mr-1.5 shrink-0" />
-                  {t.label}
+                  <t.icon className="h-4 w-4 mr-1.5 mt-0.5 shrink-0" />
+                  <span className="min-w-0 break-words">{t.label}</span>
                 </TabsTrigger>
               ))}
             </TabsList>

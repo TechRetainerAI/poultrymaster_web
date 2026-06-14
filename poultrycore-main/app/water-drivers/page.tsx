@@ -358,11 +358,19 @@ export default function WaterDriversPage() {
                 <Select value={empForm.employeeUserId} onValueChange={(v) => setEmpForm({ ...empForm, employeeUserId: v })}>
                   <SelectTrigger><SelectValue placeholder="Select an employee" /></SelectTrigger>
                   <SelectContent>
-                    {employees.length === 0
-                      ? <div className="px-2 py-1.5 text-sm text-slate-500">No employees found — use “New employee”.</div>
-                      : employees.map((e) => (
-                          <SelectItem key={e.id} value={e.id}>{e.firstName} {e.lastName} — {e.phoneNumber || e.email}</SelectItem>
-                        ))}
+                    {(() => {
+                      // Only employees who are NOT already drivers — no point
+                      // re-assigning someone who is already a driver.
+                      const driverUserIds = new Set(drivers.map(d => d.employeeUserId).filter(Boolean) as string[])
+                      const available = employees.filter(e => !driverUserIds.has(e.id))
+                      if (employees.length === 0)
+                        return <div className="px-2 py-1.5 text-sm text-slate-500">No employees found — use “New employee”.</div>
+                      if (available.length === 0)
+                        return <div className="px-2 py-1.5 text-sm text-slate-500">Every employee is already a driver — use “New employee”.</div>
+                      return available.map((e) => (
+                        <SelectItem key={e.id} value={e.id}>{e.firstName} {e.lastName} — {e.phoneNumber || e.email}</SelectItem>
+                      ))
+                    })()}
                   </SelectContent>
                 </Select>
               </FormField>
