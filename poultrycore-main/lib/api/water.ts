@@ -590,6 +590,11 @@ export const deleteWaterCashAccount = (id: number) =>
 export const reconcileWaterCashBalances = () =>
   jsend<void>(`/Water/cash-accounts/reconcile-balances?farmId=${encodeURIComponent(activeFarmId())}`, "POST")
 
+// Manual balance adjustment. amount is signed: positive adds cash, negative removes it.
+export const adjustWaterCashAccount = (id: number, input: { amount: number; reason: string }) =>
+  jsend<void>(`/Water/cash-accounts/${id}/adjust?farmId=${encodeURIComponent(activeFarmId())}`, "POST",
+    { amount: input.amount, reason: input.reason, createdBy: currentUserId() || null })
+
 export const listWaterCashTransactions = (opts?: { cashAccountId?: number; fromDate?: string; toDate?: string }) => {
   const qs = new URLSearchParams({ farmId: activeFarmId() })
   if (opts?.cashAccountId) qs.append("cashAccountId", String(opts.cashAccountId))

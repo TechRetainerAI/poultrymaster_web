@@ -185,8 +185,8 @@ export default function WaterCashAccountsPage() {
                   ]}
                   actions={(a) => (
                     <>
-                      <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => viewTransactions(a)}>
-                        <Eye className="h-4 w-4 mr-1" /> Txns
+                      <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => router.push(`/water-cash-accounts/${a.waterCashAccountId}`)}>
+                        <Eye className="h-4 w-4 mr-1" /> View details
                       </Button>
                       <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openEdit(a)}>Edit</Button>
                     </>
@@ -213,7 +213,7 @@ export default function WaterCashAccountsPage() {
                             <TableCell className={`text-right tabular-nums font-semibold ${a.currentBalance < 0 ? "text-rose-600" : ""}`}>{a.currentBalance.toFixed(2)}</TableCell>
                             <TableCell>{a.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="outline">Inactive</Badge>}</TableCell>
                             <TableCell className="text-right">
-                              <Button size="sm" variant="ghost" onClick={() => viewTransactions(a)}><Eye className="h-4 w-4" /></Button>
+                              <Button size="sm" variant="ghost" onClick={() => router.push(`/water-cash-accounts/${a.waterCashAccountId}`)} title="View details"><Eye className="h-4 w-4" /></Button>
                               <Button size="sm" variant="ghost" onClick={() => openEdit(a)}>Edit</Button>
                             </TableCell>
                           </TableRow>

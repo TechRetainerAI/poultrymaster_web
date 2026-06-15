@@ -98,6 +98,9 @@ namespace PoultryFarmAPIWeb.Business
         Task       UpdateAsync(WaterCashAccountModel m);
         Task       DeleteAsync(int id, string farmId);
         Task       ReconcileBalanceAsync(string farmId);
+        // Manual balance adjustment: signed amount (+ adds, - removes) posts an
+        // AdjustmentIn/Out cash transaction and moves the stored balance.
+        Task       AdjustAsync(int id, string farmId, decimal amount, string reason, string? createdBy);
 
         Task<List<WaterCashTransactionModel>> GetTransactionsAsync(
             string farmId, int? cashAccountId, DateTime? fromDate, DateTime? toDate);
@@ -175,6 +178,19 @@ namespace PoultryFarmAPIWeb.Business
             using var c = new SqlConnection(_cs);
             using var cmd = new SqlCommand("spWaterCashAccount_ReconcileBalance", c) { CommandType = CommandType.StoredProcedure };
             cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await c.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task AdjustAsync(int id, string farmId, decimal amount, string reason, string? createdBy)
+        {
+            using var c = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterCashAccount_Adjust", c) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@WaterCashAccountId", id);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@Amount", amount);
+            cmd.Parameters.AddWithValue("@Reason", (object?)reason ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@CreatedBy", (object?)createdBy ?? DBNull.Value);
             await c.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
         }
