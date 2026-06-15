@@ -64,8 +64,17 @@ function unifiedStatus(e: UnifiedExpense): string {
   return "Submitted"
 }
 
+// Local yyyy-mm-dd (NOT toISOString, which is UTC and can read as "yesterday"
+// for users behind UTC). Lets operators back-date an expense to the day it
+// actually happened instead of being locked to today.
+function todayLocal(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+}
+
 const EMPTY: WaterExpenseInput = {
   waterExpenseCategoryId: 0,
+  expenseDate: "",
   description: "",
   amount: 0,
   paidTo: "",
@@ -141,7 +150,7 @@ export default function WaterExpensesPage() {
   }
 
   function openNew() {
-    setForm({ ...EMPTY, waterExpenseCategoryId: categories.find(c => c.isActive)?.waterExpenseCategoryId ?? 0 })
+    setForm({ ...EMPTY, expenseDate: todayLocal(), waterExpenseCategoryId: categories.find(c => c.isActive)?.waterExpenseCategoryId ?? 0 })
     setOpen(true)
   }
 
@@ -458,6 +467,11 @@ export default function WaterExpensesPage() {
           </DialogHeader>
           <div className="space-y-4">
             <FormSection title="Basics" color="indigo" columns={1}>
+              {/* Date defaults to today but is editable so you can record an
+                  expense for the day it actually happened (e.g. yesterday). */}
+              <FormField label="Expense date *">
+                <Input type="date" value={form.expenseDate ?? ""} max={todayLocal()} onChange={(e) => setForm({ ...form, expenseDate: e.target.value })} />
+              </FormField>
               <FormField label="Category *">
                 <Select value={String(form.waterExpenseCategoryId)} onValueChange={(v) => setForm({ ...form, waterExpenseCategoryId: Number(v) })}>
                   <SelectTrigger><SelectValue placeholder="Pick category" /></SelectTrigger>
