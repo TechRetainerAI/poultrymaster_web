@@ -1,5 +1,5 @@
 using System.Data;
-using System.Data.SqlClient;
+using Microsoft.Data.SqlClient;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -58,7 +58,7 @@ namespace PoultryFarmAPIWeb.Business
         // Advances the reader past intermediate result sets (verification
         // counts) until it finds one with a WaterCompanyProfileId column, or
         // exhausts. Safe no-op when the SP only returns one result set.
-        private static async Task SkipToProfileResultSetAsync(System.Data.SqlClient.SqlDataReader r)
+        private static async Task SkipToProfileResultSetAsync(Microsoft.Data.SqlClient.SqlDataReader r)
         {
             while (true)
             {

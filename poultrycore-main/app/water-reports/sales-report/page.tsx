@@ -51,6 +51,36 @@ export default function SalesReportPage() {
       fromDate={fromDate} toDate={toDate}
       onFromDateChange={setFromDate} onToDateChange={setToDate}
       onRefresh={load}
+      pdf={{
+        title: "Sales Report",
+        filename: "water-sales-report",
+        summaryLines: [
+          `Sales count: ${rows.length.toLocaleString()}`,
+          `Total amount: ${fmtMoney(totals.total)}`,
+          `Amount paid: ${fmtMoney(totals.paid)}`,
+          `Outstanding: ${fmtMoney(totals.balance)}`,
+        ],
+        columns: [
+          { header: "Date" },
+          { header: "Sale #" },
+          { header: "Customer" },
+          { header: "Source" },
+          { header: "Total", align: "right" },
+          { header: "Paid", align: "right" },
+          { header: "Balance", align: "right" },
+          { header: "Status" },
+        ],
+        rows: rows.map((r: any) => [
+          (r.saleDate ?? "").slice(0, 10),
+          r.waterSaleId,
+          r.customerName ?? r.waterCustomerId ?? "—",
+          r.sourceType ?? "Manual",
+          fmtMoney(r.totalAmount ?? 0),
+          fmtMoney(r.amountPaid ?? 0),
+          fmtMoney((r.totalAmount ?? 0) - (r.amountPaid ?? 0)),
+          r.status ?? "—",
+        ]),
+      }}
       summary={<>
         <SumTile label="Sales count"      value={rows.length.toLocaleString()} />
         <SumTile label="Total amount"     value={fmtMoney(totals.total)} />

@@ -52,6 +52,46 @@ export default function DeliveryRunReportPage() {
       fromDate={fromDate} toDate={toDate}
       onFromDateChange={setFromDate} onToDateChange={setToDate}
       onRefresh={load}
+      pdf={{
+        title: "Delivery Run Report",
+        filename: "water-delivery-run-report",
+        orientation: "landscape",
+        summaryLines: [
+          `Runs (reconciled / total): ${totals.reconciled} / ${totals.runs}`,
+          `Bags sold: ${totals.sold.toLocaleString()}`,
+          `Bags returned: ${totals.returned.toLocaleString()}`,
+          `Cash collected: ${fmtMoney(totals.cash)}`,
+        ],
+        columns: [
+          { header: "Date" },
+          { header: "Driver" },
+          { header: "Vehicle" },
+          { header: "Route" },
+          { header: "Loaded", align: "right" },
+          { header: "Sold", align: "right" },
+          { header: "Returned", align: "right" },
+          { header: "Damaged", align: "right" },
+          { header: "Expected", align: "right" },
+          { header: "Shortage", align: "right" },
+          { header: "Status" },
+        ],
+        rows: loadings.map((l: any) => {
+          const r = returns.find((x: any) => x.waterVehicleLoadingId === l.waterVehicleLoadingId)
+          return [
+            (l.loadDate ?? "").slice(0, 10),
+            l.driverName ?? "—",
+            l.vehicleName ?? "—",
+            l.routeName ?? "—",
+            (l.bagsLoaded ?? 0).toLocaleString(),
+            (r?.bagsSold ?? 0).toLocaleString(),
+            (r?.bagsReturned ?? 0).toLocaleString(),
+            (r?.bagsDamaged ?? 0).toLocaleString(),
+            fmtMoney(l.expectedCash ?? 0),
+            fmtMoney(r?.shortageAmount ?? 0),
+            l.status,
+          ]
+        }),
+      }}
       summary={<>
         <SumTile label="Runs" value={`${totals.reconciled} / ${totals.runs}`} />
         <SumTile label="Bags sold" value={totals.sold.toLocaleString()} accent="green" />

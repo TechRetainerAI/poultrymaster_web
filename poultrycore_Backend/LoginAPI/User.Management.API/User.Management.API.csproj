@@ -4,6 +4,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>157bab7a-e884-424a-9787-75a04eef17ed</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,7 +19,7 @@
     <PackageReference Include="QuestPDF" Version="2025.1.7" />
     <PackageReference Include="Stripe.net" Version="44.10.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
-    <PackageReference Include="System.Data.SqlClient" Version="4.9.0" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
   </ItemGroup>
 
   <ItemGroup>

@@ -46,6 +46,42 @@ export default function RawMaterialPurchaseReportPage() {
       fromDate={fromDate} toDate={toDate}
       onFromDateChange={setFromDate} onToDateChange={setToDate}
       onRefresh={load}
+      pdf={{
+        title: "Raw Material Purchases",
+        filename: "water-raw-material-purchase",
+        columns: [
+          { header: "Date" },
+          { header: "Material" },
+          { header: "Supplier" },
+          { header: "Quantity", align: "right" },
+          { header: "Unit cost", align: "right" },
+          { header: "Total cost", align: "right" },
+          { header: "Paid", align: "right" },
+          { header: "Balance", align: "right" },
+          { header: "Method" },
+        ],
+        rows: rows.map((p: any) => {
+          const total = p.totalCost ?? ((p.quantity ?? 0) * (p.unitCost ?? 0))
+          const balance = total - (p.amountPaid ?? 0)
+          return [
+            (p.purchaseDate ?? "").slice(0, 10),
+            p.itemName ?? p.waterRawMaterialItemId,
+            p.supplierName ?? "—",
+            (p.quantity ?? 0).toLocaleString(),
+            fmtMoney(p.unitCost ?? 0),
+            fmtMoney(total),
+            fmtMoney(p.amountPaid ?? 0),
+            fmtMoney(balance),
+            p.paymentMethod ?? "—",
+          ]
+        }),
+        summaryLines: [
+          `Purchases: ${totals.count.toLocaleString()}`,
+          `Total cost: ${fmtMoney(totals.total)}`,
+          `Paid: ${fmtMoney(totals.paid)}`,
+          `Outstanding: ${fmtMoney(totals.balance)}`,
+        ],
+      }}
       summary={<>
         <SumTile label="Purchases" value={totals.count.toLocaleString()} />
         <SumTile label="Total cost" value={fmtMoney(totals.total)} />

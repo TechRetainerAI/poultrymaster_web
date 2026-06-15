@@ -1,0 +1,293 @@
+================================================================================
+POULTRY MASTER — EMAIL SYSTEM DOCUMENTATION
+Water company emails: reports, daily closing, employee credentials, company welcome
+================================================================================
+
+PURPOSE
+-------
+This document explains how outbound email works in the app after the
+consolidation. All four email endpoints now live in ONE controller (the Farm
+API's EmailController). It covers the endpoints, the request shapes, the
+end-to-end flow for each, the key files, the configuration, and how to test.
+
+
+================================================================================
+1. ARCHITECTURE (the 3 facts that shape everything)
+================================================================================
+
+1) The browser never calls the .NET APIs directly. Every client request goes to
+   a same-origin Next.js route:  /api/proxy/<path>
+   The proxy forwards it server-side to one of two backends, chosen by the FIRST
+   path segment:
+       Admin, Authentication, Payments, UserProfile, Companies  -> LOGIN API
+       everything else (incl. "Email" and "Water")              -> FARM API
+
+2) All four email endpoints are under /api/Email/* , so they ALL route to the
+   FARM API, and they all live in one controller: EmailController.
+
+3) Every email is ultimately sent by ONE sender:
+       IEmailService.SendAsync(...)   (Farm API, MailKit over SMTP)
+   SMTP is configured via EmailConfiguration (currently Resend).
+
+   NOTE: The Login API still sends 2FA one-time-codes and password-reset emails
+   using its OWN email service. Those are side effects of login / forgot-password
+   (not callable "send an email" endpoints), so they are not part of this system.
+
+
+================================================================================
+2. THE CONSOLIDATED CONTROLLER
+================================================================================
+
+File:    poultrycore_Backend/PoultryFarmAPI/Controllers/EmailController.cs
+Route:   api/Email           (controller is [Authorize] — caller needs a JWT)
+Sender:  IEmailService.SendAsync  (poultrycore_Backend/PoultryFarmAPI/Business/EmailService.cs)
+
+Endpoints
+---------
+  POST /api/Email/Report
+      multipart/form-data: file (PDF) + to + subject? + body? + farmName? + reportTitle?
+      Use: emailing any Water report. The PDF is built in the BROWSER and uploaded.
+
+  POST /api/Email/send-credentials      (JSON body)
+      { Email, UserName, Password, FarmName }
+      Use: email a new employee their username + password.
+
+  POST /api/Email/send-welcome          (JSON body)
+      { Email, CompanyName, CompanyType }
+      Use: email a "company created" confirmation.
+
+  POST /api/Email/daily-closing?id=&farmId=&to=&companyName=   (query string)
+      Use: email the daily closing report. The server LOADS the closing by id +
+      farmId and builds the PDF server-side (QuestPDF).
+
+Response convention
+-------------------
+  - Report / daily-closing: 200 {success:true,...}; 503 if SMTP not configured;
+    500 on send failure; 400/404 on bad input / not found.
+  - send-credentials / send-welcome: always 200 with {success, message} (even on
+    failure) so the UI can show the exact reason (e.g. a Resend rejection).
+
+
+================================================================================
+3. FLOW A — EMAIL A REPORT (client-side PDF -> one endpoint)
+================================================================================
+
+Why client-side: the user is looking at the report, so the data is already in
+the browser. Building the PDF there means it matches the screen, works for all
+~24 reports through one endpoint, and needs no per-report backend code.
+
+Pieces:
+  - components/reports/report-shell.tsx
+        Shared wrapper for every report page. Exposes a `pdf` prop:
+            pdf?: PdfExportOptions | (() => PdfExportOptions)
+        Owns the "Export PDF" and "Email report" buttons. "Email report" opens a
+        recipient dialog (pre-filled with the company email) and calls
+        emailTableAsPdf(pdf, { to }).
+
+  - lib/utils/pdf-export.ts
+        generatePdfBlob(opts)  -> builds a vector PDF (jspdf + jspdf-autotable)
+                                   from { title, columns, rows, summaryLines }.
+        emailTableAsPdf(opts,{to}) -> builds the blob, then calls sendReportEmail.
+
+  - lib/api/email.ts  (sendReportEmail)
+        Builds a FormData (file + to + subject...), keeps the Authorization header
+        from getAuthHeaders() but DELETES Content-Type so the browser sets the
+        multipart boundary, then POSTs to buildApiUrl("/Email/Report")
+        => /api/proxy/Email/Report.
+
+  - Each report page passes pdf={{ columns, rows, summaryLines }} built from the
+    rows it already loaded (money via the page's fmtMoney, dates sliced like the
+    table). That is why the emailed PDF mirrors the screen.
+
+  - app/api/proxy/[...path]/route.ts  (multipart fix)
+        The proxy forwards JSON bodies with request.text(), BUT multipart/binary
+        bodies (the PDF) are forwarded as RAW BYTES via request.arrayBuffer() ->
+        Buffer. Reading binary as text() would corrupt the file and the boundary.
+
+End-to-end:
+  1. User opens a report; the page loads rows and renders the table.
+  2. User clicks "Email report"; dialog opens with recipient pre-filled.
+  3. emailTableAsPdf builds the PDF (browser) and sendReportEmail uploads it
+     (multipart, with Bearer token) to /api/proxy/Email/Report.
+  4. Proxy forwards the raw multipart bytes + headers to Farm API /api/Email/Report.
+  5. EmailController.SendReport reads the file -> EmailAttachment -> SendAsync.
+  6. MailKit sends via Resend. Endpoint returns {success}; UI toasts the result.
+
+
+================================================================================
+4. FLOW B — DAILY CLOSING REPORT (server-side PDF)
+================================================================================
+
+Why server-side: this email is sent AUTOMATICALLY when a closing is submitted,
+on a list page where there is no rendered report to capture. So the server
+rebuilds the closing as a PDF.
+
+Pieces:
+  - app/water-daily-closing/page.tsx  (trigger)
+        After submitWaterDailyClosing(...) succeeds, it calls
+        emailWaterDailyClosing(id, companyEmail, companyName) FIRE-AND-FORGET
+        (a mail failure never blocks the submit). The recipient is the active
+        company's email; if none is set, the user is nudged to set one.
+
+  - lib/api/water.ts  (emailWaterDailyClosing)
+        POST /Email/daily-closing?id=&farmId=&to=&companyName=   (via the proxy)
+
+  - EmailController.DailyClosing  (Farm API)
+        Loads the closing by id + farmId (so one company can't email another's),
+        then calls IWaterReportEmailService.EmailClosingAsync.
+
+  - Business/WaterReportEmailService.cs  (EmailClosingAsync)
+        Maps the WaterDailyClosingModel into a generic WaterReportPdfModel
+        (label -> value pairs), renders it to a byte[] with QuestPDF
+        (WaterReportPdfDocument), and calls IEmailService.SendAsync with the PDF
+        as an attachment.
+
+  - Models/WaterReportPdfModel.cs + Business/WaterReportPdfDocument.cs
+        One generic PDF model + one QuestPDF document that renders either a
+        key/value block (the closing) or a table (other reports), with a header
+        and page numbers.
+
+End-to-end:
+  1. User submits a daily closing -> submit succeeds.
+  2. Page calls emailWaterDailyClosing(id, companyEmail) (fire-and-forget).
+  3. Proxy forwards POST /api/Email/daily-closing to the Farm API.
+  4. EmailController loads the closing (id + farmId) -> EmailClosingAsync.
+  5. QuestPDF renders the closing to a byte[]; SendAsync emails it via Resend.
+  6. A success/failure toast is shown; the submit itself is never blocked.
+
+
+================================================================================
+5. FLOW C — EMPLOYEE CREDENTIALS  (POST /api/Email/send-credentials)
+================================================================================
+
+These are "stateless sends": the frontend already has the username/password
+(the admin typed them), so it just passes them to the endpoint. No DB lookup.
+
+Pieces:
+  - lib/api/admin.ts  (sendCredentialsEmail)
+        POST buildApiUrl("/Email/send-credentials") with
+        { Email, UserName, Password, FarmName }.
+
+  - Callers (after a successful employee create):
+        app/water-drivers/page.tsx        ("New employee & driver")
+        app/employees/new/page.tsx
+        app/employees/page.tsx            (inline "Add employee" dialog)
+    Each skips the send when the email field is blank (it would be a placeholder
+    like <username>@noemail.local), and toasts the outcome.
+
+  - EmailController.SendCredentials  (Farm API)
+        Builds an HTML body (username, password, a "Log in" link from
+        FrontendApp:BaseUrl, and a "change your password" note) and calls
+        SendAsync. Returns {success, message}.
+
+
+================================================================================
+6. FLOW D — COMPANY WELCOME  (POST /api/Email/send-welcome)
+================================================================================
+
+Pieces:
+  - lib/api/companies.ts  (sendCompanyWelcomeEmail)
+        POST buildApiUrl("/Email/send-welcome") with
+        { Email, CompanyName, CompanyType }.  (Called via the Farm proxy path,
+        NOT loginApiFetch, because /Email/* routes to the Farm API.)
+
+  - Caller: app/companies/page.tsx, after createCompany succeeds. Recipient is
+    the company email, falling back to the signed-in user's email.
+
+  - EmailController.SendWelcome  (Farm API)
+        Builds an HTML confirmation body and calls SendAsync.
+
+
+================================================================================
+7. KEY FILES (quick reference)
+================================================================================
+
+BACKEND (Farm API)
+  Controllers/EmailController.cs ............ all 4 endpoints + HTML builders + DTOs
+  Business/EmailService.cs .................. IEmailService.SendAsync (MailKit/SMTP)
+  Business/WaterReportEmailService.cs ....... EmailClosingAsync (closing PDF + send)
+  Business/WaterReportPdfDocument.cs ........ QuestPDF renderer
+  Models/WaterReportPdfModel.cs ............. generic PDF model
+  Models/EmailConfiguration.cs .............. SMTP config + EmailAttachment
+  Program.cs ................................ registers EmailConfiguration + services
+
+FRONTEND
+  components/reports/report-shell.tsx ....... Export/Email buttons + recipient dialog
+  lib/utils/pdf-export.ts ................... client PDF (jspdf) + emailTableAsPdf
+  lib/api/email.ts .......................... sendReportEmail (multipart upload)
+  lib/api/admin.ts .......................... sendCredentialsEmail
+  lib/api/companies.ts ...................... sendCompanyWelcomeEmail
+  lib/api/water.ts .......................... emailWaterDailyClosing
+  app/api/proxy/[...path]/route.ts .......... same-origin proxy (+ multipart fix)
+  app/water-reports/*/page.tsx .............. each report supplies its `pdf` prop
+  app/water-daily-closing/page.tsx .......... triggers the closing email on submit
+  app/water-drivers, app/employees/* ........ trigger the credentials email
+  app/companies/page.tsx .................... triggers the welcome email
+
+
+================================================================================
+8. CONFIGURATION (what makes it work)
+================================================================================
+
+SMTP (Resend) — set on the FARM API via EmailConfiguration (user secrets locally):
+    EmailConfiguration:SmtpServer = smtp.resend.com
+    EmailConfiguration:Port       = 465
+    EmailConfiguration:UserName   = resend
+    EmailConfiguration:Password   = <Resend API key>
+    EmailConfiguration:From       = <verified sender>
+    EmailConfiguration:UseSsl     = true
+
+  Resend sandbox caveat: while the sender is onboarding@resend.dev, Resend ONLY
+  delivers to your own Resend account email (techretainer@gmail.com). To email
+  real recipients, verify a domain at resend.com/domains and set `From` to an
+  address on that domain.
+
+Auth — every endpoint is [Authorize]. The JWT must validate at the Farm API:
+    - The token's ISSUER must match the Farm API's JWT:ValidIssuer.
+      (The Login API issues "https://UserManagementAPI.techretainer.com"; a local
+       Farm API user-secret override JWT:ValidIssuer was set to match it.)
+    - The Farm API's JWT:Secret must equal the Login API's signing key.
+
+Proxy routing — /Email/* and /Water/* go to the Farm API; only
+    Admin/Authentication/Payments/UserProfile/Companies go to the Login API.
+
+
+================================================================================
+9. STATUS & KNOWN ISSUES
+================================================================================
+
+WORKING (all four flows verified end-to-end):
+  - Report emails (all ~24 reports) via /api/Email/Report.
+  - Daily closing report email via /api/Email/daily-closing.
+  - Employee-credentials email via /api/Email/send-credentials.
+  - Company-welcome email via /api/Email/send-welcome.
+
+OPEN ITEMS:
+  - Verify a Resend domain so emails reach real recipients (not just the account
+    owner email).
+  - Align the COMMITTED JWT:ValidIssuer in both backends' appsettings for
+    deployment (the local fix is a user-secret override only).
+  - Clean up duplicate test accounts created with techretainer@gmail.com.
+  - Redeploy the deployed services to pick up MailKit / SqlClient security patches.
+
+
+================================================================================
+10. HOW TO TEST (local)
+================================================================================
+
+  1. Restart BOTH backends so they pick up the latest code + config:
+        Farm API   (PoultryFarmAPI)         on http://localhost:5142
+        Login API  (User.Management.API)    on http://localhost:5010
+  2. Be signed in (so the browser sends a valid Bearer token).
+  3. While on the Resend sandbox, use techretainer@gmail.com as the recipient:
+        - Reports:        open a report -> "Email report" -> enter the address.
+        - Daily closing:  submit a closing -> it auto-emails the company email.
+        - Credentials:    create an employee whose Email is techretainer@gmail.com.
+        - Company:        create a company with that email.
+  4. Expect a green success toast and the email arriving in that inbox.
+  5. If a send fails, the toast (or the API log) shows the exact reason
+     (e.g. SMTP not configured -> 503; Resend domain restriction; etc.).
+
+--------------------------------------------------------------------------------
+End of document.
+--------------------------------------------------------------------------------

@@ -11,13 +11,16 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { UserCog, ArrowLeft, Loader2 } from "lucide-react"
 import { createEmployee, type CreateEmployeeData } from "@/lib/api"
+import { sendCredentialsEmail } from "@/lib/api/admin"
 import { getUserContext } from "@/lib/utils/user-context"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { usePermissions } from "@/hooks/use-permissions"
+import { useToast } from "@/hooks/use-toast"
 
 export default function NewEmployeePage() {
   const router = useRouter()
   const permissions = usePermissions()
+  const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   
@@ -98,6 +101,12 @@ export default function NewEmployeePage() {
     const result = await createEmployee(employeeData)
     
     if (result.success) {
+      const to = formData.email.trim()
+      if (to) {
+        const r = await sendCredentialsEmail({ email: to, userName: formData.userName.trim(), password: formData.password })
+        if (r.success) toast({ title: "Credentials emailed", description: `Login details sent to ${to}.` })
+        else toast({ title: "Couldn't email credentials", description: r.message || "Email was not sent.", variant: "destructive" })
+      }
       setLoading(false)
       router.push("/employees")
     } else {

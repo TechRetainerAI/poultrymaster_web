@@ -48,6 +48,44 @@ export default function ProductionReportPage() {
       fromDate={fromDate} toDate={toDate}
       onFromDateChange={setFromDate} onToDateChange={setToDate}
       onRefresh={load}
+      pdf={{
+        title: "Production Report",
+        filename: "water-production-report",
+        columns: [
+          { header: "Date" },
+          { header: "Batch" },
+          { header: "Machine" },
+          { header: "Product" },
+          { header: "Produced", align: "right" },
+          { header: "Good", align: "right" },
+          { header: "Damaged", align: "right" },
+          { header: "Total cost", align: "right" },
+          { header: "Cost/bag", align: "right" },
+          { header: "Status" },
+        ],
+        rows: rows.map((b: any) => {
+          const good = b.goodBags ?? (b.bagsProduced - (b.damagedBags ?? 0))
+          const cost = b.allInCost ?? ((b.totalProductionCost ?? 0) + (b.rawMaterialCost ?? 0))
+          return [
+            (b.productionDate ?? "").slice(0, 10),
+            b.batchNumber ?? `#${b.waterProductionBatchId}`,
+            b.machineScope === "AllMachines" ? "All / Combined" : (b.machineName ?? "—"),
+            b.productName ?? "—",
+            b.bagsProduced.toLocaleString(),
+            good.toLocaleString(),
+            (b.damagedBags ?? 0).toLocaleString(),
+            fmtMoney(cost),
+            fmtMoney(b.costPerBag ?? 0),
+            b.status,
+          ]
+        }),
+        summaryLines: [
+          `Batches: ${totals.approved} / ${totals.batches}`,
+          `Good bags: ${totals.goodBags.toLocaleString()}`,
+          `Damaged: ${totals.damaged.toLocaleString()}`,
+          `Avg cost/bag: ${fmtMoney(totals.avgCpb)}`,
+        ],
+      }}
       summary={<>
         <SumTile label="Batches"  value={`${totals.approved} / ${totals.batches}`} />
         <SumTile label="Good bags" value={totals.goodBags.toLocaleString()} accent="green" />

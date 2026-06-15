@@ -47,6 +47,38 @@ export default function ClosingReportPage() {
       fromDate={fromDate} toDate={toDate}
       onFromDateChange={setFromDate} onToDateChange={setToDate}
       onRefresh={load}
+      pdf={{
+        title: "Closing Report",
+        filename: "water-closing-report",
+        columns: [
+          { header: "Date" },
+          { header: "Produced", align: "right" },
+          { header: "Sold", align: "right" },
+          { header: "Income", align: "right" },
+          { header: "Expenses", align: "right" },
+          { header: "Cash at hand", align: "right" },
+          { header: "Submitted by" },
+          { header: "Status" },
+          { header: "Notes" },
+        ],
+        rows: rows.map((c: any) => [
+          (c.closingDate ?? "").slice(0, 10),
+          (c.bagsProduced ?? 0).toLocaleString(),
+          (c.bagsSold ?? 0).toLocaleString(),
+          fmtMoney(c.totalIncome ?? 0),
+          fmtMoney(c.totalExpenses ?? 0),
+          fmtMoney(c.cashAtHand ?? 0),
+          c.submittedBy ?? c.createdBy ?? "—",
+          c.supersededByClosingId ? `${c.status} → #${c.supersededByClosingId}` : c.status,
+          c.reopenReason ? `Reopened: ${c.reopenReason}` : (c.managerNotes ?? "—"),
+        ]),
+        summaryLines: [
+          `Closings: ${totals.approved} / ${totals.total}`,
+          `Income: ${fmtMoney(totals.income)}`,
+          `Expenses: ${fmtMoney(totals.expenses)}`,
+          `Cash at hand: ${fmtMoney(totals.cash)}`,
+        ],
+      }}
       summary={<>
         <SumTile label="Closings" value={`${totals.approved} / ${totals.total}`} />
         <SumTile label="Income" value={fmtMoney(totals.income)} accent="green" />

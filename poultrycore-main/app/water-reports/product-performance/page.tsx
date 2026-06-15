@@ -90,6 +90,31 @@ export default function ProductPerformanceReportPage() {
       fromDate={fromDate} toDate={toDate}
       onFromDateChange={setFromDate} onToDateChange={setToDate}
       onRefresh={load}
+      pdf={{
+        title: "Product Performance",
+        filename: "water-product-performance",
+        columns: [
+          { header: "Product" },
+          { header: "Type" },
+          { header: "Good produced", align: "right" },
+          { header: "Production cost", align: "right" },
+          { header: "Cost/bag", align: "right" },
+          { header: "Stock", align: "right" },
+        ],
+        rows: rows.map((r) => [
+          r.name,
+          r.type,
+          r.produced.toLocaleString(),
+          fmtMoney(r.productionCost),
+          fmtMoney(r.costPerBag),
+          r.stockOnHand.toLocaleString(),
+        ]),
+        summaryLines: [
+          `Products: ${totals.products}`,
+          `Total produced: ${totals.produced.toLocaleString()}`,
+          `Total cost: ${fmtMoney(totals.cost)}`,
+        ],
+      }}
       summary={<>
         <SumTile label="Products" value={String(totals.products)} />
         <SumTile label="Total produced" value={totals.produced.toLocaleString()} accent="green" />

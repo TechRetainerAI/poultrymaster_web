@@ -21,7 +21,7 @@ import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import {
   listWaterDailyClosings, getWaterDailyClosing, createWaterDailyClosing,
-  submitWaterDailyClosing, approveWaterDailyClosing, rejectWaterDailyClosing,
+  submitWaterDailyClosing, emailWaterDailyClosing, approveWaterDailyClosing, rejectWaterDailyClosing,
   deleteWaterDailyClosing, updateWaterDailyClosingNotes,
   reopenWaterDailyClosing, linkSupersededWaterDailyClosing, recreateWaterDailyClosing,
   type WaterDailyClosing,
@@ -47,6 +47,8 @@ export default function WaterDailyClosingPage() {
   const { toast } = useToast()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const activeFarmName = useAuthStore((s) => s.activeFarmName)
+  // Company email = where the owner receives the closing report on submit.
+  const companyEmail = useAuthStore((s) => s.companies.find((c) => c.farmId === s.activeFarmId)?.email)
   const logout = useLogout()
 
   const [closings, setClosings] = useState<WaterDailyClosing[]>([])
@@ -142,9 +144,23 @@ export default function WaterDailyClosingPage() {
   async function submitClosing() {
     if (!view) return
     try {
-      const updated = await submitWaterDailyClosing(view.waterDailyClosingId, submitForm)
+      const closingId = view.waterDailyClosingId
+      const updated = await submitWaterDailyClosing(closingId, submitForm)
       setView(updated); await load()
       toast({ title: "Closing submitted", description: "Waiting for owner approval." })
+
+      // Email the closing report to the company (owner) — fire-and-forget so a
+      // mail problem never masks a successful submit.
+      if (companyEmail) {
+        emailWaterDailyClosing(closingId, companyEmail, activeFarmName ?? undefined)
+          .then(() => toast({ title: "Closing report emailed", description: `Sent to ${companyEmail}.` }))
+          .catch((e: any) => toast({ title: "Closing submitted, but email failed", description: e?.message, variant: "destructive" }))
+      } else {
+        toast({
+          title: "No company email set",
+          description: "Add a company email in setup to receive closing reports by email.",
+        })
+      }
     } catch (e: any) { toast({ title: "Submit failed", description: e?.message, variant: "destructive" }) }
   }
 

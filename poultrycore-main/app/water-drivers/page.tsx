@@ -25,7 +25,7 @@ import {
   listWaterVehicles, listWaterRoutes, listWaterDriversForFarm, createWaterDriverFromEmployee,
   type WaterDriver, type WaterVehicle, type WaterRoute,
 } from "@/lib/api/water"
-import { getEmployees, createEmployee, type Employee, type CreateEmployeeData } from "@/lib/api/admin"
+import { getEmployees, createEmployee, sendCredentialsEmail, type Employee, type CreateEmployeeData } from "@/lib/api/admin"
 
 type FormState = Omit<WaterDriver, "waterDriverId" | "farmId">
 const EMPTY: FormState = {
@@ -137,6 +137,19 @@ export default function WaterDriversPage() {
         notes: empForm.notes || null,
       })
       toast({ title: empMode === "new" ? "Employee created & made a driver" : "Employee assigned as driver" })
+      // Email the new employee their credentials. Only when a real email was
+      // entered (skip the <username>@noemail.local placeholder used for
+      // login-only accounts).
+      if (empMode === "new") {
+        const to = empForm.email.trim()
+        if (to) {
+          const r = await sendCredentialsEmail({ email: to, userName: empForm.userName.trim(), password: empForm.password, farmName: activeFarmName ?? undefined })
+          if (r.success) toast({ title: "Credentials emailed", description: `Login details sent to ${to}.` })
+          else toast({ title: `Couldn't email credentials (to ${to})`, description: r.message || "Email was not sent.", variant: "destructive" })
+        } else {
+          toast({ title: "No email on file", description: "Add an email to send this employee their login details." })
+        }
+      }
       setEmpOpen(false); await load()
     } catch (e: any) { toast({ title: "Could not save driver", description: e?.message, variant: "destructive" }) }
     finally { setEmpSaving(false) }

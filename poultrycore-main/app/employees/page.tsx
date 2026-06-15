@@ -12,7 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Plus, Pencil, Trash2, Mail, Phone, UserCog, Users, Calendar, LogIn, Search, RefreshCw, Loader2, Save, User, ChevronDown, ChevronUp, Download } from "lucide-react"
 import { exportTableToPdf, emailTableAsPdf, type PdfExportOptions } from "@/lib/utils/pdf-export"
-import { getEmployees, getEmployee, createEmployee, updateEmployee, deleteEmployee, getTodayLogins, type Employee, type CreateEmployeeData, type UpdateEmployeeData } from "@/lib/api/admin"
+import { getEmployees, getEmployee, createEmployee, updateEmployee, deleteEmployee, getTodayLogins, sendCredentialsEmail, type Employee, type CreateEmployeeData, type UpdateEmployeeData } from "@/lib/api/admin"
 import { getEmployeeJobRoles, setEmployeeJobRoles } from "@/lib/api/water"
 import { useAuthStore } from "@/lib/store/auth-store"
 // #18 Phase 3: water job roles assignable per employee (a person can hold several).
@@ -298,6 +298,12 @@ export default function EmployeesPage() {
     const result = await createEmployee(employeeData)
     if (result.success) {
       toast({ title: "Success!", description: "Employee created successfully." })
+      const to = createForm.email.trim()
+      if (to) {
+        const r = await sendCredentialsEmail({ email: to, userName: createForm.userName.trim(), password: createForm.password, farmName })
+        if (r.success) toast({ title: "Credentials emailed", description: `Login details sent to ${to}.` })
+        else toast({ title: "Couldn't email credentials", description: r.message || "Email was not sent.", variant: "destructive" })
+      }
       setIsCreateDialogOpen(false)
       loadEmployees()
     } else {
