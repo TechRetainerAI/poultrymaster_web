@@ -13,16 +13,19 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, Loader2, Wallet, RefreshCw, Scale } from "lucide-react"
+import { ArrowLeft, Loader2, Wallet, RefreshCw, Scale, Trash2 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import {
   getWaterCashAccount, listWaterCashTransactions, adjustWaterCashAccount, reconcileWaterCashBalances,
+  deleteWaterCashAccount,
   type WaterCashAccount, type WaterCashTransaction,
 } from "@/lib/api/water"
 
@@ -42,6 +45,10 @@ export default function WaterCashAccountDetailPage() {
   const [adjOpen, setAdjOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [adj, setAdj] = useState<{ direction: "in" | "out"; amount: number; reason: string }>({ direction: "in", amount: 0, reason: "" })
+  const [delOpen, setDelOpen] = useState(false)
+  const [search, setSearch] = useState("")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Water") { router.replace("/dashboard"); return }
@@ -76,6 +83,25 @@ export default function WaterCashAccountDetailPage() {
 
   const totalIn = useMemo(() => rows.filter(r => r.amount > 0).reduce((s, r) => s + r.amount, 0), [rows])
   const totalOut = useMemo(() => rows.filter(r => r.amount < 0).reduce((s, r) => s + Math.abs(r.amount), 0), [rows])
+
+  // Filter for display only — the running balance above is computed over ALL
+  // transactions so it stays correct regardless of the filter.
+  const visibleLedger = useMemo(
+    () => filterByDateAndSearch(ledger, {
+      search, dateFrom, dateTo,
+      searchKeys: ["transactionType", "description", "sourceType"],
+      dateKey: "transactionDate",
+    }),
+    [ledger, search, dateFrom, dateTo],
+  )
+
+  async function performDelete() {
+    try {
+      await deleteWaterCashAccount(id)
+      toast({ title: "Cash account removed" })
+      router.push("/water-cash-accounts")
+    } catch (e: any) { toast({ title: "Could not remove account", description: e?.message, variant: "destructive" }) }
+  }
 
   function openAdjust() { setAdj({ direction: "in", amount: 0, reason: "" }); setAdjOpen(true) }
 
@@ -117,6 +143,7 @@ export default function WaterCashAccountDetailPage() {
               <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                 <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={reconcile}><RefreshCw className="h-4 w-4 mr-1" /> Recalculate</Button>
                 <Button className="flex-1 sm:flex-none whitespace-nowrap" onClick={openAdjust}><Scale className="h-4 w-4 mr-1" /> Adjust balance</Button>
+                <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap text-red-600 border-red-200" onClick={() => setDelOpen(true)}><Trash2 className="h-4 w-4 mr-1" /> Delete</Button>
               </div>
             </div>
           </div>
@@ -136,13 +163,21 @@ export default function WaterCashAccountDetailPage() {
               </div>
 
               {/* Ledger */}
+              <ListFilters
+                search={search} setSearch={setSearch}
+                dateFrom={dateFrom} setDateFrom={setDateFrom}
+                dateTo={dateTo} setDateTo={setDateTo}
+                searchPlaceholder="Search type, source or description"
+              />
               <Card>
                 <CardContent className="p-0">
                   {ledger.length === 0 ? (
                     <div className="p-8 text-center text-slate-500">No transactions yet for this account.</div>
+                  ) : visibleLedger.length === 0 ? (
+                    <div className="p-8 text-center text-slate-500">No transactions match your filters.</div>
                   ) : (
                     <MobileCardList
-                      items={ledger}
+                      items={visibleLedger}
                       getKey={(r) => r.waterCashTransactionId}
                       primary={(r) => `${r.amount < 0 ? "−" : "+"}${gh(Math.abs(r.amount))} · ${r.transactionType}`}
                       secondary={(r) => (<><span>{r.transactionDate.split("T")[0]}</span><span>· Bal {gh(r.running)}</span></>)}
@@ -170,7 +205,7 @@ export default function WaterCashAccountDetailPage() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {ledger.map((r) => (
+                              {visibleLedger.map((r) => (
                                 <TableRow key={r.waterCashTransactionId}>
                                   <TableCell className="whitespace-nowrap">{r.transactionDate.split("T")[0]}</TableCell>
                                   <TableCell>{r.transactionType}</TableCell>
@@ -237,6 +272,17 @@ export default function WaterCashAccountDetailPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete / deactivate the account */}
+      <ConfirmDeleteDialog
+        open={delOpen}
+        onOpenChange={setDelOpen}
+        title={`Remove ${account?.accountName ?? "this account"}?`}
+        description="If this account has no transactions it is permanently deleted. If it has any history (transactions, transfers, expenses, etc.) it is deactivated instead so the records stay intact."
+        confirmLabel="Remove account"
+        errorTitle="Could not remove account"
+        onConfirm={performDelete}
+      />
     </div>
   )
 }
