@@ -51,6 +51,32 @@ export default function CashFlowReportPage() {
       fromDate={fromDate} toDate={toDate}
       onFromDateChange={setFromDate} onToDateChange={setToDate}
       onRefresh={load}
+      pdf={{
+        title: "Cash Flow",
+        filename: "water-cash-flow",
+        summaryLines: [
+          `Cash in: ${fmtMoney(totals.inflow)}`,
+          `Cash out: ${fmtMoney(Math.abs(totals.outflow))}`,
+          `Net change: ${fmtMoney(totals.net)}`,
+          `Current cash: ${fmtMoney(totals.currentCash)}`,
+        ],
+        columns: [
+          { header: "Date" },
+          { header: "Account" },
+          { header: "Type" },
+          { header: "Source" },
+          { header: "Description" },
+          { header: "Amount", align: "right" },
+        ],
+        rows: txns.map((t: any) => [
+          (t.transactionDate ?? "").slice(0, 10),
+          accounts.find(a => a.waterCashAccountId === t.waterCashAccountId)?.accountName ?? `#${t.waterCashAccountId}`,
+          t.transactionType ?? "—",
+          t.sourceType ?? "—",
+          t.description ?? "—",
+          fmtMoney(t.amount),
+        ]),
+      }}
       summary={<>
         <SumTile label="Cash in"  value={fmtMoney(totals.inflow)}  accent="green" />
         <SumTile label="Cash out" value={fmtMoney(Math.abs(totals.outflow))} accent="rose" />

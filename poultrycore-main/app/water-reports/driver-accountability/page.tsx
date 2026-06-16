@@ -1,76 +1,31 @@
 "use client"
 
-/** Driver Accountability Report (Prompt 2 §16.12). */
+/** Driver Accountability Report (Prompt 2 §16.12). Data is the authoritative
+ *  server-side report SP (spWaterReport_DriverReconciliation) so the on-screen
+ *  table matches the emailed PDF. */
 
 import { useEffect, useMemo, useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ReportShell, SumTile } from "@/components/reports/report-shell"
-import { listWaterVehicleLoadings, listWaterDriverReturns, listWaterDrivers } from "@/lib/api/water"
+import { getWaterDriverReconciliation, type WaterDriverReconciliationRow } from "@/lib/api/water"
 import { useFmt } from "@/lib/currency"
 
 function isoDate(d: Date) { return d.toISOString().split("T")[0] }
 function defaultFrom() { const d = new Date(); d.setDate(d.getDate() - 30); return isoDate(d) }
 function defaultTo() { return isoDate(new Date()) }
 
-type Row = {
-  driverId: number
-  driverName: string
-  runs: number
-  loaded: number
-  sold: number
-  returned: number
-  damaged: number
-  cash: number
-  shortage: number
-}
-
 export default function DriverAccountabilityReportPage() {
   const fmtMoney = useFmt()
   const [fromDate, setFromDate] = useState(defaultFrom())
   const [toDate, setToDate] = useState(defaultTo())
-  const [rows, setRows] = useState<Row[]>([])
+  const [rows, setRows] = useState<WaterDriverReconciliationRow[]>([])
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   async function load() {
     setBusy(true); setError(null)
-    try {
-      const [loadings, returns, drivers] = await Promise.all([
-        listWaterVehicleLoadings({ fromDate, toDate }),
-        listWaterDriverReturns({ fromDate, toDate }),
-        listWaterDrivers().catch(() => []),
-      ])
-
-      const map = new Map<number, Row>()
-      for (const d of drivers ?? []) {
-        map.set(d.waterDriverId, {
-          driverId: d.waterDriverId, driverName: d.driverName,
-          runs: 0, loaded: 0, sold: 0, returned: 0, damaged: 0, cash: 0, shortage: 0,
-        })
-      }
-      for (const l of loadings ?? []) {
-        if (l.waterDriverId == null) continue
-        const r = map.get(l.waterDriverId)
-        if (!r) continue
-        r.runs += 1
-        r.loaded += (l.bagsLoaded ?? 0)
-      }
-      for (const ret of returns ?? []) {
-        const parent = (loadings ?? []).find((l: any) => l.waterVehicleLoadingId === ret.waterVehicleLoadingId)
-        if (!parent || parent.waterDriverId == null) continue
-        const r = map.get(parent.waterDriverId)
-        if (!r) continue
-        r.sold += (ret.bagsSold ?? 0)
-        r.returned += (ret.bagsReturned ?? 0)
-        r.damaged += (ret.bagsDamaged ?? 0)
-        r.cash += (ret.cashCollected ?? 0) + (ret.moMoCollected ?? 0) + (ret.bankCollected ?? 0)
-        r.shortage += (ret.shortageAmount ?? 0)
-      }
-
-      setRows(Array.from(map.values())
-        .filter(r => r.runs > 0)
-        .sort((a, b) => b.runs - a.runs))
-    } catch (e: any) { setError(e?.message ?? String(e)) }
+    try { setRows((await getWaterDriverReconciliation(fromDate, toDate)) ?? []) }
+    catch (e: any) { setError(e?.message ?? String(e)) }
     finally { setBusy(false) }
   }
 
@@ -78,24 +33,48 @@ export default function DriverAccountabilityReportPage() {
 
   const totals = useMemo(() => ({
     drivers: rows.length,
-    runs: rows.reduce((s, r) => s + r.runs, 0),
-    cash: rows.reduce((s, r) => s + r.cash, 0),
-    shortage: rows.reduce((s, r) => s + r.shortage, 0),
+    expected: rows.reduce((s, r) => s + (r.expectedRevenue ?? 0), 0),
+    accounted: rows.reduce((s, r) => s + (r.actualAccountedFor ?? 0), 0),
+    shortages: rows.reduce((s, r) => s + (r.totalShortages ?? 0), 0),
   }), [rows])
 
   return (
     <ReportShell
       title="Driver Accountability"
-      description="Per-driver runs, loads, sales, damages, shortages."
+      description="Per-driver bags loaded/sold/returned, expected vs accounted revenue, and shortages."
       busy={busy} error={error} onClearError={() => setError(null)}
       fromDate={fromDate} toDate={toDate}
       onFromDateChange={setFromDate} onToDateChange={setToDate}
       onRefresh={load}
+      pdf={{
+        title: "Driver Accountability",
+        filename: "water-driver-accountability",
+        orientation: "landscape",
+        summaryLines: [
+          `Drivers: ${totals.drivers}`,
+          `Expected revenue: ${fmtMoney(totals.expected)}`,
+          `Accounted for: ${fmtMoney(totals.accounted)}`,
+          `Total shortages: ${fmtMoney(totals.shortages)}`,
+        ],
+        columns: [
+          { header: "Driver" }, { header: "Loaded", align: "right" }, { header: "Sold", align: "right" },
+          { header: "Returned", align: "right" }, { header: "Lost", align: "right" },
+          { header: "Expected", align: "right" }, { header: "Accounted", align: "right" },
+          { header: "Shortages", align: "right" }, { header: "Occurrences", align: "right" },
+        ],
+        rows: rows.map((r) => [
+          r.driverName,
+          (r.totalBagsLoaded ?? 0).toLocaleString(), (r.totalBagsSold ?? 0).toLocaleString(),
+          (r.totalBagsReturned ?? 0).toLocaleString(), (r.totalBagsLost ?? 0).toLocaleString(),
+          fmtMoney(r.expectedRevenue ?? 0), fmtMoney(r.actualAccountedFor ?? 0),
+          fmtMoney(r.totalShortages ?? 0), r.shortageOccurrences ?? 0,
+        ]),
+      }}
       summary={<>
-        <SumTile label="Active drivers" value={String(totals.drivers)} />
-        <SumTile label="Total runs" value={totals.runs.toLocaleString()} />
-        <SumTile label="Cash collected" value={fmtMoney(totals.cash)} accent="green" />
-        <SumTile label="Total shortages" value={fmtMoney(totals.shortage)} accent="rose" />
+        <SumTile label="Drivers" value={String(totals.drivers)} />
+        <SumTile label="Expected revenue" value={fmtMoney(totals.expected)} />
+        <SumTile label="Accounted for" value={fmtMoney(totals.accounted)} accent="green" />
+        <SumTile label="Total shortages" value={fmtMoney(totals.shortages)} accent="rose" />
       </>}
     >
       <div className="overflow-x-auto">
@@ -103,28 +82,30 @@ export default function DriverAccountabilityReportPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Driver</TableHead>
-              <TableHead className="text-right">Runs</TableHead>
               <TableHead className="text-right">Loaded</TableHead>
               <TableHead className="text-right">Sold</TableHead>
               <TableHead className="text-right">Returned</TableHead>
-              <TableHead className="text-right">Damaged</TableHead>
-              <TableHead className="text-right">Cash collected</TableHead>
-              <TableHead className="text-right">Shortage</TableHead>
+              <TableHead className="text-right">Lost</TableHead>
+              <TableHead className="text-right">Expected</TableHead>
+              <TableHead className="text-right">Accounted</TableHead>
+              <TableHead className="text-right">Shortages</TableHead>
+              <TableHead className="text-right">Occurrences</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.length === 0 ? (
-              <TableRow><TableCell colSpan={8} className="text-slate-500 text-center p-4">No driver activity in this period.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="text-slate-500 text-center p-4">No driver activity in this period.</TableCell></TableRow>
             ) : rows.map((r) => (
-              <TableRow key={r.driverId}>
+              <TableRow key={r.waterDriverId}>
                 <TableCell className="font-medium">{r.driverName}</TableCell>
-                <TableCell className="text-right tabular-nums">{r.runs}</TableCell>
-                <TableCell className="text-right tabular-nums">{r.loaded.toLocaleString()}</TableCell>
-                <TableCell className="text-right tabular-nums">{r.sold.toLocaleString()}</TableCell>
-                <TableCell className="text-right tabular-nums">{r.returned.toLocaleString()}</TableCell>
-                <TableCell className="text-right tabular-nums">{r.damaged.toLocaleString()}</TableCell>
-                <TableCell className="text-right tabular-nums whitespace-nowrap">{fmtMoney(r.cash)}</TableCell>
-                <TableCell className={`text-right tabular-nums whitespace-nowrap ${r.shortage > 0 ? "text-rose-700" : ""}`}>{fmtMoney(r.shortage)}</TableCell>
+                <TableCell className="text-right tabular-nums">{(r.totalBagsLoaded ?? 0).toLocaleString()}</TableCell>
+                <TableCell className="text-right tabular-nums">{(r.totalBagsSold ?? 0).toLocaleString()}</TableCell>
+                <TableCell className="text-right tabular-nums">{(r.totalBagsReturned ?? 0).toLocaleString()}</TableCell>
+                <TableCell className="text-right tabular-nums">{(r.totalBagsLost ?? 0).toLocaleString()}</TableCell>
+                <TableCell className="text-right tabular-nums whitespace-nowrap">{fmtMoney(r.expectedRevenue ?? 0)}</TableCell>
+                <TableCell className="text-right tabular-nums whitespace-nowrap">{fmtMoney(r.actualAccountedFor ?? 0)}</TableCell>
+                <TableCell className={`text-right tabular-nums whitespace-nowrap ${(r.totalShortages ?? 0) > 0 ? "text-rose-700" : ""}`}>{fmtMoney(r.totalShortages ?? 0)}</TableCell>
+                <TableCell className="text-right tabular-nums">{r.shortageOccurrences ?? 0}</TableCell>
               </TableRow>
             ))}
           </TableBody>

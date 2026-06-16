@@ -1,4 +1,4 @@
-import { getAuthHeaders, loginApiUrl } from "./config"
+import { getAuthHeaders, loginApiUrl, buildApiUrl } from "./config"
 import { tryRefreshAccessToken } from "./auth"
 
 // 60-minute access tokens expire while the user is still on the page. Without
@@ -89,6 +89,31 @@ export async function createCompany(input: CreateCompanyInput): Promise<Company>
       : `createCompany failed: ${res.status} ${t}`)
   }
   return lower<Company>(await res.json())
+}
+
+// Email a "company created" confirmation. Call after createCompany. The backend
+// returns 200 with { success, message } even on send failure.
+export async function sendCompanyWelcomeEmail(input: { email: string; companyName?: string; companyType?: string }): Promise<{ success: boolean; message?: string }> {
+  try {
+    // Email lives on the Farm API EmailController (the proxy routes /Email/* there),
+    // so call it directly via the Farm proxy path — not loginApiFetch.
+    const res = await fetch(buildApiUrl("/Email/send-welcome"), {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        Email: input.email,
+        CompanyName: input.companyName ?? null,
+        CompanyType: input.companyType ?? null,
+      }),
+    })
+    const text = await res.text()
+    let data: any = {}
+    try { data = text ? JSON.parse(text) : {} } catch { /* non-JSON */ }
+    if (!res.ok) return { success: false, message: data.message || `HTTP ${res.status}` }
+    return { success: data.success !== false, message: data.message }
+  } catch (e) {
+    return { success: false, message: e instanceof Error ? e.message : "Network error" }
+  }
 }
 
 // Pick the company that matches the user's signed-in farmId. Falls back to the

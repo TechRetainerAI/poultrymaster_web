@@ -46,7 +46,32 @@ export default function SupplierActivityReportPage() {
       fromDate={fromDate} toDate={toDate}
       onFromDateChange={setFromDate} onToDateChange={setToDate}
       onRefresh={load}
-      summaryTiles={
+      pdf={{
+        title: "Supplier Activity Report",
+        filename: "water-supplier-activity",
+        orientation: "landscape",
+        summaryLines: [
+          `Suppliers: ${totals.supplierCount}`,
+          `Active (in range): ${totals.activeSuppliers}`,
+          `Total purchases: ${fmtMoney(totals.totalPurchases)}`,
+          `Total paid: ${fmtMoney(totals.totalExpensesPaid)}`,
+          `Outstanding: ${fmtMoney(totals.totalOutstanding)}`,
+        ],
+        columns: [
+          { header: "Supplier" }, { header: "Type" }, { header: "Phone" },
+          { header: "Purchases", align: "right" }, { header: "Purchase total", align: "right" },
+          { header: "Expenses paid", align: "right" }, { header: "Outstanding", align: "right" },
+          { header: "Last purchase" }, { header: "Last expense" },
+        ],
+        rows: rows.map((r) => [
+          r.supplierName, r.supplierType ?? "—", r.phone ?? "—",
+          r.purchaseCount, fmtMoney(r.totalPurchaseAmount), fmtMoney(r.totalExpenseAmount),
+          fmtMoney(r.outstandingBalance),
+          r.lastPurchaseDate ? r.lastPurchaseDate.split("T")[0] : "—",
+          r.lastExpenseDate ? r.lastExpenseDate.split("T")[0] : "—",
+        ]),
+      }}
+      summary={
         <>
           <SumTile label="Suppliers"          value={String(totals.supplierCount)} />
           <SumTile label="Active (in range)"  value={String(totals.activeSuppliers)} />

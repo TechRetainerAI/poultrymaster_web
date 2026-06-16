@@ -167,6 +167,10 @@ builder.Services.AddScoped<IWaterPayrollService>(sp => new WaterPayrollService(c
 // Complete-SP can also book a CashOut for repair cost against a cash account
 // (idempotent — CashTransactionWritten guards double-booking). Migration 052.
 builder.Services.AddScoped<IWaterMaintenanceLogService>(sp => new WaterMaintenanceLogService(connectionString));
+
+// Water report/closing → PDF → email. Depends only on already-registered DI
+// services (IWaterReportService for report data, IEmailService for delivery).
+builder.Services.AddScoped<IWaterReportEmailService, WaterReportEmailService>();
 // =================================================================
 
 // =================================================================
@@ -417,7 +421,12 @@ if (enableSwagger)
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// Skip HTTPS redirection in Development so the Next.js proxy can reach the
+// plain-HTTP port without bouncing into the untrusted self-signed dev cert.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
 // Add CORS middleware - allow both web app and React app
 app.UseCors("AllowAllApps");

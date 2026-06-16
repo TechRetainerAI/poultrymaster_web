@@ -90,6 +90,32 @@ export default function CustomerBalancesReportPage() {
       description="Sales − payments per customer, with the most-owing at the top."
       busy={busy} error={error} onClearError={() => setError(null)}
       onRefresh={load}
+      pdf={{
+        title: "Customer Balances / Receivables",
+        filename: "water-customer-balances",
+        summaryLines: [
+          `Customers: ${totals.customers}`,
+          `Customers owing: ${totals.owing}`,
+          `Total outstanding: ${fmtMoney(totals.totalOutstanding)}`,
+          `Total sales: ${fmtMoney(totals.totalSales)}`,
+        ],
+        columns: [
+          { header: "Customer" },
+          { header: "Total sales", align: "right" },
+          { header: "Total paid", align: "right" },
+          { header: "Outstanding", align: "right" },
+          { header: "Last sale" },
+          { header: "Last payment" },
+        ],
+        rows: rows.map((r) => [
+          r.name,
+          fmtMoney(r.totalSales),
+          fmtMoney(r.totalPaid),
+          fmtMoney(r.outstanding),
+          r.lastSale ?? "—",
+          r.lastPayment ?? "—",
+        ]),
+      }}
       summary={<>
         <SumTile label="Customers" value={String(totals.customers)} />
         <SumTile label="Customers owing" value={String(totals.owing)} accent="rose" />

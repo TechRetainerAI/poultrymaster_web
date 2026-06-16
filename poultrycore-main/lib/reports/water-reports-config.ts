@@ -56,6 +56,7 @@ export const WATER_REPORT_GROUPS: WaterReportGroup[] = [
       { slug: "payments-received", title: "Payments Received",      description: "Collections by date, customer, method, source.",              icon: DollarSign,   status: "ready" },
       { slug: "customer-balances", title: "Customer Balances",      description: "Receivables with aging.",                                     icon: PiggyBank,    status: "ready" },
       { slug: "customer-history",  title: "Customer Sales History", description: "Per-customer sales + payment timeline.",                      icon: History,      status: "ready" },
+      { slug: "top-customers",     title: "Top Customers",          description: "Highest-value customers by total sales for the period.",      icon: Users,        status: "ready" },
     ],
   },
   {
@@ -79,6 +80,7 @@ export const WATER_REPORT_GROUPS: WaterReportGroup[] = [
       { slug: "delivery-run-report",   title: "Delivery Run Report",    description: "Loadings, returns, shortages, status.",                                  icon: Truck,        status: "ready" },
       { slug: "driver-accountability", title: "Driver Accountability",  description: "Per-driver loadings, sales, returns, damages, shortages.",               icon: Users,        status: "ready" },
       { slug: "route-performance",     title: "Route Performance",      description: "Per-route sales, collections, customers served.",                        icon: RouteIcon,    status: "ready" },
+      { slug: "driver-collection",     title: "Driver Collection",      description: "Per-driver cash/MoMo/bank collections, credit, shortages, per-product detail.", icon: Wallet,  status: "ready" },
       { slug: "vehicle-usage",         title: "Vehicle Usage",          description: "Per-vehicle runs, sales, expenses.",                                     icon: Truck,        status: "ready" },
       { slug: "loss-report",           title: "Loss Report",            description: "Damages, rejected, manual + delivery losses by source.",                 icon: TrendingDown, status: "ready" },
       { slug: "operational",           title: "Operational dashboard",  description: "Route profitability, driver reconciliation, raw material variance.",      icon: BarChart3,    status: "ready" },

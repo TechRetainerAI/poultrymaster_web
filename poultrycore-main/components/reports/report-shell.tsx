@@ -15,7 +15,7 @@
  * contains just the report.
  */
 
-import { ReactNode } from "react"
+import { ReactNode, useState } from "react"
 import Link from "next/link"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -28,6 +28,9 @@ import { useFarmSettingsStore } from "@/lib/currency"
 import { useLogout } from "@/hooks/use-logout"
 import { PeriodSelect } from "@/components/ui/period-select"
 import { rangeToPeriod } from "@/lib/date-ranges"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { useToast } from "@/hooks/use-toast"
+import { exportTableToPdf, emailTableAsPdf, type PdfExportOptions } from "@/lib/utils/pdf-export"
 
 export interface ReportShellProps {
   title: string
@@ -52,17 +55,74 @@ export interface ReportShellProps {
   // Pass an object with simple key→value entries (e.g. { Customer: "Acme",
   // "Payment method": "MoMo" }). Empty / falsy values are skipped.
   filterSummary?: Record<string, string | number | null | undefined>
+
+  // Vector-PDF definition for this report (columns + rows + summary lines).
+  // When provided, "Export PDF" downloads it and "Email report" sends it via
+  // the single POST /api/Email/Report endpoint (lib/utils/pdf-export.ts). May
+  // be a getter so the latest filtered data is captured at click time. When
+  // omitted, Export falls back to window.print() and Email is disabled.
+  pdf?: PdfExportOptions | (() => PdfExportOptions)
 }
 
 export function ReportShell({
   title, description, busy, error, onClearError,
   fromDate, toDate, onFromDateChange, onToDateChange, onRefresh,
-  filters, summary, children, filterSummary,
+  filters, summary, children, filterSummary, pdf,
 }: ReportShellProps) {
   const farmName = useAuthStore((s) => s.activeFarmName)
   const user = useAuthStore((s) => s.user)
+  const companyEmail = useAuthStore((s) => s.companies.find((c) => c.farmId === s.activeFarmId)?.email)
   const settings = useFarmSettingsStore((s) => s.settings)
   const logout = useLogout()
+  const { toast } = useToast()
+
+  const [emailOpen, setEmailOpen] = useState(false)
+  const [recipient, setRecipient] = useState("")
+  const [sending, setSending] = useState(false)
+  const [downloading, setDownloading] = useState(false)
+
+  const resolvePdf = (): PdfExportOptions | undefined => (typeof pdf === "function" ? pdf() : pdf)
+
+  async function exportPdf() {
+    const opts = resolvePdf()
+    if (!opts) { window.print(); return }   // fallback for pages not yet converted
+    setDownloading(true)
+    try {
+      await exportTableToPdf(opts)
+    } catch (e: any) {
+      toast({ title: "Export failed", description: e?.message ?? String(e), variant: "destructive" })
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  function openEmail() {
+    setRecipient(companyEmail || user?.email || "")
+    setEmailOpen(true)
+  }
+
+  async function sendEmail() {
+    const opts = resolvePdf()
+    if (!opts) return
+    if (!recipient || !recipient.includes("@")) {
+      toast({ title: "Enter a valid email", variant: "destructive" })
+      return
+    }
+    setSending(true)
+    try {
+      const res = await emailTableAsPdf(opts, { to: recipient })
+      if (res.success) {
+        toast({ title: "Report emailed", description: `Sent to ${recipient}.` })
+        setEmailOpen(false)
+      } else {
+        toast({ title: "Email failed", description: res.message ?? "Could not send.", variant: "destructive" })
+      }
+    } catch (e: any) {
+      toast({ title: "Email failed", description: e?.message ?? String(e), variant: "destructive" })
+    } finally {
+      setSending(false)
+    }
+  }
 
   const generatedBy = user?.username || user?.email || "—"
   const activeFilters = Object.entries(filterSummary ?? {})
@@ -80,21 +140,21 @@ export function ReportShell({
               <Link href="/water-reports"><ArrowLeft className="h-4 w-4 mr-1" /> Reports</Link>
             </Button>
             <div className="flex items-center gap-2">
-              {/* Prompt 2 Part 3 §1 / §3 — Email Report placeholder. Disabled
-                  until email infrastructure is wired up; the future worker
-                  will read from WaterReportEmailLog (migration 070). */}
+              {/* Emails a PDF of this report (generated client-side from the same
+                  data) to the entered address, via POST /api/Email/Report. */}
               <Button
                 size="sm"
                 variant="outline"
-                disabled
-                title="Email is not connected yet — coming soon"
-                className="gap-1 cursor-not-allowed"
+                onClick={openEmail}
+                disabled={!pdf}
+                title={pdf ? "Email this report as a PDF" : "Email not available for this report"}
+                className="gap-1"
               >
                 <Mail className="h-4 w-4" /> Email report
-                <span className="ml-1 text-[10px] uppercase rounded bg-slate-200 text-slate-600 px-1.5 py-0.5">Soon</span>
               </Button>
-              <Button onClick={() => window.print()} size="sm" className="gap-1">
-                <Printer className="h-4 w-4" /> Export PDF
+              <Button onClick={exportPdf} disabled={downloading} size="sm" className="gap-1">
+                {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+                Export PDF
               </Button>
             </div>
           </div>
@@ -177,6 +237,35 @@ export function ReportShell({
           </div>
         </main>
       </div>
+
+      {/* Email report dialog (hidden in print). */}
+      <Dialog open={emailOpen} onOpenChange={(o) => { if (!sending) setEmailOpen(o) }}>
+        <DialogContent className="print:hidden">
+          <DialogHeader>
+            <DialogTitle>Email “{title}”</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="report-email-to" className="text-xs">Recipient email</Label>
+            <Input
+              id="report-email-to"
+              type="email"
+              value={recipient}
+              onChange={(e) => setRecipient(e.target.value)}
+              placeholder="owner@example.com"
+            />
+            <p className="text-xs text-slate-500">
+              A PDF of this report (current date range and filters) will be generated and sent.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEmailOpen(false)} disabled={sending}>Cancel</Button>
+            <Button onClick={sendEmail} disabled={sending} className="gap-1">
+              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+              {sending ? "Sending…" : "Send"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

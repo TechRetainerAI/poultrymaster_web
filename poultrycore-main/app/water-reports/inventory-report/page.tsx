@@ -85,6 +85,36 @@ export default function InventoryReportPage() {
       description="Current stock position for finished products and raw materials."
       busy={busy} error={error} onClearError={() => setError(null)}
       onRefresh={load}
+      pdf={{
+        title: "Inventory / Stock",
+        filename: "water-inventory-report",
+        columns: [
+          { header: "Item" },
+          { header: "Type" },
+          { header: "Unit" },
+          { header: "Stock", align: "right" },
+          { header: "Min alert", align: "right" },
+          { header: "Unit cost", align: "right" },
+          { header: "Stock value", align: "right" },
+          { header: "Status" },
+        ],
+        rows: rows.map((r) => [
+          r.name,
+          r.type,
+          r.unit,
+          r.stock.toLocaleString(),
+          r.minAlert ?? "—",
+          r.unitCost != null ? fmtMoney(r.unitCost) : "—",
+          r.unitCost != null ? fmtMoney(r.stock * r.unitCost) : "—",
+          r.status,
+        ]),
+        summaryLines: [
+          `Items: ${totals.total.toLocaleString()}`,
+          `Low stock: ${totals.low}`,
+          `Out of stock: ${totals.out}`,
+          `Stock value: ${fmtMoney(totals.value)}`,
+        ],
+      }}
       summary={<>
         <SumTile label="Items" value={totals.total.toLocaleString()} />
         <SumTile label="Low stock" value={String(totals.low)} accent="rose" />

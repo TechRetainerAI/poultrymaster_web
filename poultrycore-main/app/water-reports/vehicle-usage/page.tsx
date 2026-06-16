@@ -79,6 +79,33 @@ export default function VehicleUsageReportPage() {
       fromDate={fromDate} toDate={toDate}
       onFromDateChange={setFromDate} onToDateChange={setToDate}
       onRefresh={load}
+      pdf={{
+        title: "Vehicle Usage",
+        filename: "water-vehicle-usage",
+        summaryLines: [
+          `Active vehicles: ${totals.vehicles}`,
+          `Total runs: ${totals.runs.toLocaleString()}`,
+          `Total loaded: ${totals.loaded.toLocaleString()}`,
+        ],
+        columns: [
+          { header: "Vehicle" },
+          { header: "Type" },
+          { header: "Runs", align: "right" },
+          { header: "Loaded", align: "right" },
+          { header: "Sold", align: "right" },
+          { header: "Damaged", align: "right" },
+          { header: "Shortage", align: "right" },
+        ],
+        rows: rows.map((r) => [
+          r.vehicleName,
+          r.vehicleType,
+          r.runs,
+          r.loaded.toLocaleString(),
+          r.sold.toLocaleString(),
+          r.damaged.toLocaleString(),
+          fmtMoney(r.shortage),
+        ]),
+      }}
       summary={<>
         <SumTile label="Active vehicles" value={String(totals.vehicles)} />
         <SumTile label="Total runs" value={totals.runs.toLocaleString()} />

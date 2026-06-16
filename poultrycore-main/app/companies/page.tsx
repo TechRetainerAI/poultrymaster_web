@@ -14,13 +14,14 @@ import { Plus, Building2, Bird, Droplets, Loader2, Check } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
-import { getMyCompanies, createCompany, switchCompany, type Company, type CompanyType } from "@/lib/api/companies"
+import { getMyCompanies, createCompany, sendCompanyWelcomeEmail, switchCompany, type Company, type CompanyType } from "@/lib/api/companies"
 
 export default function CompaniesPage() {
   const { toast } = useToast()
   const setCompanies = useAuthStore((s) => s.setCompanies)
   const setActiveCompany = useAuthStore((s) => s.setActiveCompany)
   const activeFarmId = useAuthStore((s) => s.activeFarmId)
+  const userEmail = useAuthStore((s) => s.user?.email)
   const logout = useLogout()
 
   const [companies, setLocal] = useState<Company[]>([])
@@ -49,6 +50,14 @@ export default function CompaniesPage() {
     try {
       await createCompany({ name: form.name, type: form.type, email: form.email || undefined, phoneNumber: form.phoneNumber || undefined })
       toast({ title: `Created ${form.name}` })
+      // Email a confirmation to the company email, falling back to the owner's
+      // account email so the creator always gets it.
+      const to = (form.email.trim() || userEmail || "").trim()
+      if (to) {
+        const r = await sendCompanyWelcomeEmail({ email: to, companyName: form.name, companyType: form.type })
+        if (r.success) toast({ title: "Confirmation emailed", description: `Sent to ${to}.` })
+        else toast({ title: "Couldn't email confirmation", description: r.message || "Email was not sent.", variant: "destructive" })
+      }
       setOpen(false); setForm({ name: "", type: "Water", email: "", phoneNumber: "" })
       await load()
     } catch (e: any) { toast({ title: "Create failed", description: e?.message, variant: "destructive" }) }

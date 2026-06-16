@@ -89,6 +89,38 @@ export default function LossReportPage() {
       fromDate={fromDate} toDate={toDate}
       onFromDateChange={setFromDate} onToDateChange={setToDate}
       onRefresh={load}
+      pdf={{
+        title: "Loss Report",
+        filename: "water-loss-report",
+        columns: [
+          { header: "Date" },
+          { header: "Source" },
+          { header: "Type" },
+          { header: "Product" },
+          { header: "Bags", align: "right" },
+          { header: "Sachets", align: "right" },
+          { header: "Value", align: "right" },
+          { header: "Reason" },
+          { header: "Status" },
+        ],
+        rows: rows.map((r) => [
+          r.date,
+          r.source,
+          r.type,
+          r.product,
+          r.bags.toLocaleString(),
+          r.sachets.toLocaleString(),
+          fmtMoney(r.value),
+          r.reason,
+          r.status,
+        ]),
+        summaryLines: [
+          `Records: ${totals.approved} / ${totals.count}`,
+          `Bags lost: ${totals.bags.toLocaleString()}`,
+          `Sachets lost: ${totals.sachets.toLocaleString()}`,
+          `Total value: ${fmtMoney(totals.value)}`,
+        ],
+      }}
       summary={<>
         <SumTile label="Records" value={`${totals.approved} / ${totals.count}`} />
         <SumTile label="Bags lost" value={totals.bags.toLocaleString()} accent="rose" />
