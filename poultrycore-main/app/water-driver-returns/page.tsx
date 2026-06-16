@@ -568,6 +568,10 @@ export default function WaterDriverReturnsPage() {
   // successful reverse so the Record Return dialog opens with what the
   // operator previously recorded (instead of the "all sold, no money" default).
   async function prefillFromExistingReturn(l: WaterVehicleLoading, r: WaterDriverReturn) {
+    // Mark the existing return as the one being replaced so saveReturn excludes
+    // it from the duplicate guard and deletes it after the new one is inserted.
+    // (Covers the reverse-and-edit path, not just the Draft-edit button.)
+    editReturnTargetRef.current = r
     setReturnNotes(r.notes ?? "")
     setReturnDate((r.returnDate ?? new Date().toISOString()).split("T")[0])
     setBreakdownOpen(false)
@@ -867,6 +871,10 @@ export default function WaterDriverReturnsPage() {
     try {
       const created = await createWaterDriverReturn({
         waterVehicleLoadingId: returnDlg.loading.waterVehicleLoadingId,
+        // When editing/reversing, this is the return being replaced — the
+        // duplicate guard ignores it so the corrected return can be inserted
+        // (the old one is deleted right after).
+        replaceReturnId: editReturnTargetRef.current?.waterDriverReturnId ?? null,
         returnDate: new Date(returnDate).toISOString(),
         bagsSold: totalSold,
         bagsReturned: totalReturned,
