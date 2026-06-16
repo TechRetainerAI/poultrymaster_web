@@ -629,20 +629,9 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@CustomerSalesJson", (object?)customerSalesJson ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@ExpensesJson", (object?)expensesJson ?? DBNull.Value);
             await conn.OpenAsync();
-
-            // One open return per delivery: block a second Draft/Approved return
-            // for the same loading (operators were creating duplicate Drafts).
-            using (var guard = new SqlCommand(
-                @"IF EXISTS (SELECT 1 FROM dbo.WaterDriverReturns
-                             WHERE WaterVehicleLoadingId=@l AND FarmId=@f AND Status IN ('Draft','Approved'))
-                      THROW 51000, 'A return already exists for this delivery. Edit or cancel the existing return before recording a new one.', 1;",
-                conn))
-            {
-                guard.Parameters.AddWithValue("@l", m.WaterVehicleLoadingId);
-                guard.Parameters.AddWithValue("@f", m.FarmId);
-                await guard.ExecuteNonQueryAsync();
-            }
-
+            // The "one open return per delivery" guard lives inside the SP
+            // (migration 114) — the app login only has EXECUTE on procs, not
+            // direct table SELECT, so the check cannot be an ad-hoc query here.
             return Convert.ToInt32(await cmd.ExecuteScalarAsync());
         }
 
