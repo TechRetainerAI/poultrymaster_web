@@ -4,7 +4,7 @@
 // also rolls the run totals atomically — the C# side is just a thin pass-through.
 
 using System.Data;
-using System.Data.SqlClient;
+using Microsoft.Data.SqlClient;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business

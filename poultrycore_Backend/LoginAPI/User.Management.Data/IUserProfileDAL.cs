@@ -7,8 +7,8 @@ namespace User.Management.Data
     {
         Task<bool> CreateUserAsync(ApplicationUser user);
         Task<bool> DeleteUserByIdAsync(string userId);
-        Task<ApplicationUser> FindByIdAsync(string userId);
-        Task<ApplicationUser> FindByNameAsync(string normalizedUserName);
-        Task<ApplicationUser> UpdateUserAsync(ApplicationUser user);
+        Task<ApplicationUser?> FindByIdAsync(string userId);
+        Task<ApplicationUser?> FindByNameAsync(string normalizedUserName);
+        Task<ApplicationUser?> UpdateUserAsync(ApplicationUser user);
     }
 }

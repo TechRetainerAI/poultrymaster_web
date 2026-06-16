@@ -5,7 +5,7 @@
 // totals atomically — the C# side is a thin pass-through.
 
 using System.Data;
-using System.Data.SqlClient;
+using Microsoft.Data.SqlClient;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business

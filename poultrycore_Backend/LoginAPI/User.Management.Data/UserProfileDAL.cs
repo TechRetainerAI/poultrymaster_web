@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.SqlClient;
+using Microsoft.Data.SqlClient;
 using System.Threading.Tasks;
 using User.Management.Data.Models;
 
@@ -29,21 +29,21 @@ namespace User.Management.Data
                     cmd.Parameters.AddWithValue("@Id", user.Id);
                     cmd.Parameters.AddWithValue("@UserName", user.UserName);
                     cmd.Parameters.AddWithValue("@NormalizedUserName", user.NormalizedUserName);
-                    cmd.Parameters.AddWithValue("@Email", (object)user.Email ?? DBNull.Value);
-                    cmd.Parameters.AddWithValue("@NormalizedEmail", (object)user.NormalizedEmail ?? DBNull.Value);
-                    cmd.Parameters.AddWithValue("@PasswordHash", (object)user.PasswordHash ?? DBNull.Value);
-                    cmd.Parameters.AddWithValue("@FirstName", (object)user.FirstName ?? DBNull.Value);
-                    cmd.Parameters.AddWithValue("@LastName", (object)user.LastName ?? DBNull.Value);
-                    cmd.Parameters.AddWithValue("@PhoneNumber", (object)user.PhoneNumber ?? DBNull.Value);
-                    cmd.Parameters.AddWithValue("@FarmId", (object)user.FarmId ?? DBNull.Value);
-                    cmd.Parameters.AddWithValue("@FarmName", (object)user.FarmName ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Email", (object?)user.Email ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@NormalizedEmail", (object?)user.NormalizedEmail ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@PasswordHash", (object?)user.PasswordHash ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@FirstName", (object?)user.FirstName ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@LastName", (object?)user.LastName ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@PhoneNumber", (object?)user.PhoneNumber ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@FarmId", (object?)user.FarmId ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@FarmName", (object?)user.FarmName ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@IsStaff", user.IsStaff);
                     cmd.Parameters.AddWithValue("@IsSubscriber", user.IsSubscriber);
                     cmd.Parameters.AddWithValue("@EmailConfirmed", user.EmailConfirmed);
                     cmd.Parameters.AddWithValue("@PhoneNumberConfirmed", user.PhoneNumberConfirmed);
                     cmd.Parameters.AddWithValue("@TwoFactorEnabled", user.TwoFactorEnabled);
-                    cmd.Parameters.AddWithValue("@SecurityStamp", (object)user.SecurityStamp ?? Guid.NewGuid().ToString());
-                    cmd.Parameters.AddWithValue("@ConcurrencyStamp", (object)user.ConcurrencyStamp ?? Guid.NewGuid().ToString());
+                    cmd.Parameters.AddWithValue("@SecurityStamp", (object?)user.SecurityStamp ?? Guid.NewGuid().ToString());
+                    cmd.Parameters.AddWithValue("@ConcurrencyStamp", (object?)user.ConcurrencyStamp ?? Guid.NewGuid().ToString());
                     cmd.Parameters.AddWithValue("@LockoutEnabled", user.LockoutEnabled);
                     cmd.Parameters.AddWithValue("@AccessFailedCount", user.AccessFailedCount);
 
@@ -83,7 +83,7 @@ namespace User.Management.Data
             }
         }
 
-        public async Task<ApplicationUser> FindByIdAsync(string userId)
+        public async Task<ApplicationUser?> FindByIdAsync(string userId)
         {
             try
             {
@@ -111,7 +111,7 @@ namespace User.Management.Data
             return null;
         }
 
-        public async Task<ApplicationUser> FindByNameAsync(string normalizedUserName)
+        public async Task<ApplicationUser?> FindByNameAsync(string normalizedUserName)
         {
             try
             {
@@ -139,7 +139,7 @@ namespace User.Management.Data
             return null;
         }
 
-        public async Task<ApplicationUser> UpdateUserAsync(ApplicationUser user)
+        public async Task<ApplicationUser?> UpdateUserAsync(ApplicationUser user)
         {
             try
             {
@@ -152,11 +152,11 @@ namespace User.Management.Data
                     cmd.Parameters.AddWithValue("@Id", user.Id);
                     cmd.Parameters.AddWithValue("@UserName", user.UserName);
                     cmd.Parameters.AddWithValue("@NormalizedUserName", user.NormalizedUserName);
-                    cmd.Parameters.AddWithValue("@Email", (object)user.Email ?? DBNull.Value);
-                    cmd.Parameters.AddWithValue("@PasswordHash", (object)user.PasswordHash ?? DBNull.Value);
-                    cmd.Parameters.AddWithValue("@FirstName", (object)user.FirstName ?? DBNull.Value);
-                    cmd.Parameters.AddWithValue("@LastName", (object)user.LastName ?? DBNull.Value);
-                    cmd.Parameters.AddWithValue("@PhoneNumber", (object)user.PhoneNumber ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Email", (object?)user.Email ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@PasswordHash", (object?)user.PasswordHash ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@FirstName", (object?)user.FirstName ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@LastName", (object?)user.LastName ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@PhoneNumber", (object?)user.PhoneNumber ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@IsSubscriber", user.IsSubscriber);
 
                     await connection.OpenAsync();
@@ -215,13 +215,13 @@ namespace User.Management.Data
         {
             return new ApplicationUser
             {
-                Id = reader["Id"].ToString(),
+                Id = reader["Id"].ToString() ?? string.Empty,
                 UserName = reader["UserName"].ToString(),
                 NormalizedUserName = reader["NormalizedUserName"].ToString(),
                 Email = reader["Email"] == DBNull.Value ? null : reader["Email"].ToString(),
                 PasswordHash = reader["PasswordHash"] == DBNull.Value ? null : reader["PasswordHash"].ToString(),
-                FirstName = reader["FirstName"] == DBNull.Value ? null : reader["FirstName"].ToString(),
-                LastName = reader["LastName"] == DBNull.Value ? null : reader["LastName"].ToString(),
+                FirstName = reader["FirstName"] == DBNull.Value ? string.Empty : reader["FirstName"].ToString() ?? string.Empty,
+                LastName = reader["LastName"] == DBNull.Value ? string.Empty : reader["LastName"].ToString() ?? string.Empty,
                 PhoneNumber = reader["PhoneNumber"] == DBNull.Value ? null : reader["PhoneNumber"].ToString(),
                 IsSubscriber = reader["IsSubscriber"] == DBNull.Value ? false : Convert.ToBoolean(reader["IsSubscriber"]),
                 IsStaff = ReadOptionalBool(reader, "IsStaff", false),
