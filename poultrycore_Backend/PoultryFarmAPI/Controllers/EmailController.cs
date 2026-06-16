@@ -58,11 +58,11 @@ namespace PoultryFarmAPIWeb.Controllers
             if (file == null || file.Length == 0)
                 return BadRequest("Report file is required.");
 
-            if (string.IsNullOrWhiteSpace(request.To))
+            if (string.IsNullOrWhiteSpace(to))
                 return BadRequest("Recipient email (to) is required.");
 
             // Basic recipient sanity check — let MimeKit do the real parsing later.
-            if (!request.To.Contains('@'))
+            if (!to.Contains('@'))
                 return BadRequest("Recipient email looks malformed.");
 
             byte[] bytes;
@@ -72,15 +72,15 @@ namespace PoultryFarmAPIWeb.Controllers
                 bytes = ms.ToArray();
             }
 
-            var resolvedSubject = !string.IsNullOrWhiteSpace(request.Subject)
-                ? request.Subject
-                : !string.IsNullOrWhiteSpace(request.ReportTitle)
-                    ? $"{request.ReportTitle} — {request.FarmName ?? "PoultryCore"}"
+            var resolvedSubject = !string.IsNullOrWhiteSpace(subject)
+                ? subject
+                : !string.IsNullOrWhiteSpace(reportTitle)
+                    ? $"{reportTitle} — {farmName ?? "PoultryCore"}"
                     : "Your PoultryCore report";
 
-            var resolvedBody = !string.IsNullOrWhiteSpace(request.Body)
-                ? request.Body
-                : BuildDefaultHtmlBody(request.ReportTitle, request.FarmName);
+            var resolvedBody = !string.IsNullOrWhiteSpace(body)
+                ? body
+                : BuildDefaultHtmlBody(reportTitle, farmName);
 
             var attachment = new EmailAttachment
             {
@@ -92,13 +92,13 @@ namespace PoultryFarmAPIWeb.Controllers
             try
             {
                 await _email.SendAsync(
-                    to: new[] { request.To },
+                    to: new[] { to },
                     subject: resolvedSubject,
                     body: resolvedBody,
                     isHtml: true,
                     attachments: new[] { attachment });
 
-                return Ok(new { success = true, message = $"Report emailed to {request.To}." });
+                return Ok(new { success = true, message = $"Report emailed to {to}." });
             }
             catch (InvalidOperationException ex)
             {
@@ -108,7 +108,7 @@ namespace PoultryFarmAPIWeb.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to send report email to {Recipient}", request.To);
+                _logger.LogError(ex, "Failed to send report email to {Recipient}", to);
                 return StatusCode(500, new { success = false, message = "Failed to send email. Check API logs." });
             }
         }

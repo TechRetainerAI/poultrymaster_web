@@ -293,7 +293,31 @@ builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(options 
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    // Adds the "Authorize" button to Swagger UI so [Authorize] endpoints (e.g.
+    // EmailController) can be tested. Paste the raw JWT from the Login API — the
+    // Bearer scheme prefixes "Bearer " for you, so don't include it.
+    var jwtScheme = new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Description = "Enter your JWT bearer token (without the \"Bearer \" prefix).",
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        Reference = new Microsoft.OpenApi.Models.OpenApiReference
+        {
+            Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+            Id = "Bearer",
+        },
+    };
+    c.AddSecurityDefinition("Bearer", jwtScheme);
+    c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        [jwtScheme] = Array.Empty<string>(),
+    });
+});
 
 // Cloud Run / reverse proxies: honor X-Forwarded-Proto so redirects and Swagger work over HTTPS
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
