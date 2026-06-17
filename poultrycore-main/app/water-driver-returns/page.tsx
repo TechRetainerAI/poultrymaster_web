@@ -656,6 +656,20 @@ export default function WaterDriverReturnsPage() {
 
   // ===== Driver Return handlers =====
   async function openReturnDlg(l: WaterVehicleLoading) {
+    // A delivery can have only one open return. If a draft already exists for
+    // this loading, continue/edit it instead of trying to record a new one
+    // (which the backend rejects). An already-approved one must be reversed.
+    const existing = returns.find(r => r.waterVehicleLoadingId === l.waterVehicleLoadingId && r.status !== "Cancelled")
+    if (existing) {
+      if (existing.status === "Draft") {
+        toast({ title: "Continuing this delivery's draft return", description: "Edit the figures and Approve & Reconcile when ready." })
+        await prefillFromExistingReturn(l, existing)
+      } else {
+        toast({ title: "This delivery is already reconciled", description: "Reverse it from the Reconciled tab to make changes.", variant: "destructive" })
+      }
+      return
+    }
+    editReturnTargetRef.current = null
     setReturnNotes("")
     setReturnDate((l.loadDate ?? new Date().toISOString()).split("T")[0])
     setBreakdownOpen(false)
