@@ -90,6 +90,16 @@ export function periodToRange(period: PeriodKey, today: Date = new Date()): Date
 }
 
 /**
+ * Default range for a report on first load. Returns a range that EXACTLY matches
+ * a named preset (default "Last 30 Days") so the Period dropdown shows that
+ * preset on load instead of falling back to "Custom Date Range". Use this for a
+ * page's initial fromDate/toDate state.
+ */
+export function defaultReportRange(period: PeriodKey = "last30"): DateRange {
+  return periodToRange(period) ?? { from: iso(addDays(new Date(), -29)), to: iso(new Date()) }
+}
+
+/**
  * Best-effort: given a from/to pair, return the period key that produced it
  * (so a dropdown can reflect the current range), else "custom".
  */

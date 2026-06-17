@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { ReportShell, SumTile } from "@/components/reports/report-shell"
 import { getWaterTopCustomers, type WaterTopCustomerRow } from "@/lib/api/water"
 import { useFmt } from "@/lib/currency"
+import { defaultReportRange } from "@/lib/date-ranges"
 
 function isoDate(d: Date) { return d.toISOString().split("T")[0] }
 function defaultFrom() { const d = new Date(); d.setDate(d.getDate() - 30); return isoDate(d) }
@@ -19,8 +20,9 @@ const TOP_N_OPTIONS = [5, 10, 20, 50]
 
 export default function TopCustomersReportPage() {
   const fmtMoney = useFmt()
-  const [fromDate, setFromDate] = useState(defaultFrom())
-  const [toDate, setToDate] = useState(defaultTo())
+  const DEFAULT_RANGE = defaultReportRange("last30")
+  const [fromDate, setFromDate] = useState(DEFAULT_RANGE.from)
+  const [toDate, setToDate] = useState(DEFAULT_RANGE.to)
   const [topN, setTopN] = useState(10)
   const [rows, setRows] = useState<WaterTopCustomerRow[]>([])
   const [busy, setBusy] = useState(true)

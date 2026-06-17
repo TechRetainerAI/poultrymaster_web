@@ -14,6 +14,7 @@ import {
   type WaterDriverCollectionReport, type WaterDriver,
 } from "@/lib/api/water"
 import { useFmt } from "@/lib/currency"
+import { defaultReportRange } from "@/lib/date-ranges"
 
 function isoDate(d: Date) { return d.toISOString().split("T")[0] }
 function defaultFrom() { const d = new Date(); d.setDate(d.getDate() - 30); return isoDate(d) }
@@ -21,8 +22,9 @@ function defaultTo() { return isoDate(new Date()) }
 
 export default function DriverCollectionReportPage() {
   const fmtMoney = useFmt()
-  const [fromDate, setFromDate] = useState(defaultFrom())
-  const [toDate, setToDate] = useState(defaultTo())
+  const DEFAULT_RANGE = defaultReportRange("last30")
+  const [fromDate, setFromDate] = useState(DEFAULT_RANGE.from)
+  const [toDate, setToDate] = useState(DEFAULT_RANGE.to)
   const [driverId, setDriverId] = useState<number | undefined>(undefined)
   const [drivers, setDrivers] = useState<WaterDriver[]>([])
   const [report, setReport] = useState<WaterDriverCollectionReport>({ detail: [], totals: [] })
