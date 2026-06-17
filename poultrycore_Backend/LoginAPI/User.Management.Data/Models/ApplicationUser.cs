@@ -5,13 +5,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.ComponentModel.DataAnnotations.Schema;
-using Microsoft.AspNetCore.Identity;
 
 namespace User.Management.Data.Models
 {
     public class ApplicationUser: IdentityUser
     {
-        public string FarmId { get; set; }
+        public string FarmId { get; set; } = string.Empty;
         public string? FarmName { get; set; }
         public bool IsStaff { get; set; }
         public bool IsAdmin { get; set; }
@@ -28,11 +27,11 @@ namespace User.Management.Data.Models
 
         [PersonalData]
         [Column(TypeName = "nvarchar(255)")]
-        public string FirstName { get; set; }
+        public string FirstName { get; set; } = string.Empty;
 
         [PersonalData]
         [Column(TypeName = "nvarchar(255)")]
-        public string LastName { get; set; }
+        public string LastName { get; set; } = string.Empty;
 
         //Commented out because it was hiding the PhoneNumber field in Identity class itself
         //[PersonalData]

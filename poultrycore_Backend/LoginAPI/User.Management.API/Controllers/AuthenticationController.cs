@@ -60,9 +60,29 @@ namespace User.Management.API.Controllers
             {
                 await _user.AssignRoleToUserAsync(registerUser.Roles, tokenResponse.Response.User);
 
-                // Account is auto-confirmed at creation time (see UserManagement.CreateUserWithTokenAsync);
-                // no confirmation email is sent here. To require email verification, remove the
-                // EmailConfirmed = true line in that method and reinstate an email send below.
+                // Account is auto-confirmed at creation time (see UserManagement.CreateUserWithTokenAsync),
+                // so we send a welcome email rather than a verification link. A mail failure must NOT
+                // fail registration — the account already exists — so swallow-and-log here.
+                try
+                {
+                    var loginUrl = _frontendAppBaseUrl.TrimEnd('/') + "/login";
+                    var welcomeHtml = BuildWelcomeEmailHtml(
+                        registerUser.FirstName,
+                        registerUser.FarmName,
+                        registerUser.CompanyType,
+                        loginUrl);
+                    var subject = string.IsNullOrWhiteSpace(registerUser.FarmName)
+                        ? "Welcome to Poultry Master"
+                        : $"Welcome to Poultry Master, {registerUser.FarmName}";
+                    _emailService.SendEmail(new Message(new[] { registerUser.Email! }, subject, welcomeHtml));
+                }
+                catch (Exception emailEx)
+                {
+                    _logger.LogError(emailEx,
+                        "Welcome email failed for {Email} (registration still succeeded)",
+                        registerUser.Email);
+                }
+
                 return StatusCode(StatusCodes.Status200OK,
                     new Response { IsSuccess = true, Message = tokenResponse.Message });
             }
@@ -77,6 +97,27 @@ namespace User.Management.API.Controllers
 
             return StatusCode(statusCode,
                   new Response { Message = tokenResponse.Message, IsSuccess = false });
+        }
+
+        // Friendly post-signup welcome. Accounts are auto-confirmed, so there is no
+        // verification link — just a "you're ready, here's how to log in" message.
+        private static string BuildWelcomeEmailHtml(string? firstName, string? farmName, string? companyType, string loginUrl)
+        {
+            var safeName = WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(firstName) ? "there" : firstName);
+            var safeFarm = WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(farmName) ? "your account" : farmName);
+            var typeLine = string.IsNullOrWhiteSpace(companyType)
+                ? ""
+                : $"<p style=\"color:#475569;\">Workspace type: <strong>{WebUtility.HtmlEncode(companyType)}</strong></p>";
+            return $@"
+<div style=""font-family:Arial,Helvetica,sans-serif;color:#1f2937;max-width:560px;margin:0 auto;"">
+  <h2 style=""color:#0f172a;"">Welcome, {safeName}!</h2>
+  <p>Your Poultry Master account for <strong>{safeFarm}</strong> has been created and is ready to use.</p>
+  {typeLine}
+  <p style=""margin:20px 0;"">
+    <a href=""{loginUrl}"" style=""display:inline-block;background:#0ea5e9;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:6px;"">Log in to get started</a>
+  </p>
+  <p style=""color:#64748b;font-size:13px;"">If you didn't create this account, you can safely ignore this email.</p>
+</div>";
         }
 
         [HttpGet("ConfirmEmail")]

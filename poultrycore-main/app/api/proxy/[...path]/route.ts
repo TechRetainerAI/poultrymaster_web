@@ -153,13 +153,21 @@ async function handleRequest(
     const headers = new Headers()
     // Headers that should NOT be forwarded to backend
     const skipHeaders = [
-      'host', 
-      'content-length', 
+      'host',
+      'content-length',
       'expect',              // Node.js fetch doesn't support Expect header
       'connection',          // Don't forward connection-specific headers
       'transfer-encoding',   // Let fetch handle transfer encoding
       'upgrade',             // Don't forward upgrade headers
       'keep-alive',          // Don't forward keep-alive headers
+      // x-forwarded-* describe the browser→Next hop, not Next→backend. Next's dev
+      // server injects x-forwarded-proto: http (since :3000 is plain HTTP); the .NET
+      // backend's UseForwardedHeaders + UseHttpsRedirection then 307-redirects to
+      // HTTPS, we re-forward the same header, and it loops ("redirect count exceeded").
+      'x-forwarded-proto',
+      'x-forwarded-host',
+      'x-forwarded-port',
+      'x-forwarded-for',
     ]
     
     request.headers.forEach((value, key) => {

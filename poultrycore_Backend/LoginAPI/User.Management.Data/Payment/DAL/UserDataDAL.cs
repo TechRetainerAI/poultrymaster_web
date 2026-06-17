@@ -127,9 +127,9 @@ namespace User.Management.Data
         }
 
 
-        public async Task<Subscriber> GetSubscriberByCustomerId(string customerId)
+        public async Task<Subscriber?> GetSubscriberByCustomerId(string customerId)
         {
-            Subscriber subscriber = null;
+            Subscriber? subscriber = null;
             try
             {
                 using (SqlConnection connection = new SqlConnection(_connectionString))
@@ -186,9 +186,9 @@ namespace User.Management.Data
         }
 
 
-        public async Task<Subscriber> GetSubscriberByIdAsync(string subscriberId)
+        public async Task<Subscriber?> GetSubscriberByIdAsync(string subscriberId)
         {
-            Subscriber subscriber = null;
+            Subscriber? subscriber = null;
             try
             {
                 using (SqlConnection connection = new SqlConnection(_connectionString))
@@ -243,9 +243,9 @@ namespace User.Management.Data
             }
         }
 
-        public async Task<Subscriber> GetSubscriberByCustomerIdAsync(string customerId)
+        public async Task<Subscriber?> GetSubscriberByCustomerIdAsync(string customerId)
         {
-            Subscriber subscriber = null;
+            Subscriber? subscriber = null;
             try
             {
                 using (SqlConnection connection = new SqlConnection(_connectionString))
@@ -266,21 +266,21 @@ namespace User.Management.Data
                                 subscriber = new Subscriber
                                 {
                                     Id = Convert.ToInt32(reader["Id"]),
-                                    SubscriberId = reader["SubscriberId"].ToString(),
-                                    CustomerId = reader["CustomerId"].ToString(),
-                                    Email = reader["Email"] == DBNull.Value ? null : reader["Email"].ToString(),
+                                    SubscriberId = reader["SubscriberId"].ToString() ?? string.Empty,
+                                    CustomerId = reader["CustomerId"].ToString() ?? string.Empty,
+                                    Email = reader["Email"] == DBNull.Value ? string.Empty : reader["Email"].ToString() ?? string.Empty,
                                     CurrentPeriodStart = Convert.ToDateTime(reader["CurrentPeriodStart"]),
                                     CurrentPeriodEnd = Convert.ToDateTime(reader["CurrentPeriodEnd"]),
-                                    Status = reader["Status"].ToString(),
+                                    Status = reader["Status"].ToString() ?? string.Empty,
                                     CanceledAt = reader["CanceledAt"] == DBNull.Value ? null : (DateTime?)reader["CanceledAt"],
                                     Created = Convert.ToDateTime(reader["Created"]),
                                     EndedAt = reader["EndedAt"] == DBNull.Value ? null : (DateTime?)reader["EndedAt"],
-                                    LatestInvoiceId = reader["LatestInvoiceId"].ToString(),
+                                    LatestInvoiceId = reader["LatestInvoiceId"].ToString() ?? string.Empty,
                                     StartDate = Convert.ToDateTime(reader["StartDate"]),
                                     TrialEnd = reader["TrialEnd"] == DBNull.Value ? null : (DateTime?)reader["TrialEnd"],
                                     TrialStart = reader["TrialStart"] == DBNull.Value ? null : (DateTime?)reader["TrialStart"],
-                                    PlanId = reader["PlanId"] == DBNull.Value ? null : reader["PlanId"].ToString(),
-                                    PlanName = reader["PlanName"] == DBNull.Value ? null : reader["PlanName"].ToString(),
+                                    PlanId = reader["PlanId"] == DBNull.Value ? string.Empty : reader["PlanId"].ToString() ?? string.Empty,
+                                    PlanName = reader["PlanName"] == DBNull.Value ? string.Empty : reader["PlanName"].ToString() ?? string.Empty,
                                     PlanAmount = reader["PlanAmount"] == DBNull.Value ? 0 : Convert.ToDecimal(reader["PlanAmount"]),
                                     // Add other properties as needed
                                 };
@@ -338,7 +338,7 @@ namespace User.Management.Data
         }
 
 
-        public async Task<ApplicationUser> FindByEmailAsync(string email)
+        public async Task<ApplicationUser?> FindByEmailAsync(string email)
         {
             try
             {
@@ -362,8 +362,8 @@ namespace User.Management.Data
                                 {
                                     Id = reader.GetString(reader.GetOrdinal("Id")),
                                     CustomerId = reader.IsDBNull(reader.GetOrdinal("CustomerId")) ? null : reader.GetString(reader.GetOrdinal("CustomerId")),
-                                    FirstName = reader.IsDBNull(reader.GetOrdinal("FirstName")) ? null : reader.GetString(reader.GetOrdinal("FirstName")),
-                                    LastName = reader.IsDBNull(reader.GetOrdinal("LastName")) ? null : reader.GetString(reader.GetOrdinal("LastName")),
+                                    FirstName = reader.IsDBNull(reader.GetOrdinal("FirstName")) ? string.Empty : reader.GetString(reader.GetOrdinal("FirstName")),
+                                    LastName = reader.IsDBNull(reader.GetOrdinal("LastName")) ? string.Empty : reader.GetString(reader.GetOrdinal("LastName")),
                                     UserName = reader.IsDBNull(reader.GetOrdinal("UserName")) ? null : reader.GetString(reader.GetOrdinal("UserName")),
                                     NormalizedUserName = reader.IsDBNull(reader.GetOrdinal("NormalizedUserName")) ? null : reader.GetString(reader.GetOrdinal("NormalizedUserName")),
                                     Email = reader.IsDBNull(reader.GetOrdinal("Email")) ? null : reader.GetString(reader.GetOrdinal("Email")),

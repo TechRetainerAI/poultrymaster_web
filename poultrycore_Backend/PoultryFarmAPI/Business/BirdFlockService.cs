@@ -47,10 +47,10 @@ namespace PoultryFarmAPIWeb.Business
                     cmd.Parameters.AddWithValue("@StartDate", model.StartDate);
                     cmd.Parameters.AddWithValue("@Quantity", model.Quantity);
                     cmd.Parameters.AddWithValue("@BatchId", model.BatchId);
-                    cmd.Parameters.AddWithValue("@HouseId", (object)model.HouseId ?? DBNull.Value);
-                    cmd.Parameters.AddWithValue("@InactivationReason", (object)model.InactivationReason ?? DBNull.Value);
-                    cmd.Parameters.AddWithValue("@OtherReason", (object)model.OtherReason ?? DBNull.Value);
-                    cmd.Parameters.AddWithValue("@Notes", (object)model.Notes ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@HouseId", (object?)model.HouseId ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@InactivationReason", (object?)model.InactivationReason ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@OtherReason", (object?)model.OtherReason ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Notes", (object?)model.Notes ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@HasArrived", model.HasArrived);
 
                     await conn.OpenAsync();
@@ -94,13 +94,13 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.AddWithValue("@StartDate", model.StartDate);
                 cmd.Parameters.AddWithValue("@Quantity", model.Quantity);
                 cmd.Parameters.AddWithValue("@Active", model.Active);
-                cmd.Parameters.AddWithValue("@HouseId", (object)model.HouseId ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@InactivationReason", (object)model.InactivationReason ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@OtherReason", (object)model.OtherReason ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@HouseId", (object?)model.HouseId ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@InactivationReason", (object?)model.InactivationReason ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@OtherReason", (object?)model.OtherReason ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@UserId", model.UserId);
                 cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
                 cmd.Parameters.AddWithValue("@BatchId", (object)model.BatchId ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@Notes", (object)model.Notes ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@Notes", (object?)model.Notes ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@HasArrived", model.HasArrived);
 
                 await conn.OpenAsync();
@@ -208,7 +208,7 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.AddWithValue("@BatchId", batchId);
                 cmd.Parameters.AddWithValue("@UserId", userId);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
-                cmd.Parameters.AddWithValue("@FlockIdToExclude", (object)flockIdToExclude ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@FlockIdToExclude", (object?)flockIdToExclude ?? DBNull.Value);
 
                 await conn.OpenAsync();
                 object result = await cmd.ExecuteScalarAsync();

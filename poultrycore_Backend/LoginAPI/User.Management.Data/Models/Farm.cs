@@ -4,11 +4,11 @@ namespace User.Management.Data.Models
 {
     public class Farm
     {
-        public string FarmId { get; set; }                // Unique identifier (GUID or string)
-        public string Name { get; set; }                  // Name of the farm / company
-        public string Email { get; set; }                 // Contact email
-        public string Type { get; set; }                  // 'Poultry' | 'Water' | future types
-        public string PhoneNumber { get; set; }           // Optional phone number
+        public string FarmId { get; set; } = string.Empty;   // Unique identifier (GUID or string)
+        public string Name { get; set; } = string.Empty;     // Name of the farm / company
+        public string Email { get; set; } = string.Empty;    // Contact email
+        public string Type { get; set; } = string.Empty;     // 'Poultry' | 'Water' | future types
+        public string PhoneNumber { get; set; } = string.Empty; // Optional phone number
         public string? OwnerUserId { get; set; }          // AspNetUsers.Id of the admin who created it
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }

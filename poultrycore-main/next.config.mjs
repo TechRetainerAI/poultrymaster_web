@@ -1,13 +1,23 @@
+import { fileURLToPath } from 'node:url'
+import { dirname } from 'node:path'
+
 /** @type {import('next').NextConfig} */
 // Vercel runs its own output pipeline; standalone is for Docker (Render, etc.).
 const isVercel = Boolean(process.env.VERCEL)
 
+// Pin the workspace root to THIS folder. Next infers the root by walking up for
+// a lockfile; a stray lockfile in a parent dir (e.g. an empty package-lock.json
+// one level up in poultrymaster_web/) makes it pick the parent, where there's no
+// node_modules — which breaks module resolution ("Can't resolve 'tailwindcss'")
+// and can spiral into an OOM during file tracing. Pinning prevents that.
+// See DEV_SETUP_AND_KNOWN_ISSUES.md (Issue 1).
+const projectRoot = dirname(fileURLToPath(import.meta.url))
+
 const nextConfig = {
   ...(!isVercel ? { output: 'standalone' } : {}),
-  // Pin the workspace root so Next doesn't infer it from the parent dir's
-  // package-lock.json (there are multiple lockfiles in the tree).
+  outputFileTracingRoot: projectRoot,
   turbopack: {
-    root: import.meta.dirname,
+    root: projectRoot,
   },
   typescript: {
     ignoreBuildErrors: true,
