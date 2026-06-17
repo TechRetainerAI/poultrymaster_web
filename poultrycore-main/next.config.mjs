@@ -4,6 +4,11 @@ const isVercel = Boolean(process.env.VERCEL)
 
 const nextConfig = {
   ...(!isVercel ? { output: 'standalone' } : {}),
+  // Pin the workspace root so Next doesn't infer it from the parent dir's
+  // package-lock.json (there are multiple lockfiles in the tree).
+  turbopack: {
+    root: import.meta.dirname,
+  },
   typescript: {
     ignoreBuildErrors: true,
   },
