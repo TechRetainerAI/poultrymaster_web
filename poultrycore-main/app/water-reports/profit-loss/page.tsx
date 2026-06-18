@@ -45,6 +45,20 @@ export default function ProfitLossReportPage() {
       fromDate={fromDate} toDate={toDate}
       onFromDateChange={setFromDate} onToDateChange={setToDate}
       onRefresh={load}
+      pdf={{
+        title: "Profit & Loss",
+        filename: "water-profit-loss",
+        columns: [{ header: "Line" }, { header: "Amount", align: "right" }],
+        rows: pnl ? [
+          ["Total income (sales)", fmtMoney(pnl.totalIncome ?? 0)],
+          ["Less: production cost", `(${fmtMoney(pnl.productionCost ?? 0)})`],
+          ["Less: raw material cost (paid)", `(${fmtMoney(pnl.rawMaterialCost ?? 0)})`],
+          ["Gross profit", fmtMoney(gross)],
+          ["Less: operating expenses", `(${fmtMoney(pnl.totalExpenses ?? 0)})`],
+          ["Less: losses", `(${fmtMoney(pnl.totalLosses ?? 0)})`],
+          ["Net profit", fmtMoney(net)],
+        ] : [],
+      }}
       summary={pnl ? (<>
         <SumTile label="Income" value={fmtMoney(pnl.totalIncome ?? 0)} accent="green" />
         <SumTile label="Gross profit" value={fmtMoney(gross)} accent={gross >= 0 ? "green" : "rose"} />

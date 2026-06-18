@@ -7,7 +7,7 @@ namespace User.Management.Data
     {
         //TaxSetting GetTaxSettings(string userId);
         List<Plan> GetPlans();
-        Subscriber GetSubscriberByCustomerId(string customerId);
+        Subscriber? GetSubscriberByCustomerId(string customerId);
         Task<bool> CreateFarmAsync(Farm farm);
         Task<List<Farm>> GetFarmsAsync();
         Task<int> GetFarmCountAsync();

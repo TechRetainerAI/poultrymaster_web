@@ -153,13 +153,21 @@ async function handleRequest(
     const headers = new Headers()
     // Headers that should NOT be forwarded to backend
     const skipHeaders = [
-      'host', 
-      'content-length', 
+      'host',
+      'content-length',
       'expect',              // Node.js fetch doesn't support Expect header
       'connection',          // Don't forward connection-specific headers
       'transfer-encoding',   // Let fetch handle transfer encoding
       'upgrade',             // Don't forward upgrade headers
       'keep-alive',          // Don't forward keep-alive headers
+      // x-forwarded-* describe the browser→Next hop, not Next→backend. Next's dev
+      // server injects x-forwarded-proto: http (since :3000 is plain HTTP); the .NET
+      // backend's UseForwardedHeaders + UseHttpsRedirection then 307-redirects to
+      // HTTPS, we re-forward the same header, and it loops ("redirect count exceeded").
+      'x-forwarded-proto',
+      'x-forwarded-host',
+      'x-forwarded-port',
+      'x-forwarded-for',
     ]
     
     request.headers.forEach((value, key) => {
@@ -175,27 +183,48 @@ async function handleRequest(
       headers,
     }
 
-    // Add body for methods that support it
+    // Add body for methods that support it. Binary / multipart bodies (e.g. the
+    // PDF upload to /Email/Report) MUST be forwarded as raw bytes — reading them
+    // with request.text() decodes the bytes as UTF-8, corrupting the file and
+    // the multipart boundary (and changing the byte length). Only textual bodies
+    // (JSON etc.) go through the text() path so the existing JSON logging stays.
     if (['POST', 'PUT', 'PATCH'].includes(method)) {
-      const body = await request.text()
-      if (body) {
-        fetchOptions.body = body
-        // Log request body for debugging (limit to first 2000 chars to avoid huge logs)
-        try {
-          const bodyPreview = body.length > 2000 ? body.substring(0, 2000) + '...' : body
-          console.log('[Proxy API] Request body:', bodyPreview)
-          // Try to parse and log as JSON for better readability
+      const reqContentType = (request.headers.get('content-type') || '').toLowerCase()
+      const isTextual =
+        reqContentType === '' ||
+        reqContentType.includes('application/json') ||
+        reqContentType.includes('text/') ||
+        reqContentType.includes('application/x-www-form-urlencoded')
+
+      if (isTextual) {
+        const body = await request.text()
+        if (body) {
+          fetchOptions.body = body
+          // Log request body for debugging (limit to first 2000 chars to avoid huge logs)
           try {
-            const bodyJson = JSON.parse(body)
-            console.log('[Proxy API] Request body (parsed):', JSON.stringify(bodyJson, null, 2))
-          } catch {
-            // Not JSON, log as-is
+            const bodyPreview = body.length > 2000 ? body.substring(0, 2000) + '...' : body
+            console.log('[Proxy API] Request body:', bodyPreview)
+            try {
+              const bodyJson = JSON.parse(body)
+              console.log('[Proxy API] Request body (parsed):', JSON.stringify(bodyJson, null, 2))
+            } catch {
+              // Not JSON, log as-is
+            }
+          } catch (e) {
+            console.log('[Proxy API] Could not log request body:', e)
           }
-        } catch (e) {
-          console.log('[Proxy API] Could not log request body:', e)
+        } else {
+          console.log('[Proxy API] No request body found')
         }
       } else {
-        console.log('[Proxy API] No request body found')
+        // Multipart / binary: forward the raw bytes unchanged.
+        const buf = await request.arrayBuffer()
+        if (buf.byteLength) {
+          fetchOptions.body = Buffer.from(buf)
+          console.log(`[Proxy API] Forwarding binary body (${buf.byteLength} bytes, ${reqContentType})`)
+        } else {
+          console.log('[Proxy API] No request body found')
+        }
       }
     }
 

@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using System.Data;
-using System.Data.SqlClient;
+using Microsoft.Data.SqlClient;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business

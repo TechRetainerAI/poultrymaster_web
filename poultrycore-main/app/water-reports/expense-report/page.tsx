@@ -1,11 +1,14 @@
 "use client"
 
-/** Expense Report (Prompt 2 §16.15). */
+/** Expense Report (Prompt 2 §16.15). The "By category" rollup is the
+ *  authoritative server-side report SP (spWaterReport_ExpenseByCategory) — this
+ *  is what the emailed PDF contains. The detail list below is supplementary
+ *  (full expense rows for the period, any status). */
 
 import { useEffect, useMemo, useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ReportShell, SumTile } from "@/components/reports/report-shell"
-import { listWaterExpenses } from "@/lib/api/water"
+import { listWaterExpenses, getWaterExpenseByCategory, type WaterExpenseByCategoryRow } from "@/lib/api/water"
 import { useFmt } from "@/lib/currency"
 
 function isoDate(d: Date) { return d.toISOString().split("T")[0] }
@@ -16,6 +19,7 @@ export default function ExpenseReportPage() {
   const fmtMoney = useFmt()
   const [fromDate, setFromDate] = useState(defaultFrom())
   const [toDate, setToDate] = useState(defaultTo())
+  const [byCategory, setByCategory] = useState<WaterExpenseByCategoryRow[]>([])
   const [rows, setRows] = useState<any[]>([])
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -23,7 +27,11 @@ export default function ExpenseReportPage() {
   async function load() {
     setBusy(true); setError(null)
     try {
-      const all = await listWaterExpenses({ fromDate, toDate })
+      const [cats, all] = await Promise.all([
+        getWaterExpenseByCategory(fromDate, toDate),
+        listWaterExpenses({ fromDate, toDate }),
+      ])
+      setByCategory(cats ?? [])
       setRows(all ?? [])
     } catch (e: any) { setError(e?.message ?? String(e)) }
     finally { setBusy(false) }
@@ -31,43 +39,60 @@ export default function ExpenseReportPage() {
 
   useEffect(() => { void load() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [fromDate, toDate])
 
-  const totals = useMemo(() => {
-    const approved = rows.filter((e: any) => e.status === "Approved")
-    const total = approved.reduce((s, e) => s + (e.amount ?? 0), 0)
-    const byCat: Record<string, number> = {}
-    for (const e of approved) byCat[e.categoryName ?? "Uncategorised"] = (byCat[e.categoryName ?? "Uncategorised"] ?? 0) + (e.amount ?? 0)
-    return { count: rows.length, approvedCount: approved.length, total, byCat }
-  }, [rows])
+  const totals = useMemo(() => ({
+    categoryTotal: byCategory.reduce((s, c) => s + (c.totalAmount ?? 0), 0),
+    expenseCount: byCategory.reduce((s, c) => s + (c.expenseCount ?? 0), 0),
+    categories: byCategory.length,
+  }), [byCategory])
 
   return (
     <ReportShell
       title="Expense Report"
-      description="Expenses grouped by category and source. Only Approved expenses count toward totals."
+      description="Expenses grouped by category (authoritative report). The detail list below is supplementary."
       busy={busy} error={error} onClearError={() => setError(null)}
       fromDate={fromDate} toDate={toDate}
       onFromDateChange={setFromDate} onToDateChange={setToDate}
       onRefresh={load}
-      filterSummary={{ "Status counted": "Approved only" }}
+      pdf={{
+        // PDF uses the authoritative "By category" rollup (the detail list is supplementary).
+        title: "Expense Report",
+        filename: "water-expense-report",
+        summaryLines: [
+          `Categories: ${totals.categories}`,
+          `Expense count: ${totals.expenseCount.toLocaleString()}`,
+          `Total: ${fmtMoney(totals.categoryTotal)}`,
+        ],
+        columns: [
+          { header: "Category" }, { header: "Count", align: "right" }, { header: "Total", align: "right" },
+        ],
+        rows: byCategory.slice().sort((a, b) => (b.totalAmount ?? 0) - (a.totalAmount ?? 0)).map((c) => [
+          c.categoryName, (c.expenseCount ?? 0).toLocaleString(), fmtMoney(c.totalAmount ?? 0),
+        ]),
+      }}
       summary={<>
-        <SumTile label="Expense count" value={`${totals.approvedCount} / ${totals.count}`} />
-        <SumTile label="Approved total" value={fmtMoney(totals.total)} accent="rose" />
-        <SumTile label="Categories" value={String(Object.keys(totals.byCat).length)} />
+        <SumTile label="Categories" value={String(totals.categories)} />
+        <SumTile label="Expense count" value={totals.expenseCount.toLocaleString()} />
+        <SumTile label="Total" value={fmtMoney(totals.categoryTotal)} accent="rose" />
       </>}
     >
       <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-600 mb-2">By category</h2>
       <Table>
-        <TableHeader><TableRow><TableHead>Category</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader>
+        <TableHeader><TableRow><TableHead>Category</TableHead><TableHead className="text-right">Count</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader>
         <TableBody>
-          {Object.entries(totals.byCat).length === 0 ? (
-            <TableRow><TableCell colSpan={2} className="text-slate-500 text-center p-4">No approved expenses.</TableCell></TableRow>
-          ) : Object.entries(totals.byCat).sort(([, a], [, b]) => b - a).map(([cat, amt]) => (
-            <TableRow key={cat}><TableCell>{cat}</TableCell><TableCell className="text-right tabular-nums">{fmtMoney(amt)}</TableCell></TableRow>
+          {byCategory.length === 0 ? (
+            <TableRow><TableCell colSpan={3} className="text-slate-500 text-center p-4">No expenses in this period.</TableCell></TableRow>
+          ) : byCategory.slice().sort((a, b) => (b.totalAmount ?? 0) - (a.totalAmount ?? 0)).map((c) => (
+            <TableRow key={c.waterExpenseCategoryId}>
+              <TableCell>{c.categoryName}</TableCell>
+              <TableCell className="text-right tabular-nums">{(c.expenseCount ?? 0).toLocaleString()}</TableCell>
+              <TableCell className="text-right tabular-nums whitespace-nowrap">{fmtMoney(c.totalAmount ?? 0)}</TableCell>
+            </TableRow>
           ))}
         </TableBody>
       </Table>
 
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-600 mt-4 mb-2">Details</h2>
-      <div className="overflow-x-auto">
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-600 mt-4 mb-2 print:hidden">Details</h2>
+      <div className="overflow-x-auto print:hidden">
         <Table>
           <TableHeader>
             <TableRow>

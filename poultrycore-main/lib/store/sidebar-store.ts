@@ -22,6 +22,10 @@ export const useSidebarStore = create<SidebarState>()(
     }),
     {
       name: 'sidebar-storage',
+      // Rehydrate after mount (see store-hydration.tsx) — `isCollapsed` drives
+      // conditional header content, so a synchronous rehydrate would diverge
+      // from the SSR default and cause a hydration mismatch.
+      skipHydration: true,
       partialize: (state) => ({ isCollapsed: state.isCollapsed }), // Only persist collapsed state, not mobile
     }
   )

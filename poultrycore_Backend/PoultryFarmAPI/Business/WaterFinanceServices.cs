@@ -6,7 +6,7 @@
 // handle multi-table writes inside SQL Server; the C# side just sends params.
 
 using System.Data;
-using System.Data.SqlClient;
+using Microsoft.Data.SqlClient;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business

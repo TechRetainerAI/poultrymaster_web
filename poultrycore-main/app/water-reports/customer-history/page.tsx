@@ -93,6 +93,35 @@ export default function CustomerHistoryReportPage() {
       filterSummary={{
         Customer: selectedCustomer?.name,
       }}
+      pdf={{
+        title: "Customer Sales History",
+        filename: "water-customer-history",
+        subtitle: selectedCustomer?.name ? `Customer: ${selectedCustomer.name}` : undefined,
+        summaryLines: customerId !== "ALL" ? [
+          `Sales count: ${totals.sales}`,
+          `Revenue: ${fmtMoney(totals.revenue)}`,
+          `Paid: ${fmtMoney(totals.paid)}`,
+          `Balance: ${fmtMoney(totals.balance)}`,
+        ] : undefined,
+        columns: [
+          { header: "Sale date" },
+          { header: "Sale #" },
+          { header: "Total", align: "right" },
+          { header: "Paid", align: "right" },
+          { header: "Balance", align: "right" },
+          { header: "Status" },
+          { header: "Payments" },
+        ],
+        rows: sales.map((r) => [
+          r.date,
+          r.saleId,
+          fmtMoney(r.total),
+          fmtMoney(r.paid),
+          fmtMoney(r.balance),
+          r.status,
+          r.payments.length === 0 ? "—" : r.payments.map((p) => `${p.date} · ${p.method} · ${fmtMoney(p.amount)}`).join("; "),
+        ]),
+      }}
       filters={(
         <div>
           <Select value={customerId} onValueChange={setCustomerId}>

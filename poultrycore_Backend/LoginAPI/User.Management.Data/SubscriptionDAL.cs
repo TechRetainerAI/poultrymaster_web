@@ -2,7 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.SqlClient;
+using Microsoft.Data.SqlClient;
 using System.Linq;
 using CsvHelper;
 using CsvHelper.Configuration;
@@ -43,10 +43,10 @@ namespace User.Management.Data
                             {
                                 PlanId = Convert.ToInt32(reader["PlanId"]),
                                 ProductId = Convert.ToInt32(reader["ProductId"]),
-                                PriceId = reader["PriceId"].ToString(),
-                                Name = reader["Name"].ToString(),
-                                Price = reader["Price"].ToString(),
-                                Features = reader["Features"].ToString(),
+                                PriceId = reader["PriceId"].ToString() ?? string.Empty,
+                                Name = reader["Name"].ToString() ?? string.Empty,
+                                Price = reader["Price"].ToString() ?? string.Empty,
+                                Features = reader["Features"].ToString() ?? string.Empty,
                                 TransactionLimit = Convert.ToInt32(reader["TransactionLimit"])
                             };
 
@@ -61,9 +61,9 @@ namespace User.Management.Data
 
         
 
-        public Subscriber GetSubscriberByCustomerId(string customerId)
+        public Subscriber? GetSubscriberByCustomerId(string customerId)
         {
-            Subscriber subscriber = null;
+            Subscriber? subscriber = null;
             try
             {
                 using (SqlConnection connection = new SqlConnection(_connectionString))
@@ -84,21 +84,21 @@ namespace User.Management.Data
                                 subscriber = new Subscriber
                                 {
                                     Id = Convert.ToInt32(reader["Id"]),
-                                    SubscriberId = reader["SubscriberId"].ToString(),
-                                    CustomerId = reader["CustomerId"].ToString(),
-                                    Email = reader["Email"] == DBNull.Value ? null : reader["Email"].ToString(),
+                                    SubscriberId = reader["SubscriberId"].ToString() ?? string.Empty,
+                                    CustomerId = reader["CustomerId"].ToString() ?? string.Empty,
+                                    Email = reader["Email"] == DBNull.Value ? string.Empty : reader["Email"].ToString() ?? string.Empty,
                                     CurrentPeriodStart = Convert.ToDateTime(reader["CurrentPeriodStart"]),
                                     CurrentPeriodEnd = Convert.ToDateTime(reader["CurrentPeriodEnd"]),
-                                    Status = reader["Status"].ToString(),
+                                    Status = reader["Status"].ToString() ?? string.Empty,
                                     CanceledAt = reader["CanceledAt"] == DBNull.Value ? null : (DateTime?)reader["CanceledAt"],
                                     Created = Convert.ToDateTime(reader["Created"]),
                                     EndedAt = reader["EndedAt"] == DBNull.Value ? null : (DateTime?)reader["EndedAt"],
-                                    LatestInvoiceId = reader["LatestInvoiceId"].ToString(),
+                                    LatestInvoiceId = reader["LatestInvoiceId"].ToString() ?? string.Empty,
                                     StartDate = Convert.ToDateTime(reader["StartDate"]),
                                     TrialEnd = reader["TrialEnd"] == DBNull.Value ? null : (DateTime?)reader["TrialEnd"],
                                     TrialStart = reader["TrialStart"] == DBNull.Value ? null : (DateTime?)reader["TrialStart"],
-                                    PlanId = reader["PlanId"] == DBNull.Value ? null :  reader["PlanId"].ToString(),
-                                    PlanName = reader["PlanName"] == DBNull.Value ? null :  reader["PlanName"].ToString(),
+                                    PlanId = reader["PlanId"] == DBNull.Value ? string.Empty : reader["PlanId"].ToString() ?? string.Empty,
+                                    PlanName = reader["PlanName"] == DBNull.Value ? string.Empty : reader["PlanName"].ToString() ?? string.Empty,
                                     PlanAmount = reader["PlanAmount"] == DBNull.Value ? 0 :  Convert.ToDecimal(reader["PlanAmount"]),
                                     // Add other properties as needed
                                 };
@@ -184,11 +184,11 @@ namespace User.Management.Data
                         {
                             farms.Add(new Farm
                             {
-                                FarmId = reader["FarmId"].ToString(),
-                                Name = reader["Name"].ToString(),
-                                Email = reader["Email"] == DBNull.Value ? null : reader["Email"].ToString(),
-                                Type = reader["Type"] == DBNull.Value ? null : reader["Type"].ToString(),
-                                PhoneNumber = reader["PhoneNumber"] == DBNull.Value ? null : reader["PhoneNumber"].ToString(),
+                                FarmId = reader["FarmId"].ToString() ?? string.Empty,
+                                Name = reader["Name"].ToString() ?? string.Empty,
+                                Email = reader["Email"] == DBNull.Value ? string.Empty : reader["Email"].ToString() ?? string.Empty,
+                                Type = reader["Type"] == DBNull.Value ? string.Empty : reader["Type"].ToString() ?? string.Empty,
+                                PhoneNumber = reader["PhoneNumber"] == DBNull.Value ? string.Empty : reader["PhoneNumber"].ToString() ?? string.Empty,
                                 CreatedAt = reader["CreatedAt"] == DBNull.Value ? DateTime.UtcNow : Convert.ToDateTime(reader["CreatedAt"]) 
                             });
                         }

@@ -79,7 +79,9 @@ export const useFarmSettingsStore = create<FarmSettingsState>()(
         set({ settings: s })
       },
     }),
-    { name: "farm-settings-storage" },
+    // Rehydrate after mount (see store-hydration.tsx) so persisted currency
+    // symbol/code don't change money text between SSR and first client render.
+    { name: "farm-settings-storage", skipHydration: true },
   ),
 )
 

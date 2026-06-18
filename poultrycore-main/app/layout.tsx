@@ -3,6 +3,7 @@ import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
 import { Analytics } from '@vercel/analytics/next'
 import { QueryProvider } from '@/components/providers/query-provider'
+import { StoreHydration } from '@/components/providers/store-hydration'
 import { FloatingChatWidget } from '@/components/chat/floating-chat-widget'
 import { SubscriptionGuard } from '@/components/auth/subscription-guard'
 import { Toaster } from '@/components/ui/toaster'
@@ -25,6 +26,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
         <QueryProvider>
+          <StoreHydration />
           <SubscriptionGuard />
           {children}
           <FloatingChatWidget />

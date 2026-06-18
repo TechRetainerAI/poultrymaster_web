@@ -145,11 +145,11 @@ export default function WaterReportsPage() {
                           {routes.map((r) => (
                             <TableRow key={r.waterRouteId}>
                               <TableCell className="font-medium">{r.routeName}</TableCell>
-                              <TableCell className="text-right tabular-nums">{r.bagsLoaded}</TableCell>
-                              <TableCell className="text-right tabular-nums">{r.bagsSold}</TableCell>
-                              <TableCell className="text-right tabular-nums">{gh(r.revenue)}</TableCell>
-                              <TableCell className="text-right tabular-nums text-rose-600">{gh(r.shortagesValue)}</TableCell>
-                              <TableCell className={`text-right tabular-nums font-semibold ${r.netProfit >= 0 ? "text-green-700" : "text-rose-600"}`}>{gh(r.netProfit)}</TableCell>
+                              <TableCell className="text-right tabular-nums">{r.totalBagsLoaded}</TableCell>
+                              <TableCell className="text-right tabular-nums">{r.totalBagsSold}</TableCell>
+                              <TableCell className="text-right tabular-nums">{gh(r.totalRevenue)}</TableCell>
+                              <TableCell className="text-right tabular-nums text-rose-600">{gh(r.totalShortages)}</TableCell>
+                              <TableCell className={`text-right tabular-nums font-semibold ${r.netRouteIncome >= 0 ? "text-green-700" : "text-rose-600"}`}>{gh(r.netRouteIncome)}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -166,16 +166,16 @@ export default function WaterReportsPage() {
                     {drivers.length === 0 ? <div className="p-8 text-center text-slate-500">No driver data.</div> : (
                       <div className="overflow-x-auto">
                       <Table>
-                        <TableHeader><TableRow><TableHead>Driver</TableHead><TableHead className="text-right">Trips</TableHead><TableHead className="text-right">Loaded</TableHead><TableHead className="text-right">Sold</TableHead><TableHead className="text-right">Cash</TableHead><TableHead className="text-right">Shortages</TableHead></TableRow></TableHeader>
+                        <TableHeader><TableRow><TableHead>Driver</TableHead><TableHead className="text-right">Loaded</TableHead><TableHead className="text-right">Sold</TableHead><TableHead className="text-right">Expected</TableHead><TableHead className="text-right">Accounted</TableHead><TableHead className="text-right">Shortages</TableHead></TableRow></TableHeader>
                         <TableBody>
                           {drivers.map((d) => (
-                            <TableRow key={d.waterStaffId}>
+                            <TableRow key={d.waterDriverId}>
                               <TableCell className="font-medium">{d.driverName}</TableCell>
-                              <TableCell className="text-right tabular-nums">{d.trips}</TableCell>
-                              <TableCell className="text-right tabular-nums">{d.bagsLoaded}</TableCell>
-                              <TableCell className="text-right tabular-nums">{d.bagsSold}</TableCell>
-                              <TableCell className="text-right tabular-nums">{gh(d.cashCollected)}</TableCell>
-                              <TableCell className={`text-right tabular-nums ${d.shortagesValue > 0 ? "text-rose-600" : ""}`}>{gh(d.shortagesValue)}</TableCell>
+                              <TableCell className="text-right tabular-nums">{d.totalBagsLoaded}</TableCell>
+                              <TableCell className="text-right tabular-nums">{d.totalBagsSold}</TableCell>
+                              <TableCell className="text-right tabular-nums">{gh(d.expectedRevenue)}</TableCell>
+                              <TableCell className="text-right tabular-nums">{gh(d.actualAccountedFor)}</TableCell>
+                              <TableCell className={`text-right tabular-nums ${d.totalShortages > 0 ? "text-rose-600" : ""}`}>{gh(d.totalShortages)}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -192,16 +192,16 @@ export default function WaterReportsPage() {
                     {variance.length === 0 ? <div className="p-8 text-center text-slate-500">No usage data.</div> : (
                       <div className="overflow-x-auto">
                       <Table>
-                        <TableHeader><TableRow><TableHead>Item</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Expected</TableHead><TableHead className="text-right">Actual</TableHead><TableHead className="text-right">Variance</TableHead><TableHead className="text-right">Est. loss</TableHead></TableRow></TableHeader>
+                        <TableHeader><TableRow><TableHead>Item</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Expected</TableHead><TableHead className="text-right">Actual</TableHead><TableHead className="text-right">Variance</TableHead><TableHead className="text-right">Usage count</TableHead></TableRow></TableHeader>
                         <TableBody>
                           {variance.map((v) => (
                             <TableRow key={v.waterRawMaterialItemId}>
                               <TableCell className="font-medium">{v.itemName}</TableCell>
                               <TableCell>{v.category}</TableCell>
-                              <TableCell className="text-right tabular-nums">{v.expectedQuantity}</TableCell>
-                              <TableCell className="text-right tabular-nums">{v.actualQuantity}</TableCell>
-                              <TableCell className={`text-right tabular-nums ${v.variance > 0 ? "text-rose-600" : v.variance < 0 ? "text-green-700" : ""}`}>{v.variance}</TableCell>
-                              <TableCell className="text-right tabular-nums text-rose-600">{gh(v.estimatedLossValue)}</TableCell>
+                              <TableCell className="text-right tabular-nums">{v.totalExpected}</TableCell>
+                              <TableCell className="text-right tabular-nums">{v.totalActual}</TableCell>
+                              <TableCell className={`text-right tabular-nums ${v.totalVariance > 0 ? "text-rose-600" : v.totalVariance < 0 ? "text-green-700" : ""}`}>{v.totalVariance}</TableCell>
+                              <TableCell className="text-right tabular-nums">{v.usageCount}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>

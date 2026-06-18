@@ -142,6 +142,14 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
+      // Defer rehydration until after the first client render so SSR HTML and
+      // the initial client render agree (both see the null/default state).
+      // Without this, persist rehydrates synchronously and `activeFarmType`
+      // jumps to e.g. "Water" on the very first client render, diverging from
+      // the server's null → Poultry render and shifting React's useId counter,
+      // which produces Radix `aria-controls` hydration mismatches. A one-time
+      // rehydrate() runs on mount via components/providers/store-hydration.tsx.
+      skipHydration: true,
       partialize: (state) => ({
         token: state.token,
         refreshToken: state.refreshToken,

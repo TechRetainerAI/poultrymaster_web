@@ -1923,6 +1923,13 @@ export const createWaterDailyClosing = (input: { closingDate: string; managerNot
   jsend<WaterDailyClosing>(`/Water/daily-closings`, "POST", { ...input, farmId: activeFarmId() })
 export const submitWaterDailyClosing = (id: number, body: WaterDailyClosingSubmit) =>
   jsend<WaterDailyClosing>(`/Water/daily-closings/${id}/submit?farmId=${encodeURIComponent(activeFarmId())}&submittedBy=${encodeURIComponent(currentUserId() || "")}`, "POST", body)
+// Email the closing report (PDF) to `to` (the company email). Handled by the
+// Farm API EmailController (POST /api/Email/daily-closing); it loads the closing
+// and builds the PDF server-side. Returns 503 if SMTP isn't configured.
+export const emailWaterDailyClosing = (id: number, to: string, companyName?: string) =>
+  jsend<{ success: boolean; message: string }>(
+    `/Email/daily-closing?id=${id}&farmId=${encodeURIComponent(activeFarmId())}&to=${encodeURIComponent(to)}${companyName ? `&companyName=${encodeURIComponent(companyName)}` : ""}`,
+    "POST")
 export const approveWaterDailyClosing = (id: number) =>
   jsend<void>(`/Water/daily-closings/${id}/approve?farmId=${encodeURIComponent(activeFarmId())}&approvedBy=${encodeURIComponent(currentUserId() || "")}`, "POST")
 export const rejectWaterDailyClosing = (id: number, rejectionReason: string) =>
@@ -2013,32 +2020,42 @@ export interface WaterPeriodPnL {
   bagsSold: number
   avgProfitPerBag: number
 }
+// These three mirror the backend C# models exactly (camelCase of the
+// PoultryFarmAPIWeb.Models.* report rows). The Farm API serializes camelCase.
 export interface WaterRouteProfitabilityRow {
   waterRouteId: number
   routeName: string
-  bagsLoaded: number
-  bagsSold: number
-  revenue: number
-  shortagesValue: number
-  netProfit: number
+  totalBagsLoaded: number
+  totalBagsSold: number
+  totalBagsReturned: number
+  totalBagsLost: number
+  totalRevenue: number
+  totalShortages: number
+  totalOverages: number
+  netRouteIncome: number
 }
 export interface WaterDriverReconciliationRow {
-  waterStaffId: number
+  waterDriverId: number
   driverName: string
-  trips: number
-  bagsLoaded: number
-  bagsSold: number
-  cashCollected: number
-  shortagesValue: number
+  phoneNumber: string | null
+  totalBagsLoaded: number
+  totalBagsSold: number
+  totalBagsReturned: number
+  totalBagsLost: number
+  expectedRevenue: number
+  actualAccountedFor: number
+  totalShortages: number
+  shortageOccurrences: number
 }
 export interface WaterRawMaterialVarianceRow {
   waterRawMaterialItemId: number
   itemName: string
   category: string
-  expectedQuantity: number
-  actualQuantity: number
-  variance: number
-  estimatedLossValue: number
+  unitOfMeasure: string | null
+  totalExpected: number
+  totalActual: number
+  totalVariance: number
+  usageCount: number
 }
 
 const period = (from: string, to: string) =>

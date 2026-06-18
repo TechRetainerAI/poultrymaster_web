@@ -49,6 +49,32 @@ export default function PaymentsReceivedReportPage() {
       fromDate={fromDate} toDate={toDate}
       onFromDateChange={setFromDate} onToDateChange={setToDate}
       onRefresh={load}
+      // Primary table = the "Details" list (the "By method" table is a summary).
+      pdf={{
+        title: "Payments Received",
+        filename: "water-payments-received",
+        summaryLines: [
+          `Payments count: ${rows.length.toLocaleString()}`,
+          `Total collected: ${fmtMoney(totals.total)}`,
+          `Methods used: ${Object.keys(totals.byMethod).length}`,
+        ],
+        columns: [
+          { header: "Date" },
+          { header: "Sale #" },
+          { header: "Customer" },
+          { header: "Method" },
+          { header: "Reference" },
+          { header: "Amount", align: "right" },
+        ],
+        rows: rows.map((r: any) => [
+          (r.paymentDate ?? "").slice(0, 10),
+          r.waterSaleId ?? "—",
+          r.customerName ?? r.waterCustomerId ?? "—",
+          r.paymentMethod ?? "—",
+          r.reference ?? "—",
+          fmtMoney(r.amount ?? 0),
+        ]),
+      }}
       summary={<>
         <SumTile label="Payments count" value={rows.length.toLocaleString()} />
         <SumTile label="Total collected" value={fmtMoney(totals.total)} accent="green" />

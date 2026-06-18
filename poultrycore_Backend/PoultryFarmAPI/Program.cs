@@ -167,6 +167,10 @@ builder.Services.AddScoped<IWaterPayrollService>(sp => new WaterPayrollService(c
 // Complete-SP can also book a CashOut for repair cost against a cash account
 // (idempotent — CashTransactionWritten guards double-booking). Migration 052.
 builder.Services.AddScoped<IWaterMaintenanceLogService>(sp => new WaterMaintenanceLogService(connectionString));
+
+// Water report/closing → PDF → email. Depends only on already-registered DI
+// services (IWaterReportService for report data, IEmailService for delivery).
+builder.Services.AddScoped<IWaterReportEmailService, WaterReportEmailService>();
 // =================================================================
 
 // =================================================================
@@ -289,7 +293,31 @@ builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(options 
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    // Adds the "Authorize" button to Swagger UI so [Authorize] endpoints (e.g.
+    // EmailController) can be tested. Paste the raw JWT from the Login API — the
+    // Bearer scheme prefixes "Bearer " for you, so don't include it.
+    var jwtScheme = new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Description = "Enter your JWT bearer token (without the \"Bearer \" prefix).",
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        Reference = new Microsoft.OpenApi.Models.OpenApiReference
+        {
+            Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+            Id = "Bearer",
+        },
+    };
+    c.AddSecurityDefinition("Bearer", jwtScheme);
+    c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        [jwtScheme] = Array.Empty<string>(),
+    });
+});
 
 // Cloud Run / reverse proxies: honor X-Forwarded-Proto so redirects and Swagger work over HTTPS
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
@@ -417,7 +445,12 @@ if (enableSwagger)
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// Skip HTTPS redirection in Development so the Next.js proxy can reach the
+// plain-HTTP port without bouncing into the untrusted self-signed dev cert.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
 // Add CORS middleware - allow both web app and React app
 app.UseCors("AllowAllApps");

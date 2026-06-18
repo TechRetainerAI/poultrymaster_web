@@ -48,6 +48,32 @@ export default function StockMovementReportPage() {
       fromDate={fromDate} toDate={toDate}
       onFromDateChange={setFromDate} onToDateChange={setToDate}
       onRefresh={load}
+      pdf={{
+        title: "Stock Movement",
+        filename: "water-stock-movement",
+        columns: [
+          { header: "Date" },
+          { header: "Product" },
+          { header: "Type" },
+          { header: "Quantity", align: "right" },
+          { header: "Unit cost", align: "right" },
+          { header: "Note" },
+        ],
+        rows: rows.map((r: any) => [
+          (r.createdDate ?? "").slice(0, 10),
+          r.productName ?? `#${r.waterProductId}`,
+          r.txnType ?? "—",
+          r.quantity.toLocaleString(),
+          r.unitCost != null ? fmtMoney(r.unitCost) : "—",
+          r.note ?? "—",
+        ]),
+        summaryLines: [
+          `Movements: ${totals.count.toLocaleString()}`,
+          `In: ${totals.inflow.toLocaleString()}`,
+          `Out: ${Math.abs(totals.outflow).toLocaleString()}`,
+          `Net change: ${totals.net.toLocaleString()}`,
+        ],
+      }}
       summary={<>
         <SumTile label="Movements" value={totals.count.toLocaleString()} />
         <SumTile label="In" value={totals.inflow.toLocaleString()} accent="green" />

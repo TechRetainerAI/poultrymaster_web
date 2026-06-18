@@ -351,7 +351,9 @@ app.UseRouting();
 // CORS must run before HTTPS redirect. On Cloud Run, TLS ends at the edge; redirecting the
 // container's HTTP request (especially OPTIONS preflight) often drops CORS headers → browser error.
 app.UseCors("AllowOrigin");
-if (!app.Environment.IsProduction())
+// Also skip in Development: the local Next.js proxy talks to the plain-HTTP
+// port, and redirecting it to the self-signed HTTPS dev cert breaks fetch.
+if (!app.Environment.IsProduction() && !app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
 }

@@ -1,5 +1,5 @@
 import { DEFAULT_LOGIN_API_ORIGIN } from "@/lib/api/default-api-hosts"
-import { getAuthHeaders } from "./config"
+import { getAuthHeaders, buildApiUrl } from "./config"
 import { forceReauth } from "./session-expiry"
 
 
@@ -461,6 +461,38 @@ export async function createEmployee(employee: CreateEmployeeData): Promise<ApiR
       success: false,
       message: `Network error: ${error instanceof Error ? error.message : 'Unknown error'}`,
     }
+  }
+}
+
+// Email a (new) employee their login credentials. Call after createEmployee.
+// The backend returns 200 with { success, message } even on send failure, so
+// the message can be surfaced (e.g. Resend's unverified-domain rejection).
+export interface SendCredentialsInput {
+  email: string
+  userName: string
+  password: string
+  farmName?: string
+}
+export async function sendCredentialsEmail(input: SendCredentialsInput): Promise<{ success: boolean; message?: string }> {
+  try {
+    const url = buildApiUrl('/Email/send-credentials')   // Farm API EmailController
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { ...getAuthHeaders(), Accept: "application/json" },
+      body: JSON.stringify({
+        Email: input.email,
+        UserName: input.userName,
+        Password: input.password,
+        FarmName: input.farmName ?? null,
+      }),
+    })
+    const text = await res.text()
+    let data: any = {}
+    try { data = text ? JSON.parse(text) : {} } catch { /* non-JSON */ }
+    if (!res.ok) return { success: false, message: data.message || `HTTP ${res.status}` }
+    return { success: data.success !== false, message: data.message }
+  } catch (e) {
+    return { success: false, message: e instanceof Error ? e.message : "Network error" }
   }
 }
 

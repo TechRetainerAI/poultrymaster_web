@@ -88,8 +88,16 @@ namespace User.Management.Service.Services
         {
             try
             {
-                // Check if user exists
-                var userExist = await _userManager.FindByEmailAsync(registerUser.Email);
+                // Check if user exists. Deliberately NOT using FindByEmailAsync:
+                // that helper does a SingleOrDefault on NormalizedEmail and throws
+                // "Sequence contains more than one element" when the DB holds
+                // duplicate rows for the same email (Identity doesn't enforce
+                // unique emails by default). A FirstOrDefault lookup is duplicate-safe.
+                var normalizedEmail = _userManager.NormalizeEmail(registerUser.Email);
+                var userExist = _userManager.Users
+                    .Where(u => u.NormalizedEmail == normalizedEmail)
+                    .ToList()
+                    .FirstOrDefault();
                 if (userExist != null)
                 {
                     return new ApiResponse<CreateUserResponse>
@@ -254,12 +262,20 @@ namespace User.Management.Service.Services
                 var user = await _userManager.FindByNameAsync(loginModel.Username);
                 Console.WriteLine($"[Login] FindByNameAsync result: {(user != null ? $"Found user {user.UserName} (IsStaff={user.IsStaff}, EmailConfirmed={user.EmailConfirmed})" : "User not found by username")}");
                 
-                // If not found by username, try to find by email
+                // If not found by username, try to find by email. Use a
+                // FirstOrDefault lookup, not FindByEmailAsync — the latter does a
+                // SingleOrDefault on NormalizedEmail and throws "Sequence contains
+                // more than one element" when duplicate rows share an email
+                // (Identity allows non-unique emails). FirstOrDefault is safe.
                 if (user == null)
                 {
-                    Console.WriteLine($"[Login] Trying FindByEmailAsync for: {loginModel.Username}");
-                    user = await _userManager.FindByEmailAsync(loginModel.Username);
-                    Console.WriteLine($"[Login] FindByEmailAsync result: {(user != null ? $"Found user {user.UserName} (IsStaff={user.IsStaff}, EmailConfirmed={user.EmailConfirmed})" : "User not found by email")}");
+                    Console.WriteLine($"[Login] Trying email lookup for: {loginModel.Username}");
+                    var normalizedEmail = _userManager.NormalizeEmail(loginModel.Username);
+                    user = _userManager.Users
+                        .Where(u => u.NormalizedEmail == normalizedEmail)
+                        .ToList()
+                        .FirstOrDefault();
+                    Console.WriteLine($"[Login] Email lookup result: {(user != null ? $"Found user {user.UserName} (IsStaff={user.IsStaff}, EmailConfirmed={user.EmailConfirmed})" : "User not found by email")}");
                 }
                 
                 // If still not found, try a direct database query to see if employee exists
