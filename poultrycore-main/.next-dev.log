@@ -9312,3 +9312,307 @@ Import trace for requested module:
   'transfer-encoding': 'chunked'
 }
  GET /api/proxy/Water/sales?farmId=4a576e3b-4df1-481e-8e51-1af2663637df 200 in 1387ms (compile: 27ms, render: 1360ms)
+ GET /water-reports/sales-report 200 in 2.1s (compile: 315ms, render: 1758ms)
+ GET /icon?d3334b0abcb7358d 200 in 465ms (compile: 137ms, render: 328ms)
+[Proxy API] Login/Admin API → GET http://localhost:5010/api/Companies/mine
+[Proxy API] Request headers: {
+  accept: 'application/json',
+  'accept-encoding': 'gzip, deflate, br, zstd',
+  'accept-language': 'en-US,en;q=0.9',
+  authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiSGFja21hbiIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL25hbWVpZGVudGlmaWVyIjoiOGI1NDY2ZGYtZGRkYS00MDE1LWEyYjgtNGRjYTI1ZDlkZTBhIiwiaHR0cDovL3NjaGVtYXMueG1sc29hcC5vcmcvd3MvMjAwNS8wNS9pZGVudGl0eS9jbGFpbXMvZW1haWxhZGRyZXNzIjoiaGFja2VybWFudGVjaEBnbWFpbC5jb20iLCJqdGkiOiIyZDNjODdkMS0zOTE1LTRlZGYtOWI1Yy0xOTkwZGM0NzA3YWYiLCJpc1N1YnNjcmliZXIiOiJGYWxzZSIsIklzU3RhZmYiOiJmYWxzZSIsIkZhcm1JZCI6IjkxYjA1OWRhLTkwZGMtNDU5Ny04NTRiLTQ0Mzc5MWNmZTYyOCIsIkZhcm1OYW1lIjoiU2t5IFBsdXMiLCJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL3dzLzIwMDgvMDYvaWRlbnRpdHkvY2xhaW1zL3JvbGUiOlsiRmFybUFkbWluIiwiQWRtaW4iXSwiZXhwIjoxNzgyMzM4MjIzLCJpc3MiOiJodHRwczovL1VzZXJNYW5hZ2VtZW50QVBJLnRlY2hyZXRhaW5lci5jb20iLCJhdWQiOiJodHRwczovL1VzZXJNYW5hZ2VtZW50QVBJLnRlY2hyZXRhaW5lci5jb20ifQ.p6bgPbzEhToGLRIx-Xo5orY2i1Z3zASuOcPJUc1OXz8',
+  'content-type': 'application/json',
+  cookie: '__next_hmr_refresh_hash__=349f57b6dce7502d35a30c667afd75db633457081244afec',
+  referer: 'http://localhost:3000/water-reports/sales-report',
+  'sec-ch-ua': '"Google Chrome";v="149", "Chromium";v="149", "Not)A;Brand";v="24"',
+  'sec-ch-ua-mobile': '?0',
+  'sec-ch-ua-platform': '"Windows"',
+  'sec-fetch-dest': 'empty',
+  'sec-fetch-mode': 'cors',
+  'sec-fetch-site': 'same-origin',
+  'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36'
+}
+[Proxy API] Login/Admin API → GET http://localhost:5010/api/UserProfile/findByUserName?normalizedUserName=HACKMAN
+[Proxy API] Request headers: {
+  accept: 'application/json',
+  'accept-encoding': 'gzip, deflate, br, zstd',
+  'accept-language': 'en-US,en;q=0.9',
+  authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiSGFja21hbiIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL25hbWVpZGVudGlmaWVyIjoiOGI1NDY2ZGYtZGRkYS00MDE1LWEyYjgtNGRjYTI1ZDlkZTBhIiwiaHR0cDovL3NjaGVtYXMueG1sc29hcC5vcmcvd3MvMjAwNS8wNS9pZGVudGl0eS9jbGFpbXMvZW1haWxhZGRyZXNzIjoiaGFja2VybWFudGVjaEBnbWFpbC5jb20iLCJqdGkiOiIyZDNjODdkMS0zOTE1LTRlZGYtOWI1Yy0xOTkwZGM0NzA3YWYiLCJpc1N1YnNjcmliZXIiOiJGYWxzZSIsIklzU3RhZmYiOiJmYWxzZSIsIkZhcm1JZCI6IjkxYjA1OWRhLTkwZGMtNDU5Ny04NTRiLTQ0Mzc5MWNmZTYyOCIsIkZhcm1OYW1lIjoiU2t5IFBsdXMiLCJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL3dzLzIwMDgvMDYvaWRlbnRpdHkvY2xhaW1zL3JvbGUiOlsiRmFybUFkbWluIiwiQWRtaW4iXSwiZXhwIjoxNzgyMzM4MjIzLCJpc3MiOiJodHRwczovL1VzZXJNYW5hZ2VtZW50QVBJLnRlY2hyZXRhaW5lci5jb20iLCJhdWQiOiJodHRwczovL1VzZXJNYW5hZ2VtZW50QVBJLnRlY2hyZXRhaW5lci5jb20ifQ.p6bgPbzEhToGLRIx-Xo5orY2i1Z3zASuOcPJUc1OXz8',
+  cookie: '__next_hmr_refresh_hash__=349f57b6dce7502d35a30c667afd75db633457081244afec',
+  referer: 'http://localhost:3000/water-reports/sales-report',
+  'sec-ch-ua': '"Google Chrome";v="149", "Chromium";v="149", "Not)A;Brand";v="24"',
+  'sec-ch-ua-mobile': '?0',
+  'sec-ch-ua-platform': '"Windows"',
+  'sec-fetch-dest': 'empty',
+  'sec-fetch-mode': 'cors',
+  'sec-fetch-site': 'same-origin',
+  'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36'
+}
+[Proxy API] Farm API → GET http://localhost:5142/api/Water/sales?farmId=4a576e3b-4df1-481e-8e51-1af2663637df
+[Proxy API] Request headers: {
+  accept: 'application/json',
+  'accept-encoding': 'gzip, deflate, br, zstd',
+  'accept-language': 'en-US,en;q=0.9',
+  authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiSGFja21hbiIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL25hbWVpZGVudGlmaWVyIjoiOGI1NDY2ZGYtZGRkYS00MDE1LWEyYjgtNGRjYTI1ZDlkZTBhIiwiaHR0cDovL3NjaGVtYXMueG1sc29hcC5vcmcvd3MvMjAwNS8wNS9pZGVudGl0eS9jbGFpbXMvZW1haWxhZGRyZXNzIjoiaGFja2VybWFudGVjaEBnbWFpbC5jb20iLCJqdGkiOiIyZDNjODdkMS0zOTE1LTRlZGYtOWI1Yy0xOTkwZGM0NzA3YWYiLCJpc1N1YnNjcmliZXIiOiJGYWxzZSIsIklzU3RhZmYiOiJmYWxzZSIsIkZhcm1JZCI6IjkxYjA1OWRhLTkwZGMtNDU5Ny04NTRiLTQ0Mzc5MWNmZTYyOCIsIkZhcm1OYW1lIjoiU2t5IFBsdXMiLCJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL3dzLzIwMDgvMDYvaWRlbnRpdHkvY2xhaW1zL3JvbGUiOlsiRmFybUFkbWluIiwiQWRtaW4iXSwiZXhwIjoxNzgyMzM4MjIzLCJpc3MiOiJodHRwczovL1VzZXJNYW5hZ2VtZW50QVBJLnRlY2hyZXRhaW5lci5jb20iLCJhdWQiOiJodHRwczovL1VzZXJNYW5hZ2VtZW50QVBJLnRlY2hyZXRhaW5lci5jb20ifQ.p6bgPbzEhToGLRIx-Xo5orY2i1Z3zASuOcPJUc1OXz8',
+  'content-type': 'application/json',
+  cookie: '__next_hmr_refresh_hash__=349f57b6dce7502d35a30c667afd75db633457081244afec',
+  referer: 'http://localhost:3000/water-reports/sales-report',
+  'sec-ch-ua': '"Google Chrome";v="149", "Chromium";v="149", "Not)A;Brand";v="24"',
+  'sec-ch-ua-mobile': '?0',
+  'sec-ch-ua-platform': '"Windows"',
+  'sec-fetch-dest': 'empty',
+  'sec-fetch-mode': 'cors',
+  'sec-fetch-site': 'same-origin',
+  'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36'
+}
+⨯ Failed to generate static paths for /api/proxy/[...path]:
+Error: Jest worker encountered 2 child process exceptions, exceeding retry limit
+    at ignore-listed frames {
+  type: 'WorkerError'
+}
+⨯ Failed to generate static paths for /api/proxy/[...path]:
+Error: Jest worker encountered 2 child process exceptions, exceeding retry limit
+    at ignore-listed frames {
+  type: 'WorkerError'
+}
+⨯ Failed to generate static paths for /api/proxy/[...path]:
+Error: Jest worker encountered 2 child process exceptions, exceeding retry limit
+    at ignore-listed frames {
+  type: 'WorkerError'
+}
+ GET /icon?d3334b0abcb7358d 200 in 207ms (compile: 73ms, render: 134ms)
+ GET /icon?d3334b0abcb7358d 200 in 220ms (compile: 80ms, render: 140ms)
+[Proxy API] Response status: 200 OK
+[Proxy API] Response headers: {
+  'content-type': 'application/json; charset=utf-8',
+  date: 'Thu, 18 Jun 2026 11:43:23 GMT',
+  server: 'Kestrel',
+  'transfer-encoding': 'chunked'
+}
+ GET /api/proxy/Water/sales?farmId=4a576e3b-4df1-481e-8e51-1af2663637df 200 in 1650ms (compile: 163ms, render: 1487ms)
+[Proxy API] Response status: 200 OK
+[Proxy API] Response headers: {
+  'content-type': 'application/json; charset=utf-8',
+  date: 'Thu, 18 Jun 2026 11:43:23 GMT',
+  server: 'Kestrel',
+  'transfer-encoding': 'chunked'
+}
+ GET /api/proxy/Companies/mine 200 in 1930ms (compile: 183ms, render: 1747ms)
+[Proxy API] Response status: 204 No Content
+[Proxy API] Response headers: { date: 'Thu, 18 Jun 2026 11:43:23 GMT', server: 'Kestrel' }
+ GET /api/proxy/UserProfile/findByUserName?normalizedUserName=HACKMAN 204 in 1975ms (compile: 164ms, render: 1810ms)
+⨯ Error: Jest worker encountered 2 child process exceptions, exceeding retry limit
+    at ignore-listed frames {
+  type: 'WorkerError',
+  page: '/api/proxy/UserProfile/findByUserName'
+}
+⨯ Error: Jest worker encountered 2 child process exceptions, exceeding retry limit
+    at ignore-listed frames {
+  type: 'WorkerError',
+  page: '/api/proxy/UserProfile/findByUserName'
+}
+⨯ Error: Jest worker encountered 2 child process exceptions, exceeding retry limit
+    at ignore-listed frames {
+  type: 'WorkerError',
+  page: '/api/proxy/UserProfile/findByUserName'
+}
+○ Compiling /_error ...
+Error: write EPIPE
+    at ignore-listed frames {
+  errno: -4047,
+  code: 'EPIPE',
+  syscall: 'write'
+}
+⨯ uncaughtException: Error: write EPIPE
+    at ignore-listed frames {
+  errno: -4047,
+  code: 'EPIPE',
+  syscall: 'write'
+}
+⨯ uncaughtException:  Error: write EPIPE
+    at ignore-listed frames {
+  errno: -4047,
+  code: 'EPIPE',
+  syscall: 'write'
+}
+ GET /api/proxy/Water/sales?farmId=4a576e3b-4df1-481e-8e51-1af2663637df 500 in 21.8s (compile: 20.9s, render: 935ms)
+ GET /api/proxy/Companies/mine 500 in 21.7s (compile: 20.8s, render: 932ms)
+ GET /api/proxy/UserProfile/findByUserName?normalizedUserName=HACKMAN 500 in 21.7s (compile: 20.8s, render: 933ms)
+⨯ Error: Jest worker encountered 2 child process exceptions, exceeding retry limit
+    at ignore-listed frames {
+  type: 'WorkerError',
+  page: '/api/proxy/UserProfile/findByUserName'
+}
+⨯ Error: Jest worker encountered 2 child process exceptions, exceeding retry limit
+    at ignore-listed frames {
+  type: 'WorkerError',
+  page: '/api/proxy/UserProfile/findByUserName'
+}
+⨯ Error: Jest worker encountered 2 child process exceptions, exceeding retry limit
+    at ignore-listed frames {
+  type: 'WorkerError',
+  page: '/api/proxy/UserProfile/findByUserName'
+}
+⨯ Error: Jest worker encountered 2 child process exceptions, exceeding retry limit
+    at ignore-listed frames {
+  type: 'WorkerError',
+  page: '/api/proxy/UserProfile/findByUserName'
+}
+⨯ Error: Jest worker encountered 2 child process exceptions, exceeding retry limit
+    at ignore-listed frames {
+  type: 'WorkerError',
+  page: '/api/proxy/UserProfile/findByUserName'
+}
+⨯ Error: Jest worker encountered 2 child process exceptions, exceeding retry limit
+    at ignore-listed frames {
+  type: 'WorkerError',
+  page: '/api/proxy/UserProfile/findByUserName'
+}
+ GET /api/proxy/UserProfile/findByUserName?normalizedUserName=HACKMAN 500 in 5.3s (compile: 5.1s, render: 176ms)
+ GET /api/proxy/UserProfile/findByUserName?normalizedUserName=HACKMAN 500 in 4.9s (compile: 4.7s, render: 164ms)
+ GET /api/proxy/UserProfile/findByUserName?normalizedUserName=HACKMAN 500 in 5.4s (compile: 5.3s, render: 164ms)
+ GET /api/proxy/Companies/mine 500 in 1282ms (compile: 1118ms, render: 164ms)
+ GET /api/proxy/Companies/mine 500 in 1280ms (compile: 1115ms, render: 165ms)
+ GET /api/proxy/UserProfile/findByUserName?normalizedUserName=HACKMAN 500 in 1388ms (compile: 1114ms, render: 275ms)
+ GET /water-reports/sales-report 200 in 1348ms (compile: 1068ms, render: 281ms)
+⨯ Error: Jest worker encountered 2 child process exceptions, exceeding retry limit
+    at ignore-listed frames {
+  type: 'WorkerError',
+  page: '/api/proxy/UserProfile/findByUserName'
+}
+⨯ Error: Jest worker encountered 2 child process exceptions, exceeding retry limit
+    at ignore-listed frames {
+  type: 'WorkerError',
+  page: '/api/proxy/UserProfile/findByUserName'
+}
+ GET /api/proxy/UserProfile/findByUserName?normalizedUserName=HACKMAN 500 in 1562ms (compile: 1452ms, render: 110ms)
+ GET /api/proxy/UserProfile/findByUserName?normalizedUserName=HACKMAN 500 in 1561ms (compile: 1451ms, render: 111ms)
+ GET /icon?d3334b0abcb7358d 200 in 121ms (compile: 29ms, render: 92ms)
+ GET /icon?d3334b0abcb7358d 200 in 22ms (compile: 4ms, render: 18ms)
+○ Compiling /profile ...
+Error: write EPIPE
+    at ignore-listed frames {
+  errno: -4047,
+  code: 'EPIPE',
+  syscall: 'write'
+}
+⨯ uncaughtException: Error: write EPIPE
+    at ignore-listed frames {
+  errno: -4047,
+  code: 'EPIPE',
+  syscall: 'write'
+}
+⨯ uncaughtException:  Error: write EPIPE
+    at ignore-listed frames {
+  errno: -4047,
+  code: 'EPIPE',
+  syscall: 'write'
+}
+ GET /profile 200 in 22.1s (compile: 21.8s, render: 307ms)
+⨯ Error: Jest worker encountered 2 child process exceptions, exceeding retry limit
+    at ignore-listed frames {
+  type: 'WorkerError',
+  page: '/api/proxy/Authentication/get-current-user'
+}
+⨯ Error: Jest worker encountered 2 child process exceptions, exceeding retry limit
+    at ignore-listed frames {
+  type: 'WorkerError',
+  page: '/api/proxy/Authentication/get-current-user'
+}
+⨯ Error: Jest worker encountered 2 child process exceptions, exceeding retry limit
+    at ignore-listed frames {
+  type: 'WorkerError',
+  page: '/api/proxy/Authentication/get-current-user'
+}
+ GET /api/proxy/UserProfile/findByUserName?normalizedUserName=HACKMAN 500 in 768ms (compile: 597ms, render: 171ms)
+ GET /api/proxy/Companies/mine 500 in 767ms (compile: 595ms, render: 172ms)
+ GET /api/proxy/Authentication/get-current-user 500 in 762ms (compile: 589ms, render: 173ms)
+⨯ Error: Jest worker encountered 2 child process exceptions, exceeding retry limit
+    at ignore-listed frames {
+  type: 'WorkerError',
+  page: '/api/proxy/Authentication/get-current-user'
+}
+⨯ Error: Jest worker encountered 2 child process exceptions, exceeding retry limit
+    at ignore-listed frames {
+  type: 'WorkerError',
+  page: '/api/proxy/Authentication/get-current-user'
+}
+⨯ Error: Jest worker encountered 2 child process exceptions, exceeding retry limit
+    at ignore-listed frames {
+  type: 'WorkerError',
+  page: '/api/proxy/Authentication/get-current-user'
+}
+ GET /api/proxy/UserProfile/findByUserName?normalizedUserName=HACKMAN 500 in 566ms (compile: 349ms, render: 217ms)
+ GET /api/proxy/Companies/mine 500 in 565ms (compile: 348ms, render: 217ms)
+ GET /api/proxy/Authentication/get-current-user 500 in 563ms (compile: 346ms, render: 217ms)
+⨯ Error: Jest worker encountered 2 child process exceptions, exceeding retry limit
+    at ignore-listed frames {
+  type: 'WorkerError',
+  page: '/api/proxy/Companies/mine'
+}
+⨯ Error: Jest worker encountered 2 child process exceptions, exceeding retry limit
+    at ignore-listed frames {
+  type: 'WorkerError',
+  page: '/api/proxy/Companies/mine'
+}
+ GET /api/proxy/UserProfile/findByUserName?normalizedUserName=HACKMAN 500 in 548ms (compile: 426ms, render: 122ms)
+ GET /api/proxy/Companies/mine 500 in 515ms (compile: 393ms, render: 122ms)
+⨯ Error: Jest worker encountered 2 child process exceptions, exceeding retry limit
+    at ignore-listed frames {
+  type: 'WorkerError',
+  page: '/api/proxy/Companies/mine'
+}
+⨯ Error: Jest worker encountered 2 child process exceptions, exceeding retry limit
+    at ignore-listed frames {
+  type: 'WorkerError',
+  page: '/api/proxy/Companies/mine'
+}
+ GET /api/proxy/UserProfile/findByUserName?normalizedUserName=HACKMAN 500 in 685ms (compile: 536ms, render: 149ms)
+ GET /api/proxy/Companies/mine 500 in 678ms (compile: 530ms, render: 149ms)
+⨯ Error: Jest worker encountered 2 child process exceptions, exceeding retry limit
+    at ignore-listed frames {
+  type: 'WorkerError',
+  page: '/api/proxy/UserProfile/findByUserName'
+}
+ GET /api/proxy/UserProfile/findByUserName?normalizedUserName=HACKMAN 500 in 677ms (compile: 504ms, render: 172ms)
+⨯ Error: Jest worker encountered 2 child process exceptions, exceeding retry limit
+    at ignore-listed frames {
+  type: 'WorkerError',
+  page: '/api/proxy/UserProfile/findByUserName'
+}
+ GET /api/proxy/UserProfile/findByUserName?normalizedUserName=HACKMAN 500 in 850ms (compile: 702ms, render: 148ms)
+Error: write EPIPE
+    at ignore-listed frames {
+  errno: -4047,
+  code: 'EPIPE',
+  syscall: 'write'
+}
+⨯ uncaughtException: Error: write EPIPE
+    at ignore-listed frames {
+  errno: -4047,
+  code: 'EPIPE',
+  syscall: 'write'
+}
+⨯ uncaughtException:  Error: write EPIPE
+    at ignore-listed frames {
+  errno: -4047,
+  code: 'EPIPE',
+  syscall: 'write'
+}
+Error: write EPIPE
+    at ignore-listed frames {
+  errno: -4047,
+  code: 'EPIPE',
+  syscall: 'write'
+}
+⨯ uncaughtException: Error: write EPIPE
+    at ignore-listed frames {
+  errno: -4047,
+  code: 'EPIPE',
+  syscall: 'write'
+}
+⨯ uncaughtException:  Error: write EPIPE
+    at ignore-listed frames {
+  errno: -4047,
+  code: 'EPIPE',
+  syscall: 'write'
+}
