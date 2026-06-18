@@ -9,12 +9,26 @@ export interface PdfExportFilter {
   value: string
 }
 
+export interface PdfExportSummaryCard {
+  label: string
+  value: string
+  /** Accent colour for the card's left bar + value, matching the on-screen SumTile. */
+  accent?: "green" | "rose" | "indigo"
+}
+
 export interface PdfExportOptions {
   title: string
   filename: string
   farmName?: string
   /** Optional explicit subtitle line. When omitted, a "Generated … | Records …" line is built. */
   subtitle?: string
+  /**
+   * KPI summary, rendered as branded card boxes (matching the on-screen tiles).
+   * Prefer this over `summaryLines` — it carries the accent colour. When only
+   * `summaryLines` is supplied, each "Label: value" line is parsed into a
+   * neutral card so existing callers still get cards without code changes.
+   */
+  summaryCards?: PdfExportSummaryCard[]
   summaryLines?: string[]
   columns: PdfExportColumn[]
   rows: (string | number | null | undefined)[][]
@@ -45,6 +59,30 @@ const TOTALS_BG: [number, number, number] = [209, 250, 229] // emerald-100
 const INK: [number, number, number] = [15, 23, 42] // slate-900
 const MUTED: [number, number, number] = [100, 116, 139] // slate-500
 const RULE: [number, number, number] = [226, 232, 240] // slate-200
+
+// Accent palette for summary cards (mirrors SumTile in report-shell.tsx).
+const ACCENT_GREEN: [number, number, number] = [4, 120, 87] // emerald-700
+const ACCENT_ROSE: [number, number, number] = [190, 18, 60] // rose-700
+const ACCENT_INDIGO: [number, number, number] = [67, 56, 202] // indigo-700
+const ACCENT_NEUTRAL: [number, number, number] = [203, 213, 225] // slate-300
+
+function accentColor(accent?: "green" | "rose" | "indigo"): [number, number, number] {
+  if (accent === "green") return ACCENT_GREEN
+  if (accent === "rose") return ACCENT_ROSE
+  if (accent === "indigo") return ACCENT_INDIGO
+  return ACCENT_NEUTRAL
+}
+
+// Coerce a caller's summary into structured cards: prefer explicit
+// `summaryCards`, otherwise split each "Label: value" line into a neutral card.
+function resolveSummaryCards(opts: PdfExportOptions): PdfExportSummaryCard[] {
+  if (opts.summaryCards && opts.summaryCards.length > 0) return opts.summaryCards
+  return (opts.summaryLines ?? []).map((line) => {
+    const idx = line.indexOf(":")
+    if (idx === -1) return { label: "", value: line.trim() }
+    return { label: line.slice(0, idx).trim(), value: line.slice(idx + 1).trim() }
+  })
+}
 
 const MARGIN = 14
 
@@ -122,16 +160,48 @@ async function buildPdfDoc(opts: PdfExportOptions) {
     y += 5
   }
 
-  // ---- Summary lines ----
-  if (opts.summaryLines && opts.summaryLines.length > 0) {
-    y += 1
-    doc.setTextColor(...INK)
-    doc.setFont("helvetica", "bold")
-    doc.setFontSize(9)
-    for (const line of opts.summaryLines) {
-      doc.text(line, MARGIN, y)
-      y += 5
-    }
+  // ---- Summary cards (KPI tiles, mirroring the on-screen SumTile boxes) ----
+  const cards = resolveSummaryCards(opts)
+  if (cards.length > 0) {
+    y += 2
+    const perRow = Math.min(4, cards.length)
+    const gap = 3
+    const cardW = (contentW - gap * (perRow - 1)) / perRow
+    const cardH = 16
+    const radius = 1.5
+
+    cards.forEach((card, i) => {
+      const col = i % perRow
+      const row = Math.floor(i / perRow)
+      const x = MARGIN + col * (cardW + gap)
+      const cy = y + row * (cardH + gap)
+
+      // Card surface: white fill, subtle slate border.
+      doc.setFillColor(255, 255, 255)
+      doc.setDrawColor(...RULE)
+      doc.setLineWidth(0.2)
+      doc.roundedRect(x, cy, cardW, cardH, radius, radius, "FD")
+
+      // Accent bar down the left edge (inset to sit inside the rounded corners).
+      const accent = accentColor(card.accent)
+      doc.setFillColor(...accent)
+      doc.rect(x + 0.3, cy + radius, 1.2, cardH - radius * 2, "F")
+
+      // Label (small, uppercase, muted).
+      doc.setTextColor(...MUTED)
+      doc.setFont("helvetica", "normal")
+      doc.setFontSize(7)
+      doc.text(doc.splitTextToSize(card.label.toUpperCase(), cardW - 7)[0] ?? "", x + 4.5, cy + 6)
+
+      // Value (bold, tinted by accent).
+      doc.setTextColor(...(card.accent ? accent : INK))
+      doc.setFont("helvetica", "bold")
+      doc.setFontSize(11)
+      doc.text(doc.splitTextToSize(card.value, cardW - 7)[0] ?? "", x + 4.5, cy + 12)
+    })
+
+    const rowCount = Math.ceil(cards.length / perRow)
+    y += rowCount * cardH + (rowCount - 1) * gap + 3
     doc.setFont("helvetica", "normal")
   }
 
@@ -254,6 +324,9 @@ export async function emailTableAsPdf(
     body: options?.body,
     farmName: farmName || undefined,
     reportTitle: opts.title,
+    // The signed-in user is the one sharing the report — ReportShell puts them on
+    // `generatedBy`. Fall back to the stored login so the body can name the sender.
+    senderName: opts.generatedBy || readUserEmailFromStorage() || undefined,
   })
   return { success: res.success, message: res.message, recipient }
 }

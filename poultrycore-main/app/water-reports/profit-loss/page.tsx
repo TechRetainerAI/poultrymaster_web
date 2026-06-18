@@ -50,6 +50,12 @@ export default function ProfitLossReportPage() {
       pdf={{
         title: "Profit & Loss",
         filename: "water-profit-loss",
+        summaryCards: pnl ? [
+          { label: "Income", value: fmtMoney(pnl.totalIncome ?? 0), accent: "green" },
+          { label: "Gross profit", value: fmtMoney(gross), accent: gross >= 0 ? "green" : "rose" },
+          { label: "Expenses + losses", value: fmtMoney((pnl.totalExpenses ?? 0) + (pnl.totalLosses ?? 0)), accent: "rose" },
+          { label: "Net profit", value: fmtMoney(net), accent: net >= 0 ? "green" : "rose" },
+        ] : undefined,
         columns: [{ header: "Line" }, { header: "Amount", align: "right" }],
         rows: pnl ? [
           ["Total income (sales)", fmtMoney(pnl.totalIncome ?? 0)],

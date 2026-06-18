@@ -27,7 +27,7 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useFarmSettingsStore } from "@/lib/currency"
 import { useLogout } from "@/hooks/use-logout"
 import { PeriodSelect } from "@/components/ui/period-select"
-import { rangeToPeriod } from "@/lib/date-ranges"
+import { rangeToPeriod, defaultReportRange } from "@/lib/date-ranges"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
 import { exportTableToPdf, emailTableAsPdf, type PdfExportOptions } from "@/lib/utils/pdf-export"
@@ -43,7 +43,14 @@ export interface ReportShellProps {
   toDate?: string
   onFromDateChange?: (v: string) => void
   onToDateChange?: (v: string) => void
+  /** @deprecated Filters now refetch automatically; the toolbar shows "Clear
+   *  filters" instead of a manual refresh. Still accepted so existing pages
+   *  compile, but no longer rendered. */
   onRefresh?: () => void
+  // Reset this report's own custom filters (the `filters` slot) back to their
+  // defaults. The shell already resets the date range on "Clear filters"; pass
+  // this so pages with extra dropdowns clear those too.
+  onClearFilters?: () => void
   // Free-form filters rendered to the right of the date range.
   filters?: ReactNode
   // Summary tiles rendered above the table.
@@ -66,7 +73,7 @@ export interface ReportShellProps {
 
 export function ReportShell({
   title, description, busy, error, onClearError,
-  fromDate, toDate, onFromDateChange, onToDateChange, onRefresh,
+  fromDate, toDate, onFromDateChange, onToDateChange, onClearFilters,
   filters, summary, children, filterSummary, pdf,
 }: ReportShellProps) {
   const farmName = useAuthStore((s) => s.activeFarmName)
@@ -88,6 +95,21 @@ export function ReportShell({
   // Inverted date range — the page's fetch will return nothing; warn the user
   // instead of showing a silently-empty report.
   const invalidRange = !!(fromDate && toDate && fromDate > toDate)
+
+  // Changing a filter already refetches, so the toolbar offers "Clear filters"
+  // rather than a redundant refresh: reset the date range to the default window
+  // and let the page reset its own custom filters via onClearFilters.
+  const hasDateRange = !!(onFromDateChange && onToDateChange)
+  const defaultRange = defaultReportRange()
+  const rangeIsDefault = !hasDateRange || (fromDate === defaultRange.from && toDate === defaultRange.to)
+  const canClear = (!rangeIsDefault || activeFilters.length > 0) && !busy
+  function clearFilters() {
+    if (hasDateRange) {
+      onFromDateChange!(defaultRange.from)
+      onToDateChange!(defaultRange.to)
+    }
+    onClearFilters?.()
+  }
 
   // Enrich the page's PDF definition with the metadata the shell already knows
   // (company, period, currency, who generated it, active filters) so every
@@ -225,31 +247,37 @@ export function ReportShell({
             </header>
 
             {/* Filters row — hidden in print to keep the PDF tight. */}
-            {(onFromDateChange || filters || onRefresh) && (
-              <div className="print:hidden mb-4 flex items-end gap-2 flex-wrap">
+            {(onFromDateChange || filters || onClearFilters) && (
+              <div className="print:hidden mb-4 flex items-center gap-2 flex-wrap">
                 {onFromDateChange && onToDateChange && (
-                  <PeriodSelect
-                    value={rangeToPeriod(fromDate ?? "", toDate ?? "")}
-                    onChange={(_p, range) => {
-                      if (range) { onFromDateChange(range.from); onToDateChange(range.to) }
-                    }}
-                  />
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-xs text-slate-600 whitespace-nowrap">Period</Label>
+                    <PeriodSelect
+                      label={null}
+                      value={rangeToPeriod(fromDate ?? "", toDate ?? "")}
+                      onChange={(_p, range) => {
+                        if (range) { onFromDateChange(range.from); onToDateChange(range.to) }
+                      }}
+                    />
+                  </div>
                 )}
                 {onFromDateChange && (
-                  <div>
-                    <Label className="text-xs">From</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-xs text-slate-600 whitespace-nowrap">From</Label>
                     <Input type="date" value={fromDate ?? ""} onChange={(e) => onFromDateChange(e.target.value)} className="w-40" />
                   </div>
                 )}
                 {onToDateChange && (
-                  <div>
-                    <Label className="text-xs">To</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-xs text-slate-600 whitespace-nowrap">To</Label>
                     <Input type="date" value={toDate ?? ""} onChange={(e) => onToDateChange(e.target.value)} className="w-40" />
                   </div>
                 )}
                 {filters}
-                {onRefresh && (
-                  <Button variant="outline" size="sm" onClick={onRefresh} disabled={busy}>Refresh</Button>
+                {(hasDateRange || onClearFilters) && (
+                  <Button variant="outline" size="sm" onClick={clearFilters} disabled={!canClear}>
+                    Clear filters
+                  </Button>
                 )}
               </div>
             )}
