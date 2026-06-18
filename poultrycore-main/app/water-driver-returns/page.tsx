@@ -525,9 +525,18 @@ export default function WaterDriverReturnsPage() {
           items:                 itemsPayload,
         } as any)
         // Approve immediately so stock moves out — matches the "load and go"
-        // operator flow.
-        if (created?.waterVehicleLoadingId) {
+        // operator flow. The create makes a Draft; approve promotes it to
+        // Loaded. If approve fails we must NOT leave the orphan Draft behind —
+        // it shows up as a confusing "duplicate" next to the real Loaded row.
+        if (!created?.waterVehicleLoadingId) {
+          throw new Error("The load was created but the server did not return its id — please retry.")
+        }
+        try {
           await approveWaterVehicleLoading(created.waterVehicleLoadingId)
+        } catch (apErr: any) {
+          // Roll back the stuck Draft so it can't masquerade as a duplicate.
+          try { await voidWaterVehicleLoading(created.waterVehicleLoadingId, "Auto-voided: load could not be confirmed") } catch { /* best effort */ }
+          throw new Error(apErr?.message ? `Load could not be confirmed: ${apErr.message}` : "Load could not be confirmed — please retry.")
         }
         toast({ title: "Delivery run loaded — stock moved out" })
       }
@@ -559,6 +568,10 @@ export default function WaterDriverReturnsPage() {
   // successful reverse so the Record Return dialog opens with what the
   // operator previously recorded (instead of the "all sold, no money" default).
   async function prefillFromExistingReturn(l: WaterVehicleLoading, r: WaterDriverReturn) {
+    // Mark the existing return as the one being replaced so saveReturn excludes
+    // it from the duplicate guard and deletes it after the new one is inserted.
+    // (Covers the reverse-and-edit path, not just the Draft-edit button.)
+    editReturnTargetRef.current = r
     setReturnNotes(r.notes ?? "")
     setReturnDate((r.returnDate ?? new Date().toISOString()).split("T")[0])
     setBreakdownOpen(false)
@@ -643,6 +656,20 @@ export default function WaterDriverReturnsPage() {
 
   // ===== Driver Return handlers =====
   async function openReturnDlg(l: WaterVehicleLoading) {
+    // A delivery can have only one open return. If a draft already exists for
+    // this loading, continue/edit it instead of trying to record a new one
+    // (which the backend rejects). An already-approved one must be reversed.
+    const existing = returns.find(r => r.waterVehicleLoadingId === l.waterVehicleLoadingId && r.status !== "Cancelled")
+    if (existing) {
+      if (existing.status === "Draft") {
+        toast({ title: "Continuing this delivery's draft return", description: "Edit the figures and Approve & Reconcile when ready." })
+        await prefillFromExistingReturn(l, existing)
+      } else {
+        toast({ title: "This delivery is already reconciled", description: "Reverse it from the Reconciled tab to make changes.", variant: "destructive" })
+      }
+      return
+    }
+    editReturnTargetRef.current = null
     setReturnNotes("")
     setReturnDate((l.loadDate ?? new Date().toISOString()).split("T")[0])
     setBreakdownOpen(false)
@@ -858,6 +885,10 @@ export default function WaterDriverReturnsPage() {
     try {
       const created = await createWaterDriverReturn({
         waterVehicleLoadingId: returnDlg.loading.waterVehicleLoadingId,
+        // When editing/reversing, this is the return being replaced — the
+        // duplicate guard ignores it so the corrected return can be inserted
+        // (the old one is deleted right after).
+        replaceReturnId: editReturnTargetRef.current?.waterDriverReturnId ?? null,
         returnDate: new Date(returnDate).toISOString(),
         bagsSold: totalSold,
         bagsReturned: totalReturned,

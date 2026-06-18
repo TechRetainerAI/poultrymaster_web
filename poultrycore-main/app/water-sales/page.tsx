@@ -14,12 +14,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { Plus, Trash2, Loader2, ShoppingCart, X, Wallet, Ban, CheckCircle2, Receipt } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import {
-  listWaterSales, getWaterSale, createWaterSale, cancelWaterSale,
+  listWaterSales, getWaterSale, createWaterSale, cancelWaterSale, deleteWaterSale,
   listWaterProducts, listWaterCustomers, recordWaterPayment,
   type WaterSale, type WaterSaleItem, type WaterProduct, type WaterCustomer,
 } from "@/lib/api/water"
@@ -60,6 +61,7 @@ export default function WaterSalesPage() {
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [loading, setLoading] = useState(true)
+  const [deleteTarget, setDeleteTarget] = useState<WaterSale | null>(null)
 
   const visibleSales = useMemo(
     () => filterByDateAndSearch(sales, {
@@ -240,14 +242,17 @@ export default function WaterSalesPage() {
     finally { setSaving(false) }
   }
 
-  async function cancel(sale: WaterSale) {
-    if (!confirm(`Cancel sale #${sale.waterSaleId}? Stock will be restored.`)) return
+  // A sale that came from a delivery is owned by its driver return and must be
+  // undone there — never deleted from the Sales page.
+  const isFromDelivery = (s: WaterSale) => (s.sourceType ?? "") === "DeliveryRun"
+
+  async function performDelete(sale: WaterSale) {
     try {
-      await cancelWaterSale(sale.waterSaleId)
-      toast({ title: "Sale cancelled" })
+      await deleteWaterSale(sale.waterSaleId)
+      toast({ title: `Sale #${sale.waterSaleId} deleted`, description: "Stock was restored." })
       if (detailSale?.waterSaleId === sale.waterSaleId) setDetailSale(null)
       await loadAll()
-    } catch (e: any) { toast({ title: "Cancel failed", description: e?.message, variant: "destructive" }) }
+    } catch (e: any) { toast({ title: "Delete failed", description: e?.message, variant: "destructive" }) }
   }
 
   return (
@@ -308,6 +313,7 @@ export default function WaterSalesPage() {
                       ),
                     },
                     { label: "Status", value: <StatusBadge status={s.status} /> },
+                    { label: "Source", value: isFromDelivery(s) ? `Delivery #${s.sourceId ?? "—"}` : "Direct sale" },
                   ]}
                   actions={(s) => (
                     <>
@@ -324,9 +330,11 @@ export default function WaterSalesPage() {
                         </Button>
                       )}
                       <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openDetail(s)}>Details</Button>
-                      {s.status !== "Cancelled" && (
-                        <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 border-red-200" onClick={() => cancel(s)}>
-                          <Ban className="h-4 w-4 mr-1" /> Cancel
+                      {isFromDelivery(s) ? (
+                        <span className="flex-1 h-10 flex items-center justify-center text-xs text-slate-400" title="This sale came from a delivery — undo it from the delivery return.">From delivery</span>
+                      ) : (
+                        <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 border-red-200" onClick={() => setDeleteTarget(s)}>
+                          <Trash2 className="h-4 w-4 mr-1" /> Delete
                         </Button>
                       )}
                     </>
@@ -384,9 +392,11 @@ export default function WaterSalesPage() {
                                 </Button>
                               )}
                               <Button size="sm" variant="ghost" onClick={() => openDetail(s)}>Details</Button>
-                              {s.status !== "Cancelled" && (
-                                <Button size="sm" variant="ghost" onClick={() => cancel(s)} title="Cancel">
-                                  <Ban className="h-4 w-4 text-red-500" />
+                              {isFromDelivery(s) ? (
+                                <span className="text-xs text-slate-400 ml-1" title="From a delivery — undo it from the delivery return.">From delivery</span>
+                              ) : (
+                                <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(s)} title="Delete sale">
+                                  <Trash2 className="h-4 w-4 text-red-500" />
                                 </Button>
                               )}
                             </TableCell>
@@ -701,6 +711,18 @@ export default function WaterSalesPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete a direct sale (confirm + toast). Delivery-sourced sales never
+          reach here — their button is replaced by a "From delivery" note. */}
+      <ConfirmDeleteDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => { if (!o) setDeleteTarget(null) }}
+        title={`Delete sale #${deleteTarget?.waterSaleId ?? ""}?`}
+        description="This permanently removes the sale and its payments, and restores the stock it took out. This cannot be undone."
+        confirmLabel="Delete sale"
+        errorTitle="Delete failed"
+        onConfirm={async () => { if (deleteTarget) await performDelete(deleteTarget) }}
+      />
     </div>
   )
 }

@@ -144,6 +144,10 @@ export interface WaterSale {
   createdDate: string
   createdBy?: string | null
   updatedDate?: string | null
+  // Where the sale came from: null/"" = direct sale; "DeliveryRun" = created by
+  // a driver return (cannot be deleted on the Sales page).
+  sourceType?: string | null
+  sourceId?: number | null
   items: WaterSaleItem[]
 }
 
@@ -334,6 +338,9 @@ export const createWaterSale = (input: CreateWaterSaleInput) =>
 
 export const cancelWaterSale = (id: number) =>
   jsend<void>(`/Water/sales/${id}/cancel?farmId=${encodeURIComponent(activeFarmId())}`, "POST")
+// Hard-delete a direct sale. The backend rejects delivery-sourced sales.
+export const deleteWaterSale = (id: number) =>
+  jsend<void>(`/Water/sales/${id}?farmId=${encodeURIComponent(activeFarmId())}`, "DELETE")
 
 // ----- Payments -----
 export const listWaterPayments = () =>
@@ -582,6 +589,11 @@ export const deleteWaterCashAccount = (id: number) =>
 
 export const reconcileWaterCashBalances = () =>
   jsend<void>(`/Water/cash-accounts/reconcile-balances?farmId=${encodeURIComponent(activeFarmId())}`, "POST")
+
+// Manual balance adjustment. amount is signed: positive adds cash, negative removes it.
+export const adjustWaterCashAccount = (id: number, input: { amount: number; reason: string }) =>
+  jsend<void>(`/Water/cash-accounts/${id}/adjust?farmId=${encodeURIComponent(activeFarmId())}`, "POST",
+    { amount: input.amount, reason: input.reason, createdBy: currentUserId() || null })
 
 export const listWaterCashTransactions = (opts?: { cashAccountId?: number; fromDate?: string; toDate?: string }) => {
   const qs = new URLSearchParams({ farmId: activeFarmId() })

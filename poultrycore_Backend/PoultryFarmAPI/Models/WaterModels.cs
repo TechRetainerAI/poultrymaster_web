@@ -196,6 +196,11 @@ namespace PoultryFarmAPIWeb.Models
         public string? CreatedBy { get; set; }
         public DateTime? UpdatedDate { get; set; }
 
+        // Migration 111 — where the sale originated. NULL/empty = a direct sale;
+        // "DeliveryRun" = auto-created by a driver return (not deletable here).
+        public string? SourceType { get; set; }
+        public int? SourceId { get; set; }
+
         // Populated by GetById / Create
         public List<WaterSaleItemModel> Items { get; set; } = new();
     }

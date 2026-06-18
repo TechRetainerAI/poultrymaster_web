@@ -53,6 +53,14 @@ namespace PoultryFarmAPIWeb.Controllers
         }
     }
 
+    // Body for POST cash-accounts/{id}/adjust.
+    public class WaterCashAdjustRequest
+    {
+        public decimal Amount { get; set; }
+        public string Reason { get; set; } = string.Empty;
+        public string? CreatedBy { get; set; }
+    }
+
     // ====================================================================
     // Cash accounts (+ transactions read)
     // ====================================================================
@@ -108,6 +116,17 @@ namespace PoultryFarmAPIWeb.Controllers
         {
             if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
             await _svc.ReconcileBalanceAsync(farmId);
+            return NoContent();
+        }
+
+        // Manual balance adjustment (signed amount; + adds cash, - removes it).
+        [HttpPost("{id:int}/adjust")]
+        public async Task<IActionResult> Adjust(int id, [FromQuery] string farmId, [FromBody] WaterCashAdjustRequest req)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            if (req is null || req.Amount == 0) return BadRequest("A non-zero amount is required.");
+            if (string.IsNullOrWhiteSpace(req.Reason)) return BadRequest("A reason is required for an adjustment.");
+            await _svc.AdjustAsync(id, farmId, req.Amount, req.Reason, req.CreatedBy);
             return NoContent();
         }
 

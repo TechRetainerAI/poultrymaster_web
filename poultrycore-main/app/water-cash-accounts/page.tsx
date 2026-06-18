@@ -14,15 +14,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
-import { Plus, Pencil, Loader2, Wallet, RefreshCw, ArrowLeftRight, Eye } from "lucide-react"
+import { Plus, Pencil, Loader2, Wallet, RefreshCw, ArrowLeftRight, Eye, Trash2 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import {
-  listWaterCashAccounts, createWaterCashAccount, updateWaterCashAccount, reconcileWaterCashBalances,
+  listWaterCashAccounts, createWaterCashAccount, updateWaterCashAccount, deleteWaterCashAccount, reconcileWaterCashBalances,
   listWaterCashTransactions, listWaterCashTransfers, createWaterCashTransfer, approveWaterCashTransfer, cancelWaterCashTransfer,
   type WaterCashAccount, type WaterCashTransaction, type WaterCashTransfer,
 } from "@/lib/api/water"
@@ -55,6 +56,7 @@ export default function WaterCashAccountsPage() {
   const [form, setForm] = useState({ accountName: "", accountType: "FactoryCashBox", openingBalance: 0, allowNegativeBalance: false, notes: "", isActive: true })
   const [saving, setSaving] = useState(false)
 
+  const [deleteTarget, setDeleteTarget] = useState<WaterCashAccount | null>(null)
   const [txDlg, setTxDlg] = useState<{ open: boolean; acc?: WaterCashAccount; rows: WaterCashTransaction[] }>({ open: false, rows: [] })
   const [xferDlg, setXferDlg] = useState(false)
   const [xferForm, setXferForm] = useState({ fromWaterCashAccountId: 0, toWaterCashAccountId: 0, amount: 0, notes: "" })
@@ -104,6 +106,12 @@ export default function WaterCashAccountsPage() {
   async function reconcile() {
     try { await reconcileWaterCashBalances(); toast({ title: "Balances reconciled" }); await load() }
     catch (e: any) { toast({ title: "Reconcile failed", description: e?.message, variant: "destructive" }) }
+  }
+
+  async function performDelete(acc: WaterCashAccount) {
+    await deleteWaterCashAccount(acc.waterCashAccountId)
+    toast({ title: "Cash account removed" })
+    await load()
   }
 
   async function viewTransactions(acc: WaterCashAccount) {
@@ -185,10 +193,11 @@ export default function WaterCashAccountsPage() {
                   ]}
                   actions={(a) => (
                     <>
-                      <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => viewTransactions(a)}>
-                        <Eye className="h-4 w-4 mr-1" /> Txns
+                      <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => router.push(`/water-cash-accounts/${a.waterCashAccountId}`)}>
+                        <Eye className="h-4 w-4 mr-1" /> View details
                       </Button>
                       <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openEdit(a)}>Edit</Button>
+                      <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 border-red-200" onClick={() => setDeleteTarget(a)}><Trash2 className="h-4 w-4 mr-1" /> Delete</Button>
                     </>
                   )}
                   desktopTable={
@@ -213,8 +222,9 @@ export default function WaterCashAccountsPage() {
                             <TableCell className={`text-right tabular-nums font-semibold ${a.currentBalance < 0 ? "text-rose-600" : ""}`}>{a.currentBalance.toFixed(2)}</TableCell>
                             <TableCell>{a.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="outline">Inactive</Badge>}</TableCell>
                             <TableCell className="text-right">
-                              <Button size="sm" variant="ghost" onClick={() => viewTransactions(a)}><Eye className="h-4 w-4" /></Button>
+                              <Button size="sm" variant="ghost" onClick={() => router.push(`/water-cash-accounts/${a.waterCashAccountId}`)} title="View details"><Eye className="h-4 w-4" /></Button>
                               <Button size="sm" variant="ghost" onClick={() => openEdit(a)}>Edit</Button>
+                              <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(a)} title="Delete account"><Trash2 className="h-4 w-4 text-red-500" /></Button>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -418,6 +428,17 @@ export default function WaterCashAccountsPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete / deactivate a cash account */}
+      <ConfirmDeleteDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => { if (!o) setDeleteTarget(null) }}
+        title={`Remove ${deleteTarget?.accountName ?? "this account"}?`}
+        description="If this account has no transactions it is permanently deleted. If it has any history (transactions, transfers, expenses, etc.) it is deactivated instead so the records stay intact."
+        confirmLabel="Remove account"
+        errorTitle="Could not remove account"
+        onConfirm={async () => { if (deleteTarget) await performDelete(deleteTarget) }}
+      />
     </div>
   )
 }

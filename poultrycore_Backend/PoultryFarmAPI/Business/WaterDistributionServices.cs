@@ -628,6 +628,11 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@ItemsJson", (object?)itemsJson ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@CustomerSalesJson", (object?)customerSalesJson ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@ExpensesJson", (object?)expensesJson ?? DBNull.Value);
+            // The "one open return per delivery" guard lives inside the SP
+            // (migrations 114/115) — the app login only has EXECUTE on procs,
+            // not direct table SELECT, so it can't be an ad-hoc query here.
+            // ReplaceReturnId lets the edit/reverse flow replace its own return.
+            cmd.Parameters.AddWithValue("@ReplaceReturnId", (object?)m.ReplaceReturnId ?? DBNull.Value);
             await conn.OpenAsync();
             return Convert.ToInt32(await cmd.ExecuteScalarAsync());
         }

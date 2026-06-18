@@ -195,6 +195,10 @@ namespace PoultryFarmAPIWeb.Models
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
 
+        // Migration 115: when editing/replacing a return, the id being replaced
+        // is excluded from the one-open-return-per-delivery guard. Not stored.
+        public int? ReplaceReturnId { get; set; }
+
         // Joined for convenience
         public int? WaterVehicleId { get; set; }
         public int? WaterDriverId { get; set; }
