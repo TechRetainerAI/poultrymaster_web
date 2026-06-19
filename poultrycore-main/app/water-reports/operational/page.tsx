@@ -20,7 +20,7 @@ import {
   type WaterPeriodPnL, type WaterRouteProfitabilityRow, type WaterDriverReconciliationRow, type WaterRawMaterialVarianceRow,
 } from "@/lib/api/water"
 import { PeriodSelect } from "@/components/ui/period-select"
-import { rangeToPeriod } from "@/lib/date-ranges"
+import { rangeToPeriod, defaultReportRange } from "@/lib/date-ranges"
 
 // Helpers for the default date range — last 7 days
 function isoDate(d: Date) { return d.toISOString().split("T")[0] }
@@ -34,8 +34,9 @@ export default function WaterReportsPage() {
   const logout = useLogout()
   const gh = useFmt()
 
-  const [fromDate, setFromDate] = useState(defaultFrom())
-  const [toDate, setToDate] = useState(defaultTo())
+  const DEFAULT_RANGE = defaultReportRange("last7")
+  const [fromDate, setFromDate] = useState(DEFAULT_RANGE.from)
+  const [toDate, setToDate] = useState(DEFAULT_RANGE.to)
 
   const [pnl, setPnl] = useState<WaterPeriodPnL | null>(null)
   const [routes, setRoutes] = useState<WaterRouteProfitabilityRow[]>([])
@@ -43,11 +44,13 @@ export default function WaterReportsPage() {
   const [variance, setVariance] = useState<WaterRawMaterialVarianceRow[]>([])
   const [loading, setLoading] = useState(true)
 
+  // Auto-refetch when the company resolves or the date range changes — matches
+  // the behaviour of every other water report (no manual "Apply" needed).
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Water") { router.replace("/dashboard"); return }
     void load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeFarmType])
+  }, [activeFarmType, fromDate, toDate])
 
   async function load() {
     setLoading(true)

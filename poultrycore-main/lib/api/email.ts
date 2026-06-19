@@ -8,6 +8,8 @@ export interface SendReportEmailInput {
   body?: string
   farmName?: string
   reportTitle?: string
+  /** Who shared the report (username/email) — shown in the default email body. */
+  senderName?: string
 }
 
 export interface ApiResponse<T = unknown> {
@@ -28,6 +30,7 @@ export async function sendReportEmail(input: SendReportEmailInput): Promise<ApiR
     if (input.body) form.append("body", input.body)
     if (input.farmName) form.append("farmName", input.farmName)
     if (input.reportTitle) form.append("reportTitle", input.reportTitle)
+    if (input.senderName) form.append("senderName", input.senderName)
 
     // Strip Content-Type if getAuthHeaders includes it — let fetch set it.
     const headers = { ...getAuthHeaders() } as Record<string, string>
