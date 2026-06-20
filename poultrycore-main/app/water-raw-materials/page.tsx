@@ -243,7 +243,7 @@ export default function WaterRawMaterialsPage() {
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
-              <Box className="h-6 w-6 text-sky-600" /> Raw materials &amp; supplies
+              <Box className="h-6 w-6 text-sky-600" /> Raw materials
             </h1>
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={openNewItem}><Plus className="h-4 w-4 mr-1" /> New item</Button>
@@ -284,6 +284,7 @@ export default function WaterRawMaterialsPage() {
                   ) : (
                     <MobileCardList
                       items={visibleItems}
+                      defaultOpen
                       getKey={(it) => it.waterRawMaterialItemId}
                       primary={(it) => it.itemName}
                       secondary={(it) => (
@@ -358,6 +359,7 @@ export default function WaterRawMaterialsPage() {
                   ) : (
                     <MobileCardList
                       items={usage}
+                      defaultOpen
                       getKey={(u) => u.waterRawMaterialUsageId}
                       primary={(u) => u.itemName ?? "—"}
                       secondary={(u) => (
@@ -422,6 +424,7 @@ export default function WaterRawMaterialsPage() {
                   ) : (
                     <MobileCardList
                       items={purchases}
+                      defaultOpen
                       getKey={(p) => p.waterRawMaterialPurchaseId}
                       primary={(p) => p.itemName ?? items.find(i => i.waterRawMaterialItemId === p.waterRawMaterialItemId)?.itemName ?? "—"}
                       secondary={(p) => (
