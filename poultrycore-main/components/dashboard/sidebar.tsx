@@ -213,7 +213,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   // /employees page redirects water users to the dashboard. Admin-gated.
   const waterPeopleItems = [
     ...((permissions.isAdmin || permissions.featureAccess.canSeeEmployees)
-      ? [{ href: "/water-staff", label: "Employees", icon: UserCog }]
+      ? [{ href: "/water-staff", label: "Staff", icon: UserCog }]
       : []),
     { href: "/water-payroll", label: "Payroll", icon: Banknote },
   ]
