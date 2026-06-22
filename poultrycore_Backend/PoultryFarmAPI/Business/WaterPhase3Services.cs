@@ -221,6 +221,9 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@TotalCost", m.TotalCost > 0 ? m.TotalCost : (object)DBNull.Value);
             // Caller-chosen cash account for the auto-posted expense; NULL => first active.
             cmd.Parameters.AddWithValue("@WaterCashAccountId", (object?)m.WaterCashAccountId ?? DBNull.Value);
+            // Migration 116: production-unit conversion (persisted).
+            cmd.Parameters.AddWithValue("@ProductionUnit", (object?)m.ProductionUnit ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ProductionUnitsPerPurchaseUnit", (object?)m.ProductionUnitsPerPurchaseUnit ?? DBNull.Value);
             await conn.OpenAsync();
             return Convert.ToInt32(await cmd.ExecuteScalarAsync());
         }
@@ -243,6 +246,9 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@TotalCost", m.TotalCost > 0 ? m.TotalCost : (object)DBNull.Value);
             // Caller-chosen cash account; the Update SP re-points the linked expense to it.
             cmd.Parameters.AddWithValue("@WaterCashAccountId", (object?)m.WaterCashAccountId ?? DBNull.Value);
+            // Migration 116: production-unit conversion (persisted).
+            cmd.Parameters.AddWithValue("@ProductionUnit", (object?)m.ProductionUnit ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ProductionUnitsPerPurchaseUnit", (object?)m.ProductionUnitsPerPurchaseUnit ?? DBNull.Value);
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
         }
@@ -292,6 +298,12 @@ namespace PoultryFarmAPIWeb.Business
             // HasCol so older deployments still read without throwing — they'll
             // just report Balance = 0 (same as before this fix).
             Balance                    = WaterRawMaterialItemService.HasCol(r, "Balance") && !r.IsDBNull(r.GetOrdinal("Balance")) ? r.GetDecimal(r.GetOrdinal("Balance")) : 0m,
+            // Migration 116 — production-unit conversion (HasCol-guarded so older
+            // deployments that lack the columns still read without throwing).
+            ProductionUnit                 = WaterRawMaterialItemService.HasCol(r, "ProductionUnit") && !r.IsDBNull(r.GetOrdinal("ProductionUnit")) ? r.GetString(r.GetOrdinal("ProductionUnit")) : null,
+            ProductionUnitsPerPurchaseUnit = WaterRawMaterialItemService.HasCol(r, "ProductionUnitsPerPurchaseUnit") && !r.IsDBNull(r.GetOrdinal("ProductionUnitsPerPurchaseUnit")) ? r.GetDecimal(r.GetOrdinal("ProductionUnitsPerPurchaseUnit")) : (decimal?)null,
+            ProductionQuantity             = WaterRawMaterialItemService.HasCol(r, "ProductionQuantity") && !r.IsDBNull(r.GetOrdinal("ProductionQuantity")) ? r.GetDecimal(r.GetOrdinal("ProductionQuantity")) : (decimal?)null,
+            ProductionUnitCost             = WaterRawMaterialItemService.HasCol(r, "ProductionUnitCost") && !r.IsDBNull(r.GetOrdinal("ProductionUnitCost")) ? r.GetDecimal(r.GetOrdinal("ProductionUnitCost")) : (decimal?)null,
             ReceiptUrl                 = r.IsDBNull(r.GetOrdinal("ReceiptUrl")) ? null : r.GetString(r.GetOrdinal("ReceiptUrl")),
             ReceivedByStaffId          = r.IsDBNull(r.GetOrdinal("ReceivedByStaffId")) ? null : r.GetInt32(r.GetOrdinal("ReceivedByStaffId")),
             Notes                      = r.IsDBNull(r.GetOrdinal("Notes")) ? null : r.GetString(r.GetOrdinal("Notes")),

@@ -49,6 +49,15 @@ namespace PoultryFarmAPIWeb.Models
         // (migration 087); read-only here. Without this column the raw materials
         // list rendered Balance as 0.00 even when a part-payment was made.
         public decimal Balance { get; set; }
+        // Migration 116: production-unit conversion. You buy in the PurchaseUnit
+        // (the item's UnitOfMeasure, e.g. Roll) but consume in a ProductionUnit
+        // (e.g. Sachet). ProductionUnitsPerPurchaseUnit = how many production
+        // units one purchase unit yields. ProductionQuantity / ProductionUnitCost
+        // are derived in the GetAll SP (read-only).
+        [StringLength(30)] public string? ProductionUnit { get; set; }
+        public decimal? ProductionUnitsPerPurchaseUnit { get; set; }
+        public decimal? ProductionQuantity { get; set; }
+        public decimal? ProductionUnitCost { get; set; }
         [StringLength(500)] public string? ReceiptUrl { get; set; }
         public int? ReceivedByStaffId { get; set; }
         [StringLength(500)] public string? Notes { get; set; }

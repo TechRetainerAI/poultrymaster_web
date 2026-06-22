@@ -1775,6 +1775,14 @@ export interface WaterRawMaterialPurchase {
   // Which cash account the payment leaves (mirrors WaterExpense). The Insert SP
   // honors it when set, else falls back to the first active account.
   waterCashAccountId?: number | null
+  // Migration 116 — production-unit conversion. Buy in the item's unit
+  // (purchase unit, e.g. Roll), consume in productionUnit (e.g. Sachet).
+  // productionUnitsPerPurchaseUnit = production units yielded per purchase unit.
+  // productionQuantity / productionUnitCost are derived server-side (read-only).
+  productionUnit?: string | null
+  productionUnitsPerPurchaseUnit?: number | null
+  productionQuantity?: number | null
+  productionUnitCost?: number | null
   receiptUrl?: string | null
   notes?: string | null
 }
