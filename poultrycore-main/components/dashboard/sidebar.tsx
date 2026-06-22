@@ -539,7 +539,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
           <>
             <div className="border-t border-slate-800 mx-2" />
             <div className="space-y-0.5">
-              {renderNavItem({ href: "/employees", label: "Employees", icon: UserCog })}
+              {renderNavItem({ href: "/employees", label: "Users & Permissions", icon: UserCog })}
             </div>
           </>
         )}
