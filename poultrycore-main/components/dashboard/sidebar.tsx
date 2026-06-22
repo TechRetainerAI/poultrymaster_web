@@ -531,9 +531,11 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
           </>
         )}
 
-        {/* Admin — Employees. Hidden for Water: it now lives under the
-            water People group (James 2026-06-13). */}
-        {!isWater && (permissions.isAdmin || permissions.featureAccess.canSeeEmployees) && (
+        {/* Admin — Employees. The /employees page creates employee LOGIN
+            accounts (and emails credentials); it adapts to Water. Shown for
+            Water again on request (2026-06-22), alongside the water People
+            group's "Employees" -> /water-staff (staff master / payroll). */}
+        {(permissions.isAdmin || permissions.featureAccess.canSeeEmployees) && (
           <>
             <div className="border-t border-slate-800 mx-2" />
             <div className="space-y-0.5">
