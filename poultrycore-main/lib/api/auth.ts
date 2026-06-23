@@ -93,7 +93,7 @@ export interface RegisterData {
   lastName: string
   roles: string[]
   phoneNumber: string
-  companyType: "Poultry" | "Water"
+  companyType: "Poultry" | "Water" | "Generic"
 }
 
 export interface LoginData {

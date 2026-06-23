@@ -16,6 +16,7 @@ import { SuccessModal } from "@/components/auth/success-modal"
 import { useAuthStore } from "@/lib/store/auth-store"
 import {
   resolveActiveCompanyForUser,
+  getMyCompanies,
   dashboardHomeForType,
   type CompanyType,
 } from "@/lib/api/companies"
@@ -88,7 +89,8 @@ export default function LoginPage() {
       // non-fatal: we fall back to /dashboard (Poultry).
       try {
         const farmId = typeof window !== "undefined" ? localStorage.getItem("farmId") : null
-        const company = await resolveActiveCompanyForUser(farmId)
+        const list = await getMyCompanies()
+        const company = (farmId ? list.find((c) => c.farmId === farmId) : undefined) ?? list[0]
         if (company) {
           const token =
             typeof window !== "undefined" ? localStorage.getItem("auth_token") ?? undefined : undefined
@@ -98,7 +100,11 @@ export default function LoginPage() {
             company.type as CompanyType,
             token,
           )
-          setPostLoginHome(dashboardHomeForType(company.type as CompanyType))
+          // First-login behavior (Prompt 2 §3): owners/admins, and anyone with
+          // more than one company, land on the Business Office HQ. A single-
+          // company staff member goes straight to that company's dashboard.
+          if (!isStaff || list.length > 1) setPostLoginHome("/business-office")
+          else setPostLoginHome(dashboardHomeForType(company.type as CompanyType))
         }
       } catch (e) {
         console.warn("[Login] Could not resolve company type post-login:", e)

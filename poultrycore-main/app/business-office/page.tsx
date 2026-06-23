@@ -108,7 +108,15 @@ export default function BusinessOfficePage() {
     return { total: companies.length, water: by("Water"), poultry: by("Poultry"), generic: by("Generic") }
   }, [companies])
 
-  const officeName = (user as any)?.businessOfficeName || "Business Office"
+  // Business Office name: set during signup (Prompt 2). Stored on the user when
+  // available, else the localStorage value captured at signup.
+  const [officeName, setOfficeName] = useState("Business Office")
+  useEffect(() => {
+    const fromUser = (user as any)?.businessOfficeName
+    let fromLs = ""
+    try { fromLs = localStorage.getItem("businessOfficeName") || "" } catch {}
+    setOfficeName(fromUser || fromLs || "Business Office")
+  }, [user])
 
   return (
     <div className="flex h-screen bg-slate-50">
