@@ -8,7 +8,7 @@ export const appConfig = {
     timeout: 30000,
   },
   app: {
-    name: 'Poultry Master',
+    name: 'VisibilityCore',
     version: '1.0.0',
     description: 'Farm Management System',
   },

@@ -144,7 +144,7 @@ export default function LoginPage() {
           <div className="max-w-md text-center">
             {/* System Name */}
             <div className="mb-8">
-              <h1 className="text-4xl font-bold text-slate-900 mb-2">Poultry Master</h1>
+              <h1 className="text-4xl font-bold text-slate-900 mb-2">VisibilityCore</h1>
               <p className="text-slate-600">Farm Management System</p>
             </div>
             
@@ -153,7 +153,7 @@ export default function LoginPage() {
               {/* Real farmer image - displayed directly without card */}
               <img 
                 src="/farmer-illustration.png" 
-                alt="Farmer with watermelon - Poultry Master" 
+                alt="Farmer with watermelon - VisibilityCore" 
                 className="w-full h-96 object-contain"
               />
             </div>
@@ -168,7 +168,7 @@ export default function LoginPage() {
               <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center shadow-lg">
                 <Image
                   src="/logo.png"
-                  alt="Poultry Master logo"
+                  alt="VisibilityCore logo"
                   width={56}
                   height={56}
                   className="object-contain"

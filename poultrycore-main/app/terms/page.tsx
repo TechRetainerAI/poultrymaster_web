@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 const sections = [
   {
     title: "Use of the Platform",
-    body: "Poultry Master is provided to help you manage poultry farm operations, records, and reporting. You agree to use the platform only for lawful farm management activities.",
+    body: "VisibilityCore is provided to help you manage poultry farm operations, records, and reporting. You agree to use the platform only for lawful farm management activities.",
   },
   {
     title: "Data Responsibility",
@@ -58,7 +58,7 @@ export default function TermsPage() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h1 className="text-2xl font-bold text-slate-900">Terms & Conditions</h1>
-                <p className="text-slate-600 mt-1">Please read these terms before using Poultry Master.</p>
+                <p className="text-slate-600 mt-1">Please read these terms before using VisibilityCore.</p>
               </div>
               <Badge variant="outline" className="text-orange-700 border-orange-300 bg-orange-50">
                 Effective immediately

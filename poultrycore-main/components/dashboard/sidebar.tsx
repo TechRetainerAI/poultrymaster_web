@@ -47,6 +47,7 @@ import {
   Cog,
   Box,
   Route as RouteIcon,
+  Briefcase,
 } from "lucide-react"
 import { InventoryLogo } from "@/components/auth/logo"
 import { useAlertsStore, type AlertItem } from "@/lib/store/alerts-store"
@@ -423,6 +424,11 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         className="sidebar-nav-scrollable min-h-0 flex-1 overflow-y-auto overscroll-y-contain py-3 px-2 space-y-4"
         aria-label="Main navigation"
       >
+        {/* Business Office — the owner's HQ above all companies (Prompt 2). */}
+        <div>
+          {renderNavItem({ href: "/business-office", label: "Business Office", icon: Briefcase })}
+        </div>
+
         {/* Dashboard — route depends on active company type */}
         <div>
           {renderNavItem({

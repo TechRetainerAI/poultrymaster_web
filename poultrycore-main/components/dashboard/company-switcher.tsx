@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { createPortal } from "react-dom"
-import { Building2, ChevronsUpDown, Check, Loader2, Plus, Bird, Droplets } from "lucide-react"
+import { Building2, ChevronsUpDown, Check, Loader2, Plus, Bird, Droplets, Briefcase } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { getMyCompanies, switchCompany, type Company } from "@/lib/api/companies"
@@ -143,7 +143,17 @@ export function CompanySwitcher({ fullWidth = false }: { fullWidth?: boolean } =
           style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.width }}
           className="z-[9999] rounded-md border border-slate-700 bg-slate-900 py-1 shadow-xl"
         >
-          <div className="flex items-center justify-between border-b border-slate-800 px-3 py-2">
+          {/* Business Office — the HQ above all companies (Prompt 2). */}
+          <button
+            type="button"
+            onClick={() => { setOpen(false); router.push("/business-office") }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-100 hover:bg-slate-800"
+          >
+            <Briefcase className="h-4 w-4 text-orange-300" />
+            <span className="font-medium">Business Office</span>
+          </button>
+
+          <div className="flex items-center justify-between border-y border-slate-800 px-3 py-2">
             <span className="text-[11px] uppercase tracking-wide text-slate-400">Your companies</span>
             {loading ? <Loader2 className="h-3 w-3 animate-spin text-slate-400" /> : null}
           </div>
