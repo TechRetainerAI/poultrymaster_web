@@ -19,6 +19,7 @@ namespace User.Management.Service.Models.Authentication.User
         public bool IsStaff { get; set; }       // 👈 Added: tells if user is staff
         public string FarmId { get; set; }      // 👈 Added: tells which farm user belongs to
         public string FarmName { get; set; }
+        public string? BusinessOfficeName { get; set; }  // Prompt 2 — owner's HQ name
         public bool IsSubscriber { get; set; }
         public bool IsAdmin { get; set; }
         public string? AdminTitle { get; set; }

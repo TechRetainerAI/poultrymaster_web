@@ -100,6 +100,9 @@ export default function RegisterPage() {
       phoneNumber: f.phoneNumber.replace(/[\s()-]/g, ""),
       companyType: f.companyType as "Poultry" | "Water" | "Generic",
       roles: ["Admin"], // the registrant is the Business Office owner/admin
+      businessOfficeName: f.businessOfficeName.trim(),
+      businessOfficeCurrency: f.currency.trim() || undefined,
+      businessOfficeCountry: f.country.trim() || undefined,
     })
 
     if (result.success) {

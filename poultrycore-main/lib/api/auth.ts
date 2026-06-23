@@ -94,6 +94,10 @@ export interface RegisterData {
   roles: string[]
   phoneNumber: string
   companyType: "Poultry" | "Water" | "Generic"
+  // Prompt 2 — owner's Business Office (HQ), persisted on the account.
+  businessOfficeName?: string
+  businessOfficeCurrency?: string
+  businessOfficeCountry?: string
 }
 
 export interface LoginData {
@@ -566,6 +570,13 @@ export async function login(data: LoginData): Promise<ApiResponse> {
         // Fallback farm name
         localStorage.setItem("farmName", "My Farm")
         console.log("[v0] FarmName not in response, using default: My Farm")
+      }
+
+      // Prompt 2 — Business Office name (owner's HQ). Persist from the server so
+      // it shows on the Business Office page across devices.
+      const businessOfficeName = userData.businessOfficeName || userData.BusinessOfficeName
+      if (businessOfficeName) {
+        try { localStorage.setItem("businessOfficeName", businessOfficeName) } catch {}
       }
 
       // Handle case sensitivity for IsStaff/isStaff

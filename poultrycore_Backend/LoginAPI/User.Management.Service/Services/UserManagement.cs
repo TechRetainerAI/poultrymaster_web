@@ -125,6 +125,10 @@ namespace User.Management.Service.Services
                     PhoneNumber = registerUser.PhoneNumber,
                     SecurityStamp = Guid.NewGuid().ToString(),
                     UserName = registerUser.Username,
+                    // Prompt 2 — persist the owner's Business Office (migration 118).
+                    BusinessOfficeName = registerUser.BusinessOfficeName,
+                    BusinessOfficeCurrency = registerUser.BusinessOfficeCurrency,
+                    BusinessOfficeCountry = registerUser.BusinessOfficeCountry,
                     TwoFactorEnabled = false // true  // TOD0--- EITHER HARDCODE OR determine from UI Based on user preference
                 };
 
@@ -142,6 +146,9 @@ namespace User.Management.Service.Services
                     user.PhoneNumber     = registerUser.PhoneNumber;
                     user.FarmName        = registerUser.FarmName;
                     user.EmailConfirmed  = true;
+                    user.BusinessOfficeName     = registerUser.BusinessOfficeName;
+                    user.BusinessOfficeCurrency = registerUser.BusinessOfficeCurrency;
+                    user.BusinessOfficeCountry  = registerUser.BusinessOfficeCountry;
                     var ensureFields = await _userManager.UpdateAsync(user);
                     if (!ensureFields.Succeeded)
                     {
@@ -515,6 +522,7 @@ namespace User.Management.Service.Services
                     IsStaff = user.IsStaff,
                     FarmId = user.FarmId,
                     FarmName = user.FarmName,
+                    BusinessOfficeName = user.BusinessOfficeName,
                     IsSubscriber = user.IsSubscriber,
                     IsAdmin = user.IsAdmin,
                     AdminTitle = user.AdminTitle,

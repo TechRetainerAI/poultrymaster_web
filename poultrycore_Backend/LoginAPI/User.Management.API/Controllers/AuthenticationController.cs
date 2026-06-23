@@ -72,8 +72,8 @@ namespace User.Management.API.Controllers
                         registerUser.CompanyType,
                         loginUrl);
                     var subject = string.IsNullOrWhiteSpace(registerUser.FarmName)
-                        ? "Welcome to Poultry Master"
-                        : $"Welcome to Poultry Master, {registerUser.FarmName}";
+                        ? "Welcome to VisibilityCore"
+                        : $"Welcome to VisibilityCore, {registerUser.FarmName}";
                     _emailService.SendEmail(new Message(new[] { registerUser.Email! }, subject, welcomeHtml));
                 }
                 catch (Exception emailEx)
