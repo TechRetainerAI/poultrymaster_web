@@ -2,13 +2,18 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Eye, EyeOff, ChevronLeft, ChevronRight, Check } from "lucide-react"
-import { register } from "@/lib/api/auth"
+import { Eye, EyeOff, ChevronLeft, ChevronRight, Check, Loader2, X } from "lucide-react"
+import { register, checkOrgCodeAvailable } from "@/lib/api/auth"
 import Link from "next/link"
+
+// Derive a friendly code suggestion from the Business Office name.
+function suggestOrgCode(name: string): string {
+  return (name || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 20)
+}
 
 // Identity-style errors come back as a string[] OR an object map ({ field: [msgs] }).
 function flattenErrors(errors: unknown): string[] {
@@ -49,11 +54,30 @@ export default function RegisterPage() {
     firstName: "", lastName: "", username: "", email: "", phoneNumber: "",
     password: "", confirmPassword: "",
     // Step 2 — business office
-    businessOfficeName: "", currency: "GHS", country: "Ghana",
+    businessOfficeName: "", organizationCode: "", currency: "GHS", country: "Ghana",
     // Step 3 — first company
     companyType: "" as CType, farmName: "", companyLocation: "",
   })
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }))
+  const [codeTouched, setCodeTouched] = useState(false)
+  const [codeCheck, setCodeCheck] = useState<{ status: "idle" | "checking" | "ok" | "bad"; reason?: string; suggestions?: string[] }>({ status: "idle" })
+
+  // Suggest a code from the office name until the owner edits the code field.
+  useEffect(() => {
+    if (!codeTouched) setF((p) => ({ ...p, organizationCode: suggestOrgCode(p.businessOfficeName) }))
+  }, [f.businessOfficeName, codeTouched])
+
+  // Debounced availability check.
+  useEffect(() => {
+    const code = f.organizationCode.trim()
+    if (code.length < 4) { setCodeCheck({ status: code.length === 0 ? "idle" : "bad", reason: code.length === 0 ? undefined : "At least 4 characters." }); return }
+    setCodeCheck({ status: "checking" })
+    const t = setTimeout(async () => {
+      const r = await checkOrgCodeAvailable(code)
+      setCodeCheck(r.available ? { status: "ok" } : { status: "bad", reason: r.reason, suggestions: r.suggestions })
+    }, 450)
+    return () => clearTimeout(t)
+  }, [f.organizationCode])
 
   function validateStep1(): string | null {
     if (!f.firstName.trim() || !f.lastName.trim()) return "Please enter your first and last name."
@@ -66,6 +90,9 @@ export default function RegisterPage() {
   }
   function validateStep2(): string | null {
     if (!f.businessOfficeName.trim()) return "Please name your Business Office (e.g. “Evans Businesses”)."
+    if (f.organizationCode.trim().length < 4) return "Please choose an Organization Code (at least 4 characters)."
+    if (codeCheck.status === "bad") return codeCheck.reason || "That Organization Code can't be used. Please pick another."
+    if (codeCheck.status === "checking") return "Please wait — still checking the Organization Code."
     return null
   }
   function validateStep3(): string | null {
@@ -103,6 +130,7 @@ export default function RegisterPage() {
       businessOfficeName: f.businessOfficeName.trim(),
       businessOfficeCurrency: f.currency.trim() || undefined,
       businessOfficeCountry: f.country.trim() || undefined,
+      organizationCode: f.organizationCode.trim() || undefined,
     })
 
     if (result.success) {
@@ -216,6 +244,36 @@ export default function RegisterPage() {
                   <p className="text-sm text-slate-300">Your headquarters that holds all your companies.</p>
                 </div>
                 <Input placeholder="Business Office name (e.g. Evans Businesses)" value={f.businessOfficeName} onChange={(e) => set("businessOfficeName", e.target.value)} className={inputCls} disabled={isLoading} />
+
+                {/* Organization Code */}
+                <div>
+                  <div className="relative">
+                    <Input
+                      placeholder="Organization Code (e.g. EVANSBIZ)"
+                      value={f.organizationCode}
+                      onChange={(e) => { setCodeTouched(true); set("organizationCode", e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, "")) }}
+                      className={`${inputCls} pr-10 tracking-wide`}
+                      maxLength={30}
+                      disabled={isLoading}
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                      {codeCheck.status === "checking" && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
+                      {codeCheck.status === "ok" && <Check className="w-4 h-4 text-emerald-400" />}
+                      {codeCheck.status === "bad" && <X className="w-4 h-4 text-red-400" />}
+                    </span>
+                  </div>
+                  {codeCheck.status === "ok" && <p className="mt-1 text-xs text-emerald-300">✓ {f.organizationCode} is available.</p>}
+                  {codeCheck.status === "bad" && <p className="mt-1 text-xs text-red-300">{codeCheck.reason}</p>}
+                  {codeCheck.status === "bad" && codeCheck.suggestions && codeCheck.suggestions.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {codeCheck.suggestions.map((s) => (
+                        <button key={s} type="button" onClick={() => { setCodeTouched(true); set("organizationCode", s) }} className="text-xs rounded bg-slate-700 text-slate-200 px-2 py-0.5 hover:bg-slate-600">{s}</button>
+                      ))}
+                    </div>
+                  )}
+                  <p className="mt-1 text-[11px] text-slate-400">This code is what you and your staff type when signing in. Choose something short and memorable.</p>
+                </div>
+
                 <div className="grid grid-cols-2 gap-3">
                   <Input placeholder="Default currency (e.g. GHS)" value={f.currency} onChange={(e) => set("currency", e.target.value)} className={inputCls} disabled={isLoading} />
                   <Input placeholder="Country" value={f.country} onChange={(e) => set("country", e.target.value)} className={inputCls} disabled={isLoading} />

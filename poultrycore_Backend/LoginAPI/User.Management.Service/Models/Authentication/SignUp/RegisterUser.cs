@@ -39,5 +39,8 @@ namespace User.Management.Service.Models.Authentication.SignUp
         public string? BusinessOfficeName { get; set; }
         public string? BusinessOfficeCurrency { get; set; }
         public string? BusinessOfficeCountry { get; set; }
+
+        // Prompt 3 — owner-chosen Organization Code for OrgCode-based login.
+        public string? OrganizationCode { get; set; }
     }
 }

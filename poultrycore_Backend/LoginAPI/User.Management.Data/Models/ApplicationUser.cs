@@ -51,6 +51,12 @@ namespace User.Management.Data.Models
         [Column(TypeName = "nvarchar(100)")]
         public string? BusinessOfficeCountry { get; set; }
 
+        // Prompt 3 — Organization Code (login org selector). Stored UPPERCASE,
+        // globally unique (migration 119). Added on the owner at signup.
+        [Column(TypeName = "nvarchar(30)")]
+        public string? OrganizationCode { get; set; }
+        public bool? IsOrgCodeActive { get; set; }
+
         // LastLoginTime - marked as NotMapped to avoid database errors until column is added
         [NotMapped]
         public DateTime? LastLoginTime { get; set; }

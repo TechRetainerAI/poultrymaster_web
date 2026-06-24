@@ -111,11 +111,16 @@ export default function BusinessOfficePage() {
   // Business Office name: set during signup (Prompt 2). Stored on the user when
   // available, else the localStorage value captured at signup.
   const [officeName, setOfficeName] = useState("Business Office")
+  const [orgCode, setOrgCode] = useState("")
   useEffect(() => {
     const fromUser = (user as any)?.businessOfficeName
-    let fromLs = ""
-    try { fromLs = localStorage.getItem("businessOfficeName") || "" } catch {}
+    let fromLs = "", code = ""
+    try {
+      fromLs = localStorage.getItem("businessOfficeName") || ""
+      code = localStorage.getItem("myOrgCode") || ""
+    } catch {}
     setOfficeName(fromUser || fromLs || "Business Office")
+    setOrgCode(((user as any)?.organizationCode || code || "").toUpperCase())
   }, [user])
 
   return (
@@ -130,7 +135,12 @@ export default function BusinessOfficePage() {
               <div className="rounded-xl bg-orange-100 p-2.5 shrink-0"><Briefcase className="h-7 w-7 text-orange-600" /></div>
               <div className="min-w-0">
                 <h1 className="text-2xl font-semibold text-slate-900 truncate">{officeName}</h1>
-                <p className="text-sm text-slate-500">Your headquarters — all your companies in one place.</p>
+                <p className="text-sm text-slate-500">
+                  Your headquarters — all your companies in one place.
+                  {isAdmin && orgCode && (
+                    <> · <span className="text-slate-600">Org code:</span> <span className="font-mono font-semibold text-slate-700">{orgCode}</span></>
+                  )}
+                </p>
               </div>
             </div>
             {isAdmin && (

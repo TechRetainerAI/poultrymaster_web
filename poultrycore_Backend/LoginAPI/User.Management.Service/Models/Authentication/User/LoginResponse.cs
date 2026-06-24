@@ -20,6 +20,7 @@ namespace User.Management.Service.Models.Authentication.User
         public string FarmId { get; set; }      // 👈 Added: tells which farm user belongs to
         public string FarmName { get; set; }
         public string? BusinessOfficeName { get; set; }  // Prompt 2 — owner's HQ name
+        public string? OrganizationCode { get; set; }     // Prompt 3 — owner's org code
         public bool IsSubscriber { get; set; }
         public bool IsAdmin { get; set; }
         public string? AdminTitle { get; set; }
