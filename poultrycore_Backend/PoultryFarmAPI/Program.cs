@@ -78,7 +78,6 @@ builder.Services.AddScoped<IEggInventoryAdjustmentService>(sp => new EggInventor
 builder.Services.AddScoped<IFeedInventoryAdjustmentService>(sp => new FeedInventoryAdjustmentService(connectionString));
 
 builder.Services.AddScoped<IDashboardService>(sp => new DashboardService(connectionString));
-builder.Services.AddScoped<IReportService>(sp => new ReportService(connectionString));
 
 builder.Services.AddScoped<IProductionRecordService>(sp => new ProductionRecordService(connectionString));
 
@@ -171,6 +170,11 @@ builder.Services.AddScoped<IWaterMaintenanceLogService>(sp => new WaterMaintenan
 // Water report/closing → PDF → email. Depends only on already-registered DI
 // services (IWaterReportService for report data, IEmailService for delivery).
 builder.Services.AddScoped<IWaterReportEmailService, WaterReportEmailService>();
+
+// Composes + sends notification emails (report share, credentials, welcome).
+// Owns the HTML templates that used to live in EmailController; delivers via
+// IEmailService.
+builder.Services.AddScoped<IEmailNotificationService, EmailNotificationService>();
 // =================================================================
 
 // =================================================================
