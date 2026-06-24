@@ -36,6 +36,9 @@ import { SupplierSelect } from "@/components/water/supplier-select"
 
 const CATEGORIES = ["PackagingRoll","SachetFilm","OuterBag","Chemical","Filter","UVLamp","SparePart","Fuel","CleaningSupply","Other"]
 const PAYMENT_METHODS = ["Cash","MoMo","Bank","Credit"]
+// Spec #12: purchase / production units are dropdowns. The item's own unit is
+// merged in at render time so custom units aren't lost.
+const UNITS = ["Roll","Bag","Sachet","Bottle","Piece","Pack","Carton","Box","Bundle","Dozen","Litre","Millilitre","Kilogram","Gram","Bale","Unit","Other"]
 
 type ItemForm = Omit<WaterRawMaterialItem, "waterRawMaterialItemId" | "farmId" | "currentQuantity">
 const EMPTY_ITEM: ItemForm = { itemName: "", category: "PackagingRoll", unitOfMeasure: "", minimumStockAlert: 0, isActive: true, notes: null }
@@ -172,8 +175,8 @@ export default function WaterRawMaterialsPage() {
       // N2: use the stored exact total when present.
       totalPurchaseCost: Number((p.totalCost ?? (p.quantity * p.unitCost)).toFixed(2)),
       purchaseUnit: items.find(i => i.waterRawMaterialItemId === p.waterRawMaterialItemId)?.unitOfMeasure ?? "",
-      productionUnit: "",
-      productionUnitsPerPurchaseUnit: 1,
+      productionUnit: p.productionUnit ?? "",
+      productionUnitsPerPurchaseUnit: p.productionUnitsPerPurchaseUnit ?? 1,
     })
     setPurchaseOpen(true)
   }
@@ -186,10 +189,16 @@ export default function WaterRawMaterialsPage() {
     if (purchaseForm.paymentMethod !== "Credit" && purchaseForm.amountPaid > 0 && !purchaseForm.waterCashAccountId)
       return toast({ title: "Pick the cash account to pay from", variant: "destructive" })
     // N2: send the EXACT total the operator entered (the SP stores it verbatim);
-    // quantity is in the item's unit. No production conversion (removed per new feedback).
+    // quantity is in the item's purchase unit. Migration 116: the production-unit
+    // conversion (unit + units-per-purchase-unit) is persisted with the purchase.
     const qty = purchaseForm.quantity
     const total = Number(purchaseForm.totalPurchaseCost.toFixed(2))
     const unitCost = purchaseForm.unitCost || (qty > 0 ? total / qty : 0)
+    const productionUnit = purchaseForm.productionUnit?.trim() || null
+    const productionUnitsPerPurchaseUnit =
+      purchaseForm.productionUnitsPerPurchaseUnit && purchaseForm.productionUnitsPerPurchaseUnit > 0
+        ? purchaseForm.productionUnitsPerPurchaseUnit
+        : null
     try {
       if (editPurchaseId != null) {
         await updateWaterRawMaterialPurchase(editPurchaseId, {
@@ -203,6 +212,8 @@ export default function WaterRawMaterialsPage() {
           receiptUrl: purchaseForm.receiptUrl || null,
           notes: purchaseForm.notes || null,
           supplierId: purchaseForm.supplierId,
+          productionUnit,
+          productionUnitsPerPurchaseUnit,
         } as any)
         toast({ title: "Purchase updated — stock adjusted" })
       } else {
@@ -218,6 +229,8 @@ export default function WaterRawMaterialsPage() {
           receiptUrl: purchaseForm.receiptUrl || null,
           notes: purchaseForm.notes || null,
           supplierId: purchaseForm.supplierId,
+          productionUnit,
+          productionUnitsPerPurchaseUnit,
         } as any)
         toast({ title: "Purchase recorded — stock updated" })
       }
@@ -243,7 +256,7 @@ export default function WaterRawMaterialsPage() {
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
-              <Box className="h-6 w-6 text-sky-600" /> Raw materials &amp; supplies
+              <Box className="h-6 w-6 text-sky-600" /> Raw materials
             </h1>
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={openNewItem}><Plus className="h-4 w-4 mr-1" /> New item</Button>
@@ -284,6 +297,7 @@ export default function WaterRawMaterialsPage() {
                   ) : (
                     <MobileCardList
                       items={visibleItems}
+                      defaultOpen
                       getKey={(it) => it.waterRawMaterialItemId}
                       primary={(it) => it.itemName}
                       secondary={(it) => (
@@ -358,6 +372,7 @@ export default function WaterRawMaterialsPage() {
                   ) : (
                     <MobileCardList
                       items={usage}
+                      defaultOpen
                       getKey={(u) => u.waterRawMaterialUsageId}
                       primary={(u) => u.itemName ?? "—"}
                       secondary={(u) => (
@@ -422,6 +437,7 @@ export default function WaterRawMaterialsPage() {
                   ) : (
                     <MobileCardList
                       items={purchases}
+                      defaultOpen
                       getKey={(p) => p.waterRawMaterialPurchaseId}
                       primary={(p) => p.itemName ?? items.find(i => i.waterRawMaterialItemId === p.waterRawMaterialItemId)?.itemName ?? "—"}
                       secondary={(p) => (
@@ -440,6 +456,10 @@ export default function WaterRawMaterialsPage() {
                         { label: "Total", value: gh(p.totalCost ?? p.quantity * p.unitCost) },
                         { label: "Method", value: p.paymentMethod ?? "—" },
                         { label: "Balance", value: <span className={(p.balance ?? 0) > 0 ? "text-rose-600" : ""}>{gh(p.balance ?? 0)}</span> },
+                        // Migration 116: show the persisted production-unit conversion.
+                        { label: "Production", value: p.productionUnit
+                            ? `${(p.productionQuantity ?? 0).toLocaleString()} ${p.productionUnit}${p.productionUnitCost ? ` @ ${gh(p.productionUnitCost)}` : ""}`
+                            : "—" },
                       ]}
                       actions={(p) => (
                         <>
@@ -575,31 +595,75 @@ export default function WaterRawMaterialsPage() {
             </FormSection>
 
             {(() => {
-              const qty = purchaseForm.quantity || 0
-              // N1: two-way unit-cost <-> total-cost binding (both editable).
-              const setUnitCost = (u: number) => setPurchaseForm({ ...purchaseForm, unitCost: u, totalPurchaseCost: Number((qty * u).toFixed(2)) })
-              const setTotal    = (t: number) => setPurchaseForm({ ...purchaseForm, totalPurchaseCost: t, unitCost: qty > 0 ? Number((t / qty).toFixed(4)) : 0 })
-              const setQty      = (q: number) => setPurchaseForm({ ...purchaseForm, quantity: q, totalPurchaseCost: Number((q * (purchaseForm.unitCost || 0)).toFixed(2)) })
+              const qty   = purchaseForm.quantity || 0
+              const total = purchaseForm.totalPurchaseCost || 0
+              // Spec #12: Quantity + Total Purchase Cost are the inputs.
+              // Purchase Unit Cost is SYSTEM CALCULATED = Total / Quantity.
+              // We keep unitCost in sync so it persists with the purchase.
+              const setQty   = (q: number) => setPurchaseForm({ ...purchaseForm, quantity: q, unitCost: q > 0 ? Number((total / q).toFixed(4)) : 0 })
+              const setTotal = (t: number) => setPurchaseForm({ ...purchaseForm, totalPurchaseCost: t, unitCost: qty > 0 ? Number((t / qty).toFixed(4)) : 0 })
+              const unitCost = qty > 0 ? total / qty : 0
+              // Production conversion (persisted, migration 116). Both derived:
+              //   Production-Level Quantity  = unitsPerPurchase × Purchase Quantity
+              //   Production-Level Unit Cost = Total / Production-Level Quantity
+              const perPurchase  = purchaseForm.productionUnitsPerPurchaseUnit || 0
+              const prodQty      = qty * perPurchase
+              const prodUnitCost = prodQty > 0 ? total / prodQty : 0
+              const unitOptions = (current?: string | null) => {
+                const set = [...UNITS]
+                const c = (current ?? "").trim()
+                if (c && !set.includes(c)) set.unshift(c)
+                return set
+              }
+              const roCls = "bg-slate-50 text-slate-700 font-medium"
               return (
-                <FormSection title="Quantity & Pricing" color="blue">
-                  <FormField label="Purchase unit *">
-                    {/* N1: auto-populated from the item's unit of measure; editable. */}
-                    <Input value={purchaseForm.purchaseUnit} onChange={(e) => setPurchaseForm({ ...purchaseForm, purchaseUnit: e.target.value })} placeholder="e.g. Roll, Bag, Litre" />
-                  </FormField>
-                  <FormField label="Purchase quantity *">
-                    <NumberInput min={0} step="0.001" value={purchaseForm.quantity} onChange={(e) => setQty(Number(e.target.value) || 0)} />
-                  </FormField>
-                  <FormField label="Purchase unit cost *">
-                    {/* N1/N2: free field; editing it recomputes the total (and vice-versa). */}
-                    <NumberInput min={0} step="0.0001" value={purchaseForm.unitCost} onChange={(e) => setUnitCost(Number(e.target.value) || 0)} />
-                  </FormField>
-                  <FormField label="Total purchase cost *">
-                    <NumberInput min={0} step="0.01" value={purchaseForm.totalPurchaseCost} onChange={(e) => setTotal(Number(e.target.value) || 0)} />
-                  </FormField>
-                  <FormField label="" full>
-                    <p className="text-xs text-slate-500">Enter the unit cost and we calculate the total, or enter the total and we calculate the unit cost. The total is saved exactly as entered.</p>
-                  </FormField>
-                </FormSection>
+                <>
+                  <FormSection title="Purchase Quantity & Production Costing" color="blue">
+                    <FormField label="Purchase unit *">
+                      <Select value={purchaseForm.purchaseUnit || ""} onValueChange={(v) => setPurchaseForm({ ...purchaseForm, purchaseUnit: v })}>
+                        <SelectTrigger><SelectValue placeholder="Pick unit" /></SelectTrigger>
+                        <SelectContent>{unitOptions(purchaseForm.purchaseUnit).map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </FormField>
+                    <FormField label="Purchase quantity *">
+                      <NumberInput min={0} step="0.001" value={purchaseForm.quantity} onChange={(e) => setQty(Number(e.target.value) || 0)} />
+                    </FormField>
+                    <FormField label="Total purchase cost *">
+                      <NumberInput min={0} step="0.01" value={purchaseForm.totalPurchaseCost} onChange={(e) => setTotal(Number(e.target.value) || 0)} />
+                    </FormField>
+                    <FormField label="Purchase unit cost (auto)">
+                      {/* System calculated = Total Purchase Cost / Purchase Quantity. */}
+                      <Input readOnly tabIndex={-1} className={roCls}
+                        value={`${gh(unitCost)}${purchaseForm.purchaseUnit ? ` per ${purchaseForm.purchaseUnit}` : ""}`} />
+                    </FormField>
+                  </FormSection>
+
+                  <FormSection title="Production Conversion" color="indigo">
+                    <FormField label="Production unit *">
+                      <Select value={purchaseForm.productionUnit || ""} onValueChange={(v) => setPurchaseForm({ ...purchaseForm, productionUnit: v })}>
+                        <SelectTrigger><SelectValue placeholder="Pick unit" /></SelectTrigger>
+                        <SelectContent>{unitOptions(purchaseForm.productionUnit).map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </FormField>
+                    <FormField label="Production units per purchase unit *">
+                      <NumberInput min={0} step="0.0001" value={purchaseForm.productionUnitsPerPurchaseUnit}
+                        onChange={(e) => setPurchaseForm({ ...purchaseForm, productionUnitsPerPurchaseUnit: Number(e.target.value) || 0 })} />
+                    </FormField>
+                    <FormField label="Production-level quantity (auto)">
+                      {/* Production Units Per Purchase Unit × Purchase Quantity */}
+                      <Input readOnly tabIndex={-1} className={roCls}
+                        value={`${prodQty.toLocaleString()}${purchaseForm.productionUnit ? ` ${purchaseForm.productionUnit}` : ""}`} />
+                    </FormField>
+                    <FormField label="Production-level unit cost (auto)">
+                      {/* Total Purchase Cost / Production-Level Quantity */}
+                      <Input readOnly tabIndex={-1} className={roCls}
+                        value={`${gh(prodUnitCost)}${purchaseForm.productionUnit ? ` per ${purchaseForm.productionUnit}` : ""}`} />
+                    </FormField>
+                    <FormField label="" full>
+                      <p className="text-xs text-slate-500">If you buy and use the same unit, set <span className="font-medium">Production units per purchase unit = 1</span> — the production figures then match the purchase figures. These values are saved with the purchase.</p>
+                    </FormField>
+                  </FormSection>
+                </>
               )
             })()}
 

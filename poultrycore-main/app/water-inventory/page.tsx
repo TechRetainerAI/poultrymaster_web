@@ -166,7 +166,7 @@ export default function WaterInventoryPage() {
                 <Badge variant="secondary" className="ml-2">{filteredProducts.length}</Badge>
               </TabsTrigger>
               <TabsTrigger value="raw" className="data-[state=active]:bg-white">
-                <Box className="h-4 w-4 mr-1.5" /> Raw materials &amp; supplies
+                <Box className="h-4 w-4 mr-1.5" /> Raw materials
                 <Badge variant="secondary" className="ml-2">{filteredRaw.length}</Badge>
               </TabsTrigger>
             </TabsList>
@@ -187,6 +187,7 @@ export default function WaterInventoryPage() {
                   ) : (
                     <MobileCardList
                       items={filteredProducts}
+                      defaultOpen
                       getKey={(p) => p.waterProductId}
                       primary={(p) => p.name}
                       secondary={(p) => {
@@ -268,35 +269,53 @@ export default function WaterInventoryPage() {
                   ) : filteredRaw.length === 0 ? (
                     <div className="p-8 text-center text-slate-500">{q ? "No raw materials match your search." : "No raw materials yet."}</div>
                   ) : (
-                    <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Item</TableHead>
-                          <TableHead>Category</TableHead>
-                          <TableHead>Unit</TableHead>
-                          <TableHead className="text-right">Stock</TableHead>
-                          <TableHead className="text-right">Min alert</TableHead>
-                          <TableHead>Status</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredRaw.map((r) => {
-                          const st = rawStatus(r)
-                          return (
-                            <TableRow key={r.waterRawMaterialItemId}>
-                              <TableCell className="font-medium">{r.itemName}</TableCell>
-                              <TableCell>{r.category ?? "—"}</TableCell>
-                              <TableCell>{(r as any).unitOfMeasure ?? "—"}</TableCell>
-                              <TableCell className="text-right tabular-nums font-semibold">{(r.currentQuantity ?? 0).toLocaleString()}</TableCell>
-                              <TableCell className="text-right tabular-nums text-slate-500">{((r as any).minimumStockAlert ?? 0).toLocaleString() || "—"}</TableCell>
-                              <TableCell><ToneBadge tone={st.tone} label={st.label} /></TableCell>
+                    <MobileCardList
+                      items={filteredRaw}
+                      defaultOpen
+                      getKey={(r) => r.waterRawMaterialItemId}
+                      primary={(r) => r.itemName}
+                      secondary={(r) => {
+                        const st = rawStatus(r)
+                        return <ToneBadge tone={st.tone} label={st.label} />
+                      }}
+                      details={(r) => [
+                        { label: "Category", value: r.category ?? "—" },
+                        { label: "Unit", value: (r as any).unitOfMeasure ?? "—" },
+                        { label: "Stock", value: (r.currentQuantity ?? 0).toLocaleString() },
+                        { label: "Min alert", value: ((r as any).minimumStockAlert ?? 0).toLocaleString() || "—" },
+                      ]}
+                      desktopTable={
+                        <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Item</TableHead>
+                              <TableHead>Category</TableHead>
+                              <TableHead>Unit</TableHead>
+                              <TableHead className="text-right">Stock</TableHead>
+                              <TableHead className="text-right">Min alert</TableHead>
+                              <TableHead>Status</TableHead>
                             </TableRow>
-                          )
-                        })}
-                      </TableBody>
-                    </Table>
-                    </div>
+                          </TableHeader>
+                          <TableBody>
+                            {filteredRaw.map((r) => {
+                              const st = rawStatus(r)
+                              return (
+                                <TableRow key={r.waterRawMaterialItemId}>
+                                  <TableCell className="font-medium">{r.itemName}</TableCell>
+                                  <TableCell>{r.category ?? "—"}</TableCell>
+                                  <TableCell>{(r as any).unitOfMeasure ?? "—"}</TableCell>
+                                  <TableCell className="text-right tabular-nums font-semibold">{(r.currentQuantity ?? 0).toLocaleString()}</TableCell>
+                                  <TableCell className="text-right tabular-nums text-slate-500">{((r as any).minimumStockAlert ?? 0).toLocaleString() || "—"}</TableCell>
+                                  <TableCell><ToneBadge tone={st.tone} label={st.label} /></TableCell>
+                                </TableRow>
+                              )
+                            })}
+                          </TableBody>
+                        </Table>
+                        </div>
+                      }
+                    />
                   )}
                 </CardContent>
               </Card>

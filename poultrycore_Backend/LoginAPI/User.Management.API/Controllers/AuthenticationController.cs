@@ -17,6 +17,7 @@ using User.Management.Service.Models.Authentication.Login;
 using User.Management.Service.Models.Authentication.SignUp;
 using User.Management.Service.Models.Authentication.User;
 using User.Management.Service.Services;
+using User.Management.Service.Helpers;
 using static Humanizer.In;
 using static System.Net.WebRequestMethods;
 
@@ -47,6 +48,34 @@ namespace User.Management.API.Controllers
             _frontendAppBaseUrl = configuration["FrontendApp:BaseUrl"] ?? "http://localhost:3000";
         }
 
+        // Prompt 3 — live availability check for an Organization Code (signup).
+        [HttpGet("org-code-available")]
+        public IActionResult OrgCodeAvailable([FromQuery] string code)
+        {
+            var norm = Service.Helpers.OrgCode.Normalize(code);
+            var error = Service.Helpers.OrgCode.Validate(norm);
+            if (error != null)
+                return Ok(new { available = false, reason = error, suggestions = Service.Helpers.OrgCode.Suggestions(norm) });
+            var taken = _userManager.Users.Where(u => u.OrganizationCode == norm).ToList().Any();
+            if (taken)
+                return Ok(new { available = false, reason = "This Organization Code is already taken.", suggestions = Service.Helpers.OrgCode.Suggestions(norm) });
+            return Ok(new { available = true, code = norm });
+        }
+
+        // Prompt 3 — resolve an Organization Code to its owner so the client can
+        // scope the session to that organization's companies after login. This
+        // does NOT grant access; the user still authenticates with username +
+        // password.
+        [HttpGet("org")]
+        public IActionResult ResolveOrg([FromQuery] string code)
+        {
+            var norm = Service.Helpers.OrgCode.Normalize(code);
+            if (string.IsNullOrEmpty(norm)) return Ok(new { found = false });
+            var owner = _userManager.Users.Where(u => u.OrganizationCode == norm).ToList().FirstOrDefault();
+            if (owner == null) return Ok(new { found = false });
+            return Ok(new { found = true, ownerUserId = owner.Id, businessOfficeName = owner.BusinessOfficeName, organizationCode = norm });
+        }
+
         [HttpPost]
         [Route("Register")]
         public async Task<IActionResult> Register([FromBody] RegisterUser registerUser)
@@ -72,8 +101,8 @@ namespace User.Management.API.Controllers
                         registerUser.CompanyType,
                         loginUrl);
                     var subject = string.IsNullOrWhiteSpace(registerUser.FarmName)
-                        ? "Welcome to Poultry Master"
-                        : $"Welcome to Poultry Master, {registerUser.FarmName}";
+                        ? "Welcome to VisibilityCore"
+                        : $"Welcome to VisibilityCore, {registerUser.FarmName}";
                     _emailService.SendEmail(new Message(new[] { registerUser.Email! }, subject, welcomeHtml));
                 }
                 catch (Exception emailEx)

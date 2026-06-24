@@ -47,6 +47,7 @@ import {
   Cog,
   Box,
   Route as RouteIcon,
+  Briefcase,
 } from "lucide-react"
 import { InventoryLogo } from "@/components/auth/logo"
 import { useAlertsStore, type AlertItem } from "@/lib/store/alerts-store"
@@ -213,7 +214,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   // /employees page redirects water users to the dashboard. Admin-gated.
   const waterPeopleItems = [
     ...((permissions.isAdmin || permissions.featureAccess.canSeeEmployees)
-      ? [{ href: "/water-staff", label: "Employees", icon: UserCog }]
+      ? [{ href: "/water-staff", label: "Staff", icon: UserCog }]
       : []),
     { href: "/water-payroll", label: "Payroll", icon: Banknote },
   ]
@@ -423,6 +424,11 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         className="sidebar-nav-scrollable min-h-0 flex-1 overflow-y-auto overscroll-y-contain py-3 px-2 space-y-4"
         aria-label="Main navigation"
       >
+        {/* Business Office — the owner's HQ above all companies (Prompt 2). */}
+        <div>
+          {renderNavItem({ href: "/business-office", label: "Business Office", icon: Briefcase })}
+        </div>
+
         {/* Dashboard — route depends on active company type */}
         <div>
           {renderNavItem({
@@ -531,13 +537,15 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
           </>
         )}
 
-        {/* Admin — Employees. Hidden for Water: it now lives under the
-            water People group (James 2026-06-13). */}
-        {!isWater && (permissions.isAdmin || permissions.featureAccess.canSeeEmployees) && (
+        {/* Admin — Employees. The /employees page creates employee LOGIN
+            accounts (and emails credentials); it adapts to Water. Shown for
+            Water again on request (2026-06-22), alongside the water People
+            group's "Employees" -> /water-staff (staff master / payroll). */}
+        {(permissions.isAdmin || permissions.featureAccess.canSeeEmployees) && (
           <>
             <div className="border-t border-slate-800 mx-2" />
             <div className="space-y-0.5">
-              {renderNavItem({ href: "/employees", label: "Employees", icon: UserCog })}
+              {renderNavItem({ href: "/employees", label: "Users & Permissions", icon: UserCog })}
             </div>
           </>
         )}

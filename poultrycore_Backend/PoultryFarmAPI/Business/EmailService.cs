@@ -1,14 +1,29 @@
-using MailKit.Net.Smtp;
-using MailKit.Security;
-using MimeKit;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
 {
-    // SMTP email sender backed by MailKit. Mirrors the implementation in
-    // PoultryWeb/Business/EmailService.cs but adds attachment support.
+    // Email sender backed by the Resend HTTP API (https://api.resend.com/emails).
+    //
+    // We deliberately do NOT use SMTP: Cloud Run throttles/blocks outbound SMTP
+    // (ports 25/465/587), so MailKit-over-SMTP times out in production. The HTTP
+    // API is Resend's recommended path for serverless hosts.
+    //
+    // EmailConfiguration is reused as-is so no env-var changes are needed:
+    //   Password -> the Resend API key (re_...)
+    //   From     -> the verified sender address
+    // SmtpServer / Port / UseSsl are ignored (kept only for backward compat).
     public class EmailService : IEmailService
     {
+        // One shared HttpClient for the process (avoids socket exhaustion).
+        private static readonly HttpClient _http = new HttpClient
+        {
+            BaseAddress = new Uri("https://api.resend.com/"),
+            Timeout = TimeSpan.FromSeconds(30),
+        };
+
         private readonly EmailConfiguration _config;
         private readonly ILogger<EmailService> _logger;
 
@@ -25,9 +40,9 @@ namespace PoultryFarmAPIWeb.Business
             bool isHtml = true,
             IEnumerable<EmailAttachment>? attachments = null)
         {
-            if (string.IsNullOrWhiteSpace(_config.SmtpServer))
+            if (string.IsNullOrWhiteSpace(_config.Password))
                 throw new InvalidOperationException(
-                    "Email is not configured. Set EmailConfiguration__SmtpServer / Port / UserName / Password / From.");
+                    "Email is not configured. Set EmailConfiguration__Password to your Resend API key (re_...) and EmailConfiguration__From to a verified sender.");
 
             if (string.IsNullOrWhiteSpace(_config.From))
                 throw new InvalidOperationException("EmailConfiguration__From is required.");
@@ -36,68 +51,65 @@ namespace PoultryFarmAPIWeb.Business
             if (recipients.Count == 0)
                 throw new ArgumentException("At least one recipient is required.", nameof(to));
 
-            var message = new MimeMessage();
-            message.From.Add(new MailboxAddress("PoultryCore Reports", _config.From));
-            foreach (var addr in recipients)
+            var payload = new Dictionary<string, object?>
             {
-                message.To.Add(MailboxAddress.Parse(addr));
-            }
-            message.Subject = subject ?? string.Empty;
-
-            var builder = new BodyBuilder();
-            if (isHtml) builder.HtmlBody = body ?? string.Empty;
-            else builder.TextBody = body ?? string.Empty;
+                ["from"] = _config.From,
+                ["to"] = recipients,
+                ["subject"] = subject ?? string.Empty,
+            };
+            if (isHtml) payload["html"] = body ?? string.Empty;
+            else payload["text"] = body ?? string.Empty;
 
             if (attachments != null)
             {
+                var atts = new List<object>();
                 foreach (var att in attachments)
                 {
                     if (att?.Content == null || att.Content.Length == 0) continue;
-                    var ct = ContentType.Parse(att.ContentType ?? "application/octet-stream");
-                    builder.Attachments.Add(att.FileName ?? "attachment", att.Content, ct);
+                    // Resend expects base64-encoded attachment content.
+                    atts.Add(new
+                    {
+                        filename = string.IsNullOrWhiteSpace(att.FileName) ? "attachment" : att.FileName,
+                        content = Convert.ToBase64String(att.Content),
+                    });
                 }
+                if (atts.Count > 0) payload["attachments"] = atts;
             }
 
-            message.Body = builder.ToMessageBody();
+            var json = JsonSerializer.Serialize(payload);
 
-            using var client = new SmtpClient();
+            using var request = new HttpRequestMessage(HttpMethod.Post, "emails")
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json"),
+            };
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _config.Password.Trim());
+
+            HttpResponseMessage response;
             try
             {
-                // Port 465 = implicit TLS (SslOnConnect); 587 = STARTTLS.
-                var socketOption = _config.UseSsl || _config.Port == 465
-                    ? SecureSocketOptions.SslOnConnect
-                    : SecureSocketOptions.StartTls;
-
-                await client.ConnectAsync(_config.SmtpServer, _config.Port, socketOption);
-                client.AuthenticationMechanisms.Remove("XOAUTH2");
-
-                if (!string.IsNullOrWhiteSpace(_config.UserName))
-                {
-                    await client.AuthenticateAsync(_config.UserName, _config.Password);
-                }
-
-                await client.SendAsync(message);
-                _logger.LogInformation(
-                    "Email sent to {Recipients}, subject: {Subject}, attachments: {AttachmentCount}",
-                    string.Join(",", recipients),
-                    subject,
-                    attachments?.Count() ?? 0);
+                response = await _http.SendAsync(request);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex,
-                    "Failed to send email to {Recipients}, subject: {Subject}",
-                    string.Join(",", recipients),
-                    subject);
+                    "Resend API request failed for {Recipients}, subject: {Subject}",
+                    string.Join(",", recipients), subject);
                 throw;
             }
-            finally
+
+            var responseBody = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
             {
-                if (client.IsConnected)
-                {
-                    await client.DisconnectAsync(true);
-                }
+                _logger.LogError(
+                    "Resend API returned {Status} for {Recipients}: {Body}",
+                    (int)response.StatusCode, string.Join(",", recipients), responseBody);
+                // Surface Resend's exact reason (domain not verified, bad key, etc.).
+                throw new Exception($"Resend rejected the email ({(int)response.StatusCode}): {responseBody}");
             }
+
+            _logger.LogInformation(
+                "Email sent via Resend to {Recipients}, subject: {Subject}, attachments: {AttachmentCount}",
+                string.Join(",", recipients), subject, attachments?.Count() ?? 0);
         }
     }
 }

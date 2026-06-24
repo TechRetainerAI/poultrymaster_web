@@ -160,7 +160,7 @@ export function DashboardHeader() {
     <div className="flex flex-col min-w-0">
       <header className="bg-slate-900 border-b border-slate-800 px-2 sm:px-6 py-3 min-w-0">
         <div className="hidden lg:flex items-center justify-between gap-4">
-          {/* Poultry Master branding - visible when sidebar doesn't show its own */}
+          {/* VisibilityCore branding - visible when sidebar doesn't show its own */}
           {isCollapsed && (
             <div className="shrink-0">
               <InventoryLogo dark />

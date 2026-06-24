@@ -33,5 +33,14 @@ namespace User.Management.Service.Models.Authentication.SignUp
         [RegularExpression("^(Poultry|Water|Generic)$",
             ErrorMessage = "CompanyType must be Poultry, Water, or Generic.")]
         public string? CompanyType { get; set; }
+
+        // Prompt 2 — the owner's Business Office (HQ). Optional so older clients
+        // still register; stored on the owner's account (migration 118).
+        public string? BusinessOfficeName { get; set; }
+        public string? BusinessOfficeCurrency { get; set; }
+        public string? BusinessOfficeCountry { get; set; }
+
+        // Prompt 3 — owner-chosen Organization Code for OrgCode-based login.
+        public string? OrganizationCode { get; set; }
     }
 }
