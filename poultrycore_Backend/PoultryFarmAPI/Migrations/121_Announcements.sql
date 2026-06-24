@@ -46,8 +46,11 @@ BEGIN
         ReadAt         DATETIME2     NULL,
         DismissedAt    DATETIME2     NULL,
         AcknowledgedAt DATETIME2     NULL,
-        CONSTRAINT PK_AnnouncementReceipts PRIMARY KEY (AnnouncementId, UserId)
+        -- NONCLUSTERED: the (int + nvarchar(450)) key is 904 bytes, over the
+        -- 900-byte clustered limit but within the 1700-byte nonclustered limit.
+        CONSTRAINT PK_AnnouncementReceipts PRIMARY KEY NONCLUSTERED (AnnouncementId, UserId)
     );
+    CREATE CLUSTERED INDEX IX_AnnouncementReceipts_Ann ON dbo.AnnouncementReceipts (AnnouncementId);
 END
 GO
 
