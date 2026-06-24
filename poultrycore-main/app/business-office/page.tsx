@@ -24,7 +24,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import {
   Briefcase, Building2, Bird, Droplets, ShoppingBag, Plus, Loader2, Users, ArrowRight, Check,
   Search, Bell, ListTodo, HelpCircle, LogOut, Menu, X, Megaphone, ShieldCheck, Activity, ChevronRight,
+  Trash2, AlertTriangle, Info, ShieldAlert, Wrench, CreditCard, Sparkles,
 } from "lucide-react"
+import { Textarea } from "@/components/ui/textarea"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -33,6 +35,25 @@ import {
   getMyCompanies, createCompany, sendCompanyWelcomeEmail, switchCompany,
   dashboardHomeForType, type Company, type CompanyType,
 } from "@/lib/api/companies"
+import {
+  listAnnouncements, setAnnouncementReceipt, createAnnouncement, deleteAnnouncement,
+  type Announcement,
+} from "@/lib/api/announcements"
+
+// Visual style per announcement type.
+function annStyle(type: string): { tone: string; icon: any } {
+  switch (type) {
+    case "Critical":
+    case "Security":     return { tone: "border-rose-200 bg-rose-50 text-rose-700", icon: ShieldAlert }
+    case "Warning":      return { tone: "border-amber-200 bg-amber-50 text-amber-700", icon: AlertTriangle }
+    case "Payment":      return { tone: "border-orange-200 bg-orange-50 text-orange-700", icon: CreditCard }
+    case "Maintenance":  return { tone: "border-slate-200 bg-slate-50 text-slate-700", icon: Wrench }
+    case "FeatureUpdate":return { tone: "border-violet-200 bg-violet-50 text-violet-700", icon: Sparkles }
+    case "Success":      return { tone: "border-emerald-200 bg-emerald-50 text-emerald-700", icon: Check }
+    default:             return { tone: "border-blue-200 bg-blue-50 text-blue-700", icon: Info }
+  }
+}
+const ANN_TYPES = ["Info", "Success", "Warning", "Critical", "Maintenance", "FeatureUpdate", "Payment", "Security"]
 
 function typeIcon(type: string) {
   if (type === "Water") return Droplets
@@ -71,7 +92,13 @@ export default function BusinessOfficePage() {
   const [loading, setLoading] = useState(true)
   const [openingId, setOpeningId] = useState<string | null>(null)
   const [drawer, setDrawer] = useState(false)
-  const [annDismissed, setAnnDismissed] = useState(false)
+
+  // Announcements (real, from the backend)
+  const [announcements, setAnnouncements] = useState<Announcement[]>([])
+  const orgOwnerUserId = useMemo(() => companies.find((c) => c.ownerUserId)?.ownerUserId ?? null, [companies])
+  const [postOpen, setPostOpen] = useState(false)
+  const [posting, setPosting] = useState(false)
+  const [annForm, setAnnForm] = useState({ title: "", message: "", type: "Info", audienceRole: "All", isDismissible: true, requiresAck: false, actionLabel: "", actionUrl: "" })
 
   // Filters / search
   const [q, setQ] = useState("")
@@ -93,7 +120,6 @@ export default function BusinessOfficePage() {
       bo = localStorage.getItem("businessOfficeName") || ""
       code = localStorage.getItem("myOrgCode") || ""
       un = localStorage.getItem("username") || localStorage.getItem("userName") || ""
-      if (localStorage.getItem("annDismissed") === "1") setAnnDismissed(true)
     } catch {}
     setOfficeName(((user as any)?.businessOfficeName) || bo || "Business Office")
     setOrgCode(((user as any)?.organizationCode || code || "").toUpperCase())
@@ -112,6 +138,41 @@ export default function BusinessOfficePage() {
     } finally { setLoading(false) }
   }
   useEffect(() => { void load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load announcements (platform-wide on mount; org-scoped once companies load).
+  async function loadAnnouncements() {
+    try { setAnnouncements(await listAnnouncements({ orgOwnerUserId, isAdmin, farmId: activeFarmId })) } catch {}
+  }
+  useEffect(() => { void loadAnnouncements() }, [orgOwnerUserId, isAdmin, activeFarmId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function annAction(a: Announcement, action: "Dismiss" | "Ack") {
+    try {
+      await setAnnouncementReceipt(a.announcementId, action)
+      if (action === "Dismiss") setAnnouncements((p) => p.filter((x) => x.announcementId !== a.announcementId))
+      else setAnnouncements((p) => p.map((x) => x.announcementId === a.announcementId ? { ...x, acknowledgedAt: new Date().toISOString() } : x))
+    } catch (e: any) { toast({ title: "Action failed", description: e?.message, variant: "destructive" }) }
+  }
+  async function annDelete(a: Announcement) {
+    if (!orgOwnerUserId) return
+    try { await deleteAnnouncement(a.announcementId, orgOwnerUserId); setAnnouncements((p) => p.filter((x) => x.announcementId !== a.announcementId)) }
+    catch (e: any) { toast({ title: "Delete failed", description: e?.message, variant: "destructive" }) }
+  }
+  async function postAnnouncement() {
+    if (!annForm.title.trim()) return toast({ title: "Title is required", variant: "destructive" })
+    setPosting(true)
+    try {
+      await createAnnouncement({
+        orgOwnerUserId, title: annForm.title, message: annForm.message, type: annForm.type,
+        audienceRole: annForm.audienceRole, isDismissible: annForm.isDismissible, requiresAck: annForm.requiresAck,
+        actionLabel: annForm.actionLabel || null, actionUrl: annForm.actionUrl || null,
+      })
+      toast({ title: "Announcement posted" })
+      setPostOpen(false)
+      setAnnForm({ title: "", message: "", type: "Info", audienceRole: "All", isDismissible: true, requiresAck: false, actionLabel: "", actionUrl: "" })
+      await loadAnnouncements()
+    } catch (e: any) { toast({ title: "Post failed", description: e?.message, variant: "destructive" }) }
+    finally { setPosting(false) }
+  }
 
   async function openCompany(c: Company) {
     setOpeningId(c.farmId)
@@ -151,8 +212,6 @@ export default function BusinessOfficePage() {
       return true
     })
   }, [companies, q, typeFilter])
-
-  function dismissAnn() { setAnnDismissed(true); try { localStorage.setItem("annDismissed", "1") } catch {} }
 
   // ---- Sidebar items (permission-aware; only real destinations) ----
   const navMain = [
@@ -259,22 +318,43 @@ export default function BusinessOfficePage() {
             </div>
           </div>
 
-          {/* B. Announcements */}
+          {/* B. Announcements / Notifications */}
           <section id="notices">
-            {!annDismissed ? (
-              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 flex items-start gap-3">
-                <span className="h-9 w-9 grid place-items-center rounded-lg bg-blue-100 text-blue-700 shrink-0"><Megaphone className="h-5 w-5" /></span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-slate-900">Welcome to your Business Office</span>
-                    <Badge className="bg-blue-100 text-blue-700">Feature</Badge>
-                  </div>
-                  <p className="text-sm text-slate-600 mt-0.5">This is your organization headquarters. Open any company below to work inside it, and come back here anytime.</p>
-                </div>
-                <button onClick={dismissAnn} className="text-slate-400 hover:text-slate-600 shrink-0" aria-label="Dismiss"><X className="h-4 w-4" /></button>
-              </div>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5"><Megaphone className="h-4 w-4" /> VisibilityCore Announcements</h3>
+              {isAdmin && <Button size="sm" variant="outline" onClick={() => setPostOpen(true)}><Plus className="h-4 w-4 mr-1" /> Post</Button>}
+            </div>
+            {announcements.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-400">No new notifications.</div>
             ) : (
-              <div className="text-sm text-slate-400">No new notifications.</div>
+              <div className="space-y-2">
+                {announcements.map((a) => {
+                  const st = annStyle(a.type)
+                  const Icon = st.icon
+                  const acked = !!a.acknowledgedAt
+                  return (
+                    <div key={a.announcementId} className={`rounded-xl border p-4 flex items-start gap-3 ${st.tone}`}>
+                      <span className="h-9 w-9 grid place-items-center rounded-lg bg-white/70 shrink-0"><Icon className="h-5 w-5" /></span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-slate-900">{a.title}</span>
+                          <Badge className="bg-white/70 text-slate-700">{a.type}</Badge>
+                          {a.requiresAck && <Badge className={acked ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-700"}>{acked ? "Acknowledged" : "Action needed"}</Badge>}
+                        </div>
+                        {a.message && <p className="text-sm text-slate-700 mt-0.5">{a.message}</p>}
+                        <div className="mt-2 flex items-center gap-3">
+                          {a.actionUrl && <a href={a.actionUrl} className="text-sm font-semibold underline underline-offset-2">{a.actionLabel || "Open"}</a>}
+                          {a.requiresAck && !acked && <button onClick={() => annAction(a, "Ack")} className="text-sm font-semibold text-emerald-700 hover:underline">Acknowledge</button>}
+                          {isAdmin && a.orgOwnerUserId && (
+                            <button onClick={() => annDelete(a)} className="text-sm text-slate-500 hover:text-rose-600 inline-flex items-center gap-1"><Trash2 className="h-3.5 w-3.5" /> Delete</button>
+                          )}
+                        </div>
+                      </div>
+                      {a.isDismissible && <button onClick={() => annAction(a, "Dismiss")} className="text-slate-400 hover:text-slate-700 shrink-0" aria-label="Dismiss"><X className="h-4 w-4" /></button>}
+                    </div>
+                  )
+                })}
+              </div>
             )}
           </section>
 
@@ -426,6 +506,51 @@ export default function BusinessOfficePage() {
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
               <Button onClick={create} disabled={saving}>{saving ? "Creating…" : "Create"}</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Post announcement dialog (admin) */}
+      <Dialog open={postOpen} onOpenChange={setPostOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Post an announcement</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div><Label>Title *</Label>
+              <Input value={annForm.title} onChange={(e) => setAnnForm({ ...annForm, title: e.target.value })} placeholder="e.g. Subscription renewal due" /></div>
+            <div><Label>Message</Label>
+              <Textarea value={annForm.message} onChange={(e) => setAnnForm({ ...annForm, message: e.target.value })} rows={3} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Type</Label>
+                <Select value={annForm.type} onValueChange={(v) => setAnnForm({ ...annForm, type: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{ANN_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>Audience</Label>
+                <Select value={annForm.audienceRole} onValueChange={(v) => setAnnForm({ ...annForm, audienceRole: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="All">Everyone</SelectItem>
+                    <SelectItem value="Admin">Admins only</SelectItem>
+                    <SelectItem value="Staff">Staff only</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Action label (optional)</Label>
+                <Input value={annForm.actionLabel} onChange={(e) => setAnnForm({ ...annForm, actionLabel: e.target.value })} placeholder="e.g. Renew now" /></div>
+              <div><Label>Action URL (optional)</Label>
+                <Input value={annForm.actionUrl} onChange={(e) => setAnnForm({ ...annForm, actionUrl: e.target.value })} placeholder="https://…" /></div>
+            </div>
+            <div className="flex items-center gap-6">
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={annForm.isDismissible} onChange={(e) => setAnnForm({ ...annForm, isDismissible: e.target.checked })} /> Dismissible</label>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={annForm.requiresAck} onChange={(e) => setAnnForm({ ...annForm, requiresAck: e.target.checked })} /> Requires acknowledgement</label>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="ghost" onClick={() => setPostOpen(false)}>Cancel</Button>
+              <Button onClick={postAnnouncement} disabled={posting}>{posting ? "Posting…" : "Post announcement"}</Button>
             </div>
           </div>
         </DialogContent>

@@ -168,6 +168,9 @@ builder.Services.AddScoped<IWaterPayrollService>(sp => new WaterPayrollService(c
 // (idempotent — CashTransactionWritten guards double-booking). Migration 052.
 builder.Services.AddScoped<IWaterMaintenanceLogService>(sp => new WaterMaintenanceLogService(connectionString));
 
+// Prompt 4 — Business Office announcements / notifications (migration 121).
+builder.Services.AddScoped<IAnnouncementService>(sp => new AnnouncementService(connectionString));
+
 // Water report/closing → PDF → email. Depends only on already-registered DI
 // services (IWaterReportService for report data, IEmailService for delivery).
 builder.Services.AddScoped<IWaterReportEmailService, WaterReportEmailService>();
