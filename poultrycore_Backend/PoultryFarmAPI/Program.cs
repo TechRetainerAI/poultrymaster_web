@@ -213,6 +213,9 @@ builder.Services.AddScoped<IGenericCashTransferService>(sp => new GenericCashTra
 builder.Services.AddScoped<IGenericDailyClosingService>(sp => new GenericDailyClosingService(connectionString));
 builder.Services.AddScoped<IGenericReportService>(sp => new GenericReportService(connectionString));
 
+// Advanced Poultry Reports (20 new poultry-only reports under /api/poultry/reports/*).
+builder.Services.AddScoped<IPoultryAdvancedReportService>(sp => new PoultryAdvancedReportService(connectionString));
+
 // Phase 6: Staff + Attendance + Payroll (spec §13, §14). Payroll items use a
 // computed NetPay column; spGenericPayrollItem_Upsert rolls run totals
 // atomically. MarkPaid writes one CashOut for the run total against the run's
