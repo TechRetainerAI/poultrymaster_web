@@ -61,8 +61,11 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
           {items.map((it) => {
             const Icon = it.icon
             const isActive = it.key === active
-            const cls = `flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors ${isActive ? "bg-slate-700 text-white" : "text-slate-300 hover:bg-slate-800 hover:text-white"}`
-            const inner = <><Icon className={`h-5 w-5 shrink-0 ${isActive ? "text-orange-300" : "text-slate-400"}`} /> <span className="truncate">{it.label}</span></>
+            const base = "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors"
+            const cls = isActive
+              ? `${base} bg-slate-800 text-white border-l-2 border-orange-400 pl-[10px]`
+              : `${base} text-slate-300 hover:bg-slate-800/60 hover:text-white`
+            const inner = <><Icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? "text-orange-300" : "text-slate-400"}`} /> <span className="truncate">{it.label}</span></>
             return <Link key={it.key} href={it.href} onClick={() => setDrawer(false)} className={cls}>{inner}</Link>
           })}
         </div>
@@ -103,7 +106,7 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
         </div>
       )}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center gap-3 px-4 sm:px-6 shrink-0">
+        <header className="h-16 bg-white/90 backdrop-blur border-b border-slate-200 flex items-center gap-3 px-4 sm:px-6 shrink-0 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
           <button className="lg:hidden h-9 w-9 grid place-items-center rounded-lg border border-slate-200" onClick={() => setDrawer(true)} aria-label="Menu"><Menu className="h-5 w-5" /></button>
           <div className="min-w-0">
             <div className="text-[11px] uppercase tracking-wide text-slate-400 leading-tight">Business Office</div>

@@ -17,8 +17,15 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   Building2, Bird, Droplets, ShoppingBag, Plus, Loader2, Users, ArrowRight, Check,
   ListTodo, HelpCircle, X, Megaphone, Activity, ChevronRight, Trash2, AlertTriangle, Info,
-  ShieldAlert, Wrench, CreditCard, Sparkles,
+  ShieldAlert, Wrench, CreditCard, Sparkles, Briefcase,
 } from "lucide-react"
+
+function typeStrip(t: string) {
+  if (t === "Water") return "bg-sky-400"
+  if (t === "Poultry") return "bg-orange-400"
+  if (t === "Generic") return "bg-violet-400"
+  return "bg-slate-300"
+}
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
@@ -171,21 +178,27 @@ export default function BusinessOfficePage() {
   return (
     <BusinessOfficeShell active="home">
       <main className="flex-1 overflow-auto p-4 sm:p-6 space-y-6">
-        {/* Context header */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold text-slate-900">Welcome{userName ? `, ${userName}` : ""}</h1>
-            <p className="text-sm text-slate-500">Your headquarters for <span className="font-medium text-slate-700">{officeName}</span> · Role: {roleLabel}</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {isAdmin ? (
-              <>
-                <Button variant="outline" onClick={() => router.push("/employees?bo=1")}><Users className="h-4 w-4 mr-1" /> Users &amp; Permissions</Button>
-                <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-1" /> New company</Button>
-              </>
-            ) : (
-              <Button variant="outline" asChild><a href="#tasks"><ListTodo className="h-4 w-4 mr-1" /> View my tasks</a></Button>
-            )}
+        {/* Context header — welcome banner */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 text-white p-5 sm:p-6">
+          <div className="absolute -top-16 -right-10 h-44 w-44 rounded-full bg-orange-500/20 blur-3xl" />
+          <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="h-12 w-12 grid place-items-center rounded-xl bg-orange-500 shrink-0"><Briefcase className="h-6 w-6" /></span>
+              <div className="min-w-0">
+                <h1 className="text-xl sm:text-2xl font-bold truncate">Welcome{userName ? `, ${userName}` : ""}</h1>
+                <p className="text-sm text-slate-300">Your headquarters for <span className="font-medium text-white">{officeName}</span> · {roleLabel}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {isAdmin ? (
+                <>
+                  <Button variant="outline" className="border-white/25 bg-white/5 text-white hover:bg-white/15 hover:text-white" onClick={() => router.push("/employees?bo=1")}><Users className="h-4 w-4 mr-1" /> Users &amp; Permissions</Button>
+                  <Button className="bg-white text-slate-900 hover:bg-slate-100" onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-1" /> New company</Button>
+                </>
+              ) : (
+                <Button variant="outline" className="border-white/25 bg-white/5 text-white hover:bg-white/15 hover:text-white" asChild><a href="#tasks"><ListTodo className="h-4 w-4 mr-1" /> View my tasks</a></Button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -227,10 +240,10 @@ export default function BusinessOfficePage() {
 
         {/* Summary tiles */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <SummaryTile label="Companies" value={loading ? "…" : counts.total} icon={Building2} />
-          <SummaryTile label="Water" value={loading ? "…" : counts.water} icon={Droplets} tone="text-sky-600" />
-          <SummaryTile label="Poultry" value={loading ? "…" : counts.poultry} icon={Bird} tone="text-orange-600" />
-          <SummaryTile label="Generic" value={loading ? "…" : counts.generic} icon={ShoppingBag} tone="text-violet-600" />
+          <SummaryTile label="Companies" value={loading ? "…" : counts.total} icon={Building2} tone="text-slate-600" bg="bg-slate-100" />
+          <SummaryTile label="Water" value={loading ? "…" : counts.water} icon={Droplets} tone="text-sky-600" bg="bg-sky-100" />
+          <SummaryTile label="Poultry" value={loading ? "…" : counts.poultry} icon={Bird} tone="text-orange-600" bg="bg-orange-100" />
+          <SummaryTile label="Generic" value={loading ? "…" : counts.generic} icon={ShoppingBag} tone="text-violet-600" bg="bg-violet-100" />
         </div>
 
         {/* Companies */}
@@ -265,7 +278,8 @@ export default function BusinessOfficePage() {
               {visible.map((c) => {
                 const Icon = typeIcon(c.type); const isActive = c.farmId === activeFarmId; const opening = openingId === c.farmId
                 return (
-                  <Card key={c.farmId} className="overflow-hidden hover:shadow-md transition-shadow">
+                  <Card key={c.farmId} className="overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all">
+                    <div className={`h-1 ${typeStrip(c.type)}`} />
                     <CardContent className="p-4 flex flex-col gap-3">
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-2.5 min-w-0">
@@ -382,11 +396,11 @@ export default function BusinessOfficePage() {
   )
 }
 
-function SummaryTile({ label, value, icon: Icon, tone }: { label: string; value: string | number; icon: any; tone?: string }) {
+function SummaryTile({ label, value, icon: Icon, tone, bg }: { label: string; value: string | number; icon: any; tone?: string; bg?: string }) {
   return (
-    <Card><CardContent className="p-4 flex items-center gap-3">
-      <Icon className={`h-6 w-6 ${tone ?? "text-slate-500"}`} />
-      <div><div className="text-xs text-slate-500">{label}</div><div className="text-2xl font-semibold text-slate-900 tabular-nums">{value}</div></div>
+    <Card className="border-slate-200 hover:shadow-sm transition-shadow"><CardContent className="p-4 flex items-center gap-3">
+      <span className={`h-11 w-11 grid place-items-center rounded-xl ${bg ?? "bg-slate-100"}`}><Icon className={`h-5 w-5 ${tone ?? "text-slate-600"}`} /></span>
+      <div><div className="text-xs font-medium text-slate-500">{label}</div><div className="text-2xl font-bold text-slate-900 tabular-nums">{value}</div></div>
     </CardContent></Card>
   )
 }

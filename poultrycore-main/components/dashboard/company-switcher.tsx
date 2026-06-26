@@ -133,7 +133,9 @@ export function CompanySwitcher({ fullWidth = false }: { fullWidth?: boolean } =
           // chevron) so it doesn't read like the removed search input.
           "flex items-center gap-2.5 rounded-lg border border-slate-700 bg-slate-800/80 py-1.5 pl-2 pr-3",
           "text-sm text-white hover:bg-slate-700 hover:border-slate-600 transition-colors min-w-0",
-          fullWidth ? "w-full max-w-none" : "max-w-[260px]"
+          // Fixed width so the chip doesn't grow/shrink with the company name —
+          // long names truncate instead.
+          fullWidth ? "w-full" : "w-[240px]"
         )}
       >
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-700/70 ring-1 ring-inset ring-white/10">

@@ -24,6 +24,7 @@ import {
 
 function typeIcon(t: string) { return t === "Water" ? Droplets : t === "Poultry" ? Bird : t === "Generic" ? ShoppingBag : Building2 }
 function typeTone(t: string) { return t === "Water" ? "bg-sky-100 text-sky-700" : t === "Poultry" ? "bg-orange-100 text-orange-700" : t === "Generic" ? "bg-violet-100 text-violet-700" : "bg-slate-100 text-slate-700" }
+function typeStrip(t: string) { return t === "Water" ? "bg-sky-400" : t === "Poultry" ? "bg-orange-400" : t === "Generic" ? "bg-violet-400" : "bg-slate-300" }
 
 export default function BusinessOfficeCompaniesPage() {
   const router = useRouter()
@@ -112,7 +113,8 @@ export default function BusinessOfficeCompaniesPage() {
             {visible.map((c) => {
               const Icon = typeIcon(c.type); const isActive = c.farmId === activeFarmId; const opening = openingId === c.farmId
               return (
-                <Card key={c.farmId} className="hover:shadow-md transition-shadow">
+                <Card key={c.farmId} className="overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all">
+                  <div className={`h-1 ${typeStrip(c.type)}`} />
                   <CardContent className="p-4 flex flex-col gap-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2.5 min-w-0">
