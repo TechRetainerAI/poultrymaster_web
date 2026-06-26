@@ -51,6 +51,8 @@ export default function BusinessOfficeCompaniesPage() {
     finally { setLoading(false) }
   }
   useEffect(() => { void load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // Seed the search box from the Business Office header search (?q=).
+  useEffect(() => { try { const v = new URLSearchParams(window.location.search).get("q"); if (v) setQ(v) } catch {} }, [])
 
   async function openCompany(c: Company) {
     setOpeningId(c.farmId)
@@ -123,7 +125,7 @@ export default function BusinessOfficeCompaniesPage() {
                       <Button size="sm" className="flex-1" onClick={() => openCompany(c)} disabled={opening}>
                         {opening ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Opening…</> : isActive ? <><Check className="h-4 w-4 mr-1" /> Open</> : <>Open <ArrowRight className="h-4 w-4 ml-1" /></>}
                       </Button>
-                      {isAdmin && <Button size="sm" variant="outline" onClick={() => router.push("/business-office/users")}>Access</Button>}
+                      {isAdmin && <Button size="sm" variant="outline" onClick={() => router.push("/employees?bo=1")}>Access</Button>}
                     </div>
                   </CardContent>
                 </Card>

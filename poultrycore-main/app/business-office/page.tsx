@@ -180,7 +180,7 @@ export default function BusinessOfficePage() {
           <div className="flex flex-wrap gap-2">
             {isAdmin ? (
               <>
-                <Button variant="outline" onClick={() => router.push("/business-office/users")}><Users className="h-4 w-4 mr-1" /> Users &amp; Permissions</Button>
+                <Button variant="outline" onClick={() => router.push("/employees?bo=1")}><Users className="h-4 w-4 mr-1" /> Users &amp; Permissions</Button>
                 <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-1" /> New company</Button>
               </>
             ) : (
@@ -283,7 +283,7 @@ export default function BusinessOfficePage() {
                         <Button size="sm" className="flex-1" onClick={() => openCompany(c)} disabled={opening}>
                           {opening ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Opening…</> : isActive ? <><Check className="h-4 w-4 mr-1" /> Open</> : <>Open <ArrowRight className="h-4 w-4 ml-1" /></>}
                         </Button>
-                        {isAdmin && <Button size="sm" variant="outline" onClick={() => router.push("/business-office/users")}>Access</Button>}
+                        {isAdmin && <Button size="sm" variant="outline" onClick={() => router.push("/employees?bo=1")}>Access</Button>}
                       </div>
                     </CardContent>
                   </Card>
@@ -314,7 +314,7 @@ export default function BusinessOfficePage() {
           <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">Quick actions</h3>
           <div className="flex flex-wrap gap-2">
             {isAdmin && <QuickLink onClick={() => setOpen(true)} icon={Plus} label="Create company" />}
-            {isAdmin && <QuickLink onClick={() => router.push("/business-office/users")} icon={Users} label="Manage users" />}
+            {isAdmin && <QuickLink onClick={() => router.push("/employees?bo=1")} icon={Users} label="Manage users" />}
             <QuickLink onClick={() => router.push("/business-office/companies")} icon={Building2} label="All companies" />
             <QuickLink onClick={() => router.push("/business-office/help")} icon={HelpCircle} label="Help center" />
           </div>

@@ -7,19 +7,23 @@
 
 import { ReactNode, useEffect, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { Input } from "@/components/ui/input"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { usePermissions } from "@/hooks/use-permissions"
-import { Briefcase, Building2, Bell, ListTodo, HelpCircle, LogOut, Menu, ShieldCheck } from "lucide-react"
+import { Briefcase, Building2, Bell, ListTodo, HelpCircle, LogOut, Menu, ShieldCheck, Settings, Search } from "lucide-react"
 
-type ActiveKey = "home" | "companies" | "users" | "help"
+type ActiveKey = "home" | "companies" | "users" | "settings" | "help"
 
 export function BusinessOfficeShell({ active, children }: { active: ActiveKey; children: ReactNode }) {
   const logout = useLogout()
+  const router = useRouter()
   const permissions = usePermissions()
   const isAdmin = permissions.isAdmin
   const user = useAuthStore((s) => s.user)
   const [drawer, setDrawer] = useState(false)
+  const [search, setSearch] = useState("")
 
   const [officeName, setOfficeName] = useState("Business Office")
   const [orgCode, setOrgCode] = useState("")
@@ -42,7 +46,11 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
     { key: "tasks", href: "/business-office#tasks", label: "My Tasks", icon: ListTodo },
     { key: "notices", href: "/business-office#notices", label: "Notifications", icon: Bell },
   ]
-  const admin = isAdmin ? [{ key: "users", href: "/business-office/users", label: "Users & Permissions", icon: ShieldCheck }] : []
+  // Users & Permissions and Business Setup open the SAME pages used inside a
+  // company (/employees, /settings) with ?bo=1 so they render in this shell —
+  // same data, same features, just kept in the Business Office.
+  const admin = isAdmin ? [{ key: "users", href: "/employees?bo=1", label: "Users & Permissions", icon: ShieldCheck }] : []
+  const settings = isAdmin ? [{ key: "settings", href: "/settings?bo=1", label: "Business Setup", icon: Settings }] : []
   const footer = [{ key: "help", href: "/business-office/help", label: "Help Center", icon: HelpCircle }]
 
   function Group({ title, items }: { title: string; items: { key: string; href: string; label: string; icon: any }[] }) {
@@ -74,6 +82,7 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-5 text-sm">
         <Group title="Main" items={main} />
         {admin.length > 0 && <Group title="People & Access" items={admin} />}
+        {settings.length > 0 && <Group title="Settings" items={settings} />}
         <Group title="Help" items={footer} />
       </nav>
       <div className="border-t border-slate-800 p-2">
@@ -100,6 +109,16 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
             <div className="text-[11px] uppercase tracking-wide text-slate-400 leading-tight">Business Office</div>
             <div className="font-semibold text-slate-900 truncate leading-tight">{officeName}{isAdmin && orgCode && <span className="ml-2 text-xs font-mono font-normal text-slate-400">{orgCode}</span>}</div>
           </div>
+
+          {/* Search — finds companies across the Business Office. */}
+          <form
+            onSubmit={(e) => { e.preventDefault(); router.push(`/business-office/companies${search.trim() ? `?q=${encodeURIComponent(search.trim())}` : ""}`) }}
+            className="hidden md:block relative ml-4 flex-1 max-w-sm"
+          >
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search companies…" className="pl-9 h-9 bg-slate-50" />
+          </form>
+
           <div className="ml-auto flex items-center gap-2">
             <Link href="/business-office#notices" className="h-9 w-9 grid place-items-center rounded-lg hover:bg-slate-100 text-slate-500" aria-label="Notifications"><Bell className="h-5 w-5" /></Link>
             <div className="flex items-center gap-2 pl-2">
