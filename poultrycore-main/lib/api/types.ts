@@ -48,8 +48,6 @@ export interface ReportRequest {
   customerId?: number
 }
 
-export type ReportExportFormat = 'csv' | 'pdf' | 'excel'
-
 // Sale types
 export interface Sale {
   farmId: string

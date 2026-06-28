@@ -78,7 +78,6 @@ builder.Services.AddScoped<IEggInventoryAdjustmentService>(sp => new EggInventor
 builder.Services.AddScoped<IFeedInventoryAdjustmentService>(sp => new FeedInventoryAdjustmentService(connectionString));
 
 builder.Services.AddScoped<IDashboardService>(sp => new DashboardService(connectionString));
-builder.Services.AddScoped<IReportService>(sp => new ReportService(connectionString));
 
 builder.Services.AddScoped<IProductionRecordService>(sp => new ProductionRecordService(connectionString));
 
@@ -174,6 +173,11 @@ builder.Services.AddScoped<IAnnouncementService>(sp => new AnnouncementService(c
 // Water report/closing → PDF → email. Depends only on already-registered DI
 // services (IWaterReportService for report data, IEmailService for delivery).
 builder.Services.AddScoped<IWaterReportEmailService, WaterReportEmailService>();
+
+// Composes + sends notification emails (report share, credentials, welcome).
+// Owns the HTML templates that used to live in EmailController; delivers via
+// IEmailService.
+builder.Services.AddScoped<IEmailNotificationService, EmailNotificationService>();
 // =================================================================
 
 // =================================================================
@@ -211,6 +215,9 @@ builder.Services.AddScoped<IGenericCashTransferService>(sp => new GenericCashTra
 // from the immutable tables, so the closing is a snapshot, not re-entered data.
 builder.Services.AddScoped<IGenericDailyClosingService>(sp => new GenericDailyClosingService(connectionString));
 builder.Services.AddScoped<IGenericReportService>(sp => new GenericReportService(connectionString));
+
+// Advanced Poultry Reports (20 new poultry-only reports under /api/poultry/reports/*).
+builder.Services.AddScoped<IPoultryAdvancedReportService>(sp => new PoultryAdvancedReportService(connectionString));
 
 // Phase 6: Staff + Attendance + Payroll (spec §13, §14). Payroll items use a
 // computed NetPay column; spGenericPayrollItem_Upsert rolls run totals

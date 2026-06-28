@@ -1,4 +1,3 @@
-using System.Net;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PoultryFarmAPIWeb.Business;
@@ -10,27 +9,28 @@ namespace PoultryFarmAPIWeb.Controllers
     // that prefix to the Farm API). Report = multipart PDF upload; the others
     // are stateless JSON sends. Daily-closing loads the closing then builds its
     // PDF server-side.
+    //
+    // This controller is a thin HTTP boundary: it validates input and maps
+    // results/exceptions to status codes. Email composition and delivery live in
+    // IEmailNotificationService / IWaterReportEmailService (the Business layer).
     [ApiController]
     [Route("api/[controller]")]
     [Authorize]
     public class EmailController : ControllerBase
     {
-        private readonly IEmailService _email;
         private readonly ILogger<EmailController> _logger;
-        private readonly IConfiguration _configuration;
+        private readonly IEmailNotificationService _notifications;
         private readonly IWaterDailyClosingService _closings;
         private readonly IWaterReportEmailService _reportEmail;
 
         public EmailController(
-            IEmailService email,
             ILogger<EmailController> logger,
-            IConfiguration configuration,
+            IEmailNotificationService notifications,
             IWaterDailyClosingService closings,
             IWaterReportEmailService reportEmail)
         {
-            _email = email;
             _logger = logger;
-            _configuration = configuration;
+            _notifications = notifications;
             _closings = closings;
             _reportEmail = reportEmail;
         }
@@ -49,21 +49,23 @@ namespace PoultryFarmAPIWeb.Controllers
         public async Task<IActionResult> SendReport([FromForm] SendReportRequest form)
         {
             var file = form.File;
-            var to = form.To;
-            var subject = form.Subject;
-            var body = form.Body;
-            var farmName = form.FarmName;
-            var reportTitle = form.ReportTitle;
 
             if (file == null || file.Length == 0)
                 return BadRequest("Report file is required.");
 
-            if (string.IsNullOrWhiteSpace(to))
+            if (string.IsNullOrWhiteSpace(form.To))
                 return BadRequest("Recipient email (to) is required.");
 
-            // Basic recipient sanity check — let MimeKit do the real parsing later.
-            if (!to.Contains('@'))
-                return BadRequest("Recipient email looks malformed.");
+            // The "to" field may carry several addresses (comma/semicolon/newline
+            // separated). Parse them, then sanity-check each — let MimeKit do the
+            // real parsing later.
+            var recipients = ParseRecipients(form.To);
+            if (recipients.Count == 0)
+                return BadRequest("Recipient email (to) is required.");
+
+            var malformed = recipients.Where(r => !r.Contains('@')).ToList();
+            if (malformed.Count > 0)
+                return BadRequest($"These recipient emails look malformed: {string.Join(", ", malformed)}");
 
             byte[] bytes;
             using (var ms = new MemoryStream())
@@ -72,33 +74,21 @@ namespace PoultryFarmAPIWeb.Controllers
                 bytes = ms.ToArray();
             }
 
-            var resolvedSubject = !string.IsNullOrWhiteSpace(subject)
-                ? subject
-                : !string.IsNullOrWhiteSpace(reportTitle)
-                    ? $"{reportTitle} — {(string.IsNullOrWhiteSpace(farmName) ? "Poultry Master" : farmName)}"
-                    : "Your Poultry Master report";
-
-            var resolvedBody = !string.IsNullOrWhiteSpace(body)
-                ? body
-                : BuildDefaultHtmlBody(reportTitle, farmName, form.SenderName);
-
-            var attachment = new EmailAttachment
-            {
-                FileName = string.IsNullOrWhiteSpace(file.FileName) ? "report.pdf" : file.FileName,
-                ContentType = string.IsNullOrWhiteSpace(file.ContentType) ? "application/pdf" : file.ContentType,
-                Content = bytes,
-            };
-
             try
             {
-                await _email.SendAsync(
-                    to: new[] { to },
-                    subject: resolvedSubject,
-                    body: resolvedBody,
-                    isHtml: true,
-                    attachments: new[] { attachment });
+                await _notifications.SendReportAsync(
+                    content: bytes,
+                    fileName: file.FileName,
+                    contentType: file.ContentType,
+                    to: recipients,
+                    subject: form.Subject,
+                    body: form.Body,
+                    farmName: form.FarmName,
+                    reportTitle: form.ReportTitle,
+                    senderName: form.SenderName);
 
-                return Ok(new { success = true, message = $"Report emailed to {to}." });
+                var joined = string.Join(", ", recipients);
+                return Ok(new { success = true, message = $"Report emailed to {joined}." });
             }
             catch (InvalidOperationException ex)
             {
@@ -108,10 +98,21 @@ namespace PoultryFarmAPIWeb.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to send report email to {Recipient}", to);
-                return StatusCode(500, new { success = false, message = "Failed to send email. Check API logs." });
+                _logger.LogError(ex, "Failed to send report email to {Recipients}", string.Join(", ", recipients));
+                // Surface the underlying reason (incl. inner exception) so the
+                // caller sees what actually failed instead of a generic message.
+                var detail = ex.InnerException is not null ? $"{ex.Message} — {ex.InnerException.Message}" : ex.Message;
+                return StatusCode(500, new { success = false, message = $"Failed to send email: {detail}" });
             }
         }
+
+        // Splits the raw "to" field (comma / semicolon / newline separated) into
+        // trimmed, de-duplicated recipient addresses.
+        private static List<string> ParseRecipients(string raw) =>
+            raw.Split(new[] { ',', ';', '\n', '\r' },
+                      StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+               .Distinct(StringComparer.OrdinalIgnoreCase)
+               .ToList();
 
         // POST: api/Email/send-credentials
         // Emails a (new) employee their username + password. Stateless: the caller
@@ -123,10 +124,7 @@ namespace PoultryFarmAPIWeb.Controllers
                 return Ok(new { success = false, message = "A valid recipient email is required." });
             try
             {
-                var loginUrl = (_configuration["FrontendApp:BaseUrl"] ?? "http://localhost:3000").TrimEnd('/') + "/login";
-                var html = BuildCredentialsEmailHtml(req.UserName, req.Password, req.FarmName, loginUrl);
-                var subject = string.IsNullOrWhiteSpace(req.FarmName) ? "Your login details" : $"Your {req.FarmName} login details";
-                await _email.SendAsync(new[] { req.Email }, subject, html, isHtml: true);
+                await _notifications.SendCredentialsAsync(req);
                 return Ok(new { success = true, message = $"Credentials emailed to {req.Email}." });
             }
             catch (Exception ex)
@@ -145,8 +143,7 @@ namespace PoultryFarmAPIWeb.Controllers
                 return Ok(new { success = false, message = "A valid recipient email is required." });
             try
             {
-                var html = BuildCompanyCreatedEmailHtml(req.CompanyName, req.CompanyType);
-                await _email.SendAsync(new[] { req.Email }, $"\"{req.CompanyName}\" is ready on Poultry Master", html, isHtml: true);
+                await _notifications.SendWelcomeAsync(req);
                 return Ok(new { success = true, message = $"Welcome email sent to {req.Email}." });
             }
             catch (Exception ex)
@@ -179,124 +176,5 @@ namespace PoultryFarmAPIWeb.Controllers
                 return StatusCode(500, new { success = false, message = "Failed to send email. Check API logs." });
             }
         }
-
-        // Login-credentials email body. Plaintext password is intentional (the
-        // admin-set password handed to the new user); we prompt them to change it.
-        private static string BuildCredentialsEmailHtml(string? userName, string? password, string? farmName, string loginUrl)
-        {
-            var safeUser = WebUtility.HtmlEncode(userName ?? "");
-            var safePass = WebUtility.HtmlEncode(password ?? "");
-            var safeFarm = WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(farmName) ? "your company" : farmName);
-            return $@"
-<div style=""font-family:Arial,Helvetica,sans-serif;color:#1f2937;max-width:560px;margin:0 auto;"">
-  <h2 style=""color:#0f172a;"">Welcome to {safeFarm}</h2>
-  <p>An account has been created for you. Use the details below to sign in:</p>
-  <table style=""border-collapse:collapse;margin:16px 0;"">
-    <tr><td style=""padding:6px 12px;font-weight:bold;"">Username</td><td style=""padding:6px 12px;"">{safeUser}</td></tr>
-    <tr><td style=""padding:6px 12px;font-weight:bold;"">Password</td><td style=""padding:6px 12px;"">{safePass}</td></tr>
-  </table>
-  <p><a href=""{loginUrl}"" style=""display:inline-block;background:#0ea5e9;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:6px;"">Log in</a></p>
-  <p style=""color:#64748b;font-size:13px;"">For your security, please change your password after your first login.</p>
-</div>";
-        }
-
-        private static string BuildCompanyCreatedEmailHtml(string? name, string? type)
-        {
-            var safeName = WebUtility.HtmlEncode(name ?? "");
-            var safeType = WebUtility.HtmlEncode(type ?? "");
-            return $@"
-<div style=""font-family:Arial,Helvetica,sans-serif;color:#1f2937;max-width:560px;margin:0 auto;"">
-  <h2 style=""color:#0f172a;"">Your company is ready</h2>
-  <p><strong>{safeName}</strong>{(string.IsNullOrWhiteSpace(safeType) ? "" : $" ({safeType})")} has been created on Poultry Master.</p>
-  <p>You can now log in and start setting it up.</p>
-</div>";
-        }
-
-        private static string BuildDefaultHtmlBody(string? reportTitle, string? farmName, string? senderName)
-        {
-            var hasTitle = !string.IsNullOrWhiteSpace(reportTitle);
-            var title = WebUtility.HtmlEncode(hasTitle ? reportTitle! : "report");
-            var hasFarm = !string.IsNullOrWhiteSpace(farmName);
-            var farm = WebUtility.HtmlEncode(hasFarm ? farmName! : "Poultry Master");
-            var generated = DateTime.UtcNow.ToString("MMM d, yyyy 'at' HH:mm 'UTC'");
-
-            // The recipient is often NOT the person who generated the report (an admin
-            // shares it with an owner, accountant, partner, etc.), so the copy stays
-            // recipient-neutral: no "your report" / "you selected" / "your dashboard".
-            // When we know who sent it, we say so to make the message feel personal.
-            var hasSender = !string.IsNullOrWhiteSpace(senderName);
-            var sender = WebUtility.HtmlEncode(hasSender ? senderName! : "");
-            var sharedLine = hasSender
-                ? $@"<p style=""margin:0 0 14px;""><strong>{sender}</strong> has shared this report with you from <strong>{farm}</strong>.</p>"
-                : $@"<p style=""margin:0 0 14px;"">A new report has been shared with you from <strong>{farm}</strong>.</p>";
-
-            // Branded, email-client-friendly layout (table-based, inline styles) that
-            // mirrors the PDF's emerald letterhead.
-            return $@"
-<div style=""background:#f1f5f9;padding:24px 0;font-family:Arial,Helvetica,sans-serif;"">
-  <table role=""presentation"" cellpadding=""0"" cellspacing=""0"" width=""100%"" style=""max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;"">
-    <tr>
-      <td style=""background:#047857;padding:20px 28px;"">
-        <div style=""color:#ffffff;font-size:18px;font-weight:bold;"">{farm}</div>
-        <div style=""color:#d1fae5;font-size:13px;margin-top:2px;"">{(hasTitle ? title : "Report")}</div>
-      </td>
-    </tr>
-    <tr>
-      <td style=""padding:28px;color:#0f172a;line-height:1.6;font-size:15px;"">
-        <p style=""margin:0 0 14px;"">Hello,</p>
-        {sharedLine}
-        <p style=""margin:0 0 14px;"">You'll find the <strong>{title}</strong> attached as a PDF, with the key figures at a glance and the full breakdown inside.</p>
-        <table role=""presentation"" cellpadding=""0"" cellspacing=""0"" style=""margin:18px 0;"">
-          <tr>
-            <td style=""background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:12px 16px;color:#065f46;font-size:14px;"">
-              &#128206;&nbsp; <strong>{title}</strong> &mdash; attached (PDF)
-            </td>
-          </tr>
-        </table>
-        <p style=""margin:0;color:#475569;font-size:14px;"">We hope you find it helpful. If you have any questions about these figures, please reach out to {(hasSender ? $"<strong>{sender}</strong>" : "your contact")} at {farm}.</p>
-      </td>
-    </tr>
-    <tr>
-      <td style=""border-top:1px solid #e2e8f0;padding:16px 28px;color:#94a3b8;font-size:12px;"">
-        Shared via Poultry Master on {generated}.<br/>
-        This is an automated message &mdash; please do not reply directly to this email.
-      </td>
-    </tr>
-  </table>
-</div>";
-        }
-    }
-
-    // Bundling the multipart fields into one [FromForm] model lets Swashbuckle
-    // describe the request body (mixing a bare IFormFile with scalar [FromForm]
-    // params trips Swagger generation in Swashbuckle 6.6.2).
-    public class SendReportRequest
-    {
-        public IFormFile File { get; set; } = default!;
-        public string To { get; set; } = default!;
-        public string? Subject { get; set; }
-        public string? Body { get; set; }
-        public string? FarmName { get; set; }
-        public string? ReportTitle { get; set; }
-        /// <summary>Who shared the report (username/email). Shown in the default body
-        /// since the recipient is often not the person who generated it.</summary>
-        public string? SenderName { get; set; }
-    }
-
-    // Body for POST /api/Email/send-credentials.
-    public class EmailCredentialsRequest
-    {
-        public string Email { get; set; } = string.Empty;
-        public string? UserName { get; set; }
-        public string? Password { get; set; }
-        public string? FarmName { get; set; }
-    }
-
-    // Body for POST /api/Email/send-welcome.
-    public class EmailCompanyWelcomeRequest
-    {
-        public string Email { get; set; } = string.Empty;
-        public string? CompanyName { get; set; }
-        public string? CompanyType { get; set; }
     }
 }

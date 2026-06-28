@@ -11,7 +11,6 @@ export type {
   ForgotPasswordData,
   ResetPasswordData,
   ReportRequest,
-  ReportExportFormat,
   Sale,
   SaleInput,
   Expense,
@@ -49,10 +48,6 @@ export {
 
 // Report API
 export {
-  exportReportToCSV,
-  exportReportToPDF,
-  exportReportToExcel,
-  downloadBlob,
   getReportContext
 } from './report'
 
