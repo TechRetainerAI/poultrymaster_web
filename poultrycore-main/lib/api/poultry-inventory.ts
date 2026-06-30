@@ -169,3 +169,167 @@ export const listPoultryRawMaterialUsageHistory = (opts?: { itemId?: number; fro
   if (opts?.toDate) qs.append("toDate", opts.toDate)
   return jget<PoultryRawMaterialUsage[]>(`/Poultry/raw-material-usage/history?${qs.toString()}`)
 }
+
+// ===================== Products + Stock (slice 2) =====================
+export interface PoultryProduct {
+  poultryProductId: number
+  farmId: string
+  name: string
+  sku?: string | null
+  unit?: string | null
+  unitPrice: number
+  productType: string
+  isActive: boolean
+  notes?: string | null
+  stockOnHand: number
+  createdDate: string
+  updatedDate?: string | null
+}
+export interface PoultryProductInput {
+  name: string; sku?: string | null; unit?: string | null; unitPrice?: number; productType?: string; isActive?: boolean; notes?: string | null
+}
+export interface PoultryStockTransaction {
+  poultryStockTransactionId: number; farmId: string; poultryProductId: number; productName?: string | null
+  txnType: string; quantity: number; unitCost?: number | null; relatedId?: number | null; note?: string | null; createdDate: string
+}
+
+export const listPoultryProducts = () =>
+  jget<PoultryProduct[]>(`/Poultry/products?farmId=${encodeURIComponent(activeFarmId())}`)
+export const createPoultryProduct = (input: PoultryProductInput) =>
+  jsend<PoultryProduct>(`/Poultry/products`, "POST", { ...input, farmId: activeFarmId() })
+export const updatePoultryProduct = (id: number, input: PoultryProductInput) =>
+  jsend<void>(`/Poultry/products/${id}`, "PUT", { ...input, poultryProductId: id, farmId: activeFarmId() })
+export const deletePoultryProduct = (id: number) =>
+  jsend<void>(`/Poultry/products/${id}?farmId=${encodeURIComponent(activeFarmId())}`, "DELETE")
+
+export const listPoultryStockTransactions = (productId?: number) => {
+  const qs = new URLSearchParams({ farmId: activeFarmId() })
+  if (productId) qs.append("productId", String(productId))
+  return jget<PoultryStockTransaction[]>(`/Poultry/stock/transactions?${qs.toString()}`)
+}
+export const addPoultryStockTransaction = (input: { poultryProductId: number; txnType: string; quantity: number; unitCost?: number | null; note?: string | null }) =>
+  jsend<{ poultryStockTransactionId: number }>(`/Poultry/stock/transactions`, "POST", { ...input, farmId: activeFarmId() })
+
+// ===================== Recipes (slice 3) =====================
+export interface PoultryRecipeItem {
+  poultryProductionRecipeItemId?: number
+  poultryRawMaterialItemId: number
+  itemName?: string | null
+  unitOfMeasure?: string | null
+  availableStock?: number
+  latestUnitCost?: number
+  quantityPerOutputUnit: number
+  wasteAllowancePercent: number
+  isOptional: boolean
+  displayOrder: number
+  notes?: string | null
+}
+export interface PoultryRecipe {
+  poultryProductionRecipeId: number
+  farmId: string
+  poultryProductId: number
+  recipeName?: string | null
+  isActive: boolean
+  notes?: string | null
+  items: PoultryRecipeItem[]
+}
+export const getPoultryRecipe = (productId: number) =>
+  jget<PoultryRecipe | null>(`/Poultry/products/${productId}/recipe?farmId=${encodeURIComponent(activeFarmId())}`)
+export const upsertPoultryRecipe = (productId: number, input: { recipeName?: string | null; notes?: string | null; items: PoultryRecipeItem[] }) =>
+  jsend<{ poultryProductionRecipeId: number }>(`/Poultry/products/${productId}/recipe`, "PUT", { ...input, farmId: activeFarmId() })
+
+// ===================== Production batches (slice 4) =====================
+export interface PoultryMaterialUsageInput {
+  poultryRawMaterialItemId: number; quantityUsed: number; expectedQuantityUsed?: number | null; unitCost?: number | null
+}
+export interface PoultryProductionBatch {
+  poultryProductionBatchId: number; farmId: string; batchNumber: string; productionDate: string
+  poultryProductId: number; productName?: string | null; quantityProduced: number; unit?: string | null
+  damagedQuantity: number; laborCost: number; otherCost: number; materialsCost: number; totalCost: number; costPerUnit: number
+  status: string; notes?: string | null; approvedBy?: string | null; approvedAt?: string | null; createdAt: string
+}
+export interface PoultryProductionBatchInput {
+  batchNumber: string; productionDate?: string; poultryProductId: number; quantityProduced: number; unit?: string | null
+  damagedQuantity?: number; laborCost?: number; otherCost?: number; notes?: string | null; materialsUsed: PoultryMaterialUsageInput[]
+}
+export const listPoultryProductionBatches = (opts?: { status?: string; fromDate?: string; toDate?: string }) => {
+  const qs = new URLSearchParams({ farmId: activeFarmId() })
+  if (opts?.status) qs.append("status", opts.status)
+  if (opts?.fromDate) qs.append("fromDate", opts.fromDate)
+  if (opts?.toDate) qs.append("toDate", opts.toDate)
+  return jget<PoultryProductionBatch[]>(`/Poultry/production-batches?${qs.toString()}`)
+}
+export const getPoultryBatchMaterials = (id: number) =>
+  jget<PoultryMaterialUsageInput[]>(`/Poultry/production-batches/${id}/materials?farmId=${encodeURIComponent(activeFarmId())}`)
+export const createPoultryProductionBatch = (input: PoultryProductionBatchInput) =>
+  jsend<{ poultryProductionBatchId: number }>(`/Poultry/production-batches`, "POST", { ...input, farmId: activeFarmId() })
+export const updatePoultryProductionBatch = (id: number, input: PoultryProductionBatchInput) =>
+  jsend<void>(`/Poultry/production-batches/${id}`, "PUT", { ...input, poultryProductionBatchId: id, farmId: activeFarmId() })
+export const approvePoultryProductionBatch = (id: number) =>
+  jsend<void>(`/Poultry/production-batches/${id}/approve?farmId=${encodeURIComponent(activeFarmId())}`, "POST")
+export const cancelPoultryProductionBatch = (id: number) =>
+  jsend<void>(`/Poultry/production-batches/${id}/cancel?farmId=${encodeURIComponent(activeFarmId())}`, "POST")
+
+// ===================== Losses (slice 5) =====================
+export interface PoultryProductionLoss {
+  poultryProductionLossId: number; farmId: string; sourceType: string; sourceId?: number | null; lossDate: string
+  poultryProductId?: number | null; productName?: string | null; quantityLost: number; estimatedValue?: number | null; reason?: string | null
+}
+export interface PoultryLossRecord {
+  poultryLossRecordId: number; farmId: string; lossDate: string; lossType: string
+  poultryProductId?: number | null; productName?: string | null; quantity?: number | null; estimatedValue?: number | null
+  reason?: string | null; status: string; approvedBy?: string | null; notes?: string | null
+}
+export interface PoultryLossRecordInput {
+  lossDate?: string; lossType: string; poultryProductId?: number | null; quantity?: number | null; estimatedValue?: number | null; reason?: string | null; notes?: string | null
+}
+export const listPoultryProductionLosses = (opts?: { fromDate?: string; toDate?: string }) => {
+  const qs = new URLSearchParams({ farmId: activeFarmId() })
+  if (opts?.fromDate) qs.append("fromDate", opts.fromDate)
+  if (opts?.toDate) qs.append("toDate", opts.toDate)
+  return jget<PoultryProductionLoss[]>(`/Poultry/production-losses?${qs.toString()}`)
+}
+export const listPoultryLossRecords = (opts?: { lossType?: string; fromDate?: string; toDate?: string }) => {
+  const qs = new URLSearchParams({ farmId: activeFarmId() })
+  if (opts?.lossType) qs.append("lossType", opts.lossType)
+  if (opts?.fromDate) qs.append("fromDate", opts.fromDate)
+  if (opts?.toDate) qs.append("toDate", opts.toDate)
+  return jget<PoultryLossRecord[]>(`/Poultry/loss-records?${qs.toString()}`)
+}
+export const createPoultryLossRecord = (input: PoultryLossRecordInput) =>
+  jsend<{ poultryLossRecordId: number }>(`/Poultry/loss-records`, "POST", { ...input, farmId: activeFarmId() })
+export const updatePoultryLossRecord = (id: number, input: PoultryLossRecordInput) =>
+  jsend<void>(`/Poultry/loss-records/${id}`, "PUT", { ...input, poultryLossRecordId: id, farmId: activeFarmId() })
+export const approvePoultryLossRecord = (id: number) =>
+  jsend<void>(`/Poultry/loss-records/${id}/approve?farmId=${encodeURIComponent(activeFarmId())}`, "POST")
+export const unapprovePoultryLossRecord = (id: number) =>
+  jsend<void>(`/Poultry/loss-records/${id}/unapprove?farmId=${encodeURIComponent(activeFarmId())}`, "POST")
+export const deletePoultryLossRecord = (id: number) =>
+  jsend<void>(`/Poultry/loss-records/${id}?farmId=${encodeURIComponent(activeFarmId())}`, "DELETE")
+
+// ===================== Daily closing (slice 6) =====================
+export interface PoultryDailyClosing {
+  poultryDailyClosingId: number; farmId: string; closingDate: string
+  quantityProduced: number; quantityDamaged: number; totalProductionCost: number; closingStock: number
+  cashAtHand: number; actualCashCounted: number; cashDifference: number; managerNotes?: string | null
+  status: string; rejectionReason?: string | null; submittedAt?: string | null; approvedAt?: string | null
+}
+export const listPoultryDailyClosings = (opts?: { status?: string; fromDate?: string; toDate?: string }) => {
+  const qs = new URLSearchParams({ farmId: activeFarmId() })
+  if (opts?.status) qs.append("status", opts.status)
+  if (opts?.fromDate) qs.append("fromDate", opts.fromDate)
+  if (opts?.toDate) qs.append("toDate", opts.toDate)
+  return jget<PoultryDailyClosing[]>(`/Poultry/daily-closings?${qs.toString()}`)
+}
+export const getPoultryDailyClosing = (id: number) =>
+  jget<PoultryDailyClosing>(`/Poultry/daily-closings/${id}?farmId=${encodeURIComponent(activeFarmId())}`)
+export const createPoultryDailyClosing = (input: { closingDate: string; managerNotes?: string | null }) =>
+  jsend<{ poultryDailyClosingId: number }>(`/Poultry/daily-closings`, "POST", { ...input, farmId: activeFarmId() })
+export const submitPoultryDailyClosing = (id: number, input: { actualCashCounted: number; managerNotes?: string | null }) =>
+  jsend<void>(`/Poultry/daily-closings/${id}/submit`, "POST", { ...input, farmId: activeFarmId() })
+export const approvePoultryDailyClosing = (id: number) =>
+  jsend<void>(`/Poultry/daily-closings/${id}/approve?farmId=${encodeURIComponent(activeFarmId())}`, "POST")
+export const rejectPoultryDailyClosing = (id: number, reason: string) =>
+  jsend<void>(`/Poultry/daily-closings/${id}/reject?farmId=${encodeURIComponent(activeFarmId())}&reason=${encodeURIComponent(reason)}`, "POST")
+export const deletePoultryDailyClosing = (id: number) =>
+  jsend<void>(`/Poultry/daily-closings/${id}?farmId=${encodeURIComponent(activeFarmId())}`, "DELETE")

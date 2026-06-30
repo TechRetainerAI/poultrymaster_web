@@ -152,7 +152,18 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/health", label: "Health Records", icon: AlertTriangle },
     { href: "/inventory", label: "Inventory", icon: Package },
     { href: "/supplies", label: "Supplies", icon: ShoppingCart },
+  ]
+
+  // Additive water-style inventory + production suite for Poultry companies.
+  const poultryInventoryItems = [
+    { href: "/poultry-inventory", label: "Inventory", icon: Boxes },
+    { href: "/poultry-products", label: "Products", icon: Package },
+    { href: "/poultry-stock", label: "Stock movements", icon: Boxes },
     { href: "/poultry-raw-materials", label: "Raw Materials & Supplies", icon: Box },
+    { href: "/poultry-production-batches", label: "Production Batches", icon: Boxes },
+    { href: "/poultry-production-losses", label: "Production Losses", icon: AlertTriangle },
+    { href: "/poultry-loss-records", label: "Loss & Damage", icon: AlertTriangle },
+    { href: "/poultry-daily-closing", label: "Daily Closing", icon: Box },
   ]
 
   const TEMP_SHOW_PAYMENTS_LINK = true
@@ -529,6 +540,12 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
             {/* Inventory & Health */}
             {renderGroup("Inventory & Health", inventoryItems, "inventory")}
+
+            {/* Divider */}
+            <div className="border-t border-slate-800 mx-2" />
+
+            {/* Inventory & Production (water-style suite) */}
+            {renderGroup("Inventory & Production", poultryInventoryItems, "poultryInventory")}
 
             {/* Divider */}
             <div className="border-t border-slate-800 mx-2" />
