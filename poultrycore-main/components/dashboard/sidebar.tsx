@@ -152,6 +152,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/health", label: "Health Records", icon: AlertTriangle },
     { href: "/inventory", label: "Inventory", icon: Package },
     { href: "/supplies", label: "Supplies", icon: ShoppingCart },
+    { href: "/poultry-raw-materials", label: "Raw Materials & Supplies", icon: Box },
   ]
 
   const TEMP_SHOW_PAYMENTS_LINK = true

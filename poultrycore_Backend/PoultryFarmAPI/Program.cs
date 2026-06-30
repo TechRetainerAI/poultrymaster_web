@@ -138,6 +138,11 @@ builder.Services.AddScoped<IWaterLossRecordService>(sp => new WaterLossRecordSer
 builder.Services.AddScoped<IWaterDailyClosingService>(sp => new WaterDailyClosingService(connectionString));
 builder.Services.AddScoped<IWaterReportService>(sp => new WaterReportService(connectionString));
 
+// Poultry Inventory + Raw Materials (additive; mirrors the Water raw-material services)
+builder.Services.AddScoped<IPoultryRawMaterialItemService>(sp => new PoultryRawMaterialItemService(connectionString));
+builder.Services.AddScoped<IPoultryRawMaterialPurchaseService>(sp => new PoultryRawMaterialPurchaseService(connectionString));
+builder.Services.AddScoped<IPoultryRawMaterialUsageService>(sp => new PoultryRawMaterialUsageService(connectionString));
+
 // Phase W4: Finance — expense categories + expenses (approval workflow + cash
 // side-effects), multi-account cash accounts + ledger, cash transfers (paired
 // TransferOut/TransferIn), customer ledger. Schema: migration 047. SPs: 048.
