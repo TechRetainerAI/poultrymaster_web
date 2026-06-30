@@ -385,7 +385,7 @@ export default function PoultryRawMaterialsPage() {
                     </Select>
                   </FormField>
                   <FormField label="Production units per purchase unit"><NumberInput min={0} step="0.0001" value={f.productionUnitsPerPurchaseUnit} onChange={(e) => setPurchaseForm({ ...f, productionUnitsPerPurchaseUnit: Number(e.target.value) || 0 })} /></FormField>
-                  <FormField label="Production-level quantity (auto)"><Input readOnly tabIndex={-1} className={roCls} value={`${prodQty.toLocaleString()}${f.productionUnit ? ` ${f.productionUnit}` : ""}`} /></FormField>
+                  <FormField label="Production-level quantity" hint="Editable — sets units per purchase unit"><NumberInput min={0} step="0.001" value={Number(prodQty.toFixed(4))} onChange={(e) => { const v = Number(e.target.value) || 0; setPurchaseForm({ ...f, productionUnitsPerPurchaseUnit: qty > 0 ? Number((v / qty).toFixed(6)) : f.productionUnitsPerPurchaseUnit }) }} /></FormField>
                   <FormField label="Production-level unit cost (auto)"><Input readOnly tabIndex={-1} className={roCls} value={`${gh(prodUnitCost)}${f.productionUnit ? ` per ${f.productionUnit}` : ""}`} /></FormField>
                   <FormField label="" full><p className="text-xs text-slate-500">If you buy and use the same unit, set <span className="font-medium">Production units per purchase unit = 1</span> — the production figures then match the purchase figures.</p></FormField>
                 </FormSection>
