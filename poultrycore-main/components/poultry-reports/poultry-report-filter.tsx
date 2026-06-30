@@ -40,33 +40,36 @@ export function PoultryReportFilter({ value, onChange, onReset, show, flocks, cu
   const set = (patch: Partial<PoultryReportFilterValue>) => onChange({ ...value, ...patch })
 
   return (
-    <div className="print:hidden mb-4 flex items-end gap-2 flex-wrap">
-      <div className="flex items-center gap-1.5">
+    <div className="print:hidden mb-4 flex items-center gap-2 flex-wrap">
+      <div className="flex items-center gap-1.5 w-full sm:w-auto">
         <Label className="text-xs text-slate-600 whitespace-nowrap">Period</Label>
-        <PeriodSelect
-          label={null}
-          value={rangeToPeriod(value.fromDate, value.toDate)}
-          onChange={(_p, range) => { if (range) set({ fromDate: range.from, toDate: range.to }) }}
-        />
+        <div className="flex-1 sm:flex-none">
+          <PeriodSelect
+            label={null}
+            className="w-full sm:w-44"
+            value={rangeToPeriod(value.fromDate, value.toDate)}
+            onChange={(_p, range) => { if (range) set({ fromDate: range.from, toDate: range.to }) }}
+          />
+        </div>
       </div>
 
-      <div className="flex flex-col gap-1">
-        <Label className="text-xs text-slate-600">From</Label>
-        <Input type="date" value={value.fromDate} onChange={(e) => set({ fromDate: e.target.value })} className="w-40" />
+      <div className="flex items-center gap-1.5 w-full sm:w-auto">
+        <Label className="text-xs text-slate-600 whitespace-nowrap">From</Label>
+        <Input type="date" value={value.fromDate} onChange={(e) => set({ fromDate: e.target.value })} className="flex-1 sm:w-40 sm:flex-none" />
       </div>
-      <div className="flex flex-col gap-1">
-        <Label className="text-xs text-slate-600">To</Label>
-        <Input type="date" value={value.toDate} onChange={(e) => set({ toDate: e.target.value })} className="w-40" />
+      <div className="flex items-center gap-1.5 w-full sm:w-auto">
+        <Label className="text-xs text-slate-600 whitespace-nowrap">To</Label>
+        <Input type="date" value={value.toDate} onChange={(e) => set({ toDate: e.target.value })} className="flex-1 sm:w-40 sm:flex-none" />
       </div>
 
       {show.flock && (
-        <div className="flex flex-col gap-1">
-          <Label className="text-xs text-slate-600">Flock</Label>
+        <div className="flex items-center gap-1.5 w-full sm:w-auto">
+          <Label className="text-xs text-slate-600 whitespace-nowrap">Flock</Label>
           <Select
             value={value.flockId != null ? String(value.flockId) : ALL}
             onValueChange={(v) => set({ flockId: v === ALL ? null : Number(v) })}
           >
-            <SelectTrigger className="w-48"><SelectValue placeholder="All flocks" /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="All flocks" /></SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL}>All flocks</SelectItem>
               {flocks.map((f) => <SelectItem key={f.flockId} value={String(f.flockId)}>{f.name}</SelectItem>)}
@@ -76,13 +79,13 @@ export function PoultryReportFilter({ value, onChange, onReset, show, flocks, cu
       )}
 
       {show.customer && (
-        <div className="flex flex-col gap-1">
-          <Label className="text-xs text-slate-600">Customer</Label>
+        <div className="flex items-center gap-1.5 w-full sm:w-auto">
+          <Label className="text-xs text-slate-600 whitespace-nowrap">Customer</Label>
           <Select
             value={value.customerName || ALL}
             onValueChange={(v) => set({ customerName: v === ALL ? null : v })}
           >
-            <SelectTrigger className="w-48"><SelectValue placeholder="All customers" /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="All customers" /></SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL}>All customers</SelectItem>
               {customers.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -92,13 +95,13 @@ export function PoultryReportFilter({ value, onChange, onReset, show, flocks, cu
       )}
 
       {show.supplier && (
-        <div className="flex flex-col gap-1">
-          <Label className="text-xs text-slate-600">Supplier / payee</Label>
+        <div className="flex items-center gap-1.5 w-full sm:w-auto">
+          <Label className="text-xs text-slate-600 whitespace-nowrap">Supplier / payee</Label>
           <Input
             value={value.supplierName ?? ""}
             onChange={(e) => set({ supplierName: e.target.value || null })}
             placeholder="Any supplier"
-            className="w-44"
+            className="flex-1 sm:w-44 sm:flex-none"
           />
         </div>
       )}
@@ -115,7 +118,7 @@ export function PoultryReportFilter({ value, onChange, onReset, show, flocks, cu
         </label>
       )}
 
-      <Button variant="outline" size="sm" onClick={onReset} className="h-9">Reset</Button>
+      <Button variant="outline" size="sm" onClick={onReset} className="h-9 w-full sm:w-auto">Clear</Button>
     </div>
   )
 }

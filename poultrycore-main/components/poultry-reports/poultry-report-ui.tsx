@@ -8,9 +8,7 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
-} from "@/components/ui/table"
+import { ReportDataTable, type ReportTableColumn, type ReportTableRow } from "@/components/poultry-reports/report-data-table"
 import { AlertCircle, Loader2, Inbox, Download, Printer, FileSpreadsheet, Mail } from "lucide-react"
 import type { Accent, ColumnDef, FmtCtx } from "@/lib/reports/poultry-report-defs"
 
@@ -101,36 +99,24 @@ export function PoultryReportSummaryCards({ cards }: { cards: SummaryCard[] }) {
 }
 
 // --- Detail table ------------------------------------------------------------
+// Delegates to the shared ReportDataTable so the 20 advanced reports get
+// click-to-sort headers + pagination. Cells stay formatted via the column
+// `cell()` fns; the raw formatted string doubles as the sort value.
 export function PoultryReportTable({
   columns, rows, ctx,
 }: { columns: ColumnDef[]; rows: any[]; ctx: FmtCtx }) {
-  return (
-    <div className="overflow-x-auto rounded-lg border border-slate-200">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            {columns.map((col) => (
-              <TableHead key={col.header} className={col.align === "right" ? "text-right" : ""}>{col.header}</TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rows.map((row, i) => (
-            <TableRow key={i} className="even:bg-slate-50/60">
-              {columns.map((col) => {
-                const value = col.cell(row, ctx)
-                return (
-                  <TableCell key={col.header} className={`${col.align === "right" ? "text-right tabular-nums" : ""} py-2.5`}>
-                    {col.badge ? <PoultryReportStatusBadge status={value} /> : value}
-                  </TableCell>
-                )
-              })}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
-  )
+  const cols: ReportTableColumn[] = columns.map((c) => ({
+    header: c.header,
+    align: c.align === "right" ? "right" : "left",
+  }))
+  const tableRows: ReportTableRow[] = rows.map((row) => {
+    const values = columns.map((c) => c.cell(row, ctx))
+    return {
+      display: values.map((value, i) => (columns[i].badge ? <PoultryReportStatusBadge status={value} /> : value)),
+      sort: values,
+    }
+  })
+  return <ReportDataTable columns={cols} rows={tableRows} empty="No rows for this selection." />
 }
 
 // --- Export buttons ----------------------------------------------------------
