@@ -10,7 +10,7 @@ import type { LucideIcon } from "lucide-react"
 import {
   LayoutDashboard, Egg, BarChart3, Activity, HeartPulse, Bird, Skull,
   Wheat, Package, Boxes, Coins, Users, Receipt, Wallet, TrendingUp,
-  Calculator, Syringe, Pill, ClipboardCheck, Flag, CalendarDays,
+  Calculator, Syringe, Pill, ClipboardCheck, Flag, CalendarDays, Scale,
 } from "lucide-react"
 import type { PoultryReportSlug } from "@/lib/api/poultry-reports"
 
@@ -101,6 +101,7 @@ export const POULTRY_REPORT_GROUPS: PoultryReportGroup[] = [
     label: "Profitability",
     color: "bg-green-700",
     reports: [
+      { slug: "profit-loss", title: "Profit & Loss (Company)", description: "Company-wide revenue, expenses and net profit.", icon: Scale },
       { slug: "profit-loss-by-flock", title: "Profit & Loss by Flock", description: "Revenue, expenses and profit per flock.", icon: TrendingUp },
       { slug: "cost-per-egg", title: "Cost Per Egg", description: "Total allocated cost per egg.", icon: Calculator },
     ],

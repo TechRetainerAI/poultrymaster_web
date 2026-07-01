@@ -25,6 +25,10 @@ import { getUserContext } from "@/lib/utils/user-context"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useBatchFlockSelect, BATCH_ALL } from "@/hooks/use-batch-flock-select"
 
+// Sentinel for "not tied to a single flock" — stored as a farm-level expense
+// (flockId = null), which the reports treat as an unallocated / all-flock cost.
+const ALL_FLOCKS = "ALL"
+
 export default function EditExpensePage() {
   const router = useRouter()
   const params = useParams()
@@ -113,7 +117,7 @@ export default function EditExpensePage() {
           : null
       )
       setFormData({
-        flockId: String(expense.flockId),
+        flockId: expense.flockId ? String(expense.flockId) : ALL_FLOCKS,
         expenseDate: new Date(expense.expenseDate).toISOString().split("T")[0],
         category: expense.category,
         description: stripReceiptSuffixFromDescription(rawDesc),
@@ -202,7 +206,7 @@ export default function EditExpensePage() {
     const expense: Partial<ExpenseInput> = {
       farmId: effectiveFarmId!,
       userId,
-      flockId: Number(formData.flockId),
+      flockId: formData.flockId === ALL_FLOCKS ? null : Number(formData.flockId),
       expenseDate: formData.expenseDate + "T00:00:00Z",
       category: formData.category,
       description: descriptionOut,
@@ -291,7 +295,7 @@ export default function EditExpensePage() {
                     <Select value={selectedBatchId} onValueChange={(v) => {
                       setSelectedBatchId(v)
                       // Clear flockId if the current selection is no longer in the filtered batch.
-                      if (v !== BATCH_ALL && formData.flockId && !flocks.some((f) => f.value === formData.flockId)) {
+                      if (v !== BATCH_ALL && formData.flockId && formData.flockId !== ALL_FLOCKS && !flocks.some((f) => f.value === formData.flockId)) {
                         setFormData((prev) => ({ ...prev, flockId: "" }))
                       }
                     }}>
@@ -316,11 +320,14 @@ export default function EditExpensePage() {
                         {flocksLoading ? (
                           <SelectItem value="loading" disabled>Loading flocks...</SelectItem>
                         ) : (
-                          flocks.map((flock) => (
-                            <SelectItem key={flock.value} value={flock.value}>
-                              {flock.label}
-                            </SelectItem>
-                          ))
+                          <>
+                            <SelectItem value={ALL_FLOCKS}>All flocks (farm-wide)</SelectItem>
+                            {flocks.map((flock) => (
+                              <SelectItem key={flock.value} value={flock.value}>
+                                {flock.label}
+                              </SelectItem>
+                            ))}
+                          </>
                         )}
                       </SelectContent>
                     </Select>

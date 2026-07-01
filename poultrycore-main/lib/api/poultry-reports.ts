@@ -51,6 +51,7 @@ export type PoultryReportSlug =
   | "expense-summary"
   | "cash-movement"
   | "profit-loss-by-flock"
+  | "profit-loss"
   | "cost-per-egg"
   | "vaccination-schedule"
   | "medicine-usage"
@@ -246,12 +247,28 @@ export interface PoultryCashMovementReportRow {
 export interface PoultryProfitLossByFlockReportSummary {
   totalRevenue: number; totalExpenses: number; grossProfit: number; netProfit: number
   mostProfitableFlock: string | null; leastProfitableFlock: string | null
+  eggRevenue: number; birdSalesRevenue: number; otherRevenue: number
+  feedCost: number; medicineVaccineCost: number; laborCost: number; otherExpenses: number
 }
 export interface PoultryProfitLossByFlockReportRow {
   flockId: number | null; flockName: string; eggRevenue: number; birdSalesRevenue: number; otherRevenue: number
   feedCost: number | null; medicineVaccineCost: number | null; laborCost: number | null; otherExpenses: number
   totalRevenue: number; totalCost: number; grossProfit: number; netProfit: number
   profitPerBirdPlaced: number | null; profitPerEgg: number | null; status: string
+}
+
+export interface PoultryProfitLossReportSummary {
+  totalRevenue: number; totalExpenses: number; grossProfit: number; netProfit: number
+  netMarginPercent: number | null
+  eggRevenue: number; birdSalesRevenue: number; otherRevenue: number
+  feedCost: number; medicineVaccineCost: number; laborCost: number; otherExpenses: number
+  status: string
+}
+export interface PoultryProfitLossReportRow {
+  scope: string
+  eggRevenue: number; birdSalesRevenue: number; otherRevenue: number; totalRevenue: number
+  feedCost: number; medicineVaccineCost: number; laborCost: number; otherExpenses: number
+  totalCost: number; grossProfit: number; netProfit: number; status: string
 }
 
 export interface PoultryCostPerEggReportSummary {

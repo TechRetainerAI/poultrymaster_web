@@ -22,6 +22,10 @@ import { getFlockSelectEmptyHint } from "@/lib/utils/flock-utils"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useBatchFlockSelect, BATCH_ALL } from "@/hooks/use-batch-flock-select"
 
+// Sentinel for "not tied to a single flock" — stored as a farm-level expense
+// (flockId = null), which the reports treat as an unallocated / all-flock cost.
+const ALL_FLOCKS = "ALL"
+
 export default function NewExpensePage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -77,7 +81,7 @@ export default function NewExpensePage() {
   // Clear flockId if it's no longer in the filtered batch.
   useEffect(() => {
     if (selectedBatchId === BATCH_ALL) return
-    if (!formData.flockId) return
+    if (!formData.flockId || formData.flockId === ALL_FLOCKS) return
     if (!flocks.some((o) => o.value === formData.flockId)) {
       setFormData((prev) => ({ ...prev, flockId: "" }))
     }
@@ -150,7 +154,7 @@ export default function NewExpensePage() {
     const expense: ExpenseInput = {
       farmId,
       userId,
-      flockId: Number(formData.flockId),
+      flockId: formData.flockId === ALL_FLOCKS ? null : Number(formData.flockId),
       expenseDate: formData.expenseDate + "T00:00:00Z",
       category: formData.category,
       description: descriptionOut,
@@ -238,11 +242,14 @@ export default function NewExpensePage() {
                         ) : flocks.length === 0 ? (
                           <SelectItem value="no-flocks" disabled>{getFlockSelectEmptyHint("expense")}</SelectItem>
                         ) : (
-                          flocks.map((flock) => (
-                            <SelectItem key={flock.value} value={flock.value}>
-                              {flock.label}
-                            </SelectItem>
-                          ))
+                          <>
+                            <SelectItem value={ALL_FLOCKS}>All flocks (farm-wide)</SelectItem>
+                            {flocks.map((flock) => (
+                              <SelectItem key={flock.value} value={flock.value}>
+                                {flock.label}
+                              </SelectItem>
+                            ))}
+                          </>
                         )}
                       </SelectContent>
                     </Select>

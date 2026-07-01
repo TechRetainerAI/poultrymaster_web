@@ -34,6 +34,22 @@ export interface ColumnDef {
   badge?: boolean
 }
 
+/** A single labelled bar in a breakdown section (rendered below the table). */
+export interface BreakdownBar {
+  label: string
+  value: (summary: any, ctx: FmtCtx) => string
+  /** Share of the group total, 0–100, or null when the total is zero. */
+  percent: (summary: any) => number | null
+}
+
+/** A grouped breakdown (e.g. "Revenue breakdown", "Expense breakdown"). */
+export interface BreakdownGroup {
+  title: string
+  accent: "green" | "rose"
+  total?: (summary: any, ctx: FmtCtx) => string
+  items: BreakdownBar[]
+}
+
 export interface PoultryReportDef {
   slug: PoultryReportSlug
   title: string
@@ -46,9 +62,12 @@ export interface PoultryReportDef {
   }
   cards: CardDef[]
   columns: ColumnDef[]
+  /** Optional grouped breakdown rendered below the detail table. */
+  breakdown?: BreakdownGroup[]
 }
 
 const profitAccent = (n: number) => (n >= 0 ? "green" : "rose") as Accent
+const pctOf = (part: number, whole: number) => (whole ? (part / whole) * 100 : null)
 
 export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = {
   // 1 -------------------------------------------------------------------------
@@ -317,6 +336,7 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
       { header: "Product / grade", cell: (r, c) => c.text(r.productGrade) },
       { header: "Opening", align: "right", cell: (r, c) => c.num(r.openingStock) },
       { header: "Produced", align: "right", cell: (r, c) => c.num(r.productionAdded) },
+      { header: "Sold", align: "right", cell: (r, c) => c.num(r.salesRemoved) },
       { header: "Losses/adj.", align: "right", cell: (r, c) => c.num(r.lossesAdjustments) },
       { header: "Current (eggs)", align: "right", cell: (r, c) => c.num(r.currentStockEggs) },
       { header: "Crates", align: "right", cell: (r, c) => c.num(r.currentStockCrates) },
@@ -451,6 +471,80 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
       { header: "Net profit", align: "right", cell: (r, c) => c.money(r.netProfit) },
       { header: "Profit/egg", align: "right", cell: (r, c) => c.money(r.profitPerEgg) },
       { header: "Status", cell: (r, c) => c.text(r.status), badge: true },
+    ],
+    breakdown: [
+      {
+        title: "Revenue breakdown",
+        accent: "green",
+        total: (s, c) => c.money(s.totalRevenue),
+        items: [
+          { label: "Egg sales", value: (s, c) => c.money(s.eggRevenue), percent: (s) => pctOf(s.eggRevenue, s.totalRevenue) },
+          { label: "Bird sales", value: (s, c) => c.money(s.birdSalesRevenue), percent: (s) => pctOf(s.birdSalesRevenue, s.totalRevenue) },
+          { label: "Other revenue", value: (s, c) => c.money(s.otherRevenue), percent: (s) => pctOf(s.otherRevenue, s.totalRevenue) },
+        ],
+      },
+      {
+        title: "Expense breakdown",
+        accent: "rose",
+        total: (s, c) => c.money(s.totalExpenses),
+        items: [
+          { label: "Feed", value: (s, c) => c.money(s.feedCost), percent: (s) => pctOf(s.feedCost, s.totalExpenses) },
+          { label: "Medicine & vaccines", value: (s, c) => c.money(s.medicineVaccineCost), percent: (s) => pctOf(s.medicineVaccineCost, s.totalExpenses) },
+          { label: "Labour", value: (s, c) => c.money(s.laborCost), percent: (s) => pctOf(s.laborCost, s.totalExpenses) },
+          { label: "Other expenses", value: (s, c) => c.money(s.otherExpenses), percent: (s) => pctOf(s.otherExpenses, s.totalExpenses) },
+        ],
+      },
+    ],
+  },
+
+  // 15b -----------------------------------------------------------------------
+  "profit-loss": {
+    slug: "profit-loss",
+    title: "Poultry Profit and Loss Report",
+    description: "Company-wide revenue, expenses and net profit for the selected period.",
+    filters: {},
+    cards: [
+      { label: "Total revenue", value: (s, c) => c.money(s.totalRevenue), accent: "green" },
+      { label: "Total expenses", value: (s, c) => c.money(s.totalExpenses), accent: "rose" },
+      { label: "Gross profit", value: (s, c) => c.money(s.grossProfit), accent: (s) => profitAccent(s.grossProfit) },
+      { label: "Net profit", value: (s, c) => c.money(s.netProfit), accent: (s) => profitAccent(s.netProfit) },
+      { label: "Net margin", value: (s, c) => c.pct(s.netMarginPercent) },
+    ],
+    columns: [
+      { header: "Egg revenue", align: "right", cell: (r, c) => c.money(r.eggRevenue) },
+      { header: "Bird sales", align: "right", cell: (r, c) => c.money(r.birdSalesRevenue) },
+      { header: "Other rev.", align: "right", cell: (r, c) => c.money(r.otherRevenue) },
+      { header: "Total revenue", align: "right", cell: (r, c) => c.money(r.totalRevenue) },
+      { header: "Feed cost", align: "right", cell: (r, c) => c.money(r.feedCost) },
+      { header: "Medicine", align: "right", cell: (r, c) => c.money(r.medicineVaccineCost) },
+      { header: "Labour", align: "right", cell: (r, c) => c.money(r.laborCost) },
+      { header: "Other exp.", align: "right", cell: (r, c) => c.money(r.otherExpenses) },
+      { header: "Total cost", align: "right", cell: (r, c) => c.money(r.totalCost) },
+      { header: "Net profit", align: "right", cell: (r, c) => c.money(r.netProfit) },
+      { header: "Status", cell: (r, c) => c.text(r.status), badge: true },
+    ],
+    breakdown: [
+      {
+        title: "Revenue breakdown",
+        accent: "green",
+        total: (s, c) => c.money(s.totalRevenue),
+        items: [
+          { label: "Egg sales", value: (s, c) => c.money(s.eggRevenue), percent: (s) => pctOf(s.eggRevenue, s.totalRevenue) },
+          { label: "Bird sales", value: (s, c) => c.money(s.birdSalesRevenue), percent: (s) => pctOf(s.birdSalesRevenue, s.totalRevenue) },
+          { label: "Other revenue", value: (s, c) => c.money(s.otherRevenue), percent: (s) => pctOf(s.otherRevenue, s.totalRevenue) },
+        ],
+      },
+      {
+        title: "Expense breakdown",
+        accent: "rose",
+        total: (s, c) => c.money(s.totalExpenses),
+        items: [
+          { label: "Feed", value: (s, c) => c.money(s.feedCost), percent: (s) => pctOf(s.feedCost, s.totalExpenses) },
+          { label: "Medicine & vaccines", value: (s, c) => c.money(s.medicineVaccineCost), percent: (s) => pctOf(s.medicineVaccineCost, s.totalExpenses) },
+          { label: "Labour", value: (s, c) => c.money(s.laborCost), percent: (s) => pctOf(s.laborCost, s.totalExpenses) },
+          { label: "Other expenses", value: (s, c) => c.money(s.otherExpenses), percent: (s) => pctOf(s.otherExpenses, s.totalExpenses) },
+        ],
+      },
     ],
   },
 

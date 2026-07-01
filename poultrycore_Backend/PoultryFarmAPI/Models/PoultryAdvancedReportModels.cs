@@ -481,6 +481,14 @@ namespace PoultryFarmAPIWeb.Models
         public decimal NetProfit { get; set; }
         public string? MostProfitableFlock { get; set; }
         public string? LeastProfitableFlock { get; set; }
+        // Category totals (across all flocks in scope) for the breakdown section.
+        public decimal EggRevenue { get; set; }
+        public decimal BirdSalesRevenue { get; set; }
+        public decimal OtherRevenue { get; set; }
+        public decimal FeedCost { get; set; }
+        public decimal MedicineVaccineCost { get; set; }
+        public decimal LaborCost { get; set; }
+        public decimal OtherExpenses { get; set; }
     }
 
     public class PoultryProfitLossByFlockReportRow
@@ -500,6 +508,48 @@ namespace PoultryFarmAPIWeb.Models
         public decimal NetProfit { get; set; }
         public decimal? ProfitPerBirdPlaced { get; set; }
         public decimal? ProfitPerEgg { get; set; }
+        public string Status { get; set; } = string.Empty;
+    }
+
+    // -------------------------------------------------------------------------
+    // 15b. Profit & Loss (company-wide — all sales/expenses, not per flock)
+    // -------------------------------------------------------------------------
+    public class PoultryProfitLossReportSummary
+    {
+        public decimal TotalRevenue { get; set; }
+        public decimal TotalExpenses { get; set; }
+        public decimal GrossProfit { get; set; }
+        public decimal NetProfit { get; set; }
+        public decimal? NetMarginPercent { get; set; }
+        // Category amounts, echoed for the breakdown section below the table.
+        public decimal EggRevenue { get; set; }
+        public decimal BirdSalesRevenue { get; set; }
+        public decimal OtherRevenue { get; set; }
+        public decimal FeedCost { get; set; }
+        public decimal MedicineVaccineCost { get; set; }
+        public decimal LaborCost { get; set; }
+        public decimal OtherExpenses { get; set; }
+        public string Status { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// One wide company row (mirrors the per-flock P&amp;L table layout, minus the
+    /// flock column). Revenue and cost components across, then net profit + status.
+    /// </summary>
+    public class PoultryProfitLossReportRow
+    {
+        public string Scope { get; set; } = string.Empty;       // e.g. the date range
+        public decimal EggRevenue { get; set; }
+        public decimal BirdSalesRevenue { get; set; }
+        public decimal OtherRevenue { get; set; }
+        public decimal TotalRevenue { get; set; }
+        public decimal FeedCost { get; set; }
+        public decimal MedicineVaccineCost { get; set; }
+        public decimal LaborCost { get; set; }
+        public decimal OtherExpenses { get; set; }
+        public decimal TotalCost { get; set; }
+        public decimal GrossProfit { get; set; }
+        public decimal NetProfit { get; set; }
         public string Status { get; set; } = string.Empty;
     }
 

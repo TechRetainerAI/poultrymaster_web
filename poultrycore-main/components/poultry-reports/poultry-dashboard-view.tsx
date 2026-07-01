@@ -512,6 +512,8 @@ interface DashboardReportTable {
   display: ReactNode[][]
   /** Primitive values used for sorting + export, parallel to `display`. */
   exportRows: (string | number)[][]
+  /** Optional pinned totals row (shown as a table footer and appended to exports). */
+  totals?: { display: ReactNode[]; export: (string | number)[] }
 }
 
 /** Renders the view's summary cards + one titled, sortable, paginated table per entry. */
@@ -529,6 +531,7 @@ function DashboardBody({ cards, tables }: { cards: SummaryCard[]; tables: Dashbo
             <ReportDataTable
               columns={t.columns.map((c) => ({ header: c.header, align: c.align === "right" ? "right" : "left" }))}
               rows={t.display.map((d, i) => ({ display: d, sort: t.exportRows[i] }))}
+              footer={t.totals?.display}
             />
           </CardContent>
         </Card>
@@ -588,7 +591,11 @@ function DashboardExportToolbar({
     generatedBy: meta.generatedBy,
     currencyLabel: meta.currencyLabel,
     summaryCards: cards,
-    tables: tables.map((t) => ({ heading: t.title, columns: t.columns, rows: t.exportRows })),
+    tables: tables.map((t) => ({
+      heading: t.title,
+      columns: t.columns,
+      rows: t.totals ? [...t.exportRows, t.totals.export] : t.exportRows,
+    })),
   })
 
   const onCsv = () => {
@@ -596,7 +603,8 @@ function DashboardExportToolbar({
     const metaLine = `${esc(viewTitle)}\n${esc(`Farm: ${meta.farmName ?? "—"}`)},${esc(`Period: ${meta.fromDate ?? "All"} to ${meta.toDate ?? "All"}`)}\n`
     const blocks = tables.map((t) => {
       const header = t.columns.map((c) => esc(c.header)).join(",")
-      const body = t.exportRows.map((r) => r.map(esc).join(",")).join("\n")
+      const rows = t.totals ? [...t.exportRows, t.totals.export] : t.exportRows
+      const body = rows.map((r) => r.map(esc).join(",")).join("\n")
       return `${esc(t.title)}\n${header}\n${body}`
     })
     const csv = metaLine + "\n" + blocks.join("\n\n")
@@ -721,13 +729,30 @@ function buildProductionContent(data: PoultryDashboardData): DashboardContent {
     `${r.crates} + ${r.loose}`,
   ])
 
+  // Column totals, pinned as a footer row (not sorted / paginated).
+  const sum9 = prodDailyRows.reduce((s, r) => s + r.m9, 0)
+  const sum12 = prodDailyRows.reduce((s, r) => s + r.m12, 0)
+  const sum4 = prodDailyRows.reduce((s, r) => s + r.m4, 0)
+  const totals = {
+    display: [
+      "Total",
+      `${prodDailyRows.length} ${prodDailyRows.length === 1 ? "day" : "days"}`,
+      sum9.toLocaleString(),
+      sum12.toLocaleString(),
+      sum4.toLocaleString(),
+      totalEggs.toLocaleString(),
+      `${totalCrates} + ${looseEggs}`,
+    ] as ReactNode[],
+    export: ["Total", `${prodDailyRows.length}`, sum9, sum12, sum4, totalEggs, `${totalCrates} + ${looseEggs}`],
+  }
+
   return {
     cards,
     tables: [{
       title: "Daily Egg Production",
       description: "Eggs collected per day and flock, with collection-time breakdown.",
       filename: "poultry-production",
-      columns, display, exportRows,
+      columns, display, exportRows, totals,
     }],
   }
 }

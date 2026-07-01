@@ -28,7 +28,8 @@ export interface ExpenseInput {
   description: string
   amount: number
   paymentMethod: string
-  flockId: number
+  /** null = farm-wide / all-flocks expense (not attributed to one flock). */
+  flockId: number | null
   createdDate?: string
   supplier?: string
   /** Base64 payload only (no data URL prefix). API maps to byte[]. */

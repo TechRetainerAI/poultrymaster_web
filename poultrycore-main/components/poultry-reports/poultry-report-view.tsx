@@ -31,7 +31,7 @@ import {
   PoultryReportFilter, type PoultryReportFilterValue,
 } from "@/components/poultry-reports/poultry-report-filter"
 import {
-  PoultryReportSummaryCards, PoultryReportTable, PoultryReportExportButtons,
+  PoultryReportSummaryCards, PoultryReportTable, PoultryReportBreakdown, PoultryReportExportButtons,
   PoultryReportLoadingState, PoultryReportEmptyState, PoultryReportErrorState,
   type SummaryCard,
 } from "@/components/poultry-reports/poultry-report-ui"
@@ -289,6 +289,9 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
             <>
               <PoultryReportSummaryCards cards={cards} />
               <PoultryReportTable columns={def.columns} rows={rows} ctx={ctx} />
+              {def.breakdown && data?.summary && (
+                <PoultryReportBreakdown groups={def.breakdown} summary={data.summary} ctx={ctx} />
+              )}
             </>
           )}
         </div>
