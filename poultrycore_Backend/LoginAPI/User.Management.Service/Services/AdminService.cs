@@ -410,6 +410,78 @@ namespace User.Management.Service.Services
                 throw new Exception($"Error getting farm count: {ex.Message}", ex);
             }
         }
+
+        // ---- Doc 3 §6-7: organization employees + company access (UserFarms) ----
+
+        public async Task<List<ApplicationUser>> GetOrganizationEmployeesAsync(string ownerUserId)
+        {
+            try
+            {
+                // The owner's companies (UserFarms-backed) define the organization.
+                var companies = await _companyDal.GetByUserIdAsync(ownerUserId);
+                var farmIds = new HashSet<string>(
+                    companies.Select(c => c.FarmId).Where(x => !string.IsNullOrWhiteSpace(x)),
+                    StringComparer.OrdinalIgnoreCase);
+                if (farmIds.Count == 0) return new List<ApplicationUser>();
+
+                var allStaff = await _userManager.Users.Where(u => u.IsStaff).ToListAsync();
+                var staffById = allStaff.ToDictionary(u => u.Id, u => u);
+                var result = new Dictionary<string, ApplicationUser>();
+
+                // (a) staff whose primary company is one of the org companies
+                foreach (var u in allStaff)
+                    if (!string.IsNullOrWhiteSpace(u.FarmId) && farmIds.Contains(u.FarmId.Trim()))
+                        result[u.Id] = u;
+
+                // (b) staff granted access to an org company via UserFarms
+                foreach (var fid in farmIds)
+                {
+                    var memberIds = await _companyDal.GetMemberUserIdsAsync(fid);
+                    foreach (var mid in memberIds)
+                        if (staffById.TryGetValue(mid, out var mu)) result[mu.Id] = mu;
+                }
+
+                return result.Values
+                    .OrderBy(u => u.FirstName)
+                    .ThenBy(u => u.LastName)
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Error fetching organization employees: {ex.Message}", ex);
+            }
+        }
+
+        public Task<List<CompanyResponse>> GetEmployeeCompaniesAsync(string employeeId)
+            => _companyDal.GetByUserIdAsync(employeeId);
+
+        public Task AssignCompanyAccessAsync(string employeeId, string farmId, string role)
+            => _companyDal.AddMemberAsync(employeeId, farmId, string.IsNullOrWhiteSpace(role) ? "Staff" : role);
+
+        public Task RemoveCompanyAccessAsync(string employeeId, string farmId)
+            => _companyDal.RemoveMemberAsync(employeeId, farmId);
+
+        public async Task<List<ApplicationUser>> GetEmployeesWithAccessAsync(string farmId)
+        {
+            try
+            {
+                var memberIds = new HashSet<string>(
+                    await _companyDal.GetMemberUserIdsAsync(farmId),
+                    StringComparer.OrdinalIgnoreCase);
+                if (memberIds.Count == 0) return new List<ApplicationUser>();
+
+                var staff = await _userManager.Users.Where(u => u.IsStaff).ToListAsync();
+                return staff
+                    .Where(u => memberIds.Contains(u.Id))
+                    .OrderBy(u => u.FirstName)
+                    .ThenBy(u => u.LastName)
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Error fetching employees with access to farm {farmId}: {ex.Message}", ex);
+            }
+        }
     }
 }
 

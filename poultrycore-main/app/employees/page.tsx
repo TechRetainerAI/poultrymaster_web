@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from "@/components/ui/pagination"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
+import { PageShell } from "@/components/dashboard/page-shell"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Plus, Pencil, Trash2, Mail, Phone, UserCog, Users, Calendar, LogIn, Search, RefreshCw, Loader2, Save, User, ChevronDown, ChevronUp, Download } from "lucide-react"
@@ -535,23 +536,16 @@ export default function EmployeesPage() {
 
   if (permissions.isLoading) {
     return (
-      <div className="flex min-h-screen bg-slate-50">
-        <DashboardSidebar onLogout={handleLogout} />
-        <div className="flex-1 flex flex-col min-w-0">
-          <DashboardHeader />
-          <main className="overflow-y-visible p-6 flex items-center justify-center"><p className="text-slate-600">Loading...</p></main>
-        </div>
-      </div>
+      <PageShell boActive="users">
+        <main className="overflow-y-visible p-6 flex items-center justify-center"><p className="text-slate-600">Loading...</p></main>
+      </PageShell>
     )
   }
 
   if (!permissions.isAdmin && !loading) return null
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <DashboardSidebar onLogout={handleLogout} />
-      <div className="flex-1 flex flex-col min-w-0">
-        <DashboardHeader />
+    <PageShell boActive="users">
         <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
           <div className="space-y-6">
             {/* Page Header */}
@@ -748,7 +742,6 @@ export default function EmployeesPage() {
             )}
           </div>
         </main>
-      </div>
 
       {/* Create Employee Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
@@ -1105,6 +1098,6 @@ export default function EmployeesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </PageShell>
   )
 }

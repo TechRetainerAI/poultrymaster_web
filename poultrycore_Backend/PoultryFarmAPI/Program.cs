@@ -138,6 +138,19 @@ builder.Services.AddScoped<IWaterLossRecordService>(sp => new WaterLossRecordSer
 builder.Services.AddScoped<IWaterDailyClosingService>(sp => new WaterDailyClosingService(connectionString));
 builder.Services.AddScoped<IWaterReportService>(sp => new WaterReportService(connectionString));
 
+// Poultry Inventory + Raw Materials (additive; mirrors the Water raw-material services)
+builder.Services.AddScoped<IPoultryRawMaterialItemService>(sp => new PoultryRawMaterialItemService(connectionString));
+builder.Services.AddScoped<IPoultryRawMaterialPurchaseService>(sp => new PoultryRawMaterialPurchaseService(connectionString));
+builder.Services.AddScoped<IPoultryRawMaterialUsageService>(sp => new PoultryRawMaterialUsageService(connectionString));
+builder.Services.AddScoped<IPoultryProductService>(sp => new PoultryProductService(connectionString));
+builder.Services.AddScoped<IPoultryStockService>(sp => new PoultryStockService(connectionString));
+builder.Services.AddScoped<IPoultryProductionRecipeService>(sp => new PoultryProductionRecipeService(connectionString));
+builder.Services.AddScoped<IPoultryProductionBatchService>(sp => new PoultryProductionBatchService(connectionString));
+builder.Services.AddScoped<IPoultryLossRecordService>(sp => new PoultryLossRecordService(connectionString));
+builder.Services.AddScoped<IPoultryDailyClosingService>(sp => new PoultryDailyClosingService(connectionString));
+builder.Services.AddScoped<IPoultryReportService>(sp => new PoultryReportService(connectionString));
+builder.Services.AddScoped<IPoultryDeliveryService>(sp => new PoultryDeliveryService(connectionString));
+
 // Phase W4: Finance — expense categories + expenses (approval workflow + cash
 // side-effects), multi-account cash accounts + ledger, cash transfers (paired
 // TransferOut/TransferIn), customer ledger. Schema: migration 047. SPs: 048.
@@ -148,6 +161,19 @@ builder.Services.AddScoped<IWaterSupplierService>(sp => new WaterSupplierService
 builder.Services.AddScoped<IWaterCashAccountService>(sp => new WaterCashAccountService(connectionString));
 builder.Services.AddScoped<IWaterCashTransferService>(sp => new WaterCashTransferService(connectionString));
 builder.Services.AddScoped<IWaterCustomerLedgerService>(sp => new WaterCustomerLedgerService(connectionString));
+
+// Poultry Cash Accounts (port of the Water cash module). Multi-account cash
+// management + signed ledger + paired transfers. Migrations 128 (schema) + 129 (SPs).
+builder.Services.AddScoped<IPoultryCashAccountService>(sp => new PoultryCashAccountService(connectionString));
+builder.Services.AddScoped<IPoultryCashTransferService>(sp => new PoultryCashTransferService(connectionString));
+
+// Poultry Staff + Attendance + Payroll (port of the Water W6 module). Payroll
+// approve upserts a linked dbo.Expense (Category 'Payroll'); mark-paid posts a
+// CashOut against the run's PoultryCashAccountId. Migrations 126/127 (staff),
+// 130/131 (payroll), 125 (expense linkage).
+builder.Services.AddScoped<IPoultryStaffService>(sp => new PoultryStaffService(connectionString));
+builder.Services.AddScoped<IPoultryStaffAttendanceService>(sp => new PoultryStaffAttendanceService(connectionString));
+builder.Services.AddScoped<IPoultryPayrollService>(sp => new PoultryPayrollService(connectionString));
 
 // Phase W5: Water Company profile (setup metadata: brand, business type,
 // water source, default currency/bag-sachet count, owner contact). Setup SP
@@ -166,6 +192,9 @@ builder.Services.AddScoped<IWaterPayrollService>(sp => new WaterPayrollService(c
 // Complete-SP can also book a CashOut for repair cost against a cash account
 // (idempotent — CashTransactionWritten guards double-booking). Migration 052.
 builder.Services.AddScoped<IWaterMaintenanceLogService>(sp => new WaterMaintenanceLogService(connectionString));
+
+// Prompt 4 — Business Office announcements / notifications (migration 121).
+builder.Services.AddScoped<IAnnouncementService>(sp => new AnnouncementService(connectionString));
 
 // Water report/closing → PDF → email. Depends only on already-registered DI
 // services (IWaterReportService for report data, IEmailService for delivery).

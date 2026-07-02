@@ -557,21 +557,32 @@ namespace User.Management.Service.Services
         }
         public async Task<ApiResponse<LoginResponse>> LoginUserWithJWTokenAsync(string otp, string userName)
         {
+            // Robust lookup: by username, then by email (the user may have signed in
+            // with either). FirstOrDefault — not FindByEmailAsync — so duplicate
+            // emails don't throw.
             var user = await _userManager.FindByNameAsync(userName);
-            var signIn = await _signInManager.TwoFactorSignInAsync("Email", otp, false, false);
-            if (signIn.Succeeded)
+            if (user == null && !string.IsNullOrWhiteSpace(userName))
             {
-                if (user != null)
-                {
-                    return await GetJwtTokenAsync(user);
-                }
+                var ne = _userManager.NormalizeEmail(userName);
+                user = _userManager.Users.Where(u => u.NormalizedEmail == ne).ToList().FirstOrDefault();
             }
-            return new ApiResponse<LoginResponse>() { 
 
-                Response=new LoginResponse()
-                {
+            if (user != null && !string.IsNullOrWhiteSpace(otp))
+            {
+                // Stateless verification. _signInManager.TwoFactorSignInAsync needs the
+                // two-factor cookie that PasswordSignInAsync sets — but this JWT API
+                // (behind the same-origin proxy / Cloud Run, no cookies) never
+                // establishes it, so it always failed with "Invalid Otp".
+                // VerifyTwoFactorTokenAsync checks the code directly against the user's
+                // security stamp + time window — no cookie required.
+                var valid = await _userManager.VerifyTwoFactorTokenAsync(user, "Email", otp.Trim());
+                if (valid)
+                    return await GetJwtTokenAsync(user);
+            }
 
-                },
+            return new ApiResponse<LoginResponse>()
+            {
+                Response = new LoginResponse() { },
                 IsSuccess = false,
                 StatusCode = 400,
                 Message = $"Invalid Otp"

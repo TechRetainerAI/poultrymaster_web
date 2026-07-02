@@ -674,6 +674,7 @@ export function TopNavigation() {
     label: "Financial",
     items: [
       { href: "/cash", label: "Cash", icon: Wallet },
+      { href: "/poultry-cash-accounts", label: "Cash & Accounts", icon: Wallet },
       { href: "/sales", label: "Sales", icon: ShoppingCart },
       { href: "/expenses", label: "Expenses", icon: DollarSign },
       { href: "/customers", label: "Customers", icon: Users },
@@ -682,6 +683,16 @@ export function TopNavigation() {
     ].filter((item) =>
       isFinancialNavItemVisible(item.href, permissions.featureAccess, permissions.isAdmin)
     ),
+  }
+
+  const peopleGroup: NavGroup = {
+    label: "People",
+    items: [
+      ...((permissions.isAdmin || permissions.featureAccess.canSeeEmployees)
+        ? [{ href: "/poultry-staff", label: "Staff", icon: Users2 }]
+        : []),
+      { href: "/poultry-payroll", label: "Payroll", icon: Banknote },
+    ],
   }
 
   const moreGroup: NavGroup = {
@@ -707,6 +718,7 @@ export function TopNavigation() {
           <NavDropdown group={productionGroup} />
           <NavDropdown group={inventoryGroup} />
           {financialGroup.items.length > 0 && <NavDropdown group={financialGroup} />}
+          {peopleGroup.items.length > 0 && <NavDropdown group={peopleGroup} />}
           <div className="h-5 w-px bg-white/30 mx-1" />
           {/* Reports opens a hover mega-menu of the 20 poultry reports, sourced
               from lib/reports/poultry-reports-config.ts (shared with the

@@ -8,6 +8,7 @@ import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
+import { PageShell } from "@/components/dashboard/page-shell"
 import { InfoSection, InfoRow, PageHeader } from "@/components/ui/info-section"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
@@ -118,12 +119,7 @@ export default function SettingsPage() {
 
   return (
     <>
-      <div className="flex min-h-screen bg-slate-50">
-        <DashboardSidebar onLogout={handleLogout} />
-        
-        <div className="flex-1 flex flex-col min-w-0">
-          <DashboardHeader />
-          
+      <PageShell boActive="settings">
           <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
             <div className="space-y-6">
               {/* Page Header */}
@@ -345,8 +341,7 @@ export default function SettingsPage() {
               </div>
             </div>
           </main>
-        </div>
-      </div>
+      </PageShell>
 
       {showSuccess && (
         <SuccessModal

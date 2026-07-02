@@ -615,7 +615,7 @@ export default function WaterRawMaterialsPage() {
                 if (c && !set.includes(c)) set.unshift(c)
                 return set
               }
-              const roCls = "bg-slate-50 text-slate-700 font-medium"
+              const roCls = "bg-slate-100 text-slate-600 font-medium pointer-events-none cursor-default border-dashed"
               return (
                 <>
                   <FormSection title="Purchase Quantity & Production Costing" color="blue">

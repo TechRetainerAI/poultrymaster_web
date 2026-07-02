@@ -14,6 +14,10 @@ namespace User.Management.Data
         // joins on). Used when creating staff employees so the new user resolves to
         // their company — and the right dashboard — at login.
         Task AddMemberAsync(string userId, string farmId, string role);
+        // Doc 3 §6-7: revoke a user's access to a company (removes the UserFarms row).
+        Task RemoveMemberAsync(string userId, string farmId);
+        // Doc 3 §7: user ids granted access to a company (access-based employee list).
+        Task<List<string>> GetMemberUserIdsAsync(string farmId);
         Task UpdateAsync(string farmId, CreateCompanyRequest req);
     }
 }

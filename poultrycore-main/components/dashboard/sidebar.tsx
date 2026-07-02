@@ -69,6 +69,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const alerts = useAlertsStore((s: { alerts: AlertItem[]; open: () => void }) => s.alerts)
   const openAlerts = useAlertsStore((s: { alerts: AlertItem[]; open: () => void }) => s.open)
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
+  const clearActiveCompany = useAuthStore((s) => s.clearActiveCompany)
   const isWater = activeFarmType === "Water"
   const isGeneric = activeFarmType === "Generic"
   const { isCollapsed, toggle, isMobileOpen, toggleMobile, setMobileOpen, setCollapsed } = useSidebarStore()
@@ -154,9 +155,24 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/supplies", label: "Supplies", icon: ShoppingCart },
   ]
 
+  // Additive water-style inventory + production suite for Poultry companies.
+  const poultryInventoryItems = [
+    { href: "/poultry-inventory", label: "Inventory", icon: Boxes },
+    { href: "/poultry-products", label: "Products", icon: Package },
+    { href: "/poultry-stock", label: "Stock movements", icon: Boxes },
+    { href: "/poultry-raw-materials", label: "Raw Materials & Supplies", icon: Box },
+    { href: "/poultry-production-batches", label: "Production Batches", icon: Boxes },
+    { href: "/poultry-production-losses", label: "Production Losses", icon: AlertTriangle },
+    { href: "/poultry-loss-records", label: "Loss & Damage", icon: AlertTriangle },
+    { href: "/poultry-deliveries", label: "Egg Deliveries", icon: Truck },
+    { href: "/poultry-daily-closing", label: "Daily Closing", icon: Box },
+    { href: "/poultry-closing-report", label: "Closing Report", icon: Box },
+  ]
+
   const TEMP_SHOW_PAYMENTS_LINK = true
   const financialItems = [
     { href: "/cash", label: "Cash", icon: Wallet },
+    { href: "/poultry-cash-accounts", label: "Cash & Accounts", icon: Wallet },
     { href: "/sales", label: "Sales", icon: ShoppingCart },
     { href: "/expenses", label: "Expenses", icon: DollarSign },
     { href: "/customers", label: "Customers", icon: Users },
@@ -167,6 +183,14 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
       tempShowPayments: TEMP_SHOW_PAYMENTS_LINK,
     })
   )
+
+  // Poultry People (Staff + Payroll). Staff is admin/employee-gated like Water's.
+  const poultryPeopleItems = [
+    ...((permissions.isAdmin || permissions.featureAccess.canSeeEmployees)
+      ? [{ href: "/poultry-staff", label: "Staff", icon: UserCog }]
+      : []),
+    { href: "/poultry-payroll", label: "Payroll", icon: Banknote },
+  ]
 
   // Water company nav items (shown when activeFarmType === "Water")
   // James (2026-06-02): regrouped to surface Delivery and Production as
@@ -424,9 +448,15 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         className="sidebar-nav-scrollable min-h-0 flex-1 overflow-y-auto overscroll-y-contain py-3 px-2 space-y-4"
         aria-label="Main navigation"
       >
-        {/* Business Office — the owner's HQ above all companies (Prompt 2). */}
+        {/* Business Office — the owner's HQ above all companies (Prompt 2).
+            Doc 3 §9: clicking it clears the active company so the HQ is
+            company-neutral (the "home" icon behavior). */}
         <div>
-          {renderNavItem({ href: "/business-office", label: "Business Office", icon: Briefcase })}
+          {renderNavItem(
+            { href: "/business-office", label: "Business Office", icon: Briefcase },
+            true,
+            () => { try { clearActiveCompany() } catch {}; handleLinkClick?.(); router.push("/business-office") },
+          )}
         </div>
 
         {/* Dashboard — route depends on active company type */}
@@ -532,8 +562,20 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
             {/* Divider */}
             <div className="border-t border-slate-800 mx-2" />
 
+            {/* Inventory & Production (water-style suite) */}
+            {renderGroup("Inventory & Production", poultryInventoryItems, "poultryInventory")}
+
+            {/* Divider */}
+            <div className="border-t border-slate-800 mx-2" />
+
             {/* Financial */}
             {financialItems.length > 0 && renderGroup("Financial", financialItems, "financial")}
+
+            {/* Divider */}
+            <div className="border-t border-slate-800 mx-2" />
+
+            {/* People (Staff + Payroll) */}
+            {renderGroup("People", poultryPeopleItems, "poultryPeople")}
           </>
         )}
 

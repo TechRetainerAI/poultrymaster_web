@@ -104,6 +104,43 @@ namespace User.Management.Data
             await cmd.ExecuteNonQueryAsync();
         }
 
+        public async Task RemoveMemberAsync(string userId, string farmId)
+        {
+            // Revoke a user's access to a company (Doc 3 §6-7). Inline + guarded —
+            // there is no dedicated SP for a plain membership delete, matching the
+            // inline INSERT in AddMemberAsync.
+            using var conn = new SqlConnection(_connectionString);
+            using var cmd = new SqlCommand(
+                @"DELETE FROM dbo.UserFarms WHERE UserId = @UserId AND FarmId = @FarmId;",
+                conn);
+            cmd.Parameters.AddWithValue("@UserId", userId);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task<List<string>> GetMemberUserIdsAsync(string farmId)
+        {
+            // User ids granted access to a company via UserFarms — powers the
+            // access-based company employee list (Doc 3 §7).
+            var ids = new List<string>();
+            using var conn = new SqlConnection(_connectionString);
+            using var cmd = new SqlCommand(
+                @"SELECT UserId FROM dbo.UserFarms WHERE FarmId = @FarmId;",
+                conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+
+            await conn.OpenAsync();
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                var id = reader["UserId"]?.ToString();
+                if (!string.IsNullOrWhiteSpace(id)) ids.Add(id);
+            }
+            return ids;
+        }
+
         public async Task UpdateAsync(string farmId, CreateCompanyRequest req)
         {
             using var conn = new SqlConnection(_connectionString);

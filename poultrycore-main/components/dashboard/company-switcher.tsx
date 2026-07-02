@@ -3,16 +3,25 @@
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { createPortal } from "react-dom"
-import { Building2, ChevronsUpDown, Check, Loader2, Plus, Bird, Droplets, Briefcase } from "lucide-react"
+import { Building2, ChevronsUpDown, Check, Loader2, Plus, Bird, Droplets, Briefcase, ShoppingBag } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { getMyCompanies, switchCompany, type Company } from "@/lib/api/companies"
 import { useToast } from "@/hooks/use-toast"
 
-function typeIcon(type: string) {
+// Icon + colour are driven by the company TYPE (never the name, never a Poultry
+// fallback). Unknown type → a neutral building icon.
+function typeIcon(type?: string | null) {
   if (type === "Water") return Droplets
   if (type === "Poultry") return Bird
+  if (type === "Generic") return ShoppingBag
   return Building2
+}
+function typeColor(type?: string | null) {
+  if (type === "Water") return "text-sky-300"
+  if (type === "Poultry") return "text-orange-300"
+  if (type === "Generic") return "text-violet-300"
+  return "text-slate-300"
 }
 
 export function CompanySwitcher({ fullWidth = false }: { fullWidth?: boolean } = {}) {
@@ -110,7 +119,7 @@ export function CompanySwitcher({ fullWidth = false }: { fullWidth?: boolean } =
     }
   }
 
-  const ActiveIcon = typeIcon(activeFarmType ?? "Poultry")
+  const ActiveIcon = typeIcon(activeFarmType)
 
   return (
     <>
@@ -124,11 +133,13 @@ export function CompanySwitcher({ fullWidth = false }: { fullWidth?: boolean } =
           // chevron) so it doesn't read like the removed search input.
           "flex items-center gap-2.5 rounded-lg border border-slate-700 bg-slate-800/80 py-1.5 pl-2 pr-3",
           "text-sm text-white hover:bg-slate-700 hover:border-slate-600 transition-colors min-w-0",
-          fullWidth ? "w-full max-w-none" : "max-w-[260px]"
+          // Fixed width so the chip doesn't grow/shrink with the company name —
+          // long names truncate instead.
+          fullWidth ? "w-full" : "w-[240px]"
         )}
       >
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-700/70 ring-1 ring-inset ring-white/10">
-          <ActiveIcon className="h-4 w-4 text-orange-300" />
+          <ActiveIcon className={cn("h-4 w-4", typeColor(activeFarmType))} />
         </span>
         <div className="flex min-w-0 flex-1 flex-col items-start leading-tight">
           <span className="text-[10px] uppercase tracking-wide text-slate-400">Company</span>
@@ -177,7 +188,7 @@ export function CompanySwitcher({ fullWidth = false }: { fullWidth?: boolean } =
                   isActive ? "bg-slate-800 text-white" : "text-slate-200 hover:bg-slate-800/70"
                 )}
               >
-                <Icon className={cn("h-4 w-4", c.type === "Water" ? "text-sky-300" : "text-orange-300")} />
+                <Icon className={cn("h-4 w-4", typeColor(c.type))} />
                 <div className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate font-medium">{c.name}</span>
                   <span className="text-[10px] uppercase tracking-wide text-slate-400">{c.type} · {c.role}</span>

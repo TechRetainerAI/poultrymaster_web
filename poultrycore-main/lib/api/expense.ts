@@ -12,6 +12,8 @@ export interface Expense {
   amount: number
   paymentMethod: string
   flockId: number
+  /** Optional cash account this expense is paid from. */
+  poultryCashAccountId?: number | null
   createdDate: string
   notes?: string
   paidTo?: string
@@ -30,6 +32,8 @@ export interface ExpenseInput {
   paymentMethod: string
   /** null = farm-wide / all-flocks expense (not attributed to one flock). */
   flockId: number | null
+  /** Optional cash account to pay this expense from (posts a cash-out). */
+  poultryCashAccountId?: number | null
   createdDate?: string
   supplier?: string
   /** Base64 payload only (no data URL prefix). API maps to byte[]. */
@@ -76,6 +80,7 @@ function normalizeExpense(x: any, fallbackUserId?: string): Expense {
     amount: Number(x.amount ?? x.Amount ?? 0),
     paymentMethod: x.paymentMethod ?? x.PaymentMethod ?? "",
     flockId: Number(x.flockId ?? x.FlockId ?? 0),
+    poultryCashAccountId: (x.poultryCashAccountId ?? x.PoultryCashAccountId) ?? null,
     createdDate: x.createdDate ?? x.CreatedDate,
     notes: x.notes ?? x.Notes,
     paidTo: x.paidTo ?? x.PaidTo ?? x.supplier ?? x.Supplier,
@@ -272,6 +277,7 @@ export async function createExpense(expense: ExpenseInput): Promise<ApiResponse<
       amount: expense.amount,
       paymentMethod: expense.paymentMethod,
       flockId: expense.flockId,
+      poultryCashAccountId: expense.poultryCashAccountId ?? null,
     }
     if (expense.supplier !== undefined) {
       requestBody.supplier = expense.supplier
@@ -332,6 +338,7 @@ export async function updateExpense(id: number, expense: Partial<ExpenseInput>):
     if (expense.amount !== undefined) requestBody.amount = expense.amount
     if (expense.paymentMethod) requestBody.paymentMethod = expense.paymentMethod
     if (expense.flockId !== undefined) requestBody.flockId = expense.flockId
+    if (expense.poultryCashAccountId !== undefined) requestBody.poultryCashAccountId = expense.poultryCashAccountId
     if (expense.createdDate) requestBody.createdDate = expense.createdDate
     if (expense.supplier !== undefined) requestBody.supplier = expense.supplier
 
