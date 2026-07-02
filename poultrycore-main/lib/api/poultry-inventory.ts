@@ -95,6 +95,10 @@ function activeFarmId(): string {
   if (!farmId) throw new Error("No active company. Pick a company first.")
   return farmId
 }
+function activeUserId(): string | null {
+  const { userId } = getUserContext()
+  return userId || null
+}
 
 async function jget<T>(path: string): Promise<T> {
   const res = await fetch(farmApiUrl(path), { headers: getAuthHeaders() })
@@ -142,7 +146,7 @@ export const listPoultryRawMaterialPurchases = (opts?: { fromDate?: string; toDa
 }
 
 export const createPoultryRawMaterialPurchase = (input: PoultryRawMaterialPurchaseInput) =>
-  jsend<{ poultryRawMaterialPurchaseId: number }>(`/Poultry/raw-material-purchases`, "POST", { ...input, farmId: activeFarmId() })
+  jsend<{ poultryRawMaterialPurchaseId: number }>(`/Poultry/raw-material-purchases`, "POST", { ...input, farmId: activeFarmId(), createdBy: activeUserId() })
 
 export const updatePoultryRawMaterialPurchase = (id: number, input: PoultryRawMaterialPurchaseInput) =>
   jsend<void>(`/Poultry/raw-material-purchases/${id}`, "PUT", { ...input, poultryRawMaterialPurchaseId: id, farmId: activeFarmId() })
@@ -159,6 +163,7 @@ export const payPoultryRawMaterialPurchaseBalance = (
     amount: input.amount,
     paymentMethod: input.paymentMethod ?? "Cash",
     paymentDate: input.paymentDate || null,
+    createdBy: activeUserId(),
   })
 
 // ----- Usage history -----
