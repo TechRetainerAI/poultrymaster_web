@@ -596,26 +596,27 @@ namespace PoultryFarmAPIWeb.Business
 
             await conn.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();
-            long opening = 0, produced = 0, broken = 0, adjustments = 0, openAdj = 0;
+            long opening = 0, produced = 0, broken = 0, adjustments = 0, openAdj = 0, openSales = 0, salesInRange = 0;
             if (await r.ReadAsync())
             {
                 opening = LongOr(r, "OpeningProducedSaleable");
                 openAdj = LongOr(r, "OpeningAdjustments");
+                openSales = LongOr(r, "OpeningSales");
                 produced = LongOr(r, "ProductionAdded");
                 broken = LongOr(r, "BrokenInRange");
                 adjustments = LongOr(r, "AdjustmentsInRange");
+                salesInRange = LongOr(r, "SalesInRange");
             }
-            var openingStock = Math.Max(0, opening + openAdj);
+            var openingStock = Math.Max(0, opening + openAdj - openSales);
             var saleableProduced = Math.Max(0, produced - broken);
-            // Current stock = opening + saleable production in range + adjustments. Sales
-            // already net out via EggInventoryAdjustment (sales decrement egg inventory).
-            var current = Math.Max(0, openingStock + saleableProduced + adjustments);
+            // Current stock = opening + saleable production + adjustments − eggs sold in range.
+            var current = Math.Max(0, openingStock + saleableProduced + adjustments - salesInRange);
             resp.Rows.Add(new PoultryEggStockBalanceReportRow
             {
                 ProductGrade = "All eggs (combined)",
                 OpeningStock = openingStock,
                 ProductionAdded = saleableProduced,
-                SalesRemoved = 0,
+                SalesRemoved = salesInRange,
                 LossesAdjustments = broken,
                 CurrentStockEggs = current,
                 CurrentStockCrates = Crates(current),
@@ -634,7 +635,7 @@ namespace PoultryFarmAPIWeb.Business
                 BrokenRejectedEggs = broken,
                 StockValue = null,
             };
-            resp.Warnings.Add("Egg stock is reported as a single combined balance: egg grades and selling-price valuation are not tracked through to inventory. Egg sales are assumed to be reflected via egg inventory adjustments.");
+            resp.Warnings.Add("Egg stock is reported as a single combined balance: egg grades and selling-price valuation are not tracked through to inventory. Eggs sold (sales with an \"egg\" product) are deducted from the balance.");
             return resp;
         }
 
@@ -876,6 +877,9 @@ namespace PoultryFarmAPIWeb.Business
             using var r = await cmd.ExecuteReaderAsync();
             while (await r.ReadAsync())
             {
+                var eggRev = DecOr(r, "EggRevenue");
+                var birdRev = DecOr(r, "BirdSalesRevenue");
+                var otherRev = DecOr(r, "OtherRevenue");
                 var revenue = DecOr(r, "TotalRevenue");
                 var feed = DecOr(r, "FeedCost");
                 var med = DecOr(r, "MedicineVaccineCost");
@@ -889,9 +893,9 @@ namespace PoultryFarmAPIWeb.Business
                 {
                     FlockId = IntN(r, "FlockId"),
                     FlockName = Str(r, "FlockName") ?? "Unnamed flock",
-                    EggRevenue = revenue,
-                    BirdSalesRevenue = 0,
-                    OtherRevenue = 0,
+                    EggRevenue = eggRev,
+                    BirdSalesRevenue = birdRev,
+                    OtherRevenue = otherRev,
                     FeedCost = feed,
                     MedicineVaccineCost = med,
                     LaborCost = labor,
@@ -916,8 +920,94 @@ namespace PoultryFarmAPIWeb.Business
                 NetProfit = rev - exp,
                 MostProfitableFlock = resp.Rows.OrderByDescending(x => x.NetProfit).FirstOrDefault()?.FlockName,
                 LeastProfitableFlock = resp.Rows.OrderBy(x => x.NetProfit).FirstOrDefault()?.FlockName,
+                EggRevenue = resp.Rows.Sum(x => x.EggRevenue),
+                BirdSalesRevenue = resp.Rows.Sum(x => x.BirdSalesRevenue),
+                OtherRevenue = resp.Rows.Sum(x => x.OtherRevenue),
+                FeedCost = resp.Rows.Sum(x => x.FeedCost ?? 0),
+                MedicineVaccineCost = resp.Rows.Sum(x => x.MedicineVaccineCost ?? 0),
+                LaborCost = resp.Rows.Sum(x => x.LaborCost ?? 0),
+                OtherExpenses = resp.Rows.Sum(x => x.OtherExpenses),
             };
-            resp.Warnings.Add("Revenue and costs are allocated to a flock only when the sale/expense record has a flock id. Bird-sales vs egg-sales split is not tracked. Unallocated (farm-level) income and costs are not shown per flock.");
+            resp.Warnings.Add("Revenue and costs are allocated to a flock only when the sale/expense record has a flock id. Revenue is split by the sale's product name (egg / bird / other). Unallocated (farm-level) income and costs are not shown per flock.");
+            return resp;
+        }
+
+        // =====================================================================
+        // 15b. Profit & Loss (company-wide — all sales/expenses, not per flock)
+        // =====================================================================
+        public async Task<PoultryReportResponse<PoultryProfitLossReportSummary, PoultryProfitLossReportRow>>
+            GetProfitLossAsync(PoultryReportFilterDto f)
+        {
+            var (start, end) = ResolveRange(f);
+            var resp = NewResponse<PoultryProfitLossReportSummary, PoultryProfitLossReportRow>("Poultry Profit & Loss", f, start, end);
+
+            decimal eggRev = 0, birdRev = 0, otherRev = 0, totalRev = 0;
+            decimal feed = 0, med = 0, labor = 0, otherExp = 0, totalExp = 0;
+
+            using (var conn = new SqlConnection(_connectionString))
+            using (var cmd = Proc(conn, "spPoultryReport_ProfitLoss"))
+            {
+                cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
+                cmd.Parameters.AddWithValue("@StartDate", start);
+                cmd.Parameters.AddWithValue("@EndDate", end);
+
+                await conn.OpenAsync();
+                using var r = await cmd.ExecuteReaderAsync();
+                if (await r.ReadAsync())
+                {
+                    eggRev   = DecOr(r, "EggRevenue");
+                    birdRev  = DecOr(r, "BirdSalesRevenue");
+                    otherRev = DecOr(r, "OtherRevenue");
+                    totalRev = DecOr(r, "TotalRevenue");
+                    feed     = DecOr(r, "FeedCost");
+                    med      = DecOr(r, "MedicineVaccineCost");
+                    labor    = DecOr(r, "LaborCost");
+                    otherExp = DecOr(r, "OtherExpenses");
+                    totalExp = DecOr(r, "TotalExpenses");
+                }
+            }
+
+            var grossProfit = totalRev - feed;   // feed is the primary cost of goods in poultry
+            var netProfit = totalRev - totalExp;
+
+            decimal? Pct(decimal part, decimal whole) =>
+                whole == 0 ? (decimal?)null : Math.Round(part / whole * 100m, 1);
+
+            // A single wide company row (mirrors the per-flock P&L table layout).
+            resp.Rows.Add(new PoultryProfitLossReportRow
+            {
+                Scope = $"{start:yyyy-MM-dd} → {end:yyyy-MM-dd}",
+                EggRevenue = eggRev,
+                BirdSalesRevenue = birdRev,
+                OtherRevenue = otherRev,
+                TotalRevenue = totalRev,
+                FeedCost = feed,
+                MedicineVaccineCost = med,
+                LaborCost = labor,
+                OtherExpenses = otherExp,
+                TotalCost = totalExp,
+                GrossProfit = grossProfit,
+                NetProfit = netProfit,
+                Status = netProfit >= 0 ? "Profit" : "Loss",
+            });
+
+            resp.Summary = new PoultryProfitLossReportSummary
+            {
+                TotalRevenue = totalRev,
+                TotalExpenses = totalExp,
+                GrossProfit = grossProfit,
+                NetProfit = netProfit,
+                NetMarginPercent = Pct(netProfit, totalRev),
+                EggRevenue = eggRev,
+                BirdSalesRevenue = birdRev,
+                OtherRevenue = otherRev,
+                FeedCost = feed,
+                MedicineVaccineCost = med,
+                LaborCost = labor,
+                OtherExpenses = otherExp,
+                Status = netProfit >= 0 ? "Profit" : "Loss",
+            };
+            resp.Warnings.Add("Company-wide figures include ALL sales and expenses for the period, whether or not they are attributed to a flock. Revenue is split by the sale's product name and expenses by category keyword; anything unrecognised falls under \"Other\".");
             return resp;
         }
 

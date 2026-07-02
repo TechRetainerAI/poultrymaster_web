@@ -187,6 +187,15 @@ namespace PoultryFarmAPIWeb.Controllers
             return Ok(await _reports.GetProfitLossByFlockAsync(filter));
         }
 
+        // 15b — company-wide Profit & Loss (all sales/expenses, not per flock)
+        [HttpGet("profit-loss")]
+        public async Task<IActionResult> ProfitLoss([FromQuery] PoultryReportFilterDto filter)
+        {
+            var guard = await EnsurePoultryAsync(filter.FarmId);
+            if (guard is not null) return guard;
+            return Ok(await _reports.GetProfitLossAsync(filter));
+        }
+
         // 16
         [HttpGet("cost-per-egg")]
         public async Task<IActionResult> CostPerEgg([FromQuery] PoultryReportFilterDto filter)

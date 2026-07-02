@@ -14,7 +14,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react"
 import {
-  Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
+  Table, TableHeader, TableBody, TableFooter, TableRow, TableHead, TableCell,
 } from "@/components/ui/table"
 import {
   Pagination, PaginationContent, PaginationItem, PaginationLink,
@@ -78,12 +78,15 @@ export function ReportDataTable({
   empty = "No data for the selected filters.",
   initialPageSize = 10,
   minWidth,
+  footer,
 }: {
   columns: ReportTableColumn[]
   rows: ReportTableRow[]
   empty?: string
   initialPageSize?: number
   minWidth?: number
+  /** Optional pinned totals row (parallel to columns). Not sorted or paginated. */
+  footer?: ReactNode[]
 }) {
   const isMobile = useIsMobile()
   const [sortKey, setSortKey] = useState<string | null>(null)
@@ -170,22 +173,47 @@ export function ReportDataTable({
             </Button>
           </div>
 
-          {/* Card list — one card per row, label : value pairs. */}
-          <div className="space-y-2.5">
+          {/* Card list — one card per row. Each record gets a coloured header
+              strip (primary value + record number) so it's clear on mobile
+              where one record ends and the next begins. */}
+          <div className="space-y-3">
             {pageRows.map((row, ri) => (
-              <div key={start + ri} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-                <dl className="divide-y divide-slate-100">
-                  {row.display.map((cell, ci) => (
+              <div key={start + ri} className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between gap-2 border-b border-amber-200 bg-amber-50 px-3 py-2">
+                  <span className="min-w-0 break-words text-sm font-semibold text-slate-800">{row.display[0]}</span>
+                  <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700">
+                    #{start + ri + 1}
+                  </span>
+                </div>
+                <dl className="divide-y divide-slate-100 px-3 py-2">
+                  {row.display.slice(1).map((cell, i) => {
+                    const ci = i + 1
+                    return (
+                      <div key={ci} className="flex items-start justify-between gap-3 py-1.5 first:pt-0 last:pb-0">
+                        <dt className="text-xs text-slate-500 shrink-0">{columns[ci]?.header}</dt>
+                        <dd className={cn("text-sm text-slate-800 text-right min-w-0 break-words", columns[ci]?.align === "right" && "tabular-nums")}>
+                          {cell}
+                        </dd>
+                      </div>
+                    )
+                  })}
+                </dl>
+              </div>
+            ))}
+            {footer && (
+              <div className="rounded-lg border-2 border-slate-300 bg-slate-100 p-3 shadow-sm font-semibold">
+                <dl className="divide-y divide-slate-200">
+                  {footer.map((cell, ci) => (
                     <div key={ci} className="flex items-start justify-between gap-3 py-1.5 first:pt-0 last:pb-0">
                       <dt className="text-xs text-slate-500 shrink-0">{columns[ci]?.header}</dt>
-                      <dd className={cn("text-sm text-slate-800 text-right min-w-0 break-words", columns[ci]?.align === "right" && "tabular-nums")}>
+                      <dd className={cn("text-sm text-slate-900 text-right min-w-0 break-words", columns[ci]?.align === "right" && "tabular-nums")}>
                         {cell}
                       </dd>
                     </div>
                   ))}
                 </dl>
               </div>
-            ))}
+            )}
           </div>
         </>
       ) : (
@@ -220,6 +248,20 @@ export function ReportDataTable({
                 </TableRow>
               ))}
             </TableBody>
+            {footer && (
+              <TableFooter className="bg-slate-100">
+                <TableRow className="border-t-2 border-slate-300 hover:bg-slate-100">
+                  {footer.map((cell, ci) => (
+                    <TableCell
+                      key={ci}
+                      className={cn("py-2.5 font-semibold text-slate-900", columns[ci]?.align === "right" && "text-right tabular-nums")}
+                    >
+                      {cell}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableFooter>
+            )}
           </Table>
         </div>
       )}

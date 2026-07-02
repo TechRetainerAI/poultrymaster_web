@@ -56,6 +56,9 @@ namespace PoultryFarmAPIWeb.Business
         Task<PoultryReportResponse<PoultryProfitLossByFlockReportSummary, PoultryProfitLossByFlockReportRow>>
             GetProfitLossByFlockAsync(PoultryReportFilterDto filter);
 
+        Task<PoultryReportResponse<PoultryProfitLossReportSummary, PoultryProfitLossReportRow>>
+            GetProfitLossAsync(PoultryReportFilterDto filter);
+
         Task<PoultryReportResponse<PoultryCostPerEggReportSummary, PoultryCostPerEggReportRow>>
             GetCostPerEggAsync(PoultryReportFilterDto filter);
 

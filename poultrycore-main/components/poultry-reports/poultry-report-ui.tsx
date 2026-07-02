@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ReportDataTable, type ReportTableColumn, type ReportTableRow } from "@/components/poultry-reports/report-data-table"
 import { AlertCircle, Loader2, Inbox, Download, Printer, FileSpreadsheet, Mail } from "lucide-react"
-import type { Accent, ColumnDef, FmtCtx } from "@/lib/reports/poultry-report-defs"
+import type { Accent, BreakdownGroup, ColumnDef, FmtCtx } from "@/lib/reports/poultry-report-defs"
 
 // --- Status badge ------------------------------------------------------------
 const GOOD = ["good", "profit", "paid", "complete", "in stock", "ok", "settled", "balanced", "active", "completed"]
@@ -117,6 +117,50 @@ export function PoultryReportTable({
     }
   })
   return <ReportDataTable columns={cols} rows={tableRows} empty="No rows for this selection." />
+}
+
+// --- Breakdown section (rendered below the detail table) ---------------------
+// Grouped horizontal bars — e.g. "Revenue breakdown" / "Expense breakdown" —
+// showing each category's amount and share of its group total.
+export function PoultryReportBreakdown({
+  groups, summary, ctx,
+}: { groups: BreakdownGroup[]; summary: any; ctx: FmtCtx }) {
+  if (!groups.length) return null
+  return (
+    <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4 print:grid-cols-2">
+      {groups.map((g) => {
+        const barCls = g.accent === "green" ? "bg-emerald-500" : "bg-rose-500"
+        return (
+          <div key={g.title} className="rounded-lg border border-slate-200 p-4 print:border">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-slate-800">{g.title}</h3>
+              {g.total && <span className="text-sm font-semibold tabular-nums text-slate-900">{g.total(summary, ctx)}</span>}
+            </div>
+            <div className="space-y-3">
+              {g.items.map((it) => {
+                const pct = it.percent(summary)
+                const width = pct == null ? 0 : Math.min(100, Math.max(0, pct))
+                return (
+                  <div key={it.label}>
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="text-slate-600">{it.label}</span>
+                      <span className="tabular-nums text-slate-800">
+                        {it.value(summary, ctx)}
+                        {pct != null && <span className="text-slate-400 ml-1">({pct.toFixed(1)}%)</span>}
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                      <div className={`h-full ${barCls} rounded-full`} style={{ width: `${width}%` }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 // --- Export buttons ----------------------------------------------------------
