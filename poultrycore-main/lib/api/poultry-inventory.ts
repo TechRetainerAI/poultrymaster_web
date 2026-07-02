@@ -181,13 +181,19 @@ export interface PoultryProduct {
   productType: string
   isActive: boolean
   notes?: string | null
+  isRawEggProduct: boolean
+  requiresRecipeSetup: boolean
+  size?: string | null
   stockOnHand: number
   createdDate: string
   updatedDate?: string | null
 }
 export interface PoultryProductInput {
   name: string; sku?: string | null; unit?: string | null; unitPrice?: number; productType?: string; isActive?: boolean; notes?: string | null
+  isRawEggProduct?: boolean; requiresRecipeSetup?: boolean; size?: string | null
 }
+export const ensureDefaultPoultryEgg = () =>
+  jsend<{ poultryProductId: number }>(`/Poultry/products/ensure-default-egg?farmId=${encodeURIComponent(activeFarmId())}`, "POST")
 export interface PoultryStockTransaction {
   poultryStockTransactionId: number; farmId: string; poultryProductId: number; productName?: string | null
   txnType: string; quantity: number; unitCost?: number | null; relatedId?: number | null; note?: string | null; createdDate: string

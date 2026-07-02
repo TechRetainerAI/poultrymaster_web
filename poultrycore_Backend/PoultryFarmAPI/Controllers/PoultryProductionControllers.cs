@@ -30,6 +30,10 @@ namespace PoultryFarmAPIWeb.Controllers
         [HttpDelete("{id:int}")] public async Task<IActionResult> Delete(int id, [FromQuery] string farmId)
         { if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required."); await _svc.DeleteAsync(id, farmId); return NoContent(); }
 
+        // Idempotently create the default egg finished-product for a farm (backfill / on-load).
+        [HttpPost("ensure-default-egg")] public async Task<IActionResult> EnsureDefaultEgg([FromQuery] string farmId)
+        { if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required."); var id = await _svc.EnsureDefaultEggAsync(farmId); return Ok(new { poultryProductId = id }); }
+
         // Recipe (bill of materials) for a product.
         [HttpGet("{id:int}/recipe")] public async Task<ActionResult<PoultryProductionRecipeModel>> GetRecipe(int id, [FromQuery] string farmId)
         { if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required."); var r = await _recipes.GetByProductAsync(farmId, id); return r is null ? Ok(null) : Ok(r); }

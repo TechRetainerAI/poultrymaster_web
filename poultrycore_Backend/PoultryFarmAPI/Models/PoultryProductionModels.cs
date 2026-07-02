@@ -16,6 +16,9 @@ namespace PoultryFarmAPIWeb.Models
         [StringLength(30)] public string ProductType { get; set; } = "FinishedGood";
         public bool IsActive { get; set; } = true;
         [StringLength(500)] public string? Notes { get; set; }
+        public bool IsRawEggProduct { get; set; }
+        public bool RequiresRecipeSetup { get; set; } = true;
+        [StringLength(60)] public string? Size { get; set; }
         public decimal StockOnHand { get; set; }
         public DateTime CreatedDate { get; set; }
         public DateTime? UpdatedDate { get; set; }

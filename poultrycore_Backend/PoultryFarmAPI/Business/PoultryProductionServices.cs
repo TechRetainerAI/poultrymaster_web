@@ -34,6 +34,7 @@ namespace PoultryFarmAPIWeb.Business
         Task<int> InsertAsync(PoultryProductModel m);
         Task UpdateAsync(PoultryProductModel m);
         Task DeleteAsync(int id, string farmId);
+        Task<int> EnsureDefaultEggAsync(string farmId);
     }
 
     public class PoultryProductService : IPoultryProductService
@@ -44,6 +45,9 @@ namespace PoultryFarmAPIWeb.Business
             PoultryProductId = r.Int("PoultryProductId"), FarmId = r.Str("FarmId"), Name = r.Str("Name"),
             Sku = r.StrN("Sku"), Unit = r.StrN("Unit"), UnitPrice = r.Dec("UnitPrice"), ProductType = r.Str("ProductType"),
             IsActive = r.Bool("IsActive"), Notes = r.StrN("Notes"),
+            IsRawEggProduct = r.Has("IsRawEggProduct") && r.Bool("IsRawEggProduct"),
+            RequiresRecipeSetup = !r.Has("RequiresRecipeSetup") || r.Bool("RequiresRecipeSetup"),
+            Size = r.Has("Size") ? r.StrN("Size") : null,
             StockOnHand = r.Has("StockOnHand") ? r.Dec("StockOnHand") : 0,
             CreatedDate = r.Date("CreatedDate"), UpdatedDate = r.DateN("UpdatedDate"),
         };
@@ -64,6 +68,9 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Sku", (object?)m.Sku ?? DBNull.Value); cmd.Parameters.AddWithValue("@Unit", (object?)m.Unit ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@UnitPrice", m.UnitPrice); cmd.Parameters.AddWithValue("@ProductType", m.ProductType ?? "FinishedGood");
             cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@IsRawEggProduct", m.IsRawEggProduct);
+            cmd.Parameters.AddWithValue("@RequiresRecipeSetup", m.RequiresRecipeSetup);
+            cmd.Parameters.AddWithValue("@Size", (object?)m.Size ?? DBNull.Value);
             await c.OpenAsync(); return Convert.ToInt32(await cmd.ExecuteScalarAsync());
         }
         public async Task UpdateAsync(PoultryProductModel m)
@@ -74,6 +81,9 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Unit", (object?)m.Unit ?? DBNull.Value); cmd.Parameters.AddWithValue("@UnitPrice", m.UnitPrice);
             cmd.Parameters.AddWithValue("@ProductType", m.ProductType ?? "FinishedGood"); cmd.Parameters.AddWithValue("@IsActive", m.IsActive);
             cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@IsRawEggProduct", m.IsRawEggProduct);
+            cmd.Parameters.AddWithValue("@RequiresRecipeSetup", m.RequiresRecipeSetup);
+            cmd.Parameters.AddWithValue("@Size", (object?)m.Size ?? DBNull.Value);
             await c.OpenAsync(); await cmd.ExecuteNonQueryAsync();
         }
         public async Task DeleteAsync(int id, string farmId)
@@ -81,6 +91,13 @@ namespace PoultryFarmAPIWeb.Business
             using var c = new SqlConnection(_cs); using var cmd = new SqlCommand("spPoultryProduct_Delete", c) { CommandType = CommandType.StoredProcedure };
             cmd.Parameters.AddWithValue("@PoultryProductId", id); cmd.Parameters.AddWithValue("@FarmId", farmId);
             await c.OpenAsync(); await cmd.ExecuteNonQueryAsync();
+        }
+        public async Task<int> EnsureDefaultEggAsync(string farmId)
+        {
+            using var c = new SqlConnection(_cs); using var cmd = new SqlCommand("spPoultryProduct_EnsureDefaultEgg", c) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await c.OpenAsync(); var r = await cmd.ExecuteScalarAsync();
+            return r is null || r == DBNull.Value ? 0 : Convert.ToInt32(r);
         }
     }
 

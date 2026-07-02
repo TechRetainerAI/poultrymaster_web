@@ -21,12 +21,13 @@ import { useFmt } from "@/lib/currency"
 import {
   listPoultryProducts, createPoultryProduct, updatePoultryProduct, deletePoultryProduct,
   getPoultryRecipe, upsertPoultryRecipe, listPoultryRawMaterialItems,
+  ensureDefaultPoultryEgg, addPoultryStockTransaction,
   type PoultryProduct, type PoultryRawMaterialItem, type PoultryRecipeItem,
 } from "@/lib/api/poultry-inventory"
 
 const PRODUCT_TYPES = ["FinishedGood", "RawMaterial", "PackagingMaterial", "Other"]
-const UNITS = ["Bag", "Crate", "Dozen", "Piece", "Kilogram", "Carton", "Box", "Pack", "Unit", "Other"]
-const EMPTY = { name: "", sku: "", unit: "", unitPrice: 0, productType: "FinishedGood", isActive: true, notes: "" }
+const UNITS = ["Bag", "Crate", "Tray", "Dozen", "Egg", "Piece", "Kilogram", "Carton", "Box", "Pack", "Unit", "Other"]
+const EMPTY = { name: "", sku: "", unit: "", size: "", unitPrice: 0, productType: "FinishedGood", isActive: true, notes: "", isRawEggProduct: false, requiresRecipeSetup: true }
 
 export default function PoultryProductsPage() {
   const router = useRouter()
@@ -57,7 +58,10 @@ export default function PoultryProductsPage() {
 
   async function load() {
     setLoading(true)
-    try { const [ps, ri] = await Promise.all([listPoultryProducts(), listPoultryRawMaterialItems()]); setProducts(ps); setRawItems(ri) }
+    try {
+      await ensureDefaultPoultryEgg().catch(() => {})   // doc 7a: default egg product exists
+      const [ps, ri] = await Promise.all([listPoultryProducts(), listPoultryRawMaterialItems()]); setProducts(ps); setRawItems(ri)
+    }
     catch (e: any) { toast({ title: "Could not load products", description: e?.message, variant: "destructive" }) }
     finally { setLoading(false) }
   }
@@ -65,8 +69,23 @@ export default function PoultryProductsPage() {
   function openNew() { setEditId(null); setForm({ ...EMPTY }); setOpen(true) }
   function openEdit(p: PoultryProduct) {
     setEditId(p.poultryProductId)
-    setForm({ name: p.name, sku: p.sku ?? "", unit: p.unit ?? "", unitPrice: p.unitPrice, productType: p.productType, isActive: p.isActive, notes: p.notes ?? "" })
+    setForm({ name: p.name, sku: p.sku ?? "", unit: p.unit ?? "", size: p.size ?? "", unitPrice: p.unitPrice, productType: p.productType, isActive: p.isActive, notes: p.notes ?? "", isRawEggProduct: p.isRawEggProduct, requiresRecipeSetup: p.requiresRecipeSetup })
     setOpen(true)
+  }
+
+  // Add-stock dialog (doc 7c)
+  const [stockProduct, setStockProduct] = useState<PoultryProduct | null>(null)
+  const [stockForm, setStockForm] = useState({ quantity: 0, unitCost: 0, note: "" })
+  const [stockSaving, setStockSaving] = useState(false)
+  async function saveStock() {
+    if (!stockProduct) return
+    if (stockForm.quantity <= 0) { toast({ title: "Quantity must be greater than 0", variant: "destructive" }); return }
+    setStockSaving(true)
+    try {
+      await addPoultryStockTransaction({ poultryProductId: stockProduct.poultryProductId, txnType: "Restock", quantity: stockForm.quantity, unitCost: stockForm.unitCost || null, note: stockForm.note || "Product stock addition" })
+      toast({ title: "Stock added" }); setStockProduct(null); setStockForm({ quantity: 0, unitCost: 0, note: "" }); await load()
+    } catch (e: any) { toast({ title: "Could not add stock", description: e?.message, variant: "destructive" }) }
+    finally { setStockSaving(false) }
   }
   async function save() {
     if (!form.name.trim()) { toast({ title: "Name is required", variant: "destructive" }); return }
@@ -133,7 +152,10 @@ export default function PoultryProductsPage() {
                         <TableCell className="text-right">{p.stockOnHand.toLocaleString()}</TableCell>
                         <TableCell>{p.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="secondary">Inactive</Badge>}</TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="sm" onClick={() => openRecipe(p)} title="Recipe"><ListChecks className="w-4 h-4 text-indigo-600" /></Button>
+                          <Button variant="ghost" size="sm" onClick={() => setStockProduct(p)} title="Add stock"><Plus className="w-4 h-4 text-emerald-600" /></Button>
+                          {p.requiresRecipeSetup && !p.isRawEggProduct && (
+                            <Button variant="ghost" size="sm" onClick={() => openRecipe(p)} title="Recipe"><ListChecks className="w-4 h-4 text-indigo-600" /></Button>
+                          )}
                           <Button variant="ghost" size="sm" onClick={() => openEdit(p)}><Pencil className="w-4 h-4" /></Button>
                           <Button variant="ghost" size="sm" onClick={() => setDelTarget(p)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
                         </TableCell>
@@ -165,7 +187,20 @@ export default function PoultryProductsPage() {
               </Select>
             </FormField>
             <FormField label="Selling price"><NumberInput min={0} step="0.01" value={form.unitPrice} onChange={(e) => setForm({ ...form, unitPrice: Number(e.target.value) || 0 })} /></FormField>
+            <FormField label="Size" hint="e.g. Small / Medium / Large / Crate"><Input value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })} /></FormField>
             <FormField label="SKU"><Input value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} /></FormField>
+            <FormField label="Is this a raw egg product?">
+              <Select value={form.isRawEggProduct ? "yes" : "no"} onValueChange={(v) => setForm({ ...form, isRawEggProduct: v === "yes", requiresRecipeSetup: v === "yes" ? false : form.requiresRecipeSetup })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="no">No</SelectItem><SelectItem value="yes">Yes</SelectItem></SelectContent>
+              </Select>
+            </FormField>
+            <FormField label="Requires recipe setup?">
+              <Select value={form.requiresRecipeSetup ? "yes" : "no"} onValueChange={(v) => setForm({ ...form, requiresRecipeSetup: v === "yes" })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="yes">Yes</SelectItem><SelectItem value="no">No</SelectItem></SelectContent>
+              </Select>
+            </FormField>
           </FormSection>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
@@ -200,6 +235,22 @@ export default function PoultryProductsPage() {
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setRecipeProduct(null)}>Cancel</Button>
             <Button onClick={saveRecipe} disabled={recipeSaving}>{recipeSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save recipe"}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add stock dialog */}
+      <Dialog open={!!stockProduct} onOpenChange={(o) => !o && setStockProduct(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Add stock — {stockProduct?.name}</DialogTitle></DialogHeader>
+          <FormSection title="Stock addition" color="emerald">
+            <FormField label="Quantity *"><NumberInput min={0} step="0.001" value={stockForm.quantity} onChange={(e) => setStockForm({ ...stockForm, quantity: Number(e.target.value) || 0 })} /></FormField>
+            <FormField label="Unit cost / value"><NumberInput min={0} step="0.01" value={stockForm.unitCost} onChange={(e) => setStockForm({ ...stockForm, unitCost: Number(e.target.value) || 0 })} /></FormField>
+            <FormField label="Note" full><Input value={stockForm.note} onChange={(e) => setStockForm({ ...stockForm, note: e.target.value })} /></FormField>
+          </FormSection>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setStockProduct(null)}>Cancel</Button>
+            <Button onClick={saveStock} disabled={stockSaving}>{stockSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Add stock"}</Button>
           </div>
         </DialogContent>
       </Dialog>
