@@ -67,6 +67,29 @@ namespace User.Management.API.Models
         public Dictionary<string, bool>? FeaturePermissions { get; set; }
     }
 
+    // Doc 3 §6-7: a company an employee can access, with the role on that company.
+    public class CompanyAccessModel
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string Type { get; set; } = "Poultry";
+        public string? Role { get; set; }
+    }
+
+    // Doc 3 §6: an organization-wide employee plus the companies they can access.
+    public class OrganizationEmployeeModel : EmployeeModel
+    {
+        public List<CompanyAccessModel> Companies { get; set; } = new();
+    }
+
+    // Doc 3 §7: request body for granting an employee access to a company.
+    public class CompanyAccessRequest
+    {
+        [Required]
+        public string FarmId { get; set; } = string.Empty;
+        public string? Role { get; set; }
+    }
+
     public class UpdateEmployeeRequest
     {
         [Required]

@@ -432,6 +432,201 @@ namespace User.Management.API.Controllers
             }
         }
 
+        // ---- Doc 3 §6-7: organization employees + company access (UserFarms) ----
+
+        /// <summary>
+        /// All employees across every company in the current admin's organization,
+        /// each with the list of companies they can access.
+        /// </summary>
+        [HttpGet("organization/employees")]
+        public async Task<ActionResult<List<OrganizationEmployeeModel>>> GetOrganizationEmployees()
+        {
+            try
+            {
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrEmpty(userId))
+                {
+                    return BadRequest("User id not found in claims");
+                }
+
+                var employees = await _adminService.GetOrganizationEmployeesAsync(userId);
+                var result = new List<OrganizationEmployeeModel>(employees.Count);
+
+                foreach (var e in employees)
+                {
+                    var companies = await _adminService.GetEmployeeCompaniesAsync(e.Id);
+                    result.Add(new OrganizationEmployeeModel
+                    {
+                        Id = e.Id,
+                        Email = e.Email,
+                        FirstName = e.FirstName,
+                        LastName = e.LastName,
+                        PhoneNumber = e.PhoneNumber,
+                        UserName = e.UserName,
+                        FarmId = e.FarmId,
+                        FarmName = e.FarmName,
+                        IsStaff = e.IsStaff,
+                        IsAdmin = e.IsAdmin,
+                        AdminTitle = e.AdminTitle,
+                        Permissions = DeserializePermissions(e.Permissions),
+                        FeaturePermissions = DeserializePermissions(e.FeaturePermissions),
+                        EmailConfirmed = e.EmailConfirmed,
+                        CreatedDate = DateTime.UtcNow,
+                        LastLoginTime = null,
+                        Companies = companies.Select(c => new CompanyAccessModel
+                        {
+                            FarmId = c.FarmId,
+                            Name = c.Name,
+                            Type = c.Type,
+                            Role = c.Role,
+                        }).ToList(),
+                    });
+                }
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching organization employees");
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Companies a given employee can access.
+        /// </summary>
+        [HttpGet("employees/{id}/companies")]
+        public async Task<ActionResult<List<CompanyAccessModel>>> GetEmployeeCompanies(string id)
+        {
+            try
+            {
+                var companies = await _adminService.GetEmployeeCompaniesAsync(id);
+                return Ok(companies.Select(c => new CompanyAccessModel
+                {
+                    FarmId = c.FarmId,
+                    Name = c.Name,
+                    Type = c.Type,
+                    Role = c.Role,
+                }).ToList());
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching companies for employee {EmployeeId}", id);
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Grant an employee access to a company.
+        /// </summary>
+        [HttpPost("employees/{id}/company-access")]
+        public async Task<ActionResult> AssignCompanyAccess(string id, [FromBody] CompanyAccessRequest request)
+        {
+            try
+            {
+                if (request == null || string.IsNullOrWhiteSpace(request.FarmId))
+                {
+                    return BadRequest("FarmId is required");
+                }
+
+                await _adminService.AssignCompanyAccessAsync(id, request.FarmId, request.Role ?? "Staff");
+
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action:     "POST",
+                    resource:   "EmployeeCompanyAccess",
+                    resourceId: id,
+                    farmId:     request.FarmId,
+                    details:    $"POST EmployeeCompanyAccess (Employee: {id}, Company: {request.FarmId}) - Granted");
+
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error assigning company access for employee {EmployeeId}", id);
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Revoke an employee's access to a company.
+        /// </summary>
+        [HttpDelete("employees/{id}/company-access/{farmId}")]
+        public async Task<ActionResult> RemoveCompanyAccess(string id, string farmId)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(farmId))
+                {
+                    return BadRequest("FarmId is required");
+                }
+
+                await _adminService.RemoveCompanyAccessAsync(id, farmId);
+
+                await _auditLogger.LogAsync(
+                    HttpContext,
+                    action:     "DELETE",
+                    resource:   "EmployeeCompanyAccess",
+                    resourceId: id,
+                    farmId:     farmId,
+                    details:    $"DELETE EmployeeCompanyAccess (Employee: {id}, Company: {farmId}) - Revoked");
+
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error removing company access for employee {EmployeeId}", id);
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Employees who have access to a specific company (access-based list).
+        /// </summary>
+        [HttpGet("company-employees")]
+        public async Task<ActionResult<List<EmployeeModel>>> GetCompanyEmployees([FromQuery] string farmId)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(farmId))
+                {
+                    farmId = User.FindFirst("FarmId")?.Value ?? string.Empty;
+                }
+                if (string.IsNullOrWhiteSpace(farmId))
+                {
+                    return BadRequest("FarmId is required");
+                }
+
+                var employees = await _adminService.GetEmployeesWithAccessAsync(farmId);
+                var result = employees.Select(e => new EmployeeModel
+                {
+                    Id = e.Id,
+                    Email = e.Email,
+                    FirstName = e.FirstName,
+                    LastName = e.LastName,
+                    PhoneNumber = e.PhoneNumber,
+                    UserName = e.UserName,
+                    FarmId = e.FarmId,
+                    FarmName = e.FarmName,
+                    IsStaff = e.IsStaff,
+                    IsAdmin = e.IsAdmin,
+                    AdminTitle = e.AdminTitle,
+                    Permissions = DeserializePermissions(e.Permissions),
+                    FeaturePermissions = DeserializePermissions(e.FeaturePermissions),
+                    EmailConfirmed = e.EmailConfirmed,
+                    CreatedDate = DateTime.UtcNow,
+                    LastLoginTime = null,
+                }).ToList();
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching employees with access to farm {FarmId}", farmId);
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+        }
+
         /// <summary>
         /// Get employees who logged in today
         /// </summary>

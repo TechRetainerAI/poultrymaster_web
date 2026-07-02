@@ -50,7 +50,7 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
   // Users & Permissions and Business Setup open the SAME pages used inside a
   // company (/employees, /settings) with ?bo=1 so they render in this shell —
   // same data, same features, just kept in the Business Office.
-  const admin = isAdmin ? [{ key: "users", href: "/employees?bo=1", label: "Users & Permissions", icon: ShieldCheck }] : []
+  const admin = isAdmin ? [{ key: "users", href: "/business-office/users", label: "Users & Permissions", icon: ShieldCheck }] : []
   const settings = isAdmin ? [
     { key: "settings", href: "/business-office/setup", label: "Business Setup", icon: Settings },
     { key: "org", href: "/business-office/organization-profile", label: "Organization Profile", icon: UserCog },
