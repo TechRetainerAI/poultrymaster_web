@@ -14,6 +14,7 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { DollarSign, Loader2, ArrowLeft } from "lucide-react"
 import { createExpense, type ExpenseInput } from "@/lib/api/expense"
+import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
 import { uploadExpenseReceipt } from "@/lib/api/receipt-upload"
 import { appendReceiptSuffix } from "@/lib/utils/expense-receipt"
 import { ExpenseReceiptField } from "@/components/expense/expense-receipt-field"
@@ -47,8 +48,15 @@ export default function NewExpensePage() {
     description: "",
     amount: "",
     paymentMethod: "",
+    poultryCashAccountId: "",
   })
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
+  const [cashAccounts, setCashAccounts] = useState<PoultryCashAccount[]>([])
+
+  // Load cash accounts so the expense can be paid from one (posts a cash-out).
+  useEffect(() => {
+    listPoultryCashAccounts().then((a) => setCashAccounts(a.filter((x) => x.isActive))).catch(() => setCashAccounts([]))
+  }, [])
 
   const expenseCategories = [
     "Feed",
@@ -155,6 +163,7 @@ export default function NewExpensePage() {
       farmId,
       userId,
       flockId: formData.flockId === ALL_FLOCKS ? null : Number(formData.flockId),
+      poultryCashAccountId: formData.poultryCashAccountId ? Number(formData.poultryCashAccountId) : null,
       expenseDate: formData.expenseDate + "T00:00:00Z",
       category: formData.category,
       description: descriptionOut,
@@ -314,6 +323,23 @@ export default function NewExpensePage() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Pay from cash account</Label>
+                    <Select value={formData.poultryCashAccountId || "none"} onValueChange={(value) => handleSelectChange("poultryCashAccountId", value === "none" ? "" : value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="None (no cash movement)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None (no cash movement)</SelectItem>
+                        {cashAccounts.map((a) => (
+                          <SelectItem key={a.poultryCashAccountId} value={String(a.poultryCashAccountId)}>
+                            {a.accountName} ({a.currentBalance.toFixed(2)})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="text-xs text-slate-500">Posts a cash-out and reduces the account balance.</div>
                   </div>
                 </div>
               </div>

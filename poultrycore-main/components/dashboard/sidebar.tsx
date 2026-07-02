@@ -157,6 +157,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const TEMP_SHOW_PAYMENTS_LINK = true
   const financialItems = [
     { href: "/cash", label: "Cash", icon: Wallet },
+    { href: "/poultry-cash-accounts", label: "Cash & Accounts", icon: Wallet },
     { href: "/sales", label: "Sales", icon: ShoppingCart },
     { href: "/expenses", label: "Expenses", icon: DollarSign },
     { href: "/customers", label: "Customers", icon: Users },
@@ -167,6 +168,14 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
       tempShowPayments: TEMP_SHOW_PAYMENTS_LINK,
     })
   )
+
+  // Poultry People (Staff + Payroll). Staff is admin/employee-gated like Water's.
+  const poultryPeopleItems = [
+    ...((permissions.isAdmin || permissions.featureAccess.canSeeEmployees)
+      ? [{ href: "/poultry-staff", label: "Staff", icon: UserCog }]
+      : []),
+    { href: "/poultry-payroll", label: "Payroll", icon: Banknote },
+  ]
 
   // Water company nav items (shown when activeFarmType === "Water")
   // James (2026-06-02): regrouped to surface Delivery and Production as
@@ -534,6 +543,12 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
             {/* Financial */}
             {financialItems.length > 0 && renderGroup("Financial", financialItems, "financial")}
+
+            {/* Divider */}
+            <div className="border-t border-slate-800 mx-2" />
+
+            {/* People (Staff + Payroll) */}
+            {renderGroup("People", poultryPeopleItems, "poultryPeople")}
           </>
         )}
 

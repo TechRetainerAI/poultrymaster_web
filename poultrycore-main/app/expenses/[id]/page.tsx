@@ -14,6 +14,7 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { DollarSign } from "lucide-react"
 import { getExpense, updateExpense, type ExpenseInput } from "@/lib/api/expense"
+import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
 import { uploadExpenseReceipt } from "@/lib/api/receipt-upload"
 import {
   appendReceiptSuffix,
@@ -54,7 +55,9 @@ export default function EditExpensePage() {
     description: "",
     amount: "",
     paymentMethod: "",
+    poultryCashAccountId: "",
   })
+  const [cashAccounts, setCashAccounts] = useState<PoultryCashAccount[]>([])
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
   const [savedReceiptPath, setSavedReceiptPath] = useState<string | null>(null)
   const [receiptRemoved, setReceiptRemoved] = useState(false)
@@ -87,6 +90,7 @@ export default function EditExpensePage() {
   useEffect(() => {
     loadExpense()
     loadFlocks()
+    listPoultryCashAccounts().then((a) => setCashAccounts(a.filter((x) => x.isActive))).catch(() => setCashAccounts([]))
   }, [id])
 
   const loadExpense = async () => {
@@ -123,6 +127,7 @@ export default function EditExpensePage() {
         description: stripReceiptSuffixFromDescription(rawDesc),
         amount: String(expense.amount),
         paymentMethod: expense.paymentMethod,
+        poultryCashAccountId: expense.poultryCashAccountId ? String(expense.poultryCashAccountId) : "",
       })
     } else {
       setError(result.message)
@@ -207,6 +212,7 @@ export default function EditExpensePage() {
       farmId: effectiveFarmId!,
       userId,
       flockId: formData.flockId === ALL_FLOCKS ? null : Number(formData.flockId),
+      poultryCashAccountId: formData.poultryCashAccountId ? Number(formData.poultryCashAccountId) : null,
       expenseDate: formData.expenseDate + "T00:00:00Z",
       category: formData.category,
       description: descriptionOut,
@@ -382,6 +388,24 @@ export default function EditExpensePage() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Pay from cash account</Label>
+                    <Select value={formData.poultryCashAccountId || "none"} onValueChange={(value) => handleSelectChange("poultryCashAccountId", value === "none" ? "" : value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="None (no cash movement)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None (no cash movement)</SelectItem>
+                        {cashAccounts.map((a) => (
+                          <SelectItem key={a.poultryCashAccountId} value={String(a.poultryCashAccountId)}>
+                            {a.accountName} ({a.currentBalance.toFixed(2)})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="text-xs text-slate-500">Changing this re-posts the cash-out on save.</div>
                   </div>
 
                   <div className="space-y-2">

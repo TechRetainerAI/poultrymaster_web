@@ -14,6 +14,7 @@ export function isFinancialNavItemVisible(
   if (href === "/sales") return f.canEnterSales
   if (href === "/expenses") return f.canEnterExpenses
   if (href === "/cash") return f.canViewCashLedger
+  if (href === "/poultry-cash-accounts") return f.canViewCashLedger
   if (href === "/customers") {
     return (
       isAdmin ||

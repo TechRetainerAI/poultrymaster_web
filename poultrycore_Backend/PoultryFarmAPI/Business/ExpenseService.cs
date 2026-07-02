@@ -58,12 +58,31 @@ namespace PoultryFarmAPIWeb.Business
 
                 await conn.OpenAsync();
                 var result = await cmd.ExecuteScalarAsync();
-                return Convert.ToInt32(result);
+                var newId = Convert.ToInt32(result);
+                await SyncExpenseCashAsync(model.FarmId ?? string.Empty, newId, model.PoultryCashAccountId, model.Amount, model.Description, model.UserId);
+                return newId;
             }
             catch (Exception ex)
             {
                 throw new Exception("Error inserting expense record.", ex);
             }
+        }
+
+        // Posts / reverses the expense's cash-out on the chosen PoultryCashAccount.
+        // Safe to call with a null account (reverse only). Uses the NVARCHAR farmId
+        // so the cash rows scope correctly (dbo.Expense.FarmId is a GUID).
+        private async Task SyncExpenseCashAsync(string farmId, int expenseId, int? cashAccountId, decimal amount, string? description, string? createdBy)
+        {
+            using var conn = new SqlConnection(_connectionString);
+            using var cmd = new SqlCommand("spPoultryExpenseCash_Sync", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@ExpenseId", expenseId);
+            cmd.Parameters.AddWithValue("@PoultryCashAccountId", (object?)cashAccountId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Amount", amount);
+            cmd.Parameters.AddWithValue("@Description", (object?)description ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@CreatedBy", (object?)createdBy ?? DBNull.Value);
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
         }
 
         public async Task Update(ExpenseModel model)
@@ -96,6 +115,8 @@ namespace PoultryFarmAPIWeb.Business
 
                 await conn.OpenAsync();
                 await cmd.ExecuteNonQueryAsync();
+                conn.Close();
+                await SyncExpenseCashAsync(model.FarmId ?? string.Empty, model.ExpenseId, model.PoultryCashAccountId, model.Amount, model.Description, model.UserId);
             }
             catch (Exception ex)
             {
@@ -155,6 +176,9 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
+                // Reverse any cash-out this expense posted before removing it.
+                await SyncExpenseCashAsync(farmId, expenseId, null, 0m, null, userId);
+
                 using var conn = new SqlConnection(_connectionString);
                 using var cmd = new SqlCommand("spExpense_Delete", conn);
                 cmd.CommandType = CommandType.StoredProcedure;
@@ -249,6 +273,9 @@ namespace PoultryFarmAPIWeb.Business
             int? flockId = null;
             if (TryGetOrdinal(reader, "FlockId", out var ordFlock) && !reader.IsDBNull(ordFlock))
                 flockId = ReadIntFlexible(reader, "FlockId");
+            int? cashAccountId = null;
+            if (TryGetOrdinal(reader, "PoultryCashAccountId", out var ordCash) && !reader.IsDBNull(ordCash))
+                cashAccountId = ReadIntFlexible(reader, "PoultryCashAccountId");
             var createdDate = TryGetOrdinal(reader, "CreatedDate", out var ordCd) && !reader.IsDBNull(ordCd)
                 ? reader.GetDateTime(ordCd)
                 : default;
@@ -266,6 +293,7 @@ namespace PoultryFarmAPIWeb.Business
                 PaymentMethod = paymentMethod,
                 Supplier = supplier,
                 FlockId = flockId,
+                PoultryCashAccountId = cashAccountId,
                 CreatedDate = createdDate,
                 UserId = resolvedUserId,
                 FarmId = ReadFarmIdString(reader),

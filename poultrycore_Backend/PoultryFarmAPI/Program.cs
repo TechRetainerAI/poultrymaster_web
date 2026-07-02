@@ -149,6 +149,19 @@ builder.Services.AddScoped<IWaterCashAccountService>(sp => new WaterCashAccountS
 builder.Services.AddScoped<IWaterCashTransferService>(sp => new WaterCashTransferService(connectionString));
 builder.Services.AddScoped<IWaterCustomerLedgerService>(sp => new WaterCustomerLedgerService(connectionString));
 
+// Poultry Cash Accounts (port of the Water cash module). Multi-account cash
+// management + signed ledger + paired transfers. Migrations 128 (schema) + 129 (SPs).
+builder.Services.AddScoped<IPoultryCashAccountService>(sp => new PoultryCashAccountService(connectionString));
+builder.Services.AddScoped<IPoultryCashTransferService>(sp => new PoultryCashTransferService(connectionString));
+
+// Poultry Staff + Attendance + Payroll (port of the Water W6 module). Payroll
+// approve upserts a linked dbo.Expense (Category 'Payroll'); mark-paid posts a
+// CashOut against the run's PoultryCashAccountId. Migrations 126/127 (staff),
+// 130/131 (payroll), 125 (expense linkage).
+builder.Services.AddScoped<IPoultryStaffService>(sp => new PoultryStaffService(connectionString));
+builder.Services.AddScoped<IPoultryStaffAttendanceService>(sp => new PoultryStaffAttendanceService(connectionString));
+builder.Services.AddScoped<IPoultryPayrollService>(sp => new PoultryPayrollService(connectionString));
+
 // Phase W5: Water Company profile (setup metadata: brand, business type,
 // water source, default currency/bag-sachet count, owner contact). Setup SP
 // is idempotent and also runs the finance defaults seed. Migration 049.
