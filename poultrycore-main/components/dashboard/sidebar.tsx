@@ -69,6 +69,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const alerts = useAlertsStore((s: { alerts: AlertItem[]; open: () => void }) => s.alerts)
   const openAlerts = useAlertsStore((s: { alerts: AlertItem[]; open: () => void }) => s.open)
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
+  const clearActiveCompany = useAuthStore((s) => s.clearActiveCompany)
   const isWater = activeFarmType === "Water"
   const isGeneric = activeFarmType === "Generic"
   const { isCollapsed, toggle, isMobileOpen, toggleMobile, setMobileOpen, setCollapsed } = useSidebarStore()
@@ -438,9 +439,15 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         className="sidebar-nav-scrollable min-h-0 flex-1 overflow-y-auto overscroll-y-contain py-3 px-2 space-y-4"
         aria-label="Main navigation"
       >
-        {/* Business Office — the owner's HQ above all companies (Prompt 2). */}
+        {/* Business Office — the owner's HQ above all companies (Prompt 2).
+            Doc 3 §9: clicking it clears the active company so the HQ is
+            company-neutral (the "home" icon behavior). */}
         <div>
-          {renderNavItem({ href: "/business-office", label: "Business Office", icon: Briefcase })}
+          {renderNavItem(
+            { href: "/business-office", label: "Business Office", icon: Briefcase },
+            true,
+            () => { try { clearActiveCompany() } catch {}; handleLinkClick?.(); router.push("/business-office") },
+          )}
         </div>
 
         {/* Dashboard — route depends on active company type */}

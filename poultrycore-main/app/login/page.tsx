@@ -118,22 +118,13 @@ export default function LoginPage() {
           else scoped = inOrg
         }
         if (!orgMismatch) {
-          const company = (farmId ? scoped.find((c) => c.farmId === farmId) : undefined) ?? scoped[0]
-          if (company) {
-            const token =
-              typeof window !== "undefined" ? localStorage.getItem("auth_token") ?? undefined : undefined
-            useAuthStore.getState().setActiveCompany(
-              company.farmId,
-              company.name,
-              company.type as CompanyType,
-              token,
-            )
-            // First-login behavior (Prompt 2 §3): owners/admins, and anyone with
-            // more than one company, land on the Business Office HQ. A single-
-            // company staff member goes straight to that company's dashboard.
-            if (!isStaff || scoped.length > 1) setPostLoginHome("/business-office")
-            else setPostLoginHome(dashboardHomeForType(company.type as CompanyType))
-          }
+          // Doc 3 §4/§9: everyone lands in the company-neutral Business Office and
+          // no company is auto-selected. The user picks a company from the BO
+          // (selector or Companies page); switchCompany then sets the active
+          // context. This keeps the HQ org-level instead of defaulting to one
+          // company (previously the first company / Poultry default).
+          useAuthStore.getState().clearActiveCompany()
+          setPostLoginHome("/business-office")
           if (code && rememberOffice) { try { localStorage.setItem("lastOrgCode", code) } catch {} }
         }
       } catch (e) {

@@ -32,6 +32,9 @@ interface AuthState {
 
   setCompanies: (companies: Company[]) => void
   setActiveCompany: (farmId: string, name: string, type: CompanyType, token?: string) => void
+  // Doc 3 §9: drop the active company so the Business Office is company-neutral
+  // (no default company selected). Also clears the mirrored localStorage keys.
+  clearActiveCompany: () => void
 }
 
 function syncCompanyToLocalStorage(farmId: string | null, name: string | null, type: CompanyType | null) {
@@ -138,6 +141,11 @@ export const useAuthStore = create<AuthState>()(
           localStorage.setItem('auth_token', token)
         }
         syncCompanyToLocalStorage(farmId, name, type)
+      },
+
+      clearActiveCompany: () => {
+        set({ activeFarmId: null, activeFarmName: null, activeFarmType: null })
+        syncCompanyToLocalStorage(null, null, null)
       },
     }),
     {
