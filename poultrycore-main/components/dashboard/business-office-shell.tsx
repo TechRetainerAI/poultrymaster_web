@@ -12,9 +12,10 @@ import { Input } from "@/components/ui/input"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { usePermissions } from "@/hooks/use-permissions"
-import { Briefcase, Building2, Bell, ListTodo, HelpCircle, LogOut, Menu, ShieldCheck, Settings, Search } from "lucide-react"
+import { Briefcase, Building2, Bell, ListTodo, HelpCircle, LogOut, Menu, ShieldCheck, Settings, UserCog } from "lucide-react"
+import { BoCompanySelector } from "@/components/dashboard/bo-company-selector"
 
-type ActiveKey = "home" | "companies" | "users" | "settings" | "help"
+type ActiveKey = "home" | "companies" | "users" | "settings" | "org" | "help"
 
 export function BusinessOfficeShell({ active, children }: { active: ActiveKey; children: ReactNode }) {
   const logout = useLogout()
@@ -50,7 +51,10 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
   // company (/employees, /settings) with ?bo=1 so they render in this shell —
   // same data, same features, just kept in the Business Office.
   const admin = isAdmin ? [{ key: "users", href: "/employees?bo=1", label: "Users & Permissions", icon: ShieldCheck }] : []
-  const settings = isAdmin ? [{ key: "settings", href: "/settings?bo=1", label: "Business Setup", icon: Settings }] : []
+  const settings = isAdmin ? [
+    { key: "settings", href: "/business-office/setup", label: "Business Setup", icon: Settings },
+    { key: "org", href: "/business-office/organization-profile", label: "Organization Profile", icon: UserCog },
+  ] : []
   const footer = [{ key: "help", href: "/business-office/help", label: "Help Center", icon: HelpCircle }]
 
   function Group({ title, items }: { title: string; items: { key: string; href: string; label: string; icon: any }[] }) {
@@ -113,14 +117,8 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
             <div className="font-semibold text-slate-900 truncate leading-tight">{officeName}{isAdmin && orgCode && <span className="ml-2 text-xs font-mono font-normal text-slate-400">{orgCode}</span>}</div>
           </div>
 
-          {/* Search — finds companies across the Business Office. */}
-          <form
-            onSubmit={(e) => { e.preventDefault(); router.push(`/business-office/companies${search.trim() ? `?q=${encodeURIComponent(search.trim())}` : ""}`) }}
-            className="hidden md:block relative ml-4 flex-1 max-w-sm"
-          >
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search companies…" className="pl-9 h-9 bg-slate-50" />
-          </form>
+          {/* Doc 3 §10: global company selector (replaces the old search box). */}
+          <BoCompanySelector />
 
           <div className="ml-auto flex items-center gap-2">
             <Link href="/business-office#notices" className="h-9 w-9 grid place-items-center rounded-lg hover:bg-slate-100 text-slate-500" aria-label="Notifications"><Bell className="h-5 w-5" /></Link>
