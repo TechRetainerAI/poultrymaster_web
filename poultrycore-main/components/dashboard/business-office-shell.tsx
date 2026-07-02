@@ -23,8 +23,16 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
   const permissions = usePermissions()
   const isAdmin = permissions.isAdmin
   const user = useAuthStore((s) => s.user)
+  const clearActiveCompany = useAuthStore((s) => s.clearActiveCompany)
   const [drawer, setDrawer] = useState(false)
   const [search, setSearch] = useState("")
+
+  // Doc 3 §9: being inside the Business Office IS the company-neutral state, so
+  // no company should read as "active/current" here (a stale activeFarmId from a
+  // previous session would otherwise mark a card "· current"). Clear it whenever
+  // any BO page mounts. Opening a company navigates away (unmounts this shell),
+  // so this never fights the selector's setActiveCompany.
+  useEffect(() => { try { clearActiveCompany() } catch {} }, [clearActiveCompany])
 
   const [officeName, setOfficeName] = useState("Business Office")
   const [orgCode, setOrgCode] = useState("")
