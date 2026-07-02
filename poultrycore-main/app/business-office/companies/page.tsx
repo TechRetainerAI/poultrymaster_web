@@ -12,13 +12,13 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Building2, Bird, Droplets, ShoppingBag, Plus, Loader2, ArrowRight, Check } from "lucide-react"
+import { Building2, Bird, Droplets, ShoppingBag, Plus, Loader2, ArrowRight, Check, Pencil } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
 import { BusinessOfficeShell } from "@/components/dashboard/business-office-shell"
 import {
-  getMyCompanies, createCompany, sendCompanyWelcomeEmail, switchCompany,
+  getMyCompanies, createCompany, updateCompany, sendCompanyWelcomeEmail, switchCompany,
   dashboardHomeForType, type Company, type CompanyType,
 } from "@/lib/api/companies"
 
@@ -44,6 +44,10 @@ export default function BusinessOfficeCompaniesPage() {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState<{ name: string; type: CompanyType; email: string; phoneNumber: string }>({ name: "", type: "Water", email: "", phoneNumber: "" })
+  // Doc 3 §8: edit an existing company (name/email/phone; type is fixed).
+  const [editing, setEditing] = useState<Company | null>(null)
+  const [editForm, setEditForm] = useState<{ name: string; email: string; phoneNumber: string }>({ name: "", email: "", phoneNumber: "" })
+  const [editSaving, setEditSaving] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -71,6 +75,24 @@ export default function BusinessOfficeCompaniesPage() {
       setOpen(false); setForm({ name: "", type: "Water", email: "", phoneNumber: "" }); await load()
     } catch (e: any) { toast({ title: "Create failed", description: e?.message, variant: "destructive" }) }
     finally { setSaving(false) }
+  }
+
+  function startEdit(c: Company) {
+    setEditing(c)
+    setEditForm({ name: c.name || "", email: (c as any).email || "", phoneNumber: (c as any).phoneNumber || "" })
+  }
+  async function saveEdit() {
+    if (!editing) return
+    if (!editForm.name.trim()) return toast({ title: "Company name is required", variant: "destructive" })
+    setEditSaving(true)
+    try {
+      await updateCompany(editing.farmId, { name: editForm.name, email: editForm.email || null, phoneNumber: editForm.phoneNumber || null })
+      toast({ title: "Company updated" })
+      // Keep the active company name in sync if we edited the current one.
+      if (editing.farmId === activeFarmId) setActiveCompany(editing.farmId, editForm.name, editing.type)
+      setEditing(null); await load()
+    } catch (e: any) { toast({ title: "Update failed", description: e?.message, variant: "destructive" }) }
+    finally { setEditSaving(false) }
   }
 
   const visible = useMemo(() => companies.filter((c) => {
@@ -127,7 +149,8 @@ export default function BusinessOfficeCompaniesPage() {
                       <Button size="sm" className="flex-1" onClick={() => openCompany(c)} disabled={opening}>
                         {opening ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Opening…</> : isActive ? <><Check className="h-4 w-4 mr-1" /> Open</> : <>Open <ArrowRight className="h-4 w-4 ml-1" /></>}
                       </Button>
-                      {isAdmin && <Button size="sm" variant="outline" onClick={() => router.push("/employees?bo=1")}>Access</Button>}
+                      {isAdmin && <Button size="sm" variant="outline" onClick={() => startEdit(c)} title="Edit company"><Pencil className="h-4 w-4" /></Button>}
+                      {isAdmin && <Button size="sm" variant="outline" onClick={() => router.push("/business-office/users")}>Access</Button>}
                     </div>
                   </CardContent>
                 </Card>
@@ -151,6 +174,20 @@ export default function BusinessOfficeCompaniesPage() {
             <div><Label>Contact email</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
             <div><Label>Phone</Label><Input value={form.phoneNumber} onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })} /></div>
             <div className="flex justify-end gap-2 pt-1"><Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={create} disabled={saving}>{saving ? "Creating…" : "Create"}</Button></div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Doc 3 §8: edit company */}
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit company{editing ? ` — ${editing.name}` : ""}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div><Label>Company type</Label><Input value={editing?.type || ""} disabled /><p className="text-xs text-slate-400 mt-1">Company type can&apos;t be changed after creation.</p></div>
+            <div><Label>Company name *</Label><Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /></div>
+            <div><Label>Contact email</Label><Input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} /></div>
+            <div><Label>Phone</Label><Input value={editForm.phoneNumber} onChange={(e) => setEditForm({ ...editForm, phoneNumber: e.target.value })} /></div>
+            <div className="flex justify-end gap-2 pt-1"><Button variant="ghost" onClick={() => setEditing(null)}>Cancel</Button><Button onClick={saveEdit} disabled={editSaving}>{editSaving ? "Saving…" : "Save changes"}</Button></div>
           </div>
         </DialogContent>
       </Dialog>
