@@ -169,4 +169,27 @@ namespace PoultryFarmAPIWeb.Controllers
         [HttpGet] public async Task<ActionResult<Dictionary<string, object?>>> Get([FromQuery] string farmId, [FromQuery] DateTime fromDate, [FromQuery] DateTime toDate)
             => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.GetClosingReportAsync(farmId, fromDate, toDate));
     }
+
+    [ApiController]
+    [Route("api/Poultry/deliveries")]
+    public class PoultryDeliveryController : ControllerBase
+    {
+        private readonly IPoultryDeliveryService _svc;
+        public PoultryDeliveryController(IPoultryDeliveryService svc) => _svc = svc;
+
+        [HttpGet] public async Task<ActionResult<IEnumerable<PoultryDeliveryModel>>> GetAll([FromQuery] string farmId, [FromQuery] string? status, [FromQuery] DateTime? fromDate, [FromQuery] DateTime? toDate)
+            => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.GetAllAsync(farmId, status, fromDate, toDate));
+
+        [HttpPost("load")] public async Task<ActionResult<int>> Load([FromBody] PoultryDeliveryLoadRequest r)
+        { if (string.IsNullOrWhiteSpace(r.FarmId)) return BadRequest("Company ID is required."); var id = await _svc.LoadAsync(r); return Ok(new { poultryDeliveryId = id }); }
+
+        [HttpPost("{id:int}/reconcile")] public async Task<IActionResult> Reconcile(int id, [FromBody] PoultryDeliveryReconcileRequest r)
+        { if (string.IsNullOrWhiteSpace(r.FarmId)) return BadRequest("Company ID is required."); await _svc.ReconcileAsync(id, r); return NoContent(); }
+
+        [HttpPost("{id:int}/reverse")] public async Task<IActionResult> Reverse(int id, [FromQuery] string farmId)
+        { if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required."); await _svc.ReverseAsync(id, farmId); return NoContent(); }
+
+        [HttpPost("{id:int}/cancel")] public async Task<IActionResult> Cancel(int id, [FromQuery] string farmId)
+        { if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required."); await _svc.CancelAsync(id, farmId); return NoContent(); }
+    }
 }

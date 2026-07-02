@@ -348,3 +348,29 @@ export const deletePoultryDailyClosing = (id: number) =>
 // ===================== Closing report (doc 6) =====================
 export const getPoultryClosingReport = (fromDate: string, toDate: string) =>
   jget<Record<string, any>>(`/Poultry/closing-report?farmId=${encodeURIComponent(activeFarmId())}&fromDate=${fromDate}&toDate=${toDate}`)
+
+// ===================== Delivery (doc 9) =====================
+export interface PoultryDelivery {
+  poultryDeliveryId: number; farmId: string; deliveryDate: string
+  driverName?: string | null; vehicleName?: string | null; route?: string | null
+  poultryProductId: number; productName?: string | null
+  quantityLoaded: number; unit?: string | null; unitPrice: number
+  quantitySold: number; quantityReturned: number; quantityBroken: number; quantityShort: number
+  cashCollected: number; creditSales: number; deliveryExpenses: number; totalSales: number; cashVariance: number
+  status: string; notes?: string | null; reconciledAt?: string | null
+}
+export const listPoultryDeliveries = (opts?: { status?: string; fromDate?: string; toDate?: string }) => {
+  const qs = new URLSearchParams({ farmId: activeFarmId() })
+  if (opts?.status) qs.append("status", opts.status)
+  if (opts?.fromDate) qs.append("fromDate", opts.fromDate)
+  if (opts?.toDate) qs.append("toDate", opts.toDate)
+  return jget<PoultryDelivery[]>(`/Poultry/deliveries?${qs.toString()}`)
+}
+export const loadPoultryDelivery = (input: { poultryProductId: number; quantityLoaded: number; unit?: string | null; unitPrice?: number; driverName?: string | null; vehicleName?: string | null; route?: string | null; deliveryDate?: string | null; notes?: string | null }) =>
+  jsend<{ poultryDeliveryId: number }>(`/Poultry/deliveries/load`, "POST", { ...input, farmId: activeFarmId(), createdBy: activeUserId() })
+export const reconcilePoultryDelivery = (id: number, input: { quantitySold: number; quantityReturned: number; quantityBroken?: number; quantityShort?: number; cashCollected?: number; creditSales?: number; deliveryExpenses?: number; paymentMethod?: string }) =>
+  jsend<void>(`/Poultry/deliveries/${id}/reconcile`, "POST", { ...input, farmId: activeFarmId(), reconciledBy: activeUserId() })
+export const reversePoultryDelivery = (id: number) =>
+  jsend<void>(`/Poultry/deliveries/${id}/reverse?farmId=${encodeURIComponent(activeFarmId())}`, "POST")
+export const cancelPoultryDelivery = (id: number) =>
+  jsend<void>(`/Poultry/deliveries/${id}/cancel?farmId=${encodeURIComponent(activeFarmId())}`, "POST")

@@ -149,6 +149,7 @@ builder.Services.AddScoped<IPoultryProductionBatchService>(sp => new PoultryProd
 builder.Services.AddScoped<IPoultryLossRecordService>(sp => new PoultryLossRecordService(connectionString));
 builder.Services.AddScoped<IPoultryDailyClosingService>(sp => new PoultryDailyClosingService(connectionString));
 builder.Services.AddScoped<IPoultryReportService>(sp => new PoultryReportService(connectionString));
+builder.Services.AddScoped<IPoultryDeliveryService>(sp => new PoultryDeliveryService(connectionString));
 
 // Phase W4: Finance — expense categories + expenses (approval workflow + cash
 // side-effects), multi-account cash accounts + ledger, cash transfers (paired
