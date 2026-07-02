@@ -344,3 +344,7 @@ export const rejectPoultryDailyClosing = (id: number, reason: string) =>
   jsend<void>(`/Poultry/daily-closings/${id}/reject?farmId=${encodeURIComponent(activeFarmId())}&reason=${encodeURIComponent(reason)}`, "POST")
 export const deletePoultryDailyClosing = (id: number) =>
   jsend<void>(`/Poultry/daily-closings/${id}?farmId=${encodeURIComponent(activeFarmId())}`, "DELETE")
+
+// ===================== Closing report (doc 6) =====================
+export const getPoultryClosingReport = (fromDate: string, toDate: string) =>
+  jget<Record<string, any>>(`/Poultry/closing-report?farmId=${encodeURIComponent(activeFarmId())}&fromDate=${fromDate}&toDate=${toDate}`)

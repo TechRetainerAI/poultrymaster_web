@@ -164,6 +164,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/poultry-production-losses", label: "Production Losses", icon: AlertTriangle },
     { href: "/poultry-loss-records", label: "Loss & Damage", icon: AlertTriangle },
     { href: "/poultry-daily-closing", label: "Daily Closing", icon: Box },
+    { href: "/poultry-closing-report", label: "Closing Report", icon: Box },
   ]
 
   const TEMP_SHOW_PAYMENTS_LINK = true

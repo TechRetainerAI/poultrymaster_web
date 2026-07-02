@@ -158,4 +158,15 @@ namespace PoultryFarmAPIWeb.Controllers
         public string? ManagerNotes { get; set; }
         public string? CreatedBy { get; set; }
     }
+
+    [ApiController]
+    [Route("api/Poultry/closing-report")]
+    public class PoultryClosingReportController : ControllerBase
+    {
+        private readonly IPoultryReportService _svc;
+        public PoultryClosingReportController(IPoultryReportService svc) => _svc = svc;
+
+        [HttpGet] public async Task<ActionResult<Dictionary<string, object?>>> Get([FromQuery] string farmId, [FromQuery] DateTime fromDate, [FromQuery] DateTime toDate)
+            => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.GetClosingReportAsync(farmId, fromDate, toDate));
+    }
 }
