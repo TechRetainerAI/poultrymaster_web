@@ -289,9 +289,9 @@ function ReportsMegaMenu() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-3 p-4 max-h-[70vh] overflow-y-auto">
+          <div className="columns-2 lg:columns-4 gap-x-4 p-4 max-h-[70vh] overflow-y-auto">
             {WATER_REPORT_GROUPS.map((g) => (
-              <div key={g.key} className="min-w-0">
+              <div key={g.key} className="min-w-0 mb-4 break-inside-avoid">
                 <div className="flex items-center gap-2 mb-2">
                   <span className={cn("inline-block h-2 w-2 rounded-full", g.color)} />
                   <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-600">{g.label}</h3>
@@ -420,9 +420,9 @@ function PoultryReportsMegaMenu() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-3 p-4 max-h-[70vh] overflow-y-auto">
+          <div className="columns-2 lg:columns-4 gap-x-4 p-4 max-h-[70vh] overflow-y-auto">
             {POULTRY_REPORT_MENU_GROUPS.map((g) => (
-              <div key={g.key} className="min-w-0">
+              <div key={g.key} className="min-w-0 mb-4 break-inside-avoid">
                 <div className="flex items-center gap-2 mb-2">
                   <span className={cn("inline-block h-2 w-2 rounded-full", g.color)} />
                   <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-600">{g.label}</h3>
