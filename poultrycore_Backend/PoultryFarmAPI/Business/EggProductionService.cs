@@ -38,6 +38,21 @@ namespace PoultryFarmAPIWeb.Business
             _logger = logger;
         }
 
+        // Doc 4: pass the optional feed/medication costing params (SP defaults them to NULL).
+        private static void AddCostingParams(SqlCommand cmd, EggProductionModel m)
+        {
+            cmd.Parameters.AddWithValue("@SpecificFeedUsedId", (object?)m.SpecificFeedUsedId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@SpecificFeedUsedName", (object?)m.SpecificFeedUsedName ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@FeedUnitCost", (object?)m.FeedUnitCost ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@TotalFeedConsumed", (object?)m.TotalFeedConsumed ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@TotalFeedCost", (object?)m.TotalFeedCost ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@SpecificMedicationUsedId", (object?)m.SpecificMedicationUsedId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@SpecificMedicationUsedName", (object?)m.SpecificMedicationUsedName ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@MedicationUnitCost", (object?)m.MedicationUnitCost ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@TotalMedicationConsumed", (object?)m.TotalMedicationConsumed ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@TotalMedicationCost", (object?)m.TotalMedicationCost ?? DBNull.Value);
+        }
+
         public async Task<int> Insert(EggProductionModel model)
         {
             _logger.LogInformation("EggProductionService.Insert called with model: {Model}", JsonSerializer.Serialize(model));
@@ -58,6 +73,7 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.Add("@UserId", SqlDbType.NVarChar, -1).Value = model.UserId ?? (object)DBNull.Value;
                 cmd.Parameters.Add("@FarmId", SqlDbType.NVarChar, -1).Value = model.FarmId ?? (object)DBNull.Value;
                 cmd.Parameters.Add("@EggGrade", SqlDbType.NVarChar, 50).Value = (object?)model.EggGrade ?? DBNull.Value;
+                AddCostingParams(cmd, model);
 
                 var sb = new StringBuilder();
                 sb.AppendLine("Executing spEggProduction_Insert with parameters:");
@@ -99,6 +115,7 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.AddWithValue("@UserId", model.UserId ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@FarmId", model.FarmId ?? (object)DBNull.Value);
                 cmd.Parameters.AddWithValue("@EggGrade", (object?)model.EggGrade ?? DBNull.Value);
+                AddCostingParams(cmd, model);
 
                 await conn.OpenAsync();
                 await cmd.ExecuteNonQueryAsync();

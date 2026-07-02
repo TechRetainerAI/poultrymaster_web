@@ -138,6 +138,19 @@ builder.Services.AddScoped<IWaterLossRecordService>(sp => new WaterLossRecordSer
 builder.Services.AddScoped<IWaterDailyClosingService>(sp => new WaterDailyClosingService(connectionString));
 builder.Services.AddScoped<IWaterReportService>(sp => new WaterReportService(connectionString));
 
+// Poultry Inventory + Raw Materials (additive; mirrors the Water raw-material services)
+builder.Services.AddScoped<IPoultryRawMaterialItemService>(sp => new PoultryRawMaterialItemService(connectionString));
+builder.Services.AddScoped<IPoultryRawMaterialPurchaseService>(sp => new PoultryRawMaterialPurchaseService(connectionString));
+builder.Services.AddScoped<IPoultryRawMaterialUsageService>(sp => new PoultryRawMaterialUsageService(connectionString));
+builder.Services.AddScoped<IPoultryProductService>(sp => new PoultryProductService(connectionString));
+builder.Services.AddScoped<IPoultryStockService>(sp => new PoultryStockService(connectionString));
+builder.Services.AddScoped<IPoultryProductionRecipeService>(sp => new PoultryProductionRecipeService(connectionString));
+builder.Services.AddScoped<IPoultryProductionBatchService>(sp => new PoultryProductionBatchService(connectionString));
+builder.Services.AddScoped<IPoultryLossRecordService>(sp => new PoultryLossRecordService(connectionString));
+builder.Services.AddScoped<IPoultryDailyClosingService>(sp => new PoultryDailyClosingService(connectionString));
+builder.Services.AddScoped<IPoultryReportService>(sp => new PoultryReportService(connectionString));
+builder.Services.AddScoped<IPoultryDeliveryService>(sp => new PoultryDeliveryService(connectionString));
+
 // Phase W4: Finance — expense categories + expenses (approval workflow + cash
 // side-effects), multi-account cash accounts + ledger, cash transfers (paired
 // TransferOut/TransferIn), customer ledger. Schema: migration 047. SPs: 048.
@@ -179,6 +192,9 @@ builder.Services.AddScoped<IWaterPayrollService>(sp => new WaterPayrollService(c
 // Complete-SP can also book a CashOut for repair cost against a cash account
 // (idempotent — CashTransactionWritten guards double-booking). Migration 052.
 builder.Services.AddScoped<IWaterMaintenanceLogService>(sp => new WaterMaintenanceLogService(connectionString));
+
+// Prompt 4 — Business Office announcements / notifications (migration 121).
+builder.Services.AddScoped<IAnnouncementService>(sp => new AnnouncementService(connectionString));
 
 // Water report/closing → PDF → email. Depends only on already-registered DI
 // services (IWaterReportService for report data, IEmailService for delivery).

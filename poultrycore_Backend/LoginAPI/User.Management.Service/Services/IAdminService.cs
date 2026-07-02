@@ -43,6 +43,27 @@ namespace User.Management.Service.Services
         /// Get total number of farms registered in the system
         /// </summary>
         Task<int> GetFarmCountAsync();
+
+        // ---- Doc 3 §6-7: organization employees + company access (UserFarms) ----
+
+        /// <summary>
+        /// All staff across every company the owner belongs to (deduped by user id) —
+        /// includes both employees whose primary FarmId is an org company and those
+        /// granted access to an org company via UserFarms.
+        /// </summary>
+        Task<List<ApplicationUser>> GetOrganizationEmployeesAsync(string ownerUserId);
+
+        /// <summary>Companies a given employee can access (their UserFarms rows).</summary>
+        Task<List<CompanyResponse>> GetEmployeeCompaniesAsync(string employeeId);
+
+        /// <summary>Grant an employee access to a company (idempotent UserFarms insert).</summary>
+        Task AssignCompanyAccessAsync(string employeeId, string farmId, string role);
+
+        /// <summary>Revoke an employee's access to a company (UserFarms delete).</summary>
+        Task RemoveCompanyAccessAsync(string employeeId, string farmId);
+
+        /// <summary>Staff who have access to a company via UserFarms (access-based list).</summary>
+        Task<List<ApplicationUser>> GetEmployeesWithAccessAsync(string farmId);
     }
 }
 

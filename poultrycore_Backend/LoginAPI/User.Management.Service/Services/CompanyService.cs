@@ -61,6 +61,35 @@ namespace User.Management.Service.Services
             };
         }
 
+        public async Task<ApiResponse<CompanyResponse>> UpdateAsync(string userId, string farmId, CreateCompanyRequest req)
+        {
+            if (string.IsNullOrWhiteSpace(farmId))
+            {
+                return new ApiResponse<CompanyResponse> { IsSuccess = false, StatusCode = 400, Message = "Company id is required." };
+            }
+            if (string.IsNullOrWhiteSpace(req?.Name))
+            {
+                return new ApiResponse<CompanyResponse> { IsSuccess = false, StatusCode = 400, Message = "Company name is required." };
+            }
+
+            // Only a member of the company may edit it.
+            if (!await _dal.IsMemberAsync(userId, farmId))
+            {
+                return new ApiResponse<CompanyResponse> { IsSuccess = false, StatusCode = 403, Message = "You do not have access to this company." };
+            }
+
+            await _dal.UpdateAsync(farmId, req);
+            var updated = await _dal.GetByIdAsync(farmId, userId);
+
+            return new ApiResponse<CompanyResponse>
+            {
+                IsSuccess = true,
+                StatusCode = 200,
+                Response = updated,
+                Message = "Company updated",
+            };
+        }
+
         public async Task<ApiResponse<LoginResponse>> SwitchAsync(string userId, string targetFarmId)
         {
             if (string.IsNullOrWhiteSpace(targetFarmId))
