@@ -48,6 +48,7 @@ export interface PoultryRawMaterialPurchase {
   productionQuantity?: number | null
   productionUnitCost?: number | null
   paymentMethod?: string | null
+  poultryCashAccountId?: number | null
   amountPaid: number
   balance: number
   receiptUrl?: string | null
@@ -68,6 +69,7 @@ export interface PoultryRawMaterialPurchaseInput {
   productionUnit?: string | null
   productionUnitsPerPurchaseUnit?: number | null
   paymentMethod?: string | null
+  poultryCashAccountId?: number | null
   amountPaid?: number
   receiptUrl?: string | null
   notes?: string | null

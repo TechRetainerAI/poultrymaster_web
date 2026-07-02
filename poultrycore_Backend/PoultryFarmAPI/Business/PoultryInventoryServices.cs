@@ -156,6 +156,7 @@ namespace PoultryFarmAPIWeb.Business
             ProductionQuantity = GetNullableDecimal(r, "ProductionQuantity"),
             ProductionUnitCost = GetNullableDecimal(r, "ProductionUnitCost"),
             PaymentMethod = r.IsDBNull(r.GetOrdinal("PaymentMethod")) ? null : r.GetString(r.GetOrdinal("PaymentMethod")),
+            PoultryCashAccountId = r.IsDBNull(r.GetOrdinal("PoultryCashAccountId")) ? (int?)null : r.GetInt32(r.GetOrdinal("PoultryCashAccountId")),
             AmountPaid = r.GetDecimal(r.GetOrdinal("AmountPaid")),
             Balance = r.GetDecimal(r.GetOrdinal("Balance")),
             ReceiptUrl = r.IsDBNull(r.GetOrdinal("ReceiptUrl")) ? null : r.GetString(r.GetOrdinal("ReceiptUrl")),
@@ -199,7 +200,26 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@CreatedBy", (object?)m.CreatedBy ?? DBNull.Value);
             await conn.OpenAsync();
-            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            var newId = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            conn.Close();
+            await SyncCashAsync(m.FarmId, newId, m.PoultryCashAccountId, setAccount: true, createdBy: m.CreatedBy);
+            return newId;
+        }
+
+        // Posts / reverses the purchase's cash-out on the chosen PoultryCashAccount.
+        // The SP reads the current AmountPaid + account from the row, so callers
+        // just say whether to (re)set the account.
+        private async Task SyncCashAsync(string farmId, int purchaseId, int? cashAccountId, bool setAccount, string? createdBy)
+        {
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spPoultryRawMaterialPurchaseCash_Sync", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@PoultryRawMaterialPurchaseId", purchaseId);
+            cmd.Parameters.AddWithValue("@PoultryCashAccountId", (object?)cashAccountId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@SetAccount", setAccount);
+            cmd.Parameters.AddWithValue("@CreatedBy", (object?)createdBy ?? DBNull.Value);
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
         }
 
         public async Task UpdateAsync(PoultryRawMaterialPurchaseModel m)
@@ -222,31 +242,43 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
+            conn.Close();
+            await SyncCashAsync(m.FarmId, m.PoultryRawMaterialPurchaseId, m.PoultryCashAccountId, setAccount: true, createdBy: m.CreatedBy);
         }
 
         public async Task DeleteAsync(int id, string farmId)
         {
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryRawMaterialPurchase_Delete", conn) { CommandType = CommandType.StoredProcedure };
-            cmd.Parameters.AddWithValue("@PoultryRawMaterialPurchaseId", id);
-            cmd.Parameters.AddWithValue("@FarmId", farmId);
-            await conn.OpenAsync();
-            await cmd.ExecuteNonQueryAsync();
+            using (var conn = new SqlConnection(_cs))
+            using (var cmd = new SqlCommand("spPoultryRawMaterialPurchase_Delete", conn) { CommandType = CommandType.StoredProcedure })
+            {
+                cmd.Parameters.AddWithValue("@PoultryRawMaterialPurchaseId", id);
+                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                await conn.OpenAsync();
+                await cmd.ExecuteNonQueryAsync();
+            }
+            // Row is gone now → reverse-only (no repost).
+            await SyncCashAsync(farmId, id, null, setAccount: false, createdBy: null);
         }
 
         public async Task<decimal> PayBalanceAsync(int id, string farmId, decimal amount, string? paymentMethod, DateTime? paymentDate, string? createdBy)
         {
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryRawMaterialPurchase_PayBalance", conn) { CommandType = CommandType.StoredProcedure };
-            cmd.Parameters.AddWithValue("@PoultryRawMaterialPurchaseId", id);
-            cmd.Parameters.AddWithValue("@FarmId", farmId);
-            cmd.Parameters.AddWithValue("@Amount", amount);
-            cmd.Parameters.AddWithValue("@PaymentMethod", (object?)paymentMethod ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@PaymentDate", (object?)paymentDate ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@CreatedBy", (object?)createdBy ?? DBNull.Value);
-            await conn.OpenAsync();
-            var result = await cmd.ExecuteScalarAsync();
-            return result is null || result == DBNull.Value ? 0m : Convert.ToDecimal(result);
+            decimal balance;
+            using (var conn = new SqlConnection(_cs))
+            using (var cmd = new SqlCommand("spPoultryRawMaterialPurchase_PayBalance", conn) { CommandType = CommandType.StoredProcedure })
+            {
+                cmd.Parameters.AddWithValue("@PoultryRawMaterialPurchaseId", id);
+                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                cmd.Parameters.AddWithValue("@Amount", amount);
+                cmd.Parameters.AddWithValue("@PaymentMethod", (object?)paymentMethod ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@PaymentDate", (object?)paymentDate ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@CreatedBy", (object?)createdBy ?? DBNull.Value);
+                await conn.OpenAsync();
+                var result = await cmd.ExecuteScalarAsync();
+                balance = result is null || result == DBNull.Value ? 0m : Convert.ToDecimal(result);
+            }
+            // Re-sync the purchase's cash-out to the new total paid (keep its account).
+            await SyncCashAsync(farmId, id, null, setAccount: false, createdBy: createdBy);
+            return balance;
         }
     }
 

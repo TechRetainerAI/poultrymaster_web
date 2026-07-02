@@ -41,6 +41,8 @@ namespace PoultryFarmAPIWeb.Models
         public decimal? ProductionQuantity { get; set; }   // derived (read-only)
         public decimal? ProductionUnitCost { get; set; }   // derived (read-only)
         [StringLength(30)] public string? PaymentMethod { get; set; }
+        /// <summary>Optional cash account this purchase is paid from (posts a cash-out).</summary>
+        public int? PoultryCashAccountId { get; set; }
         public decimal AmountPaid { get; set; }
         public decimal Balance { get; set; }               // derived (read-only)
         [StringLength(500)] public string? ReceiptUrl { get; set; }

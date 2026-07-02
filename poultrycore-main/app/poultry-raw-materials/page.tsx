@@ -25,6 +25,7 @@ import {
   payPoultryRawMaterialPurchaseBalance, listPoultryRawMaterialUsageHistory,
   type PoultryRawMaterialItem, type PoultryRawMaterialPurchase, type PoultryRawMaterialUsage,
 } from "@/lib/api/poultry-inventory"
+import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
 
 const CATEGORIES = ["FeedIngredient", "Packaging", "Medication", "Vaccine", "Bedding", "Disinfectant", "SparePart", "Fuel", "Other"]
 const PAYMENT_METHODS = ["Cash", "MoMo", "Bank", "Credit"]
@@ -44,6 +45,7 @@ const EMPTY_PURCHASE = {
   productionUnit: "",
   productionUnitsPerPurchaseUnit: 1,
   paymentMethod: "Cash",
+  poultryCashAccountId: 0,
   amountPaid: 0,
   receiptUrl: "",
   notes: "",
@@ -60,6 +62,7 @@ export default function PoultryRawMaterialsPage() {
   const [usage, setUsage] = useState<PoultryRawMaterialUsage[]>([])
   const [usageLoaded, setUsageLoaded] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [cashAccounts, setCashAccounts] = useState<PoultryCashAccount[]>([])
 
   const [itemOpen, setItemOpen] = useState(false)
   const [editItemId, setEditItemId] = useState<number | null>(null)
@@ -86,8 +89,8 @@ export default function PoultryRawMaterialsPage() {
   async function load() {
     setLoading(true)
     try {
-      const [is, ps] = await Promise.all([listPoultryRawMaterialItems(), listPoultryRawMaterialPurchases()])
-      setItems(is); setPurchases(ps)
+      const [is, ps, cas] = await Promise.all([listPoultryRawMaterialItems(), listPoultryRawMaterialPurchases(), listPoultryCashAccounts().catch(() => [])])
+      setItems(is); setPurchases(ps); setCashAccounts((cas as PoultryCashAccount[]).filter((a) => a.isActive))
     } catch (e: any) {
       toast({ title: "Could not load raw materials", description: e?.message ?? String(e), variant: "destructive" })
     } finally { setLoading(false) }
@@ -141,7 +144,7 @@ export default function PoultryRawMaterialsPage() {
       quantity: p.quantity, unitCost: p.unitCost, totalPurchaseCost: p.totalCost,
       purchaseUnit: p.unitOfMeasure ?? "", productionUnit: p.productionUnit ?? "",
       productionUnitsPerPurchaseUnit: p.productionUnitsPerPurchaseUnit ?? 1,
-      paymentMethod: p.paymentMethod ?? "Cash", amountPaid: p.amountPaid, receiptUrl: p.receiptUrl ?? "", notes: p.notes ?? "",
+      paymentMethod: p.paymentMethod ?? "Cash", poultryCashAccountId: p.poultryCashAccountId ?? 0, amountPaid: p.amountPaid, receiptUrl: p.receiptUrl ?? "", notes: p.notes ?? "",
     })
     setPurchaseOpen(true)
   }
@@ -160,6 +163,7 @@ export default function PoultryRawMaterialsPage() {
       productionUnit: f.productionUnit || null,
       productionUnitsPerPurchaseUnit: f.productionUnitsPerPurchaseUnit || null,
       paymentMethod: f.paymentMethod,
+      poultryCashAccountId: f.poultryCashAccountId ? f.poultryCashAccountId : null,
       amountPaid: f.amountPaid,
       receiptUrl: f.receiptUrl || null,
       notes: f.notes || null,
@@ -400,7 +404,21 @@ export default function PoultryRawMaterialsPage() {
                     </Select>
                   </FormField>
                   <FormField label="Amount paid"><NumberInput min={0} step="0.01" value={f.amountPaid} onChange={(e) => setPurchaseForm({ ...f, amountPaid: Number(e.target.value) || 0 })} /></FormField>
+                  <FormField label="Pay from cash account">
+                    <Select value={f.poultryCashAccountId ? String(f.poultryCashAccountId) : "none"} onValueChange={(v) => setPurchaseForm({ ...f, poultryCashAccountId: v === "none" ? 0 : Number(v) })}>
+                      <SelectTrigger><SelectValue placeholder="None (no cash movement)" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None (no cash movement)</SelectItem>
+                        {cashAccounts.map((a) => (
+                          <SelectItem key={a.poultryCashAccountId} value={String(a.poultryCashAccountId)}>
+                            {a.accountName} ({gh(a.currentBalance)})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormField>
                   <FormField label="Balance (auto)"><Input readOnly tabIndex={-1} className={roCls} value={gh(Math.max(0, total - (f.amountPaid || 0)))} /></FormField>
+                  <FormField label="" full><p className="text-xs text-slate-500">Choosing a cash account posts a cash-out for the amount paid and reduces that account's balance.</p></FormField>
                 </FormSection>
 
                 <div className="flex justify-end gap-2">
