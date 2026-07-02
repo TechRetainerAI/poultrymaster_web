@@ -42,6 +42,14 @@ const SECTIONS: { title: string; color: string; rows: Row[] }[] = [
     { label: "Raw Materials Purchased (value)", key: "RawMaterialsPurchased", money: true },
     { label: "Raw Materials Consumed (qty)", key: "RawMaterialsConsumed" },
   ]},
+  { title: "Birds", color: "bg-purple-600", rows: [
+    { label: "Opening Birds", key: "OpeningBirds" },
+    { label: "Birds Purchased", key: "BirdsPurchased" },
+    { label: "Birds Sold", key: "BirdsSold" },
+    { label: "Mortality Count", key: "MortalityCount" },
+    { label: "Closing Birds", key: "ClosingBirds" },
+    { label: "Mortality Rate %", key: "MortalityRatePct" },
+  ]},
   { title: "Losses", color: "bg-red-600", rows: [
     { label: "Production Loss (qty)", key: "ProductionLossQty" },
     { label: "Approved Loss Value", key: "ApprovedLossValue", money: true },

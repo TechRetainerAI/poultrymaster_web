@@ -12,12 +12,26 @@ import { Loader2, AlertTriangle } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
-import { listPoultryProducts, listPoultryRawMaterialItems, ensureDefaultPoultryEgg, type PoultryProduct, type PoultryRawMaterialItem } from "@/lib/api/poultry-inventory"
+import Link from "next/link"
+import { listPoultryProducts, listPoultryRawMaterialItems, ensurePoultryDefaults, type PoultryProduct, type PoultryRawMaterialItem } from "@/lib/api/poultry-inventory"
 
 type Row = {
   key: string; seq: number; parentType: "Finished Product" | "Raw Material"
-  name: string; type: string; size: string | null; unit: string | null
+  id: number; name: string; type: string; size: string | null; unit: string | null
   unitPrice: number | null; stock: number; low: boolean; active: boolean
+  isEgg?: boolean; isBird?: boolean
+}
+
+// Doc 2 §3-5: Details link routes to the right tracker, filtered by the item.
+function detailLink(r: Row): { href: string; label: string } {
+  if (r.parentType === "Finished Product") {
+    if (r.isEgg) return { href: `/egg-tracker?inventoryItemId=${r.id}`, label: "View Egg Tracker" }
+    if (r.isBird) return { href: `/birds-left-tracker?inventoryItemId=${r.id}`, label: "View Birds Tracker" }
+    return { href: `/poultry-stock?productId=${r.id}`, label: "View Stock" }
+  }
+  if (r.type === "FeedIngredient") return { href: `/feed-tracker?inventoryItemId=${r.id}`, label: "View Feed Tracker" }
+  if (r.type === "Medication" || r.type === "Vaccine") return { href: `/medication-tracker?inventoryItemId=${r.id}`, label: "View Medication Tracker" }
+  return { href: `/poultry-stock?rawId=${r.id}`, label: "View Details" }
 }
 
 export default function PoultryInventoryPage() {
@@ -34,7 +48,7 @@ export default function PoultryInventoryPage() {
     if (activeFarmType && activeFarmType !== "Poultry") { router.replace("/dashboard"); return }
     ;(async () => {
       try {
-        await ensureDefaultPoultryEgg().catch(() => {})   // doc 7a/7d/8: egg + products visible in inventory
+        await ensurePoultryDefaults().catch(() => {})   // doc: Eggs + Birds defaults visible in inventory
         const [ps, is] = await Promise.all([listPoultryProducts(), listPoultryRawMaterialItems()]); setProducts(ps); setItems(is)
       }
       catch (e: any) { toast({ title: "Could not load inventory", description: e?.message, variant: "destructive" }) }
@@ -45,8 +59,8 @@ export default function PoultryInventoryPage() {
 
   // doc 2/3/8: one table, Finished Products first (seq 1), then Raw Materials (seq 2).
   const rows: Row[] = useMemo(() => {
-    const fin: Row[] = products.map((p) => ({ key: `p${p.poultryProductId}`, seq: 1, parentType: "Finished Product", name: p.name, type: p.productType, size: p.size ?? null, unit: p.unit ?? null, unitPrice: p.unitPrice, stock: p.stockOnHand, low: false, active: p.isActive }))
-    const raw: Row[] = items.map((i) => ({ key: `r${i.poultryRawMaterialItemId}`, seq: 2, parentType: "Raw Material", name: i.itemName, type: i.category, size: null, unit: i.unitOfMeasure ?? null, unitPrice: null, stock: i.currentQuantity, low: !!i.isLowStock, active: i.isActive }))
+    const fin: Row[] = products.map((p) => ({ key: `p${p.poultryProductId}`, seq: 1, parentType: "Finished Product", id: p.poultryProductId, name: p.name, type: p.productType, size: p.size ?? null, unit: p.unit ?? null, unitPrice: p.unitPrice, stock: p.stockOnHand, low: false, active: p.isActive, isEgg: p.isRawEggProduct, isBird: p.isBirdProduct }))
+    const raw: Row[] = items.map((i) => ({ key: `r${i.poultryRawMaterialItemId}`, seq: 2, parentType: "Raw Material", id: i.poultryRawMaterialItemId, name: i.itemName, type: i.category, size: null, unit: i.unitOfMeasure ?? null, unitPrice: null, stock: i.currentQuantity, low: !!i.isLowStock, active: i.isActive }))
     const all = [...fin, ...raw]
     const q = search.trim().toLowerCase()
     const filtered = q ? all.filter((r) => r.name.toLowerCase().includes(q) || r.type.toLowerCase().includes(q) || r.parentType.toLowerCase().includes(q)) : all
@@ -79,10 +93,10 @@ export default function PoultryInventoryPage() {
                   <TableHeader><TableRow>
                     <TableHead>Item</TableHead><TableHead>Parent Type</TableHead><TableHead>Type / Category</TableHead>
                     <TableHead>Size</TableHead><TableHead>Unit</TableHead><TableHead className="text-right">Unit Price</TableHead>
-                    <TableHead className="text-right">In stock</TableHead><TableHead>Status</TableHead>
+                    <TableHead className="text-right">In stock</TableHead><TableHead>Status</TableHead><TableHead>Details</TableHead>
                   </TableRow></TableHeader>
                   <TableBody>
-                    {rows.length === 0 ? <TableRow><TableCell colSpan={8} className="text-center text-slate-500 py-6">No inventory yet.</TableCell></TableRow>
+                    {rows.length === 0 ? <TableRow><TableCell colSpan={9} className="text-center text-slate-500 py-6">No inventory yet.</TableCell></TableRow>
                       : rows.map((r) => (
                         <TableRow key={r.key}>
                           <TableCell className="font-medium">{r.name}</TableCell>
@@ -93,6 +107,7 @@ export default function PoultryInventoryPage() {
                           <TableCell className="text-right">{r.unitPrice != null ? gh(r.unitPrice) : "—"}</TableCell>
                           <TableCell className="text-right">{r.stock.toLocaleString()}</TableCell>
                           <TableCell>{!r.active ? <Badge variant="secondary">Inactive</Badge> : r.low ? <Badge className="bg-amber-100 text-amber-700"><AlertTriangle className="w-3 h-3 mr-1" />Low</Badge> : <Badge className="bg-green-100 text-green-700">OK</Badge>}</TableCell>
+                          <TableCell>{(() => { const l = detailLink(r); return <Link href={l.href} className="text-blue-600 hover:underline text-sm whitespace-nowrap">{l.label}</Link> })()}</TableCell>
                         </TableRow>
                       ))}
                   </TableBody>

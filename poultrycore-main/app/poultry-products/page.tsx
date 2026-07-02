@@ -21,7 +21,7 @@ import { useFmt } from "@/lib/currency"
 import {
   listPoultryProducts, createPoultryProduct, updatePoultryProduct, deletePoultryProduct,
   getPoultryRecipe, upsertPoultryRecipe, listPoultryRawMaterialItems,
-  ensureDefaultPoultryEgg, addPoultryStockTransaction,
+  ensurePoultryDefaults, addPoultryStockTransaction,
   type PoultryProduct, type PoultryRawMaterialItem, type PoultryRecipeItem,
 } from "@/lib/api/poultry-inventory"
 
@@ -59,7 +59,7 @@ export default function PoultryProductsPage() {
   async function load() {
     setLoading(true)
     try {
-      await ensureDefaultPoultryEgg().catch(() => {})   // doc 7a: default egg product exists
+      await ensurePoultryDefaults().catch(() => {})   // default Eggs + Birds products exist
       const [ps, ri] = await Promise.all([listPoultryProducts(), listPoultryRawMaterialItems()]); setProducts(ps); setRawItems(ri)
     }
     catch (e: any) { toast({ title: "Could not load products", description: e?.message, variant: "destructive" }) }

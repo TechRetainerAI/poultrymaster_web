@@ -188,6 +188,7 @@ export interface PoultryProduct {
   notes?: string | null
   isRawEggProduct: boolean
   requiresRecipeSetup: boolean
+  isBirdProduct?: boolean
   size?: string | null
   stockOnHand: number
   createdDate: string
@@ -199,6 +200,9 @@ export interface PoultryProductInput {
 }
 export const ensureDefaultPoultryEgg = () =>
   jsend<{ poultryProductId: number }>(`/Poultry/products/ensure-default-egg?farmId=${encodeURIComponent(activeFarmId())}`, "POST")
+// Ensure both default products (Eggs + Birds) — doc 2.
+export const ensurePoultryDefaults = () =>
+  jsend<{ eggProductId: number; birdsProductId: number }>(`/Poultry/products/ensure-defaults?farmId=${encodeURIComponent(activeFarmId())}`, "POST")
 export interface PoultryStockTransaction {
   poultryStockTransactionId: number; farmId: string; poultryProductId: number; productName?: string | null
   txnType: string; quantity: number; unitCost?: number | null; relatedId?: number | null; note?: string | null; createdDate: string

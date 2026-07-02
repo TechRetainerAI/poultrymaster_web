@@ -35,6 +35,7 @@ namespace PoultryFarmAPIWeb.Business
         Task UpdateAsync(PoultryProductModel m);
         Task DeleteAsync(int id, string farmId);
         Task<int> EnsureDefaultEggAsync(string farmId);
+        Task<int> EnsureDefaultBirdsAsync(string farmId);
     }
 
     public class PoultryProductService : IPoultryProductService
@@ -47,6 +48,7 @@ namespace PoultryFarmAPIWeb.Business
             IsActive = r.Bool("IsActive"), Notes = r.StrN("Notes"),
             IsRawEggProduct = r.Has("IsRawEggProduct") && r.Bool("IsRawEggProduct"),
             RequiresRecipeSetup = !r.Has("RequiresRecipeSetup") || r.Bool("RequiresRecipeSetup"),
+            IsBirdProduct = r.Has("IsBirdProduct") && r.Bool("IsBirdProduct"),
             Size = r.Has("Size") ? r.StrN("Size") : null,
             StockOnHand = r.Has("StockOnHand") ? r.Dec("StockOnHand") : 0,
             CreatedDate = r.Date("CreatedDate"), UpdatedDate = r.DateN("UpdatedDate"),
@@ -95,6 +97,13 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<int> EnsureDefaultEggAsync(string farmId)
         {
             using var c = new SqlConnection(_cs); using var cmd = new SqlCommand("spPoultryProduct_EnsureDefaultEgg", c) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await c.OpenAsync(); var r = await cmd.ExecuteScalarAsync();
+            return r is null || r == DBNull.Value ? 0 : Convert.ToInt32(r);
+        }
+        public async Task<int> EnsureDefaultBirdsAsync(string farmId)
+        {
+            using var c = new SqlConnection(_cs); using var cmd = new SqlCommand("spPoultryProduct_EnsureDefaultBirds", c) { CommandType = CommandType.StoredProcedure };
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await c.OpenAsync(); var r = await cmd.ExecuteScalarAsync();
             return r is null || r == DBNull.Value ? 0 : Convert.ToInt32(r);

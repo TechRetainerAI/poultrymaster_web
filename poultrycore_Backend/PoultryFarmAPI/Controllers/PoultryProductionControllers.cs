@@ -34,6 +34,15 @@ namespace PoultryFarmAPIWeb.Controllers
         [HttpPost("ensure-default-egg")] public async Task<IActionResult> EnsureDefaultEgg([FromQuery] string farmId)
         { if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required."); var id = await _svc.EnsureDefaultEggAsync(farmId); return Ok(new { poultryProductId = id }); }
 
+        // Ensure both default poultry products (Eggs + Birds) exist for a farm.
+        [HttpPost("ensure-defaults")] public async Task<IActionResult> EnsureDefaults([FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            var egg = await _svc.EnsureDefaultEggAsync(farmId);
+            var birds = await _svc.EnsureDefaultBirdsAsync(farmId);
+            return Ok(new { eggProductId = egg, birdsProductId = birds });
+        }
+
         // Recipe (bill of materials) for a product.
         [HttpGet("{id:int}/recipe")] public async Task<ActionResult<PoultryProductionRecipeModel>> GetRecipe(int id, [FromQuery] string farmId)
         { if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required."); var r = await _recipes.GetByProductAsync(farmId, id); return r is null ? Ok(null) : Ok(r); }
