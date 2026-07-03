@@ -1,5 +1,21 @@
 import { getAuthHeaders } from './config'
 
+// Doc §4a-4c: attach feed/medication consumption + costing to a create/update
+// payload. All optional — omitted/null when the user didn't pick feed/medication.
+function attachCosting(payload: any, record: ProductionRecordInput) {
+  payload.specificFeedUsedId = record.specificFeedUsedId ?? null
+  payload.specificFeedUsedName = record.specificFeedUsedName ?? null
+  payload.feedUnitCost = record.feedUnitCost ?? null
+  payload.totalFeedConsumed = record.totalFeedConsumed ?? null
+  payload.totalFeedCost = record.totalFeedCost ?? null
+  payload.specificMedicationUsedId = record.specificMedicationUsedId ?? null
+  payload.specificMedicationUsedName = record.specificMedicationUsedName ?? null
+  payload.medicationUnitCost = record.medicationUnitCost ?? null
+  payload.totalMedicationConsumed = record.totalMedicationConsumed ?? null
+  payload.totalMedicationCost = record.totalMedicationCost ?? null
+  payload.totalCostOfProduction = record.totalCostOfProduction ?? null
+}
+
 export interface ProductionRecord {
   id: number
   farmId: string
@@ -31,6 +47,18 @@ export interface ProductionRecord {
   softEggs?: number | null
   /** Eggs lost (missing/dropped). Added by migration 018. */
   lostEggs?: number | null
+  // Doc §4a-4c: feed/medication consumed from raw-material inventory + costing.
+  specificFeedUsedId?: number | null
+  specificFeedUsedName?: string | null
+  feedUnitCost?: number | null
+  totalFeedConsumed?: number | null
+  totalFeedCost?: number | null
+  specificMedicationUsedId?: number | null
+  specificMedicationUsedName?: string | null
+  medicationUnitCost?: number | null
+  totalMedicationConsumed?: number | null
+  totalMedicationCost?: number | null
+  totalCostOfProduction?: number | null
 }
 
 export interface ProductionRecordInput {
@@ -56,6 +84,18 @@ export interface ProductionRecordInput {
   meatyEggs?: number | null
   softEggs?: number | null
   lostEggs?: number | null
+  // Doc §4a-4c: feed/medication consumed from raw-material inventory + costing.
+  specificFeedUsedId?: number | null
+  specificFeedUsedName?: string | null
+  feedUnitCost?: number | null
+  totalFeedConsumed?: number | null
+  totalFeedCost?: number | null
+  specificMedicationUsedId?: number | null
+  specificMedicationUsedName?: string | null
+  medicationUnitCost?: number | null
+  totalMedicationConsumed?: number | null
+  totalMedicationCost?: number | null
+  totalCostOfProduction?: number | null
 }
 
 // Mock data for development
@@ -244,6 +284,7 @@ export async function createProductionRecord(record: ProductionRecordInput) {
     payload.meatyEggs = record.meatyEggs ?? null
     payload.softEggs = record.softEggs ?? null
     payload.lostEggs = record.lostEggs ?? null
+    attachCosting(payload, record)
 
     const response = await fetch(url, {
       method: "POST",
@@ -324,6 +365,7 @@ export async function updateProductionRecord(id: number, record: ProductionRecor
     if (Object.prototype.hasOwnProperty.call(record, "meatyEggs")) payload.meatyEggs = record.meatyEggs ?? null
     if (Object.prototype.hasOwnProperty.call(record, "softEggs")) payload.softEggs = record.softEggs ?? null
     if (Object.prototype.hasOwnProperty.call(record, "lostEggs")) payload.lostEggs = record.lostEggs ?? null
+    attachCosting(payload, record)
 
     const response = await fetch(url, {
       method: "PUT",

@@ -13,6 +13,8 @@ namespace PoultryFarmAPIWeb.Business
         private static readonly ConcurrentDictionary<string, bool> SpHasEggGradeParamCache = new();
         /// <summary>Caches whether dbo stored procedures include the egg-loss params @MeatyEggs/@SoftEggs/@LostEggs (migration 018). Probing @MeatyEggs is sufficient — they were added together.</summary>
         private static readonly ConcurrentDictionary<string, bool> SpHasEggLossParamsCache = new();
+        /// <summary>Caches whether dbo stored procedures include the feed/medication costing params (migration 137). Probing @SpecificFeedUsedId is sufficient — they were added together.</summary>
+        private static readonly ConcurrentDictionary<string, bool> SpHasCostingParamsCache = new();
 
         public ProductionRecordService(string connectionString)
         {
@@ -69,6 +71,68 @@ namespace PoultryFarmAPIWeb.Business
             return null;
         }
 
+        private static decimal? GetNullableDecimalIfPresent(SqlDataReader reader, string columnName)
+        {
+            for (var i = 0; i < reader.FieldCount; i++)
+            {
+                if (string.Equals(reader.GetName(i), columnName, StringComparison.OrdinalIgnoreCase))
+                    return reader.IsDBNull(i) ? (decimal?)null : reader.GetDecimal(i);
+            }
+            return null;
+        }
+
+        /// <summary>Doc §4a-4c feed/medication costing params (migration 137). Probing @SpecificFeedUsedId suffices.</summary>
+        private static async Task<bool> ProcedureHasCostingParamsAsync(SqlConnection conn, string procedureName)
+        {
+            if (SpHasCostingParamsCache.TryGetValue(procedureName, out var cached))
+                return cached;
+
+            await using var probe = new SqlCommand(
+                @"SELECT 1
+                  FROM sys.parameters p
+                  INNER JOIN sys.procedures pr ON p.object_id = pr.object_id
+                  WHERE SCHEMA_NAME(pr.schema_id) = N'dbo'
+                    AND pr.name = @procName
+                    AND (p.name = N'SpecificFeedUsedId' OR p.name = N'@SpecificFeedUsedId')",
+                conn);
+            probe.Parameters.AddWithValue("@procName", procedureName);
+            var scalar = await probe.ExecuteScalarAsync();
+            var has = scalar != null && scalar != DBNull.Value;
+            SpHasCostingParamsCache[procedureName] = has;
+            return has;
+        }
+
+        /// <summary>Adds the feed/medication costing SP params from the model (used by Insert + Update).</summary>
+        private static void AddCostingParameters(SqlCommand cmd, ProductionRecordModel model)
+        {
+            cmd.Parameters.AddWithValue("@SpecificFeedUsedId", (object?)model.SpecificFeedUsedId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@SpecificFeedUsedName", (object?)model.SpecificFeedUsedName ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@FeedUnitCost", (object?)model.FeedUnitCost ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@TotalFeedConsumed", (object?)model.TotalFeedConsumed ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@TotalFeedCost", (object?)model.TotalFeedCost ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@SpecificMedicationUsedId", (object?)model.SpecificMedicationUsedId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@SpecificMedicationUsedName", (object?)model.SpecificMedicationUsedName ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@MedicationUnitCost", (object?)model.MedicationUnitCost ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@TotalMedicationConsumed", (object?)model.TotalMedicationConsumed ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@TotalMedicationCost", (object?)model.TotalMedicationCost ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@TotalCostOfProduction", (object?)model.TotalCostOfProduction ?? DBNull.Value);
+        }
+
+        private static void MapCostingFields(SqlDataReader reader, ProductionRecordModel m)
+        {
+            m.SpecificFeedUsedId = GetNullableIntIfPresent(reader, "SpecificFeedUsedId");
+            m.SpecificFeedUsedName = reader.GetNullableStringIfPresent("SpecificFeedUsedName");
+            m.FeedUnitCost = GetNullableDecimalIfPresent(reader, "FeedUnitCost");
+            m.TotalFeedConsumed = GetNullableDecimalIfPresent(reader, "TotalFeedConsumed");
+            m.TotalFeedCost = GetNullableDecimalIfPresent(reader, "TotalFeedCost");
+            m.SpecificMedicationUsedId = GetNullableIntIfPresent(reader, "SpecificMedicationUsedId");
+            m.SpecificMedicationUsedName = reader.GetNullableStringIfPresent("SpecificMedicationUsedName");
+            m.MedicationUnitCost = GetNullableDecimalIfPresent(reader, "MedicationUnitCost");
+            m.TotalMedicationConsumed = GetNullableDecimalIfPresent(reader, "TotalMedicationConsumed");
+            m.TotalMedicationCost = GetNullableDecimalIfPresent(reader, "TotalMedicationCost");
+            m.TotalCostOfProduction = GetNullableDecimalIfPresent(reader, "TotalCostOfProduction");
+        }
+
         public async Task<int> Insert(ProductionRecordModel model)
         {
             try
@@ -115,6 +179,8 @@ namespace PoultryFarmAPIWeb.Business
                     cmd.Parameters.AddWithValue("@SoftEggs", (object?)model.SoftEggs ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@LostEggs", (object?)model.LostEggs ?? DBNull.Value);
                 }
+                if (await ProcedureHasCostingParamsAsync(conn, "spProductionRecord_Insert"))
+                    AddCostingParameters(cmd, model);
 
                 await cmd.ExecuteNonQueryAsync();
 
@@ -167,6 +233,8 @@ namespace PoultryFarmAPIWeb.Business
                     cmd.Parameters.AddWithValue("@SoftEggs", (object?)model.SoftEggs ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@LostEggs", (object?)model.LostEggs ?? DBNull.Value);
                 }
+                if (await ProcedureHasCostingParamsAsync(conn, "spProductionRecord_Update"))
+                    AddCostingParameters(cmd, model);
 
                 await cmd.ExecuteNonQueryAsync();
             }
@@ -196,7 +264,7 @@ namespace PoultryFarmAPIWeb.Business
                 if (await reader.ReadAsync())
                 {
                     var totalProd = reader.GetInt32(reader.GetOrdinal("TotalProduction"));
-                    return new ProductionRecordModel
+                    var record = new ProductionRecordModel
                     {
                         Id = reader.GetInt32(reader.GetOrdinal("Id")),
                         FarmId = reader.GetString(reader.GetOrdinal("FarmId")),
@@ -226,6 +294,8 @@ namespace PoultryFarmAPIWeb.Business
                         SoftEggs = GetNullableIntIfPresent(reader, "SoftEggs"),
                         LostEggs = GetNullableIntIfPresent(reader, "LostEggs")
                     };
+                    MapCostingFields(reader, record);
+                    return record;
                 }
 
                 return null;
@@ -256,7 +326,7 @@ namespace PoultryFarmAPIWeb.Business
                 while (await reader.ReadAsync())
                 {
                     var totalProd = reader.GetInt32(reader.GetOrdinal("TotalProduction"));
-                    records.Add(new ProductionRecordModel
+                    var rec = new ProductionRecordModel
                     {
                         Id = reader.GetInt32(reader.GetOrdinal("Id")),
                         FarmId = reader.GetString(reader.GetOrdinal("FarmId")),
@@ -285,7 +355,9 @@ namespace PoultryFarmAPIWeb.Business
                         MeatyEggs = GetNullableIntIfPresent(reader, "MeatyEggs"),
                         SoftEggs = GetNullableIntIfPresent(reader, "SoftEggs"),
                         LostEggs = GetNullableIntIfPresent(reader, "LostEggs")
-                    });
+                    };
+                    MapCostingFields(reader, rec);
+                    records.Add(rec);
                 }
             }
             catch (Exception ex)

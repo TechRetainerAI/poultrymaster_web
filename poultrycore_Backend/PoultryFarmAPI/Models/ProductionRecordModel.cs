@@ -49,5 +49,20 @@ namespace PoultryFarmAPIWeb.Models
 
         /// <summary>Eggs lost (missing, dropped, etc.). Nullable.</summary>
         public int? LostEggs { get; set; }
+
+        // Doc 1 §4a-4c: feed + medication consumed from raw-material inventory and
+        // the resulting production costing. All nullable — a record without feed/
+        // medication selected just carries nulls (cost treated as 0).
+        public int? SpecificFeedUsedId { get; set; }
+        public string? SpecificFeedUsedName { get; set; }
+        public decimal? FeedUnitCost { get; set; }
+        public decimal? TotalFeedConsumed { get; set; }
+        public decimal? TotalFeedCost { get; set; }
+        public int? SpecificMedicationUsedId { get; set; }
+        public string? SpecificMedicationUsedName { get; set; }
+        public decimal? MedicationUnitCost { get; set; }
+        public decimal? TotalMedicationConsumed { get; set; }
+        public decimal? TotalMedicationCost { get; set; }
+        public decimal? TotalCostOfProduction { get; set; }
     }
 }
