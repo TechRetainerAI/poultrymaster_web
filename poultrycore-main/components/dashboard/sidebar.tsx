@@ -161,8 +161,6 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/poultry-products", label: "Products", icon: Package },
     { href: "/poultry-stock", label: "Stock movements", icon: Boxes },
     { href: "/poultry-raw-materials", label: "Raw Materials & Supplies", icon: Box },
-    { href: "/poultry-production-batches", label: "Production Batches", icon: Boxes },
-    { href: "/poultry-production-losses", label: "Production Losses", icon: AlertTriangle },
     { href: "/poultry-loss-records", label: "Loss & Damage", icon: AlertTriangle },
     { href: "/poultry-deliveries", label: "Egg Deliveries", icon: Truck },
     { href: "/poultry-daily-closing", label: "Daily Closing", icon: Box },
