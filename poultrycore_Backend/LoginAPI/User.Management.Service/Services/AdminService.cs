@@ -455,6 +455,9 @@ namespace User.Management.Service.Services
         public Task<List<CompanyResponse>> GetEmployeeCompaniesAsync(string employeeId)
             => _companyDal.GetByUserIdAsync(employeeId);
 
+        public Task<bool> UserHasCompanyAccessAsync(string userId, string farmId)
+            => _companyDal.IsMemberAsync(userId, farmId);
+
         public Task AssignCompanyAccessAsync(string employeeId, string farmId, string role)
             => _companyDal.AddMemberAsync(employeeId, farmId, string.IsNullOrWhiteSpace(role) ? "Staff" : role);
 

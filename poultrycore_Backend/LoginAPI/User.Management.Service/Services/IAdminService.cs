@@ -64,6 +64,9 @@ namespace User.Management.Service.Services
 
         /// <summary>Staff who have access to a company via UserFarms (access-based list).</summary>
         Task<List<ApplicationUser>> GetEmployeesWithAccessAsync(string farmId);
+
+        /// <summary>True if the user belongs to (owns/has access to) the given company.</summary>
+        Task<bool> UserHasCompanyAccessAsync(string userId, string farmId);
     }
 }
 

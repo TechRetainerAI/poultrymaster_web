@@ -211,13 +211,34 @@ namespace User.Management.API.Controllers
                     return BadRequest("Request body is required");
                 }
 
-                var farmId = User.FindFirst("FarmId")?.Value;
-                var farmName = User.FindFirst("FarmName")?.Value;
-                
+                var claimFarmId = User.FindFirst("FarmId")?.Value;
+                var claimFarmName = User.FindFirst("FarmName")?.Value;
+                var callerUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+                // Doc 3 §6-7: an admin can create an employee for a SPECIFIC company
+                // chosen in the Business Office (request.FarmId), not just the JWT's
+                // active company — the Business Office is company-neutral, so the
+                // claim may be empty. If a company is supplied and differs from the
+                // claim, verify the caller actually has access to it.
+                var farmId = !string.IsNullOrWhiteSpace(request.FarmId) ? request.FarmId.Trim() : claimFarmId;
+                var farmName = !string.IsNullOrWhiteSpace(request.FarmName) ? request.FarmName : claimFarmName;
+
                 if (string.IsNullOrEmpty(farmId))
                 {
-                    _logger.LogError("CreateEmployee: FarmId not found in user claims");
-                    return BadRequest("FarmId not found in user claims. Please ensure you are logged in as an admin.");
+                    _logger.LogError("CreateEmployee: no company supplied and none in claims");
+                    return BadRequest("Please select a company for this employee.");
+                }
+
+                if (!string.IsNullOrWhiteSpace(request.FarmId)
+                    && !string.Equals(request.FarmId.Trim(), claimFarmId, StringComparison.OrdinalIgnoreCase)
+                    && !string.IsNullOrEmpty(callerUserId))
+                {
+                    var hasAccess = await _adminService.UserHasCompanyAccessAsync(callerUserId, farmId);
+                    if (!hasAccess)
+                    {
+                        _logger.LogWarning("CreateEmployee: caller {UserId} has no access to company {FarmId}", callerUserId, farmId);
+                        return BadRequest("You do not have access to the selected company.");
+                    }
                 }
 
                 _logger.LogInformation("Creating employee for farm: {FarmId}, FarmName: {FarmName}", farmId, farmName);
