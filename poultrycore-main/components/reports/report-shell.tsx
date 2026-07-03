@@ -38,6 +38,9 @@ export interface ReportShellProps {
   busy?: boolean
   error?: string | null
   onClearError?: () => void
+  // Back-link target for the "Reports" button. Defaults to the water reports
+  // index; poultry driver reports pass "/poultry-reports".
+  backHref?: string
   // Date-range filter — usually present, omit when the report is point-in-time.
   fromDate?: string
   toDate?: string
@@ -72,7 +75,7 @@ export interface ReportShellProps {
 }
 
 export function ReportShell({
-  title, description, busy, error, onClearError,
+  title, description, busy, error, onClearError, backHref = "/water-reports",
   fromDate, toDate, onFromDateChange, onToDateChange, onClearFilters,
   filters, summary, children, filterSummary, pdf,
 }: ReportShellProps) {
@@ -200,7 +203,7 @@ export function ReportShell({
         <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 print:p-0 min-w-0">
           <div className="mb-4 flex items-center justify-between gap-2 flex-wrap print:hidden">
             <Button asChild variant="outline" size="sm">
-              <Link href="/water-reports"><ArrowLeft className="h-4 w-4 mr-1" /> Reports</Link>
+              <Link href={backHref}><ArrowLeft className="h-4 w-4 mr-1" /> Reports</Link>
             </Button>
             <div className="flex items-center gap-2">
               {/* Emails a PDF of this report (generated client-side from the same

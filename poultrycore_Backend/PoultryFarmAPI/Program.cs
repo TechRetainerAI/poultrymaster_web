@@ -150,6 +150,9 @@ builder.Services.AddScoped<IPoultryLossRecordService>(sp => new PoultryLossRecor
 builder.Services.AddScoped<IPoultryDailyClosingService>(sp => new PoultryDailyClosingService(connectionString));
 builder.Services.AddScoped<IPoultryReportService>(sp => new PoultryReportService(connectionString));
 builder.Services.AddScoped<IPoultryDeliveryService>(sp => new PoultryDeliveryService(connectionString));
+// Poultry Driver Distribution (Drivers, Vehicles, Routes, Vehicle Loadings, Driver
+// Returns + reconciliation, Shortages, Delivery Expenses, Reports). Migrations 138-140.
+builder.Services.AddScoped<IPoultryDriverDistributionService>(sp => new PoultryDriverDistributionService(connectionString));
 
 // Phase W4: Finance — expense categories + expenses (approval workflow + cash
 // side-effects), multi-account cash accounts + ledger, cash transfers (paired

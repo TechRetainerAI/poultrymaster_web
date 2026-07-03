@@ -670,6 +670,17 @@ export function TopNavigation() {
     ],
   }
 
+  const deliveryGroup: NavGroup = {
+    label: "Delivery",
+    items: [
+      { href: "/poultry-driver-returns", label: "Deliveries", icon: Truck },
+      { href: "/poultry-drivers", label: "Drivers", icon: Users2 },
+      { href: "/poultry-vehicles", label: "Vehicles", icon: Truck },
+      { href: "/poultry-routes", label: "Routes", icon: Truck },
+      { href: "/poultry-driver-report", label: "Driver report", icon: BarChart3 },
+    ],
+  }
+
   const financialGroup: NavGroup = {
     label: "Financial",
     items: [
@@ -717,6 +728,7 @@ export function TopNavigation() {
           <NavDropdown group={farmGroup} />
           <NavDropdown group={productionGroup} />
           <NavDropdown group={inventoryGroup} />
+          <NavDropdown group={deliveryGroup} />
           {financialGroup.items.length > 0 && <NavDropdown group={financialGroup} />}
           {peopleGroup.items.length > 0 && <NavDropdown group={peopleGroup} />}
           <div className="h-5 w-px bg-white/30 mx-1" />

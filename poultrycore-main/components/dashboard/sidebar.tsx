@@ -169,6 +169,16 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/poultry-closing-report", label: "Closing Report", icon: Box },
   ]
 
+  // Full driver / distribution suite for Poultry (ported from Water). Coexists
+  // with the simple /poultry-deliveries quick-delivery page above.
+  const poultryDeliveryItems = [
+    { href: "/poultry-driver-returns", label: "Deliveries",    icon: Truck },
+    { href: "/poultry-drivers",        label: "Drivers",       icon: Users2 },
+    { href: "/poultry-vehicles",       label: "Vehicles",      icon: Truck },
+    { href: "/poultry-routes",         label: "Routes",        icon: RouteIcon },
+    { href: "/poultry-driver-report",  label: "Driver report", icon: BarChart3 },
+  ]
+
   const TEMP_SHOW_PAYMENTS_LINK = true
   const financialItems = [
     { href: "/cash", label: "Cash", icon: Wallet },
@@ -564,6 +574,12 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
             {/* Inventory & Production (water-style suite) */}
             {renderGroup("Inventory & Production", poultryInventoryItems, "poultryInventory")}
+
+            {/* Divider */}
+            <div className="border-t border-slate-800 mx-2" />
+
+            {/* Delivery (driver / vehicle / route suite, ported from Water) */}
+            {renderGroup("Delivery", poultryDeliveryItems, "poultryDelivery")}
 
             {/* Divider */}
             <div className="border-t border-slate-800 mx-2" />
