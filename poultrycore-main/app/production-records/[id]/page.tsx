@@ -525,7 +525,7 @@ export default function EditProductionRecordPage() {
                       <Label className="text-sm font-medium text-slate-700">Specific Feed Used</Label>
                       <Select value={formData.specificFeedUsedId || "none"} onValueChange={(v) => {
                         const iid = v === "none" ? "" : v
-                        const cost = iid ? (latestCost[Number(iid)] ?? Number(formData.feedUnitCost) || 0) : 0
+                        const cost = iid ? (latestCost[Number(iid)] ?? (Number(formData.feedUnitCost) || 0)) : 0
                         setFormData((p) => ({ ...p, specificFeedUsedId: iid, feedUnitCost: iid ? String(cost) : "" }))
                       }}>
                         <SelectTrigger className="h-11"><SelectValue placeholder="Select feed from inventory" /></SelectTrigger>
@@ -554,7 +554,7 @@ export default function EditProductionRecordPage() {
                       <Label className="text-sm font-medium text-slate-700">Specific Medication Used</Label>
                       <Select value={formData.specificMedicationUsedId || "none"} onValueChange={(v) => {
                         const iid = v === "none" ? "" : v
-                        const cost = iid ? (latestCost[Number(iid)] ?? Number(formData.medicationUnitCost) || 0) : 0
+                        const cost = iid ? (latestCost[Number(iid)] ?? (Number(formData.medicationUnitCost) || 0)) : 0
                         setFormData((p) => ({ ...p, specificMedicationUsedId: iid, medicationUnitCost: iid ? String(cost) : "" }))
                       }}>
                         <SelectTrigger className="h-11"><SelectValue placeholder="Select medication from inventory" /></SelectTrigger>
