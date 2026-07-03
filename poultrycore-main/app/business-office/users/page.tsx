@@ -6,18 +6,17 @@
 // across all companies in the organization and lets an admin grant/revoke each
 // employee's access to individual companies (UserFarms).
 import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { BusinessOfficeShell } from "@/components/dashboard/business-office-shell"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2, Search, ShieldCheck, UserPlus, Building2, Check } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import {
-  getOrganizationEmployees, assignCompanyAccess, removeCompanyAccess, createEmployee,
+  getOrganizationEmployees, assignCompanyAccess, removeCompanyAccess,
   type OrgEmployee,
 } from "@/lib/api/admin"
 import { getMyCompanies, type Company } from "@/lib/api/companies"
@@ -34,14 +33,6 @@ export default function BusinessOfficeUsersPage() {
   const [query, setQuery] = useState("")
   const [managed, setManaged] = useState<OrgEmployee | null>(null)
   const [busyFarm, setBusyFarm] = useState<string | null>(null)
-
-  // Doc 3 §6: add an employee at the org level — pick which company they belong
-  // to (the Business Office has no active company, so the old /employees create
-  // flow failed with "Farm information not found").
-  const [addOpen, setAddOpen] = useState(false)
-  const [adding, setAdding] = useState(false)
-  const emptyAdd = { farmId: "", firstName: "", lastName: "", phoneNumber: "", userName: "", email: "", password: "", confirmPassword: "", isAdmin: false }
-  const [addForm, setAddForm] = useState(emptyAdd)
 
   async function load() {
     setLoading(true)
@@ -83,29 +74,6 @@ export default function BusinessOfficeUsersPage() {
     } finally { setBusyFarm(null) }
   }
 
-  async function submitAdd() {
-    const f = addForm
-    if (!f.farmId) return toast({ title: "Pick a company for this employee", variant: "destructive" })
-    if (!f.firstName.trim() || !f.lastName.trim()) return toast({ title: "First and last name are required", variant: "destructive" })
-    if (!f.userName.trim()) return toast({ title: "Username is required", variant: "destructive" })
-    if ((f.password || "").length < 4) return toast({ title: "Password must be at least 4 characters", variant: "destructive" })
-    if (f.password !== f.confirmPassword) return toast({ title: "Passwords do not match", variant: "destructive" })
-    const company = companies.find((c) => c.farmId === f.farmId)
-    setAdding(true)
-    try {
-      const res = await createEmployee({
-        email: f.email, firstName: f.firstName, lastName: f.lastName, phoneNumber: f.phoneNumber,
-        userName: f.userName, password: f.password, farmId: f.farmId, farmName: company?.name || "",
-        isAdmin: f.isAdmin,
-      })
-      if (!res.success) { toast({ title: "Could not create employee", description: res.message, variant: "destructive" }); return }
-      toast({ title: "Employee created", description: `${f.firstName} ${f.lastName} · ${company?.name ?? ""}` })
-      setAddOpen(false); setAddForm(emptyAdd); await load()
-    } catch (e: any) {
-      toast({ title: "Could not create employee", description: e?.message, variant: "destructive" })
-    } finally { setAdding(false) }
-  }
-
   return (
     <BusinessOfficeShell active="users">
       <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
@@ -114,7 +82,7 @@ export default function BusinessOfficeUsersPage() {
             <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2"><ShieldCheck className="h-6 w-6 text-indigo-600" /> Users & Permissions</h1>
             <p className="text-slate-600">Everyone in your organization. Grant each person access to the companies they work in.</p>
           </div>
-          <Button onClick={() => { setAddForm(emptyAdd); setAddOpen(true) }}><UserPlus className="h-4 w-4 mr-2" /> Add employee</Button>
+          <Link href="/employees?bo=1&add=1"><Button><UserPlus className="h-4 w-4 mr-2" /> Add employee</Button></Link>
         </div>
 
         <div className="relative max-w-sm">
@@ -197,48 +165,6 @@ export default function BusinessOfficeUsersPage() {
               })}
           </div>
           <p className="text-xs text-slate-400">Toggling access adds or removes this employee from the company. Changes apply immediately.</p>
-        </DialogContent>
-      </Dialog>
-
-      {/* Doc 3 §6: add an employee under a chosen company */}
-      <Dialog open={addOpen} onOpenChange={(o) => { if (!o) setAddOpen(false) }}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Add employee</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <Label>Company *</Label>
-              <Select value={addForm.farmId || undefined} onValueChange={(v) => setAddForm({ ...addForm, farmId: v })}>
-                <SelectTrigger><SelectValue placeholder="Select a company for this employee" /></SelectTrigger>
-                <SelectContent>
-                  {companies.length === 0
-                    ? <div className="px-2 py-1.5 text-xs text-slate-400">No companies yet. Create one first.</div>
-                    : companies.map((c) => <SelectItem key={c.farmId} value={c.farmId}>{c.name} · {c.type}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-slate-400">The employee is created under this company. Grant access to more companies afterwards from the list.</p>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1"><Label>First name *</Label><Input value={addForm.firstName} onChange={(e) => setAddForm({ ...addForm, firstName: e.target.value })} /></div>
-              <div className="space-y-1"><Label>Last name *</Label><Input value={addForm.lastName} onChange={(e) => setAddForm({ ...addForm, lastName: e.target.value })} /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1"><Label>Username *</Label><Input value={addForm.userName} onChange={(e) => setAddForm({ ...addForm, userName: e.target.value })} placeholder="letters, digits, underscores" /></div>
-              <div className="space-y-1"><Label>Phone</Label><Input value={addForm.phoneNumber} onChange={(e) => setAddForm({ ...addForm, phoneNumber: e.target.value })} /></div>
-            </div>
-            <div className="space-y-1"><Label>Email</Label><Input type="email" value={addForm.email} onChange={(e) => setAddForm({ ...addForm, email: e.target.value })} /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1"><Label>Password *</Label><Input type="password" value={addForm.password} onChange={(e) => setAddForm({ ...addForm, password: e.target.value })} placeholder="Min 4 characters" /></div>
-              <div className="space-y-1"><Label>Confirm password *</Label><Input type="password" value={addForm.confirmPassword} onChange={(e) => setAddForm({ ...addForm, confirmPassword: e.target.value })} /></div>
-            </div>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input type="checkbox" checked={addForm.isAdmin} onChange={(e) => setAddForm({ ...addForm, isAdmin: e.target.checked })} />
-              Create as administrator (grants admin permissions)
-            </label>
-            <div className="flex justify-end gap-2 pt-1">
-              <Button variant="ghost" onClick={() => setAddOpen(false)}>Cancel</Button>
-              <Button onClick={submitAdd} disabled={adding}>{adding ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Creating…</> : "Create employee"}</Button>
-            </div>
-          </div>
         </DialogContent>
       </Dialog>
     </BusinessOfficeShell>

@@ -27,6 +27,8 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { getMyCompanies, type Company } from "@/lib/api/companies"
 import { useMemo } from "react"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -208,6 +210,18 @@ export default function EmployeesPage() {
   const [createLoading, setCreateLoading] = useState(false)
   const [createError, setCreateError] = useState("")
   const [showStaffPermissions, setShowStaffPermissions] = useState(false)
+
+  // Business Office mode (?bo=1): no active company, so the rich Add-Employee
+  // form shows a Company dropdown to choose which company the employee joins.
+  // Read from window.location (not useSearchParams) to match the rest of the app
+  // and avoid a Next.js prerender/Suspense build error.
+  const [boMode, setBoMode] = useState(false)
+  const [boCompanies, setBoCompanies] = useState<Company[]>([])
+  const [boFarmId, setBoFarmId] = useState("")
+  useEffect(() => {
+    if (!boMode) return
+    getMyCompanies().then(setBoCompanies).catch(() => {})
+  }, [boMode])
   const [createForm, setCreateForm] = useState({
     userName: "", email: "", password: "", confirmPassword: "", firstName: "", lastName: "", phoneNumber: "",
     isAdmin: false, adminTitle: "", adminPermissions: { ...DEFAULT_ADMIN_PERMISSIONS },
@@ -266,16 +280,40 @@ export default function EmployeesPage() {
     })
     setCreateError("")
     setShowStaffPermissions(false)
+    setBoFarmId("")
     setIsCreateDialogOpen(true)
   }
+
+  // Deep-link: /employees?bo=1&add=1 sets office mode and opens the Add Employee
+  // form straight away (used by the Business Office "Add employee" button).
+  useEffect(() => {
+    try {
+      const p = new URLSearchParams(window.location.search)
+      if (p.get("bo") === "1") setBoMode(true)
+      if (p.get("add") === "1") openCreateDialog()
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setCreateLoading(true)
     setCreateError("")
-    const { farmId } = getUserContext()
-    const farmName = localStorage.getItem("farmName") || "My Farm"
-    if (!farmId) { setCreateError("Farm information not found."); setCreateLoading(false); return }
+    // In Business Office mode the company is chosen in the dialog (no active
+    // company); otherwise use the active company's context.
+    let farmId: string
+    let farmName: string
+    if (boMode) {
+      if (!boFarmId) { setCreateError("Please select a company for this employee."); setCreateLoading(false); return }
+      const c = boCompanies.find((x) => x.farmId === boFarmId)
+      farmId = boFarmId
+      farmName = c?.name || ""
+    } else {
+      const ctx = getUserContext()
+      farmId = ctx.farmId
+      farmName = localStorage.getItem("farmName") || "My Farm"
+      if (!farmId) { setCreateError("Farm information not found."); setCreateLoading(false); return }
+    }
     if (!createForm.firstName.trim() || !createForm.lastName.trim() || !createForm.phoneNumber.trim() || !createForm.email.trim()) {
       const msg = "First name, last name, phone number, and email are required."
       setCreateError(msg)
@@ -752,6 +790,23 @@ export default function EmployeesPage() {
           </DialogHeader>
           {createError && <Alert variant="destructive"><AlertDescription>{createError}</AlertDescription></Alert>}
           <form onSubmit={handleCreateSubmit} className="space-y-4">
+            {boMode && (
+              <div className="rounded-xl border border-orange-200 overflow-hidden">
+                <div className="bg-orange-500 px-4 py-2 text-sm font-semibold text-white">Company</div>
+                <div className="p-4 bg-white space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">Assign to company *</Label>
+                  <Select value={boFarmId || undefined} onValueChange={setBoFarmId} disabled={createLoading}>
+                    <SelectTrigger><SelectValue placeholder="Select a company for this employee" /></SelectTrigger>
+                    <SelectContent>
+                      {boCompanies.length === 0
+                        ? <div className="px-2 py-1.5 text-xs text-slate-400">No companies yet. Create one first.</div>
+                        : boCompanies.map((c) => <SelectItem key={c.farmId} value={c.farmId}>{c.name} · {c.type}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-slate-400">The employee is created under this company. Grant access to more companies afterwards from Users &amp; Permissions.</p>
+                </div>
+              </div>
+            )}
             <div className="rounded-xl border border-slate-200 overflow-hidden">
               <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Personal Information</div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white">
