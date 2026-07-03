@@ -673,7 +673,7 @@ export function TopNavigation() {
   const deliveryGroup: NavGroup = {
     label: "Delivery",
     items: [
-      { href: "/poultry-driver-returns", label: "Deliveries", icon: Truck },
+      { href: "/poultry-deliveries", label: "Egg Deliveries", icon: Truck },
       { href: "/poultry-drivers", label: "Drivers", icon: Users2 },
       { href: "/poultry-vehicles", label: "Vehicles", icon: Truck },
       { href: "/poultry-routes", label: "Routes", icon: Truck },
