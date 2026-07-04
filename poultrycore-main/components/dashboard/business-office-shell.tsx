@@ -23,8 +23,16 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
   const permissions = usePermissions()
   const isAdmin = permissions.isAdmin
   const user = useAuthStore((s) => s.user)
+  const clearActiveCompany = useAuthStore((s) => s.clearActiveCompany)
   const [drawer, setDrawer] = useState(false)
   const [search, setSearch] = useState("")
+
+  // Doc 3 §9: being inside the Business Office IS the company-neutral state, so
+  // no company should read as "active/current" here (a stale activeFarmId from a
+  // previous session would otherwise mark a card "· current"). Clear it whenever
+  // any BO page mounts. Opening a company navigates away (unmounts this shell),
+  // so this never fights the selector's setActiveCompany.
+  useEffect(() => { try { clearActiveCompany() } catch {} }, [clearActiveCompany])
 
   const [officeName, setOfficeName] = useState("Business Office")
   const [orgCode, setOrgCode] = useState("")
@@ -110,7 +118,7 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
         </div>
       )}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="h-16 bg-white/90 backdrop-blur border-b border-slate-200 flex items-center gap-3 px-4 sm:px-6 shrink-0 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+        <header className="relative z-30 h-16 bg-white/90 backdrop-blur border-b border-slate-200 flex items-center gap-3 px-4 sm:px-6 shrink-0 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
           <button className="lg:hidden h-9 w-9 grid place-items-center rounded-lg border border-slate-200" onClick={() => setDrawer(true)} aria-label="Menu"><Menu className="h-5 w-5" /></button>
           <div className="min-w-0">
             <div className="text-[11px] uppercase tracking-wide text-slate-400 leading-tight">Business Office</div>
@@ -128,6 +136,13 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
             </div>
           </div>
         </header>
+
+        {/* Mobile: the company selector doesn't fit in the top bar, so show it as
+            a full-width row underneath (desktop keeps it inline in the header). */}
+        <div className="md:hidden relative z-20 bg-white border-b border-slate-200 px-4 py-2">
+          <BoCompanySelector className="relative w-full" />
+        </div>
+
         {children}
       </div>
     </div>

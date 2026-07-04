@@ -64,6 +64,16 @@ namespace User.Management.Service.Services
 
         /// <summary>Staff who have access to a company via UserFarms (access-based list).</summary>
         Task<List<ApplicationUser>> GetEmployeesWithAccessAsync(string farmId);
+
+        /// <summary>True if the user belongs to (owns/has access to) the given company.</summary>
+        Task<bool> UserHasCompanyAccessAsync(string userId, string farmId);
+
+        /// <summary>
+        /// Set the organization code for a user (normalized, uniqueness-checked).
+        /// Lets an owner whose code is missing create one so staff can join.
+        /// Returns the saved (normalized) code. Throws if the code is taken.
+        /// </summary>
+        Task<string> SetOrganizationCodeAsync(string userId, string code);
     }
 }
 

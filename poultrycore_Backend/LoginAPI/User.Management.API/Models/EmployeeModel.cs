@@ -90,6 +90,13 @@ namespace User.Management.API.Models
         public string? Role { get; set; }
     }
 
+    // Request body for setting the owner's organization code.
+    public class SetOrgCodeRequest
+    {
+        [Required]
+        public string Code { get; set; } = string.Empty;
+    }
+
     public class UpdateEmployeeRequest
     {
         [Required]
