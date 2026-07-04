@@ -152,20 +152,16 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/weekly-report", label: "Analytical Report", icon: FileText },
   ]
 
-  const inventoryItems = [
-    { href: "/health", label: "Health Records", icon: AlertTriangle },
-    { href: "/inventory", label: "Other Inventory", icon: Package },
-    { href: "/supplies", label: "Supplies", icon: ShoppingCart },
-  ]
-
-  // Additive water-style inventory + production suite for Poultry companies.
+  // Combined Inventory & Health — merges the former "Inventory & Health" and
+  // "Inventory & Production" groups into one, in the order below.
   const poultryInventoryItems = [
     { href: "/poultry-inventory", label: "Inventory", icon: Boxes },
     { href: "/poultry-stock", label: "Stock movements", icon: Boxes },
     { href: "/poultry-raw-materials", label: "Raw Materials & Supplies", icon: Box },
+    { href: "/supplies", label: "Supplies", icon: ShoppingCart },
+    { href: "/health", label: "Health Records", icon: AlertTriangle },
     { href: "/poultry-loss-records", label: "Loss & Damage", icon: AlertTriangle },
-    { href: "/poultry-daily-closing", label: "Daily Closing", icon: Box },
-    { href: "/poultry-closing-report", label: "Closing Report", icon: Box },
+    { href: "/inventory", label: "Other Inventory", icon: Package },
   ]
 
   // Full driver / distribution suite for Poultry (ported from Water). Coexists
@@ -176,6 +172,15 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/poultry-vehicles",       label: "Vehicles",      icon: Truck },
     { href: "/poultry-routes",         label: "Routes",        icon: RouteIcon },
     { href: "/poultry-driver-report",  label: "Driver report", icon: BarChart3 },
+  ]
+
+  // Quick Links — fast-access shortcuts (mirrors the Water side, minus
+  // Deliveries). Targets also live in their canonical groups below so
+  // navigation stays consistent.
+  const poultryQuickLinkItems = [
+    { href: "/poultry-daily-closing", label: "Daily Closing",     icon: FileText },
+    { href: "/production-records",    label: "Production Records", icon: Factory },
+    { href: "/sales",                 label: "Sales",             icon: ShoppingCart },
   ]
 
   const TEMP_SHOW_PAYMENTS_LINK = true
@@ -547,6 +552,12 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
           </>
         ) : (
           <>
+            {/* Quick Links (fast-access shortcuts) */}
+            {renderGroup("Quick Links", poultryQuickLinkItems, "poultryQuickLinks")}
+
+            {/* Divider */}
+            <div className="border-t border-slate-800 mx-2" />
+
             {/* Farm Management */}
             {renderGroup("Farm", farmItems, "farm")}
 
@@ -565,14 +576,8 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
             {/* Divider */}
             <div className="border-t border-slate-800 mx-2" />
 
-            {/* Inventory & Health */}
-            {renderGroup("Inventory & Health", inventoryItems, "inventory")}
-
-            {/* Divider */}
-            <div className="border-t border-slate-800 mx-2" />
-
-            {/* Inventory & Production (water-style suite) */}
-            {renderGroup("Inventory & Production", poultryInventoryItems, "poultryInventory")}
+            {/* Inventory & Health (merged inventory + health) */}
+            {renderGroup("Inventory & Health", poultryInventoryItems, "poultryInventory")}
 
             {/* Divider */}
             <div className="border-t border-slate-800 mx-2" />

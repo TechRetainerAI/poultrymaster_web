@@ -160,6 +160,17 @@ export const POULTRY_DASHBOARD_GROUP: PoultryReportMenuGroup = {
   ],
 }
 
+// Closing Report is a standalone page (not a /poultry/reports/<slug> advanced
+// report), so it's added here with its own href.
+export const POULTRY_CLOSING_GROUP: PoultryReportMenuGroup = {
+  key: "closing",
+  label: "Closing",
+  color: "bg-slate-600",
+  items: [
+    { id: "closing-report", title: "Closing Report", description: "Daily closing summary and reconciliation.", icon: ClipboardCheck, href: "/poultry-closing-report" },
+  ],
+}
+
 export const POULTRY_REPORT_MENU_GROUPS: PoultryReportMenuGroup[] = [
   POULTRY_DASHBOARD_GROUP,
   ...POULTRY_REPORT_GROUPS.map((g) => ({
@@ -174,4 +185,5 @@ export const POULTRY_REPORT_MENU_GROUPS: PoultryReportMenuGroup[] = [
       href: poultryReportHref(r.slug),
     })),
   })),
+  POULTRY_CLOSING_GROUP,
 ]
