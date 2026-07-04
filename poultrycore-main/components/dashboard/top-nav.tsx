@@ -30,6 +30,7 @@ import {
   ChevronDown,
   Wallet,
   Boxes,
+  Box,
   CreditCard,
   Wheat,
   Pill,
@@ -632,6 +633,17 @@ export function TopNavigation() {
     return <GenericTopNav permissions={permissions} />
   }
 
+  // Quick Links — fast-access shortcuts (mirrors the Water side, minus
+  // Deliveries). Targets also live in their canonical groups below.
+  const quickLinksGroup: NavGroup = {
+    label: "Quick Links",
+    items: [
+      { href: "/poultry-daily-closing", label: "Daily Closing",     icon: FileText },
+      { href: "/production-records",    label: "Production Records", icon: Factory },
+      { href: "/sales",                 label: "Sales",             icon: ShoppingCart },
+    ],
+  }
+
   const farmGroup: NavGroup = {
     label: "Farm",
     items: [
@@ -664,16 +676,20 @@ export function TopNavigation() {
   const inventoryGroup: NavGroup = {
     label: "Inventory & Health",
     items: [
-      { href: "/health", label: "Health Records", icon: AlertTriangle },
-      { href: "/inventory", label: "Inventory", icon: Package },
+      { href: "/poultry-inventory", label: "Inventory", icon: Boxes },
+      { href: "/poultry-stock", label: "Stock movements", icon: Boxes },
+      { href: "/poultry-raw-materials", label: "Raw Materials & Supplies", icon: Box },
       { href: "/supplies", label: "Supplies", icon: ShoppingCart },
+      { href: "/health", label: "Health Records", icon: AlertTriangle },
+      { href: "/poultry-loss-records", label: "Loss & Damage", icon: AlertTriangle },
+      { href: "/inventory", label: "Other Inventory", icon: Package },
     ],
   }
 
   const deliveryGroup: NavGroup = {
     label: "Delivery",
     items: [
-      { href: "/poultry-deliveries", label: "Egg Deliveries", icon: Truck },
+      { href: "/poultry-driver-returns", label: "Deliveries", icon: Truck },
       { href: "/poultry-drivers", label: "Drivers", icon: Users2 },
       { href: "/poultry-vehicles", label: "Vehicles", icon: Truck },
       { href: "/poultry-routes", label: "Routes", icon: Truck },
@@ -725,6 +741,7 @@ export function TopNavigation() {
         <div className="flex items-center gap-1 px-4 pt-1.5 pb-2.5 nav-rail-scroll">
           <NavLink item={{ href: "/dashboard", label: "Dashboard", icon: Home }} />
           <div className="h-5 w-px bg-white/30 mx-1" />
+          <NavDropdown group={quickLinksGroup} />
           <NavDropdown group={farmGroup} />
           <NavDropdown group={productionGroup} />
           <NavDropdown group={inventoryGroup} />

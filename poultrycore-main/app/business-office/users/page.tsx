@@ -6,8 +6,8 @@
 // across all companies in the organization and lets an admin grant/revoke each
 // employee's access to individual companies (UserFarms).
 import { useEffect, useMemo, useState } from "react"
-import Link from "next/link"
 import { BusinessOfficeShell } from "@/components/dashboard/business-office-shell"
+import { AddEmployeeDialog } from "@/components/employees/add-employee-dialog"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -33,6 +33,7 @@ export default function BusinessOfficeUsersPage() {
   const [query, setQuery] = useState("")
   const [managed, setManaged] = useState<OrgEmployee | null>(null)
   const [busyFarm, setBusyFarm] = useState<string | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -82,7 +83,7 @@ export default function BusinessOfficeUsersPage() {
             <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2"><ShieldCheck className="h-6 w-6 text-indigo-600" /> Users & Permissions</h1>
             <p className="text-slate-600">Everyone in your organization. Grant each person access to the companies they work in.</p>
           </div>
-          <Link href="/employees?bo=1&add=1"><Button><UserPlus className="h-4 w-4 mr-2" /> Add employee</Button></Link>
+          <Button onClick={() => setAddOpen(true)}><UserPlus className="h-4 w-4 mr-2" /> Add employee</Button>
         </div>
 
         <div className="relative max-w-sm">
@@ -167,6 +168,8 @@ export default function BusinessOfficeUsersPage() {
           <p className="text-xs text-slate-400">Toggling access adds or removes this employee from the company. Changes apply immediately.</p>
         </DialogContent>
       </Dialog>
+
+      <AddEmployeeDialog open={addOpen} onOpenChange={setAddOpen} boMode onCreated={load} />
     </BusinessOfficeShell>
   )
 }
