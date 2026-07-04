@@ -681,6 +681,25 @@ export async function removeCompanyAccess(employeeId: string, farmId: string): P
   }
 }
 
+// Set (or create) the owner's organization code. POST /api/Admin/organization/code
+export async function setOrganizationCode(code: string): Promise<ApiResponse<{ organizationCode: string }>> {
+  try {
+    const url = buildAdminApiUrl('/Admin/organization/code')
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { ...getAuthHeaders(), Accept: "application/json" },
+      body: JSON.stringify({ Code: code }),
+    })
+    const text = await response.text()
+    let data: any = {}
+    try { data = text ? JSON.parse(text) : {} } catch { /* non-JSON */ }
+    if (!response.ok) return { success: false, message: data.message || `Failed to save code (${response.status})` }
+    return { success: true, data, message: "Saved" }
+  } catch (error) {
+    return { success: false, message: `Network error: ${error instanceof Error ? error.message : 'Unknown error'}` }
+  }
+}
+
 // Employees who have access to a specific company (access-based list).
 // GET /api/Admin/company-employees?farmId=
 export async function getCompanyEmployees(farmId?: string): Promise<ApiResponse<Employee[]>> {

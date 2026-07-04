@@ -15,7 +15,7 @@ const TYPE_BADGE: Record<string, string> = {
   Poultry: "bg-amber-100 text-amber-700", Water: "bg-blue-100 text-blue-700", Generic: "bg-slate-100 text-slate-700",
 }
 
-export function BoCompanySelector() {
+export function BoCompanySelector({ className }: { className?: string }) {
   const router = useRouter()
   const { toast } = useToast()
   const setActiveCompany = useAuthStore((s) => s.setActiveCompany)
@@ -40,7 +40,7 @@ export function BoCompanySelector() {
   }
 
   return (
-    <div className="hidden md:block relative ml-4 flex-1 max-w-sm">
+    <div className={className ?? "hidden md:block relative ml-4 flex-1 max-w-sm"}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

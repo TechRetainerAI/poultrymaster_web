@@ -649,6 +649,29 @@ namespace User.Management.API.Controllers
         }
 
         /// <summary>
+        /// Set (or create) the current owner's organization code. Lets an owner
+        /// whose code is missing enter one so staff can join with it.
+        /// </summary>
+        [HttpPost("organization/code")]
+        public async Task<ActionResult> SetOrganizationCode([FromBody] SetOrgCodeRequest request)
+        {
+            try
+            {
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrEmpty(userId)) return BadRequest("User id not found in claims");
+                if (request == null || string.IsNullOrWhiteSpace(request.Code)) return BadRequest("Organization code is required.");
+
+                var saved = await _adminService.SetOrganizationCodeAsync(userId, request.Code);
+                return Ok(new { organizationCode = saved });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error setting organization code");
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        /// <summary>
         /// Get employees who logged in today
         /// </summary>
         [HttpGet("employees/today-logins")]

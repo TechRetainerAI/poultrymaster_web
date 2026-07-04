@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Loader2, Copy, Check } from "lucide-react"
 import { getUserProfile, updateUserProfile } from "@/lib/api/user-profile"
+import { setOrganizationCode as apiSetOrgCode } from "@/lib/api/admin"
 import { useToast } from "@/hooks/use-toast"
 import { useAuthStore } from "@/lib/store/auth-store"
 
@@ -20,6 +21,9 @@ export default function OrganizationProfilePage() {
   const [saving, setSaving] = useState(false)
   const [orgCode, setOrgCode] = useState("")
   const [copied, setCopied] = useState(false)
+  // When no org code exists, the owner can enter one (validated + unique).
+  const [codeInput, setCodeInput] = useState("")
+  const [savingCode, setSavingCode] = useState(false)
   const [form, setForm] = useState({ businessOfficeName: "", firstName: "", lastName: "", email: "", phoneNumber: "", businessOfficeCurrency: "", businessOfficeCountry: "" })
 
   useEffect(() => {
@@ -68,6 +72,22 @@ export default function OrganizationProfilePage() {
     try { await navigator.clipboard.writeText(orgCode); setCopied(true); setTimeout(() => setCopied(false), 1500) } catch {}
   }
 
+  async function saveCode() {
+    const code = codeInput.trim().toUpperCase()
+    if (code.length < 4) return toast({ title: "Code must be at least 4 characters", variant: "destructive" })
+    setSavingCode(true)
+    try {
+      const res = await apiSetOrgCode(code)
+      if (!res.success) { toast({ title: "Couldn't save code", description: res.message, variant: "destructive" }); return }
+      const saved = (res.data?.organizationCode || code).toUpperCase()
+      setOrgCode(saved); setCodeInput("")
+      try { localStorage.setItem("myOrgCode", saved) } catch {}
+      toast({ title: "Organization code saved", description: saved })
+    } catch (e: any) {
+      toast({ title: "Couldn't save code", description: e?.message, variant: "destructive" })
+    } finally { setSavingCode(false) }
+  }
+
   return (
     <BusinessOfficeShell active="org">
       <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
@@ -84,8 +104,13 @@ export default function OrganizationProfilePage() {
                 <div className="text-xs font-semibold uppercase tracking-wide text-orange-700">Organization code</div>
                 {orgCode
                   ? <div className="mt-1 font-mono text-xl font-bold tracking-[0.2em] text-slate-900">{orgCode}</div>
-                  : <div className="mt-1 text-sm text-slate-500">Not available — sign out and back in to refresh it.</div>}
-                <div className="text-xs text-slate-500 mt-1">Share this with staff — they enter it at login to join your organization.</div>
+                  : (
+                    <div className="mt-2 flex flex-col sm:flex-row gap-2 sm:items-center">
+                      <Input value={codeInput} onChange={(e) => setCodeInput(e.target.value.toUpperCase())} placeholder="e.g. GREATFARM01" className="font-mono uppercase w-full sm:w-56" maxLength={30} />
+                      <Button type="button" size="sm" onClick={saveCode} disabled={savingCode} className="shrink-0">{savingCode ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save code"}</Button>
+                    </div>
+                  )}
+                <div className="text-xs text-slate-500 mt-1">Share this with staff — they enter it at login to join your organization.{!orgCode && " No code yet — enter one above (4–30 letters/numbers)."}</div>
               </div>
               {orgCode && (
                 <Button type="button" variant="outline" size="sm" onClick={copyCode} className="shrink-0">

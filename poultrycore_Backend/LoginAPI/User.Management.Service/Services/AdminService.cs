@@ -458,6 +458,28 @@ namespace User.Management.Service.Services
         public Task<bool> UserHasCompanyAccessAsync(string userId, string farmId)
             => _companyDal.IsMemberAsync(userId, farmId);
 
+        public async Task<string> SetOrganizationCodeAsync(string userId, string code)
+        {
+            var normalized = User.Management.Service.Helpers.OrgCode.Normalize(code);
+            var formatError = User.Management.Service.Helpers.OrgCode.Validate(normalized);
+            if (formatError != null) throw new Exception(formatError);
+
+            // Uniqueness — no other user may hold this code.
+            var taken = _userManager.Users.Any(u => u.OrganizationCode == normalized && u.Id != userId);
+            if (taken)
+                throw new Exception("That organization code is already taken. Try another.");
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null) throw new Exception("User not found.");
+
+            user.OrganizationCode = normalized;
+            var res = await _userManager.UpdateAsync(user);
+            if (!res.Succeeded)
+                throw new Exception("Failed to save organization code: " + string.Join(", ", res.Errors.Select(e => e.Description)));
+
+            return normalized;
+        }
+
         public Task AssignCompanyAccessAsync(string employeeId, string farmId, string role)
             => _companyDal.AddMemberAsync(employeeId, farmId, string.IsNullOrWhiteSpace(role) ? "Staff" : role);
 

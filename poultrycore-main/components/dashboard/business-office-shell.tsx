@@ -136,6 +136,13 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
             </div>
           </div>
         </header>
+
+        {/* Mobile: the company selector doesn't fit in the top bar, so show it as
+            a full-width row underneath (desktop keeps it inline in the header). */}
+        <div className="md:hidden relative z-20 bg-white border-b border-slate-200 px-4 py-2">
+          <BoCompanySelector className="relative w-full" />
+        </div>
+
         {children}
       </div>
     </div>
