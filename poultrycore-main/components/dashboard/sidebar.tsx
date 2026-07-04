@@ -89,13 +89,15 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, isMobile])
 
-  // Keep default desktop sidebar in icon mode on initial load.
+  // Desktop initial load: Poultry opens expanded by default (users can still
+  // collapse it); Water/Generic keep the compact icon mode.
   useEffect(() => {
     if (!isMobile) {
-      setCollapsed(true)
+      const isPoultry = !isWater && !isGeneric
+      setCollapsed(!isPoultry)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMobile])
+  }, [isMobile, isWater, isGeneric])
 
   // Close mobile sidebar on escape key and prevent body scroll when open
   useEffect(() => {
@@ -139,6 +141,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/production-records", label: "Production Records", icon: FileText },
     { href: "/egg-production", label: "Egg sorting", icon: Egg },
     { href: "/feed-usage", label: "Feed Usage", icon: Package },
+    { href: "/poultry-products", label: "Products", icon: Package },
   ]
 
   const analyticsItems = [
@@ -151,18 +154,16 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
   const inventoryItems = [
     { href: "/health", label: "Health Records", icon: AlertTriangle },
-    { href: "/inventory", label: "Inventory", icon: Package },
+    { href: "/inventory", label: "Other Inventory", icon: Package },
     { href: "/supplies", label: "Supplies", icon: ShoppingCart },
   ]
 
   // Additive water-style inventory + production suite for Poultry companies.
   const poultryInventoryItems = [
     { href: "/poultry-inventory", label: "Inventory", icon: Boxes },
-    { href: "/poultry-products", label: "Products", icon: Package },
     { href: "/poultry-stock", label: "Stock movements", icon: Boxes },
     { href: "/poultry-raw-materials", label: "Raw Materials & Supplies", icon: Box },
     { href: "/poultry-loss-records", label: "Loss & Damage", icon: AlertTriangle },
-    { href: "/poultry-driver-returns", label: "Deliveries", icon: Truck },
     { href: "/poultry-daily-closing", label: "Daily Closing", icon: Box },
     { href: "/poultry-closing-report", label: "Closing Report", icon: Box },
   ]
@@ -695,9 +696,20 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         </div>
       </div>
 
-      {/* Desktop sidebar — pin to viewport so it stays fixed while the main column scrolls. */}
+      {/* Desktop sidebar — fixed to the viewport so it stays put while the main
+          column scrolls. `sticky` breaks here because globals.css sets overflow
+          on <body>, making it a scroll container that never actually scrolls.
+          The in-flow spacer below reserves the same-width column so the main
+          content sits beside the fixed rail instead of under it. */}
+      <div
+        aria-hidden="true"
+        className={cn(
+          "hidden lg:block lg:shrink-0 transition-all duration-300",
+          isCollapsed ? "w-16" : "w-60"
+        )}
+      />
       <div className={cn(
-        "hidden min-h-0 overflow-hidden lg:sticky lg:top-0 lg:h-screen lg:self-start lg:shrink-0 lg:flex lg:flex-col bg-slate-900 transition-all duration-300",
+        "hidden min-h-0 overflow-hidden lg:fixed lg:top-0 lg:left-0 lg:z-40 lg:h-screen lg:flex lg:flex-col bg-slate-900 transition-all duration-300",
         isCollapsed ? "w-16" : "w-60"
       )}>
         {sidebarContent}

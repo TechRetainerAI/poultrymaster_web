@@ -12,10 +12,10 @@ import { Input } from "@/components/ui/input"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { usePermissions } from "@/hooks/use-permissions"
-import { Briefcase, Building2, Bell, ListTodo, HelpCircle, LogOut, Menu, ShieldCheck, Settings, UserCog } from "lucide-react"
+import { Briefcase, Building2, Bell, ListTodo, HelpCircle, LogOut, Menu, ShieldCheck, Settings, UserCog, Users } from "lucide-react"
 import { BoCompanySelector } from "@/components/dashboard/bo-company-selector"
 
-type ActiveKey = "home" | "companies" | "users" | "settings" | "org" | "help"
+type ActiveKey = "home" | "companies" | "employees" | "users" | "settings" | "org" | "help"
 
 export function BusinessOfficeShell({ active, children }: { active: ActiveKey; children: ReactNode }) {
   const logout = useLogout()
@@ -58,7 +58,10 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
   // Users & Permissions and Business Setup open the SAME pages used inside a
   // company (/employees, /settings) with ?bo=1 so they render in this shell —
   // same data, same features, just kept in the Business Office.
-  const admin = isAdmin ? [{ key: "users", href: "/business-office/users", label: "Users & Permissions", icon: ShieldCheck }] : []
+  const admin = isAdmin ? [
+    { key: "employees", href: "/business-office/employees", label: "Employees", icon: Users },
+    { key: "users", href: "/business-office/users", label: "Users & Permissions", icon: ShieldCheck },
+  ] : []
   const settings = isAdmin ? [
     { key: "settings", href: "/business-office/setup", label: "Business Setup", icon: Settings },
     { key: "org", href: "/business-office/organization-profile", label: "Organization Profile", icon: UserCog },
