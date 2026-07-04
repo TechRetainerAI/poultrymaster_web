@@ -82,7 +82,7 @@ export default function BusinessOfficeUsersPage() {
             <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2"><ShieldCheck className="h-6 w-6 text-indigo-600" /> Users & Permissions</h1>
             <p className="text-slate-600">Everyone in your organization. Grant each person access to the companies they work in.</p>
           </div>
-          <Link href="/employees?bo=1"><Button><UserPlus className="h-4 w-4 mr-2" /> Add employee</Button></Link>
+          <Link href="/employees?bo=1&add=1"><Button><UserPlus className="h-4 w-4 mr-2" /> Add employee</Button></Link>
         </div>
 
         <div className="relative max-w-sm">

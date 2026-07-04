@@ -276,7 +276,7 @@ export default function BusinessOfficePage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {visible.map((c) => {
-                const Icon = typeIcon(c.type); const isActive = c.farmId === activeFarmId; const opening = openingId === c.farmId
+                const Icon = typeIcon(c.type); const opening = openingId === c.farmId
                 return (
                   <Card key={c.farmId} className="overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all">
                     <div className={`h-1 ${typeStrip(c.type)}`} />
@@ -284,7 +284,7 @@ export default function BusinessOfficePage() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <div className={`rounded-lg p-2 ${typeTone(c.type)}`}><Icon className="h-5 w-5" /></div>
-                          <div className="min-w-0"><div className="font-semibold text-slate-900 truncate">{c.name}</div><div className="text-xs text-slate-500">Role: {c.role}{isActive ? " · current" : ""}</div></div>
+                          <div className="min-w-0"><div className="font-semibold text-slate-900 truncate">{c.name}</div><div className="text-xs text-slate-500">Role: {c.role}</div></div>
                         </div>
                         <Badge className={typeTone(c.type)}>{c.type}</Badge>
                       </div>
@@ -295,7 +295,7 @@ export default function BusinessOfficePage() {
                       </div>
                       <div className="flex items-center gap-2 pt-1">
                         <Button size="sm" className="flex-1" onClick={() => openCompany(c)} disabled={opening}>
-                          {opening ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Opening…</> : isActive ? <><Check className="h-4 w-4 mr-1" /> Open</> : <>Open <ArrowRight className="h-4 w-4 ml-1" /></>}
+                          {opening ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Opening…</> : <>Open <ArrowRight className="h-4 w-4 ml-1" /></>}
                         </Button>
                         {isAdmin && <Button size="sm" variant="outline" onClick={() => router.push("/business-office/users")}>Access</Button>}
                       </div>

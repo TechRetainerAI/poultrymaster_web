@@ -13,7 +13,8 @@ interface SidebarState {
 export const useSidebarStore = create<SidebarState>()(
   persist(
     (set) => ({
-      isCollapsed: true,
+      // Default OPEN on laptop (users can still collapse it; the choice persists).
+      isCollapsed: false,
       isMobileOpen: false,
       toggle: () => set((state) => ({ isCollapsed: !state.isCollapsed })),
       toggleMobile: () => set((state) => ({ isMobileOpen: !state.isMobileOpen })),

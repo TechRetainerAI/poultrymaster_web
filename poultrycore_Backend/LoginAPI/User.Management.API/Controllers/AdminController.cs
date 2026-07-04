@@ -211,13 +211,34 @@ namespace User.Management.API.Controllers
                     return BadRequest("Request body is required");
                 }
 
-                var farmId = User.FindFirst("FarmId")?.Value;
-                var farmName = User.FindFirst("FarmName")?.Value;
-                
+                var claimFarmId = User.FindFirst("FarmId")?.Value;
+                var claimFarmName = User.FindFirst("FarmName")?.Value;
+                var callerUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+                // Doc 3 §6-7: an admin can create an employee for a SPECIFIC company
+                // chosen in the Business Office (request.FarmId), not just the JWT's
+                // active company — the Business Office is company-neutral, so the
+                // claim may be empty. If a company is supplied and differs from the
+                // claim, verify the caller actually has access to it.
+                var farmId = !string.IsNullOrWhiteSpace(request.FarmId) ? request.FarmId.Trim() : claimFarmId;
+                var farmName = !string.IsNullOrWhiteSpace(request.FarmName) ? request.FarmName : claimFarmName;
+
                 if (string.IsNullOrEmpty(farmId))
                 {
-                    _logger.LogError("CreateEmployee: FarmId not found in user claims");
-                    return BadRequest("FarmId not found in user claims. Please ensure you are logged in as an admin.");
+                    _logger.LogError("CreateEmployee: no company supplied and none in claims");
+                    return BadRequest("Please select a company for this employee.");
+                }
+
+                if (!string.IsNullOrWhiteSpace(request.FarmId)
+                    && !string.Equals(request.FarmId.Trim(), claimFarmId, StringComparison.OrdinalIgnoreCase)
+                    && !string.IsNullOrEmpty(callerUserId))
+                {
+                    var hasAccess = await _adminService.UserHasCompanyAccessAsync(callerUserId, farmId);
+                    if (!hasAccess)
+                    {
+                        _logger.LogWarning("CreateEmployee: caller {UserId} has no access to company {FarmId}", callerUserId, farmId);
+                        return BadRequest("You do not have access to the selected company.");
+                    }
                 }
 
                 _logger.LogInformation("Creating employee for farm: {FarmId}, FarmName: {FarmName}", farmId, farmName);
@@ -624,6 +645,29 @@ namespace User.Management.API.Controllers
             {
                 _logger.LogError(ex, "Error fetching employees with access to farm {FarmId}", farmId);
                 return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Set (or create) the current owner's organization code. Lets an owner
+        /// whose code is missing enter one so staff can join with it.
+        /// </summary>
+        [HttpPost("organization/code")]
+        public async Task<ActionResult> SetOrganizationCode([FromBody] SetOrgCodeRequest request)
+        {
+            try
+            {
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrEmpty(userId)) return BadRequest("User id not found in claims");
+                if (request == null || string.IsNullOrWhiteSpace(request.Code)) return BadRequest("Organization code is required.");
+
+                var saved = await _adminService.SetOrganizationCodeAsync(userId, request.Code);
+                return Ok(new { organizationCode = saved });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error setting organization code");
+                return BadRequest(new { message = ex.Message });
             }
         }
 
