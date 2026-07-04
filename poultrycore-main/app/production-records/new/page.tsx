@@ -330,6 +330,7 @@ export default function NewProductionRecordPage() {
         noOfBirdsLeft: calculatedLeft,
         feedKg: parseFloat(form.feedKg) || 0,
         medication: form.medication || "None",
+        notes: form.notes || null,
         production9AM: parseInt(form.morning) || 0,
         production12PM: parseInt(form.noon) || 0,
         production4PM: parseInt(form.evening) || 0,
@@ -775,7 +776,8 @@ export default function NewProductionRecordPage() {
                 </div>
               </div>
 
-              {/* Section 4: Feed, Medication & Notes */}
+              {/* Feed, Medication & Notes — manual entry combined with the
+                  inventory-based feed/medication usage & costing. */}
               <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
                 <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">
                   Feed, Medication &amp; Notes
@@ -802,7 +804,7 @@ export default function NewProductionRecordPage() {
                   <div className="col-span-12 md:col-span-4 space-y-2">
                     <Label>Feed (kg)</Label>
                     <NumberInput
-                      
+
                       step="0.01"
                       min="0"
                       value={form.feedKg}
@@ -828,28 +830,13 @@ export default function NewProductionRecordPage() {
                     />
                   </div>
 
-                  <div className="col-span-12 space-y-2">
-                    <Label>Notes</Label>
-                    <Textarea
-                      rows={3}
-                      value={form.notes}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          notes: e.target.value,
-                        })
-                      }
-                    />
+                  {/* Used (from inventory) — reduces Raw-Material stock on save */}
+                  <div className="col-span-12 flex items-center gap-2 pt-1">
+                    <div className="h-px flex-1 bg-slate-200" />
+                    <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Used (from inventory)</span>
+                    <div className="h-px flex-1 bg-slate-200" />
                   </div>
-                </div>
-              </div>
 
-              {/* Section 4b (Doc §4a-4c): Feed & Medication consumption from inventory + costing */}
-              <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
-                <div className="bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">
-                  Feed &amp; Medication Used (from inventory)
-                </div>
-                <div className="grid grid-cols-12 gap-4 px-4 py-4">
                   {/* Feed */}
                   <div className="col-span-12 md:col-span-4 space-y-2">
                     <Label>Specific Feed Used</Label>
@@ -931,6 +918,20 @@ export default function NewProductionRecordPage() {
                     <span className="text-lg font-bold text-emerald-800">{totalCostOfProduction.toFixed(2)}</span>
                   </div>
                   <p className="col-span-12 text-xs text-slate-500 -mt-1">Selecting feed/medication reduces its Raw-Material inventory when you save. Unit cost is prefilled from the latest purchase; adjust if needed.</p>
+
+                  <div className="col-span-12 space-y-2">
+                    <Label>Notes</Label>
+                    <Textarea
+                      rows={3}
+                      value={form.notes}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          notes: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
                 </div>
               </div>
 
