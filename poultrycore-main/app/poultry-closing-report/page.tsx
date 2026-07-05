@@ -31,6 +31,8 @@ const SECTIONS: { title: string; color: string; rows: Row[] }[] = [
     { label: "Total Broken Eggs", key: "TotalBrokenEggs" },
     { label: "Total Production Records", key: "TotalProductionRecords" },
     { label: "Average Eggs / Day", key: "AvgEggsPerDay" },
+    { label: "Average Eggs / Record", key: "AvgEggsPerRecord" },
+    { label: "Total Feed (kg)", key: "TotalFeedKg" },
     { label: "Total Feed Consumed", key: "TotalFeedConsumed" },
     { label: "Total Medication Consumed", key: "TotalMedicationConsumed" },
     { label: "Avg Production Cost / Egg", key: "AvgProductionCostPerEgg", money: true },
@@ -43,12 +45,13 @@ const SECTIONS: { title: string; color: string; rows: Row[] }[] = [
     { label: "Raw Materials Consumed (qty)", key: "RawMaterialsConsumed" },
   ]},
   { title: "Birds", color: "bg-purple-600", rows: [
-    { label: "Opening Birds", key: "OpeningBirds" },
-    { label: "Birds Purchased", key: "BirdsPurchased" },
-    { label: "Birds Sold", key: "BirdsSold" },
+    { label: "Placed Birds (overall)", key: "PlacedBirds" },
+    { label: "Birds Left", key: "BirdsLeft" },
+    { label: "Birds Lost", key: "BirdsLost" },
     { label: "Mortality Count", key: "MortalityCount" },
-    { label: "Closing Birds", key: "ClosingBirds" },
     { label: "Mortality Rate %", key: "MortalityRatePct" },
+    { label: "Birds Purchased (inventory)", key: "BirdsPurchased" },
+    { label: "Birds Sold (inventory)", key: "BirdsSold" },
   ]},
   { title: "Losses", color: "bg-red-600", rows: [
     { label: "Production Loss (qty)", key: "ProductionLossQty" },
@@ -66,14 +69,16 @@ const SECTIONS: { title: string; color: string; rows: Row[] }[] = [
   ]},
 ]
 
-function firstOfMonth() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01` }
+// Default to a wide window (3 years back) so the report shows existing data on
+// open instead of an empty current-month view; the user can narrow it.
+function defaultFrom() { const d = new Date(); return `${d.getFullYear() - 3}-01-01` }
 
 export default function PoultryClosingReportPage() {
   const router = useRouter()
   const { toast } = useToast()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const gh = useFmt()
-  const [fromDate, setFromDate] = useState(firstOfMonth())
+  const [fromDate, setFromDate] = useState(defaultFrom())
   const [toDate, setToDate] = useState(new Date().toISOString().split("T")[0])
   const [data, setData] = useState<Record<string, any> | null>(null)
   const [loading, setLoading] = useState(false)

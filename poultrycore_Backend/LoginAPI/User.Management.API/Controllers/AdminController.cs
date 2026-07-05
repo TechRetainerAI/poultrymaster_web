@@ -672,6 +672,48 @@ namespace User.Management.API.Controllers
         }
 
         /// <summary>
+        /// Read the current owner's organization/owner profile (JWT-keyed).
+        /// </summary>
+        [HttpGet("organization/profile")]
+        public async Task<ActionResult> GetOrganizationProfile()
+        {
+            try
+            {
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrEmpty(userId)) return BadRequest("User id not found in claims");
+                var profile = await _adminService.GetOrganizationProfileAsync(userId);
+                return Ok(profile);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error reading organization profile");
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Update the current owner's organization/owner profile (JWT-keyed).
+        /// Persists the BusinessOffice* fields and name/phone via UserManager.
+        /// </summary>
+        [HttpPut("organization/profile")]
+        public async Task<ActionResult> UpdateOrganizationProfile([FromBody] OrganizationProfile request)
+        {
+            try
+            {
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrEmpty(userId)) return BadRequest("User id not found in claims");
+                if (request == null) return BadRequest("Profile is required.");
+                var saved = await _adminService.UpdateOrganizationProfileAsync(userId, request);
+                return Ok(saved);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error updating organization profile");
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        /// <summary>
         /// Get employees who logged in today
         /// </summary>
         [HttpGet("employees/today-logins")]
