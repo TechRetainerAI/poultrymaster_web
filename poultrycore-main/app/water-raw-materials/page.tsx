@@ -664,6 +664,15 @@ export default function WaterRawMaterialsPage() {
                   </FormSection>
 
                   <FormSection title="Production Conversion" color="indigo">
+                    <FormField label="" full>
+                      <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                        <div>
+                          <div className="text-sm font-medium text-slate-700">Enter production cost manually</div>
+                          <div className="text-xs text-slate-500">Turn off the auto-calculation and type the production-level unit cost yourself.</div>
+                        </div>
+                        <Switch checked={manualProdCost} onCheckedChange={setManualProdCost} />
+                      </div>
+                    </FormField>
                     <FormField label="Production unit *">
                       <Select value={purchaseForm.productionUnit || ""} onValueChange={(v) => setPurchaseForm({ ...purchaseForm, productionUnit: v })}>
                         <SelectTrigger><SelectValue placeholder="Pick unit" /></SelectTrigger>
@@ -674,19 +683,9 @@ export default function WaterRawMaterialsPage() {
                       <NumberInput min={0} step="0.0001" value={purchaseForm.productionUnitsPerPurchaseUnit}
                         onChange={(e) => setPurchaseForm({ ...purchaseForm, productionUnitsPerPurchaseUnit: Number(e.target.value) || 0 })} />
                     </FormField>
-                    <FormField label="Production-level quantity (auto)">
-                      {/* Production Units Per Purchase Unit × Purchase Quantity */}
-                      <Input readOnly tabIndex={-1} className={roCls}
-                        value={`${prodQty.toLocaleString()}${purchaseForm.productionUnit ? ` ${purchaseForm.productionUnit}` : ""}`} />
-                    </FormField>
-                    <FormField label="" full>
-                      <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                        <div>
-                          <div className="text-sm font-medium text-slate-700">Enter production cost manually</div>
-                          <div className="text-xs text-slate-500">Turn off the auto-calculation and type the production-level unit cost yourself.</div>
-                        </div>
-                        <Switch checked={manualProdCost} onCheckedChange={setManualProdCost} />
-                      </div>
+                    <FormField label="Production-level quantity" hint="Editable — sets units per purchase unit">
+                      <NumberInput min={0} step="0.001" disabled={manualProdCost} value={Number(prodQty.toFixed(4))}
+                        onChange={(e) => { const v = Number(e.target.value) || 0; setPurchaseForm({ ...purchaseForm, productionUnitsPerPurchaseUnit: qty > 0 ? Number((v / qty).toFixed(6)) : perPurchase }) }} />
                     </FormField>
                     {manualProdCost ? (
                       <FormField label={`Production-level unit cost${purchaseForm.productionUnit ? ` (per ${purchaseForm.productionUnit})` : ""}`} hint="Manual — sets the conversion for you">
