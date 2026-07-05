@@ -10,11 +10,6 @@ namespace PoultryFarmAPIWeb.Business
     // daily-closing controller (auto-sent on submit + manual re-send). Reports
     // themselves are emailed client-side (jsPDF → POST /api/Email/Report); only
     // the closing-on-submit needs a server-side PDF (no rendered page at submit).
-    public interface IWaterReportEmailService
-    {
-        Task EmailClosingAsync(WaterDailyClosingModel closing, string to, string? companyName);
-    }
-
     public class WaterReportEmailService : IWaterReportEmailService
     {
         private readonly IEmailService _email;

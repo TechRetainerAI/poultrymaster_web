@@ -8,16 +8,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from "@/components/ui/pagination"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
+import { PageShell } from "@/components/dashboard/page-shell"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Plus, Pencil, Trash2, Mail, Phone, UserCog, Users, Calendar, LogIn, Search, RefreshCw, Loader2, Save, User, ChevronDown, ChevronUp, Download } from "lucide-react"
 import { exportTableToPdf, emailTableAsPdf, type PdfExportOptions } from "@/lib/utils/pdf-export"
-import { getEmployees, getEmployee, createEmployee, updateEmployee, deleteEmployee, getTodayLogins, sendCredentialsEmail, type Employee, type CreateEmployeeData, type UpdateEmployeeData } from "@/lib/api/admin"
+import { getEmployees, getEmployee, updateEmployee, deleteEmployee, getTodayLogins, type Employee, type UpdateEmployeeData } from "@/lib/api/admin"
 import { getEmployeeJobRoles, setEmployeeJobRoles } from "@/lib/api/water"
 import { useAuthStore } from "@/lib/store/auth-store"
 // #18 Phase 3: water job roles assignable per employee (a person can hold several).
 const WATER_JOB_ROLES = ["Driver", "MotorKingRider", "Salesperson", "Loader", "Supervisor", "Cashier", "Other"]
-import { getUserContext } from "@/lib/utils/user-context"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useToast } from "@/hooks/use-toast"
@@ -31,76 +31,15 @@ import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/comp
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { formatDateShort, cn } from "@/lib/utils"
-
-type AdminPermissionKey =
-  | "changeGroupInfo"
-  | "deleteMessages"
-  | "banUsers"
-  | "inviteUsers"
-  | "pinMessages"
-  | "manageStories"
-  | "manageVideoChats"
-  | "remainAnonymous"
-  | "addNewAdmins"
-
-const DEFAULT_ADMIN_PERMISSIONS: Record<AdminPermissionKey, boolean> = {
-  changeGroupInfo: true,
-  deleteMessages: true,
-  banUsers: true,
-  inviteUsers: true,
-  pinMessages: true,
-  manageStories: false,
-  manageVideoChats: true,
-  remainAnonymous: false,
-  addNewAdmins: false,
-}
-
-const ADMIN_PERMISSION_OPTIONS: Array<{ key: AdminPermissionKey; label: string; hint?: string }> = [
-  { key: "changeGroupInfo", label: "Change group info" },
-  { key: "deleteMessages", label: "Delete messages" },
-  { key: "banUsers", label: "Ban users" },
-  { key: "inviteUsers", label: "Invite users via link" },
-  { key: "pinMessages", label: "Pin messages" },
-  { key: "manageStories", label: "Manage stories", hint: "0/3 by default" },
-  { key: "manageVideoChats", label: "Manage video chats" },
-  { key: "remainAnonymous", label: "Remain anonymous" },
-  { key: "addNewAdmins", label: "Add new admins" },
-]
-
-type StaffFeaturePermissionKey =
-  | "canEnterSales"
-  | "canEnterExpenses"
-  | "canViewCashLedger"
-  | "canSeeEmployees"
-  | "canViewReports"
-  | "canViewFinancial"
-  | "canViewCustomers"
-  | "canViewActivityLog"
-  | "canViewSettings"
-
-const DEFAULT_STAFF_FEATURE_PERMISSIONS: Record<StaffFeaturePermissionKey, boolean> = {
-  canEnterSales: true,
-  canEnterExpenses: true,
-  canViewCashLedger: true,
-  canSeeEmployees: false,
-  canViewReports: true,
-  canViewFinancial: true,
-  canViewCustomers: true,
-  canViewActivityLog: true,
-  canViewSettings: true,
-}
-
-const STAFF_FEATURE_PERMISSION_OPTIONS: Array<{ key: StaffFeaturePermissionKey; label: string }> = [
-  { key: "canEnterSales", label: "Enter Sales" },
-  { key: "canEnterExpenses", label: "Enter Expenses" },
-  { key: "canViewCashLedger", label: "View Cash Ledger" },
-  { key: "canSeeEmployees", label: "See Employees" },
-  { key: "canViewReports", label: "View reports" },
-  { key: "canViewFinancial", label: "View Financial (Cash, Payments umbrella)" },
-  { key: "canViewCustomers", label: "View Customers" },
-  { key: "canViewActivityLog", label: "View Activity Log" },
-  { key: "canViewSettings", label: "View Settings" },
-]
+import { AddEmployeeDialog } from "@/components/employees/add-employee-dialog"
+import {
+  type AdminPermissionKey,
+  DEFAULT_ADMIN_PERMISSIONS,
+  ADMIN_PERMISSION_OPTIONS,
+  type StaffFeaturePermissionKey,
+  DEFAULT_STAFF_FEATURE_PERMISSIONS,
+  STAFF_FEATURE_PERMISSION_OPTIONS,
+} from "@/lib/employees/permissions"
 
 const toBoolean = (value: unknown): boolean | undefined => {
   if (typeof value === "boolean") return value
@@ -202,16 +141,15 @@ export default function EmployeesPage() {
   const [showAllColumnsMobile, setShowAllColumnsMobile] = useState(false)
   const isMobile = useIsMobile()
 
-  // Create dialog state
+  // Create dialog state — the rich form lives in <AddEmployeeDialog>; this page
+  // only controls open/close and Business Office mode.
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
-  const [createLoading, setCreateLoading] = useState(false)
-  const [createError, setCreateError] = useState("")
-  const [showStaffPermissions, setShowStaffPermissions] = useState(false)
-  const [createForm, setCreateForm] = useState({
-    userName: "", email: "", password: "", confirmPassword: "", firstName: "", lastName: "", phoneNumber: "",
-    isAdmin: false, adminTitle: "", adminPermissions: { ...DEFAULT_ADMIN_PERMISSIONS },
-    featurePermissions: { ...DEFAULT_STAFF_FEATURE_PERMISSIONS },
-  })
+
+  // Business Office mode (?bo=1): no active company, so the Add-Employee form
+  // shows a Company dropdown to choose which company the employee joins. Read
+  // from window.location (not useSearchParams) to match the rest of the app and
+  // avoid a Next.js prerender/Suspense build error.
+  const [boMode, setBoMode] = useState(false)
 
   // Edit dialog state
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
@@ -256,61 +194,20 @@ export default function EmployeesPage() {
     } finally { setLoading(false) }
   }
 
-  // Create handlers
-  const openCreateDialog = () => {
-    setCreateForm({
-      userName: "", email: "", password: "", confirmPassword: "", firstName: "", lastName: "", phoneNumber: "",
-      isAdmin: false, adminTitle: "", adminPermissions: { ...DEFAULT_ADMIN_PERMISSIONS },
-      featurePermissions: { ...DEFAULT_STAFF_FEATURE_PERMISSIONS },
-    })
-    setCreateError("")
-    setShowStaffPermissions(false)
-    setIsCreateDialogOpen(true)
-  }
+  // Create handlers — the dialog resets its own form on open.
+  const openCreateDialog = () => setIsCreateDialogOpen(true)
 
-  const handleCreateSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setCreateLoading(true)
-    setCreateError("")
-    const { farmId } = getUserContext()
-    const farmName = localStorage.getItem("farmName") || "My Farm"
-    if (!farmId) { setCreateError("Farm information not found."); setCreateLoading(false); return }
-    if (!createForm.firstName.trim() || !createForm.lastName.trim() || !createForm.phoneNumber.trim() || !createForm.email.trim()) {
-      const msg = "First name, last name, phone number, and email are required."
-      setCreateError(msg)
-      toastFormGuide(toast, "Fill in first name, last name, phone number, and email — they are required to create an employee account.")
-      setCreateLoading(false)
-      return
-    }
-    if (createForm.password !== createForm.confirmPassword) { setCreateError("Passwords do not match"); setCreateLoading(false); return }
-    if (createForm.password.length < 4) { setCreateError("Password must be at least 4 characters long"); setCreateLoading(false); return }
-    if (!/^[a-zA-Z0-9_]+$/.test(createForm.userName)) { setCreateError("Username can only contain letters, digits, and underscores"); setCreateLoading(false); return }
+  // Deep-link: /employees?bo=1&add=1 sets office mode and opens the Add Employee
+  // form straight away (used by the Business Office "Add employee" button).
+  useEffect(() => {
+    try {
+      const p = new URLSearchParams(window.location.search)
+      if (p.get("bo") === "1") setBoMode(true)
+      if (p.get("add") === "1") openCreateDialog()
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-    const employeeData: CreateEmployeeData = {
-      userName: createForm.userName, email: createForm.email, password: createForm.password,
-      firstName: createForm.firstName, lastName: createForm.lastName,
-      phoneNumber: createForm.phoneNumber, farmId, farmName,
-      isAdmin: createForm.isAdmin,
-      adminTitle: createForm.isAdmin ? createForm.adminTitle.trim() : "",
-      adminPermissions: createForm.isAdmin ? createForm.adminPermissions : undefined,
-      featurePermissions: createForm.featurePermissions,
-    }
-    const result = await createEmployee(employeeData)
-    if (result.success) {
-      toast({ title: "Success!", description: "Employee created successfully." })
-      const to = createForm.email.trim()
-      if (to) {
-        const r = await sendCredentialsEmail({ email: to, userName: createForm.userName.trim(), password: createForm.password, farmName })
-        if (r.success) toast({ title: "Credentials emailed", description: `Login details sent to ${to}.` })
-        else toast({ title: "Couldn't email credentials", description: r.message || "Email was not sent.", variant: "destructive" })
-      }
-      setIsCreateDialogOpen(false)
-      loadEmployees()
-    } else {
-      setCreateError(result.message || "Failed to create employee")
-    }
-    setCreateLoading(false)
-  }
 
   // Edit handlers
   const openEditDialog = async (employeeId: string) => {
@@ -535,23 +432,16 @@ export default function EmployeesPage() {
 
   if (permissions.isLoading) {
     return (
-      <div className="flex min-h-screen bg-slate-50">
-        <DashboardSidebar onLogout={handleLogout} />
-        <div className="flex-1 flex flex-col min-w-0">
-          <DashboardHeader />
-          <main className="overflow-y-visible p-6 flex items-center justify-center"><p className="text-slate-600">Loading...</p></main>
-        </div>
-      </div>
+      <PageShell boActive="users">
+        <main className="overflow-y-visible p-6 flex items-center justify-center"><p className="text-slate-600">Loading...</p></main>
+      </PageShell>
     )
   }
 
   if (!permissions.isAdmin && !loading) return null
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <DashboardSidebar onLogout={handleLogout} />
-      <div className="flex-1 flex flex-col min-w-0">
-        <DashboardHeader />
+    <PageShell boActive="users">
         <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
           <div className="space-y-6">
             {/* Page Header */}
@@ -748,174 +638,14 @@ export default function EmployeesPage() {
             )}
           </div>
         </main>
-      </div>
 
-      {/* Create Employee Dialog */}
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><UserCog className="w-5 h-5 text-blue-600" /> Add New Employee</DialogTitle>
-            <DialogDescription>Create a staff member or configure an admin with custom permissions</DialogDescription>
-          </DialogHeader>
-          {createError && <Alert variant="destructive"><AlertDescription>{createError}</AlertDescription></Alert>}
-          <form onSubmit={handleCreateSubmit} className="space-y-4">
-            <div className="rounded-xl border border-slate-200 overflow-hidden">
-              <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Personal Information</div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">First Name *</Label>
-                  <Input name="firstName" value={createForm.firstName} onChange={(e) => setCreateForm({...createForm, firstName: e.target.value})} required disabled={createLoading} placeholder="John" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Last Name *</Label>
-                  <Input name="lastName" value={createForm.lastName} onChange={(e) => setCreateForm({...createForm, lastName: e.target.value})} required disabled={createLoading} placeholder="Doe" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Phone Number *</Label>
-                  <Input name="phoneNumber" type="tel" value={createForm.phoneNumber} onChange={(e) => setCreateForm({...createForm, phoneNumber: e.target.value})} required disabled={createLoading} placeholder="+233 533431086" />
-                </div>
-              </div>
-            </div>
-            <div className="rounded-xl border border-slate-200 overflow-hidden">
-              <div className="bg-green-600 px-4 py-2 text-sm font-semibold text-white">Account Information</div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Username * <span className="text-xs text-slate-500 font-normal">(letters, digits, underscores)</span></Label>
-                  <Input name="userName" value={createForm.userName} onChange={(e) => setCreateForm({...createForm, userName: e.target.value})} required disabled={createLoading} placeholder="james_quayson" pattern="[a-zA-Z0-9_]+" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Email *</Label>
-                  <Input name="email" type="email" value={createForm.email} onChange={(e) => setCreateForm({...createForm, email: e.target.value})} required disabled={createLoading} placeholder="employee@example.com" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Password *</Label>
-                  <Input name="password" type="password" value={createForm.password} onChange={(e) => setCreateForm({...createForm, password: e.target.value})} required disabled={createLoading} placeholder="At least 4 characters" />
-                  <p className="text-xs text-slate-500">Min 4 characters</p>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Confirm Password *</Label>
-                  <Input name="confirmPassword" type="password" value={createForm.confirmPassword} onChange={(e) => setCreateForm({...createForm, confirmPassword: e.target.value})} required disabled={createLoading} placeholder="Re-enter password" />
-                </div>
-              </div>
-            </div>
-            <div className="rounded-xl border border-slate-200 overflow-hidden">
-              <div className="bg-cyan-700 px-4 py-2 text-sm font-semibold text-white">Admin Access</div>
-              <div className="p-4 bg-white space-y-4">
-                <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-slate-200 bg-slate-50">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-800">Create as administrator</p>
-                    <p className="text-xs text-slate-500">Enable this to assign granular admin permissions.</p>
-                  </div>
-                  <Switch
-                    checked={createForm.isAdmin}
-                    onCheckedChange={(checked) => setCreateForm({ ...createForm, isAdmin: checked })}
-                    disabled={createLoading}
-                    aria-label="Create as administrator"
-                  />
-                </div>
-
-                {createForm.isAdmin && (
-                  <div className="space-y-4">
-                    <div className="rounded-lg border border-slate-200 p-3 bg-cyan-50/60">
-                      <p className="text-sm font-medium text-slate-800">
-                        {createForm.firstName || createForm.userName || "New admin"}
-                      </p>
-                      <p className="text-xs text-slate-600">
-                        Configure what this admin can do. Permissions can be updated later.
-                      </p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-slate-700">Custom title (optional)</Label>
-                      <Input
-                        name="adminTitle"
-                        value={createForm.adminTitle}
-                        onChange={(e) => setCreateForm({ ...createForm, adminTitle: e.target.value })}
-                        disabled={createLoading}
-                        placeholder="admin"
-                        maxLength={30}
-                      />
-                      <p className="text-xs text-slate-500">Shown instead of the default admin label.</p>
-                    </div>
-
-                    <div className="rounded-lg border border-slate-200 divide-y">
-                      <div className="px-3 py-2 bg-slate-50">
-                        <p className="text-sm font-semibold text-slate-800">What can this admin do?</p>
-                      </div>
-                      {ADMIN_PERMISSION_OPTIONS.map((perm) => (
-                        <div key={perm.key} className="flex items-center justify-between gap-3 px-3 py-2">
-                          <div className="min-w-0">
-                            <p className="text-sm text-slate-800">{perm.label}</p>
-                            {perm.hint && <p className="text-xs text-slate-500">{perm.hint}</p>}
-                          </div>
-                          <Switch
-                            checked={createForm.adminPermissions[perm.key]}
-                            onCheckedChange={(checked) =>
-                              setCreateForm({
-                                ...createForm,
-                                adminPermissions: { ...createForm.adminPermissions, [perm.key]: checked },
-                              })
-                            }
-                            disabled={createLoading}
-                            aria-label={perm.label}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="rounded-xl border border-slate-200 overflow-hidden">
-              <div className="bg-slate-700 px-4 py-2 text-sm font-semibold text-white">Staff Page Access</div>
-              <div className="p-4 bg-white space-y-3">
-                <p className="text-xs text-slate-600">Set exactly what employees can access.</p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full justify-between"
-                  onClick={() => setShowStaffPermissions((prev) => !prev)}
-                  disabled={createLoading}
-                >
-                  <span>Select Staff Permissions</span>
-                  <ChevronDown className={cn("h-4 w-4 transition-transform", showStaffPermissions && "rotate-180")} />
-                </Button>
-
-                {showStaffPermissions && (
-                  <div className="rounded-lg border border-slate-200 divide-y">
-                    {STAFF_FEATURE_PERMISSION_OPTIONS.map((perm) => (
-                      <div key={perm.key} className="flex items-center justify-between gap-3 px-3 py-2">
-                        <p className="text-sm text-slate-800">{perm.label}</p>
-                        <Switch
-                          checked={createForm.featurePermissions[perm.key]}
-                          onCheckedChange={(checked) =>
-                            setCreateForm({
-                              ...createForm,
-                              featurePermissions: { ...createForm.featurePermissions, [perm.key]: checked },
-                            })
-                          }
-                          disabled={createLoading}
-                          aria-label={perm.label}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="flex gap-3 justify-end pt-2">
-              <Button type="button" onClick={() => setIsCreateDialogOpen(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
-              <Button type="submit" disabled={createLoading}>
-                {createLoading ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Creating...</>
-                ) : (
-                  <><UserCog className="w-4 h-4 mr-2" />{createForm.isAdmin ? "Create Admin" : "Create Employee"}</>
-                )}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {/* Create Employee Dialog — rich form extracted to a reusable component. */}
+      <AddEmployeeDialog
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+        boMode={boMode}
+        onCreated={loadEmployees}
+      />
 
       {/* Edit Employee Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -1105,6 +835,6 @@ export default function EmployeesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </PageShell>
   )
 }

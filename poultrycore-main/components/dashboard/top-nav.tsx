@@ -10,6 +10,7 @@ import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { Droplets, ShoppingBag } from "lucide-react"
 import { WATER_REPORT_GROUPS, waterReportHref } from "@/lib/reports/water-reports-config"
+import { POULTRY_REPORT_MENU_GROUPS } from "@/lib/reports/poultry-reports-config"
 import {
   Home,
   Bird,
@@ -29,6 +30,7 @@ import {
   ChevronDown,
   Wallet,
   Boxes,
+  Box,
   CreditCard,
   Wheat,
   Pill,
@@ -288,9 +290,9 @@ function ReportsMegaMenu() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-3 p-4 max-h-[70vh] overflow-y-auto">
+          <div className="columns-2 lg:columns-4 gap-x-4 p-4 max-h-[70vh] overflow-y-auto">
             {WATER_REPORT_GROUPS.map((g) => (
-              <div key={g.key} className="min-w-0">
+              <div key={g.key} className="min-w-0 mb-4 break-inside-avoid">
                 <div className="flex items-center gap-2 mb-2">
                   <span className={cn("inline-block h-2 w-2 rounded-full", g.color)} />
                   <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-600">{g.label}</h3>
@@ -315,6 +317,136 @@ function ReportsMegaMenu() {
                         >
                           <Icon className={cn("h-4 w-4 mt-0.5 shrink-0", active ? "text-sky-700" : "text-slate-400")} />
                           <span className="truncate">{r.title}</span>
+                        </Link>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>,
+        document.body,
+      )}
+    </div>
+  )
+}
+
+/**
+ * Reports mega-menu for the Poultry top-nav. Same hover-card pattern as the
+ * Water ReportsMegaMenu, but sourced from POULTRY_REPORT_GROUPS so the menu and
+ * the /poultry/reports catalogue stay in sync. Items link to the individual
+ * report pages (/poultry/reports/<slug>); "View all" opens the catalogue.
+ */
+function PoultryReportsMegaMenu() {
+  const pathname = usePathname()
+  const [open, setOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  const [position, setPosition] = useState({ top: 0, left: 0 })
+  const triggerRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  useEffect(() => { setMounted(true) }, [])
+
+  const updatePosition = () => {
+    if (!triggerRef.current) return
+    const rect = triggerRef.current.getBoundingClientRect()
+    const desiredLeft = rect.left
+    const maxLeft = Math.max(8, window.innerWidth - 896 - 16)
+    setPosition({ top: rect.bottom + 4, left: Math.min(desiredLeft, maxLeft) })
+  }
+
+  const handleMouseEnter = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    updatePosition()
+    setOpen(true)
+  }
+  const handleMouseLeave = () => {
+    timeoutRef.current = setTimeout(() => setOpen(false), 180)
+  }
+
+  useEffect(() => {
+    if (!open) return
+    const handleClickOutside = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (
+        triggerRef.current && !triggerRef.current.contains(t) &&
+        (!menuRef.current || !menuRef.current.contains(t))
+      ) setOpen(false)
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [open])
+
+  const isReportsActive =
+    pathname === "/reports" || pathname === "/poultry/reports" || pathname.startsWith("/poultry/reports/")
+
+  return (
+    <div ref={triggerRef} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+      <button
+        onClick={() => { updatePosition(); setOpen(!open) }}
+        className={cn(
+          "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap",
+          isReportsActive
+            ? "bg-white/25 text-white font-semibold"
+            : "text-orange-100 hover:bg-white/15 hover:text-white",
+        )}
+      >
+        <BarChart3 className="h-4 w-4" />
+        Reports
+        <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open ? "rotate-180" : "")} />
+      </button>
+
+      {open && mounted && createPortal(
+        <div
+          ref={menuRef}
+          style={{ position: "fixed", top: position.top, left: position.left }}
+          className="w-[56rem] max-w-[calc(100vw-16px)] rounded-lg bg-white shadow-2xl border border-slate-200 z-[9999] overflow-hidden"
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+        >
+          <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+            <div>
+              <div className="font-semibold text-slate-900 text-sm">Reports</div>
+              <div className="text-xs text-slate-500">Production, birds &amp; mortality, feed, inventory, sales, expenses, profitability and health.</div>
+            </div>
+            <Link
+              href="/poultry/reports"
+              prefetch
+              onClick={() => setOpen(false)}
+              className="text-xs font-medium text-amber-700 hover:text-amber-900 hover:underline whitespace-nowrap"
+            >
+              View all reports →
+            </Link>
+          </div>
+
+          <div className="columns-2 lg:columns-4 gap-x-4 p-4 max-h-[70vh] overflow-y-auto">
+            {POULTRY_REPORT_MENU_GROUPS.map((g) => (
+              <div key={g.key} className="min-w-0 mb-4 break-inside-avoid">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={cn("inline-block h-2 w-2 rounded-full", g.color)} />
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-600">{g.label}</h3>
+                </div>
+                <ul className="space-y-0.5">
+                  {g.items.map((it) => {
+                    const active = pathname === it.href
+                    const Icon = it.icon
+                    return (
+                      <li key={it.id}>
+                        <Link
+                          href={it.href}
+                          prefetch
+                          onClick={() => setOpen(false)}
+                          className={cn(
+                            "flex items-start gap-2 px-2 py-1.5 rounded-md text-sm transition-colors",
+                            active
+                              ? "bg-amber-50 text-amber-900 font-medium"
+                              : "text-slate-700 hover:bg-slate-100",
+                          )}
+                        >
+                          <Icon className={cn("h-4 w-4 mt-0.5 shrink-0", active ? "text-amber-700" : "text-slate-400")} />
+                          <span className="truncate">{it.title}</span>
                         </Link>
                       </li>
                     )
@@ -501,6 +633,17 @@ export function TopNavigation() {
     return <GenericTopNav permissions={permissions} />
   }
 
+  // Quick Links — fast-access shortcuts (mirrors the Water side, minus
+  // Deliveries). Targets also live in their canonical groups below.
+  const quickLinksGroup: NavGroup = {
+    label: "Quick Links",
+    items: [
+      { href: "/poultry-daily-closing", label: "Daily Closing",     icon: FileText },
+      { href: "/production-records",    label: "Production Records", icon: Factory },
+      { href: "/sales",                 label: "Sales",             icon: ShoppingCart },
+    ],
+  }
+
   const farmGroup: NavGroup = {
     label: "Farm",
     items: [
@@ -533,9 +676,24 @@ export function TopNavigation() {
   const inventoryGroup: NavGroup = {
     label: "Inventory & Health",
     items: [
-      { href: "/health", label: "Health Records", icon: AlertTriangle },
-      { href: "/inventory", label: "Inventory", icon: Package },
+      { href: "/poultry-inventory", label: "Inventory", icon: Boxes },
+      { href: "/poultry-stock", label: "Stock movements", icon: Boxes },
+      { href: "/poultry-raw-materials", label: "Raw Materials & Supplies", icon: Box },
       { href: "/supplies", label: "Supplies", icon: ShoppingCart },
+      { href: "/health", label: "Health Records", icon: AlertTriangle },
+      { href: "/poultry-loss-records", label: "Loss & Damage", icon: AlertTriangle },
+      { href: "/inventory", label: "Other Inventory", icon: Package },
+    ],
+  }
+
+  const deliveryGroup: NavGroup = {
+    label: "Delivery",
+    items: [
+      { href: "/poultry-driver-returns", label: "Deliveries", icon: Truck },
+      { href: "/poultry-drivers", label: "Drivers", icon: Users2 },
+      { href: "/poultry-vehicles", label: "Vehicles", icon: Truck },
+      { href: "/poultry-routes", label: "Routes", icon: Truck },
+      { href: "/poultry-driver-report", label: "Driver report", icon: BarChart3 },
     ],
   }
 
@@ -543,6 +701,7 @@ export function TopNavigation() {
     label: "Financial",
     items: [
       { href: "/cash", label: "Cash", icon: Wallet },
+      { href: "/poultry-cash-accounts", label: "Cash & Accounts", icon: Wallet },
       { href: "/sales", label: "Sales", icon: ShoppingCart },
       { href: "/expenses", label: "Expenses", icon: DollarSign },
       { href: "/customers", label: "Customers", icon: Users },
@@ -551,6 +710,16 @@ export function TopNavigation() {
     ].filter((item) =>
       isFinancialNavItemVisible(item.href, permissions.featureAccess, permissions.isAdmin)
     ),
+  }
+
+  const peopleGroup: NavGroup = {
+    label: "People",
+    items: [
+      ...((permissions.isAdmin || permissions.featureAccess.canSeeEmployees)
+        ? [{ href: "/poultry-staff", label: "Staff", icon: Users2 }]
+        : []),
+      { href: "/poultry-payroll", label: "Payroll", icon: Banknote },
+    ],
   }
 
   const moreGroup: NavGroup = {
@@ -572,12 +741,18 @@ export function TopNavigation() {
         <div className="flex items-center gap-1 px-4 pt-1.5 pb-2.5 nav-rail-scroll">
           <NavLink item={{ href: "/dashboard", label: "Dashboard", icon: Home }} />
           <div className="h-5 w-px bg-white/30 mx-1" />
+          <NavDropdown group={quickLinksGroup} />
           <NavDropdown group={farmGroup} />
           <NavDropdown group={productionGroup} />
           <NavDropdown group={inventoryGroup} />
+          <NavDropdown group={deliveryGroup} />
           {financialGroup.items.length > 0 && <NavDropdown group={financialGroup} />}
+          {peopleGroup.items.length > 0 && <NavDropdown group={peopleGroup} />}
           <div className="h-5 w-px bg-white/30 mx-1" />
-          {permissions.featureAccess.canViewReports && <NavLink item={{ href: "/reports", label: "Reports", icon: BarChart3 }} />}
+          {/* Reports opens a hover mega-menu of the 20 poultry reports, sourced
+              from lib/reports/poultry-reports-config.ts (shared with the
+              /poultry/reports catalogue). */}
+          {permissions.featureAccess.canViewReports && <PoultryReportsMegaMenu />}
           <NavDropdown group={analyticsGroup} />
           <NavDropdown group={moreGroup} />
           <div className="ml-auto flex items-center gap-1">

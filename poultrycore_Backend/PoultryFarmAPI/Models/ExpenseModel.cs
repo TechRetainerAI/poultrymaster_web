@@ -14,6 +14,10 @@ namespace PoultryFarmAPIWeb.Models
         public DateTime CreatedDate { get; set; }
         public string? Supplier { get; set; }
 
+        /// <summary>Optional cash account this expense is paid from. When set, a
+        /// CashOut is posted to that PoultryCashAccount (reversed on edit/delete).</summary>
+        public int? PoultryCashAccountId { get; set; }
+
         /// <summary>Optional receipt image. JSON: base64 string.</summary>
         public byte[]? AttachmentImage { get; set; }
 

@@ -17,6 +17,8 @@ namespace PoultryFarmAPIWeb.Models
         public bool Paid { get; set; } = true;
         /// <summary>Egg size (Inside / Tee / Serum / Small / Medium / etc.). Nullable; required only for egg sales tracked by size.</summary>
         public string? Size { get; set; }
+        /// <summary>Optional cash account this sale is received into (posts a cash-in when the sale is paid).</summary>
+        public int? PoultryCashAccountId { get; set; }
         public DateTime CreatedDate { get; set; }
 
     }

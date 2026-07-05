@@ -36,6 +36,17 @@ export interface EggProductionInput {
   brokenEggs: number
   notes: string
   eggGrade?: string | null
+  // Doc 4: feed/medication usage costing (optional).
+  specificFeedUsedId?: number | null
+  specificFeedUsedName?: string | null
+  feedUnitCost?: number | null
+  totalFeedConsumed?: number | null
+  totalFeedCost?: number | null
+  specificMedicationUsedId?: number | null
+  specificMedicationUsedName?: string | null
+  medicationUnitCost?: number | null
+  totalMedicationConsumed?: number | null
+  totalMedicationCost?: number | null
 }
 
 function mapEggRow(raw: Record<string, unknown>): EggProduction {

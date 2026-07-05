@@ -10,9 +10,9 @@ import { Toaster } from '@/components/ui/toaster'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Poultry Master',
+  title: 'VisibilityCore',
   description: 'Farm Management System',
-  generator: 'Poultry Master',
+  generator: 'VisibilityCore',
 }
 
 export default function RootLayout({

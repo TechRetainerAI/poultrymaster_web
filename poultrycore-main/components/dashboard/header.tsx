@@ -60,6 +60,11 @@ export function DashboardHeader() {
     { path: '/health', keywords: ['health', 'vaccination', 'medication'] },
     { path: '/medication-tracker', keywords: ['medication tracker', 'medication', 'drugs', 'treatment log'] },
     { path: '/houses', keywords: ['houses', 'house', 'poultry house'] },
+    { path: '/poultry-driver-returns', keywords: ['deliveries', 'delivery', 'driver returns', 'load vehicle', 'reconcile'] },
+    { path: '/poultry-drivers', keywords: ['drivers', 'driver', 'riders'] },
+    { path: '/poultry-vehicles', keywords: ['vehicles', 'vehicle', 'trucks', 'vans'] },
+    { path: '/poultry-routes', keywords: ['routes', 'route', 'delivery routes'] },
+    { path: '/poultry-driver-report', keywords: ['driver report', 'driver collection', 'driver accountability'] },
     { path: '/reports', keywords: ['reports', 'report', 'analytics'] },
     { path: '/profile', keywords: ['profile', 'account', 'user', 'settings'] },
     { path: '/audit-logs', keywords: ['audit logs', 'audit', 'logs', 'activity'] },
@@ -157,10 +162,10 @@ export function DashboardHeader() {
   }
 
   return (
-    <div className="flex flex-col min-w-0">
+    <div className="flex flex-col min-w-0 overflow-x-hidden">
       <header className="bg-slate-900 border-b border-slate-800 px-2 sm:px-6 py-3 min-w-0">
         <div className="hidden lg:flex items-center justify-between gap-4">
-          {/* Poultry Master branding - visible when sidebar doesn't show its own */}
+          {/* VisibilityCore branding - visible when sidebar doesn't show its own */}
           {isCollapsed && (
             <div className="shrink-0">
               <InventoryLogo dark />

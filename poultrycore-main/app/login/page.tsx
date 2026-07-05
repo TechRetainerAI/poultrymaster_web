@@ -2,20 +2,21 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Eye, EyeOff, Lock, User } from "lucide-react"
-import { login } from "@/lib/api/auth"
+import { Eye, EyeOff, Lock, User, Building2 } from "lucide-react"
+import { login, resolveOrgCode } from "@/lib/api/auth"
 import Link from "next/link"
 import { SuccessModal } from "@/components/auth/success-modal"
 import { useAuthStore } from "@/lib/store/auth-store"
 import {
   resolveActiveCompanyForUser,
+  getMyCompanies,
   dashboardHomeForType,
   type CompanyType,
 } from "@/lib/api/companies"
@@ -33,6 +34,21 @@ export default function LoginPage() {
   // the SuccessModal's "Go to Dashboard" button so Water/Generic signups don't
   // land on the Poultry dashboard.
   const [postLoginHome, setPostLoginHome] = useState<string>("/dashboard")
+
+  // Prompt 3 — Organization Code login. The remembered code preselects the
+  // Business Office; "Change Business Office" reveals the field again.
+  const [orgCode, setOrgCode] = useState("")
+  const [rememberedCode, setRememberedCode] = useState("")
+  const [rememberOffice, setRememberOffice] = useState(true)
+  const [changingOffice, setChangingOffice] = useState(false)
+  useEffect(() => {
+    try {
+      const last = (localStorage.getItem("lastOrgCode") || "").toUpperCase()
+      setRememberedCode(last)
+      setOrgCode(last)
+    } catch {}
+  }, [])
+  const showOrgField = changingOffice || !rememberedCode
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -86,22 +102,49 @@ export default function LoginPage() {
       // so without this the Water/Generic sidebar+dashboard would not appear
       // until the user manually opened the company switcher. Failure here is
       // non-fatal: we fall back to /dashboard (Poultry).
+      // Prompt 3 — Organization Code scoping. If an org code was entered/remembered,
+      // restrict this session to that organization's companies. Entering a code
+      // for an org the user doesn't belong to fails with a generic message.
+      let orgMismatch = false
       try {
         const farmId = typeof window !== "undefined" ? localStorage.getItem("farmId") : null
-        const company = await resolveActiveCompanyForUser(farmId)
-        if (company) {
-          const token =
-            typeof window !== "undefined" ? localStorage.getItem("auth_token") ?? undefined : undefined
-          useAuthStore.getState().setActiveCompany(
-            company.farmId,
-            company.name,
-            company.type as CompanyType,
-            token,
-          )
-          setPostLoginHome(dashboardHomeForType(company.type as CompanyType))
+        const list = await getMyCompanies()
+        let scoped = list
+        const code = orgCode.trim().toUpperCase()
+        if (code) {
+          const org = await resolveOrgCode(code)
+          const inOrg = org ? list.filter((c) => (c.ownerUserId ?? "") === org.ownerUserId) : []
+          if (!org || inOrg.length === 0) orgMismatch = true
+          else scoped = inOrg
+        }
+        if (!orgMismatch) {
+          // Doc 3 §4/§9: everyone lands in the company-neutral Business Office and
+          // no company is auto-selected. The user picks a company from the BO
+          // (selector or Companies page); switchCompany then sets the active
+          // context. This keeps the HQ org-level instead of defaulting to one
+          // company (previously the first company / Poultry default).
+          useAuthStore.getState().clearActiveCompany()
+          setPostLoginHome("/business-office")
+          if (code && rememberOffice) { try { localStorage.setItem("lastOrgCode", code) } catch {} }
         }
       } catch (e) {
         console.warn("[Login] Could not resolve company type post-login:", e)
+      }
+
+      if (orgMismatch) {
+        // The code resolves to an organization this user has no access to (or no
+        // such code). Generic message per spec; clear the half-session so they
+        // aren't left holding a token for an org they can't use.
+        try {
+          localStorage.removeItem("auth_token")
+          localStorage.removeItem("auth-storage")
+          localStorage.removeItem("farmId")
+          localStorage.removeItem("farmName")
+          localStorage.removeItem("farmType")
+        } catch {}
+        setError("Invalid organization code, username, or password.")
+        setIsLoading(false)
+        return
       }
 
       setShowSuccess(true)
@@ -144,7 +187,7 @@ export default function LoginPage() {
           <div className="max-w-md text-center">
             {/* System Name */}
             <div className="mb-8">
-              <h1 className="text-4xl font-bold text-slate-900 mb-2">Poultry Master</h1>
+              <h1 className="text-4xl font-bold text-slate-900 mb-2">VisibilityCore</h1>
               <p className="text-slate-600">Farm Management System</p>
             </div>
             
@@ -153,7 +196,7 @@ export default function LoginPage() {
               {/* Real farmer image - displayed directly without card */}
               <img 
                 src="/farmer-illustration.png" 
-                alt="Farmer with watermelon - Poultry Master" 
+                alt="Farmer with watermelon - VisibilityCore" 
                 className="w-full h-96 object-contain"
               />
             </div>
@@ -168,7 +211,7 @@ export default function LoginPage() {
               <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center shadow-lg">
                 <Image
                   src="/logo.png"
-                  alt="Poultry Master logo"
+                  alt="VisibilityCore logo"
                   width={56}
                   height={56}
                   className="object-contain"
@@ -191,6 +234,48 @@ export default function LoginPage() {
 
             {/* Login Form */}
             <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Organization Code (Prompt 3) */}
+              {showOrgField ? (
+                <div className="space-y-2">
+                  <div className="relative">
+                    <Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-300" />
+                    <Input
+                      id="orgCode"
+                      type="text"
+                      placeholder="Organization Code"
+                      value={orgCode}
+                      onChange={(e) => setOrgCode(e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ""))}
+                      className="h-12 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-orange-500 focus:ring-orange-500 pl-10 tracking-wide"
+                      maxLength={30}
+                      disabled={isLoading}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="rememberOffice"
+                      checked={rememberOffice}
+                      onCheckedChange={(c) => setRememberOffice(c as boolean)}
+                      className="border-slate-500 data-[state=checked]:bg-orange-500 data-[state=checked]:border-orange-500"
+                      disabled={isLoading}
+                    />
+                    <Label htmlFor="rememberOffice" className="text-sm text-slate-200 cursor-pointer">Remember this Business Office</Label>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between rounded-lg border border-slate-600 bg-slate-700/40 px-3 py-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Building2 className="h-4 w-4 text-orange-300 shrink-0" />
+                    <span className="text-sm text-slate-300 truncate">Signing in to: <span className="font-semibold text-white tracking-wide">{rememberedCode}</span></span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setChangingOffice(true); setOrgCode("") }}
+                    className="text-xs font-medium text-orange-400 hover:text-orange-300 shrink-0"
+                    disabled={isLoading}
+                  >Change Business Office</button>
+                </div>
+              )}
+
               {/* Username Field */}
               <div className="space-y-2">
                 <div className="relative">

@@ -18,6 +18,8 @@ export interface Sale {
   paid?: boolean
   /** Egg size for sales tracked by size (e.g. "Inside", "Tee", "Serum"). Added by migration 018. */
   size?: string | null
+  /** Optional cash account this sale is received into (posts a cash-in when paid). */
+  poultryCashAccountId?: number | null
   createdDate: string
 }
 
@@ -36,6 +38,8 @@ export interface SaleInput {
   saleDescription: string
   paid?: boolean
   size?: string | null
+  /** Optional cash account to receive this sale into (posts a cash-in when paid). */
+  poultryCashAccountId?: number | null
   createdDate?: string
 }
 
@@ -455,6 +459,7 @@ export async function createSale(sale: SaleInput): Promise<ApiResponse<Sale>> {
       saleDescription: sale.saleDescription,
       paid: sale.paid ?? true,
       size: sale.size ?? null,
+      poultryCashAccountId: sale.poultryCashAccountId ?? null,
       createdDate: new Date().toISOString(),
     }
 
@@ -557,6 +562,7 @@ export async function updateSale(id: number, sale: Partial<SaleInput>): Promise<
     if (sale.saleDescription) requestBody.saleDescription = sale.saleDescription
     if (sale.paid !== undefined) requestBody.paid = sale.paid
     if (Object.prototype.hasOwnProperty.call(sale, "size")) requestBody.size = sale.size ?? null
+    if (Object.prototype.hasOwnProperty.call(sale, "poultryCashAccountId")) requestBody.poultryCashAccountId = sale.poultryCashAccountId ?? null
     if (sale.createdDate) requestBody.createdDate = sale.createdDate
 
     console.log("[v0] Sale update request body:", requestBody)

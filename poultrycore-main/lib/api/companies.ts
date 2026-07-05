@@ -91,6 +91,30 @@ export async function createCompany(input: CreateCompanyInput): Promise<Company>
   return lower<Company>(await res.json())
 }
 
+// Doc 3 §8: edit a company (name/email/phone). Type is immutable after creation.
+export interface UpdateCompanyInput {
+  name: string
+  email?: string | null
+  phoneNumber?: string | null
+}
+export async function updateCompany(farmId: string, input: UpdateCompanyInput): Promise<Company> {
+  const res = await loginApiFetch(`/Companies/${encodeURIComponent(farmId)}`, {
+    method: "PUT",
+    body: JSON.stringify({
+      Name: input.name,
+      Email: input.email ?? null,
+      PhoneNumber: input.phoneNumber ?? null,
+    }),
+  })
+  if (!res.ok) {
+    const t = await res.text()
+    throw new Error(res.status === 401
+      ? "Your session has expired. Please log in again."
+      : `updateCompany failed: ${res.status} ${t}`)
+  }
+  return lower<Company>(await res.json())
+}
+
 // Email a "company created" confirmation. Call after createCompany. The backend
 // returns 200 with { success, message } even on send failure.
 export async function sendCompanyWelcomeEmail(input: { email: string; companyName?: string; companyType?: string }): Promise<{ success: boolean; message?: string }> {

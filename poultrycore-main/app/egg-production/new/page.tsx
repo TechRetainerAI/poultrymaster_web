@@ -18,6 +18,7 @@ import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
 import { getUserContext } from "@/lib/utils/user-context"
 import { getProductionRecords, createProductionRecord, updateProductionRecord, type ProductionRecordInput } from "@/lib/api/production-record"
 import { getFlocks } from "@/lib/api/flock"
+import { listPoultryRawMaterialItems, listPoultryRawMaterialPurchases, type PoultryRawMaterialItem } from "@/lib/api/poultry-inventory"
 
 export default function NewEggProductionPage() {
   const router = useRouter()
@@ -70,9 +71,33 @@ export default function NewEggProductionPage() {
   const totalCrates = Math.floor(totalProduction / EGGS_PER_CRATE)
   const totalPieces = totalProduction % EGGS_PER_CRATE
 
+  // Doc 4: production costing from raw-material inventory (feed + medication).
+  const [rawItems, setRawItems] = useState<PoultryRawMaterialItem[]>([])
+  const [latestCost, setLatestCost] = useState<Record<number, number>>({})
+  const [feedId, setFeedId] = useState(0)
+  const [feedConsumed, setFeedConsumed] = useState(0)
+  const [feedUnitCost, setFeedUnitCost] = useState(0)
+  const [medId, setMedId] = useState(0)
+  const [medConsumed, setMedConsumed] = useState(0)
+  const [medUnitCost, setMedUnitCost] = useState(0)
+  const feedItems = useMemo(() => rawItems.filter((i) => i.isActive && i.category === "FeedIngredient"), [rawItems])
+  const medItems = useMemo(() => rawItems.filter((i) => i.isActive && (i.category === "Medication" || i.category === "Vaccine")), [rawItems])
+  const totalFeedCost = Number((feedConsumed * feedUnitCost).toFixed(2))
+  const totalMedCost = Number((medConsumed * medUnitCost).toFixed(2))
+  const totalCostOfProduction = Number((totalFeedCost + totalMedCost).toFixed(2))
 
   useEffect(() => {
     loadFlocksData()
+    ;(async () => {
+      try {
+        const [items, purchases] = await Promise.all([listPoultryRawMaterialItems(), listPoultryRawMaterialPurchases()])
+        setRawItems(items)
+        // purchases are newest-first; first seen per item = latest cost (production unit cost preferred)
+        const m: Record<number, number> = {}
+        for (const p of purchases) if (!(p.poultryRawMaterialItemId in m)) m[p.poultryRawMaterialItemId] = p.productionUnitCost ?? p.unitCost ?? 0
+        setLatestCost(m)
+      } catch { /* inventory may be empty; costing stays manual */ }
+    })()
   }, [])
 
   const loadFlocksData = async () => {
@@ -120,6 +145,17 @@ export default function NewEggProductionPage() {
       farmId,
       userId,
       eggGrade: eggGradeToApi(formData.eggGrade ?? EGG_GRADE_SELECT_VALUE_NONE),
+      // Doc 4: feed/medication costing
+      specificFeedUsedId: feedId || null,
+      specificFeedUsedName: feedItems.find((i) => i.poultryRawMaterialItemId === feedId)?.itemName ?? null,
+      feedUnitCost: feedUnitCost || null,
+      totalFeedConsumed: feedConsumed || null,
+      totalFeedCost: totalFeedCost || null,
+      specificMedicationUsedId: medId || null,
+      specificMedicationUsedName: medItems.find((i) => i.poultryRawMaterialItemId === medId)?.itemName ?? null,
+      medicationUnitCost: medUnitCost || null,
+      totalMedicationConsumed: medConsumed || null,
+      totalMedicationCost: totalMedCost || null,
     }
 
     const result = await createEggProduction(eggProductionData)
@@ -417,6 +453,42 @@ export default function NewEggProductionPage() {
                       <div className="text-lg font-bold text-emerald-700">{totalProduction.toLocaleString()} eggs</div>
                       <div className="text-xs text-emerald-600">{totalCrates} crates + {totalPieces} pieces</div>
                     </div>
+                  </div>
+                </div>
+
+                {/* Doc 4: Production costing (feed + medication used) */}
+                <div className="p-4 bg-white border border-slate-200 rounded-lg space-y-4 mt-4">
+                  <h3 className="text-md font-semibold text-slate-900">Production Costing (feed &amp; medication used)</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>Specific Feed Used</Label>
+                      <Select value={feedId ? String(feedId) : "0"} onValueChange={(v) => { const id = Number(v); setFeedId(id); setFeedUnitCost(latestCost[id] ?? 0) }} disabled={loading}>
+                        <SelectTrigger><SelectValue placeholder="Select feed" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">— None —</SelectItem>
+                          {feedItems.map((i) => <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>{i.itemName}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2"><Label>Total Feed Consumed</Label><NumberInput min="0" step="0.001" value={feedConsumed} onChange={(e) => setFeedConsumed(parseFloat(e.target.value) || 0)} disabled={loading} /></div>
+                    <div className="space-y-2"><Label>Feed Unit Cost</Label><NumberInput min="0" step="0.0001" value={feedUnitCost} onChange={(e) => setFeedUnitCost(parseFloat(e.target.value) || 0)} disabled={loading} /></div>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>Specific Medication Used</Label>
+                      <Select value={medId ? String(medId) : "0"} onValueChange={(v) => { const id = Number(v); setMedId(id); setMedUnitCost(latestCost[id] ?? 0) }} disabled={loading}>
+                        <SelectTrigger><SelectValue placeholder="Select medication" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">— None —</SelectItem>
+                          {medItems.map((i) => <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>{i.itemName}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2"><Label>Total Medication Consumed</Label><NumberInput min="0" step="0.001" value={medConsumed} onChange={(e) => setMedConsumed(parseFloat(e.target.value) || 0)} disabled={loading} /></div>
+                    <div className="space-y-2"><Label>Medication Unit Cost</Label><NumberInput min="0" step="0.0001" value={medUnitCost} onChange={(e) => setMedUnitCost(parseFloat(e.target.value) || 0)} disabled={loading} /></div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 text-sm">
+                    <div className="p-2 bg-slate-50 rounded"><div className="text-slate-500">Total Feed Cost</div><div className="font-bold">{totalFeedCost.toLocaleString()}</div></div>
+                    <div className="p-2 bg-slate-50 rounded"><div className="text-slate-500">Total Medication Cost</div><div className="font-bold">{totalMedCost.toLocaleString()}</div></div>
+                    <div className="p-2 bg-emerald-50 rounded"><div className="text-emerald-700">Total Cost of Production</div><div className="font-bold text-emerald-700">{totalCostOfProduction.toLocaleString()}</div></div>
                   </div>
                 </div>
 

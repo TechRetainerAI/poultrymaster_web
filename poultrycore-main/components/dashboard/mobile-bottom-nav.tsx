@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
 import { usePermissions } from "@/hooks/use-permissions"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
@@ -94,6 +94,12 @@ export function MobileBottomNav() {
   const permissions = usePermissions()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const [sheetOpen, setSheetOpen] = useState(false)
+  // The tabs are built from the persisted (localStorage) auth store, which is
+  // empty during SSR and populated on the client — rendering before mount makes
+  // the tree (and Radix useId ids) differ, causing a hydration mismatch. Render
+  // only after mount so SSR and the first client paint agree.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
 
   // Per-company-type bar config. The 4 main tabs are the most-used daily flow
   // pages for each company; everything else goes into "More". Colours match
@@ -224,6 +230,9 @@ export function MobileBottomNav() {
       { href: "/suppliers",          label: "Suppliers",          icon: Truck },
       { href: "/payments",           label: "Payments",           icon: CreditCard },
       { href: "/feed-usage",         label: "Feed Usage",         icon: Package },
+      { href: "/poultry-driver-returns", label: "Deliveries",     icon: Truck },
+      { href: "/poultry-drivers",        label: "Drivers",        icon: Users2 },
+      { href: "/poultry-driver-report",  label: "Driver report",  icon: BarChart3 },
       { href: "/resources",          label: "Resources",          icon: BookOpen },
       { href: "/reports",            label: "Reports",            icon: BarChart3 },
       { href: "/profile",            label: "Account",            icon: User },
@@ -253,6 +262,8 @@ export function MobileBottomNav() {
       moreItems: filteredPoultryMore,
     }
   })()
+
+  if (!mounted) return null
 
   const isProductionActive =
     pathname === "/production-records" ||

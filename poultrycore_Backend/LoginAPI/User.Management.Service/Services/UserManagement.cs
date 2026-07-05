@@ -108,6 +108,20 @@ namespace User.Management.Service.Services
                     };
                 }
 
+                // Prompt 3 — Organization Code: normalize, validate, and ensure
+                // it's globally unique before we create anything (fail fast so we
+                // don't orphan a user when the code is taken).
+                var orgCode = User.Management.Service.Helpers.OrgCode.Normalize(registerUser.OrganizationCode);
+                if (!string.IsNullOrEmpty(orgCode))
+                {
+                    var codeError = User.Management.Service.Helpers.OrgCode.Validate(orgCode);
+                    if (codeError != null)
+                        return new ApiResponse<CreateUserResponse> { IsSuccess = false, StatusCode = 400, Message = codeError };
+
+                    var codeTaken = _userManager.Users.Where(u => u.OrganizationCode == orgCode).ToList().Any();
+                    if (codeTaken)
+                        return new ApiResponse<CreateUserResponse> { IsSuccess = false, StatusCode = 409, Message = "This Organization Code is already taken." };
+                }
 
                 var farmId = Guid.NewGuid().ToString();
 
@@ -125,6 +139,12 @@ namespace User.Management.Service.Services
                     PhoneNumber = registerUser.PhoneNumber,
                     SecurityStamp = Guid.NewGuid().ToString(),
                     UserName = registerUser.Username,
+                    // Prompt 2 — persist the owner's Business Office (migration 118).
+                    BusinessOfficeName = registerUser.BusinessOfficeName,
+                    BusinessOfficeCurrency = registerUser.BusinessOfficeCurrency,
+                    BusinessOfficeCountry = registerUser.BusinessOfficeCountry,
+                    OrganizationCode = string.IsNullOrEmpty(orgCode) ? null : orgCode,
+                    IsOrgCodeActive = string.IsNullOrEmpty(orgCode) ? (bool?)null : true,
                     TwoFactorEnabled = false // true  // TOD0--- EITHER HARDCODE OR determine from UI Based on user preference
                 };
 
@@ -142,6 +162,11 @@ namespace User.Management.Service.Services
                     user.PhoneNumber     = registerUser.PhoneNumber;
                     user.FarmName        = registerUser.FarmName;
                     user.EmailConfirmed  = true;
+                    user.BusinessOfficeName     = registerUser.BusinessOfficeName;
+                    user.BusinessOfficeCurrency = registerUser.BusinessOfficeCurrency;
+                    user.BusinessOfficeCountry  = registerUser.BusinessOfficeCountry;
+                    user.OrganizationCode       = string.IsNullOrEmpty(orgCode) ? null : orgCode;
+                    user.IsOrgCodeActive        = string.IsNullOrEmpty(orgCode) ? (bool?)null : true;
                     var ensureFields = await _userManager.UpdateAsync(user);
                     if (!ensureFields.Succeeded)
                     {
@@ -515,6 +540,8 @@ namespace User.Management.Service.Services
                     IsStaff = user.IsStaff,
                     FarmId = user.FarmId,
                     FarmName = user.FarmName,
+                    BusinessOfficeName = user.BusinessOfficeName,
+                    OrganizationCode = user.OrganizationCode,
                     IsSubscriber = user.IsSubscriber,
                     IsAdmin = user.IsAdmin,
                     AdminTitle = user.AdminTitle,

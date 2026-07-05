@@ -67,28 +67,12 @@ function Login2FAForm() {
         console.log("[2FA Login] Employee status stored - isStaff:", isStaff)
       }
 
-      // Resolve company type so Water/Generic users land on their own dashboard
-      // (LoginResponse doesn't carry FarmType — see Login API LoginResponse.cs).
-      let home = "/dashboard"
-      try {
-        const farmId =
-          response.user?.farmId ||
-          (typeof window !== "undefined" ? localStorage.getItem("farmId") : null)
-        const company = await resolveActiveCompanyForUser(farmId)
-        if (company) {
-          useAuthStore.getState().setActiveCompany(
-            company.farmId,
-            company.name,
-            company.type as CompanyType,
-            response.token,
-          )
-          home = dashboardHomeForType(company.type as CompanyType)
-        }
-      } catch (e) {
-        console.warn("[2FA Login] Could not resolve company type post-login:", e)
-      }
+      // Doc 3 §4/§9: land in the company-neutral Business Office with no company
+      // auto-selected (mirrors the primary login flow). The user picks a company
+      // from the BO; switchCompany then sets the active context.
+      try { useAuthStore.getState().clearActiveCompany() } catch {}
 
-      router.push(home)
+      router.push("/business-office")
     } catch (err: any) {
       setError(err?.response?.data?.message || "Invalid OTP code. Please try again.")
     } finally {

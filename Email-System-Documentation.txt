@@ -230,12 +230,12 @@ FRONTEND
 ================================================================================
 
 SMTP (Resend) — set on the FARM API via EmailConfiguration (user secrets locally):
-    EmailConfiguration:SmtpServer = smtp.resend.com
-    EmailConfiguration:Port       = 465
-    EmailConfiguration:UserName   = resend
-    EmailConfiguration:Password   = <Resend API key>
-    EmailConfiguration:From       = <verified sender>
-    EmailConfiguration:UseSsl     = true
+  "EmailConfiguration:UseSsl": "true",
+  "EmailConfiguration:UserName": "resend",
+  "EmailConfiguration:SmtpServer": "smtp.resend.com",
+  "EmailConfiguration:Port": "465",
+  "EmailConfiguration:Password": "",
+  "EmailConfiguration:From": "Techretainer@payrollhaven.com"
 
   Resend sandbox caveat: while the sender is onboarding@resend.dev, Resend ONLY
   delivers to your own Resend account email (techretainer@gmail.com). To email

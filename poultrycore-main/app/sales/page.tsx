@@ -19,6 +19,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Plus, Edit, Trash2, ShoppingCart, DollarSign, TrendingUp, Package, FileText, Printer, Loader2, Info, Search, Filter, ChevronDown, ChevronUp, Mail } from "lucide-react"
 import { getSales, createSale, updateSale, deleteSale, getFlocks, getCustomers, createCustomer, type Sale, type SaleInput } from "@/lib/api"
+import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
 import { useToast } from "@/hooks/use-toast"
 import { getUserContext } from "@/lib/utils/user-context"
 import { formatCurrency, getSelectedCurrency, setSelectedCurrency } from "@/lib/utils/currency"
@@ -63,6 +64,7 @@ export default function SalesPage() {
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null)
   const [flocks, setFlocks] = useState<any[]>([])
   const [customers, setCustomers] = useState<any[]>([])
+  const [cashAccounts, setCashAccounts] = useState<PoultryCashAccount[]>([])
   const [showNewCustomerInput, setShowNewCustomerInput] = useState(false)
   const [otherCustomerName, setOtherCustomerName] = useState("")
   const [farmInfo, setFarmInfo] = useState({
@@ -90,6 +92,7 @@ export default function SalesPage() {
     saleDescription: "",
     paid: true,
     size: null,
+    poultryCashAccountId: null,
   })
 
   const productOptions = ["Fresh Eggs", "Chicken", "Manure", "Other"]
@@ -121,7 +124,9 @@ export default function SalesPage() {
     loadSales()
     loadFlocks()
     loadCustomers()
-    
+    // Cash accounts so a sale can be received into one (posts a cash-in when paid).
+    listPoultryCashAccounts().then((a) => setCashAccounts(a.filter((x) => x.isActive))).catch(() => setCashAccounts([]))
+
     // Check for global search query from header
     if (typeof window !== 'undefined') {
       const globalSearch = sessionStorage.getItem('globalSearchQuery')
@@ -246,6 +251,7 @@ export default function SalesPage() {
         saleDescription: formData.saleDescription ?? "",
         paid: formData.paid ?? true,
         size: formData.size?.trim() ? formData.size.trim() : null,
+        poultryCashAccountId: formData.poultryCashAccountId ?? null,
       }
 
       const response = await createSale(saleData)
@@ -309,6 +315,7 @@ export default function SalesPage() {
         saleDescription: formData.saleDescription ?? "",
         paid: formData.paid ?? true,
         size: formData.size?.trim() ? formData.size.trim() : null,
+        poultryCashAccountId: formData.poultryCashAccountId ?? null,
       }
 
       const response = await updateSale(editingSale.saleId, payload)
@@ -386,6 +393,8 @@ export default function SalesPage() {
       flockId: 0,
       saleDescription: "",
       paid: true,
+      size: null,
+      poultryCashAccountId: null,
     })
     setProductSelection(undefined)
     setProductOther("")
@@ -521,6 +530,7 @@ export default function SalesPage() {
       saleDescription: sale.saleDescription,
       paid: sale.paid ?? true,
       size: sale.size ?? null,
+      poultryCashAccountId: sale.poultryCashAccountId ?? null,
     })
     const selection = productOptions.includes(sale.product) ? sale.product : "Other"
     setProductSelection(selection)
@@ -979,6 +989,26 @@ export default function SalesPage() {
                       </datalist>
                       <p className="text-xs text-slate-500">Used by the weekly report&apos;s &ldquo;Egg Sales by Size&rdquo; card.</p>
                     </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cashAccount">Receive into cash account</Label>
+                    <Select
+                      value={formData.poultryCashAccountId ? String(formData.poultryCashAccountId) : "none"}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, poultryCashAccountId: value === "none" ? null : Number(value) }))}
+                    >
+                      <SelectTrigger id="cashAccount">
+                        <SelectValue placeholder="None (no cash movement)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None (no cash movement)</SelectItem>
+                        {cashAccounts.map((a) => (
+                          <SelectItem key={a.poultryCashAccountId} value={String(a.poultryCashAccountId)}>
+                            {a.accountName} ({a.currentBalance.toFixed(2)})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-slate-500">Posts a cash-in and increases the account balance when the sale is marked paid.</p>
                   </div>
                 </div>
               </div>
@@ -1685,6 +1715,26 @@ export default function SalesPage() {
                           <Label htmlFor="edit-salePaid" className="cursor-pointer">Paid</Label>
                           <p className="text-xs text-slate-500">Uncheck if this sale is still owed by customer.</p>
                         </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-cashAccount">Receive into cash account</Label>
+                        <Select
+                          value={formData.poultryCashAccountId ? String(formData.poultryCashAccountId) : "none"}
+                          onValueChange={(value) => setFormData(prev => ({ ...prev, poultryCashAccountId: value === "none" ? null : Number(value) }))}
+                        >
+                          <SelectTrigger id="edit-cashAccount">
+                            <SelectValue placeholder="None (no cash movement)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">None (no cash movement)</SelectItem>
+                            {cashAccounts.map((a) => (
+                              <SelectItem key={`edit-${a.poultryCashAccountId}`} value={String(a.poultryCashAccountId)}>
+                                {a.accountName} ({a.currentBalance.toFixed(2)})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-slate-500">Posts a cash-in and increases the account balance when the sale is marked paid.</p>
                       </div>
                     </div>
                   </div>

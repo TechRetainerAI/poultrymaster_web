@@ -48,8 +48,6 @@ export interface ReportRequest {
   customerId?: number
 }
 
-export type ReportExportFormat = 'csv' | 'pdf' | 'excel'
-
 // Sale types
 export interface Sale {
   farmId: string
@@ -65,6 +63,10 @@ export interface Sale {
   flockId: number
   saleDescription: string
   paid?: boolean
+  /** Egg size for sales tracked by size (e.g. "Inside", "Tee", "Serum"). */
+  size?: string | null
+  /** Optional cash account this sale is received into (posts a cash-in when paid). */
+  poultryCashAccountId?: number | null
   createdDate: string
 }
 
@@ -82,6 +84,10 @@ export interface SaleInput {
   flockId: number
   saleDescription: string
   paid?: boolean
+  /** Egg size for sales tracked by size (e.g. "Inside", "Tee", "Serum"). */
+  size?: string | null
+  /** Optional cash account to receive this sale into (posts a cash-in when paid). */
+  poultryCashAccountId?: number | null
   createdDate?: string
 }
 

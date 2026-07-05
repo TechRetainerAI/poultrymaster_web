@@ -93,7 +93,35 @@ export interface RegisterData {
   lastName: string
   roles: string[]
   phoneNumber: string
-  companyType: "Poultry" | "Water"
+  companyType: "Poultry" | "Water" | "Generic"
+  // Prompt 2 — owner's Business Office (HQ), persisted on the account.
+  businessOfficeName?: string
+  businessOfficeCurrency?: string
+  businessOfficeCountry?: string
+  // Prompt 3 — owner-chosen Organization Code for OrgCode-based login.
+  organizationCode?: string
+}
+
+// Prompt 3 — live availability check for an Organization Code (signup).
+export async function checkOrgCodeAvailable(code: string): Promise<{ available: boolean; reason?: string; suggestions?: string[] }> {
+  try {
+    const res = await fetch(getAuthenticationApiUrl(`org-code-available?code=${encodeURIComponent(code)}`), { headers: { accept: "*/*" } })
+    if (!res.ok) return { available: false, reason: `Check failed (${res.status})` }
+    return await res.json()
+  } catch {
+    return { available: false, reason: "Could not check availability." }
+  }
+}
+
+// Prompt 3 — resolve an Organization Code to its owner (to scope the session to
+// that org's companies after login). Returns null when the code isn't found.
+export async function resolveOrgCode(code: string): Promise<{ ownerUserId: string; businessOfficeName?: string } | null> {
+  try {
+    const res = await fetch(getAuthenticationApiUrl(`org?code=${encodeURIComponent(code)}`), { headers: { accept: "*/*" } })
+    if (!res.ok) return null
+    const data = await res.json()
+    return data?.found ? { ownerUserId: data.ownerUserId, businessOfficeName: data.businessOfficeName } : null
+  } catch { return null }
 }
 
 export interface LoginData {
@@ -566,6 +594,18 @@ export async function login(data: LoginData): Promise<ApiResponse> {
         // Fallback farm name
         localStorage.setItem("farmName", "My Farm")
         console.log("[v0] FarmName not in response, using default: My Farm")
+      }
+
+      // Prompt 2 — Business Office name (owner's HQ). Persist from the server so
+      // it shows on the Business Office page across devices.
+      const businessOfficeName = userData.businessOfficeName || userData.BusinessOfficeName
+      if (businessOfficeName) {
+        try { localStorage.setItem("businessOfficeName", businessOfficeName) } catch {}
+      }
+      // Prompt 3 — the owner's own Organization Code (shown in Business Office).
+      const myOrgCode = userData.organizationCode || userData.OrganizationCode
+      if (myOrgCode) {
+        try { localStorage.setItem("myOrgCode", myOrgCode) } catch {}
       }
 
       // Handle case sensitivity for IsStaff/isStaff

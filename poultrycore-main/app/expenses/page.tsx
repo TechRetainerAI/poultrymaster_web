@@ -13,6 +13,7 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { Plus, Pencil, Trash2, Calendar, DollarSign, Search, FileText as FileTextIcon, Download, Loader2, Filter, ChevronDown, ChevronUp, ImageIcon } from "lucide-react"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { getExpenses, getExpense, createExpense, updateExpense, deleteExpense, type Expense, type ExpenseInput } from "@/lib/api/expense"
+import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
 import { uploadExpenseReceipt } from "@/lib/api/receipt-upload"
 import {
   appendReceiptSuffix,
@@ -49,6 +50,9 @@ import { toLocalDateKey } from "@/lib/utils/date-key"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { formatDateShort, cn } from "@/lib/utils"
 import { exportTableToPdf } from "@/lib/utils/pdf-export"
+
+// Sentinel for a farm-wide expense (flockId = null), matching /expenses/new.
+const ALL_FLOCKS = "ALL"
 
 export default function ExpensesPage() {
   const router = useRouter()
@@ -100,8 +104,9 @@ export default function ExpensesPage() {
     loading: flocksSelectLoading,
   } = useBatchFlockSelect()
   const [createForm, setCreateForm] = useState({
-    flockId: "", expenseDate: new Date().toISOString().split("T")[0], category: "", description: "", amount: "", paymentMethod: "",
+    flockId: "", expenseDate: new Date().toISOString().split("T")[0], category: "", description: "", amount: "", paymentMethod: "", poultryCashAccountId: "",
   })
+  const [cashAccounts, setCashAccounts] = useState<PoultryCashAccount[]>([])
 
   // Edit dialog state
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
@@ -111,7 +116,7 @@ export default function ExpensesPage() {
   const [editingExpenseId, setEditingExpenseId] = useState<number | null>(null)
   const [editFarmId, setEditFarmId] = useState<string | undefined>(undefined)
   const [editForm, setEditForm] = useState({
-    flockId: "", expenseDate: "", category: "", description: "", amount: "", paymentMethod: "",
+    flockId: "", expenseDate: "", category: "", description: "", amount: "", paymentMethod: "", poultryCashAccountId: "",
   })
   const [createReceiptFile, setCreateReceiptFile] = useState<File | null>(null)
   const [editReceiptFile, setEditReceiptFile] = useState<File | null>(null)
@@ -126,7 +131,8 @@ export default function ExpensesPage() {
   useEffect(() => {
     loadExpenses()
     loadFlocks()
-    
+    listPoultryCashAccounts().then((a) => setCashAccounts(a.filter((x) => x.isActive))).catch(() => setCashAccounts([]))
+
     if (typeof window !== 'undefined') {
       const globalSearch = sessionStorage.getItem('globalSearchQuery')
       if (globalSearch) {
@@ -169,7 +175,7 @@ export default function ExpensesPage() {
 
   // Create handlers
   const openCreateDialog = () => {
-    setCreateForm({ flockId: "", expenseDate: new Date().toISOString().split("T")[0], category: "", description: "", amount: "", paymentMethod: "" })
+    setCreateForm({ flockId: "", expenseDate: new Date().toISOString().split("T")[0], category: "", description: "", amount: "", paymentMethod: "", poultryCashAccountId: "" })
     setCreateReceiptFile(null)
     setCreateError("")
     loadFlocksForSelect()
@@ -200,10 +206,11 @@ export default function ExpensesPage() {
     }
 
     const expense: ExpenseInput = {
-      farmId, userId, flockId: Number(createForm.flockId),
+      farmId, userId, flockId: createForm.flockId === ALL_FLOCKS ? null : Number(createForm.flockId),
       expenseDate: createForm.expenseDate + "T00:00:00Z",
       category: createForm.category, description: descriptionOut,
       amount: Number(createForm.amount), paymentMethod: createForm.paymentMethod,
+      poultryCashAccountId: createForm.poultryCashAccountId ? Number(createForm.poultryCashAccountId) : null,
     }
     const result = await createExpense(expense)
     if (result.success) {
@@ -238,11 +245,12 @@ export default function ExpensesPage() {
       const rawDesc = e.description || ""
       setEditSavedReceiptPath(extractReceiptPathFromDescription(rawDesc))
       setEditForm({
-        flockId: String(e.flockId),
+        flockId: e.flockId ? String(e.flockId) : ALL_FLOCKS,
         expenseDate: new Date(e.expenseDate).toISOString().split("T")[0],
         category: e.category,
         description: stripReceiptSuffixFromDescription(rawDesc),
         amount: String(e.amount), paymentMethod: e.paymentMethod,
+        poultryCashAccountId: e.poultryCashAccountId ? String(e.poultryCashAccountId) : "",
       })
       setEditHasDbAttachment(Boolean(e.hasAttachmentImage))
     } else {
@@ -280,10 +288,11 @@ export default function ExpensesPage() {
     }
 
     const expense: Partial<ExpenseInput> = {
-      farmId: effectiveFarmId!, userId, flockId: Number(editForm.flockId),
+      farmId: effectiveFarmId!, userId, flockId: editForm.flockId === ALL_FLOCKS ? null : Number(editForm.flockId),
       expenseDate: editForm.expenseDate + "T00:00:00Z",
       category: editForm.category, description: descriptionOut,
       amount: Number(editForm.amount), paymentMethod: editForm.paymentMethod,
+      poultryCashAccountId: editForm.poultryCashAccountId ? Number(editForm.poultryCashAccountId) : null,
     }
     const result = await updateExpense(editingExpenseId, expense)
     if (result.success) {
@@ -484,7 +493,7 @@ export default function ExpensesPage() {
               setSelectedBatchId(v)
               // If the form's currently-selected flock isn't in the new batch's flocks,
               // clear it so the user doesn't save against a now-hidden flock.
-              if (v !== BATCH_ALL && form.flockId && !flocksForSelect.some((f) => f.value === form.flockId)) {
+              if (v !== BATCH_ALL && form.flockId && form.flockId !== ALL_FLOCKS && !flocksForSelect.some((f) => f.value === form.flockId)) {
                 setForm({ ...form, flockId: "" })
               }
             }}>
@@ -502,6 +511,7 @@ export default function ExpensesPage() {
             <Select value={form.flockId} onValueChange={(v) => setForm({ ...form, flockId: v })}>
               <SelectTrigger><SelectValue placeholder="Choose a flock" /></SelectTrigger>
               <SelectContent>
+                <SelectItem value={ALL_FLOCKS}>All flocks (farm-wide)</SelectItem>
                 {flocksSelectLoading ? (
                   <SelectItem value="loading" disabled>Loading flocks...</SelectItem>
                 ) : flocksForSelect.length === 0 ? (
@@ -544,6 +554,21 @@ export default function ExpensesPage() {
                 {paymentMethods.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
               </SelectContent>
             </Select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-slate-700">Pay from cash account</Label>
+            <Select value={form.poultryCashAccountId || "none"} onValueChange={(v) => setForm({ ...form, poultryCashAccountId: v === "none" ? "" : v })} disabled={isLoading}>
+              <SelectTrigger><SelectValue placeholder="None (no cash movement)" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None (no cash movement)</SelectItem>
+                {cashAccounts.map((a) => (
+                  <SelectItem key={a.poultryCashAccountId} value={String(a.poultryCashAccountId)}>
+                    {a.accountName} ({a.currentBalance.toFixed(2)})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="text-xs text-slate-500">Posts a cash-out and reduces the account balance.</div>
           </div>
         </div>
       </div>

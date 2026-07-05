@@ -80,14 +80,18 @@ export class AuthService {
     // Normalize and return AuthResponse while also syncing tokens to apiClient/localStorage
     const token = data?.response?.accessToken?.token || data?.accessToken?.token || data?.token
     const refreshToken = data?.response?.refreshToken?.token || data?.refreshToken?.token || data?.refreshToken
-    const user = data?.response?.user || data?.user || {
-      id: data?.userId,
-      username: data?.username || credentials.userName,
-      email: data?.email || '',
-      farmId: data?.farmId || data?.userId,
-      farmName: data?.farmName || '',
-      isStaff: !!data?.isStaff,
-      isSubscriber: !!data?.isSubscriber,
+    // The verify response may be nested (data.response.user), flat camelCase,
+    // or flat PascalCase (ASP.NET). Read all variants so userId/farmId always land.
+    const rawUser = data?.response?.user || data?.user || {}
+    const pick = (...keys: string[]) => { for (const k of keys) { const v = (rawUser as any)?.[k] ?? (data as any)?.[k]; if (v !== undefined && v !== null && v !== '') return v } return undefined }
+    const user = {
+      id: pick('id', 'Id', 'userId', 'UserId'),
+      username: pick('username', 'Username', 'userName', 'UserName') || credentials.userName,
+      email: pick('email', 'Email') || '',
+      farmId: pick('farmId', 'FarmId') || pick('id', 'Id', 'userId', 'UserId'),
+      farmName: pick('farmName', 'FarmName') || '',
+      isStaff: !!pick('isStaff', 'IsStaff'),
+      isSubscriber: !!pick('isSubscriber', 'IsSubscriber'),
     }
 
     if (typeof window !== 'undefined' && token) {

@@ -13,7 +13,8 @@ interface SidebarState {
 export const useSidebarStore = create<SidebarState>()(
   persist(
     (set) => ({
-      isCollapsed: true,
+      // Default OPEN on laptop (users can still collapse it; the choice persists).
+      isCollapsed: false,
       isMobileOpen: false,
       toggle: () => set((state) => ({ isCollapsed: !state.isCollapsed })),
       toggleMobile: () => set((state) => ({ isMobileOpen: !state.isMobileOpen })),
@@ -21,7 +22,10 @@ export const useSidebarStore = create<SidebarState>()(
       setMobileOpen: (open: boolean) => set({ isMobileOpen: open }),
     }),
     {
-      name: 'sidebar-storage',
+      // Bumped from 'sidebar-storage' so the new "expanded by default for all
+      // company types" default applies to existing users (their old persisted
+      // value came from a per-farm-type force-collapse that has been removed).
+      name: 'sidebar-storage-v2',
       // Rehydrate after mount (see store-hydration.tsx) — `isCollapsed` drives
       // conditional header content, so a synchronous rehydrate would diverge
       // from the SSR default and cause a hydration mismatch.

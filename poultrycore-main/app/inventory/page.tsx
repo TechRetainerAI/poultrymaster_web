@@ -486,7 +486,7 @@ export default function InventoryPage() {
                   <Package className="w-5 h-5 text-blue-600" />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="text-xl sm:text-2xl font-bold text-slate-900 truncate">Inventory</h1>
+                  <h1 className="text-xl sm:text-2xl font-bold text-slate-900 truncate">Other Inventory</h1>
                   <p className="text-sm text-slate-600">Manage your farm inventory and supplies</p>
                 </div>
               </div>

@@ -599,6 +599,126 @@ export async function deleteEmployee(id: string): Promise<ApiResponse> {
   }
 }
 
+// ---- Doc 3 §6-7: organization employees + company access (UserFarms) ----
+
+export interface CompanyAccess {
+  farmId: string
+  name: string
+  type: string
+  role?: string | null
+}
+
+// An employee at the organization level, with the companies they can access.
+export interface OrgEmployee extends Employee {
+  companies?: CompanyAccess[]
+}
+
+// All employees across the whole organization (every company the admin owns),
+// each with the companies they can access. GET /api/Admin/organization/employees
+export async function getOrganizationEmployees(): Promise<ApiResponse<OrgEmployee[]>> {
+  try {
+    const url = buildAdminApiUrl('/Admin/organization/employees')
+    const response = await fetch(url, { method: "GET", headers: getAuthHeaders() })
+    if (!response.ok) {
+      if (response.status === 401) { forceReauth(); return { success: false, message: "Your session has expired. Please log in again." } }
+      const t = await response.text()
+      return { success: false, message: t || `Failed to fetch organization employees (${response.status})` }
+    }
+    const data = await response.json()
+    return { success: true, data: data as OrgEmployee[], message: "OK" }
+  } catch (error) {
+    return { success: false, message: `Network error: ${error instanceof Error ? error.message : 'Unknown error'}` }
+  }
+}
+
+// Companies a given employee can access. GET /api/Admin/employees/{id}/companies
+export async function getEmployeeCompanies(employeeId: string): Promise<ApiResponse<CompanyAccess[]>> {
+  try {
+    const url = buildAdminApiUrl(`/Admin/employees/${employeeId}/companies`)
+    const response = await fetch(url, { method: "GET", headers: getAuthHeaders() })
+    if (!response.ok) {
+      const t = await response.text()
+      return { success: false, message: t || `Failed to fetch employee companies (${response.status})` }
+    }
+    const data = await response.json()
+    return { success: true, data: data as CompanyAccess[], message: "OK" }
+  } catch (error) {
+    return { success: false, message: `Network error: ${error instanceof Error ? error.message : 'Unknown error'}` }
+  }
+}
+
+// Grant an employee access to a company. POST /api/Admin/employees/{id}/company-access
+export async function assignCompanyAccess(employeeId: string, farmId: string, role = "Staff"): Promise<ApiResponse> {
+  try {
+    const url = buildAdminApiUrl(`/Admin/employees/${employeeId}/company-access`)
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { ...getAuthHeaders(), Accept: "application/json" },
+      body: JSON.stringify({ FarmId: farmId, Role: role }),
+    })
+    if (!response.ok) {
+      const t = await response.text()
+      return { success: false, message: t || `Failed to assign company access (${response.status})` }
+    }
+    return { success: true, message: "Access granted" }
+  } catch (error) {
+    return { success: false, message: `Network error: ${error instanceof Error ? error.message : 'Unknown error'}` }
+  }
+}
+
+// Revoke an employee's access to a company. DELETE /api/Admin/employees/{id}/company-access/{farmId}
+export async function removeCompanyAccess(employeeId: string, farmId: string): Promise<ApiResponse> {
+  try {
+    const url = buildAdminApiUrl(`/Admin/employees/${employeeId}/company-access/${encodeURIComponent(farmId)}`)
+    const response = await fetch(url, { method: "DELETE", headers: getAuthHeaders() })
+    if (!response.ok) {
+      const t = await response.text()
+      return { success: false, message: t || `Failed to revoke company access (${response.status})` }
+    }
+    return { success: true, message: "Access revoked" }
+  } catch (error) {
+    return { success: false, message: `Network error: ${error instanceof Error ? error.message : 'Unknown error'}` }
+  }
+}
+
+// Set (or create) the owner's organization code. POST /api/Admin/organization/code
+export async function setOrganizationCode(code: string): Promise<ApiResponse<{ organizationCode: string }>> {
+  try {
+    const url = buildAdminApiUrl('/Admin/organization/code')
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { ...getAuthHeaders(), Accept: "application/json" },
+      body: JSON.stringify({ Code: code }),
+    })
+    const text = await response.text()
+    let data: any = {}
+    try { data = text ? JSON.parse(text) : {} } catch { /* non-JSON */ }
+    if (!response.ok) return { success: false, message: data.message || `Failed to save code (${response.status})` }
+    return { success: true, data, message: "Saved" }
+  } catch (error) {
+    return { success: false, message: `Network error: ${error instanceof Error ? error.message : 'Unknown error'}` }
+  }
+}
+
+// Employees who have access to a specific company (access-based list).
+// GET /api/Admin/company-employees?farmId=
+export async function getCompanyEmployees(farmId?: string): Promise<ApiResponse<Employee[]>> {
+  try {
+    const q = farmId ? `?farmId=${encodeURIComponent(farmId)}` : ""
+    const url = buildAdminApiUrl(`/Admin/company-employees${q}`)
+    const response = await fetch(url, { method: "GET", headers: getAuthHeaders() })
+    if (!response.ok) {
+      if (response.status === 401) { forceReauth(); return { success: false, message: "Your session has expired. Please log in again." } }
+      const t = await response.text()
+      return { success: false, message: t || `Failed to fetch company employees (${response.status})` }
+    }
+    const data = await response.json()
+    return { success: true, data: data as Employee[], message: "OK" }
+  } catch (error) {
+    return { success: false, message: `Network error: ${error instanceof Error ? error.message : 'Unknown error'}` }
+  }
+}
+
 // Get employees who logged in today
 export async function getTodayLogins(): Promise<ApiResponse<Employee[]>> {
   try {

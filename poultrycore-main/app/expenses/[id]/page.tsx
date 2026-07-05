@@ -14,6 +14,7 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { DollarSign } from "lucide-react"
 import { getExpense, updateExpense, type ExpenseInput } from "@/lib/api/expense"
+import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
 import { uploadExpenseReceipt } from "@/lib/api/receipt-upload"
 import {
   appendReceiptSuffix,
@@ -24,6 +25,10 @@ import { ExpenseReceiptField } from "@/components/expense/expense-receipt-field"
 import { getUserContext } from "@/lib/utils/user-context"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useBatchFlockSelect, BATCH_ALL } from "@/hooks/use-batch-flock-select"
+
+// Sentinel for "not tied to a single flock" — stored as a farm-level expense
+// (flockId = null), which the reports treat as an unallocated / all-flock cost.
+const ALL_FLOCKS = "ALL"
 
 export default function EditExpensePage() {
   const router = useRouter()
@@ -50,7 +55,9 @@ export default function EditExpensePage() {
     description: "",
     amount: "",
     paymentMethod: "",
+    poultryCashAccountId: "",
   })
+  const [cashAccounts, setCashAccounts] = useState<PoultryCashAccount[]>([])
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
   const [savedReceiptPath, setSavedReceiptPath] = useState<string | null>(null)
   const [receiptRemoved, setReceiptRemoved] = useState(false)
@@ -83,6 +90,7 @@ export default function EditExpensePage() {
   useEffect(() => {
     loadExpense()
     loadFlocks()
+    listPoultryCashAccounts().then((a) => setCashAccounts(a.filter((x) => x.isActive))).catch(() => setCashAccounts([]))
   }, [id])
 
   const loadExpense = async () => {
@@ -113,12 +121,13 @@ export default function EditExpensePage() {
           : null
       )
       setFormData({
-        flockId: String(expense.flockId),
+        flockId: expense.flockId ? String(expense.flockId) : ALL_FLOCKS,
         expenseDate: new Date(expense.expenseDate).toISOString().split("T")[0],
         category: expense.category,
         description: stripReceiptSuffixFromDescription(rawDesc),
         amount: String(expense.amount),
         paymentMethod: expense.paymentMethod,
+        poultryCashAccountId: expense.poultryCashAccountId ? String(expense.poultryCashAccountId) : "",
       })
     } else {
       setError(result.message)
@@ -202,7 +211,8 @@ export default function EditExpensePage() {
     const expense: Partial<ExpenseInput> = {
       farmId: effectiveFarmId!,
       userId,
-      flockId: Number(formData.flockId),
+      flockId: formData.flockId === ALL_FLOCKS ? null : Number(formData.flockId),
+      poultryCashAccountId: formData.poultryCashAccountId ? Number(formData.poultryCashAccountId) : null,
       expenseDate: formData.expenseDate + "T00:00:00Z",
       category: formData.category,
       description: descriptionOut,
@@ -236,7 +246,7 @@ export default function EditExpensePage() {
     return (
       <div className="flex min-h-screen bg-slate-50">
         <DashboardSidebar onLogout={handleLogout} />
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-w-0">
           <DashboardHeader />
           <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
             <div className="space-y-6">
@@ -256,7 +266,7 @@ export default function EditExpensePage() {
   return (
     <div className="flex min-h-screen bg-slate-50">
       <DashboardSidebar onLogout={handleLogout} />
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
         <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
           <div className="space-y-6 space-y-6">
@@ -291,7 +301,7 @@ export default function EditExpensePage() {
                     <Select value={selectedBatchId} onValueChange={(v) => {
                       setSelectedBatchId(v)
                       // Clear flockId if the current selection is no longer in the filtered batch.
-                      if (v !== BATCH_ALL && formData.flockId && !flocks.some((f) => f.value === formData.flockId)) {
+                      if (v !== BATCH_ALL && formData.flockId && formData.flockId !== ALL_FLOCKS && !flocks.some((f) => f.value === formData.flockId)) {
                         setFormData((prev) => ({ ...prev, flockId: "" }))
                       }
                     }}>
@@ -316,11 +326,14 @@ export default function EditExpensePage() {
                         {flocksLoading ? (
                           <SelectItem value="loading" disabled>Loading flocks...</SelectItem>
                         ) : (
-                          flocks.map((flock) => (
-                            <SelectItem key={flock.value} value={flock.value}>
-                              {flock.label}
-                            </SelectItem>
-                          ))
+                          <>
+                            <SelectItem value={ALL_FLOCKS}>All flocks (farm-wide)</SelectItem>
+                            {flocks.map((flock) => (
+                              <SelectItem key={flock.value} value={flock.value}>
+                                {flock.label}
+                              </SelectItem>
+                            ))}
+                          </>
                         )}
                       </SelectContent>
                     </Select>
@@ -375,6 +388,24 @@ export default function EditExpensePage() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Pay from cash account</Label>
+                    <Select value={formData.poultryCashAccountId || "none"} onValueChange={(value) => handleSelectChange("poultryCashAccountId", value === "none" ? "" : value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="None (no cash movement)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None (no cash movement)</SelectItem>
+                        {cashAccounts.map((a) => (
+                          <SelectItem key={a.poultryCashAccountId} value={String(a.poultryCashAccountId)}>
+                            {a.accountName} ({a.currentBalance.toFixed(2)})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="text-xs text-slate-500">Changing this re-posts the cash-out on save.</div>
                   </div>
 
                   <div className="space-y-2">

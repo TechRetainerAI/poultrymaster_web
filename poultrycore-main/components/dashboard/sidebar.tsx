@@ -47,6 +47,7 @@ import {
   Cog,
   Box,
   Route as RouteIcon,
+  Briefcase,
 } from "lucide-react"
 import { InventoryLogo } from "@/components/auth/logo"
 import { useAlertsStore, type AlertItem } from "@/lib/store/alerts-store"
@@ -68,9 +69,10 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const alerts = useAlertsStore((s: { alerts: AlertItem[]; open: () => void }) => s.alerts)
   const openAlerts = useAlertsStore((s: { alerts: AlertItem[]; open: () => void }) => s.open)
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
+  const clearActiveCompany = useAuthStore((s) => s.clearActiveCompany)
   const isWater = activeFarmType === "Water"
   const isGeneric = activeFarmType === "Generic"
-  const { isCollapsed, toggle, isMobileOpen, toggleMobile, setMobileOpen, setCollapsed } = useSidebarStore()
+  const { isCollapsed, toggle, isMobileOpen, toggleMobile, setMobileOpen } = useSidebarStore()
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     farm: true,
     production: true,
@@ -87,13 +89,10 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, isMobile])
 
-  // Keep default desktop sidebar in icon mode on initial load.
-  useEffect(() => {
-    if (!isMobile) {
-      setCollapsed(true)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMobile])
+  // Desktop sidebar defaults to EXPANDED for every company type (Poultry, Water,
+  // Generic). Users can collapse it and that choice persists (sidebar-store,
+  // default isCollapsed:false) — we intentionally do NOT force a state per farm
+  // type on load, so the user's preference sticks across pages and sessions.
 
   // Close mobile sidebar on escape key and prevent body scroll when open
   useEffect(() => {
@@ -137,6 +136,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/production-records", label: "Production Records", icon: FileText },
     { href: "/egg-production", label: "Egg sorting", icon: Egg },
     { href: "/feed-usage", label: "Feed Usage", icon: Package },
+    { href: "/poultry-products", label: "Products", icon: Package },
   ]
 
   const analyticsItems = [
@@ -147,15 +147,41 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/weekly-report", label: "Analytical Report", icon: FileText },
   ]
 
-  const inventoryItems = [
-    { href: "/health", label: "Health Records", icon: AlertTriangle },
-    { href: "/inventory", label: "Inventory", icon: Package },
+  // Combined Inventory & Health — merges the former "Inventory & Health" and
+  // "Inventory & Production" groups into one, in the order below.
+  const poultryInventoryItems = [
+    { href: "/poultry-inventory", label: "Inventory", icon: Boxes },
+    { href: "/poultry-stock", label: "Stock movements", icon: Boxes },
+    { href: "/poultry-raw-materials", label: "Raw Materials & Supplies", icon: Box },
     { href: "/supplies", label: "Supplies", icon: ShoppingCart },
+    { href: "/health", label: "Health Records", icon: AlertTriangle },
+    { href: "/poultry-loss-records", label: "Loss & Damage", icon: AlertTriangle },
+    { href: "/inventory", label: "Other Inventory", icon: Package },
+  ]
+
+  // Full driver / distribution suite for Poultry (ported from Water). Coexists
+  // with the simple /poultry-deliveries quick-delivery page above.
+  const poultryDeliveryItems = [
+    { href: "/poultry-driver-returns", label: "Deliveries",    icon: Truck },
+    { href: "/poultry-drivers",        label: "Drivers",       icon: Users2 },
+    { href: "/poultry-vehicles",       label: "Vehicles",      icon: Truck },
+    { href: "/poultry-routes",         label: "Routes",        icon: RouteIcon },
+    { href: "/poultry-driver-report",  label: "Driver report", icon: BarChart3 },
+  ]
+
+  // Quick Links — fast-access shortcuts (mirrors the Water side, minus
+  // Deliveries). Targets also live in their canonical groups below so
+  // navigation stays consistent.
+  const poultryQuickLinkItems = [
+    { href: "/poultry-daily-closing", label: "Daily Closing",     icon: FileText },
+    { href: "/production-records",    label: "Production Records", icon: Factory },
+    { href: "/sales",                 label: "Sales",             icon: ShoppingCart },
   ]
 
   const TEMP_SHOW_PAYMENTS_LINK = true
   const financialItems = [
     { href: "/cash", label: "Cash", icon: Wallet },
+    { href: "/poultry-cash-accounts", label: "Cash & Accounts", icon: Wallet },
     { href: "/sales", label: "Sales", icon: ShoppingCart },
     { href: "/expenses", label: "Expenses", icon: DollarSign },
     { href: "/customers", label: "Customers", icon: Users },
@@ -166,6 +192,14 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
       tempShowPayments: TEMP_SHOW_PAYMENTS_LINK,
     })
   )
+
+  // Poultry People (Staff + Payroll). Staff is admin/employee-gated like Water's.
+  const poultryPeopleItems = [
+    ...((permissions.isAdmin || permissions.featureAccess.canSeeEmployees)
+      ? [{ href: "/poultry-staff", label: "Staff", icon: UserCog }]
+      : []),
+    { href: "/poultry-payroll", label: "Payroll", icon: Banknote },
+  ]
 
   // Water company nav items (shown when activeFarmType === "Water")
   // James (2026-06-02): regrouped to surface Delivery and Production as
@@ -423,6 +457,17 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         className="sidebar-nav-scrollable min-h-0 flex-1 overflow-y-auto overscroll-y-contain py-3 px-2 space-y-4"
         aria-label="Main navigation"
       >
+        {/* Business Office — the owner's HQ above all companies (Prompt 2).
+            Doc 3 §9: clicking it clears the active company so the HQ is
+            company-neutral (the "home" icon behavior). */}
+        <div>
+          {renderNavItem(
+            { href: "/business-office", label: "Business Office", icon: Briefcase },
+            true,
+            () => { try { clearActiveCompany() } catch {}; handleLinkClick?.(); router.push("/business-office") },
+          )}
+        </div>
+
         {/* Dashboard — route depends on active company type */}
         <div>
           {renderNavItem({
@@ -502,6 +547,12 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
           </>
         ) : (
           <>
+            {/* Quick Links (fast-access shortcuts) */}
+            {renderGroup("Quick Links", poultryQuickLinkItems, "poultryQuickLinks")}
+
+            {/* Divider */}
+            <div className="border-t border-slate-800 mx-2" />
+
             {/* Farm Management */}
             {renderGroup("Farm", farmItems, "farm")}
 
@@ -520,14 +571,26 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
             {/* Divider */}
             <div className="border-t border-slate-800 mx-2" />
 
-            {/* Inventory & Health */}
-            {renderGroup("Inventory & Health", inventoryItems, "inventory")}
+            {/* Inventory & Health (merged inventory + health) */}
+            {renderGroup("Inventory & Health", poultryInventoryItems, "poultryInventory")}
+
+            {/* Divider */}
+            <div className="border-t border-slate-800 mx-2" />
+
+            {/* Delivery (driver / vehicle / route suite, ported from Water) */}
+            {renderGroup("Delivery", poultryDeliveryItems, "poultryDelivery")}
 
             {/* Divider */}
             <div className="border-t border-slate-800 mx-2" />
 
             {/* Financial */}
             {financialItems.length > 0 && renderGroup("Financial", financialItems, "financial")}
+
+            {/* Divider */}
+            <div className="border-t border-slate-800 mx-2" />
+
+            {/* People (Staff + Payroll) */}
+            {renderGroup("People", poultryPeopleItems, "poultryPeople")}
           </>
         )}
 
@@ -633,9 +696,20 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         </div>
       </div>
 
-      {/* Desktop sidebar — pin to viewport so it stays fixed while the main column scrolls. */}
+      {/* Desktop sidebar — fixed to the viewport so it stays put while the main
+          column scrolls. `sticky` breaks here because globals.css sets overflow
+          on <body>, making it a scroll container that never actually scrolls.
+          The in-flow spacer below reserves the same-width column so the main
+          content sits beside the fixed rail instead of under it. */}
+      <div
+        aria-hidden="true"
+        className={cn(
+          "hidden lg:block lg:shrink-0 transition-all duration-300",
+          isCollapsed ? "w-16" : "w-60"
+        )}
+      />
       <div className={cn(
-        "hidden min-h-0 overflow-hidden lg:sticky lg:top-0 lg:h-screen lg:self-start lg:shrink-0 lg:flex lg:flex-col bg-slate-900 transition-all duration-300",
+        "hidden min-h-0 overflow-hidden lg:fixed lg:top-0 lg:left-0 lg:z-40 lg:h-screen lg:flex lg:flex-col bg-slate-900 transition-all duration-300",
         isCollapsed ? "w-16" : "w-60"
       )}>
         {sidebarContent}

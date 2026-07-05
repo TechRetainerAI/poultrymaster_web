@@ -80,6 +80,34 @@ namespace PoultryFarmAPIWeb.Business
             return defaultValue;
         }
 
+        private static int? GetNullableInt32IfPresent(SqlDataReader reader, string columnName)
+        {
+            for (var i = 0; i < reader.FieldCount; i++)
+            {
+                if (string.Equals(reader.GetName(i), columnName, StringComparison.OrdinalIgnoreCase))
+                    return reader.IsDBNull(i) ? (int?)null : Convert.ToInt32(reader.GetValue(i));
+            }
+            return null;
+        }
+
+        // Posts / reverses the sale's cash-in on the chosen PoultryCashAccount.
+        // Safe to call with a null account (reverse only). Only posts when the
+        // sale is paid — an unpaid sale records the account but moves no money.
+        private async Task SyncSaleCashAsync(string farmId, int saleId, int? cashAccountId, decimal amount, bool paid, string? description, string? createdBy)
+        {
+            using var conn = new SqlConnection(_connectionString);
+            using var cmd = new SqlCommand("spPoultrySaleCash_Sync", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@SaleId", saleId);
+            cmd.Parameters.AddWithValue("@PoultryCashAccountId", (object?)cashAccountId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Amount", amount);
+            cmd.Parameters.AddWithValue("@Paid", paid);
+            cmd.Parameters.AddWithValue("@Description", (object?)description ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@CreatedBy", (object?)createdBy ?? DBNull.Value);
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
         public async Task<int> Insert(SaleModel model)
         {
             try
@@ -106,7 +134,9 @@ namespace PoultryFarmAPIWeb.Business
                 if (await ProcedureHasSizeParameterAsync(conn, "spSale_Insert"))
                     cmd.Parameters.AddWithValue("@Size", (object?)model.Size ?? DBNull.Value);
                 var result = await cmd.ExecuteScalarAsync();
-                return Convert.ToInt32(result);
+                var newId = Convert.ToInt32(result);
+                await SyncSaleCashAsync(model.FarmId, newId, model.PoultryCashAccountId, model.TotalAmount, model.Paid, model.SaleDescription, model.UserId);
+                return newId;
             }
             catch (Exception ex)
             {
@@ -141,6 +171,8 @@ namespace PoultryFarmAPIWeb.Business
                 if (await ProcedureHasSizeParameterAsync(conn, "spSale_Update"))
                     cmd.Parameters.AddWithValue("@Size", (object?)model.Size ?? DBNull.Value);
                 await cmd.ExecuteNonQueryAsync();
+                conn.Close();
+                await SyncSaleCashAsync(model.FarmId, model.SaleId, model.PoultryCashAccountId, model.TotalAmount, model.Paid, model.SaleDescription, model.UserId);
             }
             catch (Exception ex)
             {
@@ -177,6 +209,7 @@ namespace PoultryFarmAPIWeb.Business
                         SaleDescription = reader.IsDBNull(reader.GetOrdinal("SaleDescription")) ? null : reader.GetString(reader.GetOrdinal("SaleDescription")),
                         Paid = GetBooleanIfPresent(reader, "Paid", true),
                         Size = GetNullableStringIfPresent(reader, "Size"),
+                        PoultryCashAccountId = GetNullableInt32IfPresent(reader, "PoultryCashAccountId"),
                         CreatedDate = reader.GetDateTime(reader.GetOrdinal("CreatedDate")),
                         FarmId = reader.GetString(reader.GetOrdinal("FarmId"))
                     };
@@ -218,6 +251,7 @@ namespace PoultryFarmAPIWeb.Business
                         SaleDescription = reader.IsDBNull(reader.GetOrdinal("SaleDescription")) ? null : reader.GetString(reader.GetOrdinal("SaleDescription")),
                         Paid = GetBooleanIfPresent(reader, "Paid", true),
                         Size = GetNullableStringIfPresent(reader, "Size"),
+                        PoultryCashAccountId = GetNullableInt32IfPresent(reader, "PoultryCashAccountId"),
                         CreatedDate = reader.GetDateTime(reader.GetOrdinal("CreatedDate")),
                         FarmId = reader.GetString(reader.GetOrdinal("FarmId"))
                     };
@@ -235,6 +269,9 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
+                // Reverse any cash-in this sale posted before removing it.
+                await SyncSaleCashAsync(farmId, saleId, null, 0m, false, null, userId);
+
                 using var conn = new SqlConnection(_connectionString);
                 using var cmd = new SqlCommand("spSale_Delete", conn);
                 cmd.CommandType = CommandType.StoredProcedure;
@@ -281,6 +318,7 @@ namespace PoultryFarmAPIWeb.Business
                         SaleDescription = reader.IsDBNull(reader.GetOrdinal("SaleDescription")) ? null : reader.GetString(reader.GetOrdinal("SaleDescription")),
                         Paid = GetBooleanIfPresent(reader, "Paid", true),
                         Size = GetNullableStringIfPresent(reader, "Size"),
+                        PoultryCashAccountId = GetNullableInt32IfPresent(reader, "PoultryCashAccountId"),
                         CreatedDate = reader.GetDateTime(reader.GetOrdinal("CreatedDate")),
                         FarmId = reader.GetString(reader.GetOrdinal("FarmId"))
                     };

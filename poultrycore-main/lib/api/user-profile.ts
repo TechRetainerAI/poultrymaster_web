@@ -36,6 +36,10 @@ export interface UpdateProfileData {
   firstName?: string
   lastName?: string
   farmName?: string
+  // Doc 3 §8: organization-level fields (stored on the owner's account).
+  businessOfficeName?: string
+  businessOfficeCurrency?: string
+  businessOfficeCountry?: string
 }
 
 export interface ApiResponse<T = any> {

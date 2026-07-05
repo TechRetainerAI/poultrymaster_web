@@ -212,7 +212,7 @@ export default function HelpPage() {
               </div>
               <h1 className="text-3xl font-bold text-slate-900">Help Center</h1>
               <p className="text-slate-600 max-w-xl mx-auto">
-                Find answers to common questions, learn how to use Poultry Master features, and get support.
+                Find answers to common questions, learn how to use VisibilityCore features, and get support.
               </p>
             </div>
 

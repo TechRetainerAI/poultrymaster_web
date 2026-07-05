@@ -54,6 +54,28 @@ namespace User.Management.API.Controllers
             }
         }
 
+        // PUT /api/Companies/{farmId}
+        // Edits a company the current user belongs to (Doc 3 §8).
+        [HttpPut("{farmId}")]
+        public async Task<IActionResult> Update(string farmId, [FromBody] CreateCompanyRequest req)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+            try
+            {
+                var result = await _companies.UpdateAsync(userId, farmId, req);
+                return result.IsSuccess
+                    ? Ok(result.Response)
+                    : StatusCode(result.StatusCode, new { message = result.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[Companies] Update failed");
+                return StatusCode(500, new { message = ex.Message });
+            }
+        }
+
         // POST /api/Companies/switch
         // Switches the user's active company. Returns a new JWT scoped to that
         // company. Frontend should replace the stored token with the response.
