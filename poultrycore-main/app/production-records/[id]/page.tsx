@@ -206,7 +206,7 @@ export default function EditProductionRecordPage() {
         <DashboardSidebar onLogout={handleLogout} />
         
         {/* Main Content */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-w-0">
           {/* Header */}
           <DashboardHeader />
           
@@ -230,7 +230,7 @@ export default function EditProductionRecordPage() {
       <DashboardSidebar onLogout={handleLogout} />
       
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
         <DashboardHeader />
         
