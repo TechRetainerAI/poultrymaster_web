@@ -1016,7 +1016,7 @@ export default function ProductionRecordsPage() {
                             <TableCell className="text-right font-semibold px-3 py-2 text-purple-800 bg-purple-50 border border-purple-100 rounded">{total4PM.toLocaleString()}<div className="text-xs font-normal text-purple-600">{Math.floor(total4PM / EGGS_PER_CRATE)}c + {total4PM % EGGS_PER_CRATE}p</div></TableCell>
                             <TableCell className="text-right font-semibold px-3 py-2 text-red-700 bg-red-50 border border-red-100 rounded">{totalBrokens.toLocaleString()}<div className="text-xs font-normal text-red-500">{Math.floor(totalBrokens / EGGS_PER_CRATE)}c + {totalBrokens % EGGS_PER_CRATE}p</div></TableCell>
                             <TableCell className="text-right font-semibold px-3 py-2 text-emerald-700">{totalEggs.toLocaleString()}<div className="text-xs font-normal text-slate-500">{totalEggsCrates}c + {totalEggsPieces}p</div></TableCell>
-                            <TableCell></TableCell>
+                            {/* Egg% — no meaningful total */}
                             <TableCell></TableCell>
                             <TableCell className="text-right font-semibold px-3 py-2">{totalFeed.toFixed(2)}</TableCell>
                             <TableCell className="text-right font-semibold px-3 py-2 text-slate-700">{footerTotalBirds.toLocaleString()}</TableCell>
