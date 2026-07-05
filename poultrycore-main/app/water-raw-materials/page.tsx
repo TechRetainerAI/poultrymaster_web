@@ -684,7 +684,7 @@ export default function WaterRawMaterialsPage() {
                         onChange={(e) => setPurchaseForm({ ...purchaseForm, productionUnitsPerPurchaseUnit: Number(e.target.value) || 0 })} />
                     </FormField>
                     <FormField label="Production-level quantity" hint="Editable — sets units per purchase unit">
-                      <NumberInput min={0} step="0.001" disabled={manualProdCost} value={Number(prodQty.toFixed(4))}
+                      <NumberInput min={0} step="0.001" value={Number(prodQty.toFixed(4))}
                         onChange={(e) => { const v = Number(e.target.value) || 0; setPurchaseForm({ ...purchaseForm, productionUnitsPerPurchaseUnit: qty > 0 ? Number((v / qty).toFixed(6)) : perPurchase }) }} />
                     </FormField>
                     {manualProdCost ? (
