@@ -480,6 +480,47 @@ namespace User.Management.Service.Services
             return normalized;
         }
 
+        public async Task<OrganizationProfile> GetOrganizationProfileAsync(string userId)
+        {
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null) throw new Exception("User not found.");
+            return MapOrgProfile(user);
+        }
+
+        public async Task<OrganizationProfile> UpdateOrganizationProfileAsync(string userId, OrganizationProfile profile)
+        {
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null) throw new Exception("User not found.");
+
+            // Only overwrite the fields the client sent; leave the rest (and every
+            // identity/security column) untouched. EF change-tracking on the loaded
+            // entity means UpdateAsync persists just these columns safely.
+            if (profile.FirstName != null) user.FirstName = profile.FirstName.Trim();
+            if (profile.LastName != null) user.LastName = profile.LastName.Trim();
+            if (profile.PhoneNumber != null) user.PhoneNumber = profile.PhoneNumber.Trim();
+            if (profile.BusinessOfficeName != null) user.BusinessOfficeName = profile.BusinessOfficeName.Trim();
+            if (profile.BusinessOfficeCurrency != null) user.BusinessOfficeCurrency = profile.BusinessOfficeCurrency.Trim();
+            if (profile.BusinessOfficeCountry != null) user.BusinessOfficeCountry = profile.BusinessOfficeCountry.Trim();
+
+            var res = await _userManager.UpdateAsync(user);
+            if (!res.Succeeded)
+                throw new Exception("Failed to save organization profile: " + string.Join(", ", res.Errors.Select(e => e.Description)));
+
+            return MapOrgProfile(user);
+        }
+
+        private static OrganizationProfile MapOrgProfile(ApplicationUser u) => new OrganizationProfile
+        {
+            FirstName = u.FirstName,
+            LastName = u.LastName,
+            Email = u.Email,
+            PhoneNumber = u.PhoneNumber,
+            BusinessOfficeName = u.BusinessOfficeName,
+            BusinessOfficeCurrency = u.BusinessOfficeCurrency,
+            BusinessOfficeCountry = u.BusinessOfficeCountry,
+            OrganizationCode = u.OrganizationCode,
+        };
+
         public Task AssignCompanyAccessAsync(string employeeId, string farmId, string role)
             => _companyDal.AddMemberAsync(employeeId, farmId, string.IsNullOrWhiteSpace(role) ? "Staff" : role);
 

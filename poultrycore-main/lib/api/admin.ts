@@ -700,6 +700,53 @@ export async function setOrganizationCode(code: string): Promise<ApiResponse<{ o
   }
 }
 
+// Organization/owner profile (name, contact, business-office details).
+// JWT-keyed on the backend — no id sent from the client.
+export interface OrganizationProfile {
+  firstName?: string | null
+  lastName?: string | null
+  email?: string | null
+  phoneNumber?: string | null
+  businessOfficeName?: string | null
+  businessOfficeCurrency?: string | null
+  businessOfficeCountry?: string | null
+  organizationCode?: string | null
+}
+
+// GET /api/Admin/organization/profile
+export async function getOrganizationProfile(): Promise<ApiResponse<OrganizationProfile>> {
+  try {
+    const url = buildAdminApiUrl('/Admin/organization/profile')
+    const response = await fetch(url, { method: "GET", headers: { ...getAuthHeaders(), Accept: "application/json" } })
+    const text = await response.text()
+    let data: any = {}
+    try { data = text ? JSON.parse(text) : {} } catch { /* non-JSON */ }
+    if (!response.ok) return { success: false, message: data.message || `Failed to load profile (${response.status})` }
+    return { success: true, data }
+  } catch (error) {
+    return { success: false, message: `Network error: ${error instanceof Error ? error.message : 'Unknown error'}` }
+  }
+}
+
+// PUT /api/Admin/organization/profile
+export async function updateOrganizationProfile(profile: OrganizationProfile): Promise<ApiResponse<OrganizationProfile>> {
+  try {
+    const url = buildAdminApiUrl('/Admin/organization/profile')
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: { ...getAuthHeaders(), Accept: "application/json" },
+      body: JSON.stringify(profile),
+    })
+    const text = await response.text()
+    let data: any = {}
+    try { data = text ? JSON.parse(text) : {} } catch { /* non-JSON */ }
+    if (!response.ok) return { success: false, message: data.message || `Failed to save profile (${response.status})` }
+    return { success: true, data, message: "Saved" }
+  } catch (error) {
+    return { success: false, message: `Network error: ${error instanceof Error ? error.message : 'Unknown error'}` }
+  }
+}
+
 // Employees who have access to a specific company (access-based list).
 // GET /api/Admin/company-employees?farmId=
 export async function getCompanyEmployees(farmId?: string): Promise<ApiResponse<Employee[]>> {

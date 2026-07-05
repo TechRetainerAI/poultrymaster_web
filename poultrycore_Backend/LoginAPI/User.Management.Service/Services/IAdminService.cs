@@ -74,6 +74,34 @@ namespace User.Management.Service.Services
         /// Returns the saved (normalized) code. Throws if the code is taken.
         /// </summary>
         Task<string> SetOrganizationCodeAsync(string userId, string code);
+
+        /// <summary>
+        /// Read the current owner's organization/owner profile (name, contact and
+        /// organization-level details stored on their account). JWT-keyed — no
+        /// client-supplied id — so it always resolves the authenticated user.
+        /// </summary>
+        Task<OrganizationProfile> GetOrganizationProfileAsync(string userId);
+
+        /// <summary>
+        /// Update the current owner's organization/owner profile. Persists via
+        /// UserManager (EF) so every AspNetUsers column — including the
+        /// BusinessOffice* fields — is saved without wiping the password/identity
+        /// columns. Only the provided fields are changed.
+        /// </summary>
+        Task<OrganizationProfile> UpdateOrganizationProfileAsync(string userId, OrganizationProfile profile);
+    }
+
+    /// <summary>Organization/owner profile carried between the API and the client.</summary>
+    public class OrganizationProfile
+    {
+        public string? FirstName { get; set; }
+        public string? LastName { get; set; }
+        public string? Email { get; set; }
+        public string? PhoneNumber { get; set; }
+        public string? BusinessOfficeName { get; set; }
+        public string? BusinessOfficeCurrency { get; set; }
+        public string? BusinessOfficeCountry { get; set; }
+        public string? OrganizationCode { get; set; }
     }
 }
 
