@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { usePermissions } from "@/hooks/use-permissions"
-import { Briefcase, Building2, Bell, ListTodo, HelpCircle, LogOut, Menu, ShieldCheck, Settings, UserCog, Users } from "lucide-react"
+import { Briefcase, Building2, Bell, ListTodo, HelpCircle, LogOut, Menu, ShieldCheck, Settings, UserCog } from "lucide-react"
 import { BoCompanySelector } from "@/components/dashboard/bo-company-selector"
 
 type ActiveKey = "home" | "companies" | "employees" | "users" | "settings" | "org" | "help"
@@ -59,7 +59,7 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
   // company (/employees, /settings) with ?bo=1 so they render in this shell —
   // same data, same features, just kept in the Business Office.
   const admin = isAdmin ? [
-    { key: "employees", href: "/business-office/employees", label: "Employees", icon: Users },
+    // Employees removed from the Business Office sidebar (James, 2026-07-05).
     { key: "users", href: "/business-office/users", label: "Users & Permissions", icon: ShieldCheck },
   ] : []
   const settings = isAdmin ? [
