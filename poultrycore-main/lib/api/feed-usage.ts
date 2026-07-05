@@ -384,6 +384,7 @@ export async function updateFeedUsage(id: number, usage: Partial<FeedUsageInput>
 
     // Use PascalCase to match the API expectations (same as POST)
     const requestBody: any = {}
+    if (usage.farmId) requestBody.FarmId = usage.farmId  // API requires FarmId
     if (usage.userId) requestBody.UserId = usage.userId
     requestBody.FeedUsageId = id  // Use the id parameter
     if (usage.flockId !== undefined) requestBody.FlockId = usage.flockId
@@ -411,23 +412,23 @@ export async function updateFeedUsage(id: number, usage: Partial<FeedUsageInput>
       }
     }
 
+    // A successful PUT commonly returns 204 No Content / an empty body — that's
+    // still success. Only parse when the response actually carries JSON.
     const contentType = response.headers.get("content-type")
-    if (!contentType || !contentType.includes("application/json")) {
-      console.error("[v0] Non-JSON response received")
+    if (contentType && contentType.includes("application/json")) {
+      const data = await response.json()
+      console.log("[v0] Updated feed usage data:", data)
       return {
-        success: false,
-        message: "Invalid response format",
-        data: null,
+        success: true,
+        message: "Feed usage updated successfully",
+        data: data as FeedUsage,
       }
     }
-
-    const data = await response.json()
-    console.log("[v0] Updated feed usage data:", data)
 
     return {
       success: true,
       message: "Feed usage updated successfully",
-      data: data as FeedUsage,
+      data: null,
     }
   } catch (error) {
     console.error("[v0] Feed usage update error:", error)
