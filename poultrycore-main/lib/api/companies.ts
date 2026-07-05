@@ -1,4 +1,4 @@
-import { getAuthHeaders, loginApiUrl, buildApiUrl } from "./config"
+import { getAuthHeaders, loginApiUrl, buildApiUrl, readApiError } from "./config"
 import { tryRefreshAccessToken } from "./auth"
 
 // 60-minute access tokens expire while the user is still on the page. Without
@@ -64,11 +64,7 @@ function lower<T = any>(obj: any): T {
 
 export async function getMyCompanies(): Promise<Company[]> {
   const res = await loginApiFetch("/Companies/mine")
-  if (!res.ok) {
-    throw new Error(res.status === 401
-      ? "Your session has expired. Please log in again."
-      : `getMyCompanies failed: ${res.status}`)
-  }
+  if (!res.ok) throw new Error(await readApiError(res, "Couldn't load your companies"))
   return lower<Company[]>(await res.json())
 }
 
@@ -82,12 +78,7 @@ export async function createCompany(input: CreateCompanyInput): Promise<Company>
       PhoneNumber: input.phoneNumber ?? null,
     }),
   })
-  if (!res.ok) {
-    const t = await res.text()
-    throw new Error(res.status === 401
-      ? "Your session has expired. Please log in again."
-      : `createCompany failed: ${res.status} ${t}`)
-  }
+  if (!res.ok) throw new Error(await readApiError(res, "Couldn't create the company"))
   return lower<Company>(await res.json())
 }
 
@@ -106,12 +97,7 @@ export async function updateCompany(farmId: string, input: UpdateCompanyInput): 
       PhoneNumber: input.phoneNumber ?? null,
     }),
   })
-  if (!res.ok) {
-    const t = await res.text()
-    throw new Error(res.status === 401
-      ? "Your session has expired. Please log in again."
-      : `updateCompany failed: ${res.status} ${t}`)
-  }
+  if (!res.ok) throw new Error(await readApiError(res, "Couldn't update the company"))
   return lower<Company>(await res.json())
 }
 
@@ -171,11 +157,6 @@ export async function switchCompany(farmId: string): Promise<SwitchFarmResponse>
     method: "POST",
     body: JSON.stringify({ FarmId: farmId }),
   })
-  if (!res.ok) {
-    const t = await res.text()
-    throw new Error(res.status === 401
-      ? "Your session has expired. Please log in again."
-      : `switchCompany failed: ${res.status} ${t}`)
-  }
+  if (!res.ok) throw new Error(await readApiError(res, "Couldn't switch company"))
   return lower<SwitchFarmResponse>(await res.json())
 }
