@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
+import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -73,6 +74,11 @@ export default function PoultryRawMaterialsPage() {
   const [purchaseOpen, setPurchaseOpen] = useState(false)
   const [editPurchaseId, setEditPurchaseId] = useState<number | null>(null)
   const [purchaseForm, setPurchaseForm] = useState({ ...EMPTY_PURCHASE })
+  // When ON, the user enters the production-level unit cost directly instead of
+  // it auto-calculating from the purchase total ÷ production quantity. We store
+  // it by back-solving the units-per-purchase-unit factor, so it persists with
+  // no schema change.
+  const [manualProdCost, setManualProdCost] = useState(false)
   const [deletePurchaseTarget, setDeletePurchaseTarget] = useState<PoultryRawMaterialPurchase | null>(null)
   const [savingPurchase, setSavingPurchase] = useState(false)
 
@@ -134,9 +140,10 @@ export default function PoultryRawMaterialsPage() {
   }
 
   // ---- Purchase CRUD ----
-  function openNewPurchase() { setEditPurchaseId(null); setPurchaseForm({ ...EMPTY_PURCHASE }); setPurchaseOpen(true) }
+  function openNewPurchase() { setEditPurchaseId(null); setManualProdCost(false); setPurchaseForm({ ...EMPTY_PURCHASE }); setPurchaseOpen(true) }
   function openEditPurchase(p: PoultryRawMaterialPurchase) {
     setEditPurchaseId(p.poultryRawMaterialPurchaseId)
+    setManualProdCost(false)
     setPurchaseForm({
       poultryRawMaterialItemId: p.poultryRawMaterialItemId,
       supplierName: p.supplierName ?? "",
@@ -382,6 +389,15 @@ export default function PoultryRawMaterialsPage() {
                 </FormSection>
 
                 <FormSection title="Production Conversion" color="indigo">
+                  <FormField label="" full>
+                    <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                      <div>
+                        <div className="text-sm font-medium text-slate-700">Enter production cost manually</div>
+                        <div className="text-xs text-slate-500">Turn off the auto-calculation and type the production-level unit cost yourself.</div>
+                      </div>
+                      <Switch checked={manualProdCost} onCheckedChange={setManualProdCost} />
+                    </div>
+                  </FormField>
                   <FormField label="Production unit">
                     <Select value={f.productionUnit || ""} onValueChange={(v) => setPurchaseForm({ ...f, productionUnit: v })}>
                       <SelectTrigger><SelectValue placeholder="Pick unit" /></SelectTrigger>
@@ -390,7 +406,18 @@ export default function PoultryRawMaterialsPage() {
                   </FormField>
                   <FormField label="Production units per purchase unit"><NumberInput min={0} step="0.0001" value={f.productionUnitsPerPurchaseUnit} onChange={(e) => setPurchaseForm({ ...f, productionUnitsPerPurchaseUnit: Number(e.target.value) || 0 })} /></FormField>
                   <FormField label="Production-level quantity" hint="Editable — sets units per purchase unit"><NumberInput min={0} step="0.001" value={Number(prodQty.toFixed(4))} onChange={(e) => { const v = Number(e.target.value) || 0; setPurchaseForm({ ...f, productionUnitsPerPurchaseUnit: qty > 0 ? Number((v / qty).toFixed(6)) : f.productionUnitsPerPurchaseUnit }) }} /></FormField>
-                  <FormField label="Production-level unit cost (auto)"><Input readOnly tabIndex={-1} className={roCls} value={`${gh(prodUnitCost)}${f.productionUnit ? ` per ${f.productionUnit}` : ""}`} /></FormField>
+                  {manualProdCost ? (
+                    <FormField label="Production-level unit cost" hint="Manual — sets the conversion for you">
+                      <NumberInput min={0} step="0.0001" value={Number(prodUnitCost.toFixed(4))} onChange={(e) => {
+                        const c = Number(e.target.value) || 0
+                        // production unit cost = total / (qty × perPurchase) ⇒ perPurchase = total / (cost × qty)
+                        const newPer = (c > 0 && qty > 0 && total > 0) ? Number((total / (c * qty)).toFixed(6)) : f.productionUnitsPerPurchaseUnit
+                        setPurchaseForm({ ...f, productionUnitsPerPurchaseUnit: newPer })
+                      }} />
+                    </FormField>
+                  ) : (
+                    <FormField label="Production-level unit cost (auto)"><Input readOnly tabIndex={-1} className={roCls} value={`${gh(prodUnitCost)}${f.productionUnit ? ` per ${f.productionUnit}` : ""}`} /></FormField>
+                  )}
                   <FormField label="" full><p className="text-xs text-slate-500">If you buy and use the same unit, set <span className="font-medium">Production units per purchase unit = 1</span> — the production figures then match the purchase figures.</p></FormField>
                 </FormSection>
 
