@@ -35,6 +35,8 @@ export interface ProductionRecord {
   production4PM: number
   brokenEggs: number
   totalProduction: number
+  /** Free-text notes for the production entry. */
+  notes?: string | null
   createdAt: string
   updatedAt: string
   flockId?: number | null
@@ -79,6 +81,8 @@ export interface ProductionRecordInput {
   production4PM: number
   brokenEggs: number
   totalProduction: number
+  /** Free-text notes for the production entry. */
+  notes?: string | null
   flockId?: number | null
   eggGrade?: string | null
   meatyEggs?: number | null
@@ -284,6 +288,7 @@ export async function createProductionRecord(record: ProductionRecordInput) {
     payload.meatyEggs = record.meatyEggs ?? null
     payload.softEggs = record.softEggs ?? null
     payload.lostEggs = record.lostEggs ?? null
+    payload.notes = record.notes ?? null
     attachCosting(payload, record)
 
     const response = await fetch(url, {
@@ -365,6 +370,7 @@ export async function updateProductionRecord(id: number, record: ProductionRecor
     if (Object.prototype.hasOwnProperty.call(record, "meatyEggs")) payload.meatyEggs = record.meatyEggs ?? null
     if (Object.prototype.hasOwnProperty.call(record, "softEggs")) payload.softEggs = record.softEggs ?? null
     if (Object.prototype.hasOwnProperty.call(record, "lostEggs")) payload.lostEggs = record.lostEggs ?? null
+    if (Object.prototype.hasOwnProperty.call(record, "notes")) payload.notes = record.notes ?? null
     attachCosting(payload, record)
 
     const response = await fetch(url, {

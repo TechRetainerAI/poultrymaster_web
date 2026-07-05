@@ -9,11 +9,13 @@ import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import { EGG_GRADE_OPTIONS, eggGradeFromApi, eggGradeToApi } from "@/lib/constants/egg-grade"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { FileText, X } from "lucide-react"
 import { getProductionRecord, updateProductionRecord, type ProductionRecordInput } from "@/lib/api/production-record"
+import { createFeedUsage, updateFeedUsage, getFeedUsages, type FeedUsageInput } from "@/lib/api/feed-usage"
 import { getUserContext } from "@/lib/utils/user-context"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useMemo } from "react"
@@ -26,6 +28,9 @@ import {
 // Doc §4a: classify a raw-material item as Feed or Medication by its category.
 const isFeedCategory = (c?: string | null) => !!c && /feed/i.test(c)
 const isMedicationCategory = (c?: string | null) => !!c && /(medic|vaccin|drug)/i.test(c)
+
+// Kept in sync with the add form (production-records/new).
+const feedTypes = ["Starter Feed", "Grower Feed", "Layer Feed", "Broiler Feed", "Organic Feed", "Custom Mix"]
 
 export default function EditProductionRecordPage() {
   const router = useRouter()
@@ -41,7 +46,9 @@ export default function EditProductionRecordPage() {
     noOfBirds: "",
     mortality: "",
     feedKg: "",
+    feedType: "",
     medication: "",
+    notes: "",
     production9AM: "",
     production12PM: "",
     production4PM: "",
@@ -61,6 +68,9 @@ export default function EditProductionRecordPage() {
 
   const [rawItems, setRawItems] = useState<PoultryRawMaterialItem[]>([])
   const [latestCost, setLatestCost] = useState<Record<number, number>>({})
+  // Flock of the record being edited (from the API, not user-editable here) —
+  // needed to sync the matching FeedUsage row on save.
+  const [flockId, setFlockId] = useState<number | null>(null)
   const feedItems = useMemo(() => rawItems.filter((i) => isFeedCategory(i.category)), [rawItems])
   const medItems = useMemo(() => rawItems.filter((i) => isMedicationCategory(i.category)), [rawItems])
   const totalFeedCost = useMemo(() => (parseFloat(formData.feedUnitCost) || 0) * (parseFloat(formData.totalFeedConsumed) || 0), [formData.feedUnitCost, formData.totalFeedConsumed])
@@ -96,14 +106,19 @@ export default function EditProductionRecordPage() {
 
     if (result.success && result.data) {
       const record = result.data
+      const dateStr = new Date(record.date).toISOString().split("T")[0]
+      const fId = (record as any).flockId ?? null
+      setFlockId(fId)
       setFormData({
         ageInWeeks: String(record.ageInWeeks),
         ageInDays: String(record.ageInDays),
-        date: new Date(record.date).toISOString().split("T")[0],
+        date: dateStr,
         noOfBirds: String(record.noOfBirds),
         mortality: String(record.mortality),
         feedKg: String(record.feedKg),
+        feedType: "",
         medication: record.medication,
+        notes: (record as any).notes ?? "",
         production9AM: String(record.production9AM),
         production12PM: String(record.production12PM),
         production4PM: String(record.production4PM),
@@ -119,6 +134,20 @@ export default function EditProductionRecordPage() {
         medicationUnitCost: (record as any).medicationUnitCost == null ? "" : String((record as any).medicationUnitCost),
         totalMedicationConsumed: (record as any).totalMedicationConsumed == null ? "" : String((record as any).totalMedicationConsumed),
       })
+
+      // Feed Type isn't stored on the production record — pull it from the
+      // matching FeedUsage row (same flock + date) so it can be edited/re-synced.
+      if (fId) {
+        try {
+          const fuRes = await getFeedUsages(userId, farmId)
+          if (fuRes.success && fuRes.data) {
+            const match = (fuRes.data as any[]).find(
+              (fu) => fu.flockId === fId && new Date(fu.usageDate).toISOString().split("T")[0] === dateStr,
+            )
+            if (match?.feedType) setFormData((p) => ({ ...p, feedType: match.feedType }))
+          }
+        } catch { /* feed usage optional */ }
+      }
     } else {
       setError(result.message)
     }
@@ -155,6 +184,7 @@ export default function EditProductionRecordPage() {
       noOfBirdsLeft,
       feedKg: Number(formData.feedKg),
       medication: formData.medication,
+      notes: formData.notes || null,
       production9AM: Number(formData.production9AM),
       production12PM: Number(formData.production12PM),
       production4PM: Number(formData.production4PM),
@@ -179,12 +209,40 @@ export default function EditProductionRecordPage() {
 
     const result = await updateProductionRecord(id, record)
 
-    if (result.success) {
-      router.push("/production-records")
-    } else {
+    if (!result.success) {
       setError(result.message)
       setLoading(false)
+      return
     }
+
+    // Sync the matching FeedUsage row (create or update) — mirrors the add form.
+    if (parseFloat(formData.feedKg) > 0 && flockId && formData.feedType) {
+      try {
+        if (userId && farmId) {
+          const feedUsagesRes = await getFeedUsages(userId, farmId)
+          let existingFeedUsage: any = null
+          if (feedUsagesRes.success && feedUsagesRes.data) {
+            existingFeedUsage = (feedUsagesRes.data as any[]).find(
+              (fu) => fu.flockId === flockId && new Date(fu.usageDate).toISOString().split("T")[0] === formData.date,
+            )
+          }
+          const feedUsageData: FeedUsageInput = {
+            farmId,
+            userId,
+            flockId,
+            usageDate: formData.date + "T00:00:00Z",
+            feedType: formData.feedType,
+            quantityKg: parseFloat(formData.feedKg) || 0,
+          }
+          if (existingFeedUsage) await updateFeedUsage(existingFeedUsage.feedUsageId, feedUsageData)
+          else await createFeedUsage(feedUsageData)
+        }
+      } catch (feedError) {
+        console.error("Error syncing feed usage:", feedError)
+      }
+    }
+
+    router.push("/production-records")
   }
 
   const handleLogout = () => {
@@ -482,16 +540,28 @@ export default function EditProductionRecordPage() {
                   </div>
                 </div>
 
-                {/* Feed, Medication & Notes */}
+                {/* Feed, Medication & Notes — combined with the inventory-based
+                    feed/medication usage & costing (Doc §4a-4c). */}
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold text-slate-900">Feed, Medication &amp; Notes</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-slate-700">Feed Type</Label>
+                      <Select value={formData.feedType} onValueChange={(v) => setFormData((p) => ({ ...p, feedType: v }))}>
+                        <SelectTrigger className="h-11"><SelectValue placeholder="Select feed type" /></SelectTrigger>
+                        <SelectContent>
+                          {feedTypes.map((type) => (
+                            <SelectItem key={type} value={type}>{type}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <div className="space-y-2">
                       <Label htmlFor="feedKg" className="text-sm font-medium text-slate-700">Feed (kg) *</Label>
                       <NumberInput
                         id="feedKg"
                         name="feedKg"
-                        
+
                         step="0.01"
                         value={formData.feedKg}
                         onChange={handleChange}
@@ -515,11 +585,14 @@ export default function EditProductionRecordPage() {
                       />
                     </div>
                   </div>
-                </div>
 
-                {/* Doc §4a-4c: Feed & Medication used from inventory + costing */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-slate-900">Feed &amp; Medication Used (from inventory)</h3>
+                  {/* Used (from inventory) — reduces Raw-Material stock on save */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <div className="h-px flex-1 bg-slate-200" />
+                    <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Used (from inventory)</span>
+                    <div className="h-px flex-1 bg-slate-200" />
+                  </div>
+
                   <div className="grid grid-cols-12 gap-4">
                     <div className="col-span-12 md:col-span-4 space-y-2">
                       <Label className="text-sm font-medium text-slate-700">Specific Feed Used</Label>
@@ -582,6 +655,19 @@ export default function EditProductionRecordPage() {
                     <div className="col-span-12 flex items-center justify-between rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3">
                       <span className="text-sm font-medium text-emerald-800">Total Cost of Production</span>
                       <span className="text-lg font-bold text-emerald-800">{totalCostOfProduction.toFixed(2)}</span>
+                    </div>
+
+                    <div className="col-span-12 space-y-2">
+                      <Label htmlFor="notes" className="text-sm font-medium text-slate-700">Notes</Label>
+                      <Textarea
+                        id="notes"
+                        name="notes"
+                        rows={3}
+                        value={formData.notes}
+                        onChange={(e) => setFormData((p) => ({ ...p, notes: e.target.value }))}
+                        disabled={loading}
+                        className="border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+                      />
                     </div>
                   </div>
                 </div>
