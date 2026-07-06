@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -85,6 +85,7 @@ export default function PoultryRawMaterialsPage() {
   const [manualPurchaseCost, setManualPurchaseCost] = useState(false)
   const [deletePurchaseTarget, setDeletePurchaseTarget] = useState<PoultryRawMaterialPurchase | null>(null)
   const [savingPurchase, setSavingPurchase] = useState(false)
+  const savingPurchaseRef = useRef(false) // synchronous re-entry guard against double/triple submits
 
   const [payTarget, setPayTarget] = useState<PoultryRawMaterialPurchase | null>(null)
   const [payForm, setPayForm] = useState({ amount: 0, paymentMethod: "Cash", paymentDate: new Date().toISOString().split("T")[0] })
@@ -160,6 +161,7 @@ export default function PoultryRawMaterialsPage() {
     setPurchaseOpen(true)
   }
   async function savePurchase() {
+    if (savingPurchaseRef.current) return // already submitting — ignore extra clicks (slow network)
     const f = purchaseForm
     if (!f.poultryRawMaterialItemId) { toast({ title: "Pick a raw material item", variant: "destructive" }); return }
     if (f.quantity <= 0) { toast({ title: "Quantity must be greater than 0", variant: "destructive" }); return }
@@ -179,6 +181,7 @@ export default function PoultryRawMaterialsPage() {
       receiptUrl: f.receiptUrl || null,
       notes: f.notes || null,
     }
+    savingPurchaseRef.current = true
     setSavingPurchase(true)
     try {
       if (editPurchaseId) await updatePoultryRawMaterialPurchase(editPurchaseId, payload)
@@ -186,7 +189,7 @@ export default function PoultryRawMaterialsPage() {
       toast({ title: editPurchaseId ? "Purchase updated" : "Purchase recorded" })
       setPurchaseOpen(false); await load()
     } catch (e: any) { toast({ title: "Save failed", description: e?.message, variant: "destructive" }) }
-    finally { setSavingPurchase(false) }
+    finally { savingPurchaseRef.current = false; setSavingPurchase(false) }
   }
   async function confirmDeletePurchase() {
     if (!deletePurchaseTarget) return

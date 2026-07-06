@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -88,6 +88,11 @@ export default function WaterRawMaterialsPage() {
   const [payTarget, setPayTarget] = useState<WaterRawMaterialPurchase | null>(null)
   const [payForm, setPayForm] = useState({ amount: 0, paymentMethod: "Cash", paymentDate: new Date().toISOString().split("T")[0] })
   const [paySaving, setPaySaving] = useState(false)
+  // Prevent double/triple submits (slow network → operator clicks Record again).
+  // The ref is the real guard (synchronous, blocks re-entry before the first
+  // await); the state just drives the disabled/spinner UI.
+  const [savingPurchase, setSavingPurchase] = useState(false)
+  const savingPurchaseRef = useRef(false)
 
   function openPayBalance(p: WaterRawMaterialPurchase) {
     setPayTarget(p)
@@ -189,12 +194,15 @@ export default function WaterRawMaterialsPage() {
   }
 
   async function savePurchase() {
+    if (savingPurchaseRef.current) return // already submitting — ignore extra clicks
     if (!purchaseForm.waterRawMaterialItemId) return toast({ title: "Pick an item", variant: "destructive" })
     if (purchaseForm.quantity <= 0) return toast({ title: "Purchase quantity must be > 0", variant: "destructive" })
     if (purchaseForm.totalPurchaseCost <= 0) return toast({ title: "Total purchase cost must be > 0", variant: "destructive" })
     // Like Expenses: a non-credit payment must say which cash account it leaves.
     if (purchaseForm.paymentMethod !== "Credit" && purchaseForm.amountPaid > 0 && !purchaseForm.waterCashAccountId)
       return toast({ title: "Pick the cash account to pay from", variant: "destructive" })
+    savingPurchaseRef.current = true
+    setSavingPurchase(true)
     // N2: send the EXACT total the operator entered (the SP stores it verbatim);
     // quantity is in the item's purchase unit. Migration 116: the production-unit
     // conversion (unit + units-per-purchase-unit) is persisted with the purchase.
@@ -243,6 +251,7 @@ export default function WaterRawMaterialsPage() {
       }
       setPurchaseOpen(false); setEditPurchaseId(null); await load()
     } catch (e: any) { toast({ title: "Save failed", description: e?.message, variant: "destructive" }) }
+    finally { savingPurchaseRef.current = false; setSavingPurchase(false) }
   }
 
   const lowStock = useMemo(() => items.filter(i => i.isActive && (i.currentQuantity ?? 0) <= (i.minimumStockAlert ?? 0)), [items])
@@ -750,7 +759,9 @@ export default function WaterRawMaterialsPage() {
             </div>
             <div className="flex gap-3 justify-end pt-2">
               <Button type="button" onClick={() => setPurchaseOpen(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
-              <Button onClick={savePurchase}>{editPurchaseId != null ? "Save changes" : "Record purchase"}</Button>
+              <Button onClick={savePurchase} disabled={savingPurchase}>
+                {savingPurchase ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Saving…</> : (editPurchaseId != null ? "Save changes" : "Record purchase")}
+              </Button>
             </div>
           </div>
         </DialogContent>
