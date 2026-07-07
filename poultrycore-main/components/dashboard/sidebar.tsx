@@ -72,7 +72,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const clearActiveCompany = useAuthStore((s) => s.clearActiveCompany)
   const isWater = activeFarmType === "Water"
   const isGeneric = activeFarmType === "Generic"
-  const { isCollapsed, toggle, isMobileOpen, toggleMobile, setMobileOpen, setCollapsed } = useSidebarStore()
+  const { isCollapsed, toggle, isMobileOpen, toggleMobile, setMobileOpen } = useSidebarStore()
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     farm: true,
     production: true,
@@ -89,15 +89,10 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, isMobile])
 
-  // Desktop initial load: Poultry opens expanded by default (users can still
-  // collapse it); Water/Generic keep the compact icon mode.
-  useEffect(() => {
-    if (!isMobile) {
-      const isPoultry = !isWater && !isGeneric
-      setCollapsed(!isPoultry)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMobile, isWater, isGeneric])
+  // Desktop sidebar defaults to EXPANDED for every company type (Poultry, Water,
+  // Generic). Users can collapse it and that choice persists (sidebar-store,
+  // default isCollapsed:false) — we intentionally do NOT force a state per farm
+  // type on load, so the user's preference sticks across pages and sessions.
 
   // Close mobile sidebar on escape key and prevent body scroll when open
   useEffect(() => {

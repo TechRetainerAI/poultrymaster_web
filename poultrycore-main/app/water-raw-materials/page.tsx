@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
+import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -69,6 +70,10 @@ export default function WaterRawMaterialsPage() {
 
   const [purchaseOpen, setPurchaseOpen] = useState(false)
   const [editPurchaseId, setEditPurchaseId] = useState<number | null>(null)
+  // Manual-entry toggles: turn off auto-calc and type the cost directly (we
+  // back-solve total / conversion factor so the values persist unchanged).
+  const [manualPurchaseCost, setManualPurchaseCost] = useState(false)
+  const [manualProdCost, setManualProdCost] = useState(false)
   const [purchaseForm, setPurchaseForm] = useState({
     waterRawMaterialItemId: 0, supplierId: null as number | null, purchaseDate: new Date().toISOString().split("T")[0],
     quantity: 0, unitCost: 0, paymentMethod: "Cash", amountPaid: 0, receiptUrl: "", notes: "",
@@ -83,6 +88,11 @@ export default function WaterRawMaterialsPage() {
   const [payTarget, setPayTarget] = useState<WaterRawMaterialPurchase | null>(null)
   const [payForm, setPayForm] = useState({ amount: 0, paymentMethod: "Cash", paymentDate: new Date().toISOString().split("T")[0] })
   const [paySaving, setPaySaving] = useState(false)
+  // Prevent double/triple submits (slow network → operator clicks Record again).
+  // The ref is the real guard (synchronous, blocks re-entry before the first
+  // await); the state just drives the disabled/spinner UI.
+  const [savingPurchase, setSavingPurchase] = useState(false)
+  const savingPurchaseRef = useRef(false)
 
   function openPayBalance(p: WaterRawMaterialPurchase) {
     setPayTarget(p)
@@ -148,6 +158,7 @@ export default function WaterRawMaterialsPage() {
 
   function openNewPurchase() {
     setEditPurchaseId(null)
+    setManualPurchaseCost(false); setManualProdCost(false)
     const it0 = items[0]
     setPurchaseForm({
       waterRawMaterialItemId: it0?.waterRawMaterialItemId ?? 0,
@@ -161,6 +172,7 @@ export default function WaterRawMaterialsPage() {
 
   function openEditPurchase(p: WaterRawMaterialPurchase) {
     setEditPurchaseId(p.waterRawMaterialPurchaseId)
+    setManualPurchaseCost(false); setManualProdCost(false)
     setPurchaseForm({
       waterRawMaterialItemId: p.waterRawMaterialItemId,
       supplierId: p.supplierId ?? null,
@@ -182,12 +194,15 @@ export default function WaterRawMaterialsPage() {
   }
 
   async function savePurchase() {
+    if (savingPurchaseRef.current) return // already submitting — ignore extra clicks
     if (!purchaseForm.waterRawMaterialItemId) return toast({ title: "Pick an item", variant: "destructive" })
     if (purchaseForm.quantity <= 0) return toast({ title: "Purchase quantity must be > 0", variant: "destructive" })
     if (purchaseForm.totalPurchaseCost <= 0) return toast({ title: "Total purchase cost must be > 0", variant: "destructive" })
     // Like Expenses: a non-credit payment must say which cash account it leaves.
     if (purchaseForm.paymentMethod !== "Credit" && purchaseForm.amountPaid > 0 && !purchaseForm.waterCashAccountId)
       return toast({ title: "Pick the cash account to pay from", variant: "destructive" })
+    savingPurchaseRef.current = true
+    setSavingPurchase(true)
     // N2: send the EXACT total the operator entered (the SP stores it verbatim);
     // quantity is in the item's purchase unit. Migration 116: the production-unit
     // conversion (unit + units-per-purchase-unit) is persisted with the purchase.
@@ -236,6 +251,7 @@ export default function WaterRawMaterialsPage() {
       }
       setPurchaseOpen(false); setEditPurchaseId(null); await load()
     } catch (e: any) { toast({ title: "Save failed", description: e?.message, variant: "destructive" }) }
+    finally { savingPurchaseRef.current = false; setSavingPurchase(false) }
   }
 
   const lowStock = useMemo(() => items.filter(i => i.isActive && (i.currentQuantity ?? 0) <= (i.minimumStockAlert ?? 0)), [items])
@@ -625,20 +641,47 @@ export default function WaterRawMaterialsPage() {
                         <SelectContent>{unitOptions(purchaseForm.purchaseUnit).map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
                       </Select>
                     </FormField>
-                    <FormField label="Purchase quantity *">
+                    <FormField label={`Purchase quantity${purchaseForm.purchaseUnit ? ` (${purchaseForm.purchaseUnit})` : ""} *`}>
                       <NumberInput min={0} step="0.001" value={purchaseForm.quantity} onChange={(e) => setQty(Number(e.target.value) || 0)} />
                     </FormField>
+                    <FormField label="" full>
+                      <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                        <div>
+                          <div className="text-sm font-medium text-slate-700">Enter purchase unit cost manually</div>
+                          <div className="text-xs text-slate-500">Turn off the auto-calculation and type the purchase unit cost yourself.</div>
+                        </div>
+                        <Switch checked={manualPurchaseCost} onCheckedChange={setManualPurchaseCost} />
+                      </div>
+                    </FormField>
                     <FormField label="Total purchase cost *">
-                      <NumberInput min={0} step="0.01" value={purchaseForm.totalPurchaseCost} onChange={(e) => setTotal(Number(e.target.value) || 0)} />
+                      <NumberInput min={0} step="0.01" value={Number(total.toFixed(2))} disabled={manualPurchaseCost} onChange={(e) => setTotal(Number(e.target.value) || 0)} />
                     </FormField>
-                    <FormField label="Purchase unit cost (auto)">
-                      {/* System calculated = Total Purchase Cost / Purchase Quantity. */}
-                      <Input readOnly tabIndex={-1} className={roCls}
-                        value={`${gh(unitCost)}${purchaseForm.purchaseUnit ? ` per ${purchaseForm.purchaseUnit}` : ""}`} />
-                    </FormField>
+                    {manualPurchaseCost ? (
+                      <FormField label={`Purchase unit cost${purchaseForm.purchaseUnit ? ` (per ${purchaseForm.purchaseUnit})` : ""}`} hint="Manual — sets the total for you">
+                        <NumberInput min={0} step="0.0001" value={Number(unitCost.toFixed(4))} onChange={(e) => {
+                          const c = Number(e.target.value) || 0
+                          setPurchaseForm({ ...purchaseForm, totalPurchaseCost: qty > 0 ? Number((c * qty).toFixed(2)) : purchaseForm.totalPurchaseCost, unitCost: c })
+                        }} />
+                      </FormField>
+                    ) : (
+                      <FormField label="Purchase unit cost (auto)">
+                        {/* System calculated = Total Purchase Cost / Purchase Quantity. */}
+                        <Input readOnly tabIndex={-1} className={roCls}
+                          value={`${gh(unitCost)}${purchaseForm.purchaseUnit ? ` per ${purchaseForm.purchaseUnit}` : ""}`} />
+                      </FormField>
+                    )}
                   </FormSection>
 
                   <FormSection title="Production Conversion" color="indigo">
+                    <FormField label="" full>
+                      <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                        <div>
+                          <div className="text-sm font-medium text-slate-700">Enter production cost manually</div>
+                          <div className="text-xs text-slate-500">Turn off the auto-calculation and type the production-level unit cost yourself.</div>
+                        </div>
+                        <Switch checked={manualProdCost} onCheckedChange={setManualProdCost} />
+                      </div>
+                    </FormField>
                     <FormField label="Production unit *">
                       <Select value={purchaseForm.productionUnit || ""} onValueChange={(v) => setPurchaseForm({ ...purchaseForm, productionUnit: v })}>
                         <SelectTrigger><SelectValue placeholder="Pick unit" /></SelectTrigger>
@@ -649,16 +692,25 @@ export default function WaterRawMaterialsPage() {
                       <NumberInput min={0} step="0.0001" value={purchaseForm.productionUnitsPerPurchaseUnit}
                         onChange={(e) => setPurchaseForm({ ...purchaseForm, productionUnitsPerPurchaseUnit: Number(e.target.value) || 0 })} />
                     </FormField>
-                    <FormField label="Production-level quantity (auto)">
-                      {/* Production Units Per Purchase Unit × Purchase Quantity */}
-                      <Input readOnly tabIndex={-1} className={roCls}
-                        value={`${prodQty.toLocaleString()}${purchaseForm.productionUnit ? ` ${purchaseForm.productionUnit}` : ""}`} />
+                    <FormField label="Production-level quantity" hint="Editable — sets units per purchase unit">
+                      <NumberInput min={0} step="0.001" value={Number(prodQty.toFixed(4))}
+                        onChange={(e) => { const v = Number(e.target.value) || 0; setPurchaseForm({ ...purchaseForm, productionUnitsPerPurchaseUnit: qty > 0 ? Number((v / qty).toFixed(6)) : perPurchase }) }} />
                     </FormField>
-                    <FormField label="Production-level unit cost (auto)">
-                      {/* Total Purchase Cost / Production-Level Quantity */}
-                      <Input readOnly tabIndex={-1} className={roCls}
-                        value={`${gh(prodUnitCost)}${purchaseForm.productionUnit ? ` per ${purchaseForm.productionUnit}` : ""}`} />
-                    </FormField>
+                    {manualProdCost ? (
+                      <FormField label={`Production-level unit cost${purchaseForm.productionUnit ? ` (per ${purchaseForm.productionUnit})` : ""}`} hint="Manual — sets the conversion for you">
+                        <NumberInput min={0} step="0.0001" value={Number(prodUnitCost.toFixed(4))} onChange={(e) => {
+                          const c = Number(e.target.value) || 0
+                          const newPer = (c > 0 && qty > 0 && total > 0) ? Number((total / (c * qty)).toFixed(6)) : perPurchase
+                          setPurchaseForm({ ...purchaseForm, productionUnitsPerPurchaseUnit: newPer })
+                        }} />
+                      </FormField>
+                    ) : (
+                      <FormField label="Production-level unit cost (auto)">
+                        {/* Total Purchase Cost / Production-Level Quantity */}
+                        <Input readOnly tabIndex={-1} className={roCls}
+                          value={`${gh(prodUnitCost)}${purchaseForm.productionUnit ? ` per ${purchaseForm.productionUnit}` : ""}`} />
+                      </FormField>
+                    )}
                     <FormField label="" full>
                       <p className="text-xs text-slate-500">If you buy and use the same unit, set <span className="font-medium">Production units per purchase unit = 1</span> — the production figures then match the purchase figures. These values are saved with the purchase.</p>
                     </FormField>
@@ -707,7 +759,9 @@ export default function WaterRawMaterialsPage() {
             </div>
             <div className="flex gap-3 justify-end pt-2">
               <Button type="button" onClick={() => setPurchaseOpen(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
-              <Button onClick={savePurchase}>{editPurchaseId != null ? "Save changes" : "Record purchase"}</Button>
+              <Button onClick={savePurchase} disabled={savingPurchase}>
+                {savingPurchase ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Saving…</> : (editPurchaseId != null ? "Save changes" : "Record purchase")}
+              </Button>
             </div>
           </div>
         </DialogContent>

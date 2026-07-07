@@ -7,8 +7,30 @@ export class ApiError extends Error {
     public statusText: string,
     public data?: any
   ) {
-    super(`API Error: ${status} ${statusText}`)
+    // Surface the REAL backend error (GlobalExceptionMiddleware / controllers
+    // return { message } or a validation errors bag) instead of a generic
+    // "API Error 400" red card. Falls back to the status when there's nothing
+    // useful in the body.
+    super(ApiError.buildMessage(status, statusText, data))
     this.name = 'ApiError'
+  }
+
+  private static buildMessage(status: number, statusText: string, data: any): string {
+    let msg = ""
+    if (typeof data === "string") {
+      // Ignore HTML error pages — they're noise, not a message.
+      msg = data.trim().startsWith("<") ? "" : data.trim()
+    } else if (data && typeof data === "object") {
+      const errs = (data as any).errors
+      msg = String(
+        (data as any).message ?? (data as any).Message ?? (data as any).title ??
+        (data as any).error ??
+        (Array.isArray(errs) ? errs.join(", ")
+          : errs && typeof errs === "object" ? Object.values(errs).flat().join(", ")
+          : "")
+      ).trim()
+    }
+    return msg || `Request failed (${status}${statusText ? " " + statusText : ""})`
   }
 }
 

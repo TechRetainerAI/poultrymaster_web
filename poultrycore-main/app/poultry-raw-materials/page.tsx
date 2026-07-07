@@ -1,13 +1,15 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { NumberInput } from "@/components/ui/number-input"
+import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -73,8 +75,17 @@ export default function PoultryRawMaterialsPage() {
   const [purchaseOpen, setPurchaseOpen] = useState(false)
   const [editPurchaseId, setEditPurchaseId] = useState<number | null>(null)
   const [purchaseForm, setPurchaseForm] = useState({ ...EMPTY_PURCHASE })
+  // When ON, the user enters the production-level unit cost directly instead of
+  // it auto-calculating from the purchase total ÷ production quantity. We store
+  // it by back-solving the units-per-purchase-unit factor, so it persists with
+  // no schema change.
+  const [manualProdCost, setManualProdCost] = useState(false)
+  // Same idea for the purchase unit cost: when ON, type the unit cost and we
+  // back-solve the total (total = unitCost × quantity) so it persists.
+  const [manualPurchaseCost, setManualPurchaseCost] = useState(false)
   const [deletePurchaseTarget, setDeletePurchaseTarget] = useState<PoultryRawMaterialPurchase | null>(null)
   const [savingPurchase, setSavingPurchase] = useState(false)
+  const savingPurchaseRef = useRef(false) // synchronous re-entry guard against double/triple submits
 
   const [payTarget, setPayTarget] = useState<PoultryRawMaterialPurchase | null>(null)
   const [payForm, setPayForm] = useState({ amount: 0, paymentMethod: "Cash", paymentDate: new Date().toISOString().split("T")[0] })
@@ -134,9 +145,10 @@ export default function PoultryRawMaterialsPage() {
   }
 
   // ---- Purchase CRUD ----
-  function openNewPurchase() { setEditPurchaseId(null); setPurchaseForm({ ...EMPTY_PURCHASE }); setPurchaseOpen(true) }
+  function openNewPurchase() { setEditPurchaseId(null); setManualProdCost(false); setManualPurchaseCost(false); setPurchaseForm({ ...EMPTY_PURCHASE }); setPurchaseOpen(true) }
   function openEditPurchase(p: PoultryRawMaterialPurchase) {
     setEditPurchaseId(p.poultryRawMaterialPurchaseId)
+    setManualProdCost(false); setManualPurchaseCost(false)
     setPurchaseForm({
       poultryRawMaterialItemId: p.poultryRawMaterialItemId,
       supplierName: p.supplierName ?? "",
@@ -149,6 +161,7 @@ export default function PoultryRawMaterialsPage() {
     setPurchaseOpen(true)
   }
   async function savePurchase() {
+    if (savingPurchaseRef.current) return // already submitting — ignore extra clicks (slow network)
     const f = purchaseForm
     if (!f.poultryRawMaterialItemId) { toast({ title: "Pick a raw material item", variant: "destructive" }); return }
     if (f.quantity <= 0) { toast({ title: "Quantity must be greater than 0", variant: "destructive" }); return }
@@ -168,6 +181,7 @@ export default function PoultryRawMaterialsPage() {
       receiptUrl: f.receiptUrl || null,
       notes: f.notes || null,
     }
+    savingPurchaseRef.current = true
     setSavingPurchase(true)
     try {
       if (editPurchaseId) await updatePoultryRawMaterialPurchase(editPurchaseId, payload)
@@ -175,7 +189,7 @@ export default function PoultryRawMaterialsPage() {
       toast({ title: editPurchaseId ? "Purchase updated" : "Purchase recorded" })
       setPurchaseOpen(false); await load()
     } catch (e: any) { toast({ title: "Save failed", description: e?.message, variant: "destructive" }) }
-    finally { setSavingPurchase(false) }
+    finally { savingPurchaseRef.current = false; setSavingPurchase(false) }
   }
   async function confirmDeletePurchase() {
     if (!deletePurchaseTarget) return
@@ -345,6 +359,7 @@ export default function PoultryRawMaterialsPage() {
               </Select>
             </FormField>
             <FormField label="Low-stock alert at"><NumberInput min={0} step="0.001" value={itemForm.minimumStockAlert} onChange={(e) => setItemForm({ ...itemForm, minimumStockAlert: Number(e.target.value) || 0 })} /></FormField>
+            <FormField label="Notes"><Textarea rows={3} placeholder="Optional notes about this item" value={itemForm.notes ?? ""} onChange={(e) => setItemForm({ ...itemForm, notes: e.target.value || null })} /></FormField>
           </FormSection>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setItemOpen(false)}>Cancel</Button>
@@ -373,15 +388,42 @@ export default function PoultryRawMaterialsPage() {
                   <FormField label="Raw material item *">
                     <Select value={f.poultryRawMaterialItemId ? String(f.poultryRawMaterialItemId) : ""} onValueChange={(v) => setPurchaseForm({ ...f, poultryRawMaterialItemId: Number(v) })}>
                       <SelectTrigger><SelectValue placeholder="Pick item" /></SelectTrigger>
-                      <SelectContent>{items.filter((i) => i.isActive).map((i) => <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>{i.itemName}</SelectItem>)}</SelectContent>
+                      <SelectContent>{items.filter((i) => i.isActive).map((i) => <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>{i.itemName}{i.unitOfMeasure ? ` (${i.unitOfMeasure})` : ""}</SelectItem>)}</SelectContent>
                     </Select>
                   </FormField>
-                  <FormField label="Purchase quantity *"><NumberInput min={0} step="0.001" value={f.quantity} onChange={(e) => setPurchaseForm({ ...f, quantity: Number(e.target.value) || 0 })} /></FormField>
-                  <FormField label="Total purchase cost *"><NumberInput min={0} step="0.01" value={f.totalPurchaseCost} onChange={(e) => setPurchaseForm({ ...f, totalPurchaseCost: Number(e.target.value) || 0 })} /></FormField>
-                  <FormField label="Purchase unit cost (auto)"><Input readOnly tabIndex={-1} className={roCls} value={`${gh(unitCost)}${purchaseUnitLabel ? ` per ${purchaseUnitLabel}` : ""}`} /></FormField>
+                  <FormField label={`Purchase quantity${selItem?.unitOfMeasure ? ` (${selItem.unitOfMeasure})` : ""} *`}><NumberInput min={0} step="0.001" value={f.quantity} onChange={(e) => setPurchaseForm({ ...f, quantity: Number(e.target.value) || 0 })} /></FormField>
+                  <FormField label="" full>
+                    <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                      <div>
+                        <div className="text-sm font-medium text-slate-700">Enter purchase unit cost manually</div>
+                        <div className="text-xs text-slate-500">Turn off the auto-calculation and type the purchase unit cost yourself.</div>
+                      </div>
+                      <Switch checked={manualPurchaseCost} onCheckedChange={setManualPurchaseCost} />
+                    </div>
+                  </FormField>
+                  <FormField label="Total purchase cost *"><NumberInput min={0} step="0.01" value={Number(total.toFixed(2))} disabled={manualPurchaseCost} onChange={(e) => setPurchaseForm({ ...f, totalPurchaseCost: Number(e.target.value) || 0 })} /></FormField>
+                  {manualPurchaseCost ? (
+                    <FormField label={`Purchase unit cost${purchaseUnitLabel ? ` (per ${purchaseUnitLabel})` : ""}`} hint="Manual — sets the total for you">
+                      <NumberInput min={0} step="0.0001" value={Number(unitCost.toFixed(4))} onChange={(e) => {
+                        const c = Number(e.target.value) || 0
+                        setPurchaseForm({ ...f, totalPurchaseCost: qty > 0 ? Number((c * qty).toFixed(2)) : f.totalPurchaseCost })
+                      }} />
+                    </FormField>
+                  ) : (
+                    <FormField label="Purchase unit cost (auto)"><Input readOnly tabIndex={-1} className={roCls} value={`${gh(unitCost)}${purchaseUnitLabel ? ` per ${purchaseUnitLabel}` : ""}`} /></FormField>
+                  )}
                 </FormSection>
 
                 <FormSection title="Production Conversion" color="indigo">
+                  <FormField label="" full>
+                    <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                      <div>
+                        <div className="text-sm font-medium text-slate-700">Enter production cost manually</div>
+                        <div className="text-xs text-slate-500">Turn off the auto-calculation and type the production-level unit cost yourself.</div>
+                      </div>
+                      <Switch checked={manualProdCost} onCheckedChange={setManualProdCost} />
+                    </div>
+                  </FormField>
                   <FormField label="Production unit">
                     <Select value={f.productionUnit || ""} onValueChange={(v) => setPurchaseForm({ ...f, productionUnit: v })}>
                       <SelectTrigger><SelectValue placeholder="Pick unit" /></SelectTrigger>
@@ -390,7 +432,18 @@ export default function PoultryRawMaterialsPage() {
                   </FormField>
                   <FormField label="Production units per purchase unit"><NumberInput min={0} step="0.0001" value={f.productionUnitsPerPurchaseUnit} onChange={(e) => setPurchaseForm({ ...f, productionUnitsPerPurchaseUnit: Number(e.target.value) || 0 })} /></FormField>
                   <FormField label="Production-level quantity" hint="Editable — sets units per purchase unit"><NumberInput min={0} step="0.001" value={Number(prodQty.toFixed(4))} onChange={(e) => { const v = Number(e.target.value) || 0; setPurchaseForm({ ...f, productionUnitsPerPurchaseUnit: qty > 0 ? Number((v / qty).toFixed(6)) : f.productionUnitsPerPurchaseUnit }) }} /></FormField>
-                  <FormField label="Production-level unit cost (auto)"><Input readOnly tabIndex={-1} className={roCls} value={`${gh(prodUnitCost)}${f.productionUnit ? ` per ${f.productionUnit}` : ""}`} /></FormField>
+                  {manualProdCost ? (
+                    <FormField label="Production-level unit cost" hint="Manual — sets the conversion for you">
+                      <NumberInput min={0} step="0.0001" value={Number(prodUnitCost.toFixed(4))} onChange={(e) => {
+                        const c = Number(e.target.value) || 0
+                        // production unit cost = total / (qty × perPurchase) ⇒ perPurchase = total / (cost × qty)
+                        const newPer = (c > 0 && qty > 0 && total > 0) ? Number((total / (c * qty)).toFixed(6)) : f.productionUnitsPerPurchaseUnit
+                        setPurchaseForm({ ...f, productionUnitsPerPurchaseUnit: newPer })
+                      }} />
+                    </FormField>
+                  ) : (
+                    <FormField label="Production-level unit cost (auto)"><Input readOnly tabIndex={-1} className={roCls} value={`${gh(prodUnitCost)}${f.productionUnit ? ` per ${f.productionUnit}` : ""}`} /></FormField>
+                  )}
                   <FormField label="" full><p className="text-xs text-slate-500">If you buy and use the same unit, set <span className="font-medium">Production units per purchase unit = 1</span> — the production figures then match the purchase figures.</p></FormField>
                 </FormSection>
 

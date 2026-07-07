@@ -102,8 +102,11 @@ export default function DashboardPage() {
         {/* Sidebar - hidden on mobile, shown as overlay */}
         <DashboardSidebar onLogout={handleLogout} />
         
-        {/* Main Content - full width on mobile */}
-        <div className="flex-1 flex flex-col w-full lg:w-auto">
+        {/* Main Content - full width on mobile. min-w-0 lets this flex child
+            shrink below its content width so the wide top-nav scrolls (nav-rail-
+            scroll) instead of pushing the whole page wider than the viewport
+            when the sidebar is expanded/pinned. */}
+        <div className="flex-1 flex flex-col w-full lg:w-auto min-w-0">
           {/* Header */}
           <DashboardHeader />
           

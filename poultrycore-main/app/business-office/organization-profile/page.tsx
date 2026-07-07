@@ -9,8 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Loader2, Copy, Check } from "lucide-react"
-import { getUserProfile, updateUserProfile } from "@/lib/api/user-profile"
-import { setOrganizationCode as apiSetOrgCode } from "@/lib/api/admin"
+import { setOrganizationCode as apiSetOrgCode, getOrganizationProfile, updateOrganizationProfile } from "@/lib/api/admin"
 import { useToast } from "@/hooks/use-toast"
 import { useAuthStore } from "@/lib/store/auth-store"
 
@@ -29,9 +28,9 @@ export default function OrganizationProfilePage() {
   useEffect(() => {
     (async () => {
       try {
-        const username = (typeof window !== "undefined" && (localStorage.getItem("username") || localStorage.getItem("userName"))) || ""
-        if (!username) { setLoading(false); return }
-        const res = await getUserProfile(username)
+        // JWT-keyed read — resolves the authenticated owner on the backend, so
+        // it always returns their own name/contact + business-office fields.
+        const res = await getOrganizationProfile()
         const d: any = res?.data || {}
         setForm({
           businessOfficeName: d.businessOfficeName || d.BusinessOfficeName || "",
@@ -42,12 +41,13 @@ export default function OrganizationProfilePage() {
           businessOfficeCurrency: d.businessOfficeCurrency || d.BusinessOfficeCurrency || "",
           businessOfficeCountry: d.businessOfficeCountry || d.BusinessOfficeCountry || "",
         })
-        // Org code rarely comes back on the profile payload — fall back to the
-        // value stashed at login (localStorage "myOrgCode") and the auth store.
+        // Prefer the code from the profile; fall back to the value stashed at
+        // login (localStorage "myOrgCode") and the auth store.
         let code = (d.organizationCode || d.OrganizationCode || "").toString()
         if (!code && typeof window !== "undefined") code = localStorage.getItem("myOrgCode") || ""
         if (!code) code = ((user as any)?.organizationCode || "").toString()
         setOrgCode(code.toUpperCase())
+        if (!res.success && res.message) toast({ title: "Could not load organization profile", description: res.message, variant: "destructive" })
       } catch (e: any) {
         toast({ title: "Could not load organization profile", description: e?.message, variant: "destructive" })
       } finally { setLoading(false) }
@@ -58,7 +58,14 @@ export default function OrganizationProfilePage() {
   async function save() {
     setSaving(true)
     try {
-      const res = await updateUserProfile(form)
+      const res = await updateOrganizationProfile({
+        firstName: form.firstName,
+        lastName: form.lastName,
+        phoneNumber: form.phoneNumber,
+        businessOfficeName: form.businessOfficeName,
+        businessOfficeCurrency: form.businessOfficeCurrency,
+        businessOfficeCountry: form.businessOfficeCountry,
+      })
       if (res.success) {
         if (form.businessOfficeName) try { localStorage.setItem("businessOfficeName", form.businessOfficeName) } catch {}
         toast({ title: "Organization profile saved" })

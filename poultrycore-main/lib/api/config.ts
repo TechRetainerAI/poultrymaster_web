@@ -160,3 +160,29 @@ export async function fetchWithTimeout(
     throw error
   }
 }
+
+// Extract the REAL backend error from a failed Response so callers surface it
+// instead of a generic "request failed" red card. The APIs return { message }
+// (BadRequest) or a validation errors bag; SqlException surfaces as { message }
+// via GlobalExceptionMiddleware. Ignores HTML error pages.
+export async function readApiError(res: Response, fallback = "Request failed"): Promise<string> {
+  let text = ""
+  try { text = await res.text() } catch { /* body already consumed / empty */ }
+  if (text) {
+    const t = text.trim()
+    if (!t.startsWith("<")) {
+      try {
+        const d: any = JSON.parse(t)
+        const errs = d?.errors
+        const msg = String(
+          d?.message ?? d?.Message ?? d?.title ?? d?.error ??
+          (Array.isArray(errs) ? errs.join(", ")
+            : errs && typeof errs === "object" ? Object.values(errs).flat().join(", ")
+            : "")
+        ).trim()
+        if (msg) return msg
+      } catch { return t }        // non-JSON, non-HTML → the text itself is the message
+    }
+  }
+  return res.status === 401 ? "Your session has expired. Please log in again." : `${fallback} (${res.status})`
+}
