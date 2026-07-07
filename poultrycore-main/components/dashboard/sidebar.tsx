@@ -181,12 +181,13 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const TEMP_SHOW_PAYMENTS_LINK = true
   const financialItems = [
     { href: "/cash", label: "Cash", icon: Wallet },
-    { href: "/poultry-cash-accounts", label: "Cash & Accounts", icon: Wallet },
+    { href: "/poultry-cash-accounts", label: "Cash Account", icon: Wallet },
     { href: "/sales", label: "Sales", icon: ShoppingCart },
+    { href: "/poultry-payments", label: "Payments received", icon: Wallet },
     { href: "/expenses", label: "Expenses", icon: DollarSign },
     { href: "/customers", label: "Customers", icon: Users },
     { href: "/suppliers", label: "Suppliers", icon: Truck },
-    { href: "/payments", label: "Payments", icon: CreditCard },
+    { href: "/billing", label: "Billing", icon: CreditCard },
   ].filter((item) =>
     isFinancialNavItemVisible(item.href, permissions.featureAccess, permissions.isAdmin, {
       tempShowPayments: TEMP_SHOW_PAYMENTS_LINK,

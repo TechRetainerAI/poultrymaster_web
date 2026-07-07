@@ -101,6 +101,25 @@ export default function PoultryCashAccountsPage() {
     finally { setSaving(false) }
   }
 
+  // One-click default account — every farm should have a main cash box.
+  async function createDefault() {
+    const DEFAULT_NAME = "Main Cash Account"
+    if (accounts.some((a) => a.accountName.trim().toLowerCase() === DEFAULT_NAME.toLowerCase())) {
+      toast({ title: "Default account already exists", description: `"${DEFAULT_NAME}" is already set up.` })
+      return
+    }
+    setSaving(true)
+    try {
+      await createPoultryCashAccount({ accountName: DEFAULT_NAME, accountType: "FarmCashBox", openingBalance: 0, allowNegativeBalance: false, notes: "Default cash account" })
+      toast({ title: "Default account created", description: `"${DEFAULT_NAME}" is ready to use.` })
+      await load()
+    } catch (e: any) {
+      toast({ title: "Could not create default account", description: e?.message ?? String(e), variant: "destructive" })
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function reconcile() {
     try { await reconcilePoultryCashBalances(); toast({ title: "Balances reconciled" }); await load() }
     catch (e: any) { toast({ title: "Reconcile failed", description: e?.message, variant: "destructive" }) }
@@ -142,14 +161,23 @@ export default function PoultryCashAccountsPage() {
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
-              <Wallet className="h-6 w-6 text-sky-600" /> Cash &amp; Accounts
+              <Wallet className="h-6 w-6 text-sky-600" /> Cash Account
             </h1>
             <div className="flex flex-wrap gap-2 w-full sm:w-auto">
               <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={reconcile}><RefreshCw className="h-4 w-4 mr-1" /> Reconcile</Button>
               <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={() => setXferDlg(true)}><ArrowLeftRight className="h-4 w-4 mr-1" /> Transfer</Button>
+              <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={createDefault} disabled={saving}><Wallet className="h-4 w-4 mr-1" /> Create default account</Button>
               <Button className="flex-1 sm:flex-none whitespace-nowrap" onClick={openNew}><Plus className="h-4 w-4 mr-1" /> New account</Button>
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => router.push("/cash")}
+            className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-sky-600 hover:text-sky-700 hover:underline"
+          >
+            <ArrowLeftRight className="h-4 w-4" /> Want to see all your money movement in one place? Click here →
+          </button>
 
           <div className="mb-3 grid grid-cols-2 md:grid-cols-4 gap-3">
             <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Total cash at hand</div><div className="text-xl font-semibold tabular-nums">{totalCash.toFixed(2)}</div></CardContent></Card>
@@ -165,7 +193,10 @@ export default function PoultryCashAccountsPage() {
               {loading ? (
                 <div className="p-6 text-slate-500 flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
               ) : accounts.length === 0 ? (
-                <div className="p-8 text-center text-slate-500">No cash accounts yet. Create one above.</div>
+                <div className="p-8 text-center text-slate-500">
+                  <p>No cash accounts yet.</p>
+                  <Button className="mt-3" onClick={createDefault} disabled={saving}><Wallet className="h-4 w-4 mr-1" /> Create default account</Button>
+                </div>
               ) : (
                 <MobileCardList
                   items={visibleAccounts}

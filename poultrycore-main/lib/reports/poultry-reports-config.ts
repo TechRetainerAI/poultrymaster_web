@@ -171,19 +171,44 @@ export const POULTRY_CLOSING_GROUP: PoultryReportMenuGroup = {
   ],
 }
 
-export const POULTRY_REPORT_MENU_GROUPS: PoultryReportMenuGroup[] = [
-  POULTRY_DASHBOARD_GROUP,
-  ...POULTRY_REPORT_GROUPS.map((g) => ({
-    key: g.key,
-    label: g.label,
-    color: g.color,
-    items: g.reports.map((r) => ({
-      id: r.slug,
-      title: r.title,
-      description: r.description,
-      icon: r.icon,
-      href: poultryReportHref(r.slug),
-    })),
+// Menu order: Profitability first, then the rest by business importance
+// (money → operations → supporting), with the interactive Farm Dashboards and
+// the Closing report last. Any group not listed here is appended before the
+// dashboards so nothing silently disappears.
+const MENU_GROUP_ORDER = [
+  "profitability",
+  "sales-customers",
+  "expenses-cash",
+  "production",
+  "feed",
+  "birds-mortality",
+  "inventory",
+  "health",
+  "executive",
+]
+
+const groupToMenu = (g: PoultryReportGroup): PoultryReportMenuGroup => ({
+  key: g.key,
+  label: g.label,
+  color: g.color,
+  items: g.reports.map((r) => ({
+    id: r.slug,
+    title: r.title,
+    description: r.description,
+    icon: r.icon,
+    href: poultryReportHref(r.slug),
   })),
+})
+
+const orderedGroups = [
+  ...MENU_GROUP_ORDER
+    .map((k) => POULTRY_REPORT_GROUPS.find((g) => g.key === k))
+    .filter((g): g is PoultryReportGroup => !!g),
+  ...POULTRY_REPORT_GROUPS.filter((g) => !MENU_GROUP_ORDER.includes(g.key)),
+]
+
+export const POULTRY_REPORT_MENU_GROUPS: PoultryReportMenuGroup[] = [
+  ...orderedGroups.map(groupToMenu),
+  POULTRY_DASHBOARD_GROUP,
   POULTRY_CLOSING_GROUP,
 ]
