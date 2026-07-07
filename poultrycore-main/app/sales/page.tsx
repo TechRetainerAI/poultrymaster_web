@@ -17,9 +17,9 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Plus, Edit, Trash2, ShoppingCart, DollarSign, TrendingUp, Package, FileText, Printer, Loader2, Info, Search, Filter, ChevronDown, ChevronUp, Mail } from "lucide-react"
+import { Plus, Edit, Trash2, ShoppingCart, DollarSign, TrendingUp, Package, FileText, Printer, Loader2, Info, Search, Filter, ChevronDown, ChevronUp, Mail, Wallet } from "lucide-react"
 import { getSales, createSale, updateSale, deleteSale, getFlocks, getCustomers, createCustomer, type Sale, type SaleInput } from "@/lib/api"
-import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
+import { listPoultryCashAccounts, recordPoultryPayment, type PoultryCashAccount } from "@/lib/api/poultry-finance"
 import { useToast } from "@/hooks/use-toast"
 import { getUserContext } from "@/lib/utils/user-context"
 import { formatCurrency, getSelectedCurrency, setSelectedCurrency } from "@/lib/utils/currency"
@@ -62,6 +62,12 @@ export default function SalesPage() {
   const [isInvoiceDialogOpen, setIsInvoiceDialogOpen] = useState(false)
   const [editingSale, setEditingSale] = useState<Sale | null>(null)
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null)
+  // Record-payment dialog (partial payments against a credit sale).
+  const [payDialog, setPayDialog] = useState<{ open: boolean; sale: Sale | null }>({ open: false, sale: null })
+  const [payAmount, setPayAmount] = useState("")
+  const [payMethod, setPayMethod] = useState("Cash")
+  const [payNote, setPayNote] = useState("")
+  const [paySaving, setPaySaving] = useState(false)
   const [flocks, setFlocks] = useState<any[]>([])
   const [customers, setCustomers] = useState<any[]>([])
   const [cashAccounts, setCashAccounts] = useState<PoultryCashAccount[]>([])
@@ -232,6 +238,15 @@ export default function SalesPage() {
       
       if (!validateSaleForm()) return
 
+      if (!formData.poultryCashAccountId) {
+        toast({
+          title: "Cash account required",
+          description: "Choose which cash account this sale is received into.",
+          variant: "destructive",
+        })
+        return
+      }
+
       const quantity = Number(formData.quantity ?? 0)
       const unitPrice = Number(formData.unitPrice ?? 0)
       const calculatedAmount = isEggsProduct ? crates * unitPrice : quantity * unitPrice
@@ -381,6 +396,21 @@ export default function SalesPage() {
     setDeletingSaleId(null)
   }
 
+  // Default new sales to the "Main Cash Account" (falls back to the first active
+  // account) so every sale posts cash automatically.
+  const defaultCashAccountId = useMemo(() => {
+    const main = cashAccounts.find((a) => a.accountName.trim().toLowerCase() === "main cash account")
+    return (main ?? cashAccounts[0])?.poultryCashAccountId ?? null
+  }, [cashAccounts])
+
+  // When the add dialog is open (or accounts finish loading while it's open),
+  // preselect the default cash account if none is chosen yet.
+  useEffect(() => {
+    if (isCreateDialogOpen && defaultCashAccountId != null) {
+      setFormData((prev) => (prev.poultryCashAccountId ? prev : { ...prev, poultryCashAccountId: defaultCashAccountId }))
+    }
+  }, [isCreateDialogOpen, defaultCashAccountId])
+
   const resetForm = () => {
     setFormData({
       saleDate: new Date().toISOString().split('T')[0],
@@ -394,7 +424,7 @@ export default function SalesPage() {
       saleDescription: "",
       paid: true,
       size: null,
-      poultryCashAccountId: null,
+      poultryCashAccountId: defaultCashAccountId,
     })
     setProductSelection(undefined)
     setProductOther("")
@@ -514,6 +544,38 @@ export default function SalesPage() {
     if (flockId === 0 || flockId === null || typeof flockId === "undefined") return "All flocks"
     const match = flocks.find((flock) => flock.flockId === flockId)
     return match ? `${match.name}` : `#${flockId}`
+  }
+
+  // Amount still owed on a sale (falls back to paid/unpaid when amountPaid is
+  // absent, e.g. an older backend).
+  const saleOwed = (s: Sale) => {
+    const total = Number(s.totalAmount) || 0
+    const paidAmt = s.amountPaid != null ? Number(s.amountPaid) : (s.paid === false ? 0 : total)
+    return Math.max(0, total - paidAmt)
+  }
+
+  const openPaymentDialog = (sale: Sale) => {
+    const owed = saleOwed(sale)
+    setPayDialog({ open: true, sale })
+    setPayAmount(owed > 0 ? owed.toFixed(2) : "")
+    setPayMethod("Cash")
+    setPayNote("")
+  }
+
+  const recordPayment = async () => {
+    const sale = payDialog.sale
+    if (!sale) return
+    const amount = parseFloat(payAmount)
+    if (!amount || amount <= 0) { toast({ title: "Enter a valid amount", variant: "destructive" }); return }
+    setPaySaving(true)
+    try {
+      await recordPoultryPayment({ saleId: sale.saleId, amount, paymentMethod: payMethod || null, note: payNote || null })
+      toast({ title: "Payment recorded", description: `${amount.toFixed(2)} received for sale #${sale.saleId}.` })
+      setPayDialog({ open: false, sale: null })
+      loadSales()
+    } catch (e: any) {
+      toast({ title: "Payment failed", description: e?.message ?? String(e), variant: "destructive" })
+    } finally { setPaySaving(false) }
   }
 
   const openEditDialog = (sale: Sale) => {
@@ -991,16 +1053,15 @@ export default function SalesPage() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="cashAccount">Receive into cash account</Label>
+                    <Label htmlFor="cashAccount">Receive into cash account *</Label>
                     <Select
                       value={formData.poultryCashAccountId ? String(formData.poultryCashAccountId) : "none"}
                       onValueChange={(value) => setFormData(prev => ({ ...prev, poultryCashAccountId: value === "none" ? null : Number(value) }))}
                     >
                       <SelectTrigger id="cashAccount">
-                        <SelectValue placeholder="None (no cash movement)" />
+                        <SelectValue placeholder="Select a cash account" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">None (no cash movement)</SelectItem>
                         {cashAccounts.map((a) => (
                           <SelectItem key={a.poultryCashAccountId} value={String(a.poultryCashAccountId)}>
                             {a.accountName} ({a.currentBalance.toFixed(2)})
@@ -1385,6 +1446,11 @@ export default function SalesPage() {
                                   <div><span className="text-slate-500">Flock</span> <span className="font-medium">{getFlockLabel(sale.flockId)}</span></div>
                                 </div>
                                 <div className="flex gap-2 pt-2">
+                                  {saleOwed(sale) > 0 && (
+                                    <Button variant="outline" size="sm" className="h-10 text-emerald-700 border-emerald-200 hover:bg-emerald-50" onClick={() => openPaymentDialog(sale)}>
+                                      <Wallet className="h-4 w-4 mr-2" /> Pay
+                                    </Button>
+                                  )}
                                   <Button variant="outline" size="sm" className="flex-1 h-10" onClick={() => openEditDialog(sale)}>
                                     <Edit className="h-4 w-4 mr-2" /> Edit
                                   </Button>
@@ -1459,6 +1525,17 @@ export default function SalesPage() {
                           </TableCell>
                           <TableCell className={cn("whitespace-nowrap bg-white", isMobile && "sticky-col-actions")}>
                             <div className="flex items-center gap-1 min-w-[100px]">
+                              {saleOwed(sale) > 0 && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
+                                  onClick={() => openPaymentDialog(sale)}
+                                  aria-label="Record payment"
+                                >
+                                  <Wallet className="h-4 w-4" />
+                                </Button>
+                              )}
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -1927,6 +2004,45 @@ export default function SalesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Record payment dialog */}
+      <Dialog open={payDialog.open} onOpenChange={(o) => setPayDialog((p) => ({ ...p, open: o }))}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Record payment</DialogTitle>
+          </DialogHeader>
+          {payDialog.sale && (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-sm space-y-1">
+                <div className="flex justify-between"><span className="text-slate-500">Sale</span><span className="font-medium">#{payDialog.sale.saleId} · {payDialog.sale.customerName || "Walk-in"}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Total</span><span className="tabular-nums">{Number(payDialog.sale.totalAmount).toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Owed</span><span className="tabular-nums font-semibold text-amber-700">{saleOwed(payDialog.sale).toFixed(2)}</span></div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="pay-amount">Amount *</Label>
+                <Input id="pay-amount" type="number" step="0.01" min="0" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Method</Label>
+                <Select value={payMethod} onValueChange={setPayMethod}>
+                  <SelectTrigger><SelectValue placeholder="Select method" /></SelectTrigger>
+                  <SelectContent>
+                    {["Cash", "Mobile Money", "Bank Transfer", "Cheque", "Other"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="pay-note">Note</Label>
+                <Input id="pay-note" value={payNote} onChange={(e) => setPayNote(e.target.value)} placeholder="Optional" />
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setPayDialog({ open: false, sale: null })} disabled={paySaving}>Cancel</Button>
+            <Button onClick={recordPayment} disabled={paySaving} className="bg-emerald-600 hover:bg-emerald-700">{paySaving ? "Saving…" : "Record payment"}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

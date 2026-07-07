@@ -64,6 +64,17 @@ export interface PoultryReportDef {
   columns: ColumnDef[]
   /** Optional grouped breakdown rendered below the detail table. */
   breakdown?: BreakdownGroup[]
+  /**
+   * Render the detail rows as scorecards instead of a table — one Revenue card
+   * and one Expenses & Profit card per row. Intended for the Profit & Loss
+   * reports where a wide table reads better as cards.
+   */
+  tableAsCards?: boolean
+  /**
+   * When `tableAsCards` is set on a multi-row report, this column's value labels
+   * each row's card pair (e.g. "Flock"). Its column is not shown inside a card.
+   */
+  cardRowLabel?: string
 }
 
 const profitAccent = (n: number) => (n >= 0 ? "green" : "rose") as Accent
@@ -451,6 +462,9 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
     title: "Poultry Profit and Loss by Flock Report",
     description: "Revenue, expenses and profit attributed to each flock.",
     filters: { flock: true, includeClosedFlocks: true },
+    // Each flock shows a Revenue card + an Expenses & Profit card, under its name.
+    tableAsCards: true,
+    cardRowLabel: "Flock",
     cards: [
       { label: "Total revenue", value: (s, c) => c.money(s.totalRevenue), accent: "green" },
       { label: "Total expenses", value: (s, c) => c.money(s.totalExpenses), accent: "rose" },
@@ -503,6 +517,8 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
     title: "Poultry Profit and Loss Report",
     description: "Company-wide revenue, expenses and net profit for the selected period.",
     filters: {},
+    // Company-wide P&L is a single row — show its figures as scorecards.
+    tableAsCards: true,
     cards: [
       { label: "Total revenue", value: (s, c) => c.money(s.totalRevenue), accent: "green" },
       { label: "Total expenses", value: (s, c) => c.money(s.totalExpenses), accent: "rose" },

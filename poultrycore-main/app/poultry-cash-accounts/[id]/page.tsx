@@ -126,7 +126,7 @@ export default function PoultryCashAccountDetailPage() {
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="mb-4">
             <Button asChild variant="ghost" size="sm" className="mb-2 -ml-2 text-slate-600">
-              <Link href="/poultry-cash-accounts"><ArrowLeft className="h-4 w-4 mr-1" /> Back to Cash &amp; Accounts</Link>
+              <Link href="/poultry-cash-accounts"><ArrowLeft className="h-4 w-4 mr-1" /> Back to Cash Account</Link>
             </Button>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">

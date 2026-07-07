@@ -15,6 +15,8 @@ namespace PoultryFarmAPIWeb.Models
         public int? FlockId { get; set; }
         public string? SaleDescription { get; set; }
         public bool Paid { get; set; } = true;
+        /// <summary>Running total of payments recorded against this sale (migration 145).</summary>
+        public decimal AmountPaid { get; set; }
         /// <summary>Egg size (Inside / Tee / Serum / Small / Medium / etc.). Nullable; required only for egg sales tracked by size.</summary>
         public string? Size { get; set; }
         /// <summary>Optional cash account this sale is received into (posts a cash-in when the sale is paid).</summary>

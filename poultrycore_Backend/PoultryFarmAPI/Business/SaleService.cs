@@ -90,6 +90,16 @@ namespace PoultryFarmAPIWeb.Business
             return null;
         }
 
+        private static decimal GetDecimalIfPresent(SqlDataReader reader, string columnName, decimal defaultValue = 0m)
+        {
+            for (var i = 0; i < reader.FieldCount; i++)
+            {
+                if (string.Equals(reader.GetName(i), columnName, StringComparison.OrdinalIgnoreCase))
+                    return reader.IsDBNull(i) ? defaultValue : Convert.ToDecimal(reader.GetValue(i));
+            }
+            return defaultValue;
+        }
+
         // Posts / reverses the sale's cash-in on the chosen PoultryCashAccount.
         // Safe to call with a null account (reverse only). Only posts when the
         // sale is paid — an unpaid sale records the account but moves no money.
@@ -210,6 +220,7 @@ namespace PoultryFarmAPIWeb.Business
                         Paid = GetBooleanIfPresent(reader, "Paid", true),
                         Size = GetNullableStringIfPresent(reader, "Size"),
                         PoultryCashAccountId = GetNullableInt32IfPresent(reader, "PoultryCashAccountId"),
+                        AmountPaid = GetDecimalIfPresent(reader, "AmountPaid", 0m),
                         CreatedDate = reader.GetDateTime(reader.GetOrdinal("CreatedDate")),
                         FarmId = reader.GetString(reader.GetOrdinal("FarmId"))
                     };
@@ -252,6 +263,7 @@ namespace PoultryFarmAPIWeb.Business
                         Paid = GetBooleanIfPresent(reader, "Paid", true),
                         Size = GetNullableStringIfPresent(reader, "Size"),
                         PoultryCashAccountId = GetNullableInt32IfPresent(reader, "PoultryCashAccountId"),
+                        AmountPaid = GetDecimalIfPresent(reader, "AmountPaid", 0m),
                         CreatedDate = reader.GetDateTime(reader.GetOrdinal("CreatedDate")),
                         FarmId = reader.GetString(reader.GetOrdinal("FarmId"))
                     };
@@ -319,6 +331,7 @@ namespace PoultryFarmAPIWeb.Business
                         Paid = GetBooleanIfPresent(reader, "Paid", true),
                         Size = GetNullableStringIfPresent(reader, "Size"),
                         PoultryCashAccountId = GetNullableInt32IfPresent(reader, "PoultryCashAccountId"),
+                        AmountPaid = GetDecimalIfPresent(reader, "AmountPaid", 0m),
                         CreatedDate = reader.GetDateTime(reader.GetOrdinal("CreatedDate")),
                         FarmId = reader.GetString(reader.GetOrdinal("FarmId"))
                     };

@@ -149,6 +149,32 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
   const rows = data?.rows ?? []
   const currencyLabel = `${settings?.currencyCode ?? "GHS"} (${settings?.currencySymbol ?? "GHC"})`
 
+  // For Profit & Loss reports (def.tableAsCards) render each row as TWO
+  // scorecards — a Revenue card and an Expenses & Profit card — each with a
+  // headline figure and its line items inside. Multi-row reports (e.g. by
+  // flock) label each pair with def.cardRowLabel's column value.
+  const cardRows = useMemo(() => {
+    if (!def.tableAsCards || rows.length === 0) return null
+    const labelHeader = def.cardRowLabel
+    const isRevenue = (h: string) => h.includes("rev") || h.includes("sales")
+    const cols = def.columns.filter((c) => c.header !== labelHeader)
+    const pick = (arr: { label: string; value: string }[], kw: string) => {
+      const i = arr.findIndex((x) => x.label.toLowerCase().includes(kw))
+      const idx = i === -1 ? arr.length - 1 : i
+      return { headline: arr[idx], items: arr.filter((_, n) => n !== idx) }
+    }
+    return rows.map((row, ri) => {
+      const build = (keep: (h: string) => boolean) =>
+        cols.filter((c) => keep(c.header.toLowerCase())).map((c) => ({ label: c.header, value: c.cell(row, ctx) }))
+      return {
+        key: ri,
+        label: labelHeader ? (def.columns.find((c) => c.header === labelHeader)?.cell(row, ctx) ?? null) : null,
+        revenue: pick(build(isRevenue), "total revenue"),
+        expense: pick(build((h) => !isRevenue(h)), "net profit"),
+      }
+    })
+  }, [def, rows, ctx])
+
   // --- exports ---------------------------------------------------------------
   const buildPdfOptions = useCallback((): PdfExportOptions => ({
     title: def.title,
@@ -287,9 +313,56 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
             <PoultryReportEmptyState />
           ) : (
             <>
-              <PoultryReportSummaryCards cards={cards} />
-              <PoultryReportTable columns={def.columns} rows={rows} ctx={ctx} />
-              {def.breakdown && data?.summary && (
+              {!def.tableAsCards && <PoultryReportSummaryCards cards={cards} />}
+              {def.tableAsCards && cardRows ? (
+                <div className="space-y-5">
+                  {cardRows.map((cr) => (
+                    <div key={cr.key}>
+                      {cr.label && (
+                        <div className="mb-2 text-sm font-semibold text-slate-800">{cr.label}</div>
+                      )}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {/* Revenue card */}
+                        <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm print:border print:shadow-none">
+                          <div className="absolute inset-y-0 left-0 w-1 bg-emerald-500" />
+                          <div className="p-4 pl-5">
+                            <div className="text-xs uppercase tracking-wider text-slate-500">{cr.revenue.headline?.label ?? "Revenue"}</div>
+                            <div className="text-2xl font-semibold tabular-nums mt-1 text-emerald-700 break-words">{cr.revenue.headline?.value ?? "—"}</div>
+                            <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-3">
+                              {cr.revenue.items.map((it) => (
+                                <div key={it.label} className="flex items-center justify-between gap-3 text-sm">
+                                  <span className="text-slate-500">{it.label}</span>
+                                  <span className="tabular-nums font-medium text-slate-800">{it.value}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Expenses & Profit card */}
+                        <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm print:border print:shadow-none">
+                          <div className="absolute inset-y-0 left-0 w-1 bg-rose-500" />
+                          <div className="p-4 pl-5">
+                            <div className="text-xs uppercase tracking-wider text-slate-500">Expenses &amp; Profit — {cr.expense.headline?.label ?? "Net profit"}</div>
+                            <div className="text-2xl font-semibold tabular-nums mt-1 text-slate-900 break-words">{cr.expense.headline?.value ?? "—"}</div>
+                            <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-3">
+                              {cr.expense.items.map((it) => (
+                                <div key={it.label} className="flex items-center justify-between gap-3 text-sm">
+                                  <span className="text-slate-500">{it.label}</span>
+                                  <span className="tabular-nums font-medium text-slate-800">{it.value}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <PoultryReportTable columns={def.columns} rows={rows} ctx={ctx} />
+              )}
+              {def.breakdown && data?.summary && !def.tableAsCards && (
                 <PoultryReportBreakdown groups={def.breakdown} summary={data.summary} ctx={ctx} />
               )}
             </>
