@@ -15,6 +15,7 @@ export function isFinancialNavItemVisible(
   if (href === "/expenses") return f.canEnterExpenses
   if (href === "/cash") return f.canViewCashLedger
   if (href === "/poultry-cash-accounts") return f.canViewCashLedger
+  if (href === "/poultry-payments") return isAdmin || f.canViewFinancial || f.canEnterSales
   if (href === "/customers") {
     return (
       isAdmin ||
@@ -31,7 +32,7 @@ export function isFinancialNavItemVisible(
       f.canEnterSales
     )
   }
-  if (href === "/payments") {
+  if (href === "/billing") {
     return options?.tempShowPayments === true || isAdmin || f.canViewFinancial
   }
   return false

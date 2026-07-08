@@ -16,6 +16,8 @@ export interface Sale {
   flockId: number
   saleDescription: string
   paid?: boolean
+  /** Running total of payments recorded against this sale (migration 145). */
+  amountPaid?: number
   /** Egg size for sales tracked by size (e.g. "Inside", "Tee", "Serum"). Added by migration 018. */
   size?: string | null
   /** Optional cash account this sale is received into (posts a cash-in when paid). */

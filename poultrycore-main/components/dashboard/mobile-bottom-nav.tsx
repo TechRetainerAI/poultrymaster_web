@@ -228,7 +228,7 @@ export function MobileBottomNav() {
       { href: "/expenses",           label: "Expenses",           icon: DollarSign },
       { href: "/customers",          label: "Customers",          icon: Users },
       { href: "/suppliers",          label: "Suppliers",          icon: Truck },
-      { href: "/payments",           label: "Payments",           icon: CreditCard },
+      { href: "/billing",           label: "Billing",           icon: CreditCard },
       { href: "/feed-usage",         label: "Feed Usage",         icon: Package },
       { href: "/poultry-driver-returns", label: "Deliveries",     icon: Truck },
       { href: "/poultry-drivers",        label: "Drivers",        icon: Users2 },
@@ -243,7 +243,7 @@ export function MobileBottomNav() {
         ? [{ href: "/employees", label: "Employees", icon: UserCog }] : []),
     ]
     const filteredPoultryMore = poultryMore.filter((item) => {
-      if (["/sales", "/expenses", "/cash", "/customers", "/suppliers", "/payments"].includes(item.href)) {
+      if (["/sales", "/expenses", "/cash", "/customers", "/suppliers", "/billing"].includes(item.href)) {
         return isFinancialNavItemVisible(item.href, permissions.featureAccess, permissions.isAdmin, {
           tempShowPayments: TEMP_SHOW_PAYMENTS_LINK,
         })
