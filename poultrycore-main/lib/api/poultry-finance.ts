@@ -403,3 +403,41 @@ export const unapprovePoultryPayrollRun = (id: number, reason: string) =>
 
 export const deletePoultryPayrollRun = (id: number) =>
   jsend<void>(`/Poultry/payroll-runs/${id}?farmId=${fid()}&deletedBy=${encodeURIComponent(currentUserId() || "")}`, "DELETE")
+
+// ----- Customer payments (partial payments against a sale) --------------------
+// Port of the Water payment client (lib/api/water.ts).
+export interface PoultryPayment {
+  poultryPaymentId: number
+  farmId: string
+  saleId: number
+  amount: number
+  paymentMethod?: string | null
+  paymentDate: string
+  reference?: string | null
+  note?: string | null
+  createdDate: string
+  createdBy?: string | null
+  customerName?: string | null
+}
+
+export interface PoultryPaymentInput {
+  saleId: number
+  amount: number
+  paymentMethod?: string | null
+  paymentDate?: string | null
+  reference?: string | null
+  note?: string | null
+}
+
+export const listPoultryPayments = () =>
+  jget<PoultryPayment[]>(`/Poultry/payments?farmId=${fid()}`)
+
+export const listPoultryPaymentsBySale = (saleId: number) =>
+  jget<PoultryPayment[]>(`/Poultry/payments/by-sale/${saleId}?farmId=${fid()}`)
+
+export const recordPoultryPayment = (input: PoultryPaymentInput) =>
+  jsend<{ poultryPaymentId: number }>(`/Poultry/payments`, "POST", {
+    ...input,
+    farmId: activeFarmId(),
+    createdBy: currentUserId() || null,
+  })

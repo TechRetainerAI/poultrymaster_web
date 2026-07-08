@@ -70,7 +70,7 @@ function PaymentsPageInner() {
   }, [totalBirds, tiersInfo])
 
   const baseUrl =
-    typeof window !== "undefined" ? `${window.location.origin}/payments` : "/payments"
+    typeof window !== "undefined" ? `${window.location.origin}/billing` : "/billing"
 
   const canAccessPayments =
     TEMP_OPEN_PAYMENTS_ACCESS || permissions.isAdmin || permissions.featureAccess.canViewFinancial
