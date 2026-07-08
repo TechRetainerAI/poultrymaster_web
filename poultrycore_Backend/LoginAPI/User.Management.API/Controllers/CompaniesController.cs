@@ -57,14 +57,23 @@ namespace User.Management.API.Controllers
         // PUT /api/Companies/{farmId}
         // Edits a company the current user belongs to (Doc 3 §8).
         [HttpPut("{farmId}")]
-        public async Task<IActionResult> Update(string farmId, [FromBody] CreateCompanyRequest req)
+        public async Task<IActionResult> Update(string farmId, [FromBody] UpdateCompanyRequest req)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId)) return Unauthorized();
 
             try
             {
-                var result = await _companies.UpdateAsync(userId, farmId, req);
+                // Map to the service's request. Type is immutable and unused by the
+                // update SP, so a placeholder keeps the existing service signature.
+                var createReq = new CreateCompanyRequest
+                {
+                    Name = req.Name,
+                    Type = "Water",
+                    Email = req.Email,
+                    PhoneNumber = req.PhoneNumber,
+                };
+                var result = await _companies.UpdateAsync(userId, farmId, createReq);
                 return result.IsSuccess
                     ? Ok(result.Response)
                     : StatusCode(result.StatusCode, new { message = result.Message });
