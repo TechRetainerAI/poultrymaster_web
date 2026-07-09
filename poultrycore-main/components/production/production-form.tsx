@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getUserContext } from "@/lib/utils/user-context"
-import { getValidFlocks, getFlocksForProductionSelect, getFlockSelectEmptyHint } from "@/lib/utils/flock-utils"
+import { getFlockSelectEmptyHint } from "@/lib/utils/flock-utils"
+import { useBatchFlockSelect } from "@/hooks/use-batch-flock-select"
 import { createProductionRecord, updateProductionRecord, deleteProductionRecord, getProductionRecords, type ProductionRecordInput, type ProductionRecord } from "@/lib/api/production-record"
 import { createFeedUsage, updateFeedUsage, getFeedUsages, type FeedUsageInput } from "@/lib/api/feed-usage"
 import { listPoultryRawMaterialItems, listPoultryRawMaterialPurchases, type PoultryRawMaterialItem } from "@/lib/api/poultry-inventory"
@@ -51,9 +52,17 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
   const [deleting, setDeleting] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [error, setError] = useState("")
-  const [flocksForSelect, setFlocksForSelect] = useState<{ value: string; label: string }[]>([])
-  const [allFlocks, setAllFlocks] = useState<any[]>([])
-  const [flocksError, setFlocksError] = useState("")
+  // Batch + Flock dropdowns (Batch above Flock, default "All"; choosing a batch
+  // narrows the Flock options) — same pairing as the New Production Record page.
+  const {
+    batchOptions,
+    selectedBatchId,
+    setSelectedBatchId,
+    allFlocks,
+    flockOptions,
+    loading: batchFlockLoading,
+    error: batchFlockError,
+  } = useBatchFlockSelect()
   const { isAdmin } = usePermissions()
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), [])
@@ -148,6 +157,23 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
     () => allFlocks.find((f) => String(f.flockId) === form.flockId),
     [allFlocks, form.flockId]
   )
+
+  // Flock options for the select, narrowed by the chosen batch. When editing, the
+  // record's flock may fall outside the current batch filter (or be inactive), so
+  // always include the currently-selected flock — otherwise the Select would show
+  // its placeholder and the flock would appear blank on edit.
+  const flockSelectOptions = useMemo(() => {
+    const opts = [...flockOptions]
+    if (form.flockId && !opts.some((o) => o.value === form.flockId)) {
+      const f = allFlocks.find((x) => String(x.flockId) === form.flockId)
+      opts.push({ value: form.flockId, label: f?.name ? f.name : `Flock #${form.flockId}` })
+    }
+    return opts
+  }, [flockOptions, allFlocks, form.flockId])
+
+  const flocksError = batchFlockError
+    ? "Unable to fetch flocks. Check API URL and CORS."
+    : (!batchFlockLoading && flockOptions.length === 0 ? getFlockSelectEmptyHint("production") : "")
   const { ageWeeks, ageDays, ageYears } = useMemo(() => {
     try {
       if (!selectedFlock?.startDate || !form.date) return { ageWeeks: 0, ageDays: 0, ageYears: 0 }
@@ -166,46 +192,42 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
     } catch { return { ageWeeks: 0, ageDays: 0, ageYears: 0 } }
   }, [selectedFlock, form.date])
 
+  // Raw-material items + latest purchase cost (feed/medication dropdowns).
+  // Flocks + batches load via useBatchFlockSelect above.
   useEffect(() => {
     const load = async () => {
+      const { userId, farmId } = getUserContext()
+      if (!userId || !farmId) return
       try {
-        setFlocksError("")
-        const { userId, farmId } = getUserContext()
-        if (!userId || !farmId) return
-        const list = await getValidFlocks()
-        setAllFlocks(list)
-        const select = getFlocksForProductionSelect()
-        setFlocksForSelect(select)
-        if (select.length === 0) {
-          setFlocksError(getFlockSelectEmptyHint("production"))
+        const [items, purchases] = await Promise.all([
+          listPoultryRawMaterialItems().catch(() => [] as PoultryRawMaterialItem[]),
+          listPoultryRawMaterialPurchases().catch(() => [] as any[]),
+        ])
+        setRawItems(Array.isArray(items) ? items : [])
+        const byItemLatest: Record<number, { date: string; cost: number }> = {}
+        for (const p of (Array.isArray(purchases) ? purchases : [])) {
+          const iid = p.poultryRawMaterialItemId
+          const cost = (p.productionUnitCost ?? p.unitCost) || 0
+          const prev = byItemLatest[iid]
+          if (!prev || (p.purchaseDate || "") >= prev.date) byItemLatest[iid] = { date: p.purchaseDate || "", cost }
         }
-
-        // Raw-material items + latest purchase cost (feed/medication dropdowns).
-        try {
-          const [items, purchases] = await Promise.all([
-            listPoultryRawMaterialItems().catch(() => [] as PoultryRawMaterialItem[]),
-            listPoultryRawMaterialPurchases().catch(() => [] as any[]),
-          ])
-          setRawItems(Array.isArray(items) ? items : [])
-          const byItemLatest: Record<number, { date: string; cost: number }> = {}
-          for (const p of (Array.isArray(purchases) ? purchases : [])) {
-            const iid = p.poultryRawMaterialItemId
-            const cost = (p.productionUnitCost ?? p.unitCost) || 0
-            const prev = byItemLatest[iid]
-            if (!prev || (p.purchaseDate || "") >= prev.date) byItemLatest[iid] = { date: p.purchaseDate || "", cost }
-          }
-          const map: Record<number, number> = {}
-          for (const [iid, v] of Object.entries(byItemLatest)) map[Number(iid)] = v.cost
-          setLatestCost(map)
-        } catch { /* inventory optional */ }
-      } catch (e) {
-        setAllFlocks([])
-        setFlocksForSelect([])
-        setFlocksError("Unable to fetch flocks. Check API URL and CORS.")
-      }
+        const map: Record<number, number> = {}
+        for (const [iid, v] of Object.entries(byItemLatest)) map[Number(iid)] = v.cost
+        setLatestCost(map)
+      } catch { /* inventory optional */ }
     }
     load()
   }, [])
+
+  // When editing, preselect the Batch that owns the record's flock so the Batch
+  // dropdown isn't blank (it loads async, hence keyed on allFlocks + record).
+  useEffect(() => {
+    if (!record || allFlocks.length === 0) return
+    const fid = (record as any).flockId
+    if (fid == null) return
+    const f = allFlocks.find((x) => String(x.flockId) === String(fid))
+    if (f?.batchId != null) setSelectedBatchId(String(f.batchId))
+  }, [record, allFlocks])
 
   // Load previous records to calculate birds left
   useEffect(() => {
@@ -516,18 +538,35 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
             </div>
             <div className="grid grid-cols-12 gap-4 px-4 py-4">
               <div className="col-span-12 md:col-span-6 space-y-2">
+                <Label>Batch</Label>
+                <Select value={selectedBatchId} onValueChange={setSelectedBatchId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All batches" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {batchOptions.map((b) => (
+                      <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="text-xs text-slate-500">
+                  Filters the Flock dropdown. Leave on &ldquo;All batches&rdquo; to see every flock.
+                </div>
+              </div>
+
+              <div className="col-span-12 md:col-span-6 space-y-2">
                 <Label>Flock</Label>
                 <Select value={form.flockId} onValueChange={(v) => setForm({ ...form, flockId: v })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select flock" />
                   </SelectTrigger>
                   <SelectContent>
-                    {flocksForSelect.length === 0 ? (
+                    {flockSelectOptions.length === 0 ? (
                       <SelectItem value="none" disabled>
                         {flocksError || getFlockSelectEmptyHint("production")}
                       </SelectItem>
                     ) : (
-                      flocksForSelect.map((f) => (
+                      flockSelectOptions.map((f) => (
                         <SelectItem key={f.value} value={f.value}>
                           {f.label}
                         </SelectItem>
@@ -795,13 +834,13 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
             </div>
           </div>
 
-          {/* Section 4: Feed, Medication & Notes */}
+          {/* Section 4: Feed */}
           <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
             <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">
-              Feed, Medication &amp; Notes
+              Feed
             </div>
             <div className="grid grid-cols-12 gap-4 px-4 py-4">
-              <div className="col-span-12 md:col-span-4 space-y-2">
+              <div className="col-span-12 md:col-span-6 space-y-2">
                 <Label>Feed Type</Label>
                 <Select value={form.feedType} onValueChange={(v) => setForm({ ...form, feedType: v })}>
                   <SelectTrigger>
@@ -816,7 +855,7 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
                   </SelectContent>
                 </Select>
               </div>
-              <div className="col-span-12 md:col-span-4 space-y-2">
+              <div className="col-span-12 md:col-span-6 space-y-2">
                 <Label>Feed (kg)</Label>
                 <Input
                   type="number"
@@ -824,14 +863,6 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
                   min="0"
                   value={form.feedKg}
                   onChange={(e) => setForm({ ...form, feedKg: e.target.value })}
-                />
-              </div>
-              <div className="col-span-12 md:col-span-4 space-y-2">
-                <Label>Medication</Label>
-                <Input
-                  value={form.medication}
-                  onChange={(e) => setForm({ ...form, medication: e.target.value })}
-                  placeholder="e.g., Free water"
                 />
               </div>
 
@@ -868,7 +899,30 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
                 <Label>Total Feed Cost</Label>
                 <div className="h-10 flex items-center px-3 rounded-md border border-slate-200 bg-white font-semibold text-slate-700">{totalFeedCost.toFixed(2)}</div>
               </div>
+            </div>
+          </div>
 
+          {/* Section 5: Medication */}
+          <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
+            <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">
+              Medication
+            </div>
+            <div className="grid grid-cols-12 gap-4 px-4 py-4">
+              <div className="col-span-12 md:col-span-4 space-y-2">
+                <Label>Medication</Label>
+                <Input
+                  value={form.medication}
+                  onChange={(e) => setForm({ ...form, medication: e.target.value })}
+                  placeholder="e.g., Free water"
+                />
+              </div>
+
+              {/* Used (from inventory) — reduces Raw-Material stock on save */}
+              <div className="col-span-12 flex items-center gap-2 pt-1">
+                <div className="h-px flex-1 bg-slate-200" />
+                <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Used (from inventory)</span>
+                <div className="h-px flex-1 bg-slate-200" />
+              </div>
               <div className="col-span-12 md:col-span-4 space-y-2">
                 <Label>Specific Medication Used</Label>
                 <Select value={form.specificMedicationUsedId || "none"} onValueChange={(v) => {
@@ -902,16 +956,17 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
                 <span className="text-lg font-bold text-emerald-800">{totalCostOfProduction.toFixed(2)}</span>
               </div>
               <p className="col-span-12 text-xs text-slate-500 -mt-1">Selecting feed/medication reduces its Raw-Material inventory when you save. Unit cost is prefilled from the latest purchase; adjust if needed.</p>
-
-              <div className="col-span-12 space-y-2">
-                <Label>Notes</Label>
-                <Textarea
-                  rows={3}
-                  value={form.notes}
-                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                />
-              </div>
             </div>
+          </div>
+
+          {/* Section 6: Notes (no banner) */}
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 space-y-2">
+            <Label>Notes</Label>
+            <Textarea
+              rows={3}
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+            />
           </div>
 
           {/* Actions */}

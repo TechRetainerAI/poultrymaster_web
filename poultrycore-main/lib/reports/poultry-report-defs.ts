@@ -468,7 +468,6 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
     cards: [
       { label: "Total revenue", value: (s, c) => c.money(s.totalRevenue), accent: "green" },
       { label: "Total expenses", value: (s, c) => c.money(s.totalExpenses), accent: "rose" },
-      { label: "Gross profit", value: (s, c) => c.money(s.grossProfit), accent: (s) => profitAccent(s.grossProfit) },
       { label: "Net profit", value: (s, c) => c.money(s.netProfit), accent: (s) => profitAccent(s.netProfit) },
       { label: "Most profitable flock", value: (s, c) => c.text(s.mostProfitableFlock) },
       { label: "Least profitable flock", value: (s, c) => c.text(s.leastProfitableFlock) },
@@ -522,9 +521,7 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
     cards: [
       { label: "Total revenue", value: (s, c) => c.money(s.totalRevenue), accent: "green" },
       { label: "Total expenses", value: (s, c) => c.money(s.totalExpenses), accent: "rose" },
-      { label: "Gross profit", value: (s, c) => c.money(s.grossProfit), accent: (s) => profitAccent(s.grossProfit) },
       { label: "Net profit", value: (s, c) => c.money(s.netProfit), accent: (s) => profitAccent(s.netProfit) },
-      { label: "Net margin", value: (s, c) => c.pct(s.netMarginPercent) },
     ],
     columns: [
       { header: "Egg revenue", align: "right", cell: (r, c) => c.money(r.eggRevenue) },
