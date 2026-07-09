@@ -431,13 +431,13 @@ export default function PoultryRawMaterialsPage() {
                     </Select>
                   </FormField>
                   <FormField label="Production units per purchase unit"><NumberInput min={0} step="0.0001" value={f.productionUnitsPerPurchaseUnit} onChange={(e) => setPurchaseForm({ ...f, productionUnitsPerPurchaseUnit: Number(e.target.value) || 0 })} /></FormField>
-                  <FormField label="Production-level quantity" hint="Editable — sets units per purchase unit"><NumberInput min={0} step="0.001" value={Number(prodQty.toFixed(4))} onChange={(e) => { const v = Number(e.target.value) || 0; setPurchaseForm({ ...f, productionUnitsPerPurchaseUnit: qty > 0 ? Number((v / qty).toFixed(6)) : f.productionUnitsPerPurchaseUnit }) }} /></FormField>
+                  <FormField label="Production-level quantity" hint="Editable — sets units per purchase unit"><NumberInput min={0} step="0.001" value={Number(prodQty.toFixed(4))} onChange={(e) => { const v = Number(e.target.value) || 0; setPurchaseForm({ ...f, productionUnitsPerPurchaseUnit: qty > 0 ? Number((v / qty).toFixed(8)) : f.productionUnitsPerPurchaseUnit }) }} /></FormField>
                   {manualProdCost ? (
                     <FormField label="Production-level unit cost" hint="Manual — sets the conversion for you">
                       <NumberInput min={0} step="0.0001" value={Number(prodUnitCost.toFixed(4))} onChange={(e) => {
                         const c = Number(e.target.value) || 0
                         // production unit cost = total / (qty × perPurchase) ⇒ perPurchase = total / (cost × qty)
-                        const newPer = (c > 0 && qty > 0 && total > 0) ? Number((total / (c * qty)).toFixed(6)) : f.productionUnitsPerPurchaseUnit
+                        const newPer = (c > 0 && qty > 0 && total > 0) ? Number((total / (c * qty)).toFixed(8)) : f.productionUnitsPerPurchaseUnit
                         setPurchaseForm({ ...f, productionUnitsPerPurchaseUnit: newPer })
                       }} />
                     </FormField>
