@@ -55,14 +55,19 @@ import { useSidebarStore } from "@/lib/store/sidebar-store"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
+import { useLogout } from "@/hooks/use-logout"
 
 interface SidebarProps {
-  onLogout: () => void
+  onLogout?: () => void
 }
 
 export function DashboardSidebar({ onLogout }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
+  // Several pages render <DashboardSidebar /> without an onLogout prop, which
+  // left the Logout button dead on those pages. Fall back to the shared hook.
+  const fallbackLogout = useLogout()
+  const doLogout = onLogout ?? fallbackLogout
   const permissions = usePermissions()
   const isMobile = useIsMobile()
   const [isPending, startTransition] = useTransition()
@@ -645,7 +650,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={onLogout}
+                onClick={doLogout}
                 className="w-full text-slate-300 hover:bg-slate-800 hover:text-white"
                 aria-label="Logout"
               >
@@ -659,7 +664,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         ) : (
           <Button
             variant="ghost"
-            onClick={onLogout}
+            onClick={doLogout}
             className="w-full justify-start text-slate-300 hover:bg-red-900/30 hover:text-red-400 gap-3 px-4"
           >
             <LogOut className="h-5 w-5" />
