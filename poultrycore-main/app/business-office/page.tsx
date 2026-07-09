@@ -262,8 +262,7 @@ export default function BusinessOfficePage() {
           ) : visible.length === 0 ? (
             <Card><CardContent className="p-10 text-center text-slate-500">No companies match your search.</CardContent></Card>
           ) : (
-            {/* Stretch to fill the row: 1 company → full-width banner, 2 → halves,
-                3 → thirds, 4+ → 3 per row. Avoids the odd empty slot (James). */}
+            // Stretch to fill the row: 1 → full-width, 2 → halves, 3 → thirds, 4+ → 3/row.
             <div className={`grid gap-4 ${visible.length === 1 ? "grid-cols-1" : visible.length === 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"}`}>
               {visible.map((c) => {
                 const Icon = typeIcon(c.type); const opening = openingId === c.farmId
