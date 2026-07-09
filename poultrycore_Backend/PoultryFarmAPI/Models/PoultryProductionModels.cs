@@ -178,6 +178,21 @@ namespace PoultryFarmAPIWeb.Models
         public DateTime? ApprovedAt { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
+        // Enriched live figures (migration 148) — water-parity closing detail.
+        public decimal EggsSold { get; set; }
+        public decimal EggsReturned { get; set; }
+        public decimal Mortality { get; set; }
+        public decimal FeedUsedQty { get; set; }
+        public decimal TotalIncome { get; set; }
+        public decimal TotalExpenses { get; set; }
+        public decimal CreditSales { get; set; }
+        public decimal CustomerCollections { get; set; }
+        public decimal CashCollected { get; set; }
+        public decimal MoMoCollected { get; set; }
+        public decimal BankCollected { get; set; }
+        public decimal CashBalance { get; set; }
+        public decimal MoMoBalance { get; set; }
+        public decimal BankBalance { get; set; }
     }
 
     public class PoultryDailyClosingSubmitRequest
