@@ -7,12 +7,12 @@
 
 import { ReactNode, useEffect, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { usePermissions } from "@/hooks/use-permissions"
-import { Briefcase, Building2, Bell, ListTodo, HelpCircle, LogOut, Menu, ShieldCheck, Settings, UserCog } from "lucide-react"
+import { Briefcase, Building2, Bell, ListTodo, HelpCircle, LogOut, Menu, ShieldCheck, Settings, UserCog, Plus } from "lucide-react"
 import { BoCompanySelector } from "@/components/dashboard/bo-company-selector"
 
 type ActiveKey = "home" | "companies" | "employees" | "users" | "settings" | "org" | "help"
@@ -20,8 +20,18 @@ type ActiveKey = "home" | "companies" | "employees" | "users" | "settings" | "or
 export function BusinessOfficeShell({ active, children }: { active: ActiveKey; children: ReactNode }) {
   const logout = useLogout()
   const router = useRouter()
+  const pathname = usePathname()
   const permissions = usePermissions()
   const isAdmin = permissions.isAdmin
+  const roleLabel = isAdmin ? "Organization Admin" : "Staff"
+
+  // "New company" now lives in the top bar (banner removed). The create dialog
+  // stays on the home page (it owns the company list refresh), so trigger it via
+  // an event when already there, or navigate home with ?new=1 to open it.
+  function goNewCompany() {
+    if (pathname === "/business-office") window.dispatchEvent(new CustomEvent("bo:new-company"))
+    else router.push("/business-office?new=1")
+  }
   const user = useAuthStore((s) => s.user)
   const clearActiveCompany = useAuthStore((s) => s.clearActiveCompany)
   const [drawer, setDrawer] = useState(false)
@@ -121,21 +131,34 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
         </div>
       )}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="relative z-30 h-16 bg-white/90 backdrop-blur border-b border-slate-200 flex items-center gap-3 px-4 sm:px-6 shrink-0 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-          <button className="lg:hidden h-9 w-9 grid place-items-center rounded-lg border border-slate-200" onClick={() => setDrawer(true)} aria-label="Menu"><Menu className="h-5 w-5" /></button>
+        {/* Brand-coloured top bar. Carries the welcome message + the org-level
+            actions (Users & Permissions, New company) that used to sit in the
+            page's dark welcome banner (James 2026-07-08). */}
+        <header className="relative z-30 h-16 bg-gradient-to-r from-orange-600 to-amber-500 text-white border-b border-orange-700/30 flex items-center gap-3 px-4 sm:px-6 shrink-0 shadow-sm">
+          <button className="lg:hidden h-9 w-9 grid place-items-center rounded-lg border border-white/25 text-white hover:bg-white/10" onClick={() => setDrawer(true)} aria-label="Menu"><Menu className="h-5 w-5" /></button>
           <div className="min-w-0">
-            <div className="text-[11px] uppercase tracking-wide text-slate-400 leading-tight">Business Office</div>
-            <div className="font-semibold text-slate-900 truncate leading-tight">{officeName}{isAdmin && orgCode && <span className="ml-2 text-xs font-mono font-normal text-slate-400">{orgCode}</span>}</div>
+            <div className="font-bold text-white truncate leading-tight">Welcome{userName ? `, ${userName}` : ""}</div>
+            <div className="text-[11px] text-white/85 truncate leading-tight">{officeName} · {roleLabel}{isAdmin && orgCode && <span className="ml-2 font-mono text-white/70">{orgCode}</span>}</div>
           </div>
 
           {/* Doc 3 §10: global company selector (replaces the old search box). */}
           <BoCompanySelector />
 
           <div className="ml-auto flex items-center gap-2">
-            <Link href="/business-office#notices" className="h-9 w-9 grid place-items-center rounded-lg hover:bg-slate-100 text-slate-500" aria-label="Notifications"><Bell className="h-5 w-5" /></Link>
-            <div className="flex items-center gap-2 pl-2">
-              <span className="hidden sm:block text-sm text-slate-600">{userName || "Account"}</span>
-              <span className="h-8 w-8 grid place-items-center rounded-full bg-orange-100 text-orange-700 text-sm font-semibold">{(userName || "U").charAt(0).toUpperCase()}</span>
+            {isAdmin && (
+              <>
+                <Link href="/business-office/users" className="hidden sm:inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-white/30 bg-white/10 text-sm font-medium text-white hover:bg-white/20 transition-colors">
+                  <ShieldCheck className="h-4 w-4" /> <span className="hidden lg:inline">Users &amp; Permissions</span><span className="lg:hidden">Users</span>
+                </Link>
+                <button onClick={goNewCompany} className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-white text-orange-700 text-sm font-semibold hover:bg-orange-50 transition-colors shadow-sm">
+                  <Plus className="h-4 w-4" /> <span className="hidden sm:inline">New company</span>
+                </button>
+              </>
+            )}
+            <Link href="/business-office#notices" className="h-9 w-9 grid place-items-center rounded-lg hover:bg-white/15 text-white/90" aria-label="Notifications"><Bell className="h-5 w-5" /></Link>
+            <div className="flex items-center gap-2 pl-1">
+              <span className="hidden xl:block text-sm text-white/90">{userName || "Account"}</span>
+              <span className="h-8 w-8 grid place-items-center rounded-full bg-white/20 text-white text-sm font-semibold ring-1 ring-inset ring-white/30">{(userName || "U").charAt(0).toUpperCase()}</span>
             </div>
           </div>
         </header>

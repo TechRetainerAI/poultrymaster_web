@@ -120,6 +120,15 @@ export default function BusinessOfficePage() {
   }
   useEffect(() => { void loadAnnouncements() }, [orgOwnerUserId, isAdmin, activeFarmId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The "New company" button moved to the top bar (shell). It opens this page's
+  // create dialog via a custom event (when already here) or ?new=1 (on navigation).
+  useEffect(() => {
+    const openNew = () => setOpen(true)
+    window.addEventListener("bo:new-company", openNew)
+    try { if (new URLSearchParams(window.location.search).get("new") === "1") setOpen(true) } catch {}
+    return () => window.removeEventListener("bo:new-company", openNew)
+  }, [])
+
   async function annAction(a: Announcement, action: "Dismiss" | "Ack") {
     try {
       await setAnnouncementReceipt(a.announcementId, action)
@@ -178,29 +187,8 @@ export default function BusinessOfficePage() {
   return (
     <BusinessOfficeShell active="home">
       <main className="flex-1 overflow-auto p-4 sm:p-6 space-y-6">
-        {/* Context header — welcome banner */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 text-white p-5 sm:p-6">
-          <div className="absolute -top-16 -right-10 h-44 w-44 rounded-full bg-orange-500/20 blur-3xl" />
-          <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3 min-w-0">
-              <span className="h-12 w-12 grid place-items-center rounded-xl bg-orange-500 shrink-0"><Briefcase className="h-6 w-6" /></span>
-              <div className="min-w-0">
-                <h1 className="text-xl sm:text-2xl font-bold truncate">Welcome{userName ? `, ${userName}` : ""}</h1>
-                <p className="text-sm text-slate-300">Your headquarters for <span className="font-medium text-white">{officeName}</span> · {roleLabel}</p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {isAdmin ? (
-                <>
-                  <Button variant="outline" className="border-white/25 bg-white/5 text-white hover:bg-white/15 hover:text-white" onClick={() => router.push("/business-office/users")}><Users className="h-4 w-4 mr-1" /> Users &amp; Permissions</Button>
-                  <Button className="bg-white text-slate-900 hover:bg-slate-100" onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-1" /> New company</Button>
-                </>
-              ) : (
-                <Button variant="outline" className="border-white/25 bg-white/5 text-white hover:bg-white/15 hover:text-white" asChild><a href="#tasks"><ListTodo className="h-4 w-4 mr-1" /> View my tasks</a></Button>
-              )}
-            </div>
-          </div>
-        </div>
+        {/* Welcome + org actions now live in the coloured top bar (shell). The
+            "New company" button there opens this page's create dialog via event. */}
 
         {/* Announcements */}
         <section id="notices">
