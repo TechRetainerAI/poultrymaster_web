@@ -694,13 +694,13 @@ export default function WaterRawMaterialsPage() {
                     </FormField>
                     <FormField label="Production-level quantity" hint="Editable — sets units per purchase unit">
                       <NumberInput min={0} step="0.001" value={Number(prodQty.toFixed(4))}
-                        onChange={(e) => { const v = Number(e.target.value) || 0; setPurchaseForm({ ...purchaseForm, productionUnitsPerPurchaseUnit: qty > 0 ? Number((v / qty).toFixed(6)) : perPurchase }) }} />
+                        onChange={(e) => { const v = Number(e.target.value) || 0; setPurchaseForm({ ...purchaseForm, productionUnitsPerPurchaseUnit: qty > 0 ? Number((v / qty).toFixed(8)) : perPurchase }) }} />
                     </FormField>
                     {manualProdCost ? (
                       <FormField label={`Production-level unit cost${purchaseForm.productionUnit ? ` (per ${purchaseForm.productionUnit})` : ""}`} hint="Manual — sets the conversion for you">
                         <NumberInput min={0} step="0.0001" value={Number(prodUnitCost.toFixed(4))} onChange={(e) => {
                           const c = Number(e.target.value) || 0
-                          const newPer = (c > 0 && qty > 0 && total > 0) ? Number((total / (c * qty)).toFixed(6)) : perPurchase
+                          const newPer = (c > 0 && qty > 0 && total > 0) ? Number((total / (c * qty)).toFixed(8)) : perPurchase
                           setPurchaseForm({ ...purchaseForm, productionUnitsPerPurchaseUnit: newPer })
                         }} />
                       </FormField>
