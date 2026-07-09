@@ -4,7 +4,7 @@
 // the old "Search companies…" box. Lists companies the user can access and
 // switches into the chosen one (same logic as the company card "Open" button).
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Building2, Loader2, ChevronDown, Bird, Droplets, ShoppingBag } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -35,10 +35,24 @@ export function BoCompanySelector({ className }: { className?: string }) {
   const [companies, setCompanies] = useState<Company[]>([])
   const [open, setOpen] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     getMyCompanies().then(setCompanies).catch(() => {})
   }, [])
+
+  // Close on any outside click. A `fixed inset-0` overlay is unreliable here
+  // because a blurred/transformed header ancestor becomes its containing block
+  // and confines it to the header strip — clicks on the page below then never
+  // reach it. A document listener always works.
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => { if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false) }
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false) }
+    document.addEventListener("mousedown", onDown)
+    document.addEventListener("keydown", onKey)
+    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey) }
+  }, [open])
 
   async function pick(c: Company) {
     setBusyId(c.farmId)
@@ -53,7 +67,7 @@ export function BoCompanySelector({ className }: { className?: string }) {
   }
 
   return (
-    <div className={className ?? "hidden md:block relative ml-4 flex-1 max-w-sm"}>
+    <div ref={rootRef} className={className ?? "hidden md:block relative ml-4 flex-1 max-w-sm"}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -65,7 +79,6 @@ export function BoCompanySelector({ className }: { className?: string }) {
       </button>
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div className="absolute z-50 mt-2 w-full max-h-96 overflow-auto rounded-xl border border-slate-200 bg-white shadow-xl ring-1 ring-black/5 p-1.5">
             <div className="px-2.5 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Your companies</div>
             {companies.length === 0 ? (
