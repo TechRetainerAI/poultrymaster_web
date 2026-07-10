@@ -53,6 +53,23 @@ const EMPTY_PURCHASE = {
   notes: "",
 }
 
+// Mobile card for a table row: title + optional badge, a 2-col field grid, and
+// an actions row. Used to render these tables as cards on small screens.
+function FieldCard({ title, badge, fields, actions }: { title: React.ReactNode; badge?: React.ReactNode; fields: [string, React.ReactNode][]; actions?: React.ReactNode }) {
+  return (
+    <div className="rounded-lg border border-slate-200 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="font-medium text-slate-900 min-w-0 truncate">{title}</div>
+        {badge}
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
+        {fields.map(([l, v], idx) => <div key={idx} className="min-w-0 truncate"><span className="text-slate-500">{l}: </span><span className="tabular-nums">{v}</span></div>)}
+      </div>
+      {actions && <div className="mt-2 flex justify-end gap-1 border-t pt-2">{actions}</div>}
+    </div>
+  )
+}
+
 export default function PoultryRawMaterialsPage() {
   const router = useRouter()
   const { toast } = useToast()
@@ -242,7 +259,7 @@ export default function PoultryRawMaterialsPage() {
               <TabsContent value="items">
                 <Card><CardContent className="p-4">
                   <div className="flex justify-end mb-3"><Button onClick={openNewItem}><Plus className="w-4 h-4 mr-1" /> New item</Button></div>
-                  <div className="overflow-x-auto -mx-4 px-4"><Table className="min-w-[640px]">
+                  <div className="hidden md:block overflow-x-auto"><Table className="min-w-[640px]">
                     <TableHeader><TableRow>
                       <TableHead>Item</TableHead><TableHead>Category</TableHead><TableHead>Unit</TableHead>
                       <TableHead className="text-right">In stock</TableHead><TableHead className="text-right">Min alert</TableHead>
@@ -271,6 +288,19 @@ export default function PoultryRawMaterialsPage() {
                       ))}
                     </TableBody>
                   </Table></div>
+                  {/* Mobile cards */}
+                  <div className="md:hidden space-y-2">
+                    {items.length === 0 ? <div className="text-center text-slate-500 py-6">No items yet.</div>
+                      : items.map((i) => (
+                        <FieldCard key={i.poultryRawMaterialItemId} title={i.itemName}
+                          badge={!i.isActive ? <Badge variant="secondary">Inactive</Badge> : i.isLowStock ? <Badge className="bg-amber-100 text-amber-700">Low stock</Badge> : <Badge className="bg-green-100 text-green-700">OK</Badge>}
+                          fields={[["Category", i.category], ["Unit", i.unitOfMeasure ?? "—"], ["In stock", i.currentQuantity.toLocaleString()], ["Min alert", i.minimumStockAlert.toLocaleString()]]}
+                          actions={<>
+                            <Button variant="ghost" size="sm" onClick={() => openEditItem(i)}><Pencil className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="sm" onClick={() => setDeleteItemTarget(i)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
+                          </>} />
+                      ))}
+                  </div>
                 </CardContent></Card>
               </TabsContent>
 
@@ -278,7 +308,7 @@ export default function PoultryRawMaterialsPage() {
               <TabsContent value="purchases">
                 <Card><CardContent className="p-4">
                   <div className="flex justify-end mb-3"><Button onClick={openNewPurchase}><Plus className="w-4 h-4 mr-1" /> New purchase</Button></div>
-                  <div className="overflow-x-auto -mx-4 px-4"><Table className="min-w-[640px]">
+                  <div className="hidden md:block overflow-x-auto"><Table className="min-w-[640px]">
                     <TableHeader><TableRow>
                       <TableHead>Date</TableHead><TableHead>Item</TableHead><TableHead>Supplier</TableHead>
                       <TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Total</TableHead>
@@ -306,13 +336,27 @@ export default function PoultryRawMaterialsPage() {
                       ))}
                     </TableBody>
                   </Table></div>
+                  {/* Mobile cards */}
+                  <div className="md:hidden space-y-2">
+                    {purchases.length === 0 ? <div className="text-center text-slate-500 py-6">No purchases yet.</div>
+                      : purchases.map((p) => (
+                        <FieldCard key={p.poultryRawMaterialPurchaseId} title={p.itemName}
+                          badge={<span className="text-xs text-slate-500">{(p.purchaseDate || "").split("T")[0]}</span>}
+                          fields={[["Supplier", p.supplierName ?? "—"], ["Qty", `${p.quantity.toLocaleString()} ${p.unitOfMeasure ?? ""}`], ["Total", gh(p.totalCost)], ["Paid", gh(p.amountPaid)], ["Balance", p.balance > 0 ? <span className="text-amber-600 font-medium">{gh(p.balance)}</span> : gh(0)]]}
+                          actions={<>
+                            {p.balance > 0 && <Button variant="ghost" size="sm" onClick={() => openPayBalance(p)} title="Pay balance"><Wallet className="w-4 h-4 text-emerald-600" /></Button>}
+                            <Button variant="ghost" size="sm" onClick={() => openEditPurchase(p)}><Pencil className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="sm" onClick={() => setDeletePurchaseTarget(p)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
+                          </>} />
+                      ))}
+                  </div>
                 </CardContent></Card>
               </TabsContent>
 
               {/* USAGE */}
               <TabsContent value="usage">
                 <Card><CardContent className="p-4">
-                  <div className="overflow-x-auto -mx-4 px-4"><Table className="min-w-[640px]">
+                  <div className="hidden md:block overflow-x-auto"><Table className="min-w-[640px]">
                     <TableHeader><TableRow>
                       <TableHead>Date</TableHead><TableHead>Item</TableHead>
                       <TableHead className="text-right">Used</TableHead><TableHead className="text-right">Expected</TableHead>
@@ -333,6 +377,15 @@ export default function PoultryRawMaterialsPage() {
                       ))}
                     </TableBody>
                   </Table></div>
+                  {/* Mobile cards */}
+                  <div className="md:hidden space-y-2">
+                    {usage.length === 0 ? <div className="text-center text-slate-500 py-6">No usage recorded yet.</div>
+                      : usage.map((u) => (
+                        <FieldCard key={u.poultryRawMaterialUsageId} title={u.itemName}
+                          badge={<span className="text-xs text-slate-500">{(u.usedDate || "").split("T")[0]}</span>}
+                          fields={[["Used", `${u.quantityUsed.toLocaleString()} ${u.unitOfMeasure ?? ""}`], ["Expected", u.expectedQuantityUsed?.toLocaleString() ?? "—"], ["Variance", u.variance.toLocaleString()], ["Reason", u.varianceReason ?? "—"]]} />
+                      ))}
+                  </div>
                 </CardContent></Card>
               </TabsContent>
             </Tabs>
