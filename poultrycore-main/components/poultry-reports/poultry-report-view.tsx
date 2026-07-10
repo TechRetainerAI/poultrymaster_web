@@ -313,7 +313,10 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
             <PoultryReportEmptyState />
           ) : (
             <>
-              {!def.tableAsCards && <PoultryReportSummaryCards cards={cards} />}
+              {/* KPI summary strip — shown for every report, including the P&L
+                  card reports (Total revenue / expenses / Gross & Net profit /
+                  margin) that used to hide it under tableAsCards. */}
+              {cards.length > 0 && <PoultryReportSummaryCards cards={cards} />}
               {def.tableAsCards && cardRows ? (
                 <div className="space-y-5">
                   {cardRows.map((cr) => (
@@ -326,7 +329,7 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
                         <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm print:border print:shadow-none">
                           <div className="absolute inset-y-0 left-0 w-1 bg-emerald-500" />
                           <div className="p-4 pl-5">
-                            <div className="text-xs uppercase tracking-wider text-slate-500">{cr.revenue.headline?.label ?? "Revenue"}</div>
+                            <div className="text-xs uppercase tracking-wider text-slate-500">Revenue Details</div>
                             <div className="text-2xl font-semibold tabular-nums mt-1 text-emerald-700 break-words">{cr.revenue.headline?.value ?? "—"}</div>
                             <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-3">
                               {cr.revenue.items.map((it) => (
@@ -343,7 +346,7 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
                         <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm print:border print:shadow-none">
                           <div className="absolute inset-y-0 left-0 w-1 bg-rose-500" />
                           <div className="p-4 pl-5">
-                            <div className="text-xs uppercase tracking-wider text-slate-500">Expenses &amp; Profit — {cr.expense.headline?.label ?? "Net profit"}</div>
+                            <div className="text-xs uppercase tracking-wider text-slate-500">Expenses details</div>
                             <div className="text-2xl font-semibold tabular-nums mt-1 text-slate-900 break-words">{cr.expense.headline?.value ?? "—"}</div>
                             <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-3">
                               {cr.expense.items.map((it) => (

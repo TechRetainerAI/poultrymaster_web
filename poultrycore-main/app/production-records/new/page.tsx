@@ -776,14 +776,13 @@ export default function NewProductionRecordPage() {
                 </div>
               </div>
 
-              {/* Feed, Medication & Notes — manual entry combined with the
-                  inventory-based feed/medication usage & costing. */}
+              {/* Feed — manual entry + inventory-based usage & costing. */}
               <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
                 <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">
-                  Feed, Medication &amp; Notes
+                  Feed
                 </div>
                 <div className="grid grid-cols-12 gap-4 px-4 py-4">
-                  <div className="col-span-12 md:col-span-4 space-y-2">
+                  <div className="col-span-12 md:col-span-6 space-y-2">
                     <Label>Feed Type</Label>
                     <Select
                       value={form.feedType}
@@ -801,7 +800,7 @@ export default function NewProductionRecordPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="col-span-12 md:col-span-4 space-y-2">
+                  <div className="col-span-12 md:col-span-6 space-y-2">
                     <Label>Feed (kg)</Label>
                     <NumberInput
 
@@ -816,19 +815,6 @@ export default function NewProductionRecordPage() {
                       }
                     />
                   </div>
-                  <div className="col-span-12 md:col-span-4 space-y-2">
-                    <Label>Medication</Label>
-                    <Input
-                      value={form.medication}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          medication: e.target.value,
-                        })
-                      }
-                      placeholder="e.g., Free water"
-                    />
-                  </div>
 
                   {/* Used (from inventory) — reduces Raw-Material stock on save */}
                   <div className="col-span-12 flex items-center gap-2 pt-1">
@@ -837,7 +823,6 @@ export default function NewProductionRecordPage() {
                     <div className="h-px flex-1 bg-slate-200" />
                   </div>
 
-                  {/* Feed */}
                   <div className="col-span-12 md:col-span-4 space-y-2">
                     <Label>Specific Feed Used</Label>
                     <Select
@@ -874,8 +859,36 @@ export default function NewProductionRecordPage() {
                     <Label>Total Feed Cost</Label>
                     <div className="h-10 flex items-center px-3 rounded-md border border-slate-200 bg-white font-semibold text-slate-700">{totalFeedCost.toFixed(2)}</div>
                   </div>
+                </div>
+              </div>
 
-                  {/* Medication */}
+              {/* Medication — manual entry + inventory-based usage & costing. */}
+              <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
+                <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">
+                  Medication
+                </div>
+                <div className="grid grid-cols-12 gap-4 px-4 py-4">
+                  <div className="col-span-12 md:col-span-4 space-y-2">
+                    <Label>Medication</Label>
+                    <Input
+                      value={form.medication}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          medication: e.target.value,
+                        })
+                      }
+                      placeholder="e.g., Free water"
+                    />
+                  </div>
+
+                  {/* Used (from inventory) — reduces Raw-Material stock on save */}
+                  <div className="col-span-12 flex items-center gap-2 pt-1">
+                    <div className="h-px flex-1 bg-slate-200" />
+                    <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Used (from inventory)</span>
+                    <div className="h-px flex-1 bg-slate-200" />
+                  </div>
+
                   <div className="col-span-12 md:col-span-4 space-y-2">
                     <Label>Specific Medication Used</Label>
                     <Select
@@ -918,21 +931,22 @@ export default function NewProductionRecordPage() {
                     <span className="text-lg font-bold text-emerald-800">{totalCostOfProduction.toFixed(2)}</span>
                   </div>
                   <p className="col-span-12 text-xs text-slate-500 -mt-1">Selecting feed/medication reduces its Raw-Material inventory when you save. Unit cost is prefilled from the latest purchase; adjust if needed.</p>
-
-                  <div className="col-span-12 space-y-2">
-                    <Label>Notes</Label>
-                    <Textarea
-                      rows={3}
-                      value={form.notes}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          notes: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
                 </div>
+              </div>
+
+              {/* Notes (no banner) */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 space-y-2">
+                <Label>Notes</Label>
+                <Textarea
+                  rows={3}
+                  value={form.notes}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      notes: e.target.value,
+                    })
+                  }
+                />
               </div>
 
               {/* Actions */}

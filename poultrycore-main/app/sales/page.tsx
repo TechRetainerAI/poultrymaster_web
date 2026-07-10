@@ -10,7 +10,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -271,6 +270,28 @@ export default function SalesPage() {
 
       const response = await createSale(saleData)
       if (response.success) {
+        // "Paid now" → actually settle the sale, matching the Water flow.
+        // The create already posted the cash-in, but the backend leaves
+        // AmountPaid at 0, so without this the sale would still read as owed and
+        // demand a manual "Record payment". Recording the full payment makes
+        // AmountPaid catch up; spPoultrySaleCash_Sync reverses+reposts, so the
+        // cash is never double-counted.
+        const newSaleId = response.data?.saleId
+        if (saleData.paid && totalAmount > 0 && newSaleId) {
+          try {
+            await recordPoultryPayment({
+              saleId: newSaleId,
+              amount: totalAmount,
+              paymentMethod: saleData.paymentMethod || "Cash",
+            })
+          } catch (e: any) {
+            toast({
+              title: "Sale created — payment not recorded",
+              description: e?.message ?? "Use the sale's Pay action to record it manually.",
+              variant: "destructive",
+            })
+          }
+        }
         toast({
           title: "Success",
           description: "Sale created successfully",
@@ -1019,16 +1040,35 @@ export default function SalesPage() {
                     </div>
                   </div>
                   <div className="grid gap-2 md:grid-cols-2">
-                    <div className="flex items-center gap-3 rounded-md border bg-white px-3 py-2">
-                      <Checkbox
-                        id="salePaid"
-                        checked={Boolean(formData.paid ?? true)}
-                        onCheckedChange={(checked) => setFormData(prev => ({ ...prev, paid: checked === true }))}
-                      />
-                      <div className="space-y-0.5">
-                        <Label htmlFor="salePaid" className="cursor-pointer">Paid</Label>
-                        <p className="text-xs text-slate-500">Uncheck if customer has not paid yet (records as owed).</p>
+                    <div className="rounded-md border bg-white px-3 py-2">
+                      <Label className="mb-2 block text-sm">Payment status</Label>
+                      <div className="flex flex-wrap items-center gap-4">
+                        <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
+                          <input
+                            type="radio"
+                            name="create-payment-status"
+                            className="h-4 w-4"
+                            checked={formData.paid !== false}
+                            onChange={() => setFormData(prev => ({ ...prev, paid: true }))}
+                          />
+                          Paid now
+                        </label>
+                        <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
+                          <input
+                            type="radio"
+                            name="create-payment-status"
+                            className="h-4 w-4"
+                            checked={formData.paid === false}
+                            onChange={() => setFormData(prev => ({ ...prev, paid: false }))}
+                          />
+                          Pay later (pending)
+                        </label>
                       </div>
+                      <p className="text-xs text-slate-500 mt-1.5">
+                        {formData.paid === false
+                          ? "Records the full amount as owed — record payments later."
+                          : "Records the sale as fully paid and posts a cash-in."}
+                      </p>
                     </div>
                     <div className="rounded-md border bg-white px-3 py-2 space-y-1">
                       <Label htmlFor="saleSize">Egg Size (optional)</Label>
@@ -1442,7 +1482,7 @@ export default function SalesPage() {
                                 <div className="grid grid-cols-2 gap-2">
                                   <div><span className="text-slate-500">Quantity</span> <span className="font-medium">{sale.quantity}</span></div>
                                   <div><span className="text-slate-500">Payment</span> <span className="font-medium">{sale.paymentMethod}</span></div>
-                                  <div><span className="text-slate-500">Status</span> <span className={cn("font-medium", sale.paid === false ? "text-amber-700" : "text-emerald-700")}>{sale.paid === false ? "Unpaid" : "Paid"}</span></div>
+                                  <div className="flex items-center gap-2"><span className="text-slate-500">Status</span> <PaymentStatusBadge sale={sale} /></div>
                                   <div><span className="text-slate-500">Flock</span> <span className="font-medium">{getFlockLabel(sale.flockId)}</span></div>
                                 </div>
                                 <div className="flex gap-2 pt-2">
@@ -1518,9 +1558,7 @@ export default function SalesPage() {
                           <TableCell>
                             <div className="flex flex-col gap-1">
                               <Badge variant="outline" className="w-fit">{sale.paymentMethod}</Badge>
-                              <span className={cn("text-xs font-medium", sale.paid === false ? "text-amber-700" : "text-emerald-700")}>
-                                {sale.paid === false ? "Unpaid" : "Paid"}
-                              </span>
+                              <PaymentStatusBadge sale={sale} />
                             </div>
                           </TableCell>
                           <TableCell className={cn("whitespace-nowrap bg-white", isMobile && "sticky-col-actions")}>
@@ -1782,16 +1820,31 @@ export default function SalesPage() {
                           </Select>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 rounded-md border bg-white px-3 py-2">
-                        <Checkbox
-                          id="edit-salePaid"
-                          checked={Boolean(formData.paid ?? true)}
-                          onCheckedChange={(checked) => setFormData(prev => ({ ...prev, paid: checked === true }))}
-                        />
-                        <div className="space-y-0.5">
-                          <Label htmlFor="edit-salePaid" className="cursor-pointer">Paid</Label>
-                          <p className="text-xs text-slate-500">Uncheck if this sale is still owed by customer.</p>
+                      <div className="rounded-md border bg-white px-3 py-2">
+                        <Label className="mb-2 block text-sm">Payment status</Label>
+                        <div className="flex flex-wrap items-center gap-4">
+                          <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
+                            <input
+                              type="radio"
+                              name="edit-payment-status"
+                              className="h-4 w-4"
+                              checked={formData.paid !== false}
+                              onChange={() => setFormData(prev => ({ ...prev, paid: true }))}
+                            />
+                            Paid
+                          </label>
+                          <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
+                            <input
+                              type="radio"
+                              name="edit-payment-status"
+                              className="h-4 w-4"
+                              checked={formData.paid === false}
+                              onChange={() => setFormData(prev => ({ ...prev, paid: false }))}
+                            />
+                            Pending (owed)
+                          </label>
                         </div>
+                        <p className="text-xs text-slate-500 mt-1.5">Choose &ldquo;Pending&rdquo; if this sale is still owed by the customer.</p>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="edit-cashAccount">Receive into cash account</Label>
@@ -1955,9 +2008,7 @@ export default function SalesPage() {
                       </div>
                       <div className="rounded-lg border bg-slate-50 px-3 py-2">
                         <p className="text-xs text-slate-500">Status</p>
-                        <p className={cn("text-sm font-semibold", selectedSale.paid === false ? "text-amber-700" : "text-emerald-700")}>
-                          {selectedSale.paid === false ? "Unpaid" : "Paid"}
-                        </p>
+                        <div className="mt-0.5"><PaymentStatusBadge sale={selectedSale} /></div>
                       </div>
                     </div>
 
@@ -2044,5 +2095,30 @@ export default function SalesPage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+// Derived payment status for a poultry sale — mirrors the Water module's
+// Pending/PartiallyPaid/Paid model. Falls back to the binary `paid` flag when an
+// older backend hasn't populated `amountPaid`.
+function paymentStatusOf(s: Sale): "Paid" | "Partial" | "Pending" {
+  const total = Number(s.totalAmount) || 0
+  const paidAmt = s.amountPaid != null ? Number(s.amountPaid) : (s.paid === false ? 0 : total)
+  if (paidAmt <= 0) return "Pending"
+  if (paidAmt + 0.001 < total) return "Partial"
+  return "Paid"
+}
+
+function PaymentStatusBadge({ sale }: { sale: Sale }) {
+  const status = paymentStatusOf(sale)
+  const cls: Record<string, string> = {
+    Paid: "bg-emerald-100 text-emerald-700",
+    Partial: "bg-amber-100 text-amber-700",
+    Pending: "bg-slate-100 text-slate-700",
+  }
+  return (
+    <span className={cn("inline-flex w-fit rounded-full px-2 py-0.5 text-xs font-medium", cls[status])}>
+      {status}
+    </span>
   )
 }
