@@ -258,3 +258,12 @@ body {
   table { width: 100% !important; font-size: 11px !important; }
   .overflow-x-auto, .table-scroll-wrapper { overflow: visible !important; }
 }
+
+/* Clear the fixed mobile bottom nav (lg:hidden) so page content — the last table
+   rows / cards — isn't hidden behind it on phones. Pages without the nav just get
+   a little harmless extra space at the bottom. (James 2026-07-10) */
+@media (max-width: 1023px) {
+  main {
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+  }
+}
