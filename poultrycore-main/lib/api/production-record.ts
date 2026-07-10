@@ -14,6 +14,31 @@ function attachCosting(payload: any, record: ProductionRecordInput) {
   payload.totalMedicationConsumed = record.totalMedicationConsumed ?? null
   payload.totalMedicationCost = record.totalMedicationCost ?? null
   payload.totalCostOfProduction = record.totalCostOfProduction ?? null
+  // Migration 147: multiple medication lines. Send the array (even empty) so the
+  // backend derives the aggregate medication columns from it; omit (null) only
+  // when the caller doesn't manage lines, in which case the single-medication
+  // fields above are used as the sole line.
+  payload.medications = record.medications ?? null
+  // Migration 148: multiple feed lines — same contract as medications.
+  payload.feeds = record.feeds ?? null
+}
+
+/** One medication line drawn from raw-material inventory (migration 147). */
+export interface ProductionMedicationLine {
+  specificMedicationUsedId: number | null
+  specificMedicationUsedName?: string | null
+  totalMedicationConsumed: number | null
+  medicationUnitCost?: number | null
+  totalMedicationCost?: number | null
+}
+
+/** One feed line drawn from raw-material inventory (migration 148). */
+export interface ProductionFeedLine {
+  specificFeedUsedId: number | null
+  specificFeedUsedName?: string | null
+  totalFeedConsumed: number | null
+  feedUnitCost?: number | null
+  totalFeedCost?: number | null
 }
 
 export interface ProductionRecord {
@@ -61,6 +86,10 @@ export interface ProductionRecord {
   totalMedicationConsumed?: number | null
   totalMedicationCost?: number | null
   totalCostOfProduction?: number | null
+  /** Migration 147: individual medication lines (each drawn from inventory). */
+  medications?: ProductionMedicationLine[] | null
+  /** Migration 148: individual feed lines (each drawn from inventory). */
+  feeds?: ProductionFeedLine[] | null
 }
 
 export interface ProductionRecordInput {
@@ -100,6 +129,10 @@ export interface ProductionRecordInput {
   totalMedicationConsumed?: number | null
   totalMedicationCost?: number | null
   totalCostOfProduction?: number | null
+  /** Migration 147: individual medication lines (each drawn from inventory). */
+  medications?: ProductionMedicationLine[] | null
+  /** Migration 148: individual feed lines (each drawn from inventory). */
+  feeds?: ProductionFeedLine[] | null
 }
 
 // Mock data for development

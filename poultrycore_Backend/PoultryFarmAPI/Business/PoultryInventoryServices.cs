@@ -53,6 +53,7 @@ namespace PoultryFarmAPIWeb.Business
             IsActive = r.GetBoolean(r.GetOrdinal("IsActive")),
             IsLowStock = HasColumn(r, "IsLowStock") && !r.IsDBNull(r.GetOrdinal("IsLowStock")) && r.GetBoolean(r.GetOrdinal("IsLowStock")),
             Notes = r.IsDBNull(r.GetOrdinal("Notes")) ? null : r.GetString(r.GetOrdinal("Notes")),
+            UsageMethod = HasColumn(r, "UsageMethod") && !r.IsDBNull(r.GetOrdinal("UsageMethod")) ? r.GetString(r.GetOrdinal("UsageMethod")) : "FIFO",
             CreatedAt = r.GetDateTime(r.GetOrdinal("CreatedAt")),
             UpdatedAt = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
         };
@@ -92,6 +93,7 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@UnitOfMeasure", (object?)m.UnitOfMeasure ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@MinimumStockAlert", m.MinimumStockAlert);
             cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@UsageMethod", string.IsNullOrWhiteSpace(m.UsageMethod) ? "FIFO" : m.UsageMethod);
             await conn.OpenAsync();
             return Convert.ToInt32(await cmd.ExecuteScalarAsync());
         }
@@ -108,6 +110,7 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@MinimumStockAlert", m.MinimumStockAlert);
             cmd.Parameters.AddWithValue("@IsActive", m.IsActive);
             cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@UsageMethod", string.IsNullOrWhiteSpace(m.UsageMethod) ? "FIFO" : m.UsageMethod);
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
         }
@@ -137,6 +140,13 @@ namespace PoultryFarmAPIWeb.Business
             return r.IsDBNull(i) ? (decimal?)null : r.GetDecimal(i);
         }
 
+        private static bool HasColumn(SqlDataReader r, string name)
+        {
+            for (int i = 0; i < r.FieldCount; i++)
+                if (string.Equals(r.GetName(i), name, StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
+        }
+
         private static PoultryRawMaterialPurchaseModel Map(SqlDataReader r) => new()
         {
             PoultryRawMaterialPurchaseId = r.GetInt32(r.GetOrdinal("PoultryRawMaterialPurchaseId")),
@@ -151,6 +161,7 @@ namespace PoultryFarmAPIWeb.Business
             Quantity = r.GetDecimal(r.GetOrdinal("Quantity")),
             UnitCost = r.GetDecimal(r.GetOrdinal("UnitCost")),
             TotalCost = r.GetDecimal(r.GetOrdinal("TotalCost")),
+            RemainingQuantity = HasColumn(r, "RemainingQuantity") && !r.IsDBNull(r.GetOrdinal("RemainingQuantity")) ? r.GetDecimal(r.GetOrdinal("RemainingQuantity")) : r.GetDecimal(r.GetOrdinal("Quantity")),
             ProductionUnit = r.IsDBNull(r.GetOrdinal("ProductionUnit")) ? null : r.GetString(r.GetOrdinal("ProductionUnit")),
             ProductionUnitsPerPurchaseUnit = GetNullableDecimal(r, "ProductionUnitsPerPurchaseUnit"),
             ProductionQuantity = GetNullableDecimal(r, "ProductionQuantity"),
