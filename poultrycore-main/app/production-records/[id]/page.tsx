@@ -23,7 +23,10 @@ import {
   listPoultryRawMaterialItems,
   listPoultryRawMaterialPurchases,
   type PoultryRawMaterialItem,
+  type PoultryRawMaterialPurchase,
 } from "@/lib/api/poultry-inventory"
+import { MedicationLines, computeMedLines, emptyMedLine, type MedLineDraft } from "@/components/production/medication-lines"
+import { FeedLines, computeFeedLines, emptyFeedLine, type FeedLineDraft } from "@/components/production/feed-lines"
 
 // Doc §4a: classify a raw-material item as Feed or Medication by its category.
 const isFeedCategory = (c?: string | null) => !!c && /feed/i.test(c)
@@ -57,45 +60,56 @@ export default function EditProductionRecordPage() {
     softEggs: "",
     lostEggs: "",
     eggGrade: "",
-    // Doc §4a-4c: feed/medication consumed from inventory + costing.
-    specificFeedUsedId: "",
-    feedUnitCost: "",
-    totalFeedConsumed: "",
-    specificMedicationUsedId: "",
-    medicationUnitCost: "",
-    totalMedicationConsumed: "",
+    // Feed & medication are now multiple inventory lines (migrations 147/148) —
+    // see feedLines / medLines below. The manual Feed Type + Feed (kg) fields stay.
   })
 
+  // Migration 148: multiple feed lines.
+  const [feedLines, setFeedLines] = useState<FeedLineDraft[]>([])
+  const addFeedLine = () => setFeedLines((d) => [...d, emptyFeedLine()])
+  const removeFeedLine = (idx: number) => setFeedLines((d) => d.filter((_, i) => i !== idx))
+  const changeFeedLine = (idx: number, patch: Partial<FeedLineDraft>) =>
+    setFeedLines((d) => d.map((row, i) => (i === idx ? { ...row, ...patch } : row)))
+
+  // Migration 147: multiple medication lines.
+  const [medLines, setMedLines] = useState<MedLineDraft[]>([])
+  const addMedLine = () => setMedLines((d) => [...d, emptyMedLine()])
+  const removeMedLine = (idx: number) => setMedLines((d) => d.filter((_, i) => i !== idx))
+  const changeMedLine = (idx: number, patch: Partial<MedLineDraft>) =>
+    setMedLines((d) => d.map((row, i) => (i === idx ? { ...row, ...patch } : row)))
+
   const [rawItems, setRawItems] = useState<PoultryRawMaterialItem[]>([])
-  const [latestCost, setLatestCost] = useState<Record<number, number>>({})
+  const [purchases, setPurchases] = useState<PoultryRawMaterialPurchase[]>([])
   // Flock of the record being edited (from the API, not user-editable here) —
   // needed to sync the matching FeedUsage row on save.
   const [flockId, setFlockId] = useState<number | null>(null)
   const feedItems = useMemo(() => rawItems.filter((i) => isFeedCategory(i.category)), [rawItems])
   const medItems = useMemo(() => rawItems.filter((i) => isMedicationCategory(i.category)), [rawItems])
-  const totalFeedCost = useMemo(() => (parseFloat(formData.feedUnitCost) || 0) * (parseFloat(formData.totalFeedConsumed) || 0), [formData.feedUnitCost, formData.totalFeedConsumed])
-  const totalMedicationCost = useMemo(() => (parseFloat(formData.medicationUnitCost) || 0) * (parseFloat(formData.totalMedicationConsumed) || 0), [formData.medicationUnitCost, formData.totalMedicationConsumed])
+  // Client-side preview of the FIFO/LIFO/HIFO batch draw (mirrors the server's
+  // spPoultryRawMaterialItem_ConsumeBatches). The server recomputes and persists
+  // the authoritative cost at save time — this is just a live preview.
+  const feedComputed = useMemo(
+    () => computeFeedLines(feedLines, feedItems, purchases),
+    [feedLines, feedItems, purchases],
+  )
+  const medComputed = useMemo(
+    () => computeMedLines(medLines, medItems, purchases),
+    [medLines, medItems, purchases],
+  )
+  const totalFeedCost = feedComputed.totalCost
+  const totalMedicationCost = medComputed.totalCost
   const totalCostOfProduction = totalFeedCost + totalMedicationCost
 
   useEffect(() => {
     loadRecord()
     ;(async () => {
       try {
-        const [items, purchases] = await Promise.all([
+        const [items, purch] = await Promise.all([
           listPoultryRawMaterialItems().catch(() => []),
           listPoultryRawMaterialPurchases().catch(() => []),
         ])
         setRawItems(Array.isArray(items) ? items : [])
-        const byItemLatest: Record<number, { date: string; cost: number }> = {}
-        for (const p of (Array.isArray(purchases) ? purchases : [])) {
-          const iid = p.poultryRawMaterialItemId
-          const cost = (p.productionUnitCost ?? p.unitCost) || 0
-          const prev = byItemLatest[iid]
-          if (!prev || (p.purchaseDate || "") >= prev.date) byItemLatest[iid] = { date: p.purchaseDate || "", cost }
-        }
-        const map: Record<number, number> = {}
-        for (const [iid, v] of Object.entries(byItemLatest)) map[Number(iid)] = v.cost
-        setLatestCost(map)
+        setPurchases(Array.isArray(purch) ? purch : [])
       } catch { /* inventory optional */ }
     })()
   }, [])
@@ -127,13 +141,53 @@ export default function EditProductionRecordPage() {
         softEggs: (record as any).softEggs == null ? "" : String((record as any).softEggs),
         lostEggs: (record as any).lostEggs == null ? "" : String((record as any).lostEggs),
         eggGrade: eggGradeFromApi((record as any).eggGrade),
-        specificFeedUsedId: (record as any).specificFeedUsedId == null ? "" : String((record as any).specificFeedUsedId),
-        feedUnitCost: (record as any).feedUnitCost == null ? "" : String((record as any).feedUnitCost),
-        totalFeedConsumed: (record as any).totalFeedConsumed == null ? "" : String((record as any).totalFeedConsumed),
-        specificMedicationUsedId: (record as any).specificMedicationUsedId == null ? "" : String((record as any).specificMedicationUsedId),
-        medicationUnitCost: (record as any).medicationUnitCost == null ? "" : String((record as any).medicationUnitCost),
-        totalMedicationConsumed: (record as any).totalMedicationConsumed == null ? "" : String((record as any).totalMedicationConsumed),
       })
+
+      // Migration 148: hydrate the feed lines. Fall back to the legacy single-feed
+      // column if an old record has no line rows yet.
+      const feedRows = (record as any).feeds as
+        | { specificFeedUsedId?: number | null; totalFeedConsumed?: number | null }[]
+        | undefined
+      if (Array.isArray(feedRows) && feedRows.length > 0) {
+        setFeedLines(
+          feedRows.map((f) => ({
+            specificFeedUsedId: f.specificFeedUsedId == null ? "" : String(f.specificFeedUsedId),
+            totalFeedConsumed: f.totalFeedConsumed == null ? "" : String(f.totalFeedConsumed),
+          })),
+        )
+      } else if ((record as any).specificFeedUsedId != null) {
+        setFeedLines([
+          {
+            specificFeedUsedId: String((record as any).specificFeedUsedId),
+            totalFeedConsumed: (record as any).totalFeedConsumed == null ? "" : String((record as any).totalFeedConsumed),
+          },
+        ])
+      } else {
+        setFeedLines([])
+      }
+
+      // Migration 147: hydrate the medication lines. Fall back to the legacy
+      // single-medication column if an old record has no line rows yet.
+      const medRows = (record as any).medications as
+        | { specificMedicationUsedId?: number | null; totalMedicationConsumed?: number | null }[]
+        | undefined
+      if (Array.isArray(medRows) && medRows.length > 0) {
+        setMedLines(
+          medRows.map((m) => ({
+            specificMedicationUsedId: m.specificMedicationUsedId == null ? "" : String(m.specificMedicationUsedId),
+            totalMedicationConsumed: m.totalMedicationConsumed == null ? "" : String(m.totalMedicationConsumed),
+          })),
+        )
+      } else if ((record as any).specificMedicationUsedId != null) {
+        setMedLines([
+          {
+            specificMedicationUsedId: String((record as any).specificMedicationUsedId),
+            totalMedicationConsumed: (record as any).totalMedicationConsumed == null ? "" : String((record as any).totalMedicationConsumed),
+          },
+        ])
+      } else {
+        setMedLines([])
+      }
 
       // Feed Type isn't stored on the production record — pull it from the
       // matching FeedUsage row (same flock + date) so it can be edited/re-synced.
@@ -161,8 +215,20 @@ export default function EditProductionRecordPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
     setError("")
+
+    if (feedComputed.firstShortfall) {
+      const s = feedComputed.firstShortfall
+      setError(`Not enough purchased stock tracked for "${s.item?.itemName ?? "this feed"}" to cover ${s.qty} — record a new purchase first.`)
+      return
+    }
+    if (medComputed.firstShortfall) {
+      const s = medComputed.firstShortfall
+      setError(`Not enough purchased stock tracked for "${s.item?.itemName ?? "this medication"}" to cover ${s.qty} — record a new purchase first.`)
+      return
+    }
+
+    setLoading(true)
 
     const { userId, farmId } = getUserContext()
 
@@ -194,16 +260,20 @@ export default function EditProductionRecordPage() {
       lostEggs: formData.lostEggs === "" ? null : Number(formData.lostEggs) || 0,
       totalProduction,
       eggGrade: eggGradeToApi(formData.eggGrade),
-      specificFeedUsedId: formData.specificFeedUsedId ? Number(formData.specificFeedUsedId) : null,
-      specificFeedUsedName: formData.specificFeedUsedId ? (feedItems.find((i) => String(i.poultryRawMaterialItemId) === formData.specificFeedUsedId)?.itemName ?? null) : null,
-      feedUnitCost: formData.feedUnitCost === "" ? null : Number(formData.feedUnitCost) || 0,
-      totalFeedConsumed: formData.totalFeedConsumed === "" ? null : Number(formData.totalFeedConsumed) || 0,
-      totalFeedCost: formData.specificFeedUsedId ? Number(totalFeedCost.toFixed(2)) : null,
-      specificMedicationUsedId: formData.specificMedicationUsedId ? Number(formData.specificMedicationUsedId) : null,
-      specificMedicationUsedName: formData.specificMedicationUsedId ? (medItems.find((i) => String(i.poultryRawMaterialItemId) === formData.specificMedicationUsedId)?.itemName ?? null) : null,
-      medicationUnitCost: formData.medicationUnitCost === "" ? null : Number(formData.medicationUnitCost) || 0,
-      totalMedicationConsumed: formData.totalMedicationConsumed === "" ? null : Number(formData.totalMedicationConsumed) || 0,
-      totalMedicationCost: formData.specificMedicationUsedId ? Number(totalMedicationCost.toFixed(2)) : null,
+      // Migration 148: feed lines drive the aggregate columns server-side.
+      specificFeedUsedId: null,
+      specificFeedUsedName: null,
+      feedUnitCost: null,
+      totalFeedConsumed: null,
+      totalFeedCost: null,
+      feeds: feedComputed.feeds,
+      // Migration 147: medication lines drive the aggregate columns server-side.
+      specificMedicationUsedId: null,
+      specificMedicationUsedName: null,
+      medicationUnitCost: null,
+      totalMedicationConsumed: null,
+      totalMedicationCost: null,
+      medications: medComputed.medications,
       totalCostOfProduction: Number(totalCostOfProduction.toFixed(2)),
     }
 
@@ -331,18 +401,18 @@ export default function EditProductionRecordPage() {
                 {/* Basic Information */}
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold text-slate-900">Basic Information</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="space-y-2">
                       <Label htmlFor="date" className="text-sm font-medium text-slate-700">Date *</Label>
-                      <Input 
-                        id="date" 
-                        name="date" 
-                        type="date" 
-                        value={formData.date} 
-                        onChange={handleChange} 
-                        required 
+                      <Input
+                        id="date"
+                        name="date"
+                        type="date"
+                        value={formData.date}
+                        onChange={handleChange}
+                        required
                         disabled={loading}
-                        className="h-11 max-w-[220px] border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+                        className="h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
                       />
                     </div>
                     <div className="space-y-2">
@@ -413,7 +483,7 @@ export default function EditProductionRecordPage() {
                       <NumberInput
                         id="production4PM"
                         name="production4PM"
-                        
+
                         value={formData.production4PM}
                         onChange={handleChange}
                         required
@@ -422,12 +492,14 @@ export default function EditProductionRecordPage() {
                         className="h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
                       />
                     </div>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                     <div className="space-y-2">
                       <Label htmlFor="brokenEggs" className="text-sm font-medium text-red-700">Broken Eggs</Label>
                       <NumberInput
                         id="brokenEggs"
                         name="brokenEggs"
-                        
+
                         value={formData.brokenEggs}
                         onChange={handleChange}
                         min="0"
@@ -440,7 +512,7 @@ export default function EditProductionRecordPage() {
                       <NumberInput
                         id="meatyEggs"
                         name="meatyEggs"
-                        
+
                         value={formData.meatyEggs}
                         onChange={handleChange}
                         min="0"
@@ -454,7 +526,7 @@ export default function EditProductionRecordPage() {
                       <NumberInput
                         id="softEggs"
                         name="softEggs"
-                        
+
                         value={formData.softEggs}
                         onChange={handleChange}
                         min="0"
@@ -468,7 +540,7 @@ export default function EditProductionRecordPage() {
                       <NumberInput
                         id="lostEggs"
                         name="lostEggs"
-                        
+
                         value={formData.lostEggs}
                         onChange={handleChange}
                         min="0"
@@ -477,25 +549,25 @@ export default function EditProductionRecordPage() {
                         className="h-11 border-slate-200 focus:border-slate-500 focus:ring-slate-500"
                       />
                     </div>
-                    <div className="space-y-2 md:col-span-3">
-                      <Label className="text-sm font-medium text-slate-700">Egg size</Label>
-                      <Select
-                        value={formData.eggGrade}
-                        onValueChange={(v) => setFormData((prev) => ({ ...prev, eggGrade: v }))}
-                        disabled={loading}
-                      >
-                        <SelectTrigger className="h-11 max-w-md">
-                          <SelectValue placeholder="Select grade" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {EGG_GRADE_OPTIONS.map((o) => (
-                            <SelectItem key={o.value} value={o.value}>
-                              {o.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Egg size</Label>
+                    <Select
+                      value={formData.eggGrade}
+                      onValueChange={(v) => setFormData((prev) => ({ ...prev, eggGrade: v }))}
+                      disabled={loading}
+                    >
+                      <SelectTrigger className="h-11 max-w-md">
+                        <SelectValue placeholder="Select grade" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {EGG_GRADE_OPTIONS.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>
+                            {o.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
@@ -594,62 +666,38 @@ export default function EditProductionRecordPage() {
                   </div>
 
                   <div className="grid grid-cols-12 gap-4">
-                    <div className="col-span-12 md:col-span-4 space-y-2">
-                      <Label className="text-sm font-medium text-slate-700">Specific Feed Used</Label>
-                      <Select value={formData.specificFeedUsedId || "none"} onValueChange={(v) => {
-                        const iid = v === "none" ? "" : v
-                        const cost = iid ? (latestCost[Number(iid)] ?? (Number(formData.feedUnitCost) || 0)) : 0
-                        setFormData((p) => ({ ...p, specificFeedUsedId: iid, feedUnitCost: iid ? String(cost) : "" }))
-                      }}>
-                        <SelectTrigger className="h-11"><SelectValue placeholder="Select feed from inventory" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">None</SelectItem>
-                          {feedItems.map((i) => (
-                            <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>{i.itemName}{i.unitOfMeasure ? ` (${i.unitOfMeasure})` : ""} · {i.currentQuantity} in stock</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <div className="col-span-12 flex items-center gap-2">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Feed lines</span>
                     </div>
-                    <div className="col-span-6 md:col-span-2 space-y-2">
-                      <Label className="text-sm font-medium text-slate-700">Feed Consumed</Label>
-                      <NumberInput step="0.001" min="0" value={formData.totalFeedConsumed} onChange={(e) => setFormData((p) => ({ ...p, totalFeedConsumed: e.target.value }))} className="h-11" />
-                    </div>
-                    <div className="col-span-6 md:col-span-3 space-y-2">
-                      <Label className="text-sm font-medium text-slate-700">Feed Unit Cost</Label>
-                      <NumberInput step="0.0001" min="0" value={formData.feedUnitCost} onChange={(e) => setFormData((p) => ({ ...p, feedUnitCost: e.target.value }))} className="h-11" />
-                    </div>
-                    <div className="col-span-12 md:col-span-3 space-y-2">
-                      <Label className="text-sm font-medium text-slate-700">Total Feed Cost</Label>
-                      <div className="h-11 flex items-center px-3 rounded-md border border-slate-200 bg-slate-50 font-semibold text-slate-700">{totalFeedCost.toFixed(2)}</div>
+                    <FeedLines
+                      lines={feedLines}
+                      rows={feedComputed.rows}
+                      feedItems={feedItems}
+                      onAdd={addFeedLine}
+                      onRemove={removeFeedLine}
+                      onChange={changeFeedLine}
+                      disabled={loading}
+                    />
+                    <div className="col-span-12 flex items-center justify-between rounded-lg bg-slate-50 border border-slate-200 px-4 py-2">
+                      <span className="text-sm font-medium text-slate-700">Total Feed Cost</span>
+                      <span className="text-base font-semibold text-slate-800">{totalFeedCost.toFixed(2)}</span>
                     </div>
 
-                    <div className="col-span-12 md:col-span-4 space-y-2">
-                      <Label className="text-sm font-medium text-slate-700">Specific Medication Used</Label>
-                      <Select value={formData.specificMedicationUsedId || "none"} onValueChange={(v) => {
-                        const iid = v === "none" ? "" : v
-                        const cost = iid ? (latestCost[Number(iid)] ?? (Number(formData.medicationUnitCost) || 0)) : 0
-                        setFormData((p) => ({ ...p, specificMedicationUsedId: iid, medicationUnitCost: iid ? String(cost) : "" }))
-                      }}>
-                        <SelectTrigger className="h-11"><SelectValue placeholder="Select medication from inventory" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">None</SelectItem>
-                          {medItems.map((i) => (
-                            <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>{i.itemName}{i.unitOfMeasure ? ` (${i.unitOfMeasure})` : ""} · {i.currentQuantity} in stock</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <div className="col-span-12 flex items-center gap-2">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Medication lines</span>
                     </div>
-                    <div className="col-span-6 md:col-span-2 space-y-2">
-                      <Label className="text-sm font-medium text-slate-700">Medication Consumed</Label>
-                      <NumberInput step="0.001" min="0" value={formData.totalMedicationConsumed} onChange={(e) => setFormData((p) => ({ ...p, totalMedicationConsumed: e.target.value }))} className="h-11" />
-                    </div>
-                    <div className="col-span-6 md:col-span-3 space-y-2">
-                      <Label className="text-sm font-medium text-slate-700">Medication Unit Cost</Label>
-                      <NumberInput step="0.0001" min="0" value={formData.medicationUnitCost} onChange={(e) => setFormData((p) => ({ ...p, medicationUnitCost: e.target.value }))} className="h-11" />
-                    </div>
-                    <div className="col-span-12 md:col-span-3 space-y-2">
-                      <Label className="text-sm font-medium text-slate-700">Total Medication Cost</Label>
-                      <div className="h-11 flex items-center px-3 rounded-md border border-slate-200 bg-slate-50 font-semibold text-slate-700">{totalMedicationCost.toFixed(2)}</div>
+                    <MedicationLines
+                      lines={medLines}
+                      rows={medComputed.rows}
+                      medItems={medItems}
+                      onAdd={addMedLine}
+                      onRemove={removeMedLine}
+                      onChange={changeMedLine}
+                      disabled={loading}
+                    />
+                    <div className="col-span-12 flex items-center justify-between rounded-lg bg-slate-50 border border-slate-200 px-4 py-2">
+                      <span className="text-sm font-medium text-slate-700">Total Medication Cost</span>
+                      <span className="text-base font-semibold text-slate-800">{totalMedicationCost.toFixed(2)}</span>
                     </div>
 
                     <div className="col-span-12 flex items-center justify-between rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3">

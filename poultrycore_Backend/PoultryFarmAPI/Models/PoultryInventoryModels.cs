@@ -17,6 +17,8 @@ namespace PoultryFarmAPIWeb.Models
         public bool IsActive { get; set; } = true;
         public bool IsLowStock { get; set; }
         [StringLength(500)] public string? Notes { get; set; }
+        /// <summary>Which purchase batch gets drawn from first when this item is consumed: FIFO | LIFO | HIFO.</summary>
+        [StringLength(10)] public string UsageMethod { get; set; } = "FIFO";
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
     }
@@ -35,6 +37,8 @@ namespace PoultryFarmAPIWeb.Models
         [Range(0.0001, double.MaxValue)] public decimal Quantity { get; set; }
         [Range(0, double.MaxValue)] public decimal UnitCost { get; set; }
         public decimal TotalCost { get; set; }
+        /// <summary>How much of this purchase batch hasn't been consumed yet (drives FIFO/LIFO/HIFO draws).</summary>
+        public decimal RemainingQuantity { get; set; }
         // Production-unit conversion (buy in purchase unit, consume in production unit).
         [StringLength(30)] public string? ProductionUnit { get; set; }
         public decimal? ProductionUnitsPerPurchaseUnit { get; set; }

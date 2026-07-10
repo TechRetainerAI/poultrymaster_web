@@ -1,6 +1,7 @@
 using PoultryFarmAPIWeb.Models;
 using System.Collections.Concurrent;
 using System.Data;
+using System.Text.Json;
 using Microsoft.Data.SqlClient;
 
 namespace PoultryFarmAPIWeb.Business
@@ -15,6 +16,12 @@ namespace PoultryFarmAPIWeb.Business
         private static readonly ConcurrentDictionary<string, bool> SpHasEggLossParamsCache = new();
         /// <summary>Caches whether dbo stored procedures include the feed/medication costing params (migration 137). Probing @SpecificFeedUsedId is sufficient — they were added together.</summary>
         private static readonly ConcurrentDictionary<string, bool> SpHasCostingParamsCache = new();
+        /// <summary>Caches whether dbo stored procedures include @MedicationsJson (migration 147, multi-medication lines).</summary>
+        private static readonly ConcurrentDictionary<string, bool> SpHasMedicationsJsonParamCache = new();
+        /// <summary>Caches whether dbo stored procedures include @FeedsJson (migration 148, multi-feed lines).</summary>
+        private static readonly ConcurrentDictionary<string, bool> SpHasFeedsJsonParamCache = new();
+
+        private static readonly JsonSerializerOptions MedicationsJsonOptions = new() { PropertyNameCaseInsensitive = true };
 
         public ProductionRecordService(string connectionString)
         {
@@ -102,6 +109,78 @@ namespace PoultryFarmAPIWeb.Business
             return has;
         }
 
+        /// <summary>Migration 147 multi-medication param. Probing @MedicationsJson suffices.</summary>
+        private static async Task<bool> ProcedureHasMedicationsJsonParamAsync(SqlConnection conn, string procedureName)
+        {
+            if (SpHasMedicationsJsonParamCache.TryGetValue(procedureName, out var cached))
+                return cached;
+
+            await using var probe = new SqlCommand(
+                @"SELECT 1
+                  FROM sys.parameters p
+                  INNER JOIN sys.procedures pr ON p.object_id = pr.object_id
+                  WHERE SCHEMA_NAME(pr.schema_id) = N'dbo'
+                    AND pr.name = @procName
+                    AND (p.name = N'MedicationsJson' OR p.name = N'@MedicationsJson')",
+                conn);
+            probe.Parameters.AddWithValue("@procName", procedureName);
+            var scalar = await probe.ExecuteScalarAsync();
+            var has = scalar != null && scalar != DBNull.Value;
+            SpHasMedicationsJsonParamCache[procedureName] = has;
+            return has;
+        }
+
+        /// <summary>Migration 148 multi-feed param. Probing @FeedsJson suffices.</summary>
+        private static async Task<bool> ProcedureHasFeedsJsonParamAsync(SqlConnection conn, string procedureName)
+        {
+            if (SpHasFeedsJsonParamCache.TryGetValue(procedureName, out var cached))
+                return cached;
+
+            await using var probe = new SqlCommand(
+                @"SELECT 1
+                  FROM sys.parameters p
+                  INNER JOIN sys.procedures pr ON p.object_id = pr.object_id
+                  WHERE SCHEMA_NAME(pr.schema_id) = N'dbo'
+                    AND pr.name = @procName
+                    AND (p.name = N'FeedsJson' OR p.name = N'@FeedsJson')",
+                conn);
+            probe.Parameters.AddWithValue("@procName", procedureName);
+            var scalar = await probe.ExecuteScalarAsync();
+            var has = scalar != null && scalar != DBNull.Value;
+            SpHasFeedsJsonParamCache[procedureName] = has;
+            return has;
+        }
+
+        /// <summary>
+        /// Serialises the medication lines into the compact [{ itemId, qty }] shape the
+        /// SP consumes. Returns DBNull when the model carries no Medications list (so the
+        /// SP falls back to the legacy single-medication params).
+        /// </summary>
+        private static object BuildMedicationsJsonParam(ProductionRecordModel model)
+        {
+            if (model.Medications == null) return DBNull.Value;
+            var lines = model.Medications
+                .Where(m => m.SpecificMedicationUsedId.HasValue && (m.TotalMedicationConsumed ?? 0) > 0)
+                .Select(m => new { itemId = m.SpecificMedicationUsedId, qty = m.TotalMedicationConsumed })
+                .ToList();
+            return JsonSerializer.Serialize(lines);
+        }
+
+        /// <summary>
+        /// Serialises the feed lines into the compact [{ itemId, qty }] shape the SP
+        /// consumes. Returns DBNull when the model carries no Feeds list (so the SP falls
+        /// back to the legacy single-feed params).
+        /// </summary>
+        private static object BuildFeedsJsonParam(ProductionRecordModel model)
+        {
+            if (model.Feeds == null) return DBNull.Value;
+            var lines = model.Feeds
+                .Where(f => f.SpecificFeedUsedId.HasValue && (f.TotalFeedConsumed ?? 0) > 0)
+                .Select(f => new { itemId = f.SpecificFeedUsedId, qty = f.TotalFeedConsumed })
+                .ToList();
+            return JsonSerializer.Serialize(lines);
+        }
+
         /// <summary>Adds the feed/medication costing SP params from the model (used by Insert + Update).</summary>
         private static void AddCostingParameters(SqlCommand cmd, ProductionRecordModel model)
         {
@@ -131,6 +210,38 @@ namespace PoultryFarmAPIWeb.Business
             m.TotalMedicationConsumed = GetNullableDecimalIfPresent(reader, "TotalMedicationConsumed");
             m.TotalMedicationCost = GetNullableDecimalIfPresent(reader, "TotalMedicationCost");
             m.TotalCostOfProduction = GetNullableDecimalIfPresent(reader, "TotalCostOfProduction");
+
+            // Migration 147: medication lines are returned as a JSON array column.
+            var medicationsJson = reader.GetNullableStringIfPresent("MedicationsJson");
+            if (!string.IsNullOrWhiteSpace(medicationsJson))
+            {
+                try
+                {
+                    m.Medications = JsonSerializer.Deserialize<List<ProductionMedicationLineModel>>(medicationsJson, MedicationsJsonOptions)
+                                    ?? new List<ProductionMedicationLineModel>();
+                }
+                catch { m.Medications = new List<ProductionMedicationLineModel>(); }
+            }
+            else
+            {
+                m.Medications = new List<ProductionMedicationLineModel>();
+            }
+
+            // Migration 148: feed lines are returned as a JSON array column.
+            var feedsJson = reader.GetNullableStringIfPresent("FeedsJson");
+            if (!string.IsNullOrWhiteSpace(feedsJson))
+            {
+                try
+                {
+                    m.Feeds = JsonSerializer.Deserialize<List<ProductionFeedLineModel>>(feedsJson, MedicationsJsonOptions)
+                              ?? new List<ProductionFeedLineModel>();
+                }
+                catch { m.Feeds = new List<ProductionFeedLineModel>(); }
+            }
+            else
+            {
+                m.Feeds = new List<ProductionFeedLineModel>();
+            }
         }
 
         public async Task<int> Insert(ProductionRecordModel model)
@@ -181,6 +292,10 @@ namespace PoultryFarmAPIWeb.Business
                 }
                 if (await ProcedureHasCostingParamsAsync(conn, "spProductionRecord_Insert"))
                     AddCostingParameters(cmd, model);
+                if (await ProcedureHasMedicationsJsonParamAsync(conn, "spProductionRecord_Insert"))
+                    cmd.Parameters.AddWithValue("@MedicationsJson", BuildMedicationsJsonParam(model));
+                if (await ProcedureHasFeedsJsonParamAsync(conn, "spProductionRecord_Insert"))
+                    cmd.Parameters.AddWithValue("@FeedsJson", BuildFeedsJsonParam(model));
 
                 await cmd.ExecuteNonQueryAsync();
 
@@ -235,6 +350,10 @@ namespace PoultryFarmAPIWeb.Business
                 }
                 if (await ProcedureHasCostingParamsAsync(conn, "spProductionRecord_Update"))
                     AddCostingParameters(cmd, model);
+                if (await ProcedureHasMedicationsJsonParamAsync(conn, "spProductionRecord_Update"))
+                    cmd.Parameters.AddWithValue("@MedicationsJson", BuildMedicationsJsonParam(model));
+                if (await ProcedureHasFeedsJsonParamAsync(conn, "spProductionRecord_Update"))
+                    cmd.Parameters.AddWithValue("@FeedsJson", BuildFeedsJsonParam(model));
 
                 await cmd.ExecuteNonQueryAsync();
             }
