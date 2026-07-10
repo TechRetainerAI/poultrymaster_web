@@ -114,7 +114,7 @@ export default function PoultryStockPage() {
           </div>
           <Card><CardContent className="p-4">
             {loading ? <div className="flex items-center gap-2 text-slate-500 p-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div> : (
-              <Table>
+              <div className="overflow-x-auto -mx-4 px-4"><Table className="min-w-[640px]">
                 <TableHeader><TableRow>
                   <TableHead>Date</TableHead><TableHead>Item</TableHead><TableHead>Parent Type</TableHead><TableHead>Movement</TableHead>
                   <TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Unit Price</TableHead><TableHead className="text-right">Total Value</TableHead>
@@ -136,7 +136,7 @@ export default function PoultryStockPage() {
                       </TableRow>
                     ))}
                 </TableBody>
-              </Table>
+              </Table></div>
             )}
           </CardContent></Card>
         </main>
