@@ -242,7 +242,7 @@ export default function PoultryRawMaterialsPage() {
               <TabsContent value="items">
                 <Card><CardContent className="p-4">
                   <div className="flex justify-end mb-3"><Button onClick={openNewItem}><Plus className="w-4 h-4 mr-1" /> New item</Button></div>
-                  <Table>
+                  <div className="overflow-x-auto -mx-4 px-4"><Table className="min-w-[640px]">
                     <TableHeader><TableRow>
                       <TableHead>Item</TableHead><TableHead>Category</TableHead><TableHead>Unit</TableHead>
                       <TableHead className="text-right">In stock</TableHead><TableHead className="text-right">Min alert</TableHead>
@@ -270,7 +270,7 @@ export default function PoultryRawMaterialsPage() {
                         </TableRow>
                       ))}
                     </TableBody>
-                  </Table>
+                  </Table></div>
                 </CardContent></Card>
               </TabsContent>
 
@@ -278,7 +278,7 @@ export default function PoultryRawMaterialsPage() {
               <TabsContent value="purchases">
                 <Card><CardContent className="p-4">
                   <div className="flex justify-end mb-3"><Button onClick={openNewPurchase}><Plus className="w-4 h-4 mr-1" /> New purchase</Button></div>
-                  <Table>
+                  <div className="overflow-x-auto -mx-4 px-4"><Table className="min-w-[640px]">
                     <TableHeader><TableRow>
                       <TableHead>Date</TableHead><TableHead>Item</TableHead><TableHead>Supplier</TableHead>
                       <TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Total</TableHead>
@@ -305,14 +305,14 @@ export default function PoultryRawMaterialsPage() {
                         </TableRow>
                       ))}
                     </TableBody>
-                  </Table>
+                  </Table></div>
                 </CardContent></Card>
               </TabsContent>
 
               {/* USAGE */}
               <TabsContent value="usage">
                 <Card><CardContent className="p-4">
-                  <Table>
+                  <div className="overflow-x-auto -mx-4 px-4"><Table className="min-w-[640px]">
                     <TableHeader><TableRow>
                       <TableHead>Date</TableHead><TableHead>Item</TableHead>
                       <TableHead className="text-right">Used</TableHead><TableHead className="text-right">Expected</TableHead>
@@ -332,7 +332,7 @@ export default function PoultryRawMaterialsPage() {
                         </TableRow>
                       ))}
                     </TableBody>
-                  </Table>
+                  </Table></div>
                 </CardContent></Card>
               </TabsContent>
             </Tabs>
