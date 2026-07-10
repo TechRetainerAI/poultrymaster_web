@@ -217,6 +217,7 @@ export default function PoultryDailyClosingPage() {
                   <Tile label="Damaged" value={n(v.quantityDamaged)} />
                   <Tile label="Mortality" value={n(v.mortality)} />
                   <Tile label="Feed used" value={n(v.feedUsedQty)} />
+                  <Tile label="Medication used" value={n(v.medUsedQty)} />
                   <Tile label="Production cost" value={gh(v.totalProductionCost)} accent="rose" />
                   <Tile label="Closing stock" value={n(v.closingStock)} />
                 </div>

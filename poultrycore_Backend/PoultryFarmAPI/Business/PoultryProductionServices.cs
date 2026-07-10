@@ -390,7 +390,7 @@ namespace PoultryFarmAPIWeb.Business
             CashDifference = r.Dec("CashDifference"), ManagerNotes = r.StrN("ManagerNotes"), Status = r.Str("Status"), RejectionReason = r.StrN("RejectionReason"),
             CreatedBy = r.StrN("CreatedBy"), SubmittedBy = r.StrN("SubmittedBy"), SubmittedAt = r.DateN("SubmittedAt"),
             ApprovedBy = r.StrN("ApprovedBy"), ApprovedAt = r.DateN("ApprovedAt"), CreatedAt = r.Date("CreatedAt"), UpdatedAt = r.DateN("UpdatedAt"),
-            EggsSold = r.Dec("EggsSold"), EggsReturned = r.Dec("EggsReturned"), Mortality = r.Dec("Mortality"), FeedUsedQty = r.Dec("FeedUsedQty"),
+            EggsSold = r.Dec("EggsSold"), EggsReturned = r.Dec("EggsReturned"), Mortality = r.Dec("Mortality"), FeedUsedQty = r.Dec("FeedUsedQty"), MedUsedQty = r.Dec("MedUsedQty"),
             TotalIncome = r.Dec("TotalIncome"), TotalExpenses = r.Dec("TotalExpenses"), CreditSales = r.Dec("CreditSales"), CustomerCollections = r.Dec("CustomerCollections"),
             CashCollected = r.Dec("CashCollected"), MoMoCollected = r.Dec("MoMoCollected"), BankCollected = r.Dec("BankCollected"),
             CashBalance = r.Dec("CashBalance"), MoMoBalance = r.Dec("MoMoBalance"), BankBalance = r.Dec("BankBalance"),

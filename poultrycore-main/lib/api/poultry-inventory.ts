@@ -331,7 +331,7 @@ export interface PoultryDailyClosing {
   cashAtHand: number; actualCashCounted: number; cashDifference: number; managerNotes?: string | null
   status: string; rejectionReason?: string | null; submittedAt?: string | null; approvedAt?: string | null
   // Enriched live figures (migration 148)
-  eggsSold?: number; eggsReturned?: number; mortality?: number; feedUsedQty?: number
+  eggsSold?: number; eggsReturned?: number; mortality?: number; feedUsedQty?: number; medUsedQty?: number
   totalIncome?: number; totalExpenses?: number; creditSales?: number; customerCollections?: number
   cashCollected?: number; moMoCollected?: number; bankCollected?: number
   cashBalance?: number; moMoBalance?: number; bankBalance?: number

@@ -183,6 +183,7 @@ namespace PoultryFarmAPIWeb.Models
         public decimal EggsReturned { get; set; }
         public decimal Mortality { get; set; }
         public decimal FeedUsedQty { get; set; }
+        public decimal MedUsedQty { get; set; }
         public decimal TotalIncome { get; set; }
         public decimal TotalExpenses { get; set; }
         public decimal CreditSales { get; set; }
