@@ -216,7 +216,8 @@ export default function PoultryInventoryPage() {
                 {stat("Total finished stock", products.reduce((s, p) => s + (p.stockOnHand || 0), 0).toLocaleString())}
               </div>
               <Card><CardContent className="p-4 space-y-3">
-                <Table>
+                <div className="overflow-x-auto -mx-4 px-4">
+                <Table className="min-w-[720px]">
                   <TableHeader><TableRow>
                     <TableHead>Item</TableHead><TableHead>Parent Type</TableHead><TableHead>Type / Category</TableHead>
                     <TableHead>Size</TableHead><TableHead>Unit</TableHead><TableHead className="text-right">Unit Price</TableHead>
@@ -239,6 +240,7 @@ export default function PoultryInventoryPage() {
                       ))}
                   </TableBody>
                 </Table>
+                </div>
               </CardContent></Card>
             </>
           )}

@@ -10,9 +10,9 @@ import { useCallback, useEffect, useState } from "react"
 const ALWAYS_KEY = "vc.view.alwaysScorecards"
 const TABS_KEY = "vc.view.asTabs"
 
-function readBool(key: string): boolean {
-  if (typeof window === "undefined") return false
-  try { return window.localStorage.getItem(key) === "1" } catch { return false }
+function readBool(key: string, def = false): boolean {
+  if (typeof window === "undefined") return def
+  try { const v = window.localStorage.getItem(key); return v === null ? def : v === "1" } catch { return def }
 }
 function writeBool(key: string, val: boolean) {
   if (typeof window === "undefined") return
@@ -30,8 +30,9 @@ export function useViewMode() {
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    const a = readBool(ALWAYS_KEY)
-    setAlwaysState(a); setAsTabsState(readBool(TABS_KEY)); setScorecards(a); setReady(true)
+    // Scorecards is the default view when the user hasn't chosen otherwise.
+    const a = readBool(ALWAYS_KEY, true)
+    setAlwaysState(a); setAsTabsState(readBool(TABS_KEY, false)); setScorecards(a); setReady(true)
   }, [])
 
   const setAlwaysScorecards = useCallback((val: boolean) => {
