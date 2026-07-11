@@ -43,20 +43,25 @@ export function previewBatchConsumption(
     return a.poultryRawMaterialPurchaseId - b.poultryRawMaterialPurchaseId
   })
 
+  // neededQty is in PRODUCTION units (the item's stock unit). A batch's
+  // availability in production units = remainingQuantity (purchase units) x
+  // units-per-purchase; its cost per production unit = unitCost / units-per-purchase.
   let remaining = neededQty
-  let coveredQty = 0
-  let coveredCost = 0
+  let coveredQty = 0   // production units covered
+  let coveredCost = 0  // money
   for (const p of sorted) {
     if (remaining <= 0) break
-    const take = Math.min(p.remainingQuantity, remaining)
+    const mult = p.productionUnitsPerPurchaseUnit && p.productionUnitsPerPurchaseUnit > 0 ? p.productionUnitsPerPurchaseUnit : 1
+    const availProd = p.remainingQuantity * mult
+    const take = Math.min(availProd, remaining)
     if (take <= 0) continue
     coveredQty += take
-    coveredCost += take * p.unitCost
+    coveredCost += (take / mult) * p.unitCost   // purchase-equivalent x per-purchase cost
     remaining -= take
   }
 
   const shortfall = Math.max(0, neededQty - coveredQty)
-  const unitCost = coveredQty > 0 ? coveredCost / coveredQty : null
+  const unitCost = coveredQty > 0 ? coveredCost / coveredQty : null   // per production unit
   const totalCost = unitCost !== null ? unitCost * neededQty : null
 
   return { unitCost, totalCost, quantityCovered: coveredQty, shortfall }
