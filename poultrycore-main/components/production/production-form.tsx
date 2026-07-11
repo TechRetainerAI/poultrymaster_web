@@ -13,8 +13,8 @@ import { useBatchFlockSelect } from "@/hooks/use-batch-flock-select"
 import { createProductionRecord, updateProductionRecord, deleteProductionRecord, getProductionRecords, type ProductionRecordInput, type ProductionRecord } from "@/lib/api/production-record"
 import { createFeedUsage, updateFeedUsage, getFeedUsages, type FeedUsageInput } from "@/lib/api/feed-usage"
 import { listPoultryRawMaterialItems, listPoultryRawMaterialPurchases, type PoultryRawMaterialItem, type PoultryRawMaterialPurchase } from "@/lib/api/poultry-inventory"
-import { MedicationLines, computeMedLines, emptyMedLine, type MedLineDraft } from "@/components/production/medication-lines"
-import { FeedLines, computeFeedLines, emptyFeedLine, type FeedLineDraft } from "@/components/production/feed-lines"
+import { MedicationLines, computeMedLines, emptyMedLine, buildMedCredit, type MedLineDraft } from "@/components/production/medication-lines"
+import { FeedLines, computeFeedLines, emptyFeedLine, buildFeedCredit, type FeedLineDraft } from "@/components/production/feed-lines"
 import { usePermissions } from "@/hooks/use-permissions"
 import { Trash2, Calendar as CalendarIcon } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -112,13 +112,37 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
   // Client-side preview of the FIFO/LIFO/HIFO batch draw (mirrors the server's
   // spPoultryRawMaterialItem_ConsumeBatches). The server recomputes and persists
   // the authoritative cost at save time — this is just a live preview.
+  // Credit back this record's own prior consumption (from the saved record) so an
+  // edit doesn't falsely block on stock the record itself is holding. Falls back to
+  // the legacy single feed/medication column for records saved before 147/148.
+  const feedCredit = useMemo(() => {
+    const r = record as any
+    if (!r) return {}
+    const rows = Array.isArray(r.feeds) && r.feeds.length > 0
+      ? r.feeds
+      : r.specificFeedUsedId != null
+        ? [{ specificFeedUsedId: r.specificFeedUsedId, totalFeedConsumed: r.totalFeedConsumed, feedUnitCost: r.feedUnitCost }]
+        : []
+    return buildFeedCredit(rows)
+  }, [record])
+  const medCredit = useMemo(() => {
+    const r = record as any
+    if (!r) return {}
+    const rows = Array.isArray(r.medications) && r.medications.length > 0
+      ? r.medications
+      : r.specificMedicationUsedId != null
+        ? [{ specificMedicationUsedId: r.specificMedicationUsedId, totalMedicationConsumed: r.totalMedicationConsumed, medicationUnitCost: r.medicationUnitCost }]
+        : []
+    return buildMedCredit(rows)
+  }, [record])
+
   const feedComputed = useMemo(
-    () => computeFeedLines(feedLines, feedItems, purchases),
-    [feedLines, feedItems, purchases],
+    () => computeFeedLines(feedLines, feedItems, purchases, feedCredit),
+    [feedLines, feedItems, purchases, feedCredit],
   )
   const medComputed = useMemo(
-    () => computeMedLines(medLines, medItems, purchases),
-    [medLines, medItems, purchases],
+    () => computeMedLines(medLines, medItems, purchases, medCredit),
+    [medLines, medItems, purchases, medCredit],
   )
 
   const feedTypes = [
@@ -947,6 +971,7 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
                 lines={feedLines}
                 rows={feedComputed.rows}
                 feedItems={feedItems}
+                stockByItemId={feedComputed.pendingStockByItemId}
                 onAdd={addFeedLine}
                 onRemove={removeFeedLine}
                 onChange={changeFeedLine}
@@ -987,6 +1012,7 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
                 lines={medLines}
                 rows={medComputed.rows}
                 medItems={medItems}
+                stockByItemId={medComputed.pendingStockByItemId}
                 onAdd={addMedLine}
                 onRemove={removeMedLine}
                 onChange={changeMedLine}

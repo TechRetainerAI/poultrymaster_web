@@ -855,6 +855,7 @@ export default function NewProductionRecordPage() {
                     lines={feedLines}
                     rows={feedComputed.rows}
                     feedItems={feedItems}
+                    stockByItemId={feedComputed.pendingStockByItemId}
                     onAdd={addFeedLine}
                     onRemove={removeFeedLine}
                     onChange={changeFeedLine}
@@ -898,6 +899,7 @@ export default function NewProductionRecordPage() {
                     lines={medLines}
                     rows={medComputed.rows}
                     medItems={medItems}
+                    stockByItemId={medComputed.pendingStockByItemId}
                     onAdd={addMedLine}
                     onRemove={removeMedLine}
                     onChange={changeMedLine}
