@@ -64,5 +64,43 @@ namespace PoultryFarmAPIWeb.Models
         public decimal? TotalMedicationConsumed { get; set; }
         public decimal? TotalMedicationCost { get; set; }
         public decimal? TotalCostOfProduction { get; set; }
+
+        /// <summary>
+        /// Migration 147: multiple medication lines, each drawn from raw-material
+        /// inventory with its own FIFO/LIFO/HIFO batch cost. On write only the
+        /// item id + quantity of each line are honoured (unit/total cost are
+        /// recomputed server-side); on read every field is populated. The single
+        /// SpecificMedicationUsed*/TotalMedication* columns above remain the
+        /// aggregate roll-up (first line, sum of quantities, weighted-avg cost).
+        /// </summary>
+        public List<ProductionMedicationLineModel>? Medications { get; set; }
+
+        /// <summary>
+        /// Migration 148: multiple feed lines (inventory-based "Feed used" costing),
+        /// same shape as Medications. The manual FeedKg / feed-type FeedUsage sync is
+        /// separate and unaffected. The single SpecificFeedUsed*/TotalFeed* columns
+        /// above remain the aggregate roll-up.
+        /// </summary>
+        public List<ProductionFeedLineModel>? Feeds { get; set; }
+    }
+
+    /// <summary>One medication line on a production record (migration 147).</summary>
+    public class ProductionMedicationLineModel
+    {
+        public int? SpecificMedicationUsedId { get; set; }
+        public string? SpecificMedicationUsedName { get; set; }
+        public decimal? TotalMedicationConsumed { get; set; }
+        public decimal? MedicationUnitCost { get; set; }
+        public decimal? TotalMedicationCost { get; set; }
+    }
+
+    /// <summary>One feed line on a production record (migration 148).</summary>
+    public class ProductionFeedLineModel
+    {
+        public int? SpecificFeedUsedId { get; set; }
+        public string? SpecificFeedUsedName { get; set; }
+        public decimal? TotalFeedConsumed { get; set; }
+        public decimal? FeedUnitCost { get; set; }
+        public decimal? TotalFeedCost { get; set; }
     }
 }

@@ -17,7 +17,7 @@ import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet } from "lucide-react"
+import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, AlertTriangle } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
@@ -25,7 +25,7 @@ import {
   listPoultryRawMaterialItems, createPoultryRawMaterialItem, updatePoultryRawMaterialItem, deletePoultryRawMaterialItem,
   listPoultryRawMaterialPurchases, createPoultryRawMaterialPurchase, updatePoultryRawMaterialPurchase, deletePoultryRawMaterialPurchase,
   payPoultryRawMaterialPurchaseBalance, listPoultryRawMaterialUsageHistory,
-  type PoultryRawMaterialItem, type PoultryRawMaterialPurchase, type PoultryRawMaterialUsage,
+  type PoultryRawMaterialItem, type PoultryRawMaterialPurchase, type PoultryRawMaterialUsage, type RawMaterialUsageMethod,
 } from "@/lib/api/poultry-inventory"
 import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
 
@@ -33,8 +33,18 @@ const CATEGORIES = ["FeedIngredient", "Packaging", "Medication", "Vaccine", "Bed
 const PAYMENT_METHODS = ["Cash", "MoMo", "Bank", "Credit"]
 const UNITS = ["Bag", "Sack", "Kilogram", "Gram", "Litre", "Millilitre", "Bottle", "Sachet", "Piece", "Pack", "Carton", "Box", "Bundle", "Dozen", "Crate", "Unit", "Other"]
 
-type ItemForm = { itemName: string; category: string; unitOfMeasure: string; minimumStockAlert: number; isActive: boolean; notes: string | null }
-const EMPTY_ITEM: ItemForm = { itemName: "", category: "FeedIngredient", unitOfMeasure: "", minimumStockAlert: 0, isActive: true, notes: null }
+type ItemForm = { itemName: string; category: string; unitOfMeasure: string; minimumStockAlert: number; isActive: boolean; notes: string | null; usageMethod: RawMaterialUsageMethod }
+const EMPTY_ITEM: ItemForm = { itemName: "", category: "FeedIngredient", unitOfMeasure: "", minimumStockAlert: 0, isActive: true, notes: null, usageMethod: "FIFO" }
+
+// Categories whose stock is actually drawn from a specific batch when recorded
+// as "used" (production-records feed/medication pickers). Only these show the
+// FIFO/LIFO/HIFO consumption-policy picker on the item form.
+const USAGE_METHOD_CATEGORIES = ["FeedIngredient", "Medication"]
+const USAGE_METHOD_OPTIONS: { value: RawMaterialUsageMethod; label: string; hint: string }[] = [
+  { value: "FIFO", label: "FIFO", hint: "First bought, first used" },
+  { value: "LIFO", label: "LIFO", hint: "Last bought, first used" },
+  { value: "HIFO", label: "HIFO", hint: "Highest cost, first used" },
+]
 
 const EMPTY_PURCHASE = {
   poultryRawMaterialItemId: 0,
@@ -51,6 +61,23 @@ const EMPTY_PURCHASE = {
   amountPaid: 0,
   receiptUrl: "",
   notes: "",
+}
+
+// Mobile card for a table row: title + optional badge, a 2-col field grid, and
+// an actions row. Used to render these tables as cards on small screens.
+function FieldCard({ title, badge, fields, actions }: { title: React.ReactNode; badge?: React.ReactNode; fields: [string, React.ReactNode][]; actions?: React.ReactNode }) {
+  return (
+    <div className="rounded-lg border border-slate-200 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="font-medium text-slate-900 min-w-0 truncate">{title}</div>
+        {badge}
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
+        {fields.map(([l, v], idx) => <div key={idx} className="min-w-0 truncate"><span className="text-slate-500">{l}: </span><span className="tabular-nums">{v}</span></div>)}
+      </div>
+      {actions && <div className="mt-2 flex justify-end gap-1 border-t pt-2">{actions}</div>}
+    </div>
+  )
 }
 
 export default function PoultryRawMaterialsPage() {
@@ -97,6 +124,21 @@ export default function PoultryRawMaterialsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFarmType])
 
+  // Default cash account for new purchases (mirrors /sales): prefer "Main Cash
+  // Account" by name, else fall back to the first active account.
+  const defaultCashAccountId = useMemo(() => {
+    const main = cashAccounts.find((a) => a.accountName.trim().toLowerCase() === "main cash account")
+    return (main ?? cashAccounts[0])?.poultryCashAccountId ?? null
+  }, [cashAccounts])
+
+  // Preselect it for NEW purchases once accounts have loaded (edits keep
+  // whatever account the purchase was actually saved with).
+  useEffect(() => {
+    if (purchaseOpen && !editPurchaseId && defaultCashAccountId != null) {
+      setPurchaseForm((prev) => (prev.poultryCashAccountId ? prev : { ...prev, poultryCashAccountId: defaultCashAccountId }))
+    }
+  }, [purchaseOpen, editPurchaseId, defaultCashAccountId])
+
   async function load() {
     setLoading(true)
     try {
@@ -121,12 +163,20 @@ export default function PoultryRawMaterialsPage() {
   }
 
   // ---- Item CRUD ----
-  function openNewItem() { setEditItemId(null); setItemForm(EMPTY_ITEM); setItemOpen(true) }
+  // Tracks the usage method the item had when the edit dialog was opened, so we
+  // can warn if the user changes it — switching FIFO/LIFO/HIFO on an item that
+  // already has purchases/usage recorded changes which batch future usage draws
+  // from, without touching anything already recorded.
+  const [originalUsageMethod, setOriginalUsageMethod] = useState<RawMaterialUsageMethod | null>(null)
+  function openNewItem() { setEditItemId(null); setItemForm(EMPTY_ITEM); setOriginalUsageMethod(null); setItemOpen(true) }
   function openEditItem(i: PoultryRawMaterialItem) {
     setEditItemId(i.poultryRawMaterialItemId)
-    setItemForm({ itemName: i.itemName, category: i.category, unitOfMeasure: i.unitOfMeasure ?? "", minimumStockAlert: i.minimumStockAlert, isActive: i.isActive, notes: i.notes ?? null })
+    const usageMethod = i.usageMethod ?? "FIFO"
+    setItemForm({ itemName: i.itemName, category: i.category, unitOfMeasure: i.unitOfMeasure ?? "", minimumStockAlert: i.minimumStockAlert, isActive: i.isActive, notes: i.notes ?? null, usageMethod })
+    setOriginalUsageMethod(usageMethod)
     setItemOpen(true)
   }
+  const usageMethodChanged = editItemId != null && originalUsageMethod != null && itemForm.usageMethod !== originalUsageMethod
   async function saveItem() {
     if (!itemForm.itemName.trim()) { toast({ title: "Item name is required", variant: "destructive" }); return }
     setSavingItem(true)
@@ -145,7 +195,7 @@ export default function PoultryRawMaterialsPage() {
   }
 
   // ---- Purchase CRUD ----
-  function openNewPurchase() { setEditPurchaseId(null); setManualProdCost(false); setManualPurchaseCost(false); setPurchaseForm({ ...EMPTY_PURCHASE }); setPurchaseOpen(true) }
+  function openNewPurchase() { setEditPurchaseId(null); setManualProdCost(false); setManualPurchaseCost(false); setPurchaseForm({ ...EMPTY_PURCHASE, poultryCashAccountId: defaultCashAccountId ?? 0 }); setPurchaseOpen(true) }
   function openEditPurchase(p: PoultryRawMaterialPurchase) {
     setEditPurchaseId(p.poultryRawMaterialPurchaseId)
     setManualProdCost(false); setManualPurchaseCost(false)
@@ -242,7 +292,7 @@ export default function PoultryRawMaterialsPage() {
               <TabsContent value="items">
                 <Card><CardContent className="p-4">
                   <div className="flex justify-end mb-3"><Button onClick={openNewItem}><Plus className="w-4 h-4 mr-1" /> New item</Button></div>
-                  <Table>
+                  <div className="hidden md:block overflow-x-auto"><Table className="min-w-[640px]">
                     <TableHeader><TableRow>
                       <TableHead>Item</TableHead><TableHead>Category</TableHead><TableHead>Unit</TableHead>
                       <TableHead className="text-right">In stock</TableHead><TableHead className="text-right">Min alert</TableHead>
@@ -270,7 +320,20 @@ export default function PoultryRawMaterialsPage() {
                         </TableRow>
                       ))}
                     </TableBody>
-                  </Table>
+                  </Table></div>
+                  {/* Mobile cards */}
+                  <div className="md:hidden space-y-2">
+                    {items.length === 0 ? <div className="text-center text-slate-500 py-6">No items yet.</div>
+                      : items.map((i) => (
+                        <FieldCard key={i.poultryRawMaterialItemId} title={i.itemName}
+                          badge={!i.isActive ? <Badge variant="secondary">Inactive</Badge> : i.isLowStock ? <Badge className="bg-amber-100 text-amber-700">Low stock</Badge> : <Badge className="bg-green-100 text-green-700">OK</Badge>}
+                          fields={[["Category", i.category], ["Unit", i.unitOfMeasure ?? "—"], ["In stock", i.currentQuantity.toLocaleString()], ["Min alert", i.minimumStockAlert.toLocaleString()]]}
+                          actions={<>
+                            <Button variant="ghost" size="sm" onClick={() => openEditItem(i)}><Pencil className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="sm" onClick={() => setDeleteItemTarget(i)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
+                          </>} />
+                      ))}
+                  </div>
                 </CardContent></Card>
               </TabsContent>
 
@@ -278,7 +341,7 @@ export default function PoultryRawMaterialsPage() {
               <TabsContent value="purchases">
                 <Card><CardContent className="p-4">
                   <div className="flex justify-end mb-3"><Button onClick={openNewPurchase}><Plus className="w-4 h-4 mr-1" /> New purchase</Button></div>
-                  <Table>
+                  <div className="hidden md:block overflow-x-auto"><Table className="min-w-[640px]">
                     <TableHeader><TableRow>
                       <TableHead>Date</TableHead><TableHead>Item</TableHead><TableHead>Supplier</TableHead>
                       <TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Total</TableHead>
@@ -305,14 +368,28 @@ export default function PoultryRawMaterialsPage() {
                         </TableRow>
                       ))}
                     </TableBody>
-                  </Table>
+                  </Table></div>
+                  {/* Mobile cards */}
+                  <div className="md:hidden space-y-2">
+                    {purchases.length === 0 ? <div className="text-center text-slate-500 py-6">No purchases yet.</div>
+                      : purchases.map((p) => (
+                        <FieldCard key={p.poultryRawMaterialPurchaseId} title={p.itemName}
+                          badge={<span className="text-xs text-slate-500">{(p.purchaseDate || "").split("T")[0]}</span>}
+                          fields={[["Supplier", p.supplierName ?? "—"], ["Qty", `${p.quantity.toLocaleString()} ${p.unitOfMeasure ?? ""}`], ["Total", gh(p.totalCost)], ["Paid", gh(p.amountPaid)], ["Balance", p.balance > 0 ? <span className="text-amber-600 font-medium">{gh(p.balance)}</span> : gh(0)]]}
+                          actions={<>
+                            {p.balance > 0 && <Button variant="ghost" size="sm" onClick={() => openPayBalance(p)} title="Pay balance"><Wallet className="w-4 h-4 text-emerald-600" /></Button>}
+                            <Button variant="ghost" size="sm" onClick={() => openEditPurchase(p)}><Pencil className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="sm" onClick={() => setDeletePurchaseTarget(p)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
+                          </>} />
+                      ))}
+                  </div>
                 </CardContent></Card>
               </TabsContent>
 
               {/* USAGE */}
               <TabsContent value="usage">
                 <Card><CardContent className="p-4">
-                  <Table>
+                  <div className="hidden md:block overflow-x-auto"><Table className="min-w-[640px]">
                     <TableHeader><TableRow>
                       <TableHead>Date</TableHead><TableHead>Item</TableHead>
                       <TableHead className="text-right">Used</TableHead><TableHead className="text-right">Expected</TableHead>
@@ -332,7 +409,16 @@ export default function PoultryRawMaterialsPage() {
                         </TableRow>
                       ))}
                     </TableBody>
-                  </Table>
+                  </Table></div>
+                  {/* Mobile cards */}
+                  <div className="md:hidden space-y-2">
+                    {usage.length === 0 ? <div className="text-center text-slate-500 py-6">No usage recorded yet.</div>
+                      : usage.map((u) => (
+                        <FieldCard key={u.poultryRawMaterialUsageId} title={u.itemName}
+                          badge={<span className="text-xs text-slate-500">{(u.usedDate || "").split("T")[0]}</span>}
+                          fields={[["Used", `${u.quantityUsed.toLocaleString()} ${u.unitOfMeasure ?? ""}`], ["Expected", u.expectedQuantityUsed?.toLocaleString() ?? "—"], ["Variance", u.variance.toLocaleString()], ["Reason", u.varianceReason ?? "—"]]} />
+                      ))}
+                  </div>
                 </CardContent></Card>
               </TabsContent>
             </Tabs>
@@ -359,6 +445,46 @@ export default function PoultryRawMaterialsPage() {
               </Select>
             </FormField>
             <FormField label="Low-stock alert at"><NumberInput min={0} step="0.001" value={itemForm.minimumStockAlert} onChange={(e) => setItemForm({ ...itemForm, minimumStockAlert: Number(e.target.value) || 0 })} /></FormField>
+            {USAGE_METHOD_CATEGORIES.includes(itemForm.category) && (
+              <FormField label="Order of item usage">
+                <div className="flex flex-col gap-2">
+                  {USAGE_METHOD_OPTIONS.map((o) => (
+                    <label
+                      key={o.value}
+                      className={`flex items-start gap-2.5 rounded-md border px-3 py-2 cursor-pointer transition-colors ${
+                        itemForm.usageMethod === o.value
+                          ? "border-emerald-600 bg-emerald-50"
+                          : "border-slate-200 hover:border-slate-300"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="usageMethod"
+                        value={o.value}
+                        checked={itemForm.usageMethod === o.value}
+                        onChange={() => setItemForm({ ...itemForm, usageMethod: o.value })}
+                        className="mt-0.5 accent-emerald-600"
+                      />
+                      <span>
+                        <span className="block text-sm font-semibold text-slate-800">{o.label}</span>
+                        <span className="block text-xs text-slate-500">{o.hint}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                {usageMethodChanged && (
+                  <div className="mt-2 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-amber-800">
+                      <strong>This is a big change.</strong> It won't touch anything already recorded as used — but from now on, this item will draw from a different batch first. If this item already has purchases or usage history, double-check this is really what you want before saving.
+                    </p>
+                  </div>
+                )}
+                <p className="text-xs text-slate-500 mt-1">
+                  Decides which purchase batch gets used first when this item is picked as "used" on a production record.
+                </p>
+              </FormField>
+            )}
             <FormField label="Notes"><Textarea rows={3} placeholder="Optional notes about this item" value={itemForm.notes ?? ""} onChange={(e) => setItemForm({ ...itemForm, notes: e.target.value || null })} /></FormField>
           </FormSection>
           <div className="flex justify-end gap-2">

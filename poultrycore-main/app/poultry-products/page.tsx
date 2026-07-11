@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
+import { FieldCard } from "@/components/ui/field-card"
 import { Plus, Pencil, Loader2, Trash2, ListChecks } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
@@ -135,7 +136,7 @@ export default function PoultryProductsPage() {
           </div>
           <Card><CardContent className="p-4">
             {loading ? <div className="flex items-center gap-2 text-slate-500 p-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div> : (
-              <Table>
+              <><div className="hidden md:block overflow-x-auto"><Table className="min-w-[640px]">
                 <TableHeader><TableRow>
                   <TableHead>Product</TableHead><TableHead>Type</TableHead><TableHead>Unit</TableHead>
                   <TableHead className="text-right">Price</TableHead><TableHead className="text-right">In stock</TableHead>
@@ -162,7 +163,22 @@ export default function PoultryProductsPage() {
                       </TableRow>
                     ))}
                 </TableBody>
-              </Table>
+              </Table></div>
+              {/* Mobile cards */}
+              <div className="md:hidden space-y-2">
+                {products.length === 0 ? <div className="text-center text-slate-500 py-6">No products yet.</div>
+                  : products.map((p) => (
+                    <FieldCard key={p.poultryProductId} title={p.name}
+                      badge={p.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="secondary">Inactive</Badge>}
+                      fields={[["Type", p.productType], ["Unit", p.unit ?? "—"], ["Price", gh(p.unitPrice)], ["In stock", p.stockOnHand.toLocaleString()]]}
+                      actions={<>
+                        <Button variant="ghost" size="sm" onClick={() => setStockProduct(p)} title="Add stock"><Plus className="w-4 h-4 text-emerald-600" /></Button>
+                        {p.requiresRecipeSetup && !p.isRawEggProduct && <Button variant="ghost" size="sm" onClick={() => openRecipe(p)} title="Recipe"><ListChecks className="w-4 h-4 text-indigo-600" /></Button>}
+                        <Button variant="ghost" size="sm" onClick={() => openEdit(p)}><Pencil className="w-4 h-4" /></Button>
+                        <Button variant="ghost" size="sm" onClick={() => setDelTarget(p)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
+                      </>} />
+                  ))}
+              </div></>
             )}
           </CardContent></Card>
         </main>

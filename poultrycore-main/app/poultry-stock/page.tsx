@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
+import { FieldCard } from "@/components/ui/field-card"
 import { Plus, Loader2 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
@@ -114,7 +115,7 @@ export default function PoultryStockPage() {
           </div>
           <Card><CardContent className="p-4">
             {loading ? <div className="flex items-center gap-2 text-slate-500 p-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div> : (
-              <Table>
+              <><div className="hidden md:block overflow-x-auto"><Table className="min-w-[640px]">
                 <TableHeader><TableRow>
                   <TableHead>Date</TableHead><TableHead>Item</TableHead><TableHead>Parent Type</TableHead><TableHead>Movement</TableHead>
                   <TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Unit Price</TableHead><TableHead className="text-right">Total Value</TableHead>
@@ -136,7 +137,16 @@ export default function PoultryStockPage() {
                       </TableRow>
                     ))}
                 </TableBody>
-              </Table>
+              </Table></div>
+              {/* Mobile cards */}
+              <div className="md:hidden space-y-2">
+                {moves.length === 0 ? <div className="text-center text-slate-500 py-6">No stock movements yet.</div>
+                  : moves.map((m) => (
+                    <FieldCard key={m.key} title={m.item}
+                      badge={<Badge className={MOVE_COLORS[m.movementType] ?? "bg-gray-100"}>{m.movementType}</Badge>}
+                      fields={[["Date", (m.date || "").split("T")[0]], ["Type", m.parentType], ["Qty", <span className={m.qty < 0 ? "text-red-600" : "text-green-700"}>{m.qty > 0 ? "+" : ""}{m.qty.toLocaleString()}</span>], ["Unit price", m.unitCost != null ? gh(m.unitCost) : "—"], ["Total", m.total != null ? gh(m.total) : "—"], ["Source", m.source]]} />
+                  ))}
+              </div></>
             )}
           </CardContent></Card>
         </main>

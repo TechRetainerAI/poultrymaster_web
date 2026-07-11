@@ -8,10 +8,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getUserContext } from "@/lib/utils/user-context"
-import { getValidFlocks, getFlocksForProductionSelect, getFlockSelectEmptyHint } from "@/lib/utils/flock-utils"
+import { getFlockSelectEmptyHint } from "@/lib/utils/flock-utils"
+import { useBatchFlockSelect } from "@/hooks/use-batch-flock-select"
 import { createProductionRecord, updateProductionRecord, deleteProductionRecord, getProductionRecords, type ProductionRecordInput, type ProductionRecord } from "@/lib/api/production-record"
 import { createFeedUsage, updateFeedUsage, getFeedUsages, type FeedUsageInput } from "@/lib/api/feed-usage"
-import { listPoultryRawMaterialItems, listPoultryRawMaterialPurchases, type PoultryRawMaterialItem } from "@/lib/api/poultry-inventory"
+import { listPoultryRawMaterialItems, listPoultryRawMaterialPurchases, type PoultryRawMaterialItem, type PoultryRawMaterialPurchase } from "@/lib/api/poultry-inventory"
+import { MedicationLines, computeMedLines, emptyMedLine, buildMedCredit, type MedLineDraft } from "@/components/production/medication-lines"
+import { FeedLines, computeFeedLines, emptyFeedLine, buildFeedCredit, type FeedLineDraft } from "@/components/production/feed-lines"
 import { usePermissions } from "@/hooks/use-permissions"
 import { Trash2, Calendar as CalendarIcon } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -51,9 +54,17 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
   const [deleting, setDeleting] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [error, setError] = useState("")
-  const [flocksForSelect, setFlocksForSelect] = useState<{ value: string; label: string }[]>([])
-  const [allFlocks, setAllFlocks] = useState<any[]>([])
-  const [flocksError, setFlocksError] = useState("")
+  // Batch + Flock dropdowns (Batch above Flock, default "All"; choosing a batch
+  // narrows the Flock options) — same pairing as the New Production Record page.
+  const {
+    batchOptions,
+    selectedBatchId,
+    setSelectedBatchId,
+    allFlocks,
+    flockOptions,
+    loading: batchFlockLoading,
+    error: batchFlockError,
+  } = useBatchFlockSelect()
   const { isAdmin } = usePermissions()
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), [])
@@ -75,20 +86,64 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
     notes: "",
     medication: "",
     eggGrade: EGG_GRADE_SELECT_VALUE_NONE,
-    // Feed & medication consumed from raw-material inventory + costing.
-    specificFeedUsedId: "",
-    feedUnitCost: "",
-    totalFeedConsumed: "",
-    specificMedicationUsedId: "",
-    medicationUnitCost: "",
-    totalMedicationConsumed: "",
+    // Feed & medication are now multiple inventory lines (migrations 147/148) —
+    // see feedLines / medLines below. The manual Feed Type + Feed (kg) fields stay.
   })
 
-  // Raw-material inventory (feed/medication dropdowns) + latest purchase cost.
+  // Migration 148: multiple feed lines.
+  const [feedLines, setFeedLines] = useState<FeedLineDraft[]>([emptyFeedLine(), emptyFeedLine()])
+  const addFeedLine = () => setFeedLines((d) => [...d, emptyFeedLine()])
+  const removeFeedLine = (idx: number) => setFeedLines((d) => d.filter((_, i) => i !== idx))
+  const changeFeedLine = (idx: number, patch: Partial<FeedLineDraft>) =>
+    setFeedLines((d) => d.map((row, i) => (i === idx ? { ...row, ...patch } : row)))
+
+  // Migration 147: multiple medication lines.
+  const [medLines, setMedLines] = useState<MedLineDraft[]>([emptyMedLine(), emptyMedLine()])
+  const addMedLine = () => setMedLines((d) => [...d, emptyMedLine()])
+  const removeMedLine = (idx: number) => setMedLines((d) => d.filter((_, i) => i !== idx))
+  const changeMedLine = (idx: number, patch: Partial<MedLineDraft>) =>
+    setMedLines((d) => d.map((row, i) => (i === idx ? { ...row, ...patch } : row)))
+
+  // Raw-material inventory (feed/medication dropdowns) + purchase batches.
   const [rawItems, setRawItems] = useState<PoultryRawMaterialItem[]>([])
-  const [latestCost, setLatestCost] = useState<Record<number, number>>({})
+  const [purchases, setPurchases] = useState<PoultryRawMaterialPurchase[]>([])
   const feedItems = useMemo(() => rawItems.filter((i) => isFeedCategory(i.category)), [rawItems])
   const medItems = useMemo(() => rawItems.filter((i) => isMedicationCategory(i.category)), [rawItems])
+  // Client-side preview of the FIFO/LIFO/HIFO batch draw (mirrors the server's
+  // spPoultryRawMaterialItem_ConsumeBatches). The server recomputes and persists
+  // the authoritative cost at save time — this is just a live preview.
+  // Credit back this record's own prior consumption (from the saved record) so an
+  // edit doesn't falsely block on stock the record itself is holding. Falls back to
+  // the legacy single feed/medication column for records saved before 147/148.
+  const feedCredit = useMemo(() => {
+    const r = record as any
+    if (!r) return {}
+    const rows = Array.isArray(r.feeds) && r.feeds.length > 0
+      ? r.feeds
+      : r.specificFeedUsedId != null
+        ? [{ specificFeedUsedId: r.specificFeedUsedId, totalFeedConsumed: r.totalFeedConsumed, feedUnitCost: r.feedUnitCost }]
+        : []
+    return buildFeedCredit(rows)
+  }, [record])
+  const medCredit = useMemo(() => {
+    const r = record as any
+    if (!r) return {}
+    const rows = Array.isArray(r.medications) && r.medications.length > 0
+      ? r.medications
+      : r.specificMedicationUsedId != null
+        ? [{ specificMedicationUsedId: r.specificMedicationUsedId, totalMedicationConsumed: r.totalMedicationConsumed, medicationUnitCost: r.medicationUnitCost }]
+        : []
+    return buildMedCredit(rows)
+  }, [record])
+
+  const feedComputed = useMemo(
+    () => computeFeedLines(feedLines, feedItems, purchases, feedCredit),
+    [feedLines, feedItems, purchases, feedCredit],
+  )
+  const medComputed = useMemo(
+    () => computeMedLines(medLines, medItems, purchases, medCredit),
+    [medLines, medItems, purchases, medCredit],
+  )
 
   const feedTypes = [
     "Starter Feed",
@@ -141,13 +196,30 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
   const totalPieces = total % EGGS_PER_CRATE
   // Birds left must always equal numBirds - mortality to keep data consistent
   const birdsLeft = (parseInt(form.numBirds) || 0) - (parseInt(form.mortality) || 0)
-  const totalFeedCost = (parseFloat(form.feedUnitCost) || 0) * (parseFloat(form.totalFeedConsumed) || 0)
-  const totalMedicationCost = (parseFloat(form.medicationUnitCost) || 0) * (parseFloat(form.totalMedicationConsumed) || 0)
+  const totalFeedCost = feedComputed.totalCost
+  const totalMedicationCost = medComputed.totalCost
   const totalCostOfProduction = totalFeedCost + totalMedicationCost
   const selectedFlock = useMemo(
     () => allFlocks.find((f) => String(f.flockId) === form.flockId),
     [allFlocks, form.flockId]
   )
+
+  // Flock options for the select, narrowed by the chosen batch. When editing, the
+  // record's flock may fall outside the current batch filter (or be inactive), so
+  // always include the currently-selected flock — otherwise the Select would show
+  // its placeholder and the flock would appear blank on edit.
+  const flockSelectOptions = useMemo(() => {
+    const opts = [...flockOptions]
+    if (form.flockId && !opts.some((o) => o.value === form.flockId)) {
+      const f = allFlocks.find((x) => String(x.flockId) === form.flockId)
+      opts.push({ value: form.flockId, label: f?.name ? f.name : `Flock #${form.flockId}` })
+    }
+    return opts
+  }, [flockOptions, allFlocks, form.flockId])
+
+  const flocksError = batchFlockError
+    ? "Unable to fetch flocks. Check API URL and CORS."
+    : (!batchFlockLoading && flockOptions.length === 0 ? getFlockSelectEmptyHint("production") : "")
   const { ageWeeks, ageDays, ageYears } = useMemo(() => {
     try {
       if (!selectedFlock?.startDate || !form.date) return { ageWeeks: 0, ageDays: 0, ageYears: 0 }
@@ -166,46 +238,33 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
     } catch { return { ageWeeks: 0, ageDays: 0, ageYears: 0 } }
   }, [selectedFlock, form.date])
 
+  // Raw-material items + latest purchase cost (feed/medication dropdowns).
+  // Flocks + batches load via useBatchFlockSelect above.
   useEffect(() => {
     const load = async () => {
+      const { userId, farmId } = getUserContext()
+      if (!userId || !farmId) return
       try {
-        setFlocksError("")
-        const { userId, farmId } = getUserContext()
-        if (!userId || !farmId) return
-        const list = await getValidFlocks()
-        setAllFlocks(list)
-        const select = getFlocksForProductionSelect()
-        setFlocksForSelect(select)
-        if (select.length === 0) {
-          setFlocksError(getFlockSelectEmptyHint("production"))
-        }
-
-        // Raw-material items + latest purchase cost (feed/medication dropdowns).
-        try {
-          const [items, purchases] = await Promise.all([
-            listPoultryRawMaterialItems().catch(() => [] as PoultryRawMaterialItem[]),
-            listPoultryRawMaterialPurchases().catch(() => [] as any[]),
-          ])
-          setRawItems(Array.isArray(items) ? items : [])
-          const byItemLatest: Record<number, { date: string; cost: number }> = {}
-          for (const p of (Array.isArray(purchases) ? purchases : [])) {
-            const iid = p.poultryRawMaterialItemId
-            const cost = (p.productionUnitCost ?? p.unitCost) || 0
-            const prev = byItemLatest[iid]
-            if (!prev || (p.purchaseDate || "") >= prev.date) byItemLatest[iid] = { date: p.purchaseDate || "", cost }
-          }
-          const map: Record<number, number> = {}
-          for (const [iid, v] of Object.entries(byItemLatest)) map[Number(iid)] = v.cost
-          setLatestCost(map)
-        } catch { /* inventory optional */ }
-      } catch (e) {
-        setAllFlocks([])
-        setFlocksForSelect([])
-        setFlocksError("Unable to fetch flocks. Check API URL and CORS.")
-      }
+        const [items, purch] = await Promise.all([
+          listPoultryRawMaterialItems().catch(() => [] as PoultryRawMaterialItem[]),
+          listPoultryRawMaterialPurchases().catch(() => [] as PoultryRawMaterialPurchase[]),
+        ])
+        setRawItems(Array.isArray(items) ? items : [])
+        setPurchases(Array.isArray(purch) ? purch : [])
+      } catch { /* inventory optional */ }
     }
     load()
   }, [])
+
+  // When editing, preselect the Batch that owns the record's flock so the Batch
+  // dropdown isn't blank (it loads async, hence keyed on allFlocks + record).
+  useEffect(() => {
+    if (!record || allFlocks.length === 0) return
+    const fid = (record as any).flockId
+    if (fid == null) return
+    const f = allFlocks.find((x) => String(x.flockId) === String(fid))
+    if (f?.batchId != null) setSelectedBatchId(String(f.batchId))
+  }, [record, allFlocks])
 
   // Load previous records to calculate birds left
   useEffect(() => {
@@ -256,7 +315,9 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
 
   useEffect(() => {
     if (!record) {
-      setForm({ flockId: "", date: today, morning: "", noon: "", evening: "", brokenEggs: "", meatyEggs: "", softEggs: "", lostEggs: "", feedKg: "", feedType: "", mortality: "", numBirds: "", notes: "", medication: "", eggGrade: EGG_GRADE_SELECT_VALUE_NONE, specificFeedUsedId: "", feedUnitCost: "", totalFeedConsumed: "", specificMedicationUsedId: "", medicationUnitCost: "", totalMedicationConsumed: "" })
+      setForm({ flockId: "", date: today, morning: "", noon: "", evening: "", brokenEggs: "", meatyEggs: "", softEggs: "", lostEggs: "", feedKg: "", feedType: "", mortality: "", numBirds: "", notes: "", medication: "", eggGrade: EGG_GRADE_SELECT_VALUE_NONE })
+      setFeedLines([emptyFeedLine(), emptyFeedLine()])
+      setMedLines([emptyMedLine(), emptyMedLine()])
       setMorningCrates(0); setMorningLoose(0)
       setNoonCrates(0); setNoonLoose(0)
       setEveningCrates(0); setEveningLoose(0)
@@ -294,15 +355,43 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
       notes: r.notes ?? "",
       medication: record.medication || "",
       eggGrade: eggGradeFromApi((record as ProductionRecord & { eggGrade?: string | null }).eggGrade),
-      specificFeedUsedId: s(r.specificFeedUsedId),
-      feedUnitCost: s(r.feedUnitCost),
-      totalFeedConsumed: s(r.totalFeedConsumed),
-      specificMedicationUsedId: s(r.specificMedicationUsedId),
-      medicationUnitCost: s(r.medicationUnitCost),
-      totalMedicationConsumed: s(r.totalMedicationConsumed),
     }
 
     setForm(baseFormData)
+
+    // Migration 148: hydrate feed lines (fall back to the legacy single feed).
+    const feedRows = r.feeds as
+      | { specificFeedUsedId?: number | null; totalFeedConsumed?: number | null }[]
+      | undefined
+    if (Array.isArray(feedRows) && feedRows.length > 0) {
+      setFeedLines(
+        feedRows.map((f) => ({
+          specificFeedUsedId: f.specificFeedUsedId == null ? "" : String(f.specificFeedUsedId),
+          totalFeedConsumed: f.totalFeedConsumed == null ? "" : String(f.totalFeedConsumed),
+        })),
+      )
+    } else if (r.specificFeedUsedId != null) {
+      setFeedLines([{ specificFeedUsedId: s(r.specificFeedUsedId), totalFeedConsumed: s(r.totalFeedConsumed) }])
+    } else {
+      setFeedLines([])
+    }
+
+    // Migration 147: hydrate medication lines (fall back to the legacy single med).
+    const medRows = r.medications as
+      | { specificMedicationUsedId?: number | null; totalMedicationConsumed?: number | null }[]
+      | undefined
+    if (Array.isArray(medRows) && medRows.length > 0) {
+      setMedLines(
+        medRows.map((m) => ({
+          specificMedicationUsedId: m.specificMedicationUsedId == null ? "" : String(m.specificMedicationUsedId),
+          totalMedicationConsumed: m.totalMedicationConsumed == null ? "" : String(m.totalMedicationConsumed),
+        })),
+      )
+    } else if (r.specificMedicationUsedId != null) {
+      setMedLines([{ specificMedicationUsedId: s(r.specificMedicationUsedId), totalMedicationConsumed: s(r.totalMedicationConsumed) }])
+    } else {
+      setMedLines([])
+    }
     
     // Then try to load feed type from feed usage
     const loadFeedType = async () => {
@@ -366,6 +455,23 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
         return
       }
 
+      if (feedComputed.firstShortfall) {
+        const sf = feedComputed.firstShortfall
+        const msg = `Not enough purchased stock tracked for "${sf.item?.itemName ?? "this feed"}" to cover ${sf.qty} — record a new purchase first.`
+        setError(msg)
+        toastFormGuide(toast, msg)
+        setSaving(false)
+        return
+      }
+      if (medComputed.firstShortfall) {
+        const sf = medComputed.firstShortfall
+        const msg = `Not enough purchased stock tracked for "${sf.item?.itemName ?? "this medication"}" to cover ${sf.qty} — record a new purchase first.`
+        setError(msg)
+        toastFormGuide(toast, msg)
+        setSaving(false)
+        return
+      }
+
       const resolvedDays = manualAge
         ? (parseInt(manualDays) || ((parseInt(manualYears) || 0) * 365) || ((parseInt(manualWeeks) || 0) * 7))
         : ageDays
@@ -373,8 +479,6 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
         ? (parseInt(manualWeeks) || Math.floor(((parseInt(manualDays) || 0) / 7)) || ((parseInt(manualYears) || 0) * 52))
         : ageWeeks
 
-      const feedItem = form.specificFeedUsedId ? feedItems.find((i) => String(i.poultryRawMaterialItemId) === form.specificFeedUsedId) : null
-      const medItem = form.specificMedicationUsedId ? medItems.find((i) => String(i.poultryRawMaterialItemId) === form.specificMedicationUsedId) : null
       const input: ProductionRecordInput = {
         farmId,
         userId,
@@ -399,16 +503,20 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
         totalProduction: total,
         flockId: form.flockId ? parseInt(form.flockId) : null,
         eggGrade: eggGradeToApi(form.eggGrade),
-        specificFeedUsedId: form.specificFeedUsedId ? parseInt(form.specificFeedUsedId) : null,
-        specificFeedUsedName: feedItem?.itemName ?? null,
-        feedUnitCost: form.feedUnitCost === "" ? null : parseFloat(form.feedUnitCost) || 0,
-        totalFeedConsumed: form.totalFeedConsumed === "" ? null : parseFloat(form.totalFeedConsumed) || 0,
-        totalFeedCost: form.specificFeedUsedId ? Number(totalFeedCost.toFixed(2)) : null,
-        specificMedicationUsedId: form.specificMedicationUsedId ? parseInt(form.specificMedicationUsedId) : null,
-        specificMedicationUsedName: medItem?.itemName ?? null,
-        medicationUnitCost: form.medicationUnitCost === "" ? null : parseFloat(form.medicationUnitCost) || 0,
-        totalMedicationConsumed: form.totalMedicationConsumed === "" ? null : parseFloat(form.totalMedicationConsumed) || 0,
-        totalMedicationCost: form.specificMedicationUsedId ? Number(totalMedicationCost.toFixed(2)) : null,
+        // Migration 148: feed lines drive the aggregate columns server-side.
+        specificFeedUsedId: null,
+        specificFeedUsedName: null,
+        feedUnitCost: null,
+        totalFeedConsumed: null,
+        totalFeedCost: null,
+        feeds: feedComputed.feeds,
+        // Migration 147: medication lines drive the aggregate columns server-side.
+        specificMedicationUsedId: null,
+        specificMedicationUsedName: null,
+        medicationUnitCost: null,
+        totalMedicationConsumed: null,
+        totalMedicationCost: null,
+        medications: medComputed.medications,
         totalCostOfProduction: Number(totalCostOfProduction.toFixed(2)),
       }
 
@@ -515,19 +623,36 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
               Flock &amp; Date
             </div>
             <div className="grid grid-cols-12 gap-4 px-4 py-4">
-              <div className="col-span-12 md:col-span-6 space-y-2">
+              <div className="col-span-12 md:col-span-4 space-y-2">
+                <Label>Batch</Label>
+                <Select value={selectedBatchId} onValueChange={setSelectedBatchId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All batches" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {batchOptions.map((b) => (
+                      <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="text-xs text-slate-500">
+                  Filters the Flock dropdown. Leave on &ldquo;All batches&rdquo; to see every flock.
+                </div>
+              </div>
+
+              <div className="col-span-12 md:col-span-4 space-y-2">
                 <Label>Flock</Label>
                 <Select value={form.flockId} onValueChange={(v) => setForm({ ...form, flockId: v })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select flock" />
                   </SelectTrigger>
                   <SelectContent>
-                    {flocksForSelect.length === 0 ? (
+                    {flockSelectOptions.length === 0 ? (
                       <SelectItem value="none" disabled>
                         {flocksError || getFlockSelectEmptyHint("production")}
                       </SelectItem>
                     ) : (
-                      flocksForSelect.map((f) => (
+                      flockSelectOptions.map((f) => (
                         <SelectItem key={f.value} value={f.value}>
                           {f.label}
                         </SelectItem>
@@ -543,7 +668,7 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
                 ) : null}
               </div>
 
-              <div className="col-span-12 md:col-span-6 space-y-2">
+              <div className="col-span-12 md:col-span-4 space-y-2">
                 <Label>Date</Label>
                 <Input
                   type="date"
@@ -711,36 +836,45 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
               </div>
               <div className="col-span-12 md:col-span-4 space-y-2">
                 <Label>Deaths</Label>
-                <p className="text-xs text-muted-foreground -mt-1 mb-1">
-                  Birds lost on this day only (not total deaths since placement).
-                </p>
                 <Input
                   type="number"
                   min="0"
                   value={form.mortality}
                   onChange={(e) => setForm({ ...form, mortality: e.target.value })}
                 />
+                <p className="text-xs text-slate-500">
+                  Birds lost on this day only (not total deaths since placement).
+                </p>
               </div>
               <div className="col-span-12 md:col-span-4 space-y-2">
                 <Label>Birds Left</Label>
-                <div className="pt-2 font-semibold">
-                  {previousBirdsLeft !== null && (
-                    <span className="text-xs text-slate-500 block">
-                      From previous: {previousBirdsLeft}
-                    </span>
-                  )}
-                  <span className={birdsLeft < 0 ? "text-red-600" : ""}>{birdsLeft}</span>
+                <div
+                  className={`h-10 flex items-center px-3 rounded-md border font-semibold ${
+                    birdsLeft < 0
+                      ? "border-red-300 bg-red-50 text-red-600"
+                      : "border-slate-200 bg-white text-slate-700"
+                  }`}
+                >
+                  {birdsLeft}
                 </div>
+                {previousBirdsLeft !== null && (
+                  <p className="text-xs text-slate-500">From previous record: {previousBirdsLeft}</p>
+                )}
               </div>
 
-              <div className="col-span-12 flex items-center gap-2 pt-2">
-                <input
-                  id="manualAge"
-                  type="checkbox"
-                  checked={manualAge}
-                  onChange={(e) => setManualAge(e.target.checked)}
-                />
-                <Label htmlFor="manualAge">Enter age manually</Label>
+              <div className="col-span-12 flex items-center justify-between border-t border-slate-200 mt-1 pt-3">
+                <span className="text-sm font-semibold text-slate-700">Age</span>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="manualAge" className="text-xs font-normal text-slate-600">
+                    Enter manually
+                  </Label>
+                  <input
+                    id="manualAge"
+                    type="checkbox"
+                    checked={manualAge}
+                    onChange={(e) => setManualAge(e.target.checked)}
+                  />
+                </div>
               </div>
 
               {manualAge ? (
@@ -756,16 +890,6 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
                     />
                   </div>
                   <div className="col-span-12 md:col-span-4 space-y-2">
-                    <Label>Age (years)</Label>
-                    <Input
-                      type="number"
-                      min="0"
-                      value={manualYears}
-                      onChange={(e) => setManualYears(e.target.value)}
-                      placeholder="e.g. 1"
-                    />
-                  </div>
-                  <div className="col-span-12 md:col-span-4 space-y-2">
                     <Label>Age (days)</Label>
                     <Input
                       type="number"
@@ -775,33 +899,43 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
                       placeholder="e.g. 140"
                     />
                   </div>
+                  <div className="col-span-12 md:col-span-4 space-y-2">
+                    <Label>Age (years)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={manualYears}
+                      onChange={(e) => setManualYears(e.target.value)}
+                      placeholder="e.g. 1"
+                    />
+                  </div>
                 </>
               ) : (
                 <>
-                  <div className="col-span-12 md:col-span-4">
+                  <div className="col-span-12 md:col-span-4 space-y-2">
                     <Label>Age (weeks)</Label>
-                    <div className="pt-2 font-semibold">{ageWeeks}</div>
+                    <div className="h-10 flex items-center px-3 rounded-md border border-slate-200 bg-white font-semibold text-slate-700">{ageWeeks}</div>
                   </div>
-                  <div className="col-span-12 md:col-span-4">
-                    <Label>Age (years)</Label>
-                    <div className="pt-2 font-semibold">{ageYears}</div>
-                  </div>
-                  <div className="col-span-12 md:col-span-4">
+                  <div className="col-span-12 md:col-span-4 space-y-2">
                     <Label>Age (days)</Label>
-                    <div className="pt-2 font-semibold">{ageDays}</div>
+                    <div className="h-10 flex items-center px-3 rounded-md border border-slate-200 bg-white font-semibold text-slate-700">{ageDays}</div>
+                  </div>
+                  <div className="col-span-12 md:col-span-4 space-y-2">
+                    <Label>Age (years)</Label>
+                    <div className="h-10 flex items-center px-3 rounded-md border border-slate-200 bg-white font-semibold text-slate-700">{ageYears}</div>
                   </div>
                 </>
               )}
             </div>
           </div>
 
-          {/* Section 4: Feed, Medication & Notes */}
+          {/* Section 4: Feed */}
           <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
             <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">
-              Feed, Medication &amp; Notes
+              Feed
             </div>
             <div className="grid grid-cols-12 gap-4 px-4 py-4">
-              <div className="col-span-12 md:col-span-4 space-y-2">
+              <div className="col-span-12 md:col-span-6 space-y-2">
                 <Label>Feed Type</Label>
                 <Select value={form.feedType} onValueChange={(v) => setForm({ ...form, feedType: v })}>
                   <SelectTrigger>
@@ -816,7 +950,7 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
                   </SelectContent>
                 </Select>
               </div>
-              <div className="col-span-12 md:col-span-4 space-y-2">
+              <div className="col-span-12 md:col-span-6 space-y-2">
                 <Label>Feed (kg)</Label>
                 <Input
                   type="number"
@@ -826,9 +960,41 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
                   onChange={(e) => setForm({ ...form, feedKg: e.target.value })}
                 />
               </div>
-              <div className="col-span-12 md:col-span-4 space-y-2">
+
+              {/* Used (from inventory) — reduces Raw-Material stock on save */}
+              <div className="col-span-12 flex items-center gap-2 pt-1">
+                <div className="h-px flex-1 bg-slate-200" />
+                <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Used (from inventory)</span>
+                <div className="h-px flex-1 bg-slate-200" />
+              </div>
+              <FeedLines
+                lines={feedLines}
+                rows={feedComputed.rows}
+                feedItems={feedItems}
+                stockByItemId={feedComputed.pendingStockByItemId}
+                onAdd={addFeedLine}
+                onRemove={removeFeedLine}
+                onChange={changeFeedLine}
+                disabled={saving}
+              />
+
+              <div className="col-span-12 flex items-center justify-between rounded-lg bg-slate-50 border border-slate-200 px-4 py-2">
+                <span className="text-sm font-medium text-slate-700">Total Feed Cost</span>
+                <span className="text-base font-semibold text-slate-800">{totalFeedCost.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 5: Medication */}
+          <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
+            <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">
+              Medication
+            </div>
+            <div className="grid grid-cols-12 gap-4 px-4 py-4">
+              <div className="col-span-12 space-y-2">
                 <Label>Medication</Label>
                 <Input
+                  className="max-w-md"
                   value={form.medication}
                   onChange={(e) => setForm({ ...form, medication: e.target.value })}
                   placeholder="e.g., Free water"
@@ -841,77 +1007,39 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
                 <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Used (from inventory)</span>
                 <div className="h-px flex-1 bg-slate-200" />
               </div>
-              <div className="col-span-12 md:col-span-4 space-y-2">
-                <Label>Specific Feed Used</Label>
-                <Select value={form.specificFeedUsedId || "none"} onValueChange={(v) => {
-                  const id = v === "none" ? "" : v
-                  const cost = id ? (latestCost[Number(id)] ?? 0) : 0
-                  setForm({ ...form, specificFeedUsedId: id, feedUnitCost: id ? String(cost) : "" })
-                }}>
-                  <SelectTrigger><SelectValue placeholder="Select feed from inventory" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {feedItems.map((i) => <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>{i.itemName}{i.unitOfMeasure ? ` (${i.unitOfMeasure})` : ""} · {i.currentQuantity} in stock</SelectItem>)}
-                    {feedItems.length === 0 && <div className="px-2 py-1.5 text-xs text-slate-400">No feed items in Raw Materials yet.</div>}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="col-span-6 md:col-span-2 space-y-2">
-                <Label>Feed Consumed</Label>
-                <Input type="number" step="0.001" min="0" value={form.totalFeedConsumed} onChange={(e) => setForm({ ...form, totalFeedConsumed: e.target.value })} />
-              </div>
-              <div className="col-span-6 md:col-span-3 space-y-2">
-                <Label>Feed Unit Cost</Label>
-                <Input type="number" step="0.0001" min="0" value={form.feedUnitCost} onChange={(e) => setForm({ ...form, feedUnitCost: e.target.value })} />
-              </div>
-              <div className="col-span-12 md:col-span-3 space-y-2">
-                <Label>Total Feed Cost</Label>
-                <div className="h-10 flex items-center px-3 rounded-md border border-slate-200 bg-white font-semibold text-slate-700">{totalFeedCost.toFixed(2)}</div>
-              </div>
 
-              <div className="col-span-12 md:col-span-4 space-y-2">
-                <Label>Specific Medication Used</Label>
-                <Select value={form.specificMedicationUsedId || "none"} onValueChange={(v) => {
-                  const id = v === "none" ? "" : v
-                  const cost = id ? (latestCost[Number(id)] ?? 0) : 0
-                  setForm({ ...form, specificMedicationUsedId: id, medicationUnitCost: id ? String(cost) : "" })
-                }}>
-                  <SelectTrigger><SelectValue placeholder="Select medication from inventory" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {medItems.map((i) => <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>{i.itemName}{i.unitOfMeasure ? ` (${i.unitOfMeasure})` : ""} · {i.currentQuantity} in stock</SelectItem>)}
-                    {medItems.length === 0 && <div className="px-2 py-1.5 text-xs text-slate-400">No medication items in Raw Materials yet.</div>}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="col-span-6 md:col-span-2 space-y-2">
-                <Label>Medication Consumed</Label>
-                <Input type="number" step="0.001" min="0" value={form.totalMedicationConsumed} onChange={(e) => setForm({ ...form, totalMedicationConsumed: e.target.value })} />
-              </div>
-              <div className="col-span-6 md:col-span-3 space-y-2">
-                <Label>Medication Unit Cost</Label>
-                <Input type="number" step="0.0001" min="0" value={form.medicationUnitCost} onChange={(e) => setForm({ ...form, medicationUnitCost: e.target.value })} />
-              </div>
-              <div className="col-span-12 md:col-span-3 space-y-2">
-                <Label>Total Medication Cost</Label>
-                <div className="h-10 flex items-center px-3 rounded-md border border-slate-200 bg-white font-semibold text-slate-700">{totalMedicationCost.toFixed(2)}</div>
+              <MedicationLines
+                lines={medLines}
+                rows={medComputed.rows}
+                medItems={medItems}
+                stockByItemId={medComputed.pendingStockByItemId}
+                onAdd={addMedLine}
+                onRemove={removeMedLine}
+                onChange={changeMedLine}
+                disabled={saving}
+              />
+
+              <div className="col-span-12 flex items-center justify-between rounded-lg bg-slate-50 border border-slate-200 px-4 py-2">
+                <span className="text-sm font-medium text-slate-700">Total Medication Cost</span>
+                <span className="text-base font-semibold text-slate-800">{totalMedicationCost.toFixed(2)}</span>
               </div>
 
               <div className="col-span-12 flex items-center justify-between rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3">
                 <span className="text-sm font-medium text-emerald-800">Total Cost of Production</span>
                 <span className="text-lg font-bold text-emerald-800">{totalCostOfProduction.toFixed(2)}</span>
               </div>
-              <p className="col-span-12 text-xs text-slate-500 -mt-1">Selecting feed/medication reduces its Raw-Material inventory when you save. Unit cost is prefilled from the latest purchase; adjust if needed.</p>
-
-              <div className="col-span-12 space-y-2">
-                <Label>Notes</Label>
-                <Textarea
-                  rows={3}
-                  value={form.notes}
-                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                />
-              </div>
+              <p className="col-span-12 text-xs text-slate-500 -mt-1">Selecting feed/medication reduces its Raw-Material inventory when you save. Unit cost is automatic, based on the item's FIFO/LIFO/HIFO usage policy.</p>
             </div>
+          </div>
+
+          {/* Section 6: Notes (no banner) */}
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 space-y-2">
+            <Label>Notes</Label>
+            <Textarea
+              rows={3}
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+            />
           </div>
 
           {/* Actions */}

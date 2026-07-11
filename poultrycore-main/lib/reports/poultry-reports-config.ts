@@ -11,6 +11,7 @@ import {
   LayoutDashboard, Egg, BarChart3, Activity, HeartPulse, Bird, Skull,
   Wheat, Package, Boxes, Coins, Users, Receipt, Wallet, TrendingUp,
   Calculator, Syringe, Pill, ClipboardCheck, Flag, CalendarDays, Scale,
+  History,
 } from "lucide-react"
 import type { PoultryReportSlug } from "@/lib/api/poultry-reports"
 
@@ -31,14 +32,6 @@ export interface PoultryReportGroup {
 export const poultryReportHref = (slug: PoultryReportSlug) => `/poultry/reports/${slug}`
 
 export const POULTRY_REPORT_GROUPS: PoultryReportGroup[] = [
-  {
-    key: "executive",
-    label: "Executive",
-    color: "bg-amber-600",
-    reports: [
-      { slug: "farm-summary", title: "Poultry Farm Summary", description: "High-level snapshot of the whole farm for the period.", icon: LayoutDashboard },
-    ],
-  },
   {
     key: "production",
     label: "Production",
@@ -171,6 +164,18 @@ export const POULTRY_CLOSING_GROUP: PoultryReportMenuGroup = {
   ],
 }
 
+// Changes Report is an audit / change-history page backed by the audit log — a
+// standalone page with its own href (not a data-driven /poultry/reports/<slug>).
+export const POULTRY_ACTIVITY_GROUP: PoultryReportMenuGroup = {
+  key: "activity",
+  label: "Activity",
+  color: "bg-slate-600",
+  items: [
+    { id: "farm-summary", title: "Poultry Farm Summary", description: "High-level snapshot of the whole farm for the period.", icon: LayoutDashboard, href: poultryReportHref("farm-summary") },
+    { id: "changes", title: "Changes Report", description: "Every create, update and delete of records — who changed what, and when.", icon: History, href: "/poultry/reports/changes" },
+  ],
+}
+
 // Menu order: Profitability first, then the rest by business importance
 // (money → operations → supporting), with the interactive Farm Dashboards and
 // the Closing report last. Any group not listed here is appended before the
@@ -184,7 +189,6 @@ const MENU_GROUP_ORDER = [
   "birds-mortality",
   "inventory",
   "health",
-  "executive",
 ]
 
 const groupToMenu = (g: PoultryReportGroup): PoultryReportMenuGroup => ({
@@ -211,4 +215,5 @@ export const POULTRY_REPORT_MENU_GROUPS: PoultryReportMenuGroup[] = [
   ...orderedGroups.map(groupToMenu),
   POULTRY_DASHBOARD_GROUP,
   POULTRY_CLOSING_GROUP,
+  POULTRY_ACTIVITY_GROUP,
 ]

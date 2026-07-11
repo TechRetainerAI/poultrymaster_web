@@ -216,34 +216,59 @@ export function MobileBottomNav() {
       if (item.href === "/sales") return permissions.featureAccess.canEnterSales
       return true
     })
+    // Mirrors the desktop poultry sidebar so mobile has the same, correctly-
+    // targeted destinations. Key fix: "Inventory" → the new /poultry-inventory;
+    // the legacy page is listed separately as "Other Inventory" → /inventory.
     const poultryMore: NavItem[] = [
-      { href: "/inventory",          label: "Inventory",          icon: Package },
-      { href: "/help",               label: "Help Center",        icon: BookOpen },
-      { href: "/egg-production",     label: "Egg sorting",        icon: Egg },
-      { href: "/egg-tracker",        label: "Egg tracker",        icon: BarChart3 },
-      { href: "/feed-tracker",       label: "Feed at hand",       icon: Wheat },
-      { href: "/medication-tracker", label: "Medication at hand", icon: Pill },
-      { href: "/health",             label: "Health Records",     icon: AlertTriangle },
-      { href: "/cash",               label: "Cash",               icon: Wallet },
-      { href: "/expenses",           label: "Expenses",           icon: DollarSign },
-      { href: "/customers",          label: "Customers",          icon: Users },
-      { href: "/suppliers",          label: "Suppliers",          icon: Truck },
-      { href: "/billing",           label: "Billing",           icon: CreditCard },
-      { href: "/feed-usage",         label: "Feed Usage",         icon: Package },
-      { href: "/poultry-driver-returns", label: "Deliveries",     icon: Truck },
-      { href: "/poultry-drivers",        label: "Drivers",        icon: Users2 },
-      { href: "/poultry-driver-report",  label: "Driver report",  icon: BarChart3 },
-      { href: "/resources",          label: "Resources",          icon: BookOpen },
-      { href: "/reports",            label: "Reports",            icon: BarChart3 },
-      { href: "/profile",            label: "Account",            icon: User },
-      { href: "/audit-logs",         label: "Activity Log",       icon: Activity },
-      { href: "/settings",           label: "Settings",           icon: Settings },
-      { href: "/terms",              label: "Terms",              icon: FileText },
+      // Farm
+      { href: "/flock-batch",            label: "Flock Purchases",        icon: Boxes },
+      { href: "/houses",                 label: "Houses",                 icon: Home },
+      // Production
+      { href: "/egg-production",         label: "Egg sorting",            icon: Egg },
+      { href: "/feed-usage",             label: "Feed Usage",             icon: Package },
+      { href: "/poultry-products",       label: "Products",               icon: ShoppingBag },
+      // Analytics
+      { href: "/egg-tracker",            label: "Egg tracker",            icon: BarChart3 },
+      { href: "/feed-tracker",           label: "Feed at hand",           icon: Wheat },
+      { href: "/medication-tracker",     label: "Medication at hand",     icon: Pill },
+      { href: "/birds-left-tracker",     label: "Birds left tracker",     icon: Bird },
+      { href: "/weekly-report",          label: "Analytical Report",      icon: FileText },
+      // Inventory & Health
+      { href: "/poultry-inventory",      label: "Inventory",              icon: Boxes },
+      { href: "/poultry-stock",          label: "Stock movements",        icon: Boxes },
+      { href: "/poultry-raw-materials",  label: "Raw Materials & Supplies", icon: Box },
+      { href: "/supplies",               label: "Supplies",               icon: ShoppingCart },
+      { href: "/health",                 label: "Health Records",         icon: AlertTriangle },
+      { href: "/poultry-loss-records",   label: "Loss & Damage",          icon: AlertTriangle },
+      { href: "/inventory",              label: "Other Inventory",        icon: Package },
+      // Delivery
+      { href: "/poultry-driver-returns", label: "Deliveries",             icon: Truck },
+      { href: "/poultry-drivers",        label: "Drivers",                icon: Users2 },
+      { href: "/poultry-vehicles",       label: "Vehicles",               icon: Truck },
+      { href: "/poultry-routes",         label: "Routes",                 icon: Activity },
+      { href: "/poultry-driver-report",  label: "Driver report",          icon: BarChart3 },
+      // Financial
+      { href: "/poultry-daily-closing",  label: "Daily Closing",          icon: FileText },
+      { href: "/cash",                   label: "Cash",                   icon: Wallet },
+      { href: "/poultry-cash-accounts",  label: "Cash Account",           icon: Wallet },
+      { href: "/poultry-payments",       label: "Payments received",      icon: CreditCard },
+      { href: "/expenses",               label: "Expenses",               icon: DollarSign },
+      { href: "/customers",              label: "Customers",              icon: Users },
+      { href: "/suppliers",              label: "Suppliers",              icon: Truck },
+      { href: "/billing",                label: "Billing",                icon: CreditCard },
+      // Reports / Help / Account
+      { href: "/reports",                label: "Reports",                icon: BarChart3 },
+      { href: "/resources",              label: "Resources",              icon: BookOpen },
+      { href: "/help",                   label: "Help Center",            icon: BookOpen },
+      { href: "/profile",                label: "Account",                icon: User },
+      { href: "/audit-logs",             label: "Activity Log",           icon: Activity },
+      { href: "/settings",               label: "Settings",               icon: Settings },
+      { href: "/terms",                  label: "Terms",                  icon: FileText },
       ...(permissions.isAdmin || permissions.featureAccess.canSeeEmployees
         ? [{ href: "/employees", label: "Employees", icon: UserCog }] : []),
     ]
     const filteredPoultryMore = poultryMore.filter((item) => {
-      if (["/sales", "/expenses", "/cash", "/customers", "/suppliers", "/billing"].includes(item.href)) {
+      if (["/sales", "/expenses", "/cash", "/customers", "/suppliers", "/billing", "/poultry-cash-accounts", "/poultry-payments"].includes(item.href)) {
         return isFinancialNavItemVisible(item.href, permissions.featureAccess, permissions.isAdmin, {
           tempShowPayments: TEMP_SHOW_PAYMENTS_LINK,
         })

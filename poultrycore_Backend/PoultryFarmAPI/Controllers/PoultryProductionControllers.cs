@@ -158,6 +158,22 @@ namespace PoultryFarmAPIWeb.Controllers
 
         [HttpDelete("{id:int}")] public async Task<IActionResult> Delete(int id, [FromQuery] string farmId)
         { if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required."); await _svc.DeleteAsync(id, farmId); return NoContent(); }
+
+        [HttpPost("{id:int}/reopen")] public async Task<IActionResult> Reopen(int id, [FromQuery] string farmId)
+        { if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required."); await _svc.ReopenAsync(id, farmId); return NoContent(); }
+
+        [HttpPost("{id:int}/recreate")] public async Task<IActionResult> Recreate(int id, [FromQuery] string farmId)
+        { if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required."); await _svc.RecreateAsync(id, farmId); return NoContent(); }
+
+        [HttpPost("{id:int}/notes")] public async Task<IActionResult> UpdateNotes(int id, [FromBody] PoultryDailyClosingNotesRequest req)
+        { if (string.IsNullOrWhiteSpace(req.FarmId)) return BadRequest("Company ID is required."); await _svc.UpdateNotesAsync(id, req.FarmId, req.ActualCashCounted, req.ManagerNotes); return NoContent(); }
+    }
+
+    public class PoultryDailyClosingNotesRequest
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public decimal? ActualCashCounted { get; set; }
+        public string? ManagerNotes { get; set; }
     }
 
     public class PoultryDailyClosingCreateRequest
