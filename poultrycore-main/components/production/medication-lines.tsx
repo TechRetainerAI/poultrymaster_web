@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Trash2 } from "lucide-react"
-import { previewBatchConsumption, type BatchCostPreview } from "@/lib/utils/raw-material-costing"
+import { previewLinesSequential, type BatchCostPreview, type ConsumptionCredit } from "@/lib/utils/raw-material-costing"
 import type { PoultryRawMaterialItem, PoultryRawMaterialPurchase } from "@/lib/api/poultry-inventory"
 import type { ProductionMedicationLine } from "@/lib/api/production-record"
 
@@ -40,6 +40,32 @@ export interface MedLinesComputed {
   firstShortfall: MedLineRow | null
   /** Payload lines (only rows with an item + quantity), ready for ProductionRecordInput.medications. */
   medications: ProductionMedicationLine[]
+  /**
+   * Projected on-hand per item AFTER this record saves: current stock + what this
+   * record gives back (credit) − what the current lines consume. Drives the live
+   * "in stock" badge in the picker.
+   */
+  pendingStockByItemId: Record<number, number>
+}
+
+/**
+ * Build the "already consumed by this record" credit from a saved record's
+ * medication lines, so editing doesn't falsely block on the record's own stock.
+ * Pass the ProductionRecord.medications loaded from the API (undefined on a new record).
+ */
+export function buildMedCredit(
+  medications?: { specificMedicationUsedId?: number | null; totalMedicationConsumed?: number | null; medicationUnitCost?: number | null }[] | null,
+): ConsumptionCredit {
+  const credit: ConsumptionCredit = {}
+  for (const m of medications ?? []) {
+    if (m.specificMedicationUsedId == null || !m.totalMedicationConsumed) continue
+    const prev = credit[m.specificMedicationUsedId]
+    credit[m.specificMedicationUsedId] = {
+      qty: (prev?.qty ?? 0) + (m.totalMedicationConsumed ?? 0),
+      unitCost: m.medicationUnitCost ?? prev?.unitCost ?? 0,
+    }
+  }
+  return credit
 }
 
 /** Pure helper: resolve each draft line to its item + batch-cost preview + payload. */
@@ -47,12 +73,17 @@ export function computeMedLines(
   lines: MedLineDraft[],
   medItems: PoultryRawMaterialItem[],
   purchases: PoultryRawMaterialPurchase[],
+  credit?: ConsumptionCredit,
 ): MedLinesComputed {
-  const rows: MedLineRow[] = lines.map((l) => {
-    const item = medItems.find((i) => String(i.poultryRawMaterialItemId) === l.specificMedicationUsedId) ?? null
-    const qty = parseFloat(l.totalMedicationConsumed) || 0
-    return { item, qty, preview: previewBatchConsumption(item, purchases, qty) }
-  })
+  const resolved = lines.map((l) => ({
+    item: medItems.find((i) => String(i.poultryRawMaterialItemId) === l.specificMedicationUsedId) ?? null,
+    qty: parseFloat(l.totalMedicationConsumed) || 0,
+  }))
+  // Sequential draw across lines so two lines of the SAME medication share one
+  // running balance (a per-line check would let 50 + 10 through on a 50 stock).
+  // `credit` adds back this record's own prior consumption when editing.
+  const previews = previewLinesSequential(resolved, purchases, credit)
+  const rows: MedLineRow[] = resolved.map((r, i) => ({ item: r.item, qty: r.qty, preview: previews[i] }))
   const totalCost = rows.reduce((a, r) => a + (r.preview.totalCost ?? 0), 0)
   const totalConsumed = rows.reduce((a, r) => a + r.qty, 0)
   const firstShortfall = rows.find((r) => r.item && r.preview.shortfall > 0) ?? null
@@ -65,21 +96,41 @@ export function computeMedLines(
       medicationUnitCost: r.preview.unitCost,
       totalMedicationCost: Number((r.preview.totalCost ?? 0).toFixed(2)),
     }))
-  return { rows, totalCost, totalConsumed, hasShortfall: firstShortfall !== null, firstShortfall, medications }
+
+  // Projected on-hand per item after save: current + credit (reversed) − consumed.
+  const consumedByItem: Record<number, number> = {}
+  for (const r of rows) {
+    if (r.item && r.qty > 0) {
+      const id = r.item.poultryRawMaterialItemId
+      consumedByItem[id] = (consumedByItem[id] ?? 0) + r.qty
+    }
+  }
+  const pendingStockByItemId: Record<number, number> = {}
+  for (const it of medItems) {
+    const id = it.poultryRawMaterialItemId
+    pendingStockByItemId[id] = it.currentQuantity + (credit?.[id]?.qty ?? 0) - (consumedByItem[id] ?? 0)
+  }
+
+  return { rows, totalCost, totalConsumed, hasShortfall: firstShortfall !== null, firstShortfall, medications, pendingStockByItemId }
 }
 
 interface MedicationLinesProps {
   lines: MedLineDraft[]
   rows: MedLineRow[]
   medItems: PoultryRawMaterialItem[]
+  /** Projected on-hand per item (computeMedLines().pendingStockByItemId) for the live badge. */
+  stockByItemId?: Record<number, number>
   onAdd: () => void
   onRemove: (index: number) => void
   onChange: (index: number, patch: Partial<MedLineDraft>) => void
   disabled?: boolean
 }
 
+// Trim float noise (e.g. 129.99999999) without forcing trailing zeros.
+const fmtStock = (n: number) => (Math.round(n * 1000) / 1000).toLocaleString()
+
 /** Repeatable medication-line editor. Costs are read-only server-mirrored previews. */
-export function MedicationLines({ lines, rows, medItems, onAdd, onRemove, onChange, disabled }: MedicationLinesProps) {
+export function MedicationLines({ lines, rows, medItems, stockByItemId, onAdd, onRemove, onChange, disabled }: MedicationLinesProps) {
   return (
     <div className="col-span-12 space-y-3">
       {lines.length === 0 && (
@@ -92,6 +143,11 @@ export function MedicationLines({ lines, rows, medItems, onAdd, onRemove, onChan
         const row = rows[idx]
         const preview = row?.preview
         const selectedMed = row?.item ?? null
+        // Hide inactive items, but keep the one this line already uses so an edit
+        // doesn't silently drop a now-inactive selection.
+        const visibleItems = medItems.filter(
+          (i) => i.isActive || String(i.poultryRawMaterialItemId) === line.specificMedicationUsedId,
+        )
         return (
           <div key={idx} className="grid grid-cols-12 gap-3 items-start rounded-lg border border-slate-200 bg-white px-3 py-3">
             <div className="col-span-12 md:col-span-4 space-y-1">
@@ -104,12 +160,15 @@ export function MedicationLines({ lines, rows, medItems, onAdd, onRemove, onChan
                 <SelectTrigger><SelectValue placeholder="Select medication from inventory" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">None</SelectItem>
-                  {medItems.map((i) => (
-                    <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>
-                      {i.itemName}{i.unitOfMeasure ? ` (${i.unitOfMeasure})` : ""} · {i.currentQuantity} in stock · {i.usageMethod}
-                    </SelectItem>
-                  ))}
-                  {medItems.length === 0 && <div className="px-2 py-1.5 text-xs text-slate-400">No medication items in Raw Materials yet.</div>}
+                  {visibleItems.map((i) => {
+                    const stock = stockByItemId?.[i.poultryRawMaterialItemId] ?? i.currentQuantity
+                    return (
+                      <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>
+                        {i.itemName}{i.unitOfMeasure ? ` (${i.unitOfMeasure})` : ""} · {fmtStock(stock)} in stock · {i.usageMethod}{i.isActive ? "" : " · (inactive)"}
+                      </SelectItem>
+                    )
+                  })}
+                  {visibleItems.length === 0 && <div className="px-2 py-1.5 text-xs text-slate-400">No active medication items in Raw Materials.</div>}
                 </SelectContent>
               </Select>
             </div>

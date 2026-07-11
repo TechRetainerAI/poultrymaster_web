@@ -25,8 +25,9 @@ import {
   type PoultryRawMaterialItem,
   type PoultryRawMaterialPurchase,
 } from "@/lib/api/poultry-inventory"
-import { MedicationLines, computeMedLines, emptyMedLine, type MedLineDraft } from "@/components/production/medication-lines"
-import { FeedLines, computeFeedLines, emptyFeedLine, type FeedLineDraft } from "@/components/production/feed-lines"
+import { MedicationLines, computeMedLines, emptyMedLine, buildMedCredit, type MedLineDraft } from "@/components/production/medication-lines"
+import { FeedLines, computeFeedLines, emptyFeedLine, buildFeedCredit, type FeedLineDraft } from "@/components/production/feed-lines"
+import type { ConsumptionCredit } from "@/lib/utils/raw-material-costing"
 
 // Doc §4a: classify a raw-material item as Feed or Medication by its category.
 const isFeedCategory = (c?: string | null) => !!c && /feed/i.test(c)
@@ -64,6 +65,11 @@ export default function EditProductionRecordPage() {
     // see feedLines / medLines below. The manual Feed Type + Feed (kg) fields stay.
   })
 
+  // Credit back this record's own prior consumption so editing doesn't falsely
+  // block on stock the record itself is holding (set from the loaded record).
+  const [feedCredit, setFeedCredit] = useState<ConsumptionCredit>({})
+  const [medCredit, setMedCredit] = useState<ConsumptionCredit>({})
+
   // Migration 148: multiple feed lines.
   const [feedLines, setFeedLines] = useState<FeedLineDraft[]>([])
   const addFeedLine = () => setFeedLines((d) => [...d, emptyFeedLine()])
@@ -89,12 +95,12 @@ export default function EditProductionRecordPage() {
   // spPoultryRawMaterialItem_ConsumeBatches). The server recomputes and persists
   // the authoritative cost at save time — this is just a live preview.
   const feedComputed = useMemo(
-    () => computeFeedLines(feedLines, feedItems, purchases),
-    [feedLines, feedItems, purchases],
+    () => computeFeedLines(feedLines, feedItems, purchases, feedCredit),
+    [feedLines, feedItems, purchases, feedCredit],
   )
   const medComputed = useMemo(
-    () => computeMedLines(medLines, medItems, purchases),
-    [medLines, medItems, purchases],
+    () => computeMedLines(medLines, medItems, purchases, medCredit),
+    [medLines, medItems, purchases, medCredit],
   )
   const totalFeedCost = feedComputed.totalCost
   const totalMedicationCost = medComputed.totalCost
@@ -142,6 +148,23 @@ export default function EditProductionRecordPage() {
         lostEggs: (record as any).lostEggs == null ? "" : String((record as any).lostEggs),
         eggGrade: eggGradeFromApi((record as any).eggGrade),
       })
+
+      // Credit = what this record already consumed (from the saved lines), so the
+      // edit preview reverses it back the way the server will on save. Fall back to
+      // the legacy single feed/medication column for records saved before 147/148.
+      const r0 = record as any
+      const feedsForCredit = Array.isArray(r0.feeds) && r0.feeds.length > 0
+        ? r0.feeds
+        : r0.specificFeedUsedId != null
+          ? [{ specificFeedUsedId: r0.specificFeedUsedId, totalFeedConsumed: r0.totalFeedConsumed, feedUnitCost: r0.feedUnitCost }]
+          : []
+      const medsForCredit = Array.isArray(r0.medications) && r0.medications.length > 0
+        ? r0.medications
+        : r0.specificMedicationUsedId != null
+          ? [{ specificMedicationUsedId: r0.specificMedicationUsedId, totalMedicationConsumed: r0.totalMedicationConsumed, medicationUnitCost: r0.medicationUnitCost }]
+          : []
+      setFeedCredit(buildFeedCredit(feedsForCredit))
+      setMedCredit(buildMedCredit(medsForCredit))
 
       // Migration 148: hydrate the feed lines. Fall back to the legacy single-feed
       // column if an old record has no line rows yet.
@@ -673,6 +696,7 @@ export default function EditProductionRecordPage() {
                       lines={feedLines}
                       rows={feedComputed.rows}
                       feedItems={feedItems}
+                      stockByItemId={feedComputed.pendingStockByItemId}
                       onAdd={addFeedLine}
                       onRemove={removeFeedLine}
                       onChange={changeFeedLine}
@@ -690,6 +714,7 @@ export default function EditProductionRecordPage() {
                       lines={medLines}
                       rows={medComputed.rows}
                       medItems={medItems}
+                      stockByItemId={medComputed.pendingStockByItemId}
                       onAdd={addMedLine}
                       onRemove={removeMedLine}
                       onChange={changeMedLine}
