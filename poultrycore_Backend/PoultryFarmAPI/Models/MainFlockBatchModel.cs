@@ -61,6 +61,9 @@ namespace PoultryFarmAPIWeb.Models
 
         public string? Notes { get; set; }
 
+        // Optional USD→local rate for foreign-supplier batch purchases.
+        public decimal? DollarConversionRate { get; set; }
+
         // Date the record was created (managed by the database or service).
         public DateTime CreatedDate { get; set; }
     }
