@@ -17,6 +17,7 @@ export interface FlockBatch {
   supplierId: number | null;
   supplierName: string;
   notes?: string;
+  dollarConversionRate?: number | null;
   createdDate: string;
 }
 
@@ -81,6 +82,7 @@ function mapFlockBatch(raw: any): FlockBatch {
     supplierId: supplierIdRaw == null || supplierIdRaw === '' ? null : Number(supplierIdRaw),
     supplierName: raw.supplierName ?? raw.SupplierName ?? '',
     notes: raw.notes ?? raw.Notes ?? '',
+    dollarConversionRate: (raw.dollarConversionRate ?? raw.DollarConversionRate) == null ? null : Number(raw.dollarConversionRate ?? raw.DollarConversionRate),
     createdDate: raw.createdDate ?? raw.CreatedDate ?? '',
   }
 }
@@ -205,6 +207,7 @@ export interface FlockBatchInput {
   supplierId?: number | null;
   status?: string;
   notes?: string;
+  dollarConversionRate?: number | null;
 }
 
 export async function createFlockBatch(flockBatch: FlockBatchInput): Promise<ApiResponse<FlockBatch>> {
@@ -227,8 +230,9 @@ export async function createFlockBatch(flockBatch: FlockBatchInput): Promise<Api
       SupplierId: flockBatch.supplierId ?? null,
       Status: flockBatch.status ?? 'active',
       Notes: flockBatch.notes ?? null,
+      DollarConversionRate: flockBatch.dollarConversionRate ?? null,
     };
-    
+
     console.log("[v0] Creating flock batch:", url, payload);
 
     const response = await fetch(url, {
@@ -330,7 +334,8 @@ export async function createFlockBatch(flockBatch: FlockBatchInput): Promise<Api
         if (flockBatch.supplierId !== undefined) payload.SupplierId = flockBatch.supplierId;
         if (flockBatch.status !== undefined) payload.Status = flockBatch.status;
         if (flockBatch.notes !== undefined) payload.Notes = flockBatch.notes;
-        
+        if (flockBatch.dollarConversionRate !== undefined) payload.DollarConversionRate = flockBatch.dollarConversionRate;
+
         console.log("[v0] Updating flock batch:", url, payload);
     
         const response = await fetch(url, {

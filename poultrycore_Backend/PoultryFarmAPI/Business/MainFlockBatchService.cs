@@ -50,6 +50,11 @@ namespace PoultryFarmAPIWeb.Business
                 int o = reader.GetOrdinal("CostPerChick");
                 model.CostPerChick = reader.IsDBNull(o) ? 0m : reader.GetDecimal(o);
             }
+            if (HasColumn(reader, "DollarConversionRate"))
+            {
+                int o = reader.GetOrdinal("DollarConversionRate");
+                model.DollarConversionRate = reader.IsDBNull(o) ? (decimal?)null : reader.GetDecimal(o);
+            }
             if (HasColumn(reader, "TotalCost"))
             {
                 int o = reader.GetOrdinal("TotalCost");
@@ -106,6 +111,7 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.AddWithValue("@SupplierType", (object?)model.SupplierType ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@SupplierId", (object?)model.SupplierId ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@Notes", (object?)model.Notes ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@DollarConversionRate", (object?)model.DollarConversionRate ?? DBNull.Value);
 
                 await conn.OpenAsync();
                 var result = await cmd.ExecuteScalarAsync();
@@ -142,6 +148,7 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.AddWithValue("@SupplierType", (object?)model.SupplierType ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@SupplierId", (object?)model.SupplierId ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@Notes", (object?)model.Notes ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@DollarConversionRate", (object?)model.DollarConversionRate ?? DBNull.Value);
 
                 await conn.OpenAsync();
                 await cmd.ExecuteNonQueryAsync();

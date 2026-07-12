@@ -460,6 +460,11 @@ namespace User.Management.Service.Services
 
         public async Task<string> SetOrganizationCodeAsync(string userId, string code)
         {
+            // The org code is shared org-wide; only the owner may set/change it.
+            var ownerId = await ResolveOrgOwnerIdAsync(userId);
+            if (!string.Equals(ownerId, userId, StringComparison.Ordinal))
+                throw new Exception("Only the organization owner can change the organization code.");
+
             var normalized = User.Management.Service.Helpers.OrgCode.Normalize(code);
             var formatError = User.Management.Service.Helpers.OrgCode.Validate(normalized);
             if (formatError != null) throw new Exception(formatError);
@@ -480,15 +485,36 @@ namespace User.Management.Service.Services
             return normalized;
         }
 
+        // The organization profile (name, code, currency, owner details) belongs to
+        // the org OWNER and is shared by everyone in the org — so resolve the owner
+        // of this user's companies rather than reading the caller's own record.
+        // Falls back to the caller when they own no companies yet (they ARE the owner).
+        private async Task<string> ResolveOrgOwnerIdAsync(string userId)
+        {
+            try
+            {
+                var companies = await _companyDal.GetByUserIdAsync(userId);
+                var ownerId = companies?.FirstOrDefault(c => !string.IsNullOrEmpty(c.OwnerUserId))?.OwnerUserId;
+                return string.IsNullOrEmpty(ownerId) ? userId : ownerId;
+            }
+            catch { return userId; }
+        }
+
         public async Task<OrganizationProfile> GetOrganizationProfileAsync(string userId)
         {
-            var user = await _userManager.FindByIdAsync(userId);
-            if (user == null) throw new Exception("User not found.");
-            return MapOrgProfile(user);
+            var ownerId = await ResolveOrgOwnerIdAsync(userId);
+            var owner = await _userManager.FindByIdAsync(ownerId) ?? await _userManager.FindByIdAsync(userId);
+            if (owner == null) throw new Exception("User not found.");
+            return MapOrgProfile(owner);
         }
 
         public async Task<OrganizationProfile> UpdateOrganizationProfileAsync(string userId, OrganizationProfile profile)
         {
+            // Only the org owner may edit the shared organization profile.
+            var ownerId = await ResolveOrgOwnerIdAsync(userId);
+            if (!string.Equals(ownerId, userId, StringComparison.Ordinal))
+                throw new Exception("Only the organization owner can edit the organization profile.");
+
             var user = await _userManager.FindByIdAsync(userId);
             if (user == null) throw new Exception("User not found.");
 
