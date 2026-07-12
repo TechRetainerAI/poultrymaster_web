@@ -6,6 +6,9 @@ import { forceReauth } from "./session-expiry"
 // /Poultry/* on the Farm API via the same-origin proxy.
 
 // ----- Types -----
+// Which purchase batch gets drawn from first when an item is consumed.
+export type RawMaterialUsageMethod = "FIFO" | "LIFO" | "HIFO"
+
 export interface PoultryRawMaterialItem {
   poultryRawMaterialItemId: number
   farmId: string
@@ -17,6 +20,7 @@ export interface PoultryRawMaterialItem {
   isActive: boolean
   isLowStock?: boolean
   notes?: string | null
+  usageMethod: RawMaterialUsageMethod
   createdAt: string
   updatedAt?: string | null
 }
@@ -28,6 +32,7 @@ export interface PoultryRawMaterialItemInput {
   minimumStockAlert?: number
   isActive?: boolean
   notes?: string | null
+  usageMethod?: RawMaterialUsageMethod
 }
 
 export interface PoultryRawMaterialPurchase {
@@ -43,6 +48,8 @@ export interface PoultryRawMaterialPurchase {
   quantity: number
   unitCost: number
   totalCost: number
+  /** How much of this batch hasn't been consumed yet (drives FIFO/LIFO/HIFO draws). */
+  remainingQuantity: number
   productionUnit?: string | null
   productionUnitsPerPurchaseUnit?: number | null
   productionQuantity?: number | null
