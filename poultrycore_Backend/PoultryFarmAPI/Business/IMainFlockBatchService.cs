@@ -19,5 +19,9 @@ namespace PoultryFarmAPIWeb.Business
 
         // Deletes a single batch record.
         Task Delete(int batchId, string userId, string farmId);
+
+        // Records a follow-up payment toward a batch's outstanding balance
+        // (part payment). Returns the new outstanding balance.
+        Task<decimal> PayBalance(int batchId, string farmId, decimal amount, string? paymentMethod, DateTime? paymentDate, string? createdBy);
     }
 }

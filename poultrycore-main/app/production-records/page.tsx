@@ -19,6 +19,7 @@ import { FileText, Plus, Calendar as CalendarIcon, Download, Search, X, RefreshC
 import { sendReportEmail } from "@/lib/api/email"
 import { getProductionRecords, deleteProductionRecord, type ProductionRecord } from "@/lib/api/production-record"
 import { getFlocks, type Flock } from "@/lib/api/flock"
+import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
 import { getUserContext } from "@/lib/utils/user-context"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useToast } from "@/hooks/use-toast"
@@ -55,6 +56,7 @@ export default function ProductionRecordsPage() {
   const { toast } = useToast()
   const [records, setRecords] = useState<ProductionRecord[]>([])
   const [flocks, setFlocks] = useState<Flock[]>([])
+  const [batches, setBatches] = useState<FlockBatch[]>([])
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -65,6 +67,7 @@ export default function ProductionRecordsPage() {
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [selectedBatchId, setSelectedBatchId] = useState<string>("ALL")
   const [selectedFlockId, setSelectedFlockId] = useState<string>("ALL")
   const [selectedMonth, setSelectedMonth] = useState<string>("ALL")
   const [selectedYear, setSelectedYear] = useState<string>("ALL")
@@ -89,14 +92,16 @@ export default function ProductionRecordsPage() {
   /** Mobile sheet: draft values until Apply (fixes iOS + Radix Select in Sheet). */
   const [draftDateFrom, setDraftDateFrom] = useState("")
   const [draftDateTo, setDraftDateTo] = useState("")
+  const [draftBatchId, setDraftBatchId] = useState<string>("ALL")
   const [draftFlockId, setDraftFlockId] = useState<string>("ALL")
   const [draftMonth, setDraftMonth] = useState<string>("ALL")
   const [draftYear, setDraftYear] = useState<string>("ALL")
 
-  const hasActiveFilters = search || dateFrom || dateTo || selectedFlockId !== "ALL" || selectedMonth !== "ALL" || selectedYear !== "ALL"
+  const hasActiveFilters = search || dateFrom || dateTo || selectedBatchId !== "ALL" || selectedFlockId !== "ALL" || selectedMonth !== "ALL" || selectedYear !== "ALL"
   const hasDraftChanges =
     draftDateFrom !== dateFrom ||
     draftDateTo !== dateTo ||
+    draftBatchId !== selectedBatchId ||
     draftFlockId !== selectedFlockId ||
     draftMonth !== selectedMonth ||
     draftYear !== selectedYear
@@ -116,15 +121,17 @@ export default function ProductionRecordsPage() {
       setLoading(false)
       return
     }
-    const [res, flocksRes] = await Promise.all([
+    const [res, flocksRes, batchesRes] = await Promise.all([
       getProductionRecords(userId, farmId),
       getFlocks(userId, farmId),
+      getFlockBatches(userId, farmId),
     ])
     if (res.success && res.data) {
       setRecords(res.data)
       setError("")
     } else setError(res.message || "Failed to load records")
     if (flocksRes.success && flocksRes.data) setFlocks(flocksRes.data)
+    if (batchesRes.success && batchesRes.data) setBatches(batchesRes.data)
     setLoading(false)
   }
 
@@ -167,6 +174,56 @@ export default function ProductionRecordsPage() {
     return Array.from(map.entries()).map(([id, v]) => ({ id, name: v.name }))
   }, [records])
 
+  // Records carry only flockId; each flock carries its batchId. This map lets us
+  // filter production rows by the batch their flock belongs to.
+  const batchIdByFlockId = useMemo(() => {
+    const m = new Map<number, number | null>()
+    for (const f of flocks) m.set(f.flockId, f.batchId ?? null)
+    return m
+  }, [flocks])
+
+  // Batch dropdown options (leading "All" rendered inline in the Select).
+  const batchOptions = useMemo(
+    () =>
+      batches
+        .filter((b) => b.batchId != null)
+        .map((b) => ({ value: String(b.batchId), label: b.batchName || b.batchCode || `Batch #${b.batchId}` })),
+    [batches],
+  )
+
+  // Flocks narrowed to a chosen batch — feeds the Flock dropdown so it only lists
+  // flocks in the selected batch. Desktop reads committed state, mobile the draft.
+  const flocksForBatch = useMemo(() => {
+    if (selectedBatchId === "ALL") return flocks
+    const bid = Number(selectedBatchId)
+    return flocks.filter((f) => f.batchId === bid)
+  }, [flocks, selectedBatchId])
+
+  const draftFlocksForBatch = useMemo(() => {
+    if (draftBatchId === "ALL") return flocks
+    const bid = Number(draftBatchId)
+    return flocks.filter((f) => f.batchId === bid)
+  }, [flocks, draftBatchId])
+
+  // Changing the batch clears a now-invalid flock selection (flock not in batch).
+  const handleBatchChange = (value: string) => {
+    setSelectedBatchId(value)
+    if (value !== "ALL" && selectedFlockId !== "ALL") {
+      const bid = Number(value)
+      const stillValid = flocks.some((f) => String(f.flockId) === selectedFlockId && f.batchId === bid)
+      if (!stillValid) setSelectedFlockId("ALL")
+    }
+  }
+
+  const handleDraftBatchChange = (value: string) => {
+    setDraftBatchId(value)
+    if (value !== "ALL" && draftFlockId !== "ALL") {
+      const bid = Number(value)
+      const stillValid = flocks.some((f) => String(f.flockId) === draftFlockId && f.batchId === bid)
+      if (!stillValid) setDraftFlockId("ALL")
+    }
+  }
+
   // Distinct months/years
   const { distinctMonths, distinctYears } = useMemo(() => {
     const monthSet = new Set<string>()
@@ -196,13 +253,17 @@ export default function ProductionRecordsPage() {
     }
     if (dateFrom) list = list.filter((r) => toLocalDateKey(r.date) >= dateFrom)
     if (dateTo) list = list.filter((r) => toLocalDateKey(r.date) <= dateTo)
+    if (selectedBatchId !== "ALL") {
+      const bid = Number(selectedBatchId)
+      list = list.filter((r: any) => r.flockId != null && batchIdByFlockId.get(r.flockId) === bid)
+    }
     if (selectedFlockId !== "ALL") list = list.filter((r: any) => String(r.flockId) === selectedFlockId)
     if (selectedMonth !== "ALL") list = list.filter(r => {
       const d = new Date(r.date); const m = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; return m === selectedMonth
     })
     if (selectedYear !== "ALL") list = list.filter(r => new Date(r.date).getFullYear().toString() === selectedYear)
     return list
-  }, [records, search, dateFrom, dateTo, selectedFlockId, selectedMonth, selectedYear])
+  }, [records, search, dateFrom, dateTo, selectedBatchId, batchIdByFlockId, selectedFlockId, selectedMonth, selectedYear])
 
   /** Active + start date reached — same flock rule as Flocks; deaths only count for these flocks. */
   const eligibleFlockIds = useMemo(
@@ -303,7 +364,7 @@ export default function ProductionRecordsPage() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [search, dateFrom, dateTo, selectedFlockId, selectedMonth, selectedYear])
+  }, [search, dateFrom, dateTo, selectedBatchId, selectedFlockId, selectedMonth, selectedYear])
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
@@ -361,11 +422,13 @@ export default function ProductionRecordsPage() {
     setSearch("")
     setDateFrom("")
     setDateTo("")
+    setSelectedBatchId("ALL")
     setSelectedFlockId("ALL")
     setSelectedMonth("ALL")
     setSelectedYear("ALL")
     setDraftDateFrom("")
     setDraftDateTo("")
+    setDraftBatchId("ALL")
     setDraftFlockId("ALL")
     setDraftMonth("ALL")
     setDraftYear("ALL")
@@ -374,6 +437,7 @@ export default function ProductionRecordsPage() {
   const syncDraftFromCommitted = () => {
     setDraftDateFrom(dateFrom)
     setDraftDateTo(dateTo)
+    setDraftBatchId(selectedBatchId)
     setDraftFlockId(selectedFlockId)
     setDraftMonth(selectedMonth)
     setDraftYear(selectedYear)
@@ -382,6 +446,7 @@ export default function ProductionRecordsPage() {
   const applyMobileFilters = () => {
     setDateFrom(draftDateFrom)
     setDateTo(draftDateTo)
+    setSelectedBatchId(draftBatchId)
     setSelectedFlockId(draftFlockId)
     setSelectedMonth(draftMonth)
     setSelectedYear(draftYear)
@@ -597,7 +662,7 @@ export default function ProductionRecordsPage() {
                         <span className="truncate">Filters</span>
                         {hasActiveFilters && (
                           <span className="ml-1 h-5 min-w-[20px] px-1.5 rounded-full bg-orange-500 text-white text-xs flex items-center justify-center">
-                            {[search, dateFrom, dateTo, selectedFlockId !== "ALL", selectedMonth !== "ALL", selectedYear !== "ALL"].filter(Boolean).length}
+                            {[search, dateFrom, dateTo, selectedBatchId !== "ALL", selectedFlockId !== "ALL", selectedMonth !== "ALL", selectedYear !== "ALL"].filter(Boolean).length}
                           </span>
                         )}
                       </Button>
@@ -635,6 +700,22 @@ export default function ProductionRecordsPage() {
                           </div>
                         </div>
                         <div className="space-y-2">
+                          <label className="text-sm font-medium text-slate-700">Batch</label>
+                          <Select value={draftBatchId} onValueChange={handleDraftBatchChange}>
+                            <SelectTrigger className="h-12 text-base">
+                              <SelectValue placeholder="All Batches" />
+                            </SelectTrigger>
+                            <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
+                              <SelectItem value="ALL">All Batches</SelectItem>
+                              {batchOptions.map((b) => (
+                                <SelectItem key={b.value} value={b.value}>
+                                  {b.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
                           <label className="text-sm font-medium text-slate-700">Flock</label>
                           <Select value={draftFlockId} onValueChange={setDraftFlockId}>
                             <SelectTrigger className="h-12 text-base">
@@ -642,7 +723,7 @@ export default function ProductionRecordsPage() {
                             </SelectTrigger>
                             <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
                               <SelectItem value="ALL">All Flocks</SelectItem>
-                              {flocks.map((f) => (
+                              {draftFlocksForBatch.map((f) => (
                                 <SelectItem key={f.flockId} value={String(f.flockId)}>
                                   {f.name} ({f.quantity} birds)
                                 </SelectItem>
@@ -701,11 +782,13 @@ export default function ProductionRecordsPage() {
                             onClick={() => {
                               setDraftDateFrom("")
                               setDraftDateTo("")
+                              setDraftBatchId("ALL")
                               setDraftFlockId("ALL")
                               setDraftMonth("ALL")
                               setDraftYear("ALL")
                               setDateFrom("")
                               setDateTo("")
+                              setSelectedBatchId("ALL")
                               setSelectedFlockId("ALL")
                               setSelectedMonth("ALL")
                               setSelectedYear("ALL")
@@ -742,11 +825,20 @@ export default function ProductionRecordsPage() {
                 </div>
                 <Input type="date" placeholder="From" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[140px]" />
                 <Input type="date" placeholder="To" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[140px]" />
+                <Select value={selectedBatchId} onValueChange={handleBatchChange}>
+                  <SelectTrigger className="w-[180px]"><SelectValue placeholder="Batch" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Batches</SelectItem>
+                    {batchOptions.map(b => (
+                      <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Select value={selectedFlockId} onValueChange={setSelectedFlockId}>
                   <SelectTrigger className="w-[180px]"><SelectValue placeholder="Flock" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">All Flocks</SelectItem>
-                    {flocks.map(f => (
+                    {flocksForBatch.map(f => (
                       <SelectItem key={f.flockId} value={String(f.flockId)}>{f.name} ({f.quantity} birds)</SelectItem>
                     ))}
                   </SelectContent>

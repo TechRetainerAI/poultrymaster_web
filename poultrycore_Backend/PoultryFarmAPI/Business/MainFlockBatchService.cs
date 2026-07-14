@@ -80,6 +80,17 @@ namespace PoultryFarmAPIWeb.Business
                 int o = reader.GetOrdinal("Notes");
                 model.Notes = reader.IsDBNull(o) ? null : reader.GetString(o);
             }
+            // Procurement dates added in migration 150 — tolerate older sp shapes.
+            if (HasColumn(reader, "OrderPlacementDate"))
+            {
+                int o = reader.GetOrdinal("OrderPlacementDate");
+                model.OrderPlacementDate = reader.IsDBNull(o) ? (DateTime?)null : reader.GetDateTime(o);
+            }
+            if (HasColumn(reader, "EstimatedArrivalDate"))
+            {
+                int o = reader.GetOrdinal("EstimatedArrivalDate");
+                model.EstimatedArrivalDate = reader.IsDBNull(o) ? (DateTime?)null : reader.GetDateTime(o);
+            }
 
             return model;
         }
@@ -106,15 +117,23 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.AddWithValue("@SupplierType", (object?)model.SupplierType ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@SupplierId", (object?)model.SupplierId ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@Notes", (object?)model.Notes ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@OrderPlacementDate", (object?)model.OrderPlacementDate ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@EstimatedArrivalDate", (object?)model.EstimatedArrivalDate ?? DBNull.Value);
 
                 await conn.OpenAsync();
                 var result = await cmd.ExecuteScalarAsync();
                 // ExecuteScalarAsync returns the identity value (BatchId) from the stored procedure.
                 return Convert.ToInt32(result);
             }
+            catch (SqlException)
+            {
+                // Let SqlException propagate so GlobalExceptionMiddleware surfaces the
+                // real SQL number/message (e.g. "too many arguments", "Invalid column")
+                // instead of collapsing it into an opaque wrapper.
+                throw;
+            }
             catch (Exception ex)
             {
-                // In a real application, you would log 'ex' details.
                 throw new Exception("Error inserting Main Flock Batch record.", ex);
             }
         }
@@ -142,9 +161,15 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.AddWithValue("@SupplierType", (object?)model.SupplierType ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@SupplierId", (object?)model.SupplierId ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@Notes", (object?)model.Notes ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@OrderPlacementDate", (object?)model.OrderPlacementDate ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@EstimatedArrivalDate", (object?)model.EstimatedArrivalDate ?? DBNull.Value);
 
                 await conn.OpenAsync();
                 await cmd.ExecuteNonQueryAsync();
+            }
+            catch (SqlException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -223,6 +248,24 @@ namespace PoultryFarmAPIWeb.Business
             {
                 throw new Exception($"Error deleting Main Flock Batch ID={batchId}.", ex);
             }
+        }
+
+        public async Task<decimal> PayBalance(int batchId, string farmId, decimal amount, string? paymentMethod, DateTime? paymentDate, string? createdBy)
+        {
+            using var conn = new SqlConnection(_connectionString);
+            using var cmd = new SqlCommand("spMainFlockBatch_PayBalance", conn);
+            cmd.CommandType = CommandType.StoredProcedure;
+
+            cmd.Parameters.AddWithValue("@BatchId", batchId);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@Amount", amount);
+            cmd.Parameters.AddWithValue("@PaymentMethod", (object?)paymentMethod ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@PaymentDate", (object?)paymentDate ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@CreatedBy", (object?)createdBy ?? DBNull.Value);
+
+            await conn.OpenAsync();
+            var result = await cmd.ExecuteScalarAsync();
+            return result is null || result == DBNull.Value ? 0m : Convert.ToDecimal(result);
         }
     }
 }

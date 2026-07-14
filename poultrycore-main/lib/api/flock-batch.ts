@@ -17,6 +17,10 @@ export interface FlockBatch {
   supplierId: number | null;
   supplierName: string;
   notes?: string;
+  /** When the bird order was placed with the supplier (migration 150). */
+  orderPlacementDate?: string | null;
+  /** Expected arrival date for the ordered birds (migration 150). */
+  estimatedArrivalDate?: string | null;
   createdDate: string;
 }
 
@@ -81,6 +85,8 @@ function mapFlockBatch(raw: any): FlockBatch {
     supplierId: supplierIdRaw == null || supplierIdRaw === '' ? null : Number(supplierIdRaw),
     supplierName: raw.supplierName ?? raw.SupplierName ?? '',
     notes: raw.notes ?? raw.Notes ?? '',
+    orderPlacementDate: raw.orderPlacementDate ?? raw.OrderPlacementDate ?? null,
+    estimatedArrivalDate: raw.estimatedArrivalDate ?? raw.EstimatedArrivalDate ?? null,
     createdDate: raw.createdDate ?? raw.CreatedDate ?? '',
   }
 }
@@ -205,6 +211,8 @@ export interface FlockBatchInput {
   supplierId?: number | null;
   status?: string;
   notes?: string;
+  orderPlacementDate?: string | null;
+  estimatedArrivalDate?: string | null;
 }
 
 export async function createFlockBatch(flockBatch: FlockBatchInput): Promise<ApiResponse<FlockBatch>> {
@@ -227,6 +235,8 @@ export async function createFlockBatch(flockBatch: FlockBatchInput): Promise<Api
       SupplierId: flockBatch.supplierId ?? null,
       Status: flockBatch.status ?? 'active',
       Notes: flockBatch.notes ?? null,
+      OrderPlacementDate: flockBatch.orderPlacementDate ?? null,
+      EstimatedArrivalDate: flockBatch.estimatedArrivalDate ?? null,
     };
     
     console.log("[v0] Creating flock batch:", url, payload);
@@ -330,6 +340,8 @@ export async function createFlockBatch(flockBatch: FlockBatchInput): Promise<Api
         if (flockBatch.supplierId !== undefined) payload.SupplierId = flockBatch.supplierId;
         if (flockBatch.status !== undefined) payload.Status = flockBatch.status;
         if (flockBatch.notes !== undefined) payload.Notes = flockBatch.notes;
+        if (flockBatch.orderPlacementDate !== undefined) payload.OrderPlacementDate = flockBatch.orderPlacementDate;
+        if (flockBatch.estimatedArrivalDate !== undefined) payload.EstimatedArrivalDate = flockBatch.estimatedArrivalDate;
         
         console.log("[v0] Updating flock batch:", url, payload);
     
@@ -362,4 +374,47 @@ export async function createFlockBatch(flockBatch: FlockBatchInput): Promise<Api
         };
       }
     }
-    
+
+/**
+ * Records a follow-up payment toward a batch's outstanding balance (part payment).
+ * Mirrors the raw-material purchase "pay balance" flow. Returns the new balance.
+ */
+export async function payFlockBatchBalance(
+  batchId: number,
+  input: { amount: number; paymentMethod?: string; paymentDate?: string | null },
+  userId: string,
+  farmId: string,
+): Promise<ApiResponse<{ balance: number }>> {
+  try {
+    const url = buildApiUrl(`/MainFlockBatch/${batchId}/pay-balance`);
+    const payload = {
+      FarmId: farmId,
+      Amount: input.amount,
+      PaymentMethod: input.paymentMethod ?? 'Cash',
+      PaymentDate: input.paymentDate || null,
+      CreatedBy: userId,
+    };
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorMessage = await getErrorMessage(response, 'Failed to record balance payment');
+      return { success: false, message: errorMessage };
+    }
+
+    const data = await response.json().catch(() => null);
+    const balance = data ? (data.balance ?? data.Balance) : undefined;
+    return {
+      success: true,
+      message: 'Balance payment recorded',
+      data: { balance: Number(balance ?? 0) },
+    };
+  } catch (error) {
+    console.error('[v0] Flock batch pay-balance error:', error);
+    return { success: false, message: 'Failed to record balance payment' };
+  }
+}

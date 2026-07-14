@@ -16,9 +16,9 @@ import { NumberInput } from "@/components/ui/number-input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Plus, Pencil, Trash2, Calendar as CalendarIcon, Bird, Users, Search, RefreshCw, Loader2, Save, Filter, ChevronDown, ChevronUp, DollarSign, CheckCircle2 } from "lucide-react"
+import { Plus, Pencil, Trash2, Calendar as CalendarIcon, Bird, Users, Search, RefreshCw, Loader2, Save, Filter, ChevronDown, ChevronUp, DollarSign, CheckCircle2, Wallet } from "lucide-react"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
-import { getFlockBatches, getFlockBatch, createFlockBatch, updateFlockBatch, deleteFlockBatch, type FlockBatch, type FlockBatchInput } from "@/lib/api/flock-batch"
+import { getFlockBatches, getFlockBatch, createFlockBatch, updateFlockBatch, deleteFlockBatch, payFlockBatchBalance, type FlockBatch, type FlockBatchInput } from "@/lib/api/flock-batch"
 import { getFlocks, type Flock } from "@/lib/api/flock"
 import { getSuppliers, type Supplier } from "@/lib/api/supplier"
 import { getUserContext } from "@/lib/utils/user-context"
@@ -94,6 +94,8 @@ export default function FlockBatchesPage() {
     hasArrived: false,
     active: true,
     notes: "",
+    orderPlacementDate: "",
+    estimatedArrivalDate: "",
   })
 
   // Edit dialog state
@@ -115,8 +117,15 @@ export default function FlockBatchesPage() {
     hasArrived: false,
     active: true,
     notes: "",
+    orderPlacementDate: "",
+    estimatedArrivalDate: "",
   })
   const [editFetching, setEditFetching] = useState(false)
+
+  // Pay-balance dialog state (part payment — settle the outstanding balance later)
+  const [payTarget, setPayTarget] = useState<FlockBatch | null>(null)
+  const [paySaving, setPaySaving] = useState(false)
+  const [payForm, setPayForm] = useState({ amount: 0, paymentMethod: "Cash", paymentDate: "" })
 
   // Initial load
   useEffect(() => {
@@ -180,6 +189,8 @@ export default function FlockBatchesPage() {
       hasArrived: false,
       active: true,
       notes: "",
+      orderPlacementDate: "",
+      estimatedArrivalDate: "",
     })
     setCreateError("")
     setIsCreateDialogOpen(true)
@@ -223,6 +234,8 @@ export default function FlockBatchesPage() {
       supplierId: createForm.supplierId ? Number(createForm.supplierId) : null,
       status: batchStatusFromToggles(createForm.hasArrived, createForm.active),
       notes: createForm.notes || undefined,
+      orderPlacementDate: createForm.orderPlacementDate || null,
+      estimatedArrivalDate: createForm.estimatedArrivalDate || null,
     }
 
     const result = await createFlockBatch(flockBatchData)
@@ -268,6 +281,8 @@ export default function FlockBatchesPage() {
         hasArrived: toggles.hasArrived,
         active: toggles.active,
         notes: b.notes || "",
+        orderPlacementDate: b.orderPlacementDate ? b.orderPlacementDate.split('T')[0] : "",
+        estimatedArrivalDate: b.estimatedArrivalDate ? b.estimatedArrivalDate.split('T')[0] : "",
       })
     } else {
       setEditError(result.message || "Failed to load flock batch")
@@ -312,6 +327,8 @@ export default function FlockBatchesPage() {
       supplierId: editForm.supplierId ? Number(editForm.supplierId) : null,
       status: batchStatusFromToggles(editForm.hasArrived, editForm.active),
       notes: editForm.notes || undefined,
+      orderPlacementDate: editForm.orderPlacementDate || null,
+      estimatedArrivalDate: editForm.estimatedArrivalDate || null,
       farmId,
       userId,
     }
@@ -522,6 +539,65 @@ export default function FlockBatchesPage() {
     setLoadingFlocks(false)
   }
 
+  // Part payment: birds can be paid for over time. Balance = Total − Amount paid.
+  const fmtMoney = (n: number) => `₵${(Number(n) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const paymentStatus = (total: number, paid: number) => {
+    const t = Number(total) || 0
+    const p = Number(paid) || 0
+    if (t <= 0) return { label: "No cost set", className: "bg-slate-100 text-slate-600 border-slate-200" }
+    if (p >= t) return { label: "Paid in full", className: "bg-green-100 text-green-800 border-green-200" }
+    if (p <= 0) return { label: "Unpaid", className: "bg-red-100 text-red-800 border-red-200" }
+    return { label: "Part payment", className: "bg-amber-100 text-amber-900 border-amber-200" }
+  }
+  const createBalance = Math.max(0, (Number(createForm.totalCost) || 0) - (Number(createForm.amountPaid) || 0))
+  const createStatus = paymentStatus(createForm.totalCost, createForm.amountPaid)
+  const editBalance = Math.max(0, (Number(editForm.totalCost) || 0) - (Number(editForm.amountPaid) || 0))
+  const editStatus = paymentStatus(editForm.totalCost, editForm.amountPaid)
+
+  // Outstanding balance for a batch (Total − Paid), using the same total fallback
+  // the table shows.
+  const outstandingOf = (b: FlockBatch) => {
+    const total = Number(b.totalCost) || (Number(b.costPerChick) * Number(b.numberOfBirds)) || 0
+    return Math.max(0, total - (Number(b.amountPaid) || 0))
+  }
+
+  const openPayBalance = (b: FlockBatch) => {
+    setPayTarget(b)
+    setPayForm({ amount: outstandingOf(b), paymentMethod: "Cash", paymentDate: new Date().toISOString().split("T")[0] })
+  }
+
+  const submitPayBalance = async () => {
+    if (!payTarget) return
+    const { userId, farmId } = getUserContext()
+    if (!userId || !farmId) {
+      toast({ title: "Session issue", description: "We could not confirm your farm or user. Please sign in again.", variant: "destructive" })
+      return
+    }
+    const outstanding = outstandingOf(payTarget)
+    if (payForm.amount <= 0) {
+      toast({ title: "Enter a payment amount greater than 0.", variant: "destructive" })
+      return
+    }
+    if (payForm.amount > outstanding) {
+      toast({ title: `Amount exceeds the outstanding balance (${fmtMoney(outstanding)}).`, variant: "destructive" })
+      return
+    }
+    setPaySaving(true)
+    const res = await payFlockBatchBalance(
+      payTarget.batchId,
+      { amount: payForm.amount, paymentMethod: payForm.paymentMethod, paymentDate: payForm.paymentDate || null },
+      userId,
+      farmId,
+    )
+    if (res.success) {
+      toast({ title: "Balance payment recorded", description: `New balance: ${fmtMoney(res.data?.balance ?? 0)}.` })
+      setPayTarget(null)
+      loadFlockBatches()
+    } else {
+      toast({ title: "Payment failed", description: res.message || "Something went wrong. Please try again.", variant: "destructive" })
+    }
+    setPaySaving(false)
+  }
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -569,7 +645,7 @@ export default function FlockBatchesPage() {
                     <div className="flex items-start gap-2 min-w-0">
                       <DollarSign className="w-5 h-5 text-sky-600 shrink-0 mt-0.5" />
                       <div className="min-w-0">
-                        <div className="text-sm font-semibold text-slate-900">Total Amount Paid (USD)</div>
+                        <div className="text-sm font-semibold text-slate-900">Total Amount Paid (₵)</div>
                         <p className="text-xs text-slate-500 mt-0.5">Sum of amount paid across all batches.</p>
                       </div>
                     </div>
@@ -757,11 +833,17 @@ export default function FlockBatchesPage() {
                                   <div><span className="text-slate-500">Start</span> <span className="font-medium">{batch.startDate ? formatDateShort(batch.startDate) : "—"}</span></div>
                                   <div><span className="text-slate-500">Cost/Chick</span> <span className="font-medium tabular-nums">{Number(batch.costPerChick || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
                                   <div><span className="text-slate-500">Total Cost</span> <span className="font-medium tabular-nums">{computedTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                                  <div><span className="text-slate-500">Amount Paid (USD)</span> <span className="font-medium tabular-nums">{Number(batch.amountPaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                  <div><span className="text-slate-500">Amount Paid (₵)</span> <span className="font-medium tabular-nums">{Number(batch.amountPaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                  <div><span className="text-slate-500">Balance (₵)</span> <span className={cn("font-medium tabular-nums", (computedTotal - Number(batch.amountPaid || 0)) > 0 ? "text-red-600" : "text-emerald-700")}>{Math.max(0, computedTotal - Number(batch.amountPaid || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
                                   <div><span className="text-slate-500">Supplier</span> <span className="font-medium">{supplierLabel}</span></div>
                                   <div><span className="text-slate-500">Type</span> <span className="font-medium">{batch.supplierType ? batch.supplierType.charAt(0).toUpperCase() + batch.supplierType.slice(1).toLowerCase() : "—"}</span></div>
                                 </div>
                                 <div className="flex gap-2 pt-2">
+                                  {(computedTotal - Number(batch.amountPaid || 0)) > 0 && (
+                                    <Button variant="outline" size="sm" className="flex-1 h-10 text-emerald-600 border-emerald-200 hover:bg-emerald-50" onClick={(e) => { e.stopPropagation(); openPayBalance(batch) }}>
+                                      <Wallet className="h-4 w-4 mr-2" /> Pay
+                                    </Button>
+                                  )}
                                   <Button variant="outline" size="sm" className="flex-1 h-10" onClick={(e) => { e.stopPropagation(); openEditDialog(batch.batchId) }}>
                                     <Pencil className="h-4 w-4 mr-2" /> Edit
                                   </Button>
@@ -805,7 +887,8 @@ export default function FlockBatchesPage() {
                           <SortableHeader label="Breed" sortKey="breed" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[150px] hidden lg:table-cell" />
                           <SortableHeader label="Cost/Chick" sortKey="costPerChick" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[110px] hidden md:table-cell" />
                           <SortableHeader label="Total Cost" sortKey="totalCost" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[120px] hidden md:table-cell" />
-                          <SortableHeader label="Amount Paid (USD)" sortKey="amountPaid" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[140px] hidden md:table-cell" />
+                          <SortableHeader label="Amount Paid (₵)" sortKey="amountPaid" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[140px] hidden md:table-cell" />
+                          <TableHead className="font-semibold text-slate-900 min-w-[120px] hidden lg:table-cell">Balance (₵)</TableHead>
                           <SortableHeader label="Supplier" sortKey="supplierName" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[150px] hidden lg:table-cell" />
                           <SortableHeader label="Type" sortKey="supplierType" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[100px] hidden lg:table-cell" />
                           <SortableHeader label="Status" sortKey="status" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[100px] hidden md:table-cell" />
@@ -850,6 +933,9 @@ export default function FlockBatchesPage() {
                             <TableCell className="text-slate-700 font-medium hidden md:table-cell tabular-nums">
                               {Number(batch.amountPaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
+                            <TableCell className={cn("font-medium hidden lg:table-cell tabular-nums", (computedTotal - Number(batch.amountPaid || 0)) > 0 ? "text-red-600" : "text-emerald-700")}>
+                              {Math.max(0, computedTotal - Number(batch.amountPaid || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
                             <TableCell className="text-slate-600 hidden lg:table-cell">{supplierLabel}</TableCell>
                             <TableCell className="hidden lg:table-cell">
                               {batch.supplierType ? (
@@ -880,6 +966,11 @@ export default function FlockBatchesPage() {
                             </TableCell>
                             <TableCell className={cn("text-center bg-white", isMobile && "sticky-col-actions")}>
                               <div className="flex items-center justify-center gap-1">
+                                {(computedTotal - Number(batch.amountPaid || 0)) > 0 && (
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:bg-emerald-50" title="Pay balance" onClick={(e) => { e.stopPropagation(); openPayBalance(batch) }}>
+                                    <Wallet className="w-4 h-4" />
+                                  </Button>
+                                )}
                                 <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600" onClick={(e) => { e.stopPropagation(); openEditDialog(batch.batchId) }}>
                                   <Pencil className="w-4 h-4" />
                                 </Button>
@@ -1117,8 +1208,9 @@ export default function FlockBatchesPage() {
                   <NumberInput min="0" step="0.01" placeholder="Auto-calculated" value={createForm.totalCost} onChange={(e) => setCreateForm({ ...createForm, totalCost: parseFloat(e.target.value) || 0 })} disabled={createLoading} />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Amount Paid (USD)</Label>
+                  <Label className="text-sm font-medium text-slate-700">Amount Paid Now (₵)</Label>
                   <NumberInput min="0" step="0.01" placeholder="e.g., 250.00" value={createForm.amountPaid} onChange={(e) => setCreateForm({ ...createForm, amountPaid: parseFloat(e.target.value) || 0 })} disabled={createLoading} />
+                  <p className="text-xs text-slate-500">Part payment is fine — pay the balance later by editing the batch.</p>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-slate-700">Type</Label>
@@ -1140,6 +1232,32 @@ export default function FlockBatchesPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 overflow-hidden">
+              <div className="bg-sky-600 px-4 py-2 text-sm font-semibold text-white">Order &amp; Delivery</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">Order Placement Date</Label>
+                  <Input type="date" value={createForm.orderPlacementDate} onChange={(e) => setCreateForm({ ...createForm, orderPlacementDate: e.target.value })} disabled={createLoading} />
+                  <p className="text-xs text-slate-500">When you placed the order with the supplier.</p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">Estimated Arrival Date</Label>
+                  <Input type="date" value={createForm.estimatedArrivalDate} onChange={(e) => setCreateForm({ ...createForm, estimatedArrivalDate: e.target.value })} disabled={createLoading} />
+                  <p className="text-xs text-slate-500">When the birds are expected to arrive.</p>
+                </div>
+                <div className="md:col-span-2 rounded-lg bg-slate-50 border border-slate-200 p-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-sm text-slate-600">
+                    Total <span className="font-semibold text-slate-900 tabular-nums">{fmtMoney(createForm.totalCost)}</span>
+                    <span className="mx-2 text-slate-300">•</span>
+                    Paid <span className="font-semibold text-emerald-700 tabular-nums">{fmtMoney(createForm.amountPaid)}</span>
+                    <span className="mx-2 text-slate-300">•</span>
+                    Balance <span className={cn("font-semibold tabular-nums", createBalance > 0 ? "text-red-600" : "text-emerald-700")}>{fmtMoney(createBalance)}</span>
+                  </div>
+                  <Badge variant="outline" className={createStatus.className}>{createStatus.label}</Badge>
                 </div>
               </div>
             </div>
@@ -1239,8 +1357,9 @@ export default function FlockBatchesPage() {
                     <NumberInput min="0" step="0.01" placeholder="Auto-calculated" value={editForm.totalCost} onChange={(e) => setEditForm({ ...editForm, totalCost: parseFloat(e.target.value) || 0 })} disabled={editLoading} />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-700">Amount Paid (USD)</Label>
+                    <Label className="text-sm font-medium text-slate-700">Amount Paid (₵)</Label>
                     <NumberInput min="0" step="0.01" placeholder="e.g., 250.00" value={editForm.amountPaid} onChange={(e) => setEditForm({ ...editForm, amountPaid: parseFloat(e.target.value) || 0 })} disabled={editLoading} />
+                    <p className="text-xs text-slate-500">Raise this to record a further payment toward the balance.</p>
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-slate-700">Type</Label>
@@ -1262,6 +1381,32 @@ export default function FlockBatchesPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 overflow-hidden">
+                <div className="bg-sky-600 px-4 py-2 text-sm font-semibold text-white">Order &amp; Delivery</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-white">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Order Placement Date</Label>
+                    <Input type="date" value={editForm.orderPlacementDate} onChange={(e) => setEditForm({ ...editForm, orderPlacementDate: e.target.value })} disabled={editLoading} />
+                    <p className="text-xs text-slate-500">When you placed the order with the supplier.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Estimated Arrival Date</Label>
+                    <Input type="date" value={editForm.estimatedArrivalDate} onChange={(e) => setEditForm({ ...editForm, estimatedArrivalDate: e.target.value })} disabled={editLoading} />
+                    <p className="text-xs text-slate-500">When the birds are expected to arrive.</p>
+                  </div>
+                  <div className="md:col-span-2 rounded-lg bg-slate-50 border border-slate-200 p-3 flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-sm text-slate-600">
+                      Total <span className="font-semibold text-slate-900 tabular-nums">{fmtMoney(editForm.totalCost)}</span>
+                      <span className="mx-2 text-slate-300">•</span>
+                      Paid <span className="font-semibold text-emerald-700 tabular-nums">{fmtMoney(editForm.amountPaid)}</span>
+                      <span className="mx-2 text-slate-300">•</span>
+                      Balance <span className={cn("font-semibold tabular-nums", editBalance > 0 ? "text-red-600" : "text-emerald-700")}>{fmtMoney(editBalance)}</span>
+                    </div>
+                    <Badge variant="outline" className={editStatus.className}>{editStatus.label}</Badge>
                   </div>
                 </div>
               </div>
@@ -1295,6 +1440,66 @@ export default function FlockBatchesPage() {
                 </Button>
               </div>
             </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Pay Balance Dialog */}
+      <Dialog open={!!payTarget} onOpenChange={(open) => { if (!open) setPayTarget(null) }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wallet className="w-5 h-5 text-emerald-600" /> Pay Balance
+            </DialogTitle>
+            <DialogDescription>
+              {payTarget ? `${payTarget.batchName} — outstanding ${fmtMoney(outstandingOf(payTarget))}` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {payTarget && (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-sm text-slate-600">
+                Total <span className="font-semibold text-slate-900 tabular-nums">{fmtMoney(Number(payTarget.totalCost) || (Number(payTarget.costPerChick) * Number(payTarget.numberOfBirds)) || 0)}</span>
+                <span className="mx-2 text-slate-300">•</span>
+                Paid <span className="font-semibold text-emerald-700 tabular-nums">{fmtMoney(payTarget.amountPaid)}</span>
+                <span className="mx-2 text-slate-300">•</span>
+                Balance <span className="font-semibold text-red-600 tabular-nums">{fmtMoney(outstandingOf(payTarget))}</span>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-slate-700">Payment amount (₵)</Label>
+                <NumberInput
+                  min="0"
+                  step="0.01"
+                  value={payForm.amount}
+                  onChange={(e) => setPayForm({ ...payForm, amount: parseFloat(e.target.value) || 0 })}
+                  disabled={paySaving}
+                />
+                <p className="text-xs text-slate-500">Capped at the outstanding balance. This posts an expense for the amount paid.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">Method</Label>
+                  <Select value={payForm.paymentMethod} onValueChange={(v) => setPayForm({ ...payForm, paymentMethod: v })} disabled={paySaving}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Cash">Cash</SelectItem>
+                      <SelectItem value="MoMo">MoMo</SelectItem>
+                      <SelectItem value="Bank">Bank</SelectItem>
+                      <SelectItem value="Card">Card</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">Payment date</Label>
+                  <Input type="date" value={payForm.paymentDate} onChange={(e) => setPayForm({ ...payForm, paymentDate: e.target.value })} disabled={paySaving} />
+                </div>
+              </div>
+              <div className="flex gap-3 justify-end pt-2">
+                <Button type="button" variant="outline" onClick={() => setPayTarget(null)} disabled={paySaving}>Cancel</Button>
+                <Button type="button" onClick={submitPayBalance} disabled={paySaving}>
+                  {paySaving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Recording...</> : "Record payment"}
+                </Button>
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>
