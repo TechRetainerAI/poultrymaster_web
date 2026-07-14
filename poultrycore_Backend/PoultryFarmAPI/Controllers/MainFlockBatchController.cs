@@ -106,5 +106,29 @@ namespace PoultryFarmAPIWeb.Controllers
             await _batchService.Delete(id, userId, farmId);
             return NoContent(); // 204 No Content success response.
         }
+
+        // POST: api/MainFlockBatch/5/pay-balance
+        // Records a follow-up payment toward the batch's outstanding balance.
+        [HttpPost("{id:int}/pay-balance")]
+        public async Task<IActionResult> PayBalance(int id, [FromBody] FlockBatchPayBalanceRequest body)
+        {
+            if (body is null || string.IsNullOrWhiteSpace(body.FarmId))
+                return BadRequest("FarmId is required.");
+            if (body.Amount <= 0)
+                return BadRequest("Payment amount must be greater than 0.");
+
+            var balance = await _batchService.PayBalance(id, body.FarmId, body.Amount, body.PaymentMethod, body.PaymentDate, body.CreatedBy);
+            return Ok(new { Balance = balance });
+        }
+    }
+
+    // Body for POST api/MainFlockBatch/{id}/pay-balance.
+    public class FlockBatchPayBalanceRequest
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+        public string? PaymentMethod { get; set; }
+        public DateTime? PaymentDate { get; set; }
+        public string? CreatedBy { get; set; }
     }
 }

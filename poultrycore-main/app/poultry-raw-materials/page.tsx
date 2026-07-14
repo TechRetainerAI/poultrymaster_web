@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, AlertTriangle } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
+import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import {
@@ -156,6 +157,16 @@ export default function PoultryRawMaterialsPage() {
   }
 
   const itemById = useMemo(() => new Map(items.map((i) => [i.poultryRawMaterialItemId, i])), [items])
+
+  // Headline figures for the summary cards.
+  const stats = useMemo(() => ({
+    itemsCount: items.length,
+    activeCount: items.filter((i) => i.isActive).length,
+    lowStock: items.filter((i) => i.isActive && i.isLowStock).length,
+    purchaseTotal: purchases.reduce((s, p) => s + (Number(p.totalCost) || 0), 0),
+    paidTotal: purchases.reduce((s, p) => s + (Number(p.amountPaid) || 0), 0),
+    outstanding: purchases.reduce((s, p) => s + (Number(p.balance) || 0), 0),
+  }), [items, purchases])
   const unitOptions = (current?: string | null) => {
     const set = [...UNITS]; const c = (current ?? "").trim()
     if (c && !set.includes(c)) set.unshift(c)
@@ -271,27 +282,65 @@ export default function PoultryRawMaterialsPage() {
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
         <main className="flex-1 p-4 sm:p-6 space-y-4">
-          <div className="flex items-center justify-between">
+          <Tabs defaultValue="items" onValueChange={(v) => { if (v === "usage") void loadUsage() }} className="gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h1 className="text-2xl font-bold">Raw Materials &amp; Supplies</h1>
               <p className="text-sm text-slate-500">Track feed inputs, packaging, medication and other supplies — purchases, costing and usage.</p>
             </div>
+            <TabsList className="self-start sm:self-auto sm:ml-auto">
+              <TabsTrigger value="items"><Box className="w-4 h-4 mr-1" /> Items</TabsTrigger>
+              <TabsTrigger value="purchases"><ShoppingCart className="w-4 h-4 mr-1" /> Purchases</TabsTrigger>
+              <TabsTrigger value="usage"><Wallet className="w-4 h-4 mr-1" /> Usage History</TabsTrigger>
+            </TabsList>
           </div>
 
           {loading ? (
             <div className="flex items-center gap-2 text-slate-500 p-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
           ) : (
-            <Tabs defaultValue="items" onValueChange={(v) => { if (v === "usage") void loadUsage() }}>
-              <TabsList>
-                <TabsTrigger value="items"><Box className="w-4 h-4 mr-1" /> Items</TabsTrigger>
-                <TabsTrigger value="purchases"><ShoppingCart className="w-4 h-4 mr-1" /> Purchases</TabsTrigger>
-                <TabsTrigger value="usage"><Wallet className="w-4 h-4 mr-1" /> Usage History</TabsTrigger>
-              </TabsList>
+            <>
+              {/* Summary */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 uppercase tracking-wide">
+                    <Box className="w-4 h-4 text-blue-600" /> Active Items
+                  </div>
+                  <div className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{stats.activeCount.toLocaleString()}</div>
+                  <div className="text-xs text-slate-400 mt-0.5">of {stats.itemsCount.toLocaleString()} total</div>
+                </div>
+                <div className={cn("p-4 rounded-xl border shadow-sm", stats.lowStock > 0 ? "bg-amber-50 border-amber-200" : "bg-white border-slate-200")}>
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 uppercase tracking-wide">
+                    <AlertTriangle className={cn("w-4 h-4", stats.lowStock > 0 ? "text-amber-600" : "text-slate-400")} /> Low Stock
+                  </div>
+                  <div className={cn("mt-1 text-2xl font-bold tabular-nums", stats.lowStock > 0 ? "text-amber-700" : "text-slate-900")}>{stats.lowStock.toLocaleString()}</div>
+                  <div className="text-xs text-slate-400 mt-0.5">{stats.lowStock > 0 ? "need restocking" : "all stocked"}</div>
+                </div>
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 uppercase tracking-wide">
+                    <ShoppingCart className="w-4 h-4 text-emerald-600" /> Purchases Value
+                  </div>
+                  <div className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{gh(stats.purchaseTotal)}</div>
+                  <div className="text-xs text-slate-400 mt-0.5">Paid {gh(stats.paidTotal)}</div>
+                </div>
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 uppercase tracking-wide">
+                    <Wallet className={cn("w-4 h-4", stats.outstanding > 0 ? "text-red-600" : "text-slate-400")} /> Outstanding
+                  </div>
+                  <div className={cn("mt-1 text-2xl font-bold tabular-nums", stats.outstanding > 0 ? "text-red-600" : "text-emerald-700")}>{gh(stats.outstanding)}</div>
+                  <div className="text-xs text-slate-400 mt-0.5">owed to suppliers</div>
+                </div>
+              </div>
 
               {/* ITEMS */}
               <TabsContent value="items">
                 <Card><CardContent className="p-4">
-                  <div className="flex justify-end mb-3"><Button onClick={openNewItem}><Plus className="w-4 h-4 mr-1" /> New item</Button></div>
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div className="min-w-0">
+                      <h2 className="text-base font-semibold text-slate-900">Inventory Items</h2>
+                      <p className="text-xs text-slate-500">Feed, packaging, medication and other stock-tracked supplies.</p>
+                    </div>
+                    <Button onClick={openNewItem} className="shrink-0"><Plus className="w-4 h-4 mr-1" /> New item</Button>
+                  </div>
                   <div className="hidden md:block overflow-x-auto"><Table className="min-w-[640px]">
                     <TableHeader><TableRow>
                       <TableHead>Item</TableHead><TableHead>Category</TableHead><TableHead>Unit</TableHead>
@@ -340,7 +389,13 @@ export default function PoultryRawMaterialsPage() {
               {/* PURCHASES */}
               <TabsContent value="purchases">
                 <Card><CardContent className="p-4">
-                  <div className="flex justify-end mb-3"><Button onClick={openNewPurchase}><Plus className="w-4 h-4 mr-1" /> New purchase</Button></div>
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div className="min-w-0">
+                      <h2 className="text-base font-semibold text-slate-900">Purchase History</h2>
+                      <p className="text-xs text-slate-500">Stock received, costing, and supplier part payments.</p>
+                    </div>
+                    <Button onClick={openNewPurchase} className="shrink-0"><Plus className="w-4 h-4 mr-1" /> New purchase</Button>
+                  </div>
                   <div className="hidden md:block overflow-x-auto"><Table className="min-w-[640px]">
                     <TableHeader><TableRow>
                       <TableHead>Date</TableHead><TableHead>Item</TableHead><TableHead>Supplier</TableHead>
@@ -389,6 +444,10 @@ export default function PoultryRawMaterialsPage() {
               {/* USAGE */}
               <TabsContent value="usage">
                 <Card><CardContent className="p-4">
+                  <div className="mb-3">
+                    <h2 className="text-base font-semibold text-slate-900">Usage History</h2>
+                    <p className="text-xs text-slate-500">Stock consumed when production batches are recorded.</p>
+                  </div>
                   <div className="hidden md:block overflow-x-auto"><Table className="min-w-[640px]">
                     <TableHeader><TableRow>
                       <TableHead>Date</TableHead><TableHead>Item</TableHead>
@@ -421,8 +480,9 @@ export default function PoultryRawMaterialsPage() {
                   </div>
                 </CardContent></Card>
               </TabsContent>
-            </Tabs>
+            </>
           )}
+          </Tabs>
         </main>
       </div>
 
