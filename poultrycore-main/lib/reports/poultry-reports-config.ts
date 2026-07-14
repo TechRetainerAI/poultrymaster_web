@@ -211,8 +211,24 @@ const orderedGroups = [
   ...POULTRY_REPORT_GROUPS.filter((g) => !MENU_GROUP_ORDER.includes(g.key)),
 ]
 
+const advancedMenuGroups = orderedGroups.map(groupToMenu)
+
+// Batch Production Summary is a standalone client-side report (aggregates the
+// existing production records by flock batch — no backend endpoint), so it's
+// added to the Production group by href rather than as a data-driven slug.
+const productionMenu = advancedMenuGroups.find((g) => g.key === "production")
+if (productionMenu) {
+  productionMenu.items.push({
+    id: "batch-production-summary",
+    title: "Batch Production Summary",
+    description: "Production performance rolled up per flock batch.",
+    icon: Boxes,
+    href: "/poultry/reports/batch-production-summary",
+  })
+}
+
 export const POULTRY_REPORT_MENU_GROUPS: PoultryReportMenuGroup[] = [
-  ...orderedGroups.map(groupToMenu),
+  ...advancedMenuGroups,
   POULTRY_DASHBOARD_GROUP,
   POULTRY_CLOSING_GROUP,
   POULTRY_ACTIVITY_GROUP,

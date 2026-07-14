@@ -284,6 +284,20 @@ export default function ProductionRecordsPage() {
     return name ?? `Flock #${r.flockId}`
   }
 
+  /** Lookup batch label by ID — for the Batch column (record → flock → batch). */
+  const batchLabelById = useMemo(() => {
+    const m = new Map<number, string>()
+    for (const b of batches) m.set(b.batchId, b.batchName || b.batchCode || `Batch #${b.batchId}`)
+    return m
+  }, [batches])
+
+  const resolveBatchLabel = (r: any): string => {
+    if (r.flockId == null) return "-"
+    const bid = batchIdByFlockId.get(r.flockId)
+    if (bid == null) return "-"
+    return batchLabelById.get(bid) ?? `Batch #${bid}`
+  }
+
   // Summaries
   const totalEggs = useMemo(() => filtered.reduce((s, r) => s + (Number(r.totalProduction) || 0), 0), [filtered])
   const totalFeed = useMemo(() => filtered.reduce((s, r) => s + (Number(r.feedKg) || 0), 0), [filtered])
@@ -333,6 +347,7 @@ export default function ProductionRecordsPage() {
       switch (key) {
         case "date": return new Date(item.date)
         case "flockId": return item.flockId ?? 0
+        case "batchName": return resolveBatchLabel(item).toLowerCase()
         case "age": return item.ageInDays ?? 0
         case "production9AM": return Number(item.production9AM) || 0
         case "production12PM": return Number(item.production12PM) || 0
@@ -456,11 +471,12 @@ export default function ProductionRecordsPage() {
 
   const exportCsv = () => {
     const headers = [
-      "Date","FlockId","Age","9am","12pm","4pm","Total","Size","EggPercent","FeedKg","Birds","Deaths","Left","Medication"
+      "Date","FlockId","Batch","Age","9am","12pm","4pm","Total","Size","EggPercent","FeedKg","Birds","Deaths","Left","Medication"
     ]
     const rows = filtered.map((r: any) => [
       new Date(r.date).toLocaleDateString(),
       r.flockId ?? "",
+      resolveBatchLabel(r),
       formatAge(r),
       r.production9AM ?? 0,
       r.production12PM ?? 0,
@@ -507,7 +523,7 @@ export default function ProductionRecordsPage() {
 
     // Table
     const headers = [
-      "Date", "Flock", "Age", "9am", "12pm", "4pm", "Total", "Size", "Egg%", "Feed(kg)", "Birds", "Deaths", "Left", "Medication"
+      "Date", "Flock", "Batch", "Age", "9am", "12pm", "4pm", "Total", "Size", "Egg%", "Feed(kg)", "Birds", "Deaths", "Left", "Medication"
     ]
 
     const rows = filtered.map((r: any) => {
@@ -518,6 +534,7 @@ export default function ProductionRecordsPage() {
       return [
         new Date(r.date).toLocaleDateString(),
         r.flockId != null ? `#${r.flockId}` : "-",
+        resolveBatchLabel(r),
         formatAge(r),
         r.production9AM ?? 0,
         r.production12PM ?? 0,
@@ -535,7 +552,7 @@ export default function ProductionRecordsPage() {
 
     // Add totals row
     rows.push([
-      "TOTALS", "", "",
+      "TOTALS", "", "", "",
       total9AM, total12PM, total4PM,
       `${totalEggs} (${totalEggsCrates}c+${totalEggsPieces}p)`,
       "",
@@ -553,9 +570,10 @@ export default function ProductionRecordsPage() {
       footStyles: { fillColor: [226, 232, 240], textColor: [30, 41, 59], fontStyle: "bold" },
       columnStyles: {
         0: { cellWidth: 22 },
-        2: { cellWidth: 28 },
-        7: { cellWidth: 16 },
-        13: { cellWidth: 22 },
+        2: { cellWidth: 24 },
+        3: { cellWidth: 28 },
+        8: { cellWidth: 16 },
+        14: { cellWidth: 22 },
       },
       didParseCell: (data: any) => {
         // Bold the last (totals) row
@@ -971,6 +989,9 @@ export default function ProductionRecordsPage() {
                                       <span className="text-slate-500">•</span>
                                       <span className="text-slate-600 truncate">{resolveFlockLabel(r)}</span>
                                     </div>
+                                    {resolveBatchLabel(r) !== "-" && (
+                                      <div className="mt-0.5 text-xs text-slate-500 truncate">Batch: {resolveBatchLabel(r)}</div>
+                                    )}
                                     <div className="mt-3 grid grid-cols-2 gap-2">
                                       <div className="rounded-lg bg-emerald-100 border border-emerald-300 px-3 py-2 shadow-sm">
                                         <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-900">Eggs</p>
@@ -1036,11 +1057,12 @@ export default function ProductionRecordsPage() {
                         </div>
                       </>
                     )}
-                    <Table className={cn("min-w-[1480px]", isMobile && "min-w-[1280px]")}>
+                    <Table className={cn("min-w-[1600px]", isMobile && "min-w-[1400px]")}>
                       <TableHeader className="sticky top-0 bg-blue-50 z-10">
                         <TableRow className="border-b border-blue-200">
                           <SortableHeader label="Date" sortKey="date" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className={cn("min-w-[100px] px-3 py-2", isMobile && "sticky-col-date bg-blue-50")} />
                           <SortableHeader label="Flock" sortKey="flockId" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className={cn("min-w-[70px] px-3 py-2", isMobile && "sticky-col-flock bg-blue-50")} />
+                          <SortableHeader label="Batch" sortKey="batchName" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[120px] px-3 py-2 whitespace-nowrap" />
                           <SortableHeader label="Age" sortKey="age" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[170px] px-3 py-2" />
                           <SortableHeader label="9am" sortKey="production9AM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-blue-100 text-blue-900 font-semibold" />
                           <SortableHeader label="12pm" sortKey="production12PM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-orange-100 text-orange-900 font-semibold" />
@@ -1059,7 +1081,7 @@ export default function ProductionRecordsPage() {
                       <TableBody>
                         {paginatedRecords.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={15} className="py-12 text-center text-slate-500">
+                            <TableCell colSpan={16} className="py-12 text-center text-slate-500">
                               No records found for the selected filters.
                               <Button variant="link" className="ml-1" onClick={() => { setEditing(null); setFormOpen(true) }}>Log one now</Button>
                             </TableCell>
@@ -1074,6 +1096,7 @@ export default function ProductionRecordsPage() {
                           >
                             <TableCell className={cn("px-3 py-2 whitespace-nowrap min-w-[100px]", isMobile && "sticky-col-date bg-white")}>{isMobile ? formatDateShort(r.date) : new Date(r.date).toLocaleDateString()}</TableCell>
                             <TableCell className={cn("px-3 py-2 whitespace-nowrap min-w-[120px] font-medium text-slate-800", isMobile && "sticky-col-flock bg-white")}>{resolveFlockLabel(r)}</TableCell>
+                            <TableCell className="px-3 py-2 whitespace-nowrap min-w-[120px] text-slate-600">{resolveBatchLabel(r)}</TableCell>
                             <TableCell className="px-3 py-2">{formatAge(r)}</TableCell>
                             <TableCell className="text-right px-3 py-2 text-blue-700 bg-blue-50/40 rounded-sm">{r.production9AM ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2 text-orange-700 bg-orange-50/40 rounded-sm">{r.production12PM ?? 0}</TableCell>
@@ -1102,6 +1125,7 @@ export default function ProductionRecordsPage() {
                           <TableRow className="bg-slate-50/60">
                             <TableCell className={cn("font-semibold text-xs px-3 py-2 bg-slate-50", isMobile && "sticky-col-date")}>Totals</TableCell>
                             <TableCell className={cn("bg-slate-50", isMobile && "sticky-col-flock")}></TableCell>
+                            <TableCell></TableCell>
                             <TableCell></TableCell>
                             <TableCell className="text-right font-semibold px-3 py-2 text-blue-800 bg-blue-50 border border-blue-100 rounded">{total9AM.toLocaleString()}<div className="text-xs font-normal text-blue-600">{Math.floor(total9AM / EGGS_PER_CRATE)}c + {total9AM % EGGS_PER_CRATE}p</div></TableCell>
                             <TableCell className="text-right font-semibold px-3 py-2 text-orange-800 bg-orange-50 border border-orange-100 rounded">{total12PM.toLocaleString()}<div className="text-xs font-normal text-orange-600">{Math.floor(total12PM / EGGS_PER_CRATE)}c + {total12PM % EGGS_PER_CRATE}p</div></TableCell>
