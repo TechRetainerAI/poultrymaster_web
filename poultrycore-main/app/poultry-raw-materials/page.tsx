@@ -31,7 +31,7 @@ import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poul
 
 const CATEGORIES = ["FeedIngredient", "Packaging", "Medication", "Vaccine", "Bedding", "Disinfectant", "SparePart", "Fuel", "Other"]
 const PAYMENT_METHODS = ["Cash", "MoMo", "Bank", "Credit"]
-const UNITS = ["Bag", "Sack", "Kilogram", "Gram", "Litre", "Millilitre", "Bottle", "Sachet", "Piece", "Pack", "Carton", "Box", "Bundle", "Dozen", "Crate", "Unit", "Other"]
+const UNITS = ["Bag", "Sack", "Tonne", "Kilogram", "Gram", "Litre", "Millilitre", "Bottle", "Sachet", "Piece", "Pack", "Carton", "Box", "Bundle", "Dozen", "Crate", "Unit", "Other"]
 
 type ItemForm = { itemName: string; category: string; unitOfMeasure: string; minimumStockAlert: number; isActive: boolean; notes: string | null; usageMethod: RawMaterialUsageMethod }
 const EMPTY_ITEM: ItemForm = { itemName: "", category: "FeedIngredient", unitOfMeasure: "", minimumStockAlert: 0, isActive: true, notes: null, usageMethod: "FIFO" }
@@ -507,17 +507,26 @@ export default function PoultryRawMaterialsPage() {
             const prodQty = qty * perPurchase
             const prodUnitCost = prodQty > 0 ? total / prodQty : 0
             const selItem = itemById.get(f.poultryRawMaterialItemId)
-            const purchaseUnitLabel = selItem?.unitOfMeasure || f.purchaseUnit || "unit"
+            // Purchase unit is an editable per-entry label (mirrors the water side);
+            // it defaults to the item's unit of measure. Display-only (drives the
+            // quantity/cost labels) — not persisted, so no schema impact.
+            const purchaseUnitLabel = f.purchaseUnit || selItem?.unitOfMeasure || "unit"
             return (
               <>
                 <FormSection title="Purchase Quantity & Production Costing" color="blue">
                   <FormField label="Raw material item *">
-                    <Select value={f.poultryRawMaterialItemId ? String(f.poultryRawMaterialItemId) : ""} onValueChange={(v) => setPurchaseForm({ ...f, poultryRawMaterialItemId: Number(v) })}>
+                    <Select value={f.poultryRawMaterialItemId ? String(f.poultryRawMaterialItemId) : ""} onValueChange={(v) => { const id = Number(v); const it = itemById.get(id); setPurchaseForm({ ...f, poultryRawMaterialItemId: id, purchaseUnit: it?.unitOfMeasure ?? f.purchaseUnit }) }}>
                       <SelectTrigger><SelectValue placeholder="Pick item" /></SelectTrigger>
                       <SelectContent>{items.filter((i) => i.isActive).map((i) => <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>{i.itemName}{i.unitOfMeasure ? ` (${i.unitOfMeasure})` : ""}</SelectItem>)}</SelectContent>
                     </Select>
                   </FormField>
-                  <FormField label={`Purchase quantity${selItem?.unitOfMeasure ? ` (${selItem.unitOfMeasure})` : ""} *`}><NumberInput min={0} step="0.001" value={f.quantity} onChange={(e) => setPurchaseForm({ ...f, quantity: Number(e.target.value) || 0 })} /></FormField>
+                  <FormField label="Purchase unit *">
+                    <Select value={f.purchaseUnit || ""} onValueChange={(v) => setPurchaseForm({ ...f, purchaseUnit: v })}>
+                      <SelectTrigger><SelectValue placeholder="Pick unit" /></SelectTrigger>
+                      <SelectContent>{unitOptions(f.purchaseUnit).map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </FormField>
+                  <FormField label={`Purchase quantity${purchaseUnitLabel ? ` (${purchaseUnitLabel})` : ""} *`}><NumberInput min={0} step="0.001" value={f.quantity} onChange={(e) => setPurchaseForm({ ...f, quantity: Number(e.target.value) || 0 })} /></FormField>
                   <FormField label="" full>
                     <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                       <div>
@@ -598,6 +607,10 @@ export default function PoultryRawMaterialsPage() {
                   </FormField>
                   <FormField label="Balance (auto)"><Input readOnly tabIndex={-1} className={roCls} value={gh(Math.max(0, total - (f.amountPaid || 0)))} /></FormField>
                   <FormField label="" full><p className="text-xs text-slate-500">Choosing a cash account posts a cash-out for the amount paid and reduces that account's balance.</p></FormField>
+                </FormSection>
+
+                <FormSection title="Notes" color="slate" columns={1}>
+                  <FormField label="Notes"><Textarea rows={3} placeholder="Optional notes about this purchase" value={f.notes} onChange={(e) => setPurchaseForm({ ...f, notes: e.target.value })} /></FormField>
                 </FormSection>
 
                 <div className="flex justify-end gap-2">

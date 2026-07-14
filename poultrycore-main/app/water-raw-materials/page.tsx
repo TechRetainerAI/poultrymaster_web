@@ -39,7 +39,7 @@ const CATEGORIES = ["PackagingRoll","SachetFilm","OuterBag","Chemical","Filter",
 const PAYMENT_METHODS = ["Cash","MoMo","Bank","Credit"]
 // Spec #12: purchase / production units are dropdowns. The item's own unit is
 // merged in at render time so custom units aren't lost.
-const UNITS = ["Roll","Bag","Sachet","Bottle","Piece","Pack","Carton","Box","Bundle","Dozen","Litre","Millilitre","Kilogram","Gram","Bale","Unit","Other"]
+const UNITS = ["Roll","Bag","Sachet","Bottle","Piece","Pack","Carton","Box","Bundle","Dozen","Litre","Millilitre","Tonne","Kilogram","Gram","Bale","Unit","Other"]
 
 type ItemForm = Omit<WaterRawMaterialItem, "waterRawMaterialItemId" | "farmId" | "currentQuantity">
 const EMPTY_ITEM: ItemForm = { itemName: "", category: "PackagingRoll", unitOfMeasure: "", minimumStockAlert: 0, isActive: true, notes: null }
