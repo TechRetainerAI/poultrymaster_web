@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
+import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, AlertTriangle } from "lucide-react"
@@ -94,6 +95,12 @@ export default function PoultryRawMaterialsPage() {
   const [loading, setLoading] = useState(true)
   const [cashAccounts, setCashAccounts] = useState<PoultryCashAccount[]>([])
 
+  // Shared list filters (mirrors the water raw-materials + /sales pages):
+  // search applies to every tab; the date range applies to Purchases/Usage.
+  const [search, setSearch] = useState("")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
+
   const [itemOpen, setItemOpen] = useState(false)
   const [editItemId, setEditItemId] = useState<number | null>(null)
   const [itemForm, setItemForm] = useState<ItemForm>(EMPTY_ITEM)
@@ -157,6 +164,20 @@ export default function PoultryRawMaterialsPage() {
   }
 
   const itemById = useMemo(() => new Map(items.map((i) => [i.poultryRawMaterialItemId, i])), [items])
+
+  // Filtered views fed to the tables (stats above stay on the full data set).
+  const filteredItems = useMemo(
+    () => filterByDateAndSearch(items, { search, searchKeys: ["itemName", "category"] }),
+    [items, search],
+  )
+  const filteredPurchases = useMemo(
+    () => filterByDateAndSearch(purchases, { search, dateFrom, dateTo, searchKeys: ["itemName", "supplierName"], dateKey: "purchaseDate" }),
+    [purchases, search, dateFrom, dateTo],
+  )
+  const filteredUsage = useMemo(
+    () => filterByDateAndSearch(usage, { search, dateFrom, dateTo, searchKeys: ["itemName"], dateKey: "usedDate" }),
+    [usage, search, dateFrom, dateTo],
+  )
 
   // Headline figures for the summary cards.
   const stats = useMemo(() => ({
@@ -343,6 +364,7 @@ export default function PoultryRawMaterialsPage() {
                     </div>
                     <Button onClick={openNewItem} className="shrink-0"><Plus className="w-4 h-4 mr-1" /> New item</Button>
                   </div>
+                  <div className="mb-3"><ListFilters search={search} setSearch={setSearch} searchOnly searchPlaceholder="Search item or category" /></div>
                   <div className="hidden md:block overflow-x-auto"><Table className="min-w-[640px]">
                     <TableHeader><TableRow>
                       <TableHead>Item</TableHead><TableHead>Category</TableHead><TableHead>Unit</TableHead>
@@ -350,9 +372,9 @@ export default function PoultryRawMaterialsPage() {
                       <TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead>
                     </TableRow></TableHeader>
                     <TableBody>
-                      {items.length === 0 ? (
+                      {filteredItems.length === 0 ? (
                         <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-6">No items yet.</TableCell></TableRow>
-                      ) : items.map((i) => (
+                      ) : filteredItems.map((i) => (
                         <TableRow key={i.poultryRawMaterialItemId}>
                           <TableCell className="font-medium">{i.itemName}</TableCell>
                           <TableCell>{i.category}</TableCell>
@@ -374,8 +396,8 @@ export default function PoultryRawMaterialsPage() {
                   </Table></div>
                   {/* Mobile cards */}
                   <div className="md:hidden space-y-2">
-                    {items.length === 0 ? <div className="text-center text-slate-500 py-6">No items yet.</div>
-                      : items.map((i) => (
+                    {filteredItems.length === 0 ? <div className="text-center text-slate-500 py-6">No items yet.</div>
+                      : filteredItems.map((i) => (
                         <FieldCard key={i.poultryRawMaterialItemId} title={i.itemName}
                           badge={!i.isActive ? <Badge variant="secondary">Inactive</Badge> : i.isLowStock ? <Badge className="bg-amber-100 text-amber-700">Low stock</Badge> : <Badge className="bg-green-100 text-green-700">OK</Badge>}
                           fields={[["Category", i.category], ["Unit", i.unitOfMeasure ?? "—"], ["In stock", i.currentQuantity.toLocaleString()], ["Min alert", i.minimumStockAlert.toLocaleString()]]}
@@ -398,6 +420,7 @@ export default function PoultryRawMaterialsPage() {
                     </div>
                     <Button onClick={openNewPurchase} className="shrink-0"><Plus className="w-4 h-4 mr-1" /> New purchase</Button>
                   </div>
+                  <div className="mb-3"><ListFilters search={search} setSearch={setSearch} dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo} searchPlaceholder="Search item or supplier" /></div>
                   <div className="hidden md:block overflow-x-auto"><Table className="min-w-[640px]">
                     <TableHeader><TableRow>
                       <TableHead>Date</TableHead><TableHead>Item</TableHead><TableHead>Supplier</TableHead>
@@ -406,9 +429,9 @@ export default function PoultryRawMaterialsPage() {
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow></TableHeader>
                     <TableBody>
-                      {purchases.length === 0 ? (
+                      {filteredPurchases.length === 0 ? (
                         <TableRow><TableCell colSpan={8} className="text-center text-slate-500 py-6">No purchases yet.</TableCell></TableRow>
-                      ) : purchases.map((p) => (
+                      ) : filteredPurchases.map((p) => (
                         <TableRow key={p.poultryRawMaterialPurchaseId}>
                           <TableCell>{(p.purchaseDate || "").split("T")[0]}</TableCell>
                           <TableCell className="font-medium">{p.itemName}</TableCell>
@@ -428,8 +451,8 @@ export default function PoultryRawMaterialsPage() {
                   </Table></div>
                   {/* Mobile cards */}
                   <div className="md:hidden space-y-2">
-                    {purchases.length === 0 ? <div className="text-center text-slate-500 py-6">No purchases yet.</div>
-                      : purchases.map((p) => (
+                    {filteredPurchases.length === 0 ? <div className="text-center text-slate-500 py-6">No purchases yet.</div>
+                      : filteredPurchases.map((p) => (
                         <FieldCard key={p.poultryRawMaterialPurchaseId} title={p.itemName}
                           badge={<span className="text-xs text-slate-500">{(p.purchaseDate || "").split("T")[0]}</span>}
                           fields={[["Supplier", p.supplierName ?? "—"], ["Qty", `${p.quantity.toLocaleString()} ${p.unitOfMeasure ?? ""}`], ["Total", gh(p.totalCost)], ["Paid", gh(p.amountPaid)], ["Balance", p.balance > 0 ? <span className="text-amber-600 font-medium">{gh(p.balance)}</span> : gh(0)]]}
@@ -450,6 +473,7 @@ export default function PoultryRawMaterialsPage() {
                     <h2 className="text-base font-semibold text-slate-900">Usage History</h2>
                     <p className="text-xs text-slate-500">Stock consumed when production batches are recorded.</p>
                   </div>
+                  <div className="mb-3"><ListFilters search={search} setSearch={setSearch} dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo} searchPlaceholder="Search item" /></div>
                   <div className="hidden md:block overflow-x-auto"><Table className="min-w-[640px]">
                     <TableHeader><TableRow>
                       <TableHead>Date</TableHead><TableHead>Item</TableHead>
@@ -457,9 +481,9 @@ export default function PoultryRawMaterialsPage() {
                       <TableHead className="text-right">Variance</TableHead><TableHead>Reason</TableHead>
                     </TableRow></TableHeader>
                     <TableBody>
-                      {usage.length === 0 ? (
+                      {filteredUsage.length === 0 ? (
                         <TableRow><TableCell colSpan={6} className="text-center text-slate-500 py-6">No usage recorded yet. Usage is created when production batches are approved (coming with the production slice).</TableCell></TableRow>
-                      ) : usage.map((u) => (
+                      ) : filteredUsage.map((u) => (
                         <TableRow key={u.poultryRawMaterialUsageId}>
                           <TableCell>{(u.usedDate || "").split("T")[0]}</TableCell>
                           <TableCell className="font-medium">{u.itemName}</TableCell>
@@ -473,8 +497,8 @@ export default function PoultryRawMaterialsPage() {
                   </Table></div>
                   {/* Mobile cards */}
                   <div className="md:hidden space-y-2">
-                    {usage.length === 0 ? <div className="text-center text-slate-500 py-6">No usage recorded yet.</div>
-                      : usage.map((u) => (
+                    {filteredUsage.length === 0 ? <div className="text-center text-slate-500 py-6">No usage recorded yet.</div>
+                      : filteredUsage.map((u) => (
                         <FieldCard key={u.poultryRawMaterialUsageId} title={u.itemName}
                           badge={<span className="text-xs text-slate-500">{(u.usedDate || "").split("T")[0]}</span>}
                           fields={[["Used", `${u.quantityUsed.toLocaleString()} ${u.unitOfMeasure ?? ""}`], ["Expected", u.expectedQuantityUsed?.toLocaleString() ?? "—"], ["Variance", u.variance.toLocaleString()], ["Reason", u.varianceReason ?? "—"]]} />
