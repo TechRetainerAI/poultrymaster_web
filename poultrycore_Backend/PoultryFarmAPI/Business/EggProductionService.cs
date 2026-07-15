@@ -68,6 +68,7 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.Add("@Production9AM", SqlDbType.Int).Value = model.Production9AM;
                 cmd.Parameters.Add("@Production12PM", SqlDbType.Int).Value = model.Production12PM;
                 cmd.Parameters.Add("@Production4PM", SqlDbType.Int).Value = model.Production4PM;
+                cmd.Parameters.Add("@Production4thPick", SqlDbType.Int).Value = model.Production4thPick;
                 cmd.Parameters.Add("@BrokenEggs", SqlDbType.Int).Value = (object?)model.BrokenEggs ?? DBNull.Value;
                 cmd.Parameters.Add("@Notes", SqlDbType.NVarChar, -1).Value = (object?)model.Notes ?? DBNull.Value;
                 cmd.Parameters.Add("@UserId", SqlDbType.NVarChar, -1).Value = model.UserId ?? (object)DBNull.Value;
@@ -110,6 +111,7 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.AddWithValue("@Production9AM", model.Production9AM);
                 cmd.Parameters.AddWithValue("@Production12PM", model.Production12PM);
                 cmd.Parameters.AddWithValue("@Production4PM", model.Production4PM);
+                cmd.Parameters.AddWithValue("@Production4thPick", model.Production4thPick);
                 cmd.Parameters.AddWithValue("@BrokenEggs", (object?)model.BrokenEggs ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@Notes", (object?)model.Notes ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@UserId", model.UserId ?? (object)DBNull.Value);
@@ -152,6 +154,7 @@ namespace PoultryFarmAPIWeb.Business
                         Production9AM = reader.IsDBNull(reader.GetOrdinal("Production9AM")) ? 0 : reader.GetInt32(reader.GetOrdinal("Production9AM")),
                         Production12PM = reader.IsDBNull(reader.GetOrdinal("Production12PM")) ? 0 : reader.GetInt32(reader.GetOrdinal("Production12PM")),
                         Production4PM = reader.IsDBNull(reader.GetOrdinal("Production4PM")) ? 0 : reader.GetInt32(reader.GetOrdinal("Production4PM")),
+                        Production4thPick = ReadOptionalInt32(reader, "Production4thPick") ?? 0,
                         BrokenEggs = reader.IsDBNull(reader.GetOrdinal("BrokenEggs"))
                             ? null
                             : reader.GetInt32(reader.GetOrdinal("BrokenEggs")),
@@ -162,7 +165,7 @@ namespace PoultryFarmAPIWeb.Business
                         UserId = reader.GetString(reader.GetOrdinal("UserId")),
                         FarmId = reader.IsDBNull(reader.GetOrdinal("FarmId")) ? null : reader.GetString(reader.GetOrdinal("FarmId"))
                     };
-                    model.TotalProduction = model.Production9AM + model.Production12PM + model.Production4PM;
+                    model.TotalProduction = model.Production9AM + model.Production12PM + model.Production4PM + model.Production4thPick;
                     return model;
                 }
                 return null;
@@ -192,6 +195,7 @@ namespace PoultryFarmAPIWeb.Business
                     var p9 = reader.IsDBNull(reader.GetOrdinal("Production9AM")) ? 0 : reader.GetInt32(reader.GetOrdinal("Production9AM"));
                     var p12 = reader.IsDBNull(reader.GetOrdinal("Production12PM")) ? 0 : reader.GetInt32(reader.GetOrdinal("Production12PM"));
                     var p4 = reader.IsDBNull(reader.GetOrdinal("Production4PM")) ? 0 : reader.GetInt32(reader.GetOrdinal("Production4PM"));
+                    var p4th = ReadOptionalInt32(reader, "Production4thPick") ?? 0;
                     var totalFromRow = ReadOptionalInt32(reader, "TotalProduction");
                     var ep = new EggProductionModel
                     {
@@ -203,7 +207,8 @@ namespace PoultryFarmAPIWeb.Business
                         Production9AM = p9,
                         Production12PM = p12,
                         Production4PM = p4,
-                        TotalProduction = totalFromRow ?? p9 + p12 + p4,
+                        Production4thPick = p4th,
+                        TotalProduction = totalFromRow ?? p9 + p12 + p4 + p4th,
                         BrokenEggs = reader.IsDBNull(reader.GetOrdinal("BrokenEggs"))
                             ? null
                             : reader.GetInt32(reader.GetOrdinal("BrokenEggs")),

@@ -157,6 +157,7 @@ namespace PoultryFarmAPIWeb.Business
                     MorningEggs = IntOr(r, "MorningEggs"),
                     MiddayEggs = IntOr(r, "MiddayEggs"),
                     EveningEggs = IntOr(r, "EveningEggs"),
+                    FourthPickEggs = IntOr(r, "FourthPickEggs"),
                     TotalEggs = total,
                     BrokenEggs = broken,
                     SaleableEggs = Math.Max(0, total - broken),

@@ -315,6 +315,7 @@ export default function ProductionRecordsPage() {
   const total9AM = useMemo(() => filtered.reduce((s, r) => s + (Number(r.production9AM) || 0), 0), [filtered])
   const total12PM = useMemo(() => filtered.reduce((s, r) => s + (Number(r.production12PM) || 0), 0), [filtered])
   const total4PM = useMemo(() => filtered.reduce((s, r) => s + (Number(r.production4PM) || 0), 0), [filtered])
+  const total4thPick = useMemo(() => filtered.reduce((s, r) => s + (Number((r as any).production4thPick) || 0), 0), [filtered])
   const totalBrokens = useMemo(() => filtered.reduce((s, r) => s + (Number((r as any).brokenEggs) || 0), 0), [filtered])
 
   // Farm-wide bird headlines: same definitions as the Flocks page (eligible flocks only; ignores table date/search filters).
@@ -352,6 +353,7 @@ export default function ProductionRecordsPage() {
         case "production9AM": return Number(item.production9AM) || 0
         case "production12PM": return Number(item.production12PM) || 0
         case "production4PM": return Number(item.production4PM) || 0
+        case "production4thPick": return Number(item.production4thPick) || 0
         case "brokenEggs": return Number(item.brokenEggs) || 0
         case "totalProduction": return Number(item.totalProduction) || 0
         case "eggGrade": return eggGradeFromApi(item.eggGrade).toLowerCase()
@@ -471,7 +473,7 @@ export default function ProductionRecordsPage() {
 
   const exportCsv = () => {
     const headers = [
-      "Date","FlockId","Batch","Age","9am","12pm","4pm","Total","Size","EggPercent","FeedKg","Birds","Deaths","Left","Medication"
+      "Date","FlockId","Batch","Age","1st Pick","2nd Pick","3rd Pick","4th Pick","Total","Size","EggPercent","FeedKg","Birds","Deaths","Left","Medication"
     ]
     const rows = filtered.map((r: any) => [
       new Date(r.date).toLocaleDateString(),
@@ -481,6 +483,7 @@ export default function ProductionRecordsPage() {
       r.production9AM ?? 0,
       r.production12PM ?? 0,
       r.production4PM ?? 0,
+      r.production4thPick ?? 0,
       r.totalProduction ?? 0,
       r.eggGrade ?? "",
       (() => { const b = Number(r.noOfBirds)||0; const t = Number(r.totalProduction)||0; return b? ((t/b)*100).toFixed(1):"" })(),
@@ -523,7 +526,7 @@ export default function ProductionRecordsPage() {
 
     // Table
     const headers = [
-      "Date", "Flock", "Batch", "Age", "9am", "12pm", "4pm", "Total", "Size", "Egg%", "Feed(kg)", "Birds", "Deaths", "Left", "Medication"
+      "Date", "Flock", "Batch", "Age", "1st Pick", "2nd Pick", "3rd Pick", "4th Pick", "Total", "Size", "Egg%", "Feed(kg)", "Birds", "Deaths", "Left", "Medication"
     ]
 
     const rows = filtered.map((r: any) => {
@@ -539,6 +542,7 @@ export default function ProductionRecordsPage() {
         r.production9AM ?? 0,
         r.production12PM ?? 0,
         r.production4PM ?? 0,
+        r.production4thPick ?? 0,
         r.totalProduction ?? 0,
         formatEggGradeLabel(r.eggGrade),
         eggPct,
@@ -553,7 +557,7 @@ export default function ProductionRecordsPage() {
     // Add totals row
     rows.push([
       "TOTALS", "", "", "",
-      total9AM, total12PM, total4PM,
+      total9AM, total12PM, total4PM, total4thPick,
       `${totalEggs} (${totalEggsCrates}c+${totalEggsPieces}p)`,
       "",
       "", totalFeed.toFixed(2),
@@ -572,8 +576,8 @@ export default function ProductionRecordsPage() {
         0: { cellWidth: 22 },
         2: { cellWidth: 24 },
         3: { cellWidth: 28 },
-        8: { cellWidth: 16 },
-        14: { cellWidth: 22 },
+        9: { cellWidth: 16 },
+        15: { cellWidth: 22 },
       },
       didParseCell: (data: any) => {
         // Bold the last (totals) row
@@ -1014,9 +1018,10 @@ export default function ProductionRecordsPage() {
                               <CollapsibleContent>
                                 <div className="mt-4 pt-4 border-t border-slate-100 space-y-2 text-sm">
                                   <div className="grid grid-cols-2 gap-2">
-                                    <div><span className="text-slate-500">9am</span> <span className="font-medium text-blue-700">{r.production9AM ?? 0}</span></div>
-                                    <div><span className="text-slate-500">12pm</span> <span className="font-medium text-orange-700">{r.production12PM ?? 0}</span></div>
-                                    <div><span className="text-slate-500">4pm</span> <span className="font-medium text-purple-700">{r.production4PM ?? 0}</span></div>
+                                    <div><span className="text-slate-500">1st Pick</span> <span className="font-medium text-blue-700">{r.production9AM ?? 0}</span></div>
+                                    <div><span className="text-slate-500">2nd Pick</span> <span className="font-medium text-orange-700">{r.production12PM ?? 0}</span></div>
+                                    <div><span className="text-slate-500">3rd Pick</span> <span className="font-medium text-purple-700">{r.production4PM ?? 0}</span></div>
+                                    <div><span className="text-slate-500">4th Pick</span> <span className="font-medium text-teal-700">{(r as any).production4thPick ?? 0}</span></div>
                                     <div><span className="text-slate-500">Feed</span> <span className="font-medium">{(r.feedKg ?? 0).toFixed ? (r.feedKg ?? 0).toFixed(2) : r.feedKg} kg</span></div>
                                     <div><span className="text-slate-500">Deaths</span> <span className={cn("font-medium", (r.mortality ?? 0) > 0 ? "text-red-600" : "")}>{r.mortality ?? 0}</span></div>
                                     <div><span className="text-slate-500">Age</span> <span className="text-slate-700 truncate">{formatAge(r)}</span></div>
@@ -1064,9 +1069,10 @@ export default function ProductionRecordsPage() {
                           <SortableHeader label="Flock" sortKey="flockId" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className={cn("min-w-[70px] px-3 py-2", isMobile && "sticky-col-flock bg-blue-50")} />
                           <SortableHeader label="Batch" sortKey="batchName" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[120px] px-3 py-2 whitespace-nowrap" />
                           <SortableHeader label="Age" sortKey="age" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[170px] px-3 py-2" />
-                          <SortableHeader label="9am" sortKey="production9AM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-blue-100 text-blue-900 font-semibold" />
-                          <SortableHeader label="12pm" sortKey="production12PM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-orange-100 text-orange-900 font-semibold" />
-                          <SortableHeader label="4pm" sortKey="production4PM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-purple-100 text-purple-900 font-semibold" />
+                          <SortableHeader label="1st Pick" sortKey="production9AM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-blue-100 text-blue-900 font-semibold whitespace-nowrap" />
+                          <SortableHeader label="2nd Pick" sortKey="production12PM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-orange-100 text-orange-900 font-semibold whitespace-nowrap" />
+                          <SortableHeader label="3rd Pick" sortKey="production4PM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-purple-100 text-purple-900 font-semibold whitespace-nowrap" />
+                          <SortableHeader label="4th Pick" sortKey="production4thPick" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-teal-100 text-teal-900 font-semibold whitespace-nowrap" />
                           <SortableHeader label="Brokens" sortKey="brokenEggs" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-red-50 text-red-800 font-semibold" />
                           <SortableHeader label="Total" sortKey="totalProduction" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
                           <SortableHeader label="Egg%" sortKey="eggPercent" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
@@ -1081,7 +1087,7 @@ export default function ProductionRecordsPage() {
                       <TableBody>
                         {paginatedRecords.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={16} className="py-12 text-center text-slate-500">
+                            <TableCell colSpan={17} className="py-12 text-center text-slate-500">
                               No records found for the selected filters.
                               <Button variant="link" className="ml-1" onClick={() => { setEditing(null); setFormOpen(true) }}>Log one now</Button>
                             </TableCell>
@@ -1101,6 +1107,7 @@ export default function ProductionRecordsPage() {
                             <TableCell className="text-right px-3 py-2 text-blue-700 bg-blue-50/40 rounded-sm">{r.production9AM ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2 text-orange-700 bg-orange-50/40 rounded-sm">{r.production12PM ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2 text-purple-700 bg-purple-50/40 rounded-sm">{r.production4PM ?? 0}</TableCell>
+                            <TableCell className="text-right px-3 py-2 text-teal-700 bg-teal-50/40 rounded-sm">{(r as any).production4thPick ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2 text-red-700 bg-red-50/40 rounded-sm">{(r as any).brokenEggs ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2 font-semibold text-slate-900">{r.totalProduction ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2">{(() => { const b = Number(r.noOfBirds)||0; const t = Number(r.totalProduction)||0; return b? ((t/b)*100).toFixed(1)+"%":"-" })()}</TableCell>
@@ -1130,6 +1137,7 @@ export default function ProductionRecordsPage() {
                             <TableCell className="text-right font-semibold px-3 py-2 text-blue-800 bg-blue-50 border border-blue-100 rounded">{total9AM.toLocaleString()}<div className="text-xs font-normal text-blue-600">{Math.floor(total9AM / EGGS_PER_CRATE)}c + {total9AM % EGGS_PER_CRATE}p</div></TableCell>
                             <TableCell className="text-right font-semibold px-3 py-2 text-orange-800 bg-orange-50 border border-orange-100 rounded">{total12PM.toLocaleString()}<div className="text-xs font-normal text-orange-600">{Math.floor(total12PM / EGGS_PER_CRATE)}c + {total12PM % EGGS_PER_CRATE}p</div></TableCell>
                             <TableCell className="text-right font-semibold px-3 py-2 text-purple-800 bg-purple-50 border border-purple-100 rounded">{total4PM.toLocaleString()}<div className="text-xs font-normal text-purple-600">{Math.floor(total4PM / EGGS_PER_CRATE)}c + {total4PM % EGGS_PER_CRATE}p</div></TableCell>
+                            <TableCell className="text-right font-semibold px-3 py-2 text-teal-800 bg-teal-50 border border-teal-100 rounded">{total4thPick.toLocaleString()}<div className="text-xs font-normal text-teal-600">{Math.floor(total4thPick / EGGS_PER_CRATE)}c + {total4thPick % EGGS_PER_CRATE}p</div></TableCell>
                             <TableCell className="text-right font-semibold px-3 py-2 text-red-700 bg-red-50 border border-red-100 rounded">{totalBrokens.toLocaleString()}<div className="text-xs font-normal text-red-500">{Math.floor(totalBrokens / EGGS_PER_CRATE)}c + {totalBrokens % EGGS_PER_CRATE}p</div></TableCell>
                             <TableCell className="text-right font-semibold px-3 py-2 text-emerald-700">{totalEggs.toLocaleString()}<div className="text-xs font-normal text-slate-500">{totalEggsCrates}c + {totalEggsPieces}p</div></TableCell>
                             {/* Egg% — no meaningful total */}

@@ -206,6 +206,7 @@ export function usePoultryDashboardData() {
           m9: r.production9AM || 0,
           m12: r.production12PM || 0,
           m4: r.production4PM || 0,
+          m4th: r.production4thPick || 0,
           total,
           crates: Math.floor(total / 30),
           loose: total % 30,
@@ -710,14 +711,15 @@ function buildProductionContent(data: PoultryDashboardData): DashboardContent {
   const columns: PdfExportColumn[] = [
     { header: "Date", align: "left" },
     { header: "Flock", align: "left" },
-    { header: "9am", align: "right" },
-    { header: "12pm", align: "right" },
-    { header: "4pm", align: "right" },
+    { header: "1st Pick", align: "right" },
+    { header: "2nd Pick", align: "right" },
+    { header: "3rd Pick", align: "right" },
+    { header: "4th Pick", align: "right" },
     { header: "Total", align: "right" },
     { header: "Crates + Loose", align: "right" },
   ]
   const exportRows = prodDailyRows.map((r) => [
-    r.date, r.flockName, r.m9, r.m12, r.m4, r.total, `${r.crates} + ${r.loose}`,
+    r.date, r.flockName, r.m9, r.m12, r.m4, r.m4th, r.total, `${r.crates} + ${r.loose}`,
   ])
   const display: ReactNode[][] = prodDailyRows.map((r) => [
     r.date,
@@ -725,6 +727,7 @@ function buildProductionContent(data: PoultryDashboardData): DashboardContent {
     r.m9.toLocaleString(),
     r.m12.toLocaleString(),
     r.m4.toLocaleString(),
+    r.m4th.toLocaleString(),
     <span className="font-medium">{r.total.toLocaleString()}</span>,
     `${r.crates} + ${r.loose}`,
   ])
@@ -733,6 +736,7 @@ function buildProductionContent(data: PoultryDashboardData): DashboardContent {
   const sum9 = prodDailyRows.reduce((s, r) => s + r.m9, 0)
   const sum12 = prodDailyRows.reduce((s, r) => s + r.m12, 0)
   const sum4 = prodDailyRows.reduce((s, r) => s + r.m4, 0)
+  const sum4th = prodDailyRows.reduce((s, r) => s + r.m4th, 0)
   const totals = {
     display: [
       "Total",
@@ -740,10 +744,11 @@ function buildProductionContent(data: PoultryDashboardData): DashboardContent {
       sum9.toLocaleString(),
       sum12.toLocaleString(),
       sum4.toLocaleString(),
+      sum4th.toLocaleString(),
       totalEggs.toLocaleString(),
       `${totalCrates} + ${looseEggs}`,
     ] as ReactNode[],
-    export: ["Total", `${prodDailyRows.length}`, sum9, sum12, sum4, totalEggs, `${totalCrates} + ${looseEggs}`],
+    export: ["Total", `${prodDailyRows.length}`, sum9, sum12, sum4, sum4th, totalEggs, `${totalCrates} + ${looseEggs}`],
   }
 
   return {

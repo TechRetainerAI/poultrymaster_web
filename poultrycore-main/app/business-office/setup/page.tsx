@@ -5,12 +5,13 @@ import Link from "next/link"
 import { BusinessOfficeShell } from "@/components/dashboard/business-office-shell"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Users, Building2, UserCog, ArrowRight } from "lucide-react"
+import { Users, Building2, UserCog, Clock, ArrowRight } from "lucide-react"
 
 const CARDS = [
   { icon: Users, title: "Employees & Users", desc: "Manage all employees across your organization and assign access to companies.", href: "/business-office/users", cta: "Manage Employees", color: "bg-indigo-600" },
   { icon: Building2, title: "Companies", desc: "Create, edit, and manage companies under this Business Office.", href: "/business-office/companies", cta: "Manage Companies", color: "bg-emerald-600" },
   { icon: UserCog, title: "Organization Profile", desc: "Edit your organization/owner details — name, contact, currency and country.", href: "/business-office/organization-profile", cta: "Edit Organization", color: "bg-orange-600" },
+  { icon: Clock, title: "Egg Pick Times", desc: "Set the time each egg pick (1st–4th) represents for this farm, and enable the 4th pick.", href: "/business-office/egg-pick-settings", cta: "Configure Pick Times", color: "bg-teal-600" },
 ]
 
 export default function BusinessSetupPage() {

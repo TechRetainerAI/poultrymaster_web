@@ -16,6 +16,7 @@ import { listPoultryRawMaterialItems, listPoultryRawMaterialPurchases, type Poul
 import { MedicationLines, computeMedLines, emptyMedLine, buildMedCredit, type MedLineDraft } from "@/components/production/medication-lines"
 import { FeedLines, computeFeedLines, emptyFeedLine, buildFeedCredit, type FeedLineDraft } from "@/components/production/feed-lines"
 import { usePermissions } from "@/hooks/use-permissions"
+import { usePickSettings } from "@/hooks/use-pick-settings"
 import { Trash2, Calendar as CalendarIcon } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
@@ -66,6 +67,7 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
     error: batchFlockError,
   } = useBatchFlockSelect()
   const { isAdmin } = usePermissions()
+  const { labels: pickLabelText, enableFourthPick } = usePickSettings()
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), [])
 
@@ -75,6 +77,7 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
     morning: "",
     noon: "",
     evening: "",
+    fourth: "",
     brokenEggs: "",
     meatyEggs: "",
     softEggs: "",
@@ -168,13 +171,17 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
   const [noonLoose, setNoonLoose] = useState(0)
   const [eveningCrates, setEveningCrates] = useState(0)
   const [eveningLoose, setEveningLoose] = useState(0)
+  // 4th pick (migration 152)
+  const [fourthCrates, setFourthCrates] = useState(0)
+  const [fourthLoose, setFourthLoose] = useState(0)
   const [brokenCrates, setBrokenCrates] = useState(0)
   const [brokenLoose, setBrokenLoose] = useState(0)
 
-  // Compute individual time slot totals from crates + loose
+  // Compute individual pick totals from crates + loose
   const morningTotal = (morningCrates * EGGS_PER_CRATE) + morningLoose
   const noonTotal = (noonCrates * EGGS_PER_CRATE) + noonLoose
   const eveningTotal = (eveningCrates * EGGS_PER_CRATE) + eveningLoose
+  const fourthTotal = (fourthCrates * EGGS_PER_CRATE) + fourthLoose
   const brokenTotal = (brokenCrates * EGGS_PER_CRATE) + brokenLoose
 
   // Keep form.morning/noon/evening in sync with crate values
@@ -188,10 +195,13 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
     setForm(prev => ({ ...prev, evening: String(eveningTotal) }))
   }, [eveningTotal])
   useEffect(() => {
+    setForm(prev => ({ ...prev, fourth: String(fourthTotal) }))
+  }, [fourthTotal])
+  useEffect(() => {
     setForm(prev => ({ ...prev, brokenEggs: String(brokenTotal) }))
   }, [brokenTotal])
 
-  const total = (parseInt(form.morning) || 0) + (parseInt(form.noon) || 0) + (parseInt(form.evening) || 0)
+  const total = (parseInt(form.morning) || 0) + (parseInt(form.noon) || 0) + (parseInt(form.evening) || 0) + (parseInt(form.fourth) || 0)
   const totalCrates = Math.floor(total / EGGS_PER_CRATE)
   const totalPieces = total % EGGS_PER_CRATE
   // Birds left must always equal numBirds - mortality to keep data consistent
@@ -315,12 +325,13 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
 
   useEffect(() => {
     if (!record) {
-      setForm({ flockId: "", date: today, morning: "", noon: "", evening: "", brokenEggs: "", meatyEggs: "", softEggs: "", lostEggs: "", feedKg: "", feedType: "", mortality: "", numBirds: "", notes: "", medication: "", eggGrade: EGG_GRADE_SELECT_VALUE_NONE })
+      setForm({ flockId: "", date: today, morning: "", noon: "", evening: "", fourth: "", brokenEggs: "", meatyEggs: "", softEggs: "", lostEggs: "", feedKg: "", feedType: "", mortality: "", numBirds: "", notes: "", medication: "", eggGrade: EGG_GRADE_SELECT_VALUE_NONE })
       setFeedLines([emptyFeedLine(), emptyFeedLine()])
       setMedLines([emptyMedLine(), emptyMedLine()])
       setMorningCrates(0); setMorningLoose(0)
       setNoonCrates(0); setNoonLoose(0)
       setEveningCrates(0); setEveningLoose(0)
+      setFourthCrates(0); setFourthLoose(0)
       setBrokenCrates(0); setBrokenLoose(0)
       return
     }
@@ -329,10 +340,12 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
     const m = record.production9AM ?? 0
     const n = record.production12PM ?? 0
     const ev = record.production4PM ?? 0
+    const fp = (record as any).production4thPick ?? 0
     const br = record.brokenEggs ?? 0
     setMorningCrates(Math.floor(m / EGGS_PER_CRATE)); setMorningLoose(m % EGGS_PER_CRATE)
     setNoonCrates(Math.floor(n / EGGS_PER_CRATE)); setNoonLoose(n % EGGS_PER_CRATE)
     setEveningCrates(Math.floor(ev / EGGS_PER_CRATE)); setEveningLoose(ev % EGGS_PER_CRATE)
+    setFourthCrates(Math.floor(fp / EGGS_PER_CRATE)); setFourthLoose(fp % EGGS_PER_CRATE)
     setBrokenCrates(Math.floor(br / EGGS_PER_CRATE)); setBrokenLoose(br % EGGS_PER_CRATE)
     
     // First, set the main form data from the record
@@ -344,6 +357,7 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
       morning: String(record.production9AM ?? ""),
       noon: String(record.production12PM ?? ""),
       evening: String(record.production4PM ?? ""),
+      fourth: String((record as any).production4thPick ?? ""),
       brokenEggs: String(record.brokenEggs ?? ""),
       meatyEggs: s(r.meatyEggs),
       softEggs: s(r.softEggs),
@@ -496,6 +510,7 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
         production9AM: parseInt(form.morning) || 0,
         production12PM: parseInt(form.noon) || 0,
         production4PM: parseInt(form.evening) || 0,
+        production4thPick: parseInt(form.fourth) || 0,
         brokenEggs: parseInt(form.brokenEggs) || 0,
         meatyEggs: form.meatyEggs === "" ? null : parseInt(form.meatyEggs) || 0,
         softEggs: form.softEggs === "" ? null : parseInt(form.softEggs) || 0,
@@ -690,9 +705,9 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
               Egg Production
             </div>
             <div className="grid grid-cols-12 gap-4 px-4 py-4">
-              {/* Morning (9am) - Crates + Loose */}
+              {/* 1st Pick - Crates + Loose */}
               <div className="col-span-12 p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
-                <Label className="text-blue-800 font-semibold">Morning (9am) — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
+                <Label className="text-blue-800 font-semibold">{pickLabelText.first} — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Crates ({EGGS_PER_CRATE} eggs)</Label>
@@ -710,9 +725,9 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
                 <p className="text-xs text-blue-600">{morningCrates} crates × {EGGS_PER_CRATE} + {morningLoose} loose = {morningTotal.toLocaleString()} eggs</p>
               </div>
 
-              {/* Noon (12pm) - Crates + Loose */}
+              {/* 2nd Pick - Crates + Loose */}
               <div className="col-span-12 p-3 bg-orange-50 border border-orange-200 rounded-lg space-y-2">
-                <Label className="text-orange-800 font-semibold">Noon (12pm) — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
+                <Label className="text-orange-800 font-semibold">{pickLabelText.second} — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Crates ({EGGS_PER_CRATE} eggs)</Label>
@@ -730,9 +745,9 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
                 <p className="text-xs text-orange-600">{noonCrates} crates × {EGGS_PER_CRATE} + {noonLoose} loose = {noonTotal.toLocaleString()} eggs</p>
               </div>
 
-              {/* Evening (4pm) - Crates + Loose */}
+              {/* 3rd Pick - Crates + Loose */}
               <div className="col-span-12 p-3 bg-purple-50 border border-purple-200 rounded-lg space-y-2">
-                <Label className="text-purple-800 font-semibold">Evening (4pm) — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
+                <Label className="text-purple-800 font-semibold">{pickLabelText.third} — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs">Crates ({EGGS_PER_CRATE} eggs)</Label>
@@ -749,6 +764,28 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
                 </div>
                 <p className="text-xs text-purple-600">{eveningCrates} crates × {EGGS_PER_CRATE} + {eveningLoose} loose = {eveningTotal.toLocaleString()} eggs</p>
               </div>
+
+              {/* 4th Pick — hidden when the farm has it disabled and there's no value yet. */}
+              {(enableFourthPick || fourthTotal > 0) && (
+              <div className="col-span-12 p-3 bg-teal-50 border border-teal-200 rounded-lg space-y-2">
+                <Label className="text-teal-800 font-semibold">{pickLabelText.fourth} — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Crates ({EGGS_PER_CRATE} eggs)</Label>
+                    <Input type="number" min="0" value={fourthCrates} onChange={(e) => setFourthCrates(parseInt(e.target.value) || 0)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Loose Eggs</Label>
+                    <Input type="number" min="0" max="29" value={fourthLoose} onChange={(e) => setFourthLoose(parseInt(e.target.value) || 0)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Total</Label>
+                    <div className="h-10 px-3 py-2 bg-white border rounded-md flex items-center font-bold text-teal-700">{fourthTotal.toLocaleString()}</div>
+                  </div>
+                </div>
+                <p className="text-xs text-teal-600">{fourthCrates} crates × {EGGS_PER_CRATE} + {fourthLoose} loose = {fourthTotal.toLocaleString()} eggs</p>
+              </div>
+              )}
 
               {/* Brokens - Crates + Loose */}
               <div className="col-span-12 p-3 bg-red-50 border border-red-200 rounded-lg space-y-2">
