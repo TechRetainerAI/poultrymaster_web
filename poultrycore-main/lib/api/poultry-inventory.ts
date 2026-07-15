@@ -15,6 +15,8 @@ export interface PoultryRawMaterialItem {
   itemName: string
   category: string
   unitOfMeasure?: string | null
+  /** How the item is BOUGHT (e.g. "bag"); production/stock uses unitOfMeasure. */
+  purchaseUnitOfMeasure?: string | null
   minimumStockAlert: number
   currentQuantity: number
   isActive: boolean
@@ -29,6 +31,7 @@ export interface PoultryRawMaterialItemInput {
   itemName: string
   category: string
   unitOfMeasure?: string | null
+  purchaseUnitOfMeasure?: string | null
   minimumStockAlert?: number
   isActive?: boolean
   notes?: string | null

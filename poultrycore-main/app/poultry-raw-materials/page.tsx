@@ -34,8 +34,8 @@ const CATEGORIES = ["FeedIngredient", "Packaging", "Medication", "Vaccine", "Bed
 const PAYMENT_METHODS = ["Cash", "MoMo", "Bank", "Credit"]
 const UNITS = ["Bag", "Sack", "Tonne", "Kilogram", "Gram", "Litre", "Millilitre", "Bottle", "Sachet", "Piece", "Pack", "Carton", "Box", "Bundle", "Dozen", "Crate", "Unit", "Other"]
 
-type ItemForm = { itemName: string; category: string; unitOfMeasure: string; minimumStockAlert: number; isActive: boolean; notes: string | null; usageMethod: RawMaterialUsageMethod }
-const EMPTY_ITEM: ItemForm = { itemName: "", category: "FeedIngredient", unitOfMeasure: "", minimumStockAlert: 0, isActive: true, notes: null, usageMethod: "FIFO" }
+type ItemForm = { itemName: string; category: string; unitOfMeasure: string; purchaseUnitOfMeasure: string; minimumStockAlert: number; isActive: boolean; notes: string | null; usageMethod: RawMaterialUsageMethod }
+const EMPTY_ITEM: ItemForm = { itemName: "", category: "FeedIngredient", unitOfMeasure: "", purchaseUnitOfMeasure: "", minimumStockAlert: 0, isActive: true, notes: null, usageMethod: "FIFO" }
 
 // Categories whose stock is actually drawn from a specific batch when recorded
 // as "used" (production-records feed/medication pickers). Only these show the
@@ -183,7 +183,7 @@ export default function PoultryRawMaterialsPage() {
   function openEditItem(i: PoultryRawMaterialItem) {
     setEditItemId(i.poultryRawMaterialItemId)
     const usageMethod = i.usageMethod ?? "FIFO"
-    setItemForm({ itemName: i.itemName, category: i.category, unitOfMeasure: i.unitOfMeasure ?? "", minimumStockAlert: i.minimumStockAlert, isActive: i.isActive, notes: i.notes ?? null, usageMethod })
+    setItemForm({ itemName: i.itemName, category: i.category, unitOfMeasure: i.unitOfMeasure ?? "", purchaseUnitOfMeasure: i.purchaseUnitOfMeasure ?? "", minimumStockAlert: i.minimumStockAlert, isActive: i.isActive, notes: i.notes ?? null, usageMethod })
     setOriginalUsageMethod(usageMethod)
     setItemOpen(true)
   }
@@ -191,9 +191,11 @@ export default function PoultryRawMaterialsPage() {
   async function saveItem() {
     if (!itemForm.itemName.trim()) { toast({ title: "Item name is required", variant: "destructive" }); return }
     setSavingItem(true)
+    // Blank purchase unit → null so the backend defaults it to the production unit.
+    const itemPayload = { ...itemForm, purchaseUnitOfMeasure: itemForm.purchaseUnitOfMeasure.trim() || null }
     try {
-      if (editItemId) await updatePoultryRawMaterialItem(editItemId, itemForm)
-      else await createPoultryRawMaterialItem(itemForm)
+      if (editItemId) await updatePoultryRawMaterialItem(editItemId, itemPayload)
+      else await createPoultryRawMaterialItem(itemPayload)
       toast({ title: editItemId ? "Item updated" : "Item added" })
       setItemOpen(false); await load()
     } catch (e: any) { toast({ title: "Save failed", description: e?.message, variant: "destructive" }) }
@@ -498,10 +500,16 @@ export default function PoultryRawMaterialsPage() {
                 <SelectContent>{CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
               </Select>
             </FormField>
-            <FormField label="Unit of measure">
+            <FormField label="Production unit of measure" hint="How it's stocked & consumed">
               <Select value={itemForm.unitOfMeasure || ""} onValueChange={(v) => setItemForm({ ...itemForm, unitOfMeasure: v })}>
                 <SelectTrigger><SelectValue placeholder="Pick unit" /></SelectTrigger>
                 <SelectContent>{unitOptions(itemForm.unitOfMeasure).map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+              </Select>
+            </FormField>
+            <FormField label="Purchase unit of measure" hint="How it's bought — defaults to the production unit">
+              <Select value={itemForm.purchaseUnitOfMeasure || ""} onValueChange={(v) => setItemForm({ ...itemForm, purchaseUnitOfMeasure: v })}>
+                <SelectTrigger><SelectValue placeholder="Same as production unit" /></SelectTrigger>
+                <SelectContent>{unitOptions(itemForm.purchaseUnitOfMeasure).map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
               </Select>
             </FormField>
             <FormField label="Low-stock alert at"><NumberInput min={0} step="0.001" value={itemForm.minimumStockAlert} onChange={(e) => setItemForm({ ...itemForm, minimumStockAlert: Number(e.target.value) || 0 })} /></FormField>
@@ -556,7 +564,7 @@ export default function PoultryRawMaterialsPage() {
 
       {/* Purchase dialog */}
       <Dialog open={purchaseOpen} onOpenChange={setPurchaseOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="w-[95vw] max-w-[1100px] max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editPurchaseId ? "Edit purchase" : "New raw material purchase"}</DialogTitle></DialogHeader>
           {(() => {
             const f = purchaseForm
@@ -573,13 +581,24 @@ export default function PoultryRawMaterialsPage() {
             const purchaseUnitLabel = f.purchaseUnit || selItem?.unitOfMeasure || "unit"
             return (
               <>
-                <FormSection title="Purchase Quantity & Production Costing" color="blue">
-                  <FormField label="Raw material item *">
-                    <Select value={f.poultryRawMaterialItemId ? String(f.poultryRawMaterialItemId) : ""} onValueChange={(v) => { const id = Number(v); const it = itemById.get(id); setPurchaseForm({ ...f, poultryRawMaterialItemId: id, purchaseUnit: it?.unitOfMeasure ?? f.purchaseUnit }) }}>
+                <FormSection title="Item, Supplier & Date" color="indigo">
+                  <FormField label="Raw material item *" full>
+                    <Select value={f.poultryRawMaterialItemId ? String(f.poultryRawMaterialItemId) : ""} onValueChange={(v) => { const id = Number(v); const it = itemById.get(id); setPurchaseForm({ ...f, poultryRawMaterialItemId: id, purchaseUnit: it?.purchaseUnitOfMeasure || it?.unitOfMeasure || f.purchaseUnit, productionUnit: it?.unitOfMeasure || f.productionUnit }) }}>
                       <SelectTrigger><SelectValue placeholder="Pick item" /></SelectTrigger>
                       <SelectContent>{items.filter((i) => i.isActive).map((i) => <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>{i.itemName}{i.unitOfMeasure ? ` (${i.unitOfMeasure})` : ""}</SelectItem>)}</SelectContent>
                     </Select>
                   </FormField>
+                  <FormField label="Supplier" full><Input value={f.supplierName} onChange={(e) => setPurchaseForm({ ...f, supplierName: e.target.value })} placeholder="Supplier name" /></FormField>
+                  <FormField label="Purchase date"><Input type="date" value={f.purchaseDate} onChange={(e) => setPurchaseForm({ ...f, purchaseDate: e.target.value })} /></FormField>
+                  <FormField label="Payment method">
+                    <Select value={f.paymentMethod} onValueChange={(v) => setPurchaseForm({ ...f, paymentMethod: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{PAYMENT_METHODS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </FormField>
+                </FormSection>
+
+                <FormSection title="Purchase Quantity & Production Costing" color="blue">
                   <FormField label="Purchase unit *">
                     <Select value={f.purchaseUnit || ""} onValueChange={(v) => setPurchaseForm({ ...f, purchaseUnit: v })}>
                       <SelectTrigger><SelectValue placeholder="Pick unit" /></SelectTrigger>
@@ -642,15 +661,7 @@ export default function PoultryRawMaterialsPage() {
                   <FormField label="" full><p className="text-xs text-slate-500">If you buy and use the same unit, set <span className="font-medium">Production units per purchase unit = 1</span> — the production figures then match the purchase figures.</p></FormField>
                 </FormSection>
 
-                <FormSection title="Supplier & Payment" color="amber">
-                  <FormField label="Supplier"><Input value={f.supplierName} onChange={(e) => setPurchaseForm({ ...f, supplierName: e.target.value })} placeholder="Supplier name" /></FormField>
-                  <FormField label="Purchase date"><Input type="date" value={f.purchaseDate} onChange={(e) => setPurchaseForm({ ...f, purchaseDate: e.target.value })} /></FormField>
-                  <FormField label="Payment method">
-                    <Select value={f.paymentMethod} onValueChange={(v) => setPurchaseForm({ ...f, paymentMethod: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>{PAYMENT_METHODS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </FormField>
+                <FormSection title="Payment" color="amber">
                   <FormField label="Amount paid"><NumberInput min={0} step="0.01" value={f.amountPaid} onChange={(e) => setPurchaseForm({ ...f, amountPaid: Number(e.target.value) || 0 })} /></FormField>
                   <FormField label="Pay from cash account">
                     <Select value={f.poultryCashAccountId ? String(f.poultryCashAccountId) : "none"} onValueChange={(v) => setPurchaseForm({ ...f, poultryCashAccountId: v === "none" ? 0 : Number(v) })}>
