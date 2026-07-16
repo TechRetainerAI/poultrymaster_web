@@ -82,6 +82,7 @@ builder.Services.AddScoped<IFeedInventoryAdjustmentService>(sp => new FeedInvent
 builder.Services.AddScoped<IDashboardService>(sp => new DashboardService(connectionString));
 
 builder.Services.AddScoped<IProductionRecordService>(sp => new ProductionRecordService(connectionString));
+builder.Services.AddScoped<IProductionBatchRecordService>(sp => new ProductionBatchRecordService(connectionString));
 builder.Services.AddScoped<IPoultryPaymentService>(sp => new PoultryPaymentService(connectionString));
 
 builder.Services.AddScoped<IHouseService>(sp => new HouseService(connectionString));

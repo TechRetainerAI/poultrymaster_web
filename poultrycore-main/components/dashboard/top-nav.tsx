@@ -657,6 +657,7 @@ export function TopNavigation() {
     label: "Production",
     items: [
       { href: "/production-records", label: "Production Records", icon: FileText },
+      { href: "/batch-production-records", label: "Batch Production", icon: Boxes },
       { href: "/egg-production", label: "Egg sorting", icon: Egg },
       { href: "/feed-usage", label: "Feed Usage", icon: Package },
     ],

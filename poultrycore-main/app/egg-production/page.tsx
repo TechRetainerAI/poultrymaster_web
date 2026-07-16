@@ -518,7 +518,7 @@ export default function EggProductionsPage() {
                   <Egg className="w-5 h-5 text-yellow-600" />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Egg sorting</h1>
+                  <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Egg Sorting</h1>
                   <p className="text-sm text-slate-600">
                     Daily collection by flock (9am / 12pm / 4pm) for the filters below.
                   </p>
@@ -527,7 +527,7 @@ export default function EggProductionsPage() {
               <Link href="/egg-production/new" prefetch={true} className="w-full sm:w-auto">
                 <Button className="gap-2 w-full sm:w-auto h-11 sm:h-10 bg-blue-600 hover:bg-blue-700">
                   <Plus className="w-4 h-4" />
-                  Add Production Record
+                  Add Egg Sorting record
                 </Button>
               </Link>
             </div>
@@ -783,7 +783,7 @@ export default function EggProductionsPage() {
                   <Link href="/egg-production/new" prefetch={true}>
                     <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
                       <Plus className="w-4 h-4" />
-                      Add Production Record
+                      Add Egg Sorting record
                     </Button>
                   </Link>
                 </CardContent>
