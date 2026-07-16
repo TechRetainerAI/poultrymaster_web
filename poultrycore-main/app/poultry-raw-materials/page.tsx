@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
+import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, AlertTriangle } from "lucide-react"
@@ -96,10 +97,17 @@ export default function PoultryRawMaterialsPage() {
   const [cashAccounts, setCashAccounts] = useState<PoultryCashAccount[]>([])
 
   // Shared list filters (mirrors the water raw-materials + /sales pages):
-  // search applies to every tab; the date range applies to Purchases/Usage.
+  // search applies to every tab; the date range + item dropdown apply to
+  // Purchases/Usage (which reference an item). "all" = no item filter.
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [itemFilter, setItemFilter] = useState("all")
+
+  // Per-tab column sort (label click cycles asc → desc → off).
+  const [itemsSort, setItemsSort] = useState<{ key: string | null; direction: SortDirection }>({ key: null, direction: null })
+  const [purchasesSort, setPurchasesSort] = useState<{ key: string | null; direction: SortDirection }>({ key: null, direction: null })
+  const [usageSort, setUsageSort] = useState<{ key: string | null; direction: SortDirection }>({ key: null, direction: null })
 
   const [itemOpen, setItemOpen] = useState(false)
   const [editItemId, setEditItemId] = useState<number | null>(null)
@@ -165,18 +173,36 @@ export default function PoultryRawMaterialsPage() {
 
   const itemById = useMemo(() => new Map(items.map((i) => [i.poultryRawMaterialItemId, i])), [items])
 
-  // Filtered views fed to the tables (stats above stay on the full data set).
+  // Filtered + sorted views fed to the tables (stats above stay on the full set).
+  const byItem = <T extends { poultryRawMaterialItemId: number }>(rows: T[]) =>
+    itemFilter === "all" ? rows : rows.filter((r) => String(r.poultryRawMaterialItemId) === itemFilter)
+
   const filteredItems = useMemo(
     () => filterByDateAndSearch(items, { search, searchKeys: ["itemName", "category"] }),
     [items, search],
   )
   const filteredPurchases = useMemo(
-    () => filterByDateAndSearch(purchases, { search, dateFrom, dateTo, searchKeys: ["itemName", "supplierName"], dateKey: "purchaseDate" }),
-    [purchases, search, dateFrom, dateTo],
+    () => byItem(filterByDateAndSearch(purchases, { search, dateFrom, dateTo, searchKeys: ["itemName", "supplierName"], dateKey: "purchaseDate" })),
+    [purchases, search, dateFrom, dateTo, itemFilter],
   )
   const filteredUsage = useMemo(
-    () => filterByDateAndSearch(usage, { search, dateFrom, dateTo, searchKeys: ["itemName"], dateKey: "usedDate" }),
-    [usage, search, dateFrom, dateTo],
+    () => byItem(filterByDateAndSearch(usage, { search, dateFrom, dateTo, searchKeys: ["itemName"], dateKey: "usedDate" })),
+    [usage, search, dateFrom, dateTo, itemFilter],
+  )
+
+  const sortedItems = useMemo(() => sortData(filteredItems, itemsSort.key, itemsSort.direction), [filteredItems, itemsSort])
+  const sortedPurchases = useMemo(() => sortData(filteredPurchases, purchasesSort.key, purchasesSort.direction), [filteredPurchases, purchasesSort])
+  const sortedUsage = useMemo(() => sortData(filteredUsage, usageSort.key, usageSort.direction), [filteredUsage, usageSort])
+
+  // Item dropdown shared by the Purchases + Usage filter strips.
+  const itemFilterDropdown = (
+    <Select value={itemFilter} onValueChange={setItemFilter}>
+      <SelectTrigger className="w-[160px]"><SelectValue placeholder="All items" /></SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">All items</SelectItem>
+        {items.map((i) => <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>{i.itemName}</SelectItem>)}
+      </SelectContent>
+    </Select>
   )
 
   // Headline figures for the summary cards.
@@ -367,14 +393,20 @@ export default function PoultryRawMaterialsPage() {
                   <div className="mb-3"><ListFilters search={search} setSearch={setSearch} searchOnly searchPlaceholder="Search item or category" /></div>
                   <div className="hidden md:block overflow-x-auto"><Table className="min-w-[640px]">
                     <TableHeader><TableRow>
-                      <TableHead>Item</TableHead><TableHead>Category</TableHead><TableHead>Unit</TableHead>
-                      <TableHead className="text-right">In stock</TableHead><TableHead className="text-right">Min alert</TableHead>
-                      <TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead>
+                      {(() => { const onSort = (k: string) => setItemsSort((s) => toggleSort(k, s.key, s.direction)); const cs = itemsSort.key, cd = itemsSort.direction; return (<>
+                      <SortableHeader label="Item" sortKey="itemName" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                      <SortableHeader label="Category" sortKey="category" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                      <SortableHeader label="Unit" sortKey="unitOfMeasure" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                      <SortableHeader label="In stock" sortKey="currentQuantity" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                      <SortableHeader label="Min alert" sortKey="minimumStockAlert" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                      <SortableHeader label="Status" sortKey="isActive" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                      </>) })()}
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow></TableHeader>
                     <TableBody>
                       {filteredItems.length === 0 ? (
                         <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-6">No items yet.</TableCell></TableRow>
-                      ) : filteredItems.map((i) => (
+                      ) : sortedItems.map((i) => (
                         <TableRow key={i.poultryRawMaterialItemId}>
                           <TableCell className="font-medium">{i.itemName}</TableCell>
                           <TableCell>{i.category}</TableCell>
@@ -397,7 +429,7 @@ export default function PoultryRawMaterialsPage() {
                   {/* Mobile cards */}
                   <div className="md:hidden space-y-2">
                     {filteredItems.length === 0 ? <div className="text-center text-slate-500 py-6">No items yet.</div>
-                      : filteredItems.map((i) => (
+                      : sortedItems.map((i) => (
                         <FieldCard key={i.poultryRawMaterialItemId} title={i.itemName}
                           badge={!i.isActive ? <Badge variant="secondary">Inactive</Badge> : i.isLowStock ? <Badge className="bg-amber-100 text-amber-700">Low stock</Badge> : <Badge className="bg-green-100 text-green-700">OK</Badge>}
                           fields={[["Category", i.category], ["Unit", i.unitOfMeasure ?? "—"], ["In stock", i.currentQuantity.toLocaleString()], ["Min alert", i.minimumStockAlert.toLocaleString()]]}
@@ -420,18 +452,24 @@ export default function PoultryRawMaterialsPage() {
                     </div>
                     <Button onClick={openNewPurchase} className="shrink-0"><Plus className="w-4 h-4 mr-1" /> New purchase</Button>
                   </div>
-                  <div className="mb-3"><ListFilters search={search} setSearch={setSearch} dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo} searchPlaceholder="Search item or supplier" /></div>
+                  <div className="mb-3"><ListFilters search={search} setSearch={setSearch} dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo} searchPlaceholder="Search item or supplier" extras={itemFilterDropdown} /></div>
                   <div className="hidden md:block overflow-x-auto"><Table className="min-w-[640px]">
                     <TableHeader><TableRow>
-                      <TableHead>Date</TableHead><TableHead>Item</TableHead><TableHead>Supplier</TableHead>
-                      <TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Total</TableHead>
-                      <TableHead className="text-right">Paid</TableHead><TableHead className="text-right">Balance</TableHead>
+                      {(() => { const onSort = (k: string) => setPurchasesSort((s) => toggleSort(k, s.key, s.direction)); const cs = purchasesSort.key, cd = purchasesSort.direction; return (<>
+                      <SortableHeader label="Date" sortKey="purchaseDate" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                      <SortableHeader label="Item" sortKey="itemName" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                      <SortableHeader label="Supplier" sortKey="supplierName" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                      <SortableHeader label="Qty" sortKey="quantity" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                      <SortableHeader label="Total" sortKey="totalCost" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                      <SortableHeader label="Paid" sortKey="amountPaid" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                      <SortableHeader label="Balance" sortKey="balance" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                      </>) })()}
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow></TableHeader>
                     <TableBody>
                       {filteredPurchases.length === 0 ? (
                         <TableRow><TableCell colSpan={8} className="text-center text-slate-500 py-6">No purchases yet.</TableCell></TableRow>
-                      ) : filteredPurchases.map((p) => (
+                      ) : sortedPurchases.map((p) => (
                         <TableRow key={p.poultryRawMaterialPurchaseId}>
                           <TableCell>{(p.purchaseDate || "").split("T")[0]}</TableCell>
                           <TableCell className="font-medium">{p.itemName}</TableCell>
@@ -452,7 +490,7 @@ export default function PoultryRawMaterialsPage() {
                   {/* Mobile cards */}
                   <div className="md:hidden space-y-2">
                     {filteredPurchases.length === 0 ? <div className="text-center text-slate-500 py-6">No purchases yet.</div>
-                      : filteredPurchases.map((p) => (
+                      : sortedPurchases.map((p) => (
                         <FieldCard key={p.poultryRawMaterialPurchaseId} title={p.itemName}
                           badge={<span className="text-xs text-slate-500">{(p.purchaseDate || "").split("T")[0]}</span>}
                           fields={[["Supplier", p.supplierName ?? "—"], ["Qty", `${p.quantity.toLocaleString()} ${p.unitOfMeasure ?? ""}`], ["Total", gh(p.totalCost)], ["Paid", gh(p.amountPaid)], ["Balance", p.balance > 0 ? <span className="text-amber-600 font-medium">{gh(p.balance)}</span> : gh(0)]]}
@@ -473,17 +511,22 @@ export default function PoultryRawMaterialsPage() {
                     <h2 className="text-base font-semibold text-slate-900">Usage History</h2>
                     <p className="text-xs text-slate-500">Stock consumed when production batches are recorded.</p>
                   </div>
-                  <div className="mb-3"><ListFilters search={search} setSearch={setSearch} dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo} searchPlaceholder="Search item" /></div>
+                  <div className="mb-3"><ListFilters search={search} setSearch={setSearch} dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo} searchPlaceholder="Search item" extras={itemFilterDropdown} /></div>
                   <div className="hidden md:block overflow-x-auto"><Table className="min-w-[640px]">
                     <TableHeader><TableRow>
-                      <TableHead>Date</TableHead><TableHead>Item</TableHead>
-                      <TableHead className="text-right">Used</TableHead><TableHead className="text-right">Expected</TableHead>
-                      <TableHead className="text-right">Variance</TableHead><TableHead>Reason</TableHead>
+                      {(() => { const onSort = (k: string) => setUsageSort((s) => toggleSort(k, s.key, s.direction)); const cs = usageSort.key, cd = usageSort.direction; return (<>
+                      <SortableHeader label="Date" sortKey="usedDate" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                      <SortableHeader label="Item" sortKey="itemName" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                      <SortableHeader label="Used" sortKey="quantityUsed" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                      <SortableHeader label="Expected" sortKey="expectedQuantityUsed" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                      <SortableHeader label="Variance" sortKey="variance" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                      <SortableHeader label="Reason" sortKey="varianceReason" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                      </>) })()}
                     </TableRow></TableHeader>
                     <TableBody>
                       {filteredUsage.length === 0 ? (
                         <TableRow><TableCell colSpan={6} className="text-center text-slate-500 py-6">No usage recorded yet. Usage is created when production batches are approved (coming with the production slice).</TableCell></TableRow>
-                      ) : filteredUsage.map((u) => (
+                      ) : sortedUsage.map((u) => (
                         <TableRow key={u.poultryRawMaterialUsageId}>
                           <TableCell>{(u.usedDate || "").split("T")[0]}</TableCell>
                           <TableCell className="font-medium">{u.itemName}</TableCell>
@@ -498,7 +541,7 @@ export default function PoultryRawMaterialsPage() {
                   {/* Mobile cards */}
                   <div className="md:hidden space-y-2">
                     {filteredUsage.length === 0 ? <div className="text-center text-slate-500 py-6">No usage recorded yet.</div>
-                      : filteredUsage.map((u) => (
+                      : sortedUsage.map((u) => (
                         <FieldCard key={u.poultryRawMaterialUsageId} title={u.itemName}
                           badge={<span className="text-xs text-slate-500">{(u.usedDate || "").split("T")[0]}</span>}
                           fields={[["Used", `${u.quantityUsed.toLocaleString()} ${u.unitOfMeasure ?? ""}`], ["Expected", u.expectedQuantityUsed?.toLocaleString() ?? "—"], ["Variance", u.variance.toLocaleString()], ["Reason", u.varianceReason ?? "—"]]} />
