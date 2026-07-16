@@ -17,6 +17,8 @@ namespace PoultryFarmAPIWeb.Models
         public int Production12PM { get; set; }
         [JsonPropertyName("production4PM")]
         public int Production4PM { get; set; }
+        [JsonPropertyName("production4thPick")]
+        public int Production4thPick { get; set; }
         public int TotalProduction { get; set; }
         public int? BrokenEggs { get; set; }
         public string? Notes { get; set; }

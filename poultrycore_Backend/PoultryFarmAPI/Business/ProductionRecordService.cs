@@ -21,6 +21,8 @@ namespace PoultryFarmAPIWeb.Business
         /// <summary>Caches whether dbo stored procedures include @FeedsJson (migration 148, multi-feed lines).</summary>
         private static readonly ConcurrentDictionary<string, bool> SpHasFeedsJsonParamCache = new();
 
+        private static readonly ConcurrentDictionary<string, bool> SpHasFourthPickParamCache = new();
+
         private static readonly JsonSerializerOptions MedicationsJsonOptions = new() { PropertyNameCaseInsensitive = true };
 
         public ProductionRecordService(string connectionString)
@@ -46,6 +48,35 @@ namespace PoultryFarmAPIWeb.Business
             var has = scalar != null && scalar != DBNull.Value;
             SpHasEggGradeParamCache[procedureName] = has;
             return has;
+        }
+
+        // The 4th egg pick (migration 152) is persisted by a dedicated lightweight
+        // proc so the large Insert/Update procs stay untouched. Tolerant of the
+        // migration not being applied yet (the call becomes a no-op).
+        private static async Task<bool> ProcedureExistsAsync(SqlConnection conn, string procedureName)
+        {
+            if (SpHasFourthPickParamCache.TryGetValue(procedureName, out var cached))
+                return cached;
+
+            await using var probe = new SqlCommand(
+                @"SELECT 1 FROM sys.procedures
+                  WHERE SCHEMA_NAME(schema_id) = N'dbo' AND name = @procName",
+                conn);
+            probe.Parameters.AddWithValue("@procName", procedureName);
+            var scalar = await probe.ExecuteScalarAsync();
+            var has = scalar != null && scalar != DBNull.Value;
+            SpHasFourthPickParamCache[procedureName] = has;
+            return has;
+        }
+
+        private static async Task SetFourthPickAsync(SqlConnection conn, string farmId, int recordId, int fourthPick)
+        {
+            if (!await ProcedureExistsAsync(conn, "spProductionRecord_SetFourthPick")) return;
+            await using var cmd = new SqlCommand("spProductionRecord_SetFourthPick", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@RecordId", recordId);
+            cmd.Parameters.AddWithValue("@FarmId", (object?)farmId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Production4thPick", fourthPick);
+            await cmd.ExecuteNonQueryAsync();
         }
 
         private static async Task<bool> ProcedureHasEggLossParamsAsync(SqlConnection conn, string procedureName)
@@ -301,6 +332,8 @@ namespace PoultryFarmAPIWeb.Business
 
                 // Get the new Id
                 int newId = (int)newIdParam.Value;
+                // Persist the 4th egg pick + recompute the total (migration 152).
+                await SetFourthPickAsync(conn, model.FarmId, newId, model.Production4thPick);
                 return newId;
             }
             catch (Exception ex)
@@ -356,6 +389,8 @@ namespace PoultryFarmAPIWeb.Business
                     cmd.Parameters.AddWithValue("@FeedsJson", BuildFeedsJsonParam(model));
 
                 await cmd.ExecuteNonQueryAsync();
+                // Persist the 4th egg pick + recompute the total (migration 152).
+                await SetFourthPickAsync(conn, model.FarmId, model.Id, model.Production4thPick);
             }
             catch (Exception ex)
             {
@@ -402,6 +437,7 @@ namespace PoultryFarmAPIWeb.Business
                         Production9AM = reader.GetInt32(reader.GetOrdinal("Production9AM")),
                         Production12PM = reader.GetInt32(reader.GetOrdinal("Production12PM")),
                         Production4PM = reader.GetInt32(reader.GetOrdinal("Production4PM")),
+                        Production4thPick = GetNullableIntIfPresent(reader, "Production4thPick") ?? 0,
                         TotalProduction = totalProd,
                         CreatedAt = reader.GetDateTime(reader.GetOrdinal("CreatedAt")),
                         FlockId = reader.IsDBNull(reader.GetOrdinal("FlockId")) ? (int?)null : reader.GetInt32(reader.GetOrdinal("FlockId")),
@@ -464,6 +500,7 @@ namespace PoultryFarmAPIWeb.Business
                         Production9AM = reader.GetInt32(reader.GetOrdinal("Production9AM")),
                         Production12PM = reader.GetInt32(reader.GetOrdinal("Production12PM")),
                         Production4PM = reader.GetInt32(reader.GetOrdinal("Production4PM")),
+                        Production4thPick = GetNullableIntIfPresent(reader, "Production4thPick") ?? 0,
                         TotalProduction = totalProd,
                         CreatedAt = reader.GetDateTime(reader.GetOrdinal("CreatedAt")),
                         FlockId = reader.IsDBNull(reader.GetOrdinal("FlockId")) ? (int?)null : reader.GetInt32(reader.GetOrdinal("FlockId")),

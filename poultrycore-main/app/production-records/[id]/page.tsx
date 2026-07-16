@@ -17,6 +17,7 @@ import { FileText, X } from "lucide-react"
 import { getProductionRecord, updateProductionRecord, type ProductionRecordInput } from "@/lib/api/production-record"
 import { createFeedUsage, updateFeedUsage, getFeedUsages, type FeedUsageInput } from "@/lib/api/feed-usage"
 import { getUserContext } from "@/lib/utils/user-context"
+import { usePickSettings } from "@/hooks/use-pick-settings"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useMemo } from "react"
 import {
@@ -40,6 +41,7 @@ export default function EditProductionRecordPage() {
   const router = useRouter()
   const params = useParams()
   const id = Number(params.id)
+  const { labels: pickLabelText, enableFourthPick } = usePickSettings()
   const [loading, setLoading] = useState(false)
   const [fetchLoading, setFetchLoading] = useState(true)
   const [error, setError] = useState("")
@@ -56,6 +58,7 @@ export default function EditProductionRecordPage() {
     production9AM: "",
     production12PM: "",
     production4PM: "",
+    production4thPick: "",
     brokenEggs: "",
     meatyEggs: "",
     softEggs: "",
@@ -142,6 +145,7 @@ export default function EditProductionRecordPage() {
         production9AM: String(record.production9AM),
         production12PM: String(record.production12PM),
         production4PM: String(record.production4PM),
+        production4thPick: String((record as any).production4thPick ?? 0),
         brokenEggs: String((record as any).brokenEggs ?? 0),
         meatyEggs: (record as any).meatyEggs == null ? "" : String((record as any).meatyEggs),
         softEggs: (record as any).softEggs == null ? "" : String((record as any).softEggs),
@@ -256,7 +260,7 @@ export default function EditProductionRecordPage() {
     const { userId, farmId } = getUserContext()
 
     const totalProduction =
-      Number(formData.production9AM) + Number(formData.production12PM) + Number(formData.production4PM)
+      Number(formData.production9AM) + Number(formData.production12PM) + Number(formData.production4PM) + Number(formData.production4thPick)
 
     const noOfBirdsLeft = Number(formData.noOfBirds) - Number(formData.mortality)
 
@@ -277,6 +281,7 @@ export default function EditProductionRecordPage() {
       production9AM: Number(formData.production9AM),
       production12PM: Number(formData.production12PM),
       production4PM: Number(formData.production4PM),
+      production4thPick: Number(formData.production4thPick),
       brokenEggs: Number(formData.brokenEggs) || 0,
       meatyEggs: formData.meatyEggs === "" ? null : Number(formData.meatyEggs) || 0,
       softEggs: formData.softEggs === "" ? null : Number(formData.softEggs) || 0,
@@ -472,13 +477,13 @@ export default function EditProductionRecordPage() {
                 {/* Egg Production */}
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold text-slate-900">Egg Production</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                     <div className="space-y-2">
-                      <Label htmlFor="production9AM" className="text-sm font-medium text-slate-700">9 AM *</Label>
+                      <Label htmlFor="production9AM" className="text-sm font-medium text-slate-700">{pickLabelText.first} *</Label>
                       <NumberInput
                         id="production9AM"
                         name="production9AM"
-                        
+
                         value={formData.production9AM}
                         onChange={handleChange}
                         required
@@ -488,11 +493,11 @@ export default function EditProductionRecordPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="production12PM" className="text-sm font-medium text-slate-700">12 PM *</Label>
+                      <Label htmlFor="production12PM" className="text-sm font-medium text-slate-700">{pickLabelText.second} *</Label>
                       <NumberInput
                         id="production12PM"
                         name="production12PM"
-                        
+
                         value={formData.production12PM}
                         onChange={handleChange}
                         required
@@ -502,7 +507,7 @@ export default function EditProductionRecordPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="production4PM" className="text-sm font-medium text-slate-700">4 PM *</Label>
+                      <Label htmlFor="production4PM" className="text-sm font-medium text-slate-700">{pickLabelText.third} *</Label>
                       <NumberInput
                         id="production4PM"
                         name="production4PM"
@@ -515,6 +520,20 @@ export default function EditProductionRecordPage() {
                         className="h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
                       />
                     </div>
+                    {(enableFourthPick || Number(formData.production4thPick) > 0) && (
+                    <div className="space-y-2">
+                      <Label htmlFor="production4thPick" className="text-sm font-medium text-slate-700">{pickLabelText.fourth}</Label>
+                      <NumberInput
+                        id="production4thPick"
+                        name="production4thPick"
+                        value={formData.production4thPick}
+                        onChange={handleChange}
+                        min="0"
+                        disabled={loading}
+                        className="h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+                      />
+                    </div>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                     <div className="space-y-2">

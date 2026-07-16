@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Egg } from "lucide-react"
 import { getEggProduction, updateEggProduction, type EggProductionInput } from "@/lib/api/egg-production"
+import { usePickSettings } from "@/hooks/use-pick-settings"
 import { EGG_GRADE_OPTIONS, EGG_GRADE_SELECT_VALUE_NONE, eggGradeFromApi, eggGradeToApi } from "@/lib/constants/egg-grade"
 import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
 import { getUserContext } from "@/lib/utils/user-context"
@@ -23,6 +24,7 @@ export default function EditEggProductionPage() {
   const router = useRouter()
   const params = useParams()
   const productionId = params.id as string
+  const { labels: pickLabelText, enableFourthPick } = usePickSettings()
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -37,12 +39,13 @@ export default function EditEggProductionPage() {
     production9AM: 0,
     production12PM: 0,
     production4PM: 0,
+    production4thPick: 0,
     brokenEggs: 0,
     notes: "",
     eggGrade: EGG_GRADE_SELECT_VALUE_NONE,
   })
 
-  // Crate-based egg entry state for each time slot
+  // Crate-based egg entry state for each pick
   const EGGS_PER_CRATE = 30
   const [morningCrates, setMorningCrates] = useState(0)
   const [morningLoose, setMorningLoose] = useState(0)
@@ -50,10 +53,13 @@ export default function EditEggProductionPage() {
   const [noonLoose, setNoonLoose] = useState(0)
   const [eveningCrates, setEveningCrates] = useState(0)
   const [eveningLoose, setEveningLoose] = useState(0)
+  const [fourthCrates, setFourthCrates] = useState(0)
+  const [fourthLoose, setFourthLoose] = useState(0)
 
   const morningTotal = (morningCrates * EGGS_PER_CRATE) + morningLoose
   const noonTotal = (noonCrates * EGGS_PER_CRATE) + noonLoose
   const eveningTotal = (eveningCrates * EGGS_PER_CRATE) + eveningLoose
+  const fourthTotal = (fourthCrates * EGGS_PER_CRATE) + fourthLoose
 
   // Sync crate values into formData
   useEffect(() => {
@@ -65,10 +71,13 @@ export default function EditEggProductionPage() {
   useEffect(() => {
     setFormData(prev => ({ ...prev, production4PM: eveningTotal }))
   }, [eveningTotal])
+  useEffect(() => {
+    setFormData(prev => ({ ...prev, production4thPick: fourthTotal }))
+  }, [fourthTotal])
 
   const totalProduction = useMemo(() => {
-    return (formData.production9AM || 0) + (formData.production12PM || 0) + (formData.production4PM || 0);
-  }, [formData.production9AM, formData.production12PM, formData.production4PM]);
+    return (formData.production9AM || 0) + (formData.production12PM || 0) + (formData.production4PM || 0) + (formData.production4thPick || 0);
+  }, [formData.production9AM, formData.production12PM, formData.production4PM, formData.production4thPick]);
   const totalCrates = Math.floor(totalProduction / EGGS_PER_CRATE)
   const totalPieces = totalProduction % EGGS_PER_CRATE
 
@@ -140,9 +149,11 @@ export default function EditEggProductionPage() {
       const m = eggProd.production9AM ?? 0
       const n = eggProd.production12PM ?? 0
       const ev = eggProd.production4PM ?? 0
+      const fp = (eggProd as any).production4thPick ?? 0
       setMorningCrates(Math.floor(m / EGGS_PER_CRATE)); setMorningLoose(m % EGGS_PER_CRATE)
       setNoonCrates(Math.floor(n / EGGS_PER_CRATE)); setNoonLoose(n % EGGS_PER_CRATE)
       setEveningCrates(Math.floor(ev / EGGS_PER_CRATE)); setEveningLoose(ev % EGGS_PER_CRATE)
+      setFourthCrates(Math.floor(fp / EGGS_PER_CRATE)); setFourthLoose(fp % EGGS_PER_CRATE)
     } else {
       setError(eggProductionRes.message || "Failed to load production data")
     }
@@ -173,15 +184,15 @@ export default function EditEggProductionPage() {
 
     // Client-side validation for production numbers
     if (formData.production9AM === null || formData.production9AM === undefined || isNaN(formData.production9AM) || formData.production9AM < 0) {
-      setError("Production at 9 AM must be a non-negative number.")
+      setError("1st Pick must be a non-negative number.")
       return
     }
     if (formData.production12PM === null || formData.production12PM === undefined || isNaN(formData.production12PM) || formData.production12PM < 0) {
-      setError("Production at 12 PM must be a non-negative number.")
+      setError("2nd Pick must be a non-negative number.")
       return
     }
     if (formData.production4PM === null || formData.production4PM === undefined || isNaN(formData.production4PM) || formData.production4PM < 0) {
-      setError("Production at 4 PM must be a non-negative number.")
+      setError("3rd Pick must be a non-negative number.")
       return
     }
 
@@ -218,6 +229,7 @@ export default function EditEggProductionPage() {
               production9AM: formData.production9AM || 0,
               production12PM: formData.production12PM || 0,
               production4PM: formData.production4PM || 0,
+              production4thPick: formData.production4thPick || 0,
               totalProduction: totalProduction,
               eggGrade: eggGradeToApi((formData.eggGrade as string) ?? EGG_GRADE_SELECT_VALUE_NONE),
             }
@@ -387,7 +399,7 @@ export default function EditEggProductionPage() {
 
                 {/* Morning (9 AM) - Crates + Loose */}
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2 mt-4">
-                  <Label className="text-blue-800 font-semibold">Production at 9 AM — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
+                  <Label className="text-blue-800 font-semibold">{pickLabelText.first} — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
                   <div className="grid grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">Crates</Label>
@@ -407,7 +419,7 @@ export default function EditEggProductionPage() {
 
                 {/* Noon (12 PM) - Crates + Loose */}
                 <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg space-y-2">
-                  <Label className="text-orange-800 font-semibold">Production at 12 PM — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
+                  <Label className="text-orange-800 font-semibold">{pickLabelText.second} — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
                   <div className="grid grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">Crates</Label>
@@ -425,9 +437,9 @@ export default function EditEggProductionPage() {
                   <p className="text-xs text-orange-600">{noonCrates} crates × {EGGS_PER_CRATE} + {noonLoose} loose = {noonTotal.toLocaleString()} eggs</p>
                 </div>
 
-                {/* Evening (4 PM) - Crates + Loose */}
+                {/* 3rd Pick - Crates + Loose */}
                 <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg space-y-2">
-                  <Label className="text-purple-800 font-semibold">Production at 4 PM — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
+                  <Label className="text-purple-800 font-semibold">{pickLabelText.third} — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
                   <div className="grid grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">Crates</Label>
@@ -444,6 +456,28 @@ export default function EditEggProductionPage() {
                   </div>
                   <p className="text-xs text-purple-600">{eveningCrates} crates × {EGGS_PER_CRATE} + {eveningLoose} loose = {eveningTotal.toLocaleString()} eggs</p>
                 </div>
+
+                {/* 4th Pick — hidden when the farm has it disabled and there's no value yet. */}
+                {(enableFourthPick || fourthTotal > 0) && (
+                <div className="p-3 bg-teal-50 border border-teal-200 rounded-lg space-y-2">
+                  <Label className="text-teal-800 font-semibold">{pickLabelText.fourth} — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Crates</Label>
+                      <NumberInput min="0" value={fourthCrates} onChange={(e) => setFourthCrates(parseInt(e.target.value) || 0)} disabled={saving} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Loose Eggs</Label>
+                      <NumberInput min="0" max="29" value={fourthLoose} onChange={(e) => setFourthLoose(parseInt(e.target.value) || 0)} disabled={saving} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Total</Label>
+                      <div className="h-10 px-3 py-2 bg-white border rounded-md flex items-center font-bold text-teal-700">{fourthTotal.toLocaleString()}</div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-teal-600">{fourthCrates} crates × {EGGS_PER_CRATE} + {fourthLoose} loose = {fourthTotal.toLocaleString()} eggs</p>
+                </div>
+                )}
 
                 {/* Total Eggs Summary */}
                 <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">

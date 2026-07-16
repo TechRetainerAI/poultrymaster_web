@@ -119,7 +119,7 @@ export interface PoultryDailyEggProductionReportSummary {
 }
 export interface PoultryDailyEggProductionReportRow {
   date: string; flockId: number | null; flockName: string; ageInWeeks: number | null
-  morningEggs: number; middayEggs: number; eveningEggs: number; totalEggs: number
+  morningEggs: number; middayEggs: number; eveningEggs: number; fourthPickEggs: number; totalEggs: number
   brokenEggs: number; saleableEggs: number; eggProductionPercent: number | null; notes: string | null
 }
 
