@@ -170,7 +170,9 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
         key: ri,
         label: labelHeader ? (def.columns.find((c) => c.header === labelHeader)?.cell(row, ctx) ?? null) : null,
         revenue: pick(build(isRevenue), "total revenue"),
-        expense: pick(build((h) => !isRevenue(h)), "net profit"),
+        // "Expenses details" headlines the total expenses (Total cost). Net
+        // profit is excluded entirely — it already shows in the KPI strip.
+        expense: pick(build((h) => !isRevenue(h) && !h.includes("net profit")), "total cost"),
       }
     })
   }, [def, rows, ctx])
