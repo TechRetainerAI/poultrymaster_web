@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
+import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
+import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { Badge } from "@/components/ui/badge"
 import { FieldCard } from "@/components/ui/field-card"
 import { Plus, Loader2 } from "lucide-react"
@@ -57,6 +59,14 @@ export default function PoultryStockPage() {
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({ poultryProductId: 0, movementType: "Increase", quantity: 0, unitCost: 0, note: "" })
 
+  // List filters + column sort.
+  const [search, setSearch] = useState("")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
+  const [parentTypeFilter, setParentTypeFilter] = useState("all")
+  const [movementFilter, setMovementFilter] = useState("all")
+  const [sort, setSort] = useState<{ key: string | null; direction: SortDirection }>({ key: null, direction: null })
+
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Poultry") { router.replace("/dashboard"); return }
     void load()
@@ -90,6 +100,19 @@ export default function PoultryStockPage() {
     return [...prod, ...rawMoves].sort((a, b) => (b.date || "").localeCompare(a.date || ""))
   }, [txns, rawMoves])
 
+  const parentTypeOptions = useMemo(() => Array.from(new Set(moves.map((m) => m.parentType).filter(Boolean))).sort(), [moves])
+  const movementOptions = useMemo(() => Array.from(new Set(moves.map((m) => m.movementType).filter(Boolean))).sort(), [moves])
+
+  const filteredMoves = useMemo(() => {
+    let rows = filterByDateAndSearch(moves, { search, dateFrom, dateTo, searchKeys: ["item", "source", "note"], dateKey: "date" })
+    if (parentTypeFilter !== "all") rows = rows.filter((m) => m.parentType === parentTypeFilter)
+    if (movementFilter !== "all") rows = rows.filter((m) => m.movementType === movementFilter)
+    return rows
+  }, [moves, search, dateFrom, dateTo, parentTypeFilter, movementFilter])
+
+  // Default order stays date-desc (moves is pre-sorted); a header click overrides.
+  const sortedMoves = useMemo(() => sortData(filteredMoves, sort.key, sort.direction), [filteredMoves, sort])
+
   async function save() {
     if (!form.poultryProductId) { toast({ title: "Pick a product", variant: "destructive" }); return }
     if (form.quantity <= 0) { toast({ title: "Quantity must be greater than 0", variant: "destructive" }); return }
@@ -115,15 +138,40 @@ export default function PoultryStockPage() {
           </div>
           <Card><CardContent className="p-4">
             {loading ? <div className="flex items-center gap-2 text-slate-500 p-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div> : (
-              <><div className="hidden md:block overflow-x-auto"><Table className="min-w-[640px]">
+              <>
+              <div className="mb-3"><ListFilters search={search} setSearch={setSearch} dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo} searchPlaceholder="Search item, source or note" extras={<>
+                <Select value={parentTypeFilter} onValueChange={setParentTypeFilter}>
+                  <SelectTrigger className="w-[150px]"><SelectValue placeholder="All types" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All types</SelectItem>
+                    {parentTypeOptions.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={movementFilter} onValueChange={setMovementFilter}>
+                  <SelectTrigger className="w-[150px]"><SelectValue placeholder="All movements" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All movements</SelectItem>
+                    {movementOptions.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </>} /></div>
+              <div className="hidden md:block overflow-x-auto"><Table className="min-w-[640px]">
                 <TableHeader><TableRow>
-                  <TableHead>Date</TableHead><TableHead>Item</TableHead><TableHead>Parent Type</TableHead><TableHead>Movement</TableHead>
-                  <TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Unit Price</TableHead><TableHead className="text-right">Total Value</TableHead>
-                  <TableHead>Source</TableHead><TableHead>Note</TableHead>
+                  {(() => { const onSort = (k: string) => setSort((s) => toggleSort(k, s.key, s.direction)); const cs = sort.key, cd = sort.direction; return (<>
+                  <SortableHeader label="Date" sortKey="date" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                  <SortableHeader label="Item" sortKey="item" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                  <SortableHeader label="Parent Type" sortKey="parentType" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                  <SortableHeader label="Movement" sortKey="movementType" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                  <SortableHeader label="Qty" sortKey="qty" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                  <SortableHeader label="Unit Price" sortKey="unitCost" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                  <SortableHeader label="Total Value" sortKey="total" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                  <SortableHeader label="Source" sortKey="source" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                  <SortableHeader label="Note" sortKey="note" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                  </>) })()}
                 </TableRow></TableHeader>
                 <TableBody>
-                  {moves.length === 0 ? <TableRow><TableCell colSpan={9} className="text-center text-slate-500 py-6">No stock movements yet.</TableCell></TableRow>
-                    : moves.map((m) => (
+                  {sortedMoves.length === 0 ? <TableRow><TableCell colSpan={9} className="text-center text-slate-500 py-6">No stock movements yet.</TableCell></TableRow>
+                    : sortedMoves.map((m) => (
                       <TableRow key={m.key}>
                         <TableCell>{(m.date || "").split("T")[0]}</TableCell>
                         <TableCell className="font-medium">{m.item}</TableCell>
@@ -140,8 +188,8 @@ export default function PoultryStockPage() {
               </Table></div>
               {/* Mobile cards */}
               <div className="md:hidden space-y-2">
-                {moves.length === 0 ? <div className="text-center text-slate-500 py-6">No stock movements yet.</div>
-                  : moves.map((m) => (
+                {sortedMoves.length === 0 ? <div className="text-center text-slate-500 py-6">No stock movements yet.</div>
+                  : sortedMoves.map((m) => (
                     <FieldCard key={m.key} title={m.item}
                       badge={<Badge className={MOVE_COLORS[m.movementType] ?? "bg-gray-100"}>{m.movementType}</Badge>}
                       fields={[["Date", (m.date || "").split("T")[0]], ["Type", m.parentType], ["Qty", <span className={m.qty < 0 ? "text-red-600" : "text-green-700"}>{m.qty > 0 ? "+" : ""}{m.qty.toLocaleString()}</span>], ["Unit price", m.unitCost != null ? gh(m.unitCost) : "—"], ["Total", m.total != null ? gh(m.total) : "—"], ["Source", m.source]]} />
