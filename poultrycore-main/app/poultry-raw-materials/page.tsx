@@ -103,6 +103,9 @@ export default function PoultryRawMaterialsPage() {
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [itemFilter, setItemFilter] = useState("all")
+  // Items tab: category + unit dropdowns (records grow fast in production).
+  const [categoryFilter, setCategoryFilter] = useState("all")
+  const [unitFilter, setUnitFilter] = useState("all")
 
   // Per-tab column sort (label click cycles asc → desc → off).
   const [itemsSort, setItemsSort] = useState<{ key: string | null; direction: SortDirection }>({ key: null, direction: null })
@@ -177,10 +180,19 @@ export default function PoultryRawMaterialsPage() {
   const byItem = <T extends { poultryRawMaterialItemId: number }>(rows: T[]) =>
     itemFilter === "all" ? rows : rows.filter((r) => String(r.poultryRawMaterialItemId) === itemFilter)
 
-  const filteredItems = useMemo(
-    () => filterByDateAndSearch(items, { search, searchKeys: ["itemName", "category"] }),
-    [items, search],
-  )
+  const filteredItems = useMemo(() => {
+    let rows = filterByDateAndSearch(items, { search, searchKeys: ["itemName", "category"] })
+    if (categoryFilter !== "all") rows = rows.filter((i) => i.category === categoryFilter)
+    if (unitFilter !== "all") rows = rows.filter((i) => i.unitOfMeasure === unitFilter || i.purchaseUnitOfMeasure === unitFilter)
+    return rows
+  }, [items, search, categoryFilter, unitFilter])
+
+  // Distinct units actually in use (either role), for the Items unit dropdown.
+  const unitOptionsInUse = useMemo(() => {
+    const set = new Set<string>()
+    items.forEach((i) => { if (i.unitOfMeasure) set.add(i.unitOfMeasure); if (i.purchaseUnitOfMeasure) set.add(i.purchaseUnitOfMeasure) })
+    return Array.from(set).sort()
+  }, [items])
   const filteredPurchases = useMemo(
     () => byItem(filterByDateAndSearch(purchases, { search, dateFrom, dateTo, searchKeys: ["itemName", "supplierName"], dateKey: "purchaseDate" })),
     [purchases, search, dateFrom, dateTo, itemFilter],
@@ -390,13 +402,29 @@ export default function PoultryRawMaterialsPage() {
                     </div>
                     <Button onClick={openNewItem} className="shrink-0"><Plus className="w-4 h-4 mr-1" /> New item</Button>
                   </div>
-                  <div className="mb-3"><ListFilters search={search} setSearch={setSearch} searchOnly searchPlaceholder="Search item or category" /></div>
+                  <div className="mb-3"><ListFilters search={search} setSearch={setSearch} searchOnly searchPlaceholder="Search item or category" extras={<>
+                    <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                      <SelectTrigger className="w-[160px]"><SelectValue placeholder="All categories" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All categories</SelectItem>
+                        {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Select value={unitFilter} onValueChange={setUnitFilter}>
+                      <SelectTrigger className="w-[140px]"><SelectValue placeholder="All units" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All units</SelectItem>
+                        {unitOptionsInUse.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </>} /></div>
                   <div className="hidden md:block overflow-x-auto"><Table className="min-w-[640px]">
                     <TableHeader><TableRow>
                       {(() => { const onSort = (k: string) => setItemsSort((s) => toggleSort(k, s.key, s.direction)); const cs = itemsSort.key, cd = itemsSort.direction; return (<>
                       <SortableHeader label="Item" sortKey="itemName" currentSort={cs} currentDirection={cd} onSort={onSort} />
                       <SortableHeader label="Category" sortKey="category" currentSort={cs} currentDirection={cd} onSort={onSort} />
-                      <SortableHeader label="Unit" sortKey="unitOfMeasure" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                      <SortableHeader label="Purchase Unit" sortKey="purchaseUnitOfMeasure" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                      <SortableHeader label="Production Unit" sortKey="unitOfMeasure" currentSort={cs} currentDirection={cd} onSort={onSort} />
                       <SortableHeader label="In stock" sortKey="currentQuantity" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
                       <SortableHeader label="Min alert" sortKey="minimumStockAlert" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
                       <SortableHeader label="Status" sortKey="isActive" currentSort={cs} currentDirection={cd} onSort={onSort} />
@@ -405,11 +433,12 @@ export default function PoultryRawMaterialsPage() {
                     </TableRow></TableHeader>
                     <TableBody>
                       {filteredItems.length === 0 ? (
-                        <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-6">No items yet.</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={8} className="text-center text-slate-500 py-6">No items yet.</TableCell></TableRow>
                       ) : sortedItems.map((i) => (
                         <TableRow key={i.poultryRawMaterialItemId}>
                           <TableCell className="font-medium">{i.itemName}</TableCell>
                           <TableCell>{i.category}</TableCell>
+                          <TableCell>{i.purchaseUnitOfMeasure ?? "—"}</TableCell>
                           <TableCell>{i.unitOfMeasure ?? "—"}</TableCell>
                           <TableCell className="text-right">{i.currentQuantity.toLocaleString()}</TableCell>
                           <TableCell className="text-right">{i.minimumStockAlert.toLocaleString()}</TableCell>
@@ -432,7 +461,7 @@ export default function PoultryRawMaterialsPage() {
                       : sortedItems.map((i) => (
                         <FieldCard key={i.poultryRawMaterialItemId} title={i.itemName}
                           badge={!i.isActive ? <Badge variant="secondary">Inactive</Badge> : i.isLowStock ? <Badge className="bg-amber-100 text-amber-700">Low stock</Badge> : <Badge className="bg-green-100 text-green-700">OK</Badge>}
-                          fields={[["Category", i.category], ["Unit", i.unitOfMeasure ?? "—"], ["In stock", i.currentQuantity.toLocaleString()], ["Min alert", i.minimumStockAlert.toLocaleString()]]}
+                          fields={[["Category", i.category], ["Purchase Unit", i.purchaseUnitOfMeasure ?? "—"], ["Production Unit", i.unitOfMeasure ?? "—"], ["In stock", i.currentQuantity.toLocaleString()], ["Min alert", i.minimumStockAlert.toLocaleString()]]}
                           actions={<>
                             <Button variant="ghost" size="sm" onClick={() => openEditItem(i)}><Pencil className="w-4 h-4" /></Button>
                             <Button variant="ghost" size="sm" onClick={() => setDeleteItemTarget(i)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
