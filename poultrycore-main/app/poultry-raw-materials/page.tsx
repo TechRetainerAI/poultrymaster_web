@@ -349,12 +349,16 @@ export default function PoultryRawMaterialsPage() {
               <h1 className="text-2xl font-bold">Raw Materials &amp; Supplies</h1>
               <p className="text-sm text-slate-500">Track feed inputs, packaging, medication and other supplies — purchases, costing and usage.</p>
             </div>
-            <TabsList className="self-start sm:self-auto sm:ml-auto">
-              <TabsTrigger value="items"><Box className="w-4 h-4 mr-1" /> Items</TabsTrigger>
-              <TabsTrigger value="purchases"><ShoppingCart className="w-4 h-4 mr-1" /> Purchases</TabsTrigger>
-              <TabsTrigger value="usage"><Wallet className="w-4 h-4 mr-1" /> Usage History</TabsTrigger>
-            </TabsList>
+            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto sm:ml-auto">
+              <Button variant="outline" onClick={openNewItem}><Plus className="w-4 h-4 mr-1" /> New Item</Button>
+              <Button onClick={openNewPurchase}><ShoppingCart className="w-4 h-4 mr-1" /> Record Purchase</Button>
+            </div>
           </div>
+          <TabsList className="self-start">
+            <TabsTrigger value="items"><Box className="w-4 h-4 mr-1" /> Items</TabsTrigger>
+            <TabsTrigger value="purchases"><ShoppingCart className="w-4 h-4 mr-1" /> Purchases</TabsTrigger>
+            <TabsTrigger value="usage"><Wallet className="w-4 h-4 mr-1" /> Usage History</TabsTrigger>
+          </TabsList>
 
           {loading ? (
             <div className="flex items-center gap-2 text-slate-500 p-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
@@ -395,12 +399,9 @@ export default function PoultryRawMaterialsPage() {
               {/* ITEMS */}
               <TabsContent value="items">
                 <Card><CardContent className="p-4">
-                  <div className="flex items-center justify-between gap-3 mb-3">
-                    <div className="min-w-0">
-                      <h2 className="text-base font-semibold text-slate-900">Inventory Items</h2>
-                      <p className="text-xs text-slate-500">Feed, packaging, medication and other stock-tracked supplies.</p>
-                    </div>
-                    <Button onClick={openNewItem} className="shrink-0"><Plus className="w-4 h-4 mr-1" /> New item</Button>
+                  <div className="mb-3">
+                    <h2 className="text-base font-semibold text-slate-900">Inventory Items</h2>
+                    <p className="text-xs text-slate-500">Feed, packaging, medication and other stock-tracked supplies.</p>
                   </div>
                   <div className="mb-3"><ListFilters search={search} setSearch={setSearch} searchOnly searchPlaceholder="Search item or category" extras={<>
                     <Select value={categoryFilter} onValueChange={setCategoryFilter}>
@@ -474,12 +475,9 @@ export default function PoultryRawMaterialsPage() {
               {/* PURCHASES */}
               <TabsContent value="purchases">
                 <Card><CardContent className="p-4">
-                  <div className="flex items-center justify-between gap-3 mb-3">
-                    <div className="min-w-0">
-                      <h2 className="text-base font-semibold text-slate-900">Purchase History</h2>
-                      <p className="text-xs text-slate-500">Stock received, costing, and supplier part payments.</p>
-                    </div>
-                    <Button onClick={openNewPurchase} className="shrink-0"><Plus className="w-4 h-4 mr-1" /> New purchase</Button>
+                  <div className="mb-3">
+                    <h2 className="text-base font-semibold text-slate-900">Purchase History</h2>
+                    <p className="text-xs text-slate-500">Stock received, costing, and supplier part payments.</p>
                   </div>
                   <div className="mb-3"><ListFilters search={search} setSearch={setSearch} dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo} searchPlaceholder="Search item or supplier" extras={itemFilterDropdown} /></div>
                   <div className="hidden md:block overflow-x-auto"><Table className="min-w-[640px]">
