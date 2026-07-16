@@ -459,7 +459,9 @@ export default function PoultryRawMaterialsPage() {
                       <SortableHeader label="Date" sortKey="purchaseDate" currentSort={cs} currentDirection={cd} onSort={onSort} />
                       <SortableHeader label="Item" sortKey="itemName" currentSort={cs} currentDirection={cd} onSort={onSort} />
                       <SortableHeader label="Supplier" sortKey="supplierName" currentSort={cs} currentDirection={cd} onSort={onSort} />
-                      <SortableHeader label="Qty" sortKey="quantity" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                      <SortableHeader label="Purchase Qty" sortKey="quantity" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                      <SortableHeader label="Production Level Qty" sortKey="productionQuantity" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                      <SortableHeader label="Unit Price" sortKey="unitCost" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
                       <SortableHeader label="Total" sortKey="totalCost" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
                       <SortableHeader label="Paid" sortKey="amountPaid" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
                       <SortableHeader label="Balance" sortKey="balance" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
@@ -468,13 +470,15 @@ export default function PoultryRawMaterialsPage() {
                     </TableRow></TableHeader>
                     <TableBody>
                       {filteredPurchases.length === 0 ? (
-                        <TableRow><TableCell colSpan={8} className="text-center text-slate-500 py-6">No purchases yet.</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={10} className="text-center text-slate-500 py-6">No purchases yet.</TableCell></TableRow>
                       ) : sortedPurchases.map((p) => (
                         <TableRow key={p.poultryRawMaterialPurchaseId}>
                           <TableCell>{(p.purchaseDate || "").split("T")[0]}</TableCell>
                           <TableCell className="font-medium">{p.itemName}</TableCell>
                           <TableCell>{p.supplierName ?? "—"}</TableCell>
                           <TableCell className="text-right">{p.quantity.toLocaleString()} {p.unitOfMeasure ?? ""}</TableCell>
+                          <TableCell className="text-right">{p.productionQuantity != null ? `${p.productionQuantity.toLocaleString()} ${p.productionUnit ?? ""}`.trim() : "—"}</TableCell>
+                          <TableCell className="text-right">{gh(p.unitCost)}{p.unitOfMeasure ? ` / ${p.unitOfMeasure}` : ""}</TableCell>
                           <TableCell className="text-right">{gh(p.totalCost)}</TableCell>
                           <TableCell className="text-right">{gh(p.amountPaid)}</TableCell>
                           <TableCell className="text-right">{p.balance > 0 ? <span className="text-amber-600 font-medium">{gh(p.balance)}</span> : gh(0)}</TableCell>
@@ -493,7 +497,7 @@ export default function PoultryRawMaterialsPage() {
                       : sortedPurchases.map((p) => (
                         <FieldCard key={p.poultryRawMaterialPurchaseId} title={p.itemName}
                           badge={<span className="text-xs text-slate-500">{(p.purchaseDate || "").split("T")[0]}</span>}
-                          fields={[["Supplier", p.supplierName ?? "—"], ["Qty", `${p.quantity.toLocaleString()} ${p.unitOfMeasure ?? ""}`], ["Total", gh(p.totalCost)], ["Paid", gh(p.amountPaid)], ["Balance", p.balance > 0 ? <span className="text-amber-600 font-medium">{gh(p.balance)}</span> : gh(0)]]}
+                          fields={[["Supplier", p.supplierName ?? "—"], ["Purchase Qty", `${p.quantity.toLocaleString()} ${p.unitOfMeasure ?? ""}`], ["Production Qty", p.productionQuantity != null ? `${p.productionQuantity.toLocaleString()} ${p.productionUnit ?? ""}`.trim() : "—"], ["Unit Price", gh(p.unitCost)], ["Total", gh(p.totalCost)], ["Paid", gh(p.amountPaid)], ["Balance", p.balance > 0 ? <span className="text-amber-600 font-medium">{gh(p.balance)}</span> : gh(0)]]}
                           actions={<>
                             {p.balance > 0 && <Button variant="ghost" size="sm" onClick={() => openPayBalance(p)} title="Pay balance"><Wallet className="w-4 h-4 text-emerald-600" /></Button>}
                             <Button variant="ghost" size="sm" onClick={() => openEditPurchase(p)}><Pencil className="w-4 h-4" /></Button>
