@@ -43,20 +43,25 @@ export function previewBatchConsumption(
     return a.poultryRawMaterialPurchaseId - b.poultryRawMaterialPurchaseId
   })
 
+  // neededQty is in PRODUCTION units (the item's stock unit). A batch's
+  // availability in production units = remainingQuantity (purchase units) x
+  // units-per-purchase; its cost per production unit = unitCost / units-per-purchase.
   let remaining = neededQty
-  let coveredQty = 0
-  let coveredCost = 0
+  let coveredQty = 0   // production units covered
+  let coveredCost = 0  // money
   for (const p of sorted) {
     if (remaining <= 0) break
-    const take = Math.min(p.remainingQuantity, remaining)
+    const mult = p.productionUnitsPerPurchaseUnit && p.productionUnitsPerPurchaseUnit > 0 ? p.productionUnitsPerPurchaseUnit : 1
+    const availProd = p.remainingQuantity * mult
+    const take = Math.min(availProd, remaining)
     if (take <= 0) continue
     coveredQty += take
-    coveredCost += take * p.unitCost
+    coveredCost += (take / mult) * p.unitCost   // purchase-equivalent x per-purchase cost
     remaining -= take
   }
 
   const shortfall = Math.max(0, neededQty - coveredQty)
-  const unitCost = coveredQty > 0 ? coveredCost / coveredQty : null
+  const unitCost = coveredQty > 0 ? coveredCost / coveredQty : null   // per production unit
   const totalCost = unitCost !== null ? unitCost * neededQty : null
 
   return { unitCost, totalCost, quantityCovered: coveredQty, shortfall }
@@ -80,7 +85,8 @@ interface WorkingLot {
   unitCost: number
   purchaseDate: string
   id: number
-  remaining: number
+  remaining: number   // in PURCHASE units (production units for the credit lot)
+  mult: number        // production units per purchase unit (1 for credit)
   isCredit?: boolean
 }
 
@@ -107,7 +113,7 @@ export function previewLinesSequential(
   for (const p of purchases) {
     if (p.remainingQuantity <= 0) continue
     const arr = lotsByItem.get(p.poultryRawMaterialItemId) ?? []
-    arr.push({ unitCost: p.unitCost, purchaseDate: p.purchaseDate, id: p.poultryRawMaterialPurchaseId, remaining: p.remainingQuantity })
+    arr.push({ unitCost: p.unitCost, purchaseDate: p.purchaseDate, id: p.poultryRawMaterialPurchaseId, remaining: p.remainingQuantity, mult: p.productionUnitsPerPurchaseUnit && p.productionUnitsPerPurchaseUnit > 0 ? p.productionUnitsPerPurchaseUnit : 1 })
     lotsByItem.set(p.poultryRawMaterialItemId, arr)
   }
   // Add the record's own prior consumption back as a synthetic "credit" lot per
@@ -117,7 +123,7 @@ export function previewLinesSequential(
       if (!c || c.qty <= 0) continue
       const id = Number(idStr)
       const arr = lotsByItem.get(id) ?? []
-      arr.push({ unitCost: c.unitCost, purchaseDate: "1900-01-01", id: -1, remaining: c.qty, isCredit: true })
+      arr.push({ unitCost: c.unitCost, purchaseDate: "1900-01-01", id: -1, remaining: c.qty, mult: 1, isCredit: true })
       lotsByItem.set(id, arr)
     }
   }
@@ -141,17 +147,20 @@ export function previewLinesSequential(
       return a.id - b.id
     })
 
+    // Work in PRODUCTION units (the item's stock unit, what `qty` is entered in).
+    // A lot's production availability = remaining (purchase units) x mult.
     let remaining = qty
     let coveredQty = 0
     let coveredCost = 0
     for (const lot of sorted) {
       if (remaining <= 0) break
-      const take = Math.min(lot.remaining, remaining)
+      const availProd = lot.remaining * lot.mult
+      const take = Math.min(availProd, remaining)
       if (take <= 0) continue
       coveredQty += take
-      coveredCost += take * lot.unitCost
+      coveredCost += (take / lot.mult) * lot.unitCost   // purchase-equivalent x per-purchase cost
       remaining -= take
-      lot.remaining -= take // deplete the shared lot so later lines see less
+      lot.remaining -= take / lot.mult // deplete the shared lot (its own unit) so later lines see less
     }
 
     const shortfall = Math.max(0, qty - coveredQty)

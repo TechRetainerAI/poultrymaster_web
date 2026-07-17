@@ -84,7 +84,7 @@ export default function PoultryLossRecordsPage() {
           </div>
           <Card><CardContent className="p-4">
             {loading ? <div className="flex items-center gap-2 text-slate-500 p-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div> : (
-              <Table>
+              <div className="overflow-x-auto -mx-4 px-4"><Table className="min-w-[640px]">
                 <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Type</TableHead><TableHead>Product</TableHead><TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Value</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                 <TableBody>
                   {rows.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-6">No loss records yet.</TableCell></TableRow>
@@ -106,7 +106,7 @@ export default function PoultryLossRecordsPage() {
                       </TableRow>
                     ))}
                 </TableBody>
-              </Table>
+              </Table></div>
             )}
           </CardContent></Card>
         </main>

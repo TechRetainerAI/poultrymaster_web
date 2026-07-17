@@ -15,6 +15,8 @@ export interface PoultryRawMaterialItem {
   itemName: string
   category: string
   unitOfMeasure?: string | null
+  /** How the item is BOUGHT (e.g. "bag"); production/stock uses unitOfMeasure. */
+  purchaseUnitOfMeasure?: string | null
   minimumStockAlert: number
   currentQuantity: number
   isActive: boolean
@@ -29,6 +31,7 @@ export interface PoultryRawMaterialItemInput {
   itemName: string
   category: string
   unitOfMeasure?: string | null
+  purchaseUnitOfMeasure?: string | null
   minimumStockAlert?: number
   isActive?: boolean
   notes?: string | null
@@ -337,6 +340,11 @@ export interface PoultryDailyClosing {
   quantityProduced: number; quantityDamaged: number; totalProductionCost: number; closingStock: number
   cashAtHand: number; actualCashCounted: number; cashDifference: number; managerNotes?: string | null
   status: string; rejectionReason?: string | null; submittedAt?: string | null; approvedAt?: string | null
+  // Enriched live figures (migration 148)
+  eggsSold?: number; eggsReturned?: number; mortality?: number; feedUsedQty?: number; medUsedQty?: number
+  totalIncome?: number; totalExpenses?: number; creditSales?: number; customerCollections?: number
+  cashCollected?: number; moMoCollected?: number; bankCollected?: number
+  cashBalance?: number; moMoBalance?: number; bankBalance?: number
 }
 export const listPoultryDailyClosings = (opts?: { status?: string; fromDate?: string; toDate?: string }) => {
   const qs = new URLSearchParams({ farmId: activeFarmId() })
@@ -357,6 +365,12 @@ export const rejectPoultryDailyClosing = (id: number, reason: string) =>
   jsend<void>(`/Poultry/daily-closings/${id}/reject?farmId=${encodeURIComponent(activeFarmId())}&reason=${encodeURIComponent(reason)}`, "POST")
 export const deletePoultryDailyClosing = (id: number) =>
   jsend<void>(`/Poultry/daily-closings/${id}?farmId=${encodeURIComponent(activeFarmId())}`, "DELETE")
+export const reopenPoultryDailyClosing = (id: number) =>
+  jsend<void>(`/Poultry/daily-closings/${id}/reopen?farmId=${encodeURIComponent(activeFarmId())}`, "POST")
+export const recreatePoultryDailyClosing = (id: number) =>
+  jsend<void>(`/Poultry/daily-closings/${id}/recreate?farmId=${encodeURIComponent(activeFarmId())}`, "POST")
+export const savePoultryDailyClosingNotes = (id: number, input: { actualCashCounted?: number; managerNotes?: string | null }) =>
+  jsend<void>(`/Poultry/daily-closings/${id}/notes`, "POST", { ...input, farmId: activeFarmId() })
 
 // ===================== Closing report (doc 6) =====================
 export const getPoultryClosingReport = (fromDate: string, toDate: string) =>

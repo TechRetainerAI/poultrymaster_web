@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { FieldCard } from "@/components/ui/field-card"
 import { Loader2, AlertTriangle, Box, Package, Search, RefreshCw, Download, Mail } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
@@ -216,7 +217,8 @@ export default function PoultryInventoryPage() {
                 {stat("Total finished stock", products.reduce((s, p) => s + (p.stockOnHand || 0), 0).toLocaleString())}
               </div>
               <Card><CardContent className="p-4 space-y-3">
-                <Table>
+                <div className="hidden md:block overflow-x-auto">
+                <Table className="min-w-[720px]">
                   <TableHeader><TableRow>
                     <TableHead>Item</TableHead><TableHead>Parent Type</TableHead><TableHead>Type / Category</TableHead>
                     <TableHead>Size</TableHead><TableHead>Unit</TableHead><TableHead className="text-right">Unit Price</TableHead>
@@ -239,6 +241,16 @@ export default function PoultryInventoryPage() {
                       ))}
                   </TableBody>
                 </Table>
+                </div>
+                {/* Mobile cards */}
+                <div className="md:hidden space-y-2">
+                  {rows.length === 0 ? <div className="text-center text-slate-500 py-6">No inventory yet.</div>
+                    : rows.map((r) => (
+                      <FieldCard key={r.key} title={r.name}
+                        badge={!r.active ? <Badge variant="secondary">Inactive</Badge> : r.low ? <Badge className="bg-amber-100 text-amber-700">Low</Badge> : <Badge className="bg-green-100 text-green-700">OK</Badge>}
+                        fields={[["Type", r.parentType], ["Category", r.type], ["Unit", r.unit ?? "—"], ["Unit price", r.unitPrice != null ? gh(r.unitPrice) : "—"], ["In stock", r.stock.toLocaleString()], ["", (() => { const l = detailLink(r); return <Link href={l.href} className="text-blue-600 hover:underline">{l.label}</Link> })()]]} />
+                    ))}
+                </div>
               </CardContent></Card>
             </>
           )}

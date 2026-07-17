@@ -39,7 +39,7 @@ const CATEGORIES = ["PackagingRoll","SachetFilm","OuterBag","Chemical","Filter",
 const PAYMENT_METHODS = ["Cash","MoMo","Bank","Credit"]
 // Spec #12: purchase / production units are dropdowns. The item's own unit is
 // merged in at render time so custom units aren't lost.
-const UNITS = ["Roll","Bag","Sachet","Bottle","Piece","Pack","Carton","Box","Bundle","Dozen","Litre","Millilitre","Kilogram","Gram","Bale","Unit","Other"]
+const UNITS = ["Roll","Bag","Sachet","Bottle","Piece","Pack","Carton","Box","Bundle","Dozen","Litre","Millilitre","Tonne","Kilogram","Gram","Bale","Unit","Other"]
 
 type ItemForm = Omit<WaterRawMaterialItem, "waterRawMaterialItemId" | "farmId" | "currentQuantity">
 const EMPTY_ITEM: ItemForm = { itemName: "", category: "PackagingRoll", unitOfMeasure: "", minimumStockAlert: 0, isActive: true, notes: null }
@@ -694,13 +694,13 @@ export default function WaterRawMaterialsPage() {
                     </FormField>
                     <FormField label="Production-level quantity" hint="Editable — sets units per purchase unit">
                       <NumberInput min={0} step="0.001" value={Number(prodQty.toFixed(4))}
-                        onChange={(e) => { const v = Number(e.target.value) || 0; setPurchaseForm({ ...purchaseForm, productionUnitsPerPurchaseUnit: qty > 0 ? Number((v / qty).toFixed(6)) : perPurchase }) }} />
+                        onChange={(e) => { const v = Number(e.target.value) || 0; setPurchaseForm({ ...purchaseForm, productionUnitsPerPurchaseUnit: qty > 0 ? Number((v / qty).toFixed(8)) : perPurchase }) }} />
                     </FormField>
                     {manualProdCost ? (
                       <FormField label={`Production-level unit cost${purchaseForm.productionUnit ? ` (per ${purchaseForm.productionUnit})` : ""}`} hint="Manual — sets the conversion for you">
                         <NumberInput min={0} step="0.0001" value={Number(prodUnitCost.toFixed(4))} onChange={(e) => {
                           const c = Number(e.target.value) || 0
-                          const newPer = (c > 0 && qty > 0 && total > 0) ? Number((total / (c * qty)).toFixed(6)) : perPurchase
+                          const newPer = (c > 0 && qty > 0 && total > 0) ? Number((total / (c * qty)).toFixed(8)) : perPurchase
                           setPurchaseForm({ ...purchaseForm, productionUnitsPerPurchaseUnit: newPer })
                         }} />
                       </FormField>

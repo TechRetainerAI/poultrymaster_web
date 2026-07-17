@@ -17,6 +17,7 @@ export interface FlockBatch {
   supplierId: number | null;
   supplierName: string;
   notes?: string;
+  dollarConversionRate?: number | null;
   /** When the bird order was placed with the supplier (migration 150). */
   orderPlacementDate?: string | null;
   /** Expected arrival date for the ordered birds (migration 150). */
@@ -85,6 +86,7 @@ function mapFlockBatch(raw: any): FlockBatch {
     supplierId: supplierIdRaw == null || supplierIdRaw === '' ? null : Number(supplierIdRaw),
     supplierName: raw.supplierName ?? raw.SupplierName ?? '',
     notes: raw.notes ?? raw.Notes ?? '',
+    dollarConversionRate: (raw.dollarConversionRate ?? raw.DollarConversionRate) == null ? null : Number(raw.dollarConversionRate ?? raw.DollarConversionRate),
     orderPlacementDate: raw.orderPlacementDate ?? raw.OrderPlacementDate ?? null,
     estimatedArrivalDate: raw.estimatedArrivalDate ?? raw.EstimatedArrivalDate ?? null,
     createdDate: raw.createdDate ?? raw.CreatedDate ?? '',
@@ -211,6 +213,7 @@ export interface FlockBatchInput {
   supplierId?: number | null;
   status?: string;
   notes?: string;
+  dollarConversionRate?: number | null;
   orderPlacementDate?: string | null;
   estimatedArrivalDate?: string | null;
 }
@@ -235,10 +238,11 @@ export async function createFlockBatch(flockBatch: FlockBatchInput): Promise<Api
       SupplierId: flockBatch.supplierId ?? null,
       Status: flockBatch.status ?? 'active',
       Notes: flockBatch.notes ?? null,
+      DollarConversionRate: flockBatch.dollarConversionRate ?? null,
       OrderPlacementDate: flockBatch.orderPlacementDate ?? null,
       EstimatedArrivalDate: flockBatch.estimatedArrivalDate ?? null,
     };
-    
+
     console.log("[v0] Creating flock batch:", url, payload);
 
     const response = await fetch(url, {
@@ -340,6 +344,8 @@ export async function createFlockBatch(flockBatch: FlockBatchInput): Promise<Api
         if (flockBatch.supplierId !== undefined) payload.SupplierId = flockBatch.supplierId;
         if (flockBatch.status !== undefined) payload.Status = flockBatch.status;
         if (flockBatch.notes !== undefined) payload.Notes = flockBatch.notes;
+        if (flockBatch.dollarConversionRate !== undefined) payload.DollarConversionRate = flockBatch.dollarConversionRate;
+
         if (flockBatch.orderPlacementDate !== undefined) payload.OrderPlacementDate = flockBatch.orderPlacementDate;
         if (flockBatch.estimatedArrivalDate !== undefined) payload.EstimatedArrivalDate = flockBatch.estimatedArrivalDate;
         

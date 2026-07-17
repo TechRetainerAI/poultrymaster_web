@@ -375,6 +375,9 @@ namespace PoultryFarmAPIWeb.Business
         Task ApproveAsync(int id, string farmId, string? approvedBy);
         Task RejectAsync(int id, string farmId, string? reason);
         Task DeleteAsync(int id, string farmId);
+        Task ReopenAsync(int id, string farmId);
+        Task RecreateAsync(int id, string farmId);
+        Task UpdateNotesAsync(int id, string farmId, decimal? actualCashCounted, string? managerNotes);
     }
     public class PoultryDailyClosingService : IPoultryDailyClosingService
     {
@@ -387,6 +390,10 @@ namespace PoultryFarmAPIWeb.Business
             CashDifference = r.Dec("CashDifference"), ManagerNotes = r.StrN("ManagerNotes"), Status = r.Str("Status"), RejectionReason = r.StrN("RejectionReason"),
             CreatedBy = r.StrN("CreatedBy"), SubmittedBy = r.StrN("SubmittedBy"), SubmittedAt = r.DateN("SubmittedAt"),
             ApprovedBy = r.StrN("ApprovedBy"), ApprovedAt = r.DateN("ApprovedAt"), CreatedAt = r.Date("CreatedAt"), UpdatedAt = r.DateN("UpdatedAt"),
+            EggsSold = r.Dec("EggsSold"), EggsReturned = r.Dec("EggsReturned"), Mortality = r.Dec("Mortality"), FeedUsedQty = r.Dec("FeedUsedQty"), MedUsedQty = r.Dec("MedUsedQty"),
+            TotalIncome = r.Dec("TotalIncome"), TotalExpenses = r.Dec("TotalExpenses"), CreditSales = r.Dec("CreditSales"), CustomerCollections = r.Dec("CustomerCollections"),
+            CashCollected = r.Dec("CashCollected"), MoMoCollected = r.Dec("MoMoCollected"), BankCollected = r.Dec("BankCollected"),
+            CashBalance = r.Dec("CashBalance"), MoMoBalance = r.Dec("MoMoBalance"), BankBalance = r.Dec("BankBalance"),
         };
         public async Task<List<PoultryDailyClosingModel>> GetAllAsync(string farmId, string? status, DateTime? fromDate, DateTime? toDate)
         {
@@ -434,6 +441,26 @@ namespace PoultryFarmAPIWeb.Business
         {
             using var c = new SqlConnection(_cs); using var cmd = new SqlCommand("spPoultryDailyClosing_Delete", c) { CommandType = CommandType.StoredProcedure };
             cmd.Parameters.AddWithValue("@PoultryDailyClosingId", id); cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await c.OpenAsync(); await cmd.ExecuteNonQueryAsync();
+        }
+        public async Task ReopenAsync(int id, string farmId)
+        {
+            using var c = new SqlConnection(_cs); using var cmd = new SqlCommand("spPoultryDailyClosing_Reopen", c) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@PoultryDailyClosingId", id); cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await c.OpenAsync(); await cmd.ExecuteNonQueryAsync();
+        }
+        public async Task RecreateAsync(int id, string farmId)
+        {
+            using var c = new SqlConnection(_cs); using var cmd = new SqlCommand("spPoultryDailyClosing_Recreate", c) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@PoultryDailyClosingId", id); cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await c.OpenAsync(); await cmd.ExecuteNonQueryAsync();
+        }
+        public async Task UpdateNotesAsync(int id, string farmId, decimal? actualCashCounted, string? managerNotes)
+        {
+            using var c = new SqlConnection(_cs); using var cmd = new SqlCommand("spPoultryDailyClosing_UpdateNotes", c) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@PoultryDailyClosingId", id); cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@ActualCashCounted", (object?)actualCashCounted ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ManagerNotes", (object?)managerNotes ?? DBNull.Value);
             await c.OpenAsync(); await cmd.ExecuteNonQueryAsync();
         }
     }

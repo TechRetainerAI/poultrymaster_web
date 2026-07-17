@@ -244,10 +244,10 @@ export function DashboardHeader() {
               variant="ghost"
               size="icon"
               onClick={() => toggleMobile()}
-              className="text-slate-300 hover:text-white hover:bg-slate-800 h-10 w-10 shrink-0"
+              className="text-slate-300 hover:text-white hover:bg-slate-800 h-12 w-12 shrink-0"
               aria-label="Toggle sidebar"
             >
-              <Menu className="h-6 w-6" />
+              <Menu className="h-7 w-7" />
             </Button>
 
             {!isMobileOpen && (

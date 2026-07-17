@@ -250,7 +250,7 @@ export default function PoultryDriversPage() {
                     </>
                   )}
                   desktopTable={
-                    <Table>
+                    <div className="overflow-x-auto -mx-4 px-4"><Table className="min-w-[640px]">
                       <TableHeader>
                         <TableRow>
                           <TableHead>Name</TableHead>
@@ -276,7 +276,7 @@ export default function PoultryDriversPage() {
                           </TableRow>
                         ))}
                       </TableBody>
-                    </Table>
+                    </Table></div>
                   }
                 />
               )}

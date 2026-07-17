@@ -94,6 +94,7 @@ export default function FlockBatchesPage() {
     hasArrived: false,
     active: true,
     notes: "",
+    dollarConversionRate: 0,
     orderPlacementDate: "",
     estimatedArrivalDate: "",
   })
@@ -117,6 +118,7 @@ export default function FlockBatchesPage() {
     hasArrived: false,
     active: true,
     notes: "",
+    dollarConversionRate: 0,
     orderPlacementDate: "",
     estimatedArrivalDate: "",
   })
@@ -189,6 +191,7 @@ export default function FlockBatchesPage() {
       hasArrived: false,
       active: true,
       notes: "",
+      dollarConversionRate: 0,
       orderPlacementDate: "",
       estimatedArrivalDate: "",
     })
@@ -231,6 +234,7 @@ export default function FlockBatchesPage() {
       totalCost: createForm.totalCost || (createForm.costPerChick * createForm.numberOfBirds) || 0,
       amountPaid: createForm.amountPaid || 0,
       supplierType: createForm.supplierType,
+      dollarConversionRate: createForm.dollarConversionRate || null,
       supplierId: createForm.supplierId ? Number(createForm.supplierId) : null,
       status: batchStatusFromToggles(createForm.hasArrived, createForm.active),
       notes: createForm.notes || undefined,
@@ -277,6 +281,7 @@ export default function FlockBatchesPage() {
         totalCost: b.totalCost || 0,
         amountPaid: b.amountPaid || 0,
         supplierType: b.supplierType || "local",
+        dollarConversionRate: b.dollarConversionRate || 0,
         supplierId: b.supplierId != null ? String(b.supplierId) : "",
         hasArrived: toggles.hasArrived,
         active: toggles.active,
@@ -324,6 +329,7 @@ export default function FlockBatchesPage() {
       totalCost: editForm.totalCost || (editForm.costPerChick * editForm.numberOfBirds) || 0,
       amountPaid: editForm.amountPaid || 0,
       supplierType: editForm.supplierType,
+      dollarConversionRate: editForm.dollarConversionRate || null,
       supplierId: editForm.supplierId ? Number(editForm.supplierId) : null,
       status: batchStatusFromToggles(editForm.hasArrived, editForm.active),
       notes: editForm.notes || undefined,
@@ -1223,6 +1229,10 @@ export default function FlockBatchesPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
+                  <Label className="text-sm font-medium text-slate-700">Dollar Conversion Rate</Label>
+                  <NumberInput min="0" step="0.0001" placeholder="e.g., 15.5" value={createForm.dollarConversionRate} onChange={(e) => setCreateForm({ ...createForm, dollarConversionRate: parseFloat(e.target.value) || 0 })} disabled={createLoading} />
+                </div>
+                <div className="space-y-2">
                   <Label className="text-sm font-medium text-slate-700">Supplier</Label>
                   <Select value={createForm.supplierId} onValueChange={(v) => setCreateForm({ ...createForm, supplierId: v })} disabled={createLoading}>
                     <SelectTrigger><SelectValue placeholder={suppliers.length === 0 ? "No suppliers found" : "Select supplier"} /></SelectTrigger>
@@ -1370,6 +1380,10 @@ export default function FlockBatchesPage() {
                         <SelectItem value="foreign">Foreign</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-slate-700">Dollar Conversion Rate</Label>
+                    <NumberInput min="0" step="0.0001" placeholder="e.g., 15.5" value={editForm.dollarConversionRate} onChange={(e) => setEditForm({ ...editForm, dollarConversionRate: parseFloat(e.target.value) || 0 })} disabled={editLoading} />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-slate-700">Supplier</Label>

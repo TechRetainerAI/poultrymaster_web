@@ -154,6 +154,19 @@ export default function WaterExpensesPage() {
     setOpen(true)
   }
 
+  // On a real phone the dialog can open before categories finish loading (slow
+  // network), leaving the Category unset. Once categories arrive, default to the
+  // first active one if nothing valid is selected — so it's never blank.
+  useEffect(() => {
+    if (!categories.length) return
+    const valid = categories.some(c => c.isActive && c.waterExpenseCategoryId === form.waterExpenseCategoryId)
+    if (!valid) {
+      const first = categories.find(c => c.isActive)?.waterExpenseCategoryId
+      if (first) setForm(f => ({ ...f, waterExpenseCategoryId: first }))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categories])
+
   async function save() {
     if (!form.waterExpenseCategoryId) return toast({ title: "Pick a category", variant: "destructive" })
     if (!form.amount || form.amount <= 0) return toast({ title: "Amount must be greater than zero", variant: "destructive" })
@@ -473,7 +486,7 @@ export default function WaterExpensesPage() {
                 <Input type="date" value={form.expenseDate ?? ""} max={todayLocal()} onChange={(e) => setForm({ ...form, expenseDate: e.target.value })} />
               </FormField>
               <FormField label="Category *">
-                <Select value={String(form.waterExpenseCategoryId)} onValueChange={(v) => setForm({ ...form, waterExpenseCategoryId: Number(v) })}>
+                <Select value={form.waterExpenseCategoryId ? String(form.waterExpenseCategoryId) : undefined} onValueChange={(v) => setForm({ ...form, waterExpenseCategoryId: Number(v) })}>
                   <SelectTrigger><SelectValue placeholder="Pick category" /></SelectTrigger>
                   <SelectContent>
                     {categories.filter(c => c.isActive).map(c => <SelectItem key={c.waterExpenseCategoryId} value={String(c.waterExpenseCategoryId)}>{c.name}</SelectItem>)}

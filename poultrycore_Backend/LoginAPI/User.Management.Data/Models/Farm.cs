@@ -52,6 +52,19 @@ namespace User.Management.Data.Models
         public string? PhoneNumber { get; set; }
     }
 
+    // Editing a company changes only its name/contact — Type is immutable and the
+    // update stored proc never touches it. A dedicated model (no required Type)
+    // avoids the automatic 400 "Type is required" that CreateCompanyRequest forces
+    // on the PUT /Companies/{id} endpoint.
+    public class UpdateCompanyRequest
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Name is required.")]
+        public string Name { get; set; } = string.Empty;
+
+        public string? Email { get; set; }
+        public string? PhoneNumber { get; set; }
+    }
+
     public class SwitchFarmRequest
     {
         public string FarmId { get; set; } = string.Empty;
