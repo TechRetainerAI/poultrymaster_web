@@ -65,6 +65,7 @@ export default function PoultryStockPage() {
   const [dateTo, setDateTo] = useState("")
   const [parentTypeFilter, setParentTypeFilter] = useState("all")
   const [movementFilter, setMovementFilter] = useState("all")
+  const [itemFilter, setItemFilter] = useState("all")
   const [sort, setSort] = useState<{ key: string | null; direction: SortDirection }>({ key: null, direction: null })
 
   useEffect(() => {
@@ -102,13 +103,15 @@ export default function PoultryStockPage() {
 
   const parentTypeOptions = useMemo(() => Array.from(new Set(moves.map((m) => m.parentType).filter(Boolean))).sort(), [moves])
   const movementOptions = useMemo(() => Array.from(new Set(moves.map((m) => m.movementType).filter(Boolean))).sort(), [moves])
+  const itemOptions = useMemo(() => Array.from(new Set(moves.map((m) => m.item).filter(Boolean))).sort(), [moves])
 
   const filteredMoves = useMemo(() => {
     let rows = filterByDateAndSearch(moves, { search, dateFrom, dateTo, searchKeys: ["item", "source", "note"], dateKey: "date" })
+    if (itemFilter !== "all") rows = rows.filter((m) => m.item === itemFilter)
     if (parentTypeFilter !== "all") rows = rows.filter((m) => m.parentType === parentTypeFilter)
     if (movementFilter !== "all") rows = rows.filter((m) => m.movementType === movementFilter)
     return rows
-  }, [moves, search, dateFrom, dateTo, parentTypeFilter, movementFilter])
+  }, [moves, search, dateFrom, dateTo, itemFilter, parentTypeFilter, movementFilter])
 
   // Default order stays date-desc (moves is pre-sorted); a header click overrides.
   const sortedMoves = useMemo(() => sortData(filteredMoves, sort.key, sort.direction), [filteredMoves, sort])
@@ -140,6 +143,13 @@ export default function PoultryStockPage() {
             {loading ? <div className="flex items-center gap-2 text-slate-500 p-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div> : (
               <>
               <div className="mb-3"><ListFilters search={search} setSearch={setSearch} dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo} searchPlaceholder="Search item, source or note" extras={<>
+                <Select value={itemFilter} onValueChange={setItemFilter}>
+                  <SelectTrigger className="w-[160px]"><SelectValue placeholder="All items" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All items</SelectItem>
+                    {itemOptions.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  </SelectContent>
+                </Select>
                 <Select value={parentTypeFilter} onValueChange={setParentTypeFilter}>
                   <SelectTrigger className="w-[150px]"><SelectValue placeholder="All types" /></SelectTrigger>
                   <SelectContent>
