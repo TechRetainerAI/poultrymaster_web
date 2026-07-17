@@ -470,7 +470,7 @@ export default function EditBatchProductionRecordPage() {
 
                     <div className="col-span-12 md:col-span-4 space-y-2">
                       <Label>Date</Label>
-                      <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required />
+                      <Input type="date" value={form.date} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setForm({ ...form, date: e.target.value })} required />
                     </div>
 
                     {batchSelectionType === "CustomBatch" && (

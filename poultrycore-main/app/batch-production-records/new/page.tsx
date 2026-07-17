@@ -461,10 +461,11 @@ export default function NewBatchProductionRecordPage() {
                     <Input
                       type="date"
                       value={form.date}
+                      max={new Date().toISOString().slice(0, 10)}
                       onChange={(e) => setForm({ ...form, date: e.target.value })}
                       required
                     />
-                    <div className="text-xs text-slate-500">Defaults to today.</div>
+                    <div className="text-xs text-slate-500">Defaults to today. Future dates aren't allowed.</div>
                   </div>
 
                   {/* Custom-batch flock multi-select */}

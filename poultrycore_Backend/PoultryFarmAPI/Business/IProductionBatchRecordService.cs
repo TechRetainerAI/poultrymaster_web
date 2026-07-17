@@ -13,5 +13,6 @@ namespace PoultryFarmAPIWeb.Business
         Task SaveAllocation(int id, string farmId, string? updatedBy, string? status, List<ProductionBatchAllocationModel> allocations);
         Task Post(int id, string farmId, string postedBy);
         Task Reverse(int id, string farmId, string reversedBy);
+        Task DeleteAllocation(int id, string farmId, string updatedBy);
     }
 }

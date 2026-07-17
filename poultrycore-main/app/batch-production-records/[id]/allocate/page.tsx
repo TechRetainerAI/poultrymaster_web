@@ -5,14 +5,15 @@ import { useParams, useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { NumberInput } from "@/components/ui/number-input"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
-import { ArrowLeft, Scale, Send, Save } from "lucide-react"
+import { ArrowLeft, Scale, Send, Save, ClipboardCheck, CheckCircle2, AlertTriangle } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { getUserContext } from "@/lib/utils/user-context"
 import { getFlocks, type Flock } from "@/lib/api/flock"
 import { getProductionRecords, type ProductionRecord } from "@/lib/api/production-record"
@@ -27,6 +28,7 @@ import {
 import {
   type AllocRow,
   type AllocMethod,
+  type ReconLine,
   applyMethod,
   buildBlankRows,
   buildReconciliation,
@@ -82,8 +84,9 @@ export default function AllocateBatchPage() {
   const [rows, setRows] = useState<AllocRow[]>([])
   const [method, setMethod] = useState<AllocMethod | null>(null)
   const [methodOpen, setMethodOpen] = useState(false)
+  const [reconOpen, setReconOpen] = useState(false)
 
-  const readOnly = !!batch && !["PendingAllocation", "Allocated"].includes(batch.status)
+  const readOnly = !!batch && !["PendingAllocation", "Allocated", "Reversed"].includes(batch.status)
 
   useEffect(() => {
     if (!Number.isFinite(batchId)) return
@@ -122,6 +125,18 @@ export default function AllocateBatchPage() {
   }, [batchId])
 
   const recon = useMemo(() => (batch ? buildReconciliation(rows, batch) : { lines: [], balanced: false }), [rows, batch])
+  // Index recon lines by field key so the grid summary rows and the modal both
+  // read from the SAME calculation — they can never disagree.
+  const reconByKey = useMemo(() => {
+    const m: Record<string, ReconLine> = {}
+    recon.lines.forEach((l) => (m[l.key] = l))
+    return m
+  }, [recon])
+  const allocBirds = useMemo(() => rows.reduce((s, r) => s + (r.birdsBefore || 0), 0), [rows])
+  // Blocking mismatches only (egg/qty fields — money lines are informational).
+  const mismatches = useMemo(() => recon.lines.filter((l) => !l.money && !l.balanced), [recon])
+  const fmtRecon = (l: ReconLine, v: number) =>
+    l.money ? v.toFixed(2) : l.decimals ? v.toFixed(l.decimals) : String(Math.round(v))
 
   function chooseMethod(m: AllocMethod) {
     if (!batch) return
@@ -231,6 +246,62 @@ export default function AllocateBatchPage() {
   const feedCols = batch?.feeds || []
   const medCols = batch?.medications || []
 
+  // Ordered descriptors for the grid summary rows — MUST match the body column
+  // order after the Flock + Age cells (Birds, 1st..Lost, Total, Egg%, Deaths,
+  // Left, feeds…, meds…, Cost, Notes). `recon` lines drive the reconcilable ones.
+  type FooterCol =
+    | { kind: "birds" }
+    | { kind: "blank" }
+    | { kind: "recon"; line?: ReconLine }
+  const footerCols: FooterCol[] = [
+    { kind: "birds" },
+    { kind: "recon", line: reconByKey["p1"] },
+    { kind: "recon", line: reconByKey["p2"] },
+    { kind: "recon", line: reconByKey["p3"] },
+    { kind: "recon", line: reconByKey["p4"] },
+    { kind: "recon", line: reconByKey["broken"] },
+    { kind: "recon", line: reconByKey["meaty"] },
+    { kind: "recon", line: reconByKey["soft"] },
+    { kind: "recon", line: reconByKey["lost"] },
+    { kind: "recon", line: reconByKey["total"] },
+    { kind: "blank" }, // Egg %
+    { kind: "recon", line: reconByKey["deaths"] },
+    { kind: "blank" }, // Left
+    ...feedCols.map((f): FooterCol => ({ kind: "recon", line: reconByKey[`feed-${f.itemId}`] })),
+    ...medCols.map((m): FooterCol => ({ kind: "recon", line: reconByKey[`med-${m.itemId}`] })),
+    { kind: "recon", line: reconByKey["prodCost"] }, // Cost
+    { kind: "blank" }, // Notes
+  ]
+
+  // Renders the numeric cells for one summary row (Allocated / Total Batch / Difference).
+  const footerCells = (metric: "allocated" | "batch" | "diff") =>
+    footerCols.map((c, idx) => {
+      if (c.kind === "birds")
+        return (
+          <TableCell key={`f-${metric}-${idx}`} className="text-right tabular-nums">
+            {metric === "allocated" ? allocBirds.toLocaleString() : ""}
+          </TableCell>
+        )
+      if (c.kind === "blank" || !c.line) return <TableCell key={`f-${metric}-${idx}`} />
+      const l = c.line
+      const value = metric === "allocated" ? l.allocated : metric === "batch" ? l.batchTotal : l.diff
+      const isDiff = metric === "diff"
+      const bad = isDiff && !l.money && !l.balanced
+      return (
+        <TableCell
+          key={`f-${metric}-${idx}`}
+          className={cn(
+            "text-right tabular-nums",
+            bad && "text-red-700 font-semibold",
+            isDiff && !bad && !l.money && "text-emerald-700",
+          )}
+        >
+          {isDiff && value > 0 ? "+" : ""}
+          {fmtRecon(l, value)}
+        </TableCell>
+      )
+    })
+
   return (
     <div className="flex min-h-screen bg-slate-50">
       <DashboardSidebar onLogout={handleLogout} />
@@ -275,11 +346,24 @@ export default function AllocateBatchPage() {
                   <Button variant="outline" size="sm" onClick={() => setMethodOpen(true)}>
                     <Scale className="h-4 w-4 mr-1" /> {method ? `Method: ${method}` : "Choose method"}
                   </Button>
+                  {recon.balanced ? (
+                    <Badge className="bg-emerald-100 text-emerald-800 gap-1">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Reconciled
+                    </Badge>
+                  ) : (
+                    <Badge variant="destructive" className="gap-1">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      {mismatches.length} field{mismatches.length === 1 ? "" : "s"} need attention
+                    </Badge>
+                  )}
+                  <Button variant="ghost" size="sm" onClick={() => setReconOpen(true)}>
+                    <ClipboardCheck className="h-4 w-4 mr-1" /> View reconciliation details
+                  </Button>
                   <div className="flex-1" />
                   <Button variant="outline" onClick={handleSave} disabled={saving}>
                     <Save className="h-4 w-4 mr-1" /> Save Allocation
                   </Button>
-                  <Button onClick={handlePost} disabled={saving || !recon.balanced}>
+                  <Button onClick={handlePost} disabled={saving || !recon.balanced} title={recon.balanced ? undefined : "Resolve the highlighted differences before posting"}>
                     <Send className="h-4 w-4 mr-1" /> Post Allocation
                   </Button>
                 </div>
@@ -352,48 +436,37 @@ export default function AllocateBatchPage() {
                             </TableCell>
                           </TableRow>
                         ))}
+
+                        {/* ---- Summary rows: Allocated Total / Total Batch / Difference ---- */}
+                        <TableRow className="border-t-2 bg-slate-50 font-medium">
+                          <TableCell className="sticky left-0 bg-slate-50 z-10 whitespace-nowrap">Allocated Total</TableCell>
+                          <TableCell />
+                          {footerCells("allocated")}
+                        </TableRow>
+                        <TableRow className="bg-slate-50/60 text-muted-foreground">
+                          <TableCell className="sticky left-0 bg-slate-50/60 z-10 whitespace-nowrap">Total Batch</TableCell>
+                          <TableCell />
+                          {footerCells("batch")}
+                        </TableRow>
+                        <TableRow className="bg-slate-50 font-medium border-b">
+                          <TableCell className="sticky left-0 bg-slate-50 z-10 whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1">
+                              Difference
+                              {recon.balanced ? (
+                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                              ) : (
+                                <AlertTriangle className="h-3.5 w-3.5 text-red-600" />
+                              )}
+                            </span>
+                          </TableCell>
+                          <TableCell />
+                          {footerCells("diff")}
+                        </TableRow>
                       </TableBody>
                     </Table>
                   </CardContent>
                 </Card>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base flex items-center gap-2">
-                      Reconciliation
-                      {recon.balanced ? (
-                        <Badge className="bg-green-100 text-green-800">Balanced</Badge>
-                      ) : (
-                        <Badge variant="destructive">Not balanced</Badge>
-                      )}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="overflow-x-auto">
-                    <Table className="min-w-[520px]">
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Field</TableHead>
-                          <TableHead className="text-right">Batch Total</TableHead>
-                          <TableHead className="text-right">Allocated</TableHead>
-                          <TableHead className="text-right">Difference</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {recon.lines.map((l) => {
-                          const fmt = (v: number) => (l.money ? v.toFixed(2) : l.decimals ? v.toFixed(l.decimals) : String(v))
-                          return (
-                            <TableRow key={l.key} className={l.balanced ? "" : "bg-red-50"}>
-                              <TableCell>{l.label}</TableCell>
-                              <TableCell className="text-right">{fmt(l.batchTotal)}</TableCell>
-                              <TableCell className="text-right">{fmt(l.allocated)}</TableCell>
-                              <TableCell className={`text-right font-medium ${l.balanced ? "text-green-700" : "text-red-700"}`}>{fmt(l.diff)}</TableCell>
-                            </TableRow>
-                          )
-                        })}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
               </>
             )}
           </div>
@@ -418,6 +491,73 @@ export default function AllocateBatchPage() {
               </button>
             ))}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={reconOpen} onOpenChange={setReconOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              Reconciliation details
+              {recon.balanced ? (
+                <Badge className="bg-emerald-100 text-emerald-800 gap-1">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Reconciled
+                </Badge>
+              ) : (
+                <Badge variant="destructive" className="gap-1">
+                  <AlertTriangle className="h-3.5 w-3.5" /> Needs attention
+                </Badge>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {recon.balanced
+                ? "Every allocatable field matches the batch totals. You can post this allocation."
+                : `${mismatches.length} field${mismatches.length === 1 ? "" : "s"} do not match the batch totals. Resolve the differences below before posting.`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="overflow-x-auto max-h-[55vh]">
+            <Table className="min-w-[520px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Field</TableHead>
+                  <TableHead className="text-right">Allocated Total</TableHead>
+                  <TableHead className="text-right">Total Batch</TableHead>
+                  <TableHead className="text-right">Difference</TableHead>
+                  <TableHead className="text-right">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {recon.lines.map((l) => (
+                  <TableRow key={l.key} className={l.balanced ? "" : "bg-red-50"}>
+                    <TableCell>{l.label}</TableCell>
+                    <TableCell className="text-right tabular-nums">{fmtRecon(l, l.allocated)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{fmtRecon(l, l.batchTotal)}</TableCell>
+                    <TableCell className={cn("text-right font-medium tabular-nums", l.balanced ? "text-emerald-700" : "text-red-700")}>
+                      {l.diff > 0 ? "+" : ""}
+                      {fmtRecon(l, l.diff)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {l.balanced ? (
+                        <span className="inline-flex items-center justify-end gap-1 text-emerald-700 text-xs">
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Reconciled
+                        </span>
+                      ) : l.money ? (
+                        <span className="text-amber-600 text-xs">Info only</span>
+                      ) : (
+                        <span className="inline-flex items-center justify-end gap-1 text-red-700 text-xs">
+                          <AlertTriangle className="h-3.5 w-3.5" /> Needs attention
+                        </span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Egg and quantity fields must match exactly to post. Cost lines are informational — final costs are recomputed
+            server-side when the flock records are created.
+          </p>
         </DialogContent>
       </Dialog>
     </div>

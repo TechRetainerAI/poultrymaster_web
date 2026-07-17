@@ -544,6 +544,7 @@ export default function NewProductionRecordPage() {
                     <Input
                       type="date"
                       value={form.date}
+                      max={new Date().toISOString().slice(0, 10)}
                       onChange={(e) =>
                         setForm({
                           ...form,

@@ -19,6 +19,10 @@ namespace PoultryFarmAPIWeb.Controllers
             _logger = logger;
         }
 
+        // Production records capture what already happened, so the production date
+        // can never be in the future. UTC-day comparison — farms run on GMT+0.
+        private static bool IsFutureDate(DateTime d) => d.Date > DateTime.UtcNow.Date;
+
         // GET: api/EggProduction?userId=xxx&farmId=yyy
         [HttpGet]
         public async Task<ActionResult<IEnumerable<EggProductionModel>>> GetAll([FromQuery] string userId, [FromQuery] string farmId)
@@ -61,6 +65,8 @@ namespace PoultryFarmAPIWeb.Controllers
                 _logger.LogWarning("UserId or FarmId is null or empty.");
                 return BadRequest("UserId and FarmId are required.");
             }
+            if (IsFutureDate(model.ProductionDate))
+                return BadRequest("Production date cannot be in the future.");
 
             //Defensive check to diagnose potential deserialization issues.
             //if (model.TotalProduction == 0 && (model.Production9AM + model.Production12PM + model.Production4PM) == 0)
@@ -83,6 +89,8 @@ namespace PoultryFarmAPIWeb.Controllers
                 return BadRequest(ModelState);
             if (string.IsNullOrEmpty(model.UserId) || string.IsNullOrEmpty(model.FarmId))
                 return BadRequest("UserId and FarmId are required.");
+            if (IsFutureDate(model.ProductionDate))
+                return BadRequest("Production date cannot be in the future.");
 
             var existing = await _eggProductionService.GetById(id, model.UserId, model.FarmId);
             if (existing == null)

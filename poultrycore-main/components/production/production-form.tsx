@@ -688,6 +688,7 @@ export function ProductionForm({ open, onOpenChange, record, onSaved, mode = "mo
                 <Input
                   type="date"
                   value={form.date}
+                  max={new Date().toISOString().slice(0, 10)}
                   onChange={(e) => setForm({ ...form, date: e.target.value })}
                   required
                   className="w-full"

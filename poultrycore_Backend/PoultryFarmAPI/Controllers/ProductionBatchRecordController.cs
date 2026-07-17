@@ -33,11 +33,18 @@ namespace PoultryFarmAPIWeb.Controllers
             return Ok(record);
         }
 
+        // Production records capture what already happened (eggs collected, feed
+        // consumed, birds died), so the production date can never be in the future.
+        // UTC-day comparison — the product's farms run on GMT+0.
+        private static bool IsFutureDate(DateTime d) => d.Date > DateTime.UtcNow.Date;
+
         [HttpPost]
         public async Task<ActionResult<ProductionBatchRecordModel>> Create([FromBody] ProductionBatchRecordModel model)
         {
             if (string.IsNullOrEmpty(model.FarmId))
                 return BadRequest("FarmId is required in the model.");
+            if (IsFutureDate(model.ProductionDate))
+                return BadRequest("Production date cannot be in the future.");
             if (string.IsNullOrEmpty(model.CreatedBy)) model.CreatedBy = model.UserId;
 
             var newId = await _service.Insert(model);
@@ -51,6 +58,8 @@ namespace PoultryFarmAPIWeb.Controllers
         {
             if (id != model.Id) return BadRequest("Record ID mismatch.");
             if (string.IsNullOrEmpty(model.FarmId)) return BadRequest("FarmId is required in the model.");
+            if (IsFutureDate(model.ProductionDate))
+                return BadRequest("Production date cannot be in the future.");
             if (string.IsNullOrEmpty(model.UpdatedBy)) model.UpdatedBy = model.UserId;
             await _service.Update(model);
             return NoContent();
@@ -103,6 +112,22 @@ namespace PoultryFarmAPIWeb.Controllers
             if (string.IsNullOrEmpty(farmId) || string.IsNullOrEmpty(body.UserId))
                 return BadRequest("FarmId and UserId are required.");
             await _service.Reverse(id, farmId, body.UserId!);
+            var updated = await _service.GetById(id, farmId);
+            return Ok(updated);
+        }
+
+        /// <summary>
+        /// Delete the allocation only, keeping the parent batch record. A posted
+        /// allocation is reversed first (its flock records + inventory/bird effects
+        /// are undone) before the rows are removed; the batch returns to
+        /// PendingAllocation so it can be re-allocated. Transactional server-side.
+        /// </summary>
+        [HttpDelete("{id:int}/allocation")]
+        public async Task<ActionResult<ProductionBatchRecordModel>> DeleteAllocation(int id, [FromQuery] string farmId, [FromQuery] string userId)
+        {
+            if (string.IsNullOrEmpty(farmId) || string.IsNullOrEmpty(userId))
+                return BadRequest("FarmId and UserId are required.");
+            await _service.DeleteAllocation(id, farmId, userId);
             var updated = await _service.GetById(id, farmId);
             return Ok(updated);
         }

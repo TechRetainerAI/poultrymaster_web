@@ -25,6 +25,15 @@ export function SortableHeader({
 }: SortableHeaderProps) {
   const isActive = currentSort === sortKey
 
+  // text-align on the <th> doesn't move flex children, so mirror the requested
+  // column alignment onto the inner flex row — otherwise a text-right header
+  // label stays left while its (right-aligned) body cells sit on the right.
+  const justify = className?.includes("text-right")
+    ? "justify-end"
+    : className?.includes("text-center")
+      ? "justify-center"
+      : "justify-start"
+
   return (
     <TableHead
       className={cn(
@@ -33,7 +42,7 @@ export function SortableHeader({
       )}
       onClick={() => onSort(sortKey)}
     >
-      <div className="flex items-center gap-1">
+      <div className={cn("flex items-center gap-1", justify)}>
         <span>{label}</span>
         {isActive ? (
           currentDirection === "asc" ? (
