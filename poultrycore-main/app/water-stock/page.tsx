@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { Badge } from "@/components/ui/badge"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
+import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Plus, Boxes, Loader2 } from "lucide-react"
@@ -58,6 +59,15 @@ export default function WaterStockPage() {
     ),
     [txns, search, dateFrom, dateTo, sourceFilter],
   )
+
+  const [sort, setSort] = useState<{ key: string | null; direction: SortDirection }>({ key: null, direction: null })
+  const sortedTxns = useMemo(() => sortData(visibleTxns, sort.key, sort.direction, (t: WaterStockTransaction, k: string) => {
+    if (k === "createdDate") return new Date(t.createdDate)
+    if (k === "quantity") return t.quantity
+    if (k === "unitCost") return t.unitCost ?? 0
+    return (t as any)[k]
+  }), [visibleTxns, sort])
+  const onSort = (k: string) => setSort((s) => toggleSort(k, s.key, s.direction))
 
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -156,7 +166,7 @@ export default function WaterStockPage() {
                 <div className="p-8 text-center text-slate-500">No stock transactions yet.</div>
               ) : (
                 <MobileCardList
-                  items={visibleTxns}
+                  items={sortedTxns}
                   getKey={(t) => t.stockTxnId}
                   primary={(t) => t.productName}
                   secondary={(t) => (
@@ -192,17 +202,19 @@ export default function WaterStockPage() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Product</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Source</TableHead>
-                          <TableHead className="text-right">Qty</TableHead>
-                          <TableHead className="text-right">Unit cost</TableHead>
-                          <TableHead>Note</TableHead>
+                          {(() => { const cs = sort.key, cd = sort.direction; return (<>
+                          <SortableHeader label="Date" sortKey="createdDate" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                          <SortableHeader label="Product" sortKey="productName" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                          <SortableHeader label="Type" sortKey="txnType" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                          <SortableHeader label="Source" sortKey="txnType" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                          <SortableHeader label="Qty" sortKey="quantity" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                          <SortableHeader label="Unit cost" sortKey="unitCost" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                          <SortableHeader label="Note" sortKey="note" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                          </>) })()}
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {visibleTxns.map((t) => (
+                        {sortedTxns.map((t) => (
                           <TableRow key={t.stockTxnId}>
                             <TableCell>{new Date(t.createdDate).toLocaleString()}</TableCell>
                             <TableCell>{t.productName}</TableCell>
