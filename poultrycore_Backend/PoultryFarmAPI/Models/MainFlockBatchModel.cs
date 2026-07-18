@@ -63,6 +63,11 @@ namespace PoultryFarmAPIWeb.Models
 
         // Optional USD→local rate for foreign-supplier batch purchases.
         public decimal? DollarConversionRate { get; set; }
+        // Procurement timing (migration 150). Both nullable — an order may predate
+        // arrival, or a batch may be recorded after the birds already arrived.
+        public DateTime? OrderPlacementDate { get; set; }
+
+        public DateTime? EstimatedArrivalDate { get; set; }
 
         // Date the record was created (managed by the database or service).
         public DateTime CreatedDate { get; set; }

@@ -1751,6 +1751,8 @@ export interface WaterRawMaterialItem {
   itemName: string
   category: string
   unitOfMeasure?: string | null
+  /** How the item is BOUGHT (e.g. "bag"); production/stock uses unitOfMeasure. */
+  purchaseUnitOfMeasure?: string | null
   minimumStockAlert?: number | null
   currentQuantity?: number
   isActive: boolean

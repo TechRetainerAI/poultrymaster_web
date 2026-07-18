@@ -48,6 +48,7 @@ namespace PoultryFarmAPIWeb.Business
             ItemName = r.GetString(r.GetOrdinal("ItemName")),
             Category = r.GetString(r.GetOrdinal("Category")),
             UnitOfMeasure = r.IsDBNull(r.GetOrdinal("UnitOfMeasure")) ? null : r.GetString(r.GetOrdinal("UnitOfMeasure")),
+            PurchaseUnitOfMeasure = HasColumn(r, "PurchaseUnitOfMeasure") && !r.IsDBNull(r.GetOrdinal("PurchaseUnitOfMeasure")) ? r.GetString(r.GetOrdinal("PurchaseUnitOfMeasure")) : null,
             MinimumStockAlert = r.GetDecimal(r.GetOrdinal("MinimumStockAlert")),
             CurrentQuantity = r.GetDecimal(r.GetOrdinal("CurrentQuantity")),
             IsActive = r.GetBoolean(r.GetOrdinal("IsActive")),
@@ -94,6 +95,7 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@MinimumStockAlert", m.MinimumStockAlert);
             cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@UsageMethod", string.IsNullOrWhiteSpace(m.UsageMethod) ? "FIFO" : m.UsageMethod);
+            cmd.Parameters.AddWithValue("@PurchaseUnitOfMeasure", (object?)m.PurchaseUnitOfMeasure ?? DBNull.Value);
             await conn.OpenAsync();
             return Convert.ToInt32(await cmd.ExecuteScalarAsync());
         }
@@ -111,6 +113,7 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@IsActive", m.IsActive);
             cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@UsageMethod", string.IsNullOrWhiteSpace(m.UsageMethod) ? "FIFO" : m.UsageMethod);
+            cmd.Parameters.AddWithValue("@PurchaseUnitOfMeasure", (object?)m.PurchaseUnitOfMeasure ?? DBNull.Value);
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
         }

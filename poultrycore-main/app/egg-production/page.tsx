@@ -230,7 +230,7 @@ export default function EggProductionsPage() {
       for (const row of scopedEntries) {
         const fid = Number(row.flockId)
         if (!fid) continue
-        const total = (Number(row.production9AM) || 0) + (Number(row.production12PM) || 0) + (Number(row.production4PM) || 0)
+        const total = (Number(row.production9AM) || 0) + (Number(row.production12PM) || 0) + (Number(row.production4PM) || 0) + (Number((row as any).production4thPick) || 0)
         groupedEgg.set(fid, (groupedEgg.get(fid) || 0) + total)
       }
 
@@ -287,14 +287,15 @@ export default function EggProductionsPage() {
 
     setSyncingToday(true)
     try {
-      const grouped = new Map<number, { p9: number; p12: number; p4: number; broken: number }>()
+      const grouped = new Map<number, { p9: number; p12: number; p4: number; p4th: number; broken: number }>()
       for (const row of scopedEntries) {
         const fid = Number(row.flockId)
         if (!fid) continue
-        const curr = grouped.get(fid) ?? { p9: 0, p12: 0, p4: 0, broken: 0 }
+        const curr = grouped.get(fid) ?? { p9: 0, p12: 0, p4: 0, p4th: 0, broken: 0 }
         curr.p9 += Number(row.production9AM) || 0
         curr.p12 += Number(row.production12PM) || 0
         curr.p4 += Number(row.production4PM) || 0
+        curr.p4th += Number((row as any).production4thPick) || 0
         curr.broken += Number(row.brokenEggs) || 0
         grouped.set(fid, curr)
       }
@@ -313,7 +314,7 @@ export default function EggProductionsPage() {
         const flock = flocks.find((f) => Number((f as any).flockId) === flockId)
         if (!flock) continue
 
-        const total = sums.p9 + sums.p12 + sums.p4
+        const total = sums.p9 + sums.p12 + sums.p4 + sums.p4th
         const todayIso = `${todayKey}T00:00:00Z`
         const matched = existing.find(
           (r) => Number((r as any).flockId) === flockId && toLocalDateKey((r as any).date) === todayKey
@@ -337,6 +338,7 @@ export default function EggProductionsPage() {
             production9AM: sums.p9,
             production12PM: sums.p12,
             production4PM: sums.p4,
+            production4thPick: sums.p4th,
             brokenEggs: sums.broken,
             totalProduction: total,
           }
@@ -366,6 +368,7 @@ export default function EggProductionsPage() {
             production9AM: sums.p9,
             production12PM: sums.p12,
             production4PM: sums.p4,
+            production4thPick: sums.p4th,
             brokenEggs: sums.broken,
             totalProduction: total,
           }
@@ -441,6 +444,7 @@ export default function EggProductionsPage() {
     if (key === "production9AM") return Number(item.production9AM) || 0
     if (key === "production12PM") return Number(item.production12PM) || 0
     if (key === "production4PM") return Number(item.production4PM) || 0
+    if (key === "production4thPick") return Number(item.production4thPick) || 0
     if (key === "eggGrade") return eggGradeFromApi((item as EggProduction).eggGrade).toLowerCase()
     return (item as any)[key]
   }), [filteredEggProductions, sortKey, sortDir])
@@ -514,7 +518,7 @@ export default function EggProductionsPage() {
                   <Egg className="w-5 h-5 text-yellow-600" />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Egg sorting</h1>
+                  <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Egg Sorting</h1>
                   <p className="text-sm text-slate-600">
                     Daily collection by flock (9am / 12pm / 4pm) for the filters below.
                   </p>
@@ -523,7 +527,7 @@ export default function EggProductionsPage() {
               <Link href="/egg-production/new" prefetch={true} className="w-full sm:w-auto">
                 <Button className="gap-2 w-full sm:w-auto h-11 sm:h-10 bg-blue-600 hover:bg-blue-700">
                   <Plus className="w-4 h-4" />
-                  Add Production Record
+                  Add Egg Sorting record
                 </Button>
               </Link>
             </div>
@@ -779,7 +783,7 @@ export default function EggProductionsPage() {
                   <Link href="/egg-production/new" prefetch={true}>
                     <Button className="gap-2 bg-blue-600 hover:bg-blue-700">
                       <Plus className="w-4 h-4" />
-                      Add Production Record
+                      Add Egg Sorting record
                     </Button>
                   </Link>
                 </CardContent>
@@ -820,9 +824,10 @@ export default function EggProductionsPage() {
                             <CollapsibleContent>
                               <div className="mt-4 pt-4 border-t border-slate-100 space-y-2 text-sm">
                                 <div className="grid grid-cols-2 gap-2">
-                                  <div><span className="text-slate-500">9am</span> <span className="font-medium text-blue-700">{prod.production9AM ?? '-'}</span></div>
-                                  <div><span className="text-slate-500">12pm</span> <span className="font-medium text-orange-700">{prod.production12PM ?? '-'}</span></div>
-                                  <div><span className="text-slate-500">4pm</span> <span className="font-medium text-purple-700">{prod.production4PM ?? '-'}</span></div>
+                                  <div><span className="text-slate-500">1st Pick</span> <span className="font-medium text-blue-700">{prod.production9AM ?? '-'}</span></div>
+                                  <div><span className="text-slate-500">2nd Pick</span> <span className="font-medium text-orange-700">{prod.production12PM ?? '-'}</span></div>
+                                  <div><span className="text-slate-500">3rd Pick</span> <span className="font-medium text-purple-700">{prod.production4PM ?? '-'}</span></div>
+                                  <div><span className="text-slate-500">4th Pick</span> <span className="font-medium text-teal-700">{(prod as any).production4thPick ?? '-'}</span></div>
                                   <div><span className="text-slate-500">Broken</span> <span className="font-medium text-red-600">{prod.brokenEggs ?? 0}</span></div>
                                   <div className="col-span-2">
                                     <span className="text-slate-500">Size</span>{" "}
@@ -870,9 +875,10 @@ export default function EggProductionsPage() {
                           <SortableHeader label="Date" sortKey="productionDate" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[100px]", isMobile && "sticky-col-date bg-slate-50")} />
                           <SortableHeader label="Flock" sortKey="flockId" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[120px]" />
                           <SortableHeader label="Size" sortKey="eggGrade" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[88px] hidden sm:table-cell" />
-                          <SortableHeader label="9 AM" sortKey="production9AM" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[80px] hidden lg:table-cell" />
-                          <SortableHeader label="12 PM" sortKey="production12PM" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[80px] hidden lg:table-cell" />
-                          <SortableHeader label="4 PM" sortKey="production4PM" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[80px] hidden lg:table-cell" />
+                          <SortableHeader label="1st Pick" sortKey="production9AM" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[80px] hidden lg:table-cell whitespace-nowrap" />
+                          <SortableHeader label="2nd Pick" sortKey="production12PM" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[80px] hidden lg:table-cell whitespace-nowrap" />
+                          <SortableHeader label="3rd Pick" sortKey="production4PM" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[80px] hidden lg:table-cell whitespace-nowrap" />
+                          <SortableHeader label="4th Pick" sortKey="production4thPick" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[80px] hidden lg:table-cell whitespace-nowrap" />
                           <SortableHeader label="Total Production" sortKey="totalProduction" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[120px] hidden sm:table-cell" />
                           <SortableHeader label="Broken Eggs" sortKey="brokenEggs" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[120px] hidden md:table-cell" />
                           <TableHead className={cn("font-semibold text-slate-900 text-center min-w-[120px] whitespace-nowrap", isMobile && "sticky-col-actions bg-slate-50")}>Actions</TableHead>
@@ -891,6 +897,7 @@ export default function EggProductionsPage() {
                             <TableCell className="hidden lg:table-cell">{prod.production9AM ?? '-'}</TableCell>
                             <TableCell className="hidden lg:table-cell">{prod.production12PM ?? '-'}</TableCell>
                             <TableCell className="hidden lg:table-cell">{prod.production4PM ?? '-'}</TableCell>
+                            <TableCell className="hidden lg:table-cell">{(prod as any).production4thPick ?? '-'}</TableCell>
                             <TableCell className="hidden sm:table-cell">{prod.totalProduction}</TableCell>
                             <TableCell className="hidden md:table-cell">{prod.brokenEggs}</TableCell>
                             <TableCell className={cn("text-center whitespace-nowrap bg-white", isMobile && "sticky-col-actions")}>
@@ -916,6 +923,7 @@ export default function EggProductionsPage() {
                         ))}
                          <TableRow className="bg-slate-50 font-semibold">
                             <TableCell colSpan={3} className={cn("text-right", isMobile && "sticky-col-date bg-slate-50")}>Total</TableCell>
+                            <TableCell className="hidden lg:table-cell"></TableCell>
                             <TableCell className="hidden lg:table-cell"></TableCell>
                             <TableCell className="hidden lg:table-cell"></TableCell>
                             <TableCell className="hidden lg:table-cell"></TableCell>

@@ -36,6 +36,10 @@ namespace PoultryFarmAPIWeb.Controllers
             return Ok(record);
         }
 
+        // Production records capture what already happened, so the production date
+        // can never be in the future. UTC-day comparison — farms run on GMT+0.
+        private static bool IsFutureDate(DateTime d) => d.Date > DateTime.UtcNow.Date;
+
         [HttpPost]
         public async Task<ActionResult<ProductionRecordModel>> Create([FromBody] ProductionRecordModel model)
         {
@@ -44,6 +48,9 @@ namespace PoultryFarmAPIWeb.Controllers
 
             if (string.IsNullOrEmpty(model.UserId) || string.IsNullOrEmpty(model.FarmId))
                 return BadRequest("CreatedBy and FarmId are required in the model.");
+
+            if (IsFutureDate(model.Date))
+                return BadRequest("Production date cannot be in the future.");
 
             var newId = await _service.Insert(model);
             var createdRecord = await _service.GetById(newId, model.UserId, model.FarmId);
@@ -65,6 +72,9 @@ namespace PoultryFarmAPIWeb.Controllers
 
             if (string.IsNullOrEmpty(model.UpdatedBy) || string.IsNullOrEmpty(model.FarmId))
                 return BadRequest("UpdatedBy and FarmId are required in the model.");
+
+            if (IsFutureDate(model.Date))
+                return BadRequest("Production date cannot be in the future.");
 
             await _service.Update(model);
             return NoContent();

@@ -133,6 +133,7 @@ namespace PoultryFarmAPIWeb.Models
         public int MorningEggs { get; set; }
         public int MiddayEggs { get; set; }
         public int EveningEggs { get; set; }
+        public int FourthPickEggs { get; set; }
         public long TotalEggs { get; set; }
         public int BrokenEggs { get; set; }
         public long SaleableEggs { get; set; }

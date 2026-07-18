@@ -9,6 +9,7 @@ export interface EggProduction {
   production9AM: number
   production12PM: number
   production4PM: number
+  production4thPick: number
   totalProduction: number
   brokenEggs: number
   notes: string
@@ -32,6 +33,7 @@ export interface EggProductionInput {
   production9AM: number
   production12PM: number
   production4PM: number
+  production4thPick: number
   totalProduction: number
   brokenEggs: number
   notes: string
@@ -62,6 +64,7 @@ function mapEggRow(raw: Record<string, unknown>): EggProduction {
     production9AM: Number(raw.production9AM ?? raw.Production9AM ?? 0),
     production12PM: Number(raw.production12PM ?? raw.Production12PM ?? 0),
     production4PM: Number(raw.production4PM ?? raw.Production4PM ?? 0),
+    production4thPick: Number(raw.production4thPick ?? raw.Production4thPick ?? 0),
     totalProduction: Number(raw.totalProduction ?? raw.TotalProduction ?? 0),
     brokenEggs: Number(raw.brokenEggs ?? raw.BrokenEggs ?? 0),
     notes: String(raw.notes ?? raw.Notes ?? ""),

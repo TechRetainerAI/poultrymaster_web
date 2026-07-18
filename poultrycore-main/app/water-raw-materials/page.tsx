@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
+import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
@@ -39,10 +40,10 @@ const CATEGORIES = ["PackagingRoll","SachetFilm","OuterBag","Chemical","Filter",
 const PAYMENT_METHODS = ["Cash","MoMo","Bank","Credit"]
 // Spec #12: purchase / production units are dropdowns. The item's own unit is
 // merged in at render time so custom units aren't lost.
-const UNITS = ["Roll","Bag","Sachet","Bottle","Piece","Pack","Carton","Box","Bundle","Dozen","Litre","Millilitre","Kilogram","Gram","Bale","Unit","Other"]
+const UNITS = ["Roll","Bag","Sachet","Bottle","Piece","Pack","Carton","Box","Bundle","Dozen","Litre","Millilitre","Tonne","Kilogram","Gram","Bale","Unit","Other"]
 
 type ItemForm = Omit<WaterRawMaterialItem, "waterRawMaterialItemId" | "farmId" | "currentQuantity">
-const EMPTY_ITEM: ItemForm = { itemName: "", category: "PackagingRoll", unitOfMeasure: "", minimumStockAlert: 0, isActive: true, notes: null }
+const EMPTY_ITEM: ItemForm = { itemName: "", category: "PackagingRoll", unitOfMeasure: "", purchaseUnitOfMeasure: "", minimumStockAlert: 0, isActive: true, notes: null }
 
 export default function WaterRawMaterialsPage() {
   const router = useRouter()
@@ -62,6 +63,16 @@ export default function WaterRawMaterialsPage() {
   const [usageLoaded, setUsageLoaded] = useState(false)
   const [usageLoading, setUsageLoading] = useState(false)
   const [loading, setLoading] = useState(true)
+
+  // Item dropdown filter shared by Purchases + Usage ("all" = no item filter).
+  const [itemFilter, setItemFilter] = useState("all")
+  // Items tab: category + unit dropdowns (records grow fast in production).
+  const [categoryFilter, setCategoryFilter] = useState("all")
+  const [unitFilter, setUnitFilter] = useState("all")
+  // Per-tab column sort (label click cycles asc → desc → off).
+  const [itemsSort, setItemsSort] = useState<{ key: string | null; direction: SortDirection }>({ key: null, direction: null })
+  const [purchasesSort, setPurchasesSort] = useState<{ key: string | null; direction: SortDirection }>({ key: null, direction: null })
+  const [usageSort, setUsageSort] = useState<{ key: string | null; direction: SortDirection }>({ key: null, direction: null })
 
   const [itemOpen, setItemOpen] = useState(false)
   const [editItemId, setEditItemId] = useState<number | null>(null)
@@ -143,15 +154,17 @@ export default function WaterRawMaterialsPage() {
   function openNewItem() { setEditItemId(null); setItemForm(EMPTY_ITEM); setItemOpen(true) }
   function openEditItem(it: WaterRawMaterialItem) {
     setEditItemId(it.waterRawMaterialItemId)
-    setItemForm({ itemName: it.itemName, category: it.category, unitOfMeasure: it.unitOfMeasure, minimumStockAlert: it.minimumStockAlert, isActive: it.isActive, notes: it.notes })
+    setItemForm({ itemName: it.itemName, category: it.category, unitOfMeasure: it.unitOfMeasure, purchaseUnitOfMeasure: it.purchaseUnitOfMeasure ?? "", minimumStockAlert: it.minimumStockAlert, isActive: it.isActive, notes: it.notes })
     setItemOpen(true)
   }
 
   async function saveItem() {
     if (!itemForm.itemName.trim()) return toast({ title: "Item name required", variant: "destructive" })
+    // Blank purchase unit → null so the backend defaults it to the production unit.
+    const itemPayload = { ...itemForm, purchaseUnitOfMeasure: (itemForm.purchaseUnitOfMeasure ?? "").trim() || null }
     try {
-      if (editItemId) { await updateWaterRawMaterialItem(editItemId, itemForm); toast({ title: "Item updated" }) }
-      else { await createWaterRawMaterialItem(itemForm); toast({ title: "Item added" }) }
+      if (editItemId) { await updateWaterRawMaterialItem(editItemId, itemPayload); toast({ title: "Item updated" }) }
+      else { await createWaterRawMaterialItem(itemPayload); toast({ title: "Item added" }) }
       setItemOpen(false); await load()
     } catch (e: any) { toast({ title: "Save failed", description: e?.message, variant: "destructive" }) }
   }
@@ -256,12 +269,45 @@ export default function WaterRawMaterialsPage() {
 
   const lowStock = useMemo(() => items.filter(i => i.isActive && (i.currentQuantity ?? 0) <= (i.minimumStockAlert ?? 0)), [items])
 
-  const visibleItems = useMemo(
-    () => filterByDateAndSearch(items, {
-      search, dateFrom, dateTo,
-      searchKeys: ["itemName", "category"],
-    }),
-    [items, search, dateFrom, dateTo],
+  const visibleItems = useMemo(() => {
+    let rows = filterByDateAndSearch(items, { search, dateFrom, dateTo, searchKeys: ["itemName", "category"] })
+    if (categoryFilter !== "all") rows = rows.filter((i) => i.category === categoryFilter)
+    if (unitFilter !== "all") rows = rows.filter((i) => i.unitOfMeasure === unitFilter || i.purchaseUnitOfMeasure === unitFilter)
+    return rows
+  }, [items, search, dateFrom, dateTo, categoryFilter, unitFilter])
+
+  // Distinct units actually in use (either role), for the Items unit dropdown.
+  const unitOptionsInUse = useMemo(() => {
+    const set = new Set<string>()
+    items.forEach((i) => { if (i.unitOfMeasure) set.add(i.unitOfMeasure); if (i.purchaseUnitOfMeasure) set.add(i.purchaseUnitOfMeasure) })
+    return Array.from(set).sort()
+  }, [items])
+
+  const byItem = <T extends { waterRawMaterialItemId: number }>(rows: T[]) =>
+    itemFilter === "all" ? rows : rows.filter((r) => String(r.waterRawMaterialItemId) === itemFilter)
+
+  const filteredPurchases = useMemo(
+    () => byItem(filterByDateAndSearch(purchases, { search, dateFrom, dateTo, searchKeys: ["itemName", "supplierName"], dateKey: "purchaseDate" })),
+    [purchases, search, dateFrom, dateTo, itemFilter],
+  )
+  const filteredUsage = useMemo(
+    () => byItem(filterByDateAndSearch(usage, { search, dateFrom, dateTo, searchKeys: ["itemName"], dateKey: "usedDate" })),
+    [usage, search, dateFrom, dateTo, itemFilter],
+  )
+
+  const sortedItems = useMemo(() => sortData(visibleItems, itemsSort.key, itemsSort.direction), [visibleItems, itemsSort])
+  const sortedPurchases = useMemo(() => sortData(filteredPurchases, purchasesSort.key, purchasesSort.direction), [filteredPurchases, purchasesSort])
+  const sortedUsage = useMemo(() => sortData(filteredUsage, usageSort.key, usageSort.direction), [filteredUsage, usageSort])
+
+  // Item dropdown shared by the Purchases + Usage filter strips.
+  const itemFilterDropdown = (
+    <Select value={itemFilter} onValueChange={setItemFilter}>
+      <SelectTrigger className="w-[160px]"><SelectValue placeholder="All items" /></SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">All items</SelectItem>
+        {items.map((i) => <SelectItem key={i.waterRawMaterialItemId} value={String(i.waterRawMaterialItemId)}>{i.itemName}</SelectItem>)}
+      </SelectContent>
+    </Select>
   )
 
   return (
@@ -293,6 +339,22 @@ export default function WaterRawMaterialsPage() {
                 search={search} setSearch={setSearch}
                 searchOnly
                 searchPlaceholder="Search item or category"
+                extras={<>
+                  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                    <SelectTrigger className="w-[160px]"><SelectValue placeholder="All categories" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All categories</SelectItem>
+                      {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Select value={unitFilter} onValueChange={setUnitFilter}>
+                    <SelectTrigger className="w-[140px]"><SelectValue placeholder="All units" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All units</SelectItem>
+                      {unitOptionsInUse.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </>}
               />
 
               {lowStock.length > 0 && (
@@ -312,7 +374,7 @@ export default function WaterRawMaterialsPage() {
                     <div className="p-8 text-center text-slate-500">No raw material items yet.</div>
                   ) : (
                     <MobileCardList
-                      items={visibleItems}
+                      items={sortedItems}
                       defaultOpen
                       getKey={(it) => it.waterRawMaterialItemId}
                       primary={(it) => it.itemName}
@@ -326,7 +388,8 @@ export default function WaterRawMaterialsPage() {
                         const low = (it.currentQuantity ?? 0) <= (it.minimumStockAlert ?? 0)
                         return [
                           { label: "Category", value: it.category },
-                          { label: "Unit", value: it.unitOfMeasure ?? "—" },
+                          { label: "Purchase Unit", value: it.purchaseUnitOfMeasure ?? "—" },
+                          { label: "Production Unit", value: it.unitOfMeasure ?? "—" },
                           { label: "Current", value: <span className={low ? "text-rose-600 font-semibold" : ""}>{it.currentQuantity ?? 0}</span> },
                           { label: "Min alert", value: it.minimumStockAlert ?? 0 },
                           { label: "Status", value: it.isActive ? "Active" : "Inactive" },
@@ -346,15 +409,27 @@ export default function WaterRawMaterialsPage() {
                         <div className="overflow-x-auto">
                         <Table>
                           <TableHeader>
-                            <TableRow><TableHead>Name</TableHead><TableHead>Category</TableHead><TableHead>Unit</TableHead><TableHead className="text-right">Current</TableHead><TableHead className="text-right">Min alert</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow>
+                            <TableRow>
+                              {(() => { const onSort = (k: string) => setItemsSort((s) => toggleSort(k, s.key, s.direction)); const cs = itemsSort.key, cd = itemsSort.direction; return (<>
+                              <SortableHeader label="Name" sortKey="itemName" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                              <SortableHeader label="Category" sortKey="category" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                              <SortableHeader label="Purchase Unit" sortKey="purchaseUnitOfMeasure" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                              <SortableHeader label="Production Unit" sortKey="unitOfMeasure" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                              <SortableHeader label="Current" sortKey="currentQuantity" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                              <SortableHeader label="Min alert" sortKey="minimumStockAlert" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                              <SortableHeader label="Status" sortKey="isActive" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                              </>) })()}
+                              <TableHead className="text-right">Actions</TableHead>
+                            </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {visibleItems.map((it) => {
+                            {sortedItems.map((it) => {
                               const low = (it.currentQuantity ?? 0) <= (it.minimumStockAlert ?? 0)
                               return (
                                 <TableRow key={it.waterRawMaterialItemId}>
                                   <TableCell className="font-medium">{it.itemName}</TableCell>
                                   <TableCell><Badge variant="outline">{it.category}</Badge></TableCell>
+                                  <TableCell>{it.purchaseUnitOfMeasure ?? "—"}</TableCell>
                                   <TableCell>{it.unitOfMeasure ?? "—"}</TableCell>
                                   <TableCell className={`text-right tabular-nums ${low ? "text-rose-600 font-semibold" : ""}`}>{it.currentQuantity ?? 0}</TableCell>
                                   <TableCell className="text-right tabular-nums">{it.minimumStockAlert ?? 0}</TableCell>
@@ -377,6 +452,13 @@ export default function WaterRawMaterialsPage() {
             </TabsContent>
 
             <TabsContent value="usage">
+              <ListFilters
+                search={search} setSearch={setSearch}
+                dateFrom={dateFrom} setDateFrom={setDateFrom}
+                dateTo={dateTo} setDateTo={setDateTo}
+                searchPlaceholder="Search item"
+                extras={itemFilterDropdown}
+              />
               <Card>
                 <CardContent className="p-0">
                   {usageLoading && !usageLoaded ? (
@@ -387,7 +469,7 @@ export default function WaterRawMaterialsPage() {
                     </div>
                   ) : (
                     <MobileCardList
-                      items={usage}
+                      items={sortedUsage}
                       defaultOpen
                       getKey={(u) => u.waterRawMaterialUsageId}
                       primary={(u) => u.itemName ?? "—"}
@@ -412,17 +494,19 @@ export default function WaterRawMaterialsPage() {
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              <TableHead>Date</TableHead>
-                              <TableHead>Material</TableHead>
-                              <TableHead className="text-right">Qty used</TableHead>
-                              <TableHead>Unit</TableHead>
-                              <TableHead className="text-right">Cost</TableHead>
-                              <TableHead>Source batch</TableHead>
-                              <TableHead>Finished product</TableHead>
+                              {(() => { const onSort = (k: string) => setUsageSort((s) => toggleSort(k, s.key, s.direction)); const cs = usageSort.key, cd = usageSort.direction; return (<>
+                              <SortableHeader label="Date" sortKey="usedDate" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                              <SortableHeader label="Material" sortKey="itemName" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                              <SortableHeader label="Qty used" sortKey="quantityUsed" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                              <SortableHeader label="Unit" sortKey="unitOfMeasure" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                              <SortableHeader label="Cost" sortKey="totalCost" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                              <SortableHeader label="Source batch" sortKey="batchNumber" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                              <SortableHeader label="Finished product" sortKey="finishedProductName" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                              </>) })()}
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {usage.map((u) => (
+                            {sortedUsage.map((u) => (
                               <TableRow key={u.waterRawMaterialUsageId}>
                                 <TableCell className="whitespace-nowrap">{u.usedDate.split("T")[0]}</TableCell>
                                 <TableCell className="font-medium">{u.itemName ?? "—"}</TableCell>
@@ -446,13 +530,20 @@ export default function WaterRawMaterialsPage() {
             </TabsContent>
 
             <TabsContent value="purchases">
+              <ListFilters
+                search={search} setSearch={setSearch}
+                dateFrom={dateFrom} setDateFrom={setDateFrom}
+                dateTo={dateTo} setDateTo={setDateTo}
+                searchPlaceholder="Search item or supplier"
+                extras={itemFilterDropdown}
+              />
               <Card>
                 <CardContent className="p-0">
                   {purchases.length === 0 ? (
                     <div className="p-8 text-center text-slate-500">No purchases recorded yet.</div>
                   ) : (
                     <MobileCardList
-                      items={purchases}
+                      items={sortedPurchases}
                       defaultOpen
                       getKey={(p) => p.waterRawMaterialPurchaseId}
                       primary={(p) => p.itemName ?? items.find(i => i.waterRawMaterialItemId === p.waterRawMaterialItemId)?.itemName ?? "—"}
@@ -467,8 +558,9 @@ export default function WaterRawMaterialsPage() {
                         { label: "Date", value: p.purchaseDate.split("T")[0] },
                         { label: "Item", value: p.itemName ?? items.find(i => i.waterRawMaterialItemId === p.waterRawMaterialItemId)?.itemName ?? "—" },
                         { label: "Supplier", value: p.supplierName ?? "—" },
-                        { label: "Qty", value: p.quantity },
-                        { label: "Unit cost", value: gh(p.unitCost) },
+                        { label: "Purchase Qty", value: p.quantity },
+                        { label: "Production Level Qty", value: p.productionQuantity != null ? `${p.productionQuantity.toLocaleString()} ${p.productionUnit ?? ""}`.trim() : "—" },
+                        { label: "Unit Price", value: gh(p.unitCost) },
                         { label: "Total", value: gh(p.totalCost ?? p.quantity * p.unitCost) },
                         { label: "Method", value: p.paymentMethod ?? "—" },
                         { label: "Balance", value: <span className={(p.balance ?? 0) > 0 ? "text-rose-600" : ""}>{gh(p.balance ?? 0)}</span> },
@@ -496,15 +588,29 @@ export default function WaterRawMaterialsPage() {
                         <div className="overflow-x-auto">
                         <Table>
                           <TableHeader>
-                            <TableRow><TableHead>Date</TableHead><TableHead>Item</TableHead><TableHead>Supplier</TableHead><TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Unit cost</TableHead><TableHead className="text-right">Total</TableHead><TableHead>Method</TableHead><TableHead className="text-right">Balance</TableHead><TableHead className="text-right">Actions</TableHead></TableRow>
+                            <TableRow>
+                              {(() => { const onSort = (k: string) => setPurchasesSort((s) => toggleSort(k, s.key, s.direction)); const cs = purchasesSort.key, cd = purchasesSort.direction; return (<>
+                              <SortableHeader label="Date" sortKey="purchaseDate" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                              <SortableHeader label="Item" sortKey="itemName" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                              <SortableHeader label="Supplier" sortKey="supplierName" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                              <SortableHeader label="Purchase Qty" sortKey="quantity" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                              <SortableHeader label="Production Level Qty" sortKey="productionQuantity" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                              <SortableHeader label="Unit Price" sortKey="unitCost" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                              <SortableHeader label="Total" sortKey="totalCost" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                              <SortableHeader label="Method" sortKey="paymentMethod" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                              <SortableHeader label="Balance" sortKey="balance" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                              </>) })()}
+                              <TableHead className="text-right">Actions</TableHead>
+                            </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {purchases.map((p) => (
+                            {sortedPurchases.map((p) => (
                               <TableRow key={p.waterRawMaterialPurchaseId}>
                                 <TableCell>{p.purchaseDate.split("T")[0]}</TableCell>
                                 <TableCell>{p.itemName ?? items.find(i => i.waterRawMaterialItemId === p.waterRawMaterialItemId)?.itemName ?? "—"}</TableCell>
                                 <TableCell>{p.supplierName ?? "—"}</TableCell>
                                 <TableCell className="text-right tabular-nums">{p.quantity}</TableCell>
+                                <TableCell className="text-right tabular-nums">{p.productionQuantity != null ? `${p.productionQuantity.toLocaleString()} ${p.productionUnit ?? ""}`.trim() : "—"}</TableCell>
                                 <TableCell className="text-right tabular-nums">{gh(p.unitCost)}</TableCell>
                                 <TableCell className="text-right tabular-nums">{gh(p.totalCost ?? p.quantity * p.unitCost)}</TableCell>
                                 <TableCell>{p.paymentMethod ?? "—"}</TableCell>
@@ -552,8 +658,11 @@ export default function WaterRawMaterialsPage() {
                   <SelectContent>{CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                 </Select>
               </FormField>
-              <FormField label="Unit">
+              <FormField label="Production unit of measure">
                 <Input value={itemForm.unitOfMeasure ?? ""} onChange={(e) => setItemForm({ ...itemForm, unitOfMeasure: e.target.value || null })} placeholder="kg / roll / pcs" />
+              </FormField>
+              <FormField label="Purchase unit of measure">
+                <Input value={itemForm.purchaseUnitOfMeasure ?? ""} onChange={(e) => setItemForm({ ...itemForm, purchaseUnitOfMeasure: e.target.value || null })} placeholder="Same as production unit" />
               </FormField>
               <FormField label="Minimum stock alert" full>
                 <NumberInput min={0} value={itemForm.minimumStockAlert ?? 0} onChange={(e) => setItemForm({ ...itemForm, minimumStockAlert: Number(e.target.value) || 0 })} />
@@ -587,7 +696,7 @@ export default function WaterRawMaterialsPage() {
           <div className="space-y-4">
             <FormSection title="Item, Supplier & Date" color="indigo">
               <FormField label={`Item${editPurchaseId != null ? " (fixed — delete and recreate to change item)" : ""}`} full>
-                <Select value={String(purchaseForm.waterRawMaterialItemId)} onValueChange={(v) => { const id = Number(v); const it = items.find(i => i.waterRawMaterialItemId === id); setPurchaseForm({ ...purchaseForm, waterRawMaterialItemId: id, purchaseUnit: it?.unitOfMeasure ?? purchaseForm.purchaseUnit }) }} disabled={editPurchaseId != null}>
+                <Select value={String(purchaseForm.waterRawMaterialItemId)} onValueChange={(v) => { const id = Number(v); const it = items.find(i => i.waterRawMaterialItemId === id); setPurchaseForm({ ...purchaseForm, waterRawMaterialItemId: id, purchaseUnit: it?.purchaseUnitOfMeasure || it?.unitOfMeasure || purchaseForm.purchaseUnit, productionUnit: it?.unitOfMeasure || purchaseForm.productionUnit }) }} disabled={editPurchaseId != null}>
                   <SelectTrigger><SelectValue placeholder="Pick item" /></SelectTrigger>
                   <SelectContent>{items.filter(i => i.isActive || i.waterRawMaterialItemId === purchaseForm.waterRawMaterialItemId).map(i => <SelectItem key={i.waterRawMaterialItemId} value={String(i.waterRawMaterialItemId)}>{i.itemName} ({i.unitOfMeasure ?? "—"})</SelectItem>)}</SelectContent>
                 </Select>

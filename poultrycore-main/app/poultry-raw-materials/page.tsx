@@ -15,10 +15,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
+import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
+import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, AlertTriangle } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
+import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import {
@@ -31,10 +34,10 @@ import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poul
 
 const CATEGORIES = ["FeedIngredient", "Packaging", "Medication", "Vaccine", "Bedding", "Disinfectant", "SparePart", "Fuel", "Other"]
 const PAYMENT_METHODS = ["Cash", "MoMo", "Bank", "Credit"]
-const UNITS = ["Bag", "Sack", "Kilogram", "Gram", "Litre", "Millilitre", "Bottle", "Sachet", "Piece", "Pack", "Carton", "Box", "Bundle", "Dozen", "Crate", "Unit", "Other"]
+const UNITS = ["Bag", "Sack", "Tonne", "Kilogram", "Gram", "Litre", "Millilitre", "Bottle", "Sachet", "Piece", "Pack", "Carton", "Box", "Bundle", "Dozen", "Crate", "Unit", "Other"]
 
-type ItemForm = { itemName: string; category: string; unitOfMeasure: string; minimumStockAlert: number; isActive: boolean; notes: string | null; usageMethod: RawMaterialUsageMethod }
-const EMPTY_ITEM: ItemForm = { itemName: "", category: "FeedIngredient", unitOfMeasure: "", minimumStockAlert: 0, isActive: true, notes: null, usageMethod: "FIFO" }
+type ItemForm = { itemName: string; category: string; unitOfMeasure: string; purchaseUnitOfMeasure: string; minimumStockAlert: number; isActive: boolean; notes: string | null; usageMethod: RawMaterialUsageMethod }
+const EMPTY_ITEM: ItemForm = { itemName: "", category: "FeedIngredient", unitOfMeasure: "", purchaseUnitOfMeasure: "", minimumStockAlert: 0, isActive: true, notes: null, usageMethod: "FIFO" }
 
 // Categories whose stock is actually drawn from a specific batch when recorded
 // as "used" (production-records feed/medication pickers). Only these show the
@@ -92,6 +95,22 @@ export default function PoultryRawMaterialsPage() {
   const [usageLoaded, setUsageLoaded] = useState(false)
   const [loading, setLoading] = useState(true)
   const [cashAccounts, setCashAccounts] = useState<PoultryCashAccount[]>([])
+
+  // Shared list filters (mirrors the water raw-materials + /sales pages):
+  // search applies to every tab; the date range + item dropdown apply to
+  // Purchases/Usage (which reference an item). "all" = no item filter.
+  const [search, setSearch] = useState("")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
+  const [itemFilter, setItemFilter] = useState("all")
+  // Items tab: category + unit dropdowns (records grow fast in production).
+  const [categoryFilter, setCategoryFilter] = useState("all")
+  const [unitFilter, setUnitFilter] = useState("all")
+
+  // Per-tab column sort (label click cycles asc → desc → off).
+  const [itemsSort, setItemsSort] = useState<{ key: string | null; direction: SortDirection }>({ key: null, direction: null })
+  const [purchasesSort, setPurchasesSort] = useState<{ key: string | null; direction: SortDirection }>({ key: null, direction: null })
+  const [usageSort, setUsageSort] = useState<{ key: string | null; direction: SortDirection }>({ key: null, direction: null })
 
   const [itemOpen, setItemOpen] = useState(false)
   const [editItemId, setEditItemId] = useState<number | null>(null)
@@ -156,6 +175,57 @@ export default function PoultryRawMaterialsPage() {
   }
 
   const itemById = useMemo(() => new Map(items.map((i) => [i.poultryRawMaterialItemId, i])), [items])
+
+  // Filtered + sorted views fed to the tables (stats above stay on the full set).
+  const byItem = <T extends { poultryRawMaterialItemId: number }>(rows: T[]) =>
+    itemFilter === "all" ? rows : rows.filter((r) => String(r.poultryRawMaterialItemId) === itemFilter)
+
+  const filteredItems = useMemo(() => {
+    let rows = filterByDateAndSearch(items, { search, searchKeys: ["itemName", "category"] })
+    if (categoryFilter !== "all") rows = rows.filter((i) => i.category === categoryFilter)
+    if (unitFilter !== "all") rows = rows.filter((i) => i.unitOfMeasure === unitFilter || i.purchaseUnitOfMeasure === unitFilter)
+    return rows
+  }, [items, search, categoryFilter, unitFilter])
+
+  // Distinct units actually in use (either role), for the Items unit dropdown.
+  const unitOptionsInUse = useMemo(() => {
+    const set = new Set<string>()
+    items.forEach((i) => { if (i.unitOfMeasure) set.add(i.unitOfMeasure); if (i.purchaseUnitOfMeasure) set.add(i.purchaseUnitOfMeasure) })
+    return Array.from(set).sort()
+  }, [items])
+  const filteredPurchases = useMemo(
+    () => byItem(filterByDateAndSearch(purchases, { search, dateFrom, dateTo, searchKeys: ["itemName", "supplierName"], dateKey: "purchaseDate" })),
+    [purchases, search, dateFrom, dateTo, itemFilter],
+  )
+  const filteredUsage = useMemo(
+    () => byItem(filterByDateAndSearch(usage, { search, dateFrom, dateTo, searchKeys: ["itemName"], dateKey: "usedDate" })),
+    [usage, search, dateFrom, dateTo, itemFilter],
+  )
+
+  const sortedItems = useMemo(() => sortData(filteredItems, itemsSort.key, itemsSort.direction), [filteredItems, itemsSort])
+  const sortedPurchases = useMemo(() => sortData(filteredPurchases, purchasesSort.key, purchasesSort.direction), [filteredPurchases, purchasesSort])
+  const sortedUsage = useMemo(() => sortData(filteredUsage, usageSort.key, usageSort.direction), [filteredUsage, usageSort])
+
+  // Item dropdown shared by the Purchases + Usage filter strips.
+  const itemFilterDropdown = (
+    <Select value={itemFilter} onValueChange={setItemFilter}>
+      <SelectTrigger className="w-[160px]"><SelectValue placeholder="All items" /></SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">All items</SelectItem>
+        {items.map((i) => <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>{i.itemName}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  )
+
+  // Headline figures for the summary cards.
+  const stats = useMemo(() => ({
+    itemsCount: items.length,
+    activeCount: items.filter((i) => i.isActive).length,
+    lowStock: items.filter((i) => i.isActive && i.isLowStock).length,
+    purchaseTotal: purchases.reduce((s, p) => s + (Number(p.totalCost) || 0), 0),
+    paidTotal: purchases.reduce((s, p) => s + (Number(p.amountPaid) || 0), 0),
+    outstanding: purchases.reduce((s, p) => s + (Number(p.balance) || 0), 0),
+  }), [items, purchases])
   const unitOptions = (current?: string | null) => {
     const set = [...UNITS]; const c = (current ?? "").trim()
     if (c && !set.includes(c)) set.unshift(c)
@@ -172,7 +242,7 @@ export default function PoultryRawMaterialsPage() {
   function openEditItem(i: PoultryRawMaterialItem) {
     setEditItemId(i.poultryRawMaterialItemId)
     const usageMethod = i.usageMethod ?? "FIFO"
-    setItemForm({ itemName: i.itemName, category: i.category, unitOfMeasure: i.unitOfMeasure ?? "", minimumStockAlert: i.minimumStockAlert, isActive: i.isActive, notes: i.notes ?? null, usageMethod })
+    setItemForm({ itemName: i.itemName, category: i.category, unitOfMeasure: i.unitOfMeasure ?? "", purchaseUnitOfMeasure: i.purchaseUnitOfMeasure ?? "", minimumStockAlert: i.minimumStockAlert, isActive: i.isActive, notes: i.notes ?? null, usageMethod })
     setOriginalUsageMethod(usageMethod)
     setItemOpen(true)
   }
@@ -180,9 +250,11 @@ export default function PoultryRawMaterialsPage() {
   async function saveItem() {
     if (!itemForm.itemName.trim()) { toast({ title: "Item name is required", variant: "destructive" }); return }
     setSavingItem(true)
+    // Blank purchase unit → null so the backend defaults it to the production unit.
+    const itemPayload = { ...itemForm, purchaseUnitOfMeasure: itemForm.purchaseUnitOfMeasure.trim() || null }
     try {
-      if (editItemId) await updatePoultryRawMaterialItem(editItemId, itemForm)
-      else await createPoultryRawMaterialItem(itemForm)
+      if (editItemId) await updatePoultryRawMaterialItem(editItemId, itemPayload)
+      else await createPoultryRawMaterialItem(itemPayload)
       toast({ title: editItemId ? "Item updated" : "Item added" })
       setItemOpen(false); await load()
     } catch (e: any) { toast({ title: "Save failed", description: e?.message, variant: "destructive" }) }
@@ -271,40 +343,103 @@ export default function PoultryRawMaterialsPage() {
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
         <main className="flex-1 p-4 sm:p-6 space-y-4">
-          <div className="flex items-center justify-between">
+          <Tabs defaultValue="items" onValueChange={(v) => { if (v === "usage") void loadUsage() }} className="gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h1 className="text-2xl font-bold">Raw Materials &amp; Supplies</h1>
               <p className="text-sm text-slate-500">Track feed inputs, packaging, medication and other supplies — purchases, costing and usage.</p>
             </div>
+            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto sm:ml-auto">
+              <Button variant="outline" onClick={openNewItem}><Plus className="w-4 h-4 mr-1" /> New Item</Button>
+              <Button onClick={openNewPurchase}><ShoppingCart className="w-4 h-4 mr-1" /> Record Purchase</Button>
+            </div>
           </div>
+          <TabsList className="self-start">
+            <TabsTrigger value="items"><Box className="w-4 h-4 mr-1" /> Items</TabsTrigger>
+            <TabsTrigger value="purchases"><ShoppingCart className="w-4 h-4 mr-1" /> Purchases</TabsTrigger>
+            <TabsTrigger value="usage"><Wallet className="w-4 h-4 mr-1" /> Usage History</TabsTrigger>
+          </TabsList>
 
           {loading ? (
             <div className="flex items-center gap-2 text-slate-500 p-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
           ) : (
-            <Tabs defaultValue="items" onValueChange={(v) => { if (v === "usage") void loadUsage() }}>
-              <TabsList>
-                <TabsTrigger value="items"><Box className="w-4 h-4 mr-1" /> Items</TabsTrigger>
-                <TabsTrigger value="purchases"><ShoppingCart className="w-4 h-4 mr-1" /> Purchases</TabsTrigger>
-                <TabsTrigger value="usage"><Wallet className="w-4 h-4 mr-1" /> Usage History</TabsTrigger>
-              </TabsList>
+            <>
+              {/* Summary */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 uppercase tracking-wide">
+                    <Box className="w-4 h-4 text-blue-600" /> Active Items
+                  </div>
+                  <div className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{stats.activeCount.toLocaleString()}</div>
+                  <div className="text-xs text-slate-400 mt-0.5">of {stats.itemsCount.toLocaleString()} total</div>
+                </div>
+                <div className={cn("p-4 rounded-xl border shadow-sm", stats.lowStock > 0 ? "bg-amber-50 border-amber-200" : "bg-white border-slate-200")}>
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 uppercase tracking-wide">
+                    <AlertTriangle className={cn("w-4 h-4", stats.lowStock > 0 ? "text-amber-600" : "text-slate-400")} /> Low Stock
+                  </div>
+                  <div className={cn("mt-1 text-2xl font-bold tabular-nums", stats.lowStock > 0 ? "text-amber-700" : "text-slate-900")}>{stats.lowStock.toLocaleString()}</div>
+                  <div className="text-xs text-slate-400 mt-0.5">{stats.lowStock > 0 ? "need restocking" : "all stocked"}</div>
+                </div>
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 uppercase tracking-wide">
+                    <ShoppingCart className="w-4 h-4 text-emerald-600" /> Purchases Value
+                  </div>
+                  <div className="mt-1 text-2xl font-bold text-slate-900 tabular-nums">{gh(stats.purchaseTotal)}</div>
+                  <div className="text-xs text-slate-400 mt-0.5">Paid {gh(stats.paidTotal)}</div>
+                </div>
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 uppercase tracking-wide">
+                    <Wallet className={cn("w-4 h-4", stats.outstanding > 0 ? "text-red-600" : "text-slate-400")} /> Outstanding
+                  </div>
+                  <div className={cn("mt-1 text-2xl font-bold tabular-nums", stats.outstanding > 0 ? "text-red-600" : "text-emerald-700")}>{gh(stats.outstanding)}</div>
+                  <div className="text-xs text-slate-400 mt-0.5">owed to suppliers</div>
+                </div>
+              </div>
 
               {/* ITEMS */}
               <TabsContent value="items">
                 <Card><CardContent className="p-4">
-                  <div className="flex justify-end mb-3"><Button onClick={openNewItem}><Plus className="w-4 h-4 mr-1" /> New item</Button></div>
+                  <div className="mb-3">
+                    <h2 className="text-base font-semibold text-slate-900">Inventory Items</h2>
+                    <p className="text-xs text-slate-500">Feed, packaging, medication and other stock-tracked supplies.</p>
+                  </div>
+                  <div className="mb-3"><ListFilters search={search} setSearch={setSearch} searchOnly searchPlaceholder="Search item or category" extras={<>
+                    <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                      <SelectTrigger className="w-[160px]"><SelectValue placeholder="All categories" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All categories</SelectItem>
+                        {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Select value={unitFilter} onValueChange={setUnitFilter}>
+                      <SelectTrigger className="w-[140px]"><SelectValue placeholder="All units" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All units</SelectItem>
+                        {unitOptionsInUse.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </>} /></div>
                   <div className="hidden md:block overflow-x-auto"><Table className="min-w-[640px]">
                     <TableHeader><TableRow>
-                      <TableHead>Item</TableHead><TableHead>Category</TableHead><TableHead>Unit</TableHead>
-                      <TableHead className="text-right">In stock</TableHead><TableHead className="text-right">Min alert</TableHead>
-                      <TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead>
+                      {(() => { const onSort = (k: string) => setItemsSort((s) => toggleSort(k, s.key, s.direction)); const cs = itemsSort.key, cd = itemsSort.direction; return (<>
+                      <SortableHeader label="Item" sortKey="itemName" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                      <SortableHeader label="Category" sortKey="category" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                      <SortableHeader label="Purchase Unit" sortKey="purchaseUnitOfMeasure" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                      <SortableHeader label="Production Unit" sortKey="unitOfMeasure" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                      <SortableHeader label="In stock" sortKey="currentQuantity" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                      <SortableHeader label="Min alert" sortKey="minimumStockAlert" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                      <SortableHeader label="Status" sortKey="isActive" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                      </>) })()}
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow></TableHeader>
                     <TableBody>
-                      {items.length === 0 ? (
-                        <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-6">No items yet.</TableCell></TableRow>
-                      ) : items.map((i) => (
+                      {filteredItems.length === 0 ? (
+                        <TableRow><TableCell colSpan={8} className="text-center text-slate-500 py-6">No items yet.</TableCell></TableRow>
+                      ) : sortedItems.map((i) => (
                         <TableRow key={i.poultryRawMaterialItemId}>
                           <TableCell className="font-medium">{i.itemName}</TableCell>
                           <TableCell>{i.category}</TableCell>
+                          <TableCell>{i.purchaseUnitOfMeasure ?? "—"}</TableCell>
                           <TableCell>{i.unitOfMeasure ?? "—"}</TableCell>
                           <TableCell className="text-right">{i.currentQuantity.toLocaleString()}</TableCell>
                           <TableCell className="text-right">{i.minimumStockAlert.toLocaleString()}</TableCell>
@@ -323,11 +458,11 @@ export default function PoultryRawMaterialsPage() {
                   </Table></div>
                   {/* Mobile cards */}
                   <div className="md:hidden space-y-2">
-                    {items.length === 0 ? <div className="text-center text-slate-500 py-6">No items yet.</div>
-                      : items.map((i) => (
+                    {filteredItems.length === 0 ? <div className="text-center text-slate-500 py-6">No items yet.</div>
+                      : sortedItems.map((i) => (
                         <FieldCard key={i.poultryRawMaterialItemId} title={i.itemName}
                           badge={!i.isActive ? <Badge variant="secondary">Inactive</Badge> : i.isLowStock ? <Badge className="bg-amber-100 text-amber-700">Low stock</Badge> : <Badge className="bg-green-100 text-green-700">OK</Badge>}
-                          fields={[["Category", i.category], ["Unit", i.unitOfMeasure ?? "—"], ["In stock", i.currentQuantity.toLocaleString()], ["Min alert", i.minimumStockAlert.toLocaleString()]]}
+                          fields={[["Category", i.category], ["Purchase Unit", i.purchaseUnitOfMeasure ?? "—"], ["Production Unit", i.unitOfMeasure ?? "—"], ["In stock", i.currentQuantity.toLocaleString()], ["Min alert", i.minimumStockAlert.toLocaleString()]]}
                           actions={<>
                             <Button variant="ghost" size="sm" onClick={() => openEditItem(i)}><Pencil className="w-4 h-4" /></Button>
                             <Button variant="ghost" size="sm" onClick={() => setDeleteItemTarget(i)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
@@ -340,23 +475,37 @@ export default function PoultryRawMaterialsPage() {
               {/* PURCHASES */}
               <TabsContent value="purchases">
                 <Card><CardContent className="p-4">
-                  <div className="flex justify-end mb-3"><Button onClick={openNewPurchase}><Plus className="w-4 h-4 mr-1" /> New purchase</Button></div>
+                  <div className="mb-3">
+                    <h2 className="text-base font-semibold text-slate-900">Purchase History</h2>
+                    <p className="text-xs text-slate-500">Stock received, costing, and supplier part payments.</p>
+                  </div>
+                  <div className="mb-3"><ListFilters search={search} setSearch={setSearch} dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo} searchPlaceholder="Search item or supplier" extras={itemFilterDropdown} /></div>
                   <div className="hidden md:block overflow-x-auto"><Table className="min-w-[640px]">
                     <TableHeader><TableRow>
-                      <TableHead>Date</TableHead><TableHead>Item</TableHead><TableHead>Supplier</TableHead>
-                      <TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Total</TableHead>
-                      <TableHead className="text-right">Paid</TableHead><TableHead className="text-right">Balance</TableHead>
+                      {(() => { const onSort = (k: string) => setPurchasesSort((s) => toggleSort(k, s.key, s.direction)); const cs = purchasesSort.key, cd = purchasesSort.direction; return (<>
+                      <SortableHeader label="Date" sortKey="purchaseDate" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                      <SortableHeader label="Item" sortKey="itemName" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                      <SortableHeader label="Supplier" sortKey="supplierName" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                      <SortableHeader label="Purchase Qty" sortKey="quantity" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                      <SortableHeader label="Production Level Qty" sortKey="productionQuantity" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                      <SortableHeader label="Unit Price" sortKey="unitCost" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                      <SortableHeader label="Total" sortKey="totalCost" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                      <SortableHeader label="Paid" sortKey="amountPaid" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                      <SortableHeader label="Balance" sortKey="balance" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                      </>) })()}
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow></TableHeader>
                     <TableBody>
-                      {purchases.length === 0 ? (
-                        <TableRow><TableCell colSpan={8} className="text-center text-slate-500 py-6">No purchases yet.</TableCell></TableRow>
-                      ) : purchases.map((p) => (
+                      {filteredPurchases.length === 0 ? (
+                        <TableRow><TableCell colSpan={10} className="text-center text-slate-500 py-6">No purchases yet.</TableCell></TableRow>
+                      ) : sortedPurchases.map((p) => (
                         <TableRow key={p.poultryRawMaterialPurchaseId}>
                           <TableCell>{(p.purchaseDate || "").split("T")[0]}</TableCell>
                           <TableCell className="font-medium">{p.itemName}</TableCell>
                           <TableCell>{p.supplierName ?? "—"}</TableCell>
                           <TableCell className="text-right">{p.quantity.toLocaleString()} {p.unitOfMeasure ?? ""}</TableCell>
+                          <TableCell className="text-right">{p.productionQuantity != null ? `${p.productionQuantity.toLocaleString()} ${p.productionUnit ?? ""}`.trim() : "—"}</TableCell>
+                          <TableCell className="text-right">{gh(p.unitCost)}{p.unitOfMeasure ? ` / ${p.unitOfMeasure}` : ""}</TableCell>
                           <TableCell className="text-right">{gh(p.totalCost)}</TableCell>
                           <TableCell className="text-right">{gh(p.amountPaid)}</TableCell>
                           <TableCell className="text-right">{p.balance > 0 ? <span className="text-amber-600 font-medium">{gh(p.balance)}</span> : gh(0)}</TableCell>
@@ -371,11 +520,11 @@ export default function PoultryRawMaterialsPage() {
                   </Table></div>
                   {/* Mobile cards */}
                   <div className="md:hidden space-y-2">
-                    {purchases.length === 0 ? <div className="text-center text-slate-500 py-6">No purchases yet.</div>
-                      : purchases.map((p) => (
+                    {filteredPurchases.length === 0 ? <div className="text-center text-slate-500 py-6">No purchases yet.</div>
+                      : sortedPurchases.map((p) => (
                         <FieldCard key={p.poultryRawMaterialPurchaseId} title={p.itemName}
                           badge={<span className="text-xs text-slate-500">{(p.purchaseDate || "").split("T")[0]}</span>}
-                          fields={[["Supplier", p.supplierName ?? "—"], ["Qty", `${p.quantity.toLocaleString()} ${p.unitOfMeasure ?? ""}`], ["Total", gh(p.totalCost)], ["Paid", gh(p.amountPaid)], ["Balance", p.balance > 0 ? <span className="text-amber-600 font-medium">{gh(p.balance)}</span> : gh(0)]]}
+                          fields={[["Supplier", p.supplierName ?? "—"], ["Purchase Qty", `${p.quantity.toLocaleString()} ${p.unitOfMeasure ?? ""}`], ["Production Qty", p.productionQuantity != null ? `${p.productionQuantity.toLocaleString()} ${p.productionUnit ?? ""}`.trim() : "—"], ["Unit Price", gh(p.unitCost)], ["Total", gh(p.totalCost)], ["Paid", gh(p.amountPaid)], ["Balance", p.balance > 0 ? <span className="text-amber-600 font-medium">{gh(p.balance)}</span> : gh(0)]]}
                           actions={<>
                             {p.balance > 0 && <Button variant="ghost" size="sm" onClick={() => openPayBalance(p)} title="Pay balance"><Wallet className="w-4 h-4 text-emerald-600" /></Button>}
                             <Button variant="ghost" size="sm" onClick={() => openEditPurchase(p)}><Pencil className="w-4 h-4" /></Button>
@@ -389,16 +538,26 @@ export default function PoultryRawMaterialsPage() {
               {/* USAGE */}
               <TabsContent value="usage">
                 <Card><CardContent className="p-4">
+                  <div className="mb-3">
+                    <h2 className="text-base font-semibold text-slate-900">Usage History</h2>
+                    <p className="text-xs text-slate-500">Stock consumed when production batches are recorded.</p>
+                  </div>
+                  <div className="mb-3"><ListFilters search={search} setSearch={setSearch} dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo} searchPlaceholder="Search item" extras={itemFilterDropdown} /></div>
                   <div className="hidden md:block overflow-x-auto"><Table className="min-w-[640px]">
                     <TableHeader><TableRow>
-                      <TableHead>Date</TableHead><TableHead>Item</TableHead>
-                      <TableHead className="text-right">Used</TableHead><TableHead className="text-right">Expected</TableHead>
-                      <TableHead className="text-right">Variance</TableHead><TableHead>Reason</TableHead>
+                      {(() => { const onSort = (k: string) => setUsageSort((s) => toggleSort(k, s.key, s.direction)); const cs = usageSort.key, cd = usageSort.direction; return (<>
+                      <SortableHeader label="Date" sortKey="usedDate" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                      <SortableHeader label="Item" sortKey="itemName" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                      <SortableHeader label="Used" sortKey="quantityUsed" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                      <SortableHeader label="Expected" sortKey="expectedQuantityUsed" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                      <SortableHeader label="Variance" sortKey="variance" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                      <SortableHeader label="Reason" sortKey="varianceReason" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                      </>) })()}
                     </TableRow></TableHeader>
                     <TableBody>
-                      {usage.length === 0 ? (
+                      {filteredUsage.length === 0 ? (
                         <TableRow><TableCell colSpan={6} className="text-center text-slate-500 py-6">No usage recorded yet. Usage is created when production batches are approved (coming with the production slice).</TableCell></TableRow>
-                      ) : usage.map((u) => (
+                      ) : sortedUsage.map((u) => (
                         <TableRow key={u.poultryRawMaterialUsageId}>
                           <TableCell>{(u.usedDate || "").split("T")[0]}</TableCell>
                           <TableCell className="font-medium">{u.itemName}</TableCell>
@@ -412,8 +571,8 @@ export default function PoultryRawMaterialsPage() {
                   </Table></div>
                   {/* Mobile cards */}
                   <div className="md:hidden space-y-2">
-                    {usage.length === 0 ? <div className="text-center text-slate-500 py-6">No usage recorded yet.</div>
-                      : usage.map((u) => (
+                    {filteredUsage.length === 0 ? <div className="text-center text-slate-500 py-6">No usage recorded yet.</div>
+                      : sortedUsage.map((u) => (
                         <FieldCard key={u.poultryRawMaterialUsageId} title={u.itemName}
                           badge={<span className="text-xs text-slate-500">{(u.usedDate || "").split("T")[0]}</span>}
                           fields={[["Used", `${u.quantityUsed.toLocaleString()} ${u.unitOfMeasure ?? ""}`], ["Expected", u.expectedQuantityUsed?.toLocaleString() ?? "—"], ["Variance", u.variance.toLocaleString()], ["Reason", u.varianceReason ?? "—"]]} />
@@ -421,8 +580,9 @@ export default function PoultryRawMaterialsPage() {
                   </div>
                 </CardContent></Card>
               </TabsContent>
-            </Tabs>
+            </>
           )}
+          </Tabs>
         </main>
       </div>
 
@@ -438,10 +598,16 @@ export default function PoultryRawMaterialsPage() {
                 <SelectContent>{CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
               </Select>
             </FormField>
-            <FormField label="Unit of measure">
+            <FormField label="Production unit of measure" hint="How it's stocked & consumed">
               <Select value={itemForm.unitOfMeasure || ""} onValueChange={(v) => setItemForm({ ...itemForm, unitOfMeasure: v })}>
                 <SelectTrigger><SelectValue placeholder="Pick unit" /></SelectTrigger>
                 <SelectContent>{unitOptions(itemForm.unitOfMeasure).map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+              </Select>
+            </FormField>
+            <FormField label="Purchase unit of measure" hint="How it's bought — defaults to the production unit">
+              <Select value={itemForm.purchaseUnitOfMeasure || ""} onValueChange={(v) => setItemForm({ ...itemForm, purchaseUnitOfMeasure: v })}>
+                <SelectTrigger><SelectValue placeholder="Same as production unit" /></SelectTrigger>
+                <SelectContent>{unitOptions(itemForm.purchaseUnitOfMeasure).map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
               </Select>
             </FormField>
             <FormField label="Low-stock alert at"><NumberInput min={0} step="0.001" value={itemForm.minimumStockAlert} onChange={(e) => setItemForm({ ...itemForm, minimumStockAlert: Number(e.target.value) || 0 })} /></FormField>
@@ -496,7 +662,7 @@ export default function PoultryRawMaterialsPage() {
 
       {/* Purchase dialog */}
       <Dialog open={purchaseOpen} onOpenChange={setPurchaseOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="w-[95vw] max-w-[1100px] max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editPurchaseId ? "Edit purchase" : "New raw material purchase"}</DialogTitle></DialogHeader>
           {(() => {
             const f = purchaseForm
@@ -507,17 +673,37 @@ export default function PoultryRawMaterialsPage() {
             const prodQty = qty * perPurchase
             const prodUnitCost = prodQty > 0 ? total / prodQty : 0
             const selItem = itemById.get(f.poultryRawMaterialItemId)
-            const purchaseUnitLabel = selItem?.unitOfMeasure || f.purchaseUnit || "unit"
+            // Purchase unit is an editable per-entry label (mirrors the water side);
+            // it defaults to the item's unit of measure. Display-only (drives the
+            // quantity/cost labels) — not persisted, so no schema impact.
+            const purchaseUnitLabel = f.purchaseUnit || selItem?.unitOfMeasure || "unit"
             return (
               <>
-                <FormSection title="Purchase Quantity & Production Costing" color="blue">
-                  <FormField label="Raw material item *">
-                    <Select value={f.poultryRawMaterialItemId ? String(f.poultryRawMaterialItemId) : ""} onValueChange={(v) => setPurchaseForm({ ...f, poultryRawMaterialItemId: Number(v) })}>
+                <FormSection title="Item, Supplier & Date" color="indigo">
+                  <FormField label="Raw material item *" full>
+                    <Select value={f.poultryRawMaterialItemId ? String(f.poultryRawMaterialItemId) : ""} onValueChange={(v) => { const id = Number(v); const it = itemById.get(id); setPurchaseForm({ ...f, poultryRawMaterialItemId: id, purchaseUnit: it?.purchaseUnitOfMeasure || it?.unitOfMeasure || f.purchaseUnit, productionUnit: it?.unitOfMeasure || f.productionUnit }) }}>
                       <SelectTrigger><SelectValue placeholder="Pick item" /></SelectTrigger>
                       <SelectContent>{items.filter((i) => i.isActive).map((i) => <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>{i.itemName}{i.unitOfMeasure ? ` (${i.unitOfMeasure})` : ""}</SelectItem>)}</SelectContent>
                     </Select>
                   </FormField>
-                  <FormField label={`Purchase quantity${selItem?.unitOfMeasure ? ` (${selItem.unitOfMeasure})` : ""} *`}><NumberInput min={0} step="0.001" value={f.quantity} onChange={(e) => setPurchaseForm({ ...f, quantity: Number(e.target.value) || 0 })} /></FormField>
+                  <FormField label="Supplier" full><Input value={f.supplierName} onChange={(e) => setPurchaseForm({ ...f, supplierName: e.target.value })} placeholder="Supplier name" /></FormField>
+                  <FormField label="Purchase date"><Input type="date" value={f.purchaseDate} onChange={(e) => setPurchaseForm({ ...f, purchaseDate: e.target.value })} /></FormField>
+                  <FormField label="Payment method">
+                    <Select value={f.paymentMethod} onValueChange={(v) => setPurchaseForm({ ...f, paymentMethod: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{PAYMENT_METHODS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </FormField>
+                </FormSection>
+
+                <FormSection title="Purchase Quantity & Production Costing" color="blue">
+                  <FormField label="Purchase unit *">
+                    <Select value={f.purchaseUnit || ""} onValueChange={(v) => setPurchaseForm({ ...f, purchaseUnit: v })}>
+                      <SelectTrigger><SelectValue placeholder="Pick unit" /></SelectTrigger>
+                      <SelectContent>{unitOptions(f.purchaseUnit).map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </FormField>
+                  <FormField label={`Purchase quantity${purchaseUnitLabel ? ` (${purchaseUnitLabel})` : ""} *`}><NumberInput min={0} step="0.001" value={f.quantity} onChange={(e) => setPurchaseForm({ ...f, quantity: Number(e.target.value) || 0 })} /></FormField>
                   <FormField label="" full>
                     <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                       <div>
@@ -573,15 +759,7 @@ export default function PoultryRawMaterialsPage() {
                   <FormField label="" full><p className="text-xs text-slate-500">If you buy and use the same unit, set <span className="font-medium">Production units per purchase unit = 1</span> — the production figures then match the purchase figures.</p></FormField>
                 </FormSection>
 
-                <FormSection title="Supplier & Payment" color="amber">
-                  <FormField label="Supplier"><Input value={f.supplierName} onChange={(e) => setPurchaseForm({ ...f, supplierName: e.target.value })} placeholder="Supplier name" /></FormField>
-                  <FormField label="Purchase date"><Input type="date" value={f.purchaseDate} onChange={(e) => setPurchaseForm({ ...f, purchaseDate: e.target.value })} /></FormField>
-                  <FormField label="Payment method">
-                    <Select value={f.paymentMethod} onValueChange={(v) => setPurchaseForm({ ...f, paymentMethod: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>{PAYMENT_METHODS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </FormField>
+                <FormSection title="Payment" color="amber">
                   <FormField label="Amount paid"><NumberInput min={0} step="0.01" value={f.amountPaid} onChange={(e) => setPurchaseForm({ ...f, amountPaid: Number(e.target.value) || 0 })} /></FormField>
                   <FormField label="Pay from cash account">
                     <Select value={f.poultryCashAccountId ? String(f.poultryCashAccountId) : "none"} onValueChange={(v) => setPurchaseForm({ ...f, poultryCashAccountId: v === "none" ? 0 : Number(v) })}>
@@ -598,6 +776,10 @@ export default function PoultryRawMaterialsPage() {
                   </FormField>
                   <FormField label="Balance (auto)"><Input readOnly tabIndex={-1} className={roCls} value={gh(Math.max(0, total - (f.amountPaid || 0)))} /></FormField>
                   <FormField label="" full><p className="text-xs text-slate-500">Choosing a cash account posts a cash-out for the amount paid and reduces that account's balance.</p></FormField>
+                </FormSection>
+
+                <FormSection title="Notes" color="slate" columns={1}>
+                  <FormField label="Notes"><Textarea rows={3} placeholder="Optional notes about this purchase" value={f.notes} onChange={(e) => setPurchaseForm({ ...f, notes: e.target.value })} /></FormField>
                 </FormSection>
 
                 <div className="flex justify-end gap-2">

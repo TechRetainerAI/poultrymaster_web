@@ -26,7 +26,15 @@ namespace PoultryFarmAPIWeb.Models
         
         [JsonPropertyName("production4PM")]
         public int Production4PM { get; set; }
-        
+
+        /// <summary>
+        /// Fourth egg pick (migration 152). The 1st/2nd/3rd picks reuse the legacy
+        /// Production9AM/12PM/4PM columns; this is the added 4th-pick total. Nullable
+        /// in the DB, treated as 0 in calculations.
+        /// </summary>
+        [JsonPropertyName("production4thPick")]
+        public int Production4thPick { get; set; }
+
         public int TotalProduction { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }

@@ -15,6 +15,7 @@ import { FileText, X } from "lucide-react"
 import { getUserContext } from "@/lib/utils/user-context"
 import { getFlocksForProductionSelect, getFlockSelectEmptyHint } from "@/lib/utils/flock-utils"
 import { useBatchFlockSelect, BATCH_ALL } from "@/hooks/use-batch-flock-select"
+import { usePickSettings } from "@/hooks/use-pick-settings"
 import {
   createProductionRecord,
   getProductionRecords,
@@ -47,6 +48,7 @@ const isMedicationCategory = (c?: string | null) => !!c && /(medic|vaccin|drug)/
 
 export default function NewProductionRecordPage() {
   const router = useRouter()
+  const { labels: pickLabelText, enableFourthPick } = usePickSettings()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
   const [flocksError, setFlocksError] = useState("")
@@ -70,6 +72,7 @@ export default function NewProductionRecordPage() {
     morning: "",
     noon: "",
     evening: "",
+    fourth: "",
     brokenEggs: "",
     meatyEggs: "",
     softEggs: "",
@@ -156,10 +159,13 @@ export default function NewProductionRecordPage() {
   const [noonLoose, setNoonLoose] = useState(0)
   const [eveningCrates, setEveningCrates] = useState(0)
   const [eveningLoose, setEveningLoose] = useState(0)
+  const [fourthCrates, setFourthCrates] = useState(0)
+  const [fourthLoose, setFourthLoose] = useState(0)
 
   const morningTotal = (morningCrates * EGGS_PER_CRATE) + morningLoose
   const noonTotal = (noonCrates * EGGS_PER_CRATE) + noonLoose
   const eveningTotal = (eveningCrates * EGGS_PER_CRATE) + eveningLoose
+  const fourthTotal = (fourthCrates * EGGS_PER_CRATE) + fourthLoose
 
   useEffect(() => {
     setForm(prev => ({ ...prev, morning: String(morningTotal) }))
@@ -170,11 +176,15 @@ export default function NewProductionRecordPage() {
   useEffect(() => {
     setForm(prev => ({ ...prev, evening: String(eveningTotal) }))
   }, [eveningTotal])
+  useEffect(() => {
+    setForm(prev => ({ ...prev, fourth: String(fourthTotal) }))
+  }, [fourthTotal])
 
   const total =
     (parseInt(form.morning) || 0) +
     (parseInt(form.noon) || 0) +
-    (parseInt(form.evening) || 0)
+    (parseInt(form.evening) || 0) +
+    (parseInt(form.fourth) || 0)
   const totalCrates = Math.floor(total / EGGS_PER_CRATE)
   const totalPieces = total % EGGS_PER_CRATE
 
@@ -354,6 +364,7 @@ export default function NewProductionRecordPage() {
         production9AM: parseInt(form.morning) || 0,
         production12PM: parseInt(form.noon) || 0,
         production4PM: parseInt(form.evening) || 0,
+        production4thPick: parseInt(form.fourth) || 0,
         brokenEggs: parseInt(form.brokenEggs) || 0,
         meatyEggs: form.meatyEggs === "" ? null : parseInt(form.meatyEggs) || 0,
         softEggs: form.softEggs === "" ? null : parseInt(form.softEggs) || 0,
@@ -533,6 +544,7 @@ export default function NewProductionRecordPage() {
                     <Input
                       type="date"
                       value={form.date}
+                      max={new Date().toISOString().slice(0, 10)}
                       onChange={(e) =>
                         setForm({
                           ...form,
@@ -554,9 +566,9 @@ export default function NewProductionRecordPage() {
                   Egg Production
                 </div>
                 <div className="grid grid-cols-12 gap-4 px-4 py-4">
-                  {/* Morning (9am) - Crates + Loose */}
+                  {/* 1st Pick - Crates + Loose */}
                   <div className="col-span-12 p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
-                    <Label className="text-blue-800 font-semibold">Morning (9am) — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
+                    <Label className="text-blue-800 font-semibold">{pickLabelText.first} — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
                     <div className="grid grid-cols-3 gap-3">
                       <div className="space-y-1">
                         <Label className="text-xs">Crates ({EGGS_PER_CRATE} eggs)</Label>
@@ -574,9 +586,9 @@ export default function NewProductionRecordPage() {
                     <p className="text-xs text-blue-600">{morningCrates} crates × {EGGS_PER_CRATE} + {morningLoose} loose = {morningTotal.toLocaleString()} eggs</p>
                   </div>
 
-                  {/* Noon (12pm) - Crates + Loose */}
+                  {/* 2nd Pick - Crates + Loose */}
                   <div className="col-span-12 p-3 bg-orange-50 border border-orange-200 rounded-lg space-y-2">
-                    <Label className="text-orange-800 font-semibold">Noon (12pm) — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
+                    <Label className="text-orange-800 font-semibold">{pickLabelText.second} — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
                     <div className="grid grid-cols-3 gap-3">
                       <div className="space-y-1">
                         <Label className="text-xs">Crates ({EGGS_PER_CRATE} eggs)</Label>
@@ -594,9 +606,9 @@ export default function NewProductionRecordPage() {
                     <p className="text-xs text-orange-600">{noonCrates} crates × {EGGS_PER_CRATE} + {noonLoose} loose = {noonTotal.toLocaleString()} eggs</p>
                   </div>
 
-                  {/* Evening (4pm) - Crates + Loose */}
+                  {/* 3rd Pick - Crates + Loose */}
                   <div className="col-span-12 p-3 bg-purple-50 border border-purple-200 rounded-lg space-y-2">
-                    <Label className="text-purple-800 font-semibold">Evening (4pm) — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
+                    <Label className="text-purple-800 font-semibold">{pickLabelText.third} — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
                     <div className="grid grid-cols-3 gap-3">
                       <div className="space-y-1">
                         <Label className="text-xs">Crates ({EGGS_PER_CRATE} eggs)</Label>
@@ -613,6 +625,28 @@ export default function NewProductionRecordPage() {
                     </div>
                     <p className="text-xs text-purple-600">{eveningCrates} crates × {EGGS_PER_CRATE} + {eveningLoose} loose = {eveningTotal.toLocaleString()} eggs</p>
                   </div>
+
+                  {/* 4th Pick — hidden when the farm has it disabled and there's no value yet. */}
+                  {(enableFourthPick || fourthTotal > 0) && (
+                  <div className="col-span-12 p-3 bg-teal-50 border border-teal-200 rounded-lg space-y-2">
+                    <Label className="text-teal-800 font-semibold">{pickLabelText.fourth} — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Crates ({EGGS_PER_CRATE} eggs)</Label>
+                        <NumberInput min="0" value={fourthCrates} onChange={(e) => setFourthCrates(parseInt(e.target.value) || 0)} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Loose Eggs</Label>
+                        <NumberInput min="0" max="29" value={fourthLoose} onChange={(e) => setFourthLoose(parseInt(e.target.value) || 0)} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Total</Label>
+                        <div className="h-10 px-3 py-2 bg-white border rounded-md flex items-center font-bold text-teal-700">{fourthTotal.toLocaleString()}</div>
+                      </div>
+                    </div>
+                    <p className="text-xs text-teal-600">{fourthCrates} crates × {EGGS_PER_CRATE} + {fourthLoose} loose = {fourthTotal.toLocaleString()} eggs</p>
+                  </div>
+                  )}
 
                   {/* Broken / Meaty / Soft / Lost Eggs — one row (meaty/soft/lost are optional, leave blank if not tracked) */}
                   <div className="col-span-12 grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -829,7 +863,7 @@ export default function NewProductionRecordPage() {
                     </Select>
                   </div>
                   <div className="col-span-12 md:col-span-6 space-y-2">
-                    <Label>Feed (kg)</Label>
+                    <Label>Feed Description</Label>
                     <NumberInput
 
                       step="0.01"
@@ -844,10 +878,10 @@ export default function NewProductionRecordPage() {
                     />
                   </div>
 
-                  {/* Used (from inventory) — reduces Raw-Material stock on save */}
+                  {/* Feed Breakdown (From Inventory) — reduces Raw-Material stock on save */}
                   <div className="col-span-12 flex items-center gap-2 pt-1">
                     <div className="h-px flex-1 bg-slate-200" />
-                    <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Used (from inventory)</span>
+                    <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Feed Breakdown (From Inventory)</span>
                     <div className="h-px flex-1 bg-slate-200" />
                   </div>
 
@@ -875,7 +909,7 @@ export default function NewProductionRecordPage() {
                 </div>
                 <div className="grid grid-cols-12 gap-4 px-4 py-4">
                   <div className="col-span-12 md:col-span-4 space-y-2">
-                    <Label>Medication</Label>
+                    <Label>Medication Description</Label>
                     <Input
                       value={form.medication}
                       onChange={(e) =>
@@ -888,10 +922,10 @@ export default function NewProductionRecordPage() {
                     />
                   </div>
 
-                  {/* Used (from inventory) — reduces Raw-Material stock on save */}
+                  {/* Medication Breakdown (From Inventory) — reduces Raw-Material stock on save */}
                   <div className="col-span-12 flex items-center gap-2 pt-1">
                     <div className="h-px flex-1 bg-slate-200" />
-                    <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Used (from inventory)</span>
+                    <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Medication Breakdown (From Inventory)</span>
                     <div className="h-px flex-1 bg-slate-200" />
                   </div>
 

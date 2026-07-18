@@ -19,9 +19,11 @@ import { getUserContext } from "@/lib/utils/user-context"
 import { getProductionRecords, createProductionRecord, updateProductionRecord, type ProductionRecordInput } from "@/lib/api/production-record"
 import { getFlocks } from "@/lib/api/flock"
 import { listPoultryRawMaterialItems, listPoultryRawMaterialPurchases, type PoultryRawMaterialItem } from "@/lib/api/poultry-inventory"
+import { usePickSettings } from "@/hooks/use-pick-settings"
 
 export default function NewEggProductionPage() {
   const router = useRouter()
+  const { labels: pickLabelText, enableFourthPick } = usePickSettings()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [flockBatches, setFlockBatches] = useState<FlockBatch[]>([])
@@ -36,12 +38,13 @@ export default function NewEggProductionPage() {
     production9AM: 0,
     production12PM: 0,
     production4PM: 0,
+    production4thPick: 0,
     brokenEggs: 0,
     notes: "",
     eggGrade: EGG_GRADE_SELECT_VALUE_NONE,
   })
 
-  // Crate-based egg entry state for each time slot
+  // Crate-based egg entry state for each pick
   const EGGS_PER_CRATE = 30
   const [morningCrates, setMorningCrates] = useState(0)
   const [morningLoose, setMorningLoose] = useState(0)
@@ -49,10 +52,13 @@ export default function NewEggProductionPage() {
   const [noonLoose, setNoonLoose] = useState(0)
   const [eveningCrates, setEveningCrates] = useState(0)
   const [eveningLoose, setEveningLoose] = useState(0)
+  const [fourthCrates, setFourthCrates] = useState(0)
+  const [fourthLoose, setFourthLoose] = useState(0)
 
   const morningTotal = (morningCrates * EGGS_PER_CRATE) + morningLoose
   const noonTotal = (noonCrates * EGGS_PER_CRATE) + noonLoose
   const eveningTotal = (eveningCrates * EGGS_PER_CRATE) + eveningLoose
+  const fourthTotal = (fourthCrates * EGGS_PER_CRATE) + fourthLoose
 
   // Sync crate values into formData
   useEffect(() => {
@@ -64,10 +70,13 @@ export default function NewEggProductionPage() {
   useEffect(() => {
     setFormData(prev => ({ ...prev, production4PM: eveningTotal }))
   }, [eveningTotal])
+  useEffect(() => {
+    setFormData(prev => ({ ...prev, production4thPick: fourthTotal }))
+  }, [fourthTotal])
 
   const totalProduction = useMemo(() => {
-    return formData.production9AM + formData.production12PM + formData.production4PM;
-  }, [formData.production9AM, formData.production12PM, formData.production4PM]);
+    return formData.production9AM + formData.production12PM + formData.production4PM + formData.production4thPick;
+  }, [formData.production9AM, formData.production12PM, formData.production4PM, formData.production4thPick]);
   const totalCrates = Math.floor(totalProduction / EGGS_PER_CRATE)
   const totalPieces = totalProduction % EGGS_PER_CRATE
 
@@ -181,6 +190,7 @@ export default function NewEggProductionPage() {
               production9AM: formData.production9AM,
               production12PM: formData.production12PM,
               production4PM: formData.production4PM,
+              production4thPick: formData.production4thPick,
               totalProduction: totalProduction,
               eggGrade: eggGradeToApi(formData.eggGrade ?? EGG_GRADE_SELECT_VALUE_NONE),
             }
@@ -214,6 +224,7 @@ export default function NewEggProductionPage() {
                 production9AM: formData.production9AM,
                 production12PM: formData.production12PM,
                 production4PM: formData.production4PM,
+                production4thPick: formData.production4thPick,
                 totalProduction: totalProduction,
                 flockId: flock.flockId || formData.flockId,
                 eggGrade: eggGradeToApi(formData.eggGrade ?? EGG_GRADE_SELECT_VALUE_NONE),
@@ -259,7 +270,7 @@ export default function NewEggProductionPage() {
                 <Egg className="w-5 h-5 text-yellow-600" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-slate-900">Add New Production Record</h1>
+                <h1 className="text-2xl font-bold text-slate-900">Add New Egg Sorting Record</h1>
                 <p className="text-slate-600">Enter the egg production details below</p>
               </div>
             </div>
@@ -332,6 +343,7 @@ export default function NewEggProductionPage() {
                       id="productionDate"
                       type="date"
                       value={formData.productionDate}
+                      max={new Date().toISOString().slice(0, 10)}
                       onChange={(e) => handleInputChange("productionDate", e.target.value)}
                       required
                       disabled={loading}
@@ -387,7 +399,7 @@ export default function NewEggProductionPage() {
 
                 {/* Morning (9 AM) - Crates + Loose */}
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2 mt-4">
-                  <Label className="text-blue-800 font-semibold">Production at 9 AM — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
+                  <Label className="text-blue-800 font-semibold">{pickLabelText.first} — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
                   <div className="grid grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">Crates</Label>
@@ -407,7 +419,7 @@ export default function NewEggProductionPage() {
 
                 {/* Noon (12 PM) - Crates + Loose */}
                 <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg space-y-2">
-                  <Label className="text-orange-800 font-semibold">Production at 12 PM — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
+                  <Label className="text-orange-800 font-semibold">{pickLabelText.second} — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
                   <div className="grid grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">Crates</Label>
@@ -425,9 +437,9 @@ export default function NewEggProductionPage() {
                   <p className="text-xs text-orange-600">{noonCrates} crates × {EGGS_PER_CRATE} + {noonLoose} loose = {noonTotal.toLocaleString()} eggs</p>
                 </div>
 
-                {/* Evening (4 PM) - Crates + Loose */}
+                {/* 3rd Pick - Crates + Loose */}
                 <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg space-y-2">
-                  <Label className="text-purple-800 font-semibold">Production at 4 PM — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
+                  <Label className="text-purple-800 font-semibold">{pickLabelText.third} — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
                   <div className="grid grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">Crates</Label>
@@ -445,6 +457,28 @@ export default function NewEggProductionPage() {
                   <p className="text-xs text-purple-600">{eveningCrates} crates × {EGGS_PER_CRATE} + {eveningLoose} loose = {eveningTotal.toLocaleString()} eggs</p>
                 </div>
 
+                {/* 4th Pick — hidden when the farm has it disabled and there's no value yet. */}
+                {(enableFourthPick || fourthTotal > 0) && (
+                <div className="p-3 bg-teal-50 border border-teal-200 rounded-lg space-y-2">
+                  <Label className="text-teal-800 font-semibold">{pickLabelText.fourth} — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Crates</Label>
+                      <NumberInput min="0" value={fourthCrates} onChange={(e) => setFourthCrates(parseInt(e.target.value) || 0)} disabled={loading} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Loose Eggs</Label>
+                      <NumberInput min="0" max="29" value={fourthLoose} onChange={(e) => setFourthLoose(parseInt(e.target.value) || 0)} disabled={loading} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Total</Label>
+                      <div className="h-10 px-3 py-2 bg-white border rounded-md flex items-center font-bold text-teal-700">{fourthTotal.toLocaleString()}</div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-teal-600">{fourthCrates} crates × {EGGS_PER_CRATE} + {fourthLoose} loose = {fourthTotal.toLocaleString()} eggs</p>
+                </div>
+                )}
+
                 {/* Total Eggs Summary */}
                 <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
                   <div className="flex items-center justify-between">
@@ -453,42 +487,6 @@ export default function NewEggProductionPage() {
                       <div className="text-lg font-bold text-emerald-700">{totalProduction.toLocaleString()} eggs</div>
                       <div className="text-xs text-emerald-600">{totalCrates} crates + {totalPieces} pieces</div>
                     </div>
-                  </div>
-                </div>
-
-                {/* Doc 4: Production costing (feed + medication used) */}
-                <div className="p-4 bg-white border border-slate-200 rounded-lg space-y-4 mt-4">
-                  <h3 className="text-md font-semibold text-slate-900">Production Costing (feed &amp; medication used)</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="space-y-2 md:col-span-2">
-                      <Label>Specific Feed Used</Label>
-                      <Select value={feedId ? String(feedId) : "0"} onValueChange={(v) => { const id = Number(v); setFeedId(id); setFeedUnitCost(latestCost[id] ?? 0) }} disabled={loading}>
-                        <SelectTrigger><SelectValue placeholder="Select feed" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="0">— None —</SelectItem>
-                          {feedItems.map((i) => <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>{i.itemName}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2"><Label>Total Feed Consumed</Label><NumberInput min="0" step="0.001" value={feedConsumed} onChange={(e) => setFeedConsumed(parseFloat(e.target.value) || 0)} disabled={loading} /></div>
-                    <div className="space-y-2"><Label>Feed Unit Cost</Label><NumberInput min="0" step="0.0001" value={feedUnitCost} onChange={(e) => setFeedUnitCost(parseFloat(e.target.value) || 0)} disabled={loading} /></div>
-                    <div className="space-y-2 md:col-span-2">
-                      <Label>Specific Medication Used</Label>
-                      <Select value={medId ? String(medId) : "0"} onValueChange={(v) => { const id = Number(v); setMedId(id); setMedUnitCost(latestCost[id] ?? 0) }} disabled={loading}>
-                        <SelectTrigger><SelectValue placeholder="Select medication" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="0">— None —</SelectItem>
-                          {medItems.map((i) => <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>{i.itemName}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2"><Label>Total Medication Consumed</Label><NumberInput min="0" step="0.001" value={medConsumed} onChange={(e) => setMedConsumed(parseFloat(e.target.value) || 0)} disabled={loading} /></div>
-                    <div className="space-y-2"><Label>Medication Unit Cost</Label><NumberInput min="0" step="0.0001" value={medUnitCost} onChange={(e) => setMedUnitCost(parseFloat(e.target.value) || 0)} disabled={loading} /></div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-3 text-sm">
-                    <div className="p-2 bg-slate-50 rounded"><div className="text-slate-500">Total Feed Cost</div><div className="font-bold">{totalFeedCost.toLocaleString()}</div></div>
-                    <div className="p-2 bg-slate-50 rounded"><div className="text-slate-500">Total Medication Cost</div><div className="font-bold">{totalMedCost.toLocaleString()}</div></div>
-                    <div className="p-2 bg-emerald-50 rounded"><div className="text-emerald-700">Total Cost of Production</div><div className="font-bold text-emerald-700">{totalCostOfProduction.toLocaleString()}</div></div>
                   </div>
                 </div>
 

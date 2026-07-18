@@ -448,7 +448,13 @@ export default function FlocksPage() {
     } else {
       const selected = flockBatches.find(b => b.batchId === batchId) || null
       setCreateSelectedBatch(selected)
-      setCreateForm(prev => ({ ...prev, batchId }))
+      // Prefill start date + breed from the batch (editable) to save data entry.
+      setCreateForm(prev => ({
+        ...prev,
+        batchId,
+        startDate: selected?.startDate ? String(selected.startDate).split("T")[0] : prev.startDate,
+        breed: selected?.breed || prev.breed,
+      }))
     }
   }
 
@@ -460,6 +466,18 @@ export default function FlocksPage() {
     if (createForm.quantity <= 0) { toastFormGuide(toast, "Enter how many birds are in this flock — use a number greater than zero."); return }
     if (!createForm.batchId || createForm.batchId === 0) { toastFormGuide(toast, "Link this flock to a batch so bird counts stay accurate."); return }
     if (createSelectedBatch && createForm.quantity > createSelectedBatch.numberOfBirds) { toastFormGuide(toast, `That batch only has ${createSelectedBatch.numberOfBirds} birds available — lower the flock size or pick another batch.`); return }
+    // Room/house capacity — cannot place more birds than the room can hold.
+    if (createForm.houseId) {
+      const house = houses.find(h => h.houseId === createForm.houseId)
+      const cap = house?.capacity ?? 0
+      if (cap > 0) {
+        const occupied = flocks.filter(f => f.houseId === createForm.houseId && f.active).reduce((s, f) => s + (f.quantity || 0), 0)
+        if (occupied + createForm.quantity > cap) {
+          toast({ title: "Over room capacity", description: `${house?.name || "That room"} holds ${cap} birds${occupied ? ` and already has ${occupied}` : ""}. You're trying to place ${(occupied + createForm.quantity).toLocaleString()}. Reduce the number or pick another room.`, variant: "destructive" })
+          return
+        }
+      }
+    }
 
     setCreateLoading(true)
     setCreateError("")
@@ -530,6 +548,18 @@ export default function FlocksPage() {
     if (!editForm.name.trim() || !editForm.breed.trim() || !editForm.startDate) { toastFormGuide(toast, "Add a flock name, breed, and the date the flock started."); return }
     if (editForm.quantity <= 0) { toastFormGuide(toast, "Enter how many birds are in this flock — use a number greater than zero."); return }
     if (editSelectedBatch && editForm.quantity > editSelectedBatch.numberOfBirds) { toastFormGuide(toast, `That batch only has ${editSelectedBatch.numberOfBirds} birds available — lower the flock size or pick another batch.`); return }
+    // Room/house capacity — exclude the flock being edited from current occupancy.
+    if (editForm.houseId) {
+      const house = houses.find(h => h.houseId === editForm.houseId)
+      const cap = house?.capacity ?? 0
+      if (cap > 0) {
+        const occupied = flocks.filter(f => f.houseId === editForm.houseId && f.active && f.flockId !== editingFlockId).reduce((s, f) => s + (f.quantity || 0), 0)
+        if (occupied + editForm.quantity > cap) {
+          toast({ title: "Over room capacity", description: `${house?.name || "That room"} holds ${cap} birds${occupied ? ` and already has ${occupied}` : ""}. You're trying to place ${(occupied + editForm.quantity).toLocaleString()}. Reduce the number or pick another room.`, variant: "destructive" })
+          return
+        }
+      }
+    }
 
     setEditLoading(true)
     setEditError("")

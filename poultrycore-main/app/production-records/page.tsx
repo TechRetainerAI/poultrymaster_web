@@ -19,6 +19,7 @@ import { FileText, Plus, Calendar as CalendarIcon, Download, Search, X, RefreshC
 import { sendReportEmail } from "@/lib/api/email"
 import { getProductionRecords, deleteProductionRecord, type ProductionRecord } from "@/lib/api/production-record"
 import { getFlocks, type Flock } from "@/lib/api/flock"
+import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
 import { getUserContext } from "@/lib/utils/user-context"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useToast } from "@/hooks/use-toast"
@@ -55,6 +56,7 @@ export default function ProductionRecordsPage() {
   const { toast } = useToast()
   const [records, setRecords] = useState<ProductionRecord[]>([])
   const [flocks, setFlocks] = useState<Flock[]>([])
+  const [batches, setBatches] = useState<FlockBatch[]>([])
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -65,6 +67,7 @@ export default function ProductionRecordsPage() {
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [selectedBatchId, setSelectedBatchId] = useState<string>("ALL")
   const [selectedFlockId, setSelectedFlockId] = useState<string>("ALL")
   const [selectedMonth, setSelectedMonth] = useState<string>("ALL")
   const [selectedYear, setSelectedYear] = useState<string>("ALL")
@@ -89,14 +92,16 @@ export default function ProductionRecordsPage() {
   /** Mobile sheet: draft values until Apply (fixes iOS + Radix Select in Sheet). */
   const [draftDateFrom, setDraftDateFrom] = useState("")
   const [draftDateTo, setDraftDateTo] = useState("")
+  const [draftBatchId, setDraftBatchId] = useState<string>("ALL")
   const [draftFlockId, setDraftFlockId] = useState<string>("ALL")
   const [draftMonth, setDraftMonth] = useState<string>("ALL")
   const [draftYear, setDraftYear] = useState<string>("ALL")
 
-  const hasActiveFilters = search || dateFrom || dateTo || selectedFlockId !== "ALL" || selectedMonth !== "ALL" || selectedYear !== "ALL"
+  const hasActiveFilters = search || dateFrom || dateTo || selectedBatchId !== "ALL" || selectedFlockId !== "ALL" || selectedMonth !== "ALL" || selectedYear !== "ALL"
   const hasDraftChanges =
     draftDateFrom !== dateFrom ||
     draftDateTo !== dateTo ||
+    draftBatchId !== selectedBatchId ||
     draftFlockId !== selectedFlockId ||
     draftMonth !== selectedMonth ||
     draftYear !== selectedYear
@@ -116,15 +121,17 @@ export default function ProductionRecordsPage() {
       setLoading(false)
       return
     }
-    const [res, flocksRes] = await Promise.all([
+    const [res, flocksRes, batchesRes] = await Promise.all([
       getProductionRecords(userId, farmId),
       getFlocks(userId, farmId),
+      getFlockBatches(userId, farmId),
     ])
     if (res.success && res.data) {
       setRecords(res.data)
       setError("")
     } else setError(res.message || "Failed to load records")
     if (flocksRes.success && flocksRes.data) setFlocks(flocksRes.data)
+    if (batchesRes.success && batchesRes.data) setBatches(batchesRes.data)
     setLoading(false)
   }
 
@@ -167,6 +174,56 @@ export default function ProductionRecordsPage() {
     return Array.from(map.entries()).map(([id, v]) => ({ id, name: v.name }))
   }, [records])
 
+  // Records carry only flockId; each flock carries its batchId. This map lets us
+  // filter production rows by the batch their flock belongs to.
+  const batchIdByFlockId = useMemo(() => {
+    const m = new Map<number, number | null>()
+    for (const f of flocks) m.set(f.flockId, f.batchId ?? null)
+    return m
+  }, [flocks])
+
+  // Batch dropdown options (leading "All" rendered inline in the Select).
+  const batchOptions = useMemo(
+    () =>
+      batches
+        .filter((b) => b.batchId != null)
+        .map((b) => ({ value: String(b.batchId), label: b.batchName || b.batchCode || `Batch #${b.batchId}` })),
+    [batches],
+  )
+
+  // Flocks narrowed to a chosen batch — feeds the Flock dropdown so it only lists
+  // flocks in the selected batch. Desktop reads committed state, mobile the draft.
+  const flocksForBatch = useMemo(() => {
+    if (selectedBatchId === "ALL") return flocks
+    const bid = Number(selectedBatchId)
+    return flocks.filter((f) => f.batchId === bid)
+  }, [flocks, selectedBatchId])
+
+  const draftFlocksForBatch = useMemo(() => {
+    if (draftBatchId === "ALL") return flocks
+    const bid = Number(draftBatchId)
+    return flocks.filter((f) => f.batchId === bid)
+  }, [flocks, draftBatchId])
+
+  // Changing the batch clears a now-invalid flock selection (flock not in batch).
+  const handleBatchChange = (value: string) => {
+    setSelectedBatchId(value)
+    if (value !== "ALL" && selectedFlockId !== "ALL") {
+      const bid = Number(value)
+      const stillValid = flocks.some((f) => String(f.flockId) === selectedFlockId && f.batchId === bid)
+      if (!stillValid) setSelectedFlockId("ALL")
+    }
+  }
+
+  const handleDraftBatchChange = (value: string) => {
+    setDraftBatchId(value)
+    if (value !== "ALL" && draftFlockId !== "ALL") {
+      const bid = Number(value)
+      const stillValid = flocks.some((f) => String(f.flockId) === draftFlockId && f.batchId === bid)
+      if (!stillValid) setDraftFlockId("ALL")
+    }
+  }
+
   // Distinct months/years
   const { distinctMonths, distinctYears } = useMemo(() => {
     const monthSet = new Set<string>()
@@ -196,13 +253,17 @@ export default function ProductionRecordsPage() {
     }
     if (dateFrom) list = list.filter((r) => toLocalDateKey(r.date) >= dateFrom)
     if (dateTo) list = list.filter((r) => toLocalDateKey(r.date) <= dateTo)
+    if (selectedBatchId !== "ALL") {
+      const bid = Number(selectedBatchId)
+      list = list.filter((r: any) => r.flockId != null && batchIdByFlockId.get(r.flockId) === bid)
+    }
     if (selectedFlockId !== "ALL") list = list.filter((r: any) => String(r.flockId) === selectedFlockId)
     if (selectedMonth !== "ALL") list = list.filter(r => {
       const d = new Date(r.date); const m = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; return m === selectedMonth
     })
     if (selectedYear !== "ALL") list = list.filter(r => new Date(r.date).getFullYear().toString() === selectedYear)
     return list
-  }, [records, search, dateFrom, dateTo, selectedFlockId, selectedMonth, selectedYear])
+  }, [records, search, dateFrom, dateTo, selectedBatchId, batchIdByFlockId, selectedFlockId, selectedMonth, selectedYear])
 
   /** Active + start date reached — same flock rule as Flocks; deaths only count for these flocks. */
   const eligibleFlockIds = useMemo(
@@ -223,6 +284,20 @@ export default function ProductionRecordsPage() {
     return name ?? `Flock #${r.flockId}`
   }
 
+  /** Lookup batch label by ID — for the Batch column (record → flock → batch). */
+  const batchLabelById = useMemo(() => {
+    const m = new Map<number, string>()
+    for (const b of batches) m.set(b.batchId, b.batchName || b.batchCode || `Batch #${b.batchId}`)
+    return m
+  }, [batches])
+
+  const resolveBatchLabel = (r: any): string => {
+    if (r.flockId == null) return "-"
+    const bid = batchIdByFlockId.get(r.flockId)
+    if (bid == null) return "-"
+    return batchLabelById.get(bid) ?? `Batch #${bid}`
+  }
+
   // Summaries
   const totalEggs = useMemo(() => filtered.reduce((s, r) => s + (Number(r.totalProduction) || 0), 0), [filtered])
   const totalFeed = useMemo(() => filtered.reduce((s, r) => s + (Number(r.feedKg) || 0), 0), [filtered])
@@ -240,6 +315,7 @@ export default function ProductionRecordsPage() {
   const total9AM = useMemo(() => filtered.reduce((s, r) => s + (Number(r.production9AM) || 0), 0), [filtered])
   const total12PM = useMemo(() => filtered.reduce((s, r) => s + (Number(r.production12PM) || 0), 0), [filtered])
   const total4PM = useMemo(() => filtered.reduce((s, r) => s + (Number(r.production4PM) || 0), 0), [filtered])
+  const total4thPick = useMemo(() => filtered.reduce((s, r) => s + (Number((r as any).production4thPick) || 0), 0), [filtered])
   const totalBrokens = useMemo(() => filtered.reduce((s, r) => s + (Number((r as any).brokenEggs) || 0), 0), [filtered])
 
   // Farm-wide bird headlines: same definitions as the Flocks page (eligible flocks only; ignores table date/search filters).
@@ -272,10 +348,12 @@ export default function ProductionRecordsPage() {
       switch (key) {
         case "date": return new Date(item.date)
         case "flockId": return item.flockId ?? 0
+        case "batchName": return resolveBatchLabel(item).toLowerCase()
         case "age": return item.ageInDays ?? 0
         case "production9AM": return Number(item.production9AM) || 0
         case "production12PM": return Number(item.production12PM) || 0
         case "production4PM": return Number(item.production4PM) || 0
+        case "production4thPick": return Number(item.production4thPick) || 0
         case "brokenEggs": return Number(item.brokenEggs) || 0
         case "totalProduction": return Number(item.totalProduction) || 0
         case "eggGrade": return eggGradeFromApi(item.eggGrade).toLowerCase()
@@ -303,7 +381,7 @@ export default function ProductionRecordsPage() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [search, dateFrom, dateTo, selectedFlockId, selectedMonth, selectedYear])
+  }, [search, dateFrom, dateTo, selectedBatchId, selectedFlockId, selectedMonth, selectedYear])
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
@@ -361,11 +439,13 @@ export default function ProductionRecordsPage() {
     setSearch("")
     setDateFrom("")
     setDateTo("")
+    setSelectedBatchId("ALL")
     setSelectedFlockId("ALL")
     setSelectedMonth("ALL")
     setSelectedYear("ALL")
     setDraftDateFrom("")
     setDraftDateTo("")
+    setDraftBatchId("ALL")
     setDraftFlockId("ALL")
     setDraftMonth("ALL")
     setDraftYear("ALL")
@@ -374,6 +454,7 @@ export default function ProductionRecordsPage() {
   const syncDraftFromCommitted = () => {
     setDraftDateFrom(dateFrom)
     setDraftDateTo(dateTo)
+    setDraftBatchId(selectedBatchId)
     setDraftFlockId(selectedFlockId)
     setDraftMonth(selectedMonth)
     setDraftYear(selectedYear)
@@ -382,6 +463,7 @@ export default function ProductionRecordsPage() {
   const applyMobileFilters = () => {
     setDateFrom(draftDateFrom)
     setDateTo(draftDateTo)
+    setSelectedBatchId(draftBatchId)
     setSelectedFlockId(draftFlockId)
     setSelectedMonth(draftMonth)
     setSelectedYear(draftYear)
@@ -391,15 +473,17 @@ export default function ProductionRecordsPage() {
 
   const exportCsv = () => {
     const headers = [
-      "Date","FlockId","Age","9am","12pm","4pm","Total","Size","EggPercent","FeedKg","Birds","Deaths","Left","Medication"
+      "Date","FlockId","Batch","Age","1st Pick","2nd Pick","3rd Pick","4th Pick","Total","Size","EggPercent","FeedKg","Birds","Deaths","Left","Medication"
     ]
     const rows = filtered.map((r: any) => [
       new Date(r.date).toLocaleDateString(),
       r.flockId ?? "",
+      resolveBatchLabel(r),
       formatAge(r),
       r.production9AM ?? 0,
       r.production12PM ?? 0,
       r.production4PM ?? 0,
+      r.production4thPick ?? 0,
       r.totalProduction ?? 0,
       r.eggGrade ?? "",
       (() => { const b = Number(r.noOfBirds)||0; const t = Number(r.totalProduction)||0; return b? ((t/b)*100).toFixed(1):"" })(),
@@ -442,7 +526,7 @@ export default function ProductionRecordsPage() {
 
     // Table
     const headers = [
-      "Date", "Flock", "Age", "9am", "12pm", "4pm", "Total", "Size", "Egg%", "Feed(kg)", "Birds", "Deaths", "Left", "Medication"
+      "Date", "Flock", "Batch", "Age", "1st Pick", "2nd Pick", "3rd Pick", "4th Pick", "Total", "Size", "Egg%", "Feed(kg)", "Birds", "Deaths", "Left", "Medication"
     ]
 
     const rows = filtered.map((r: any) => {
@@ -453,10 +537,12 @@ export default function ProductionRecordsPage() {
       return [
         new Date(r.date).toLocaleDateString(),
         r.flockId != null ? `#${r.flockId}` : "-",
+        resolveBatchLabel(r),
         formatAge(r),
         r.production9AM ?? 0,
         r.production12PM ?? 0,
         r.production4PM ?? 0,
+        r.production4thPick ?? 0,
         r.totalProduction ?? 0,
         formatEggGradeLabel(r.eggGrade),
         eggPct,
@@ -470,8 +556,8 @@ export default function ProductionRecordsPage() {
 
     // Add totals row
     rows.push([
-      "TOTALS", "", "",
-      total9AM, total12PM, total4PM,
+      "TOTALS", "", "", "",
+      total9AM, total12PM, total4PM, total4thPick,
       `${totalEggs} (${totalEggsCrates}c+${totalEggsPieces}p)`,
       "",
       "", totalFeed.toFixed(2),
@@ -488,9 +574,10 @@ export default function ProductionRecordsPage() {
       footStyles: { fillColor: [226, 232, 240], textColor: [30, 41, 59], fontStyle: "bold" },
       columnStyles: {
         0: { cellWidth: 22 },
-        2: { cellWidth: 28 },
-        7: { cellWidth: 16 },
-        13: { cellWidth: 22 },
+        2: { cellWidth: 24 },
+        3: { cellWidth: 28 },
+        9: { cellWidth: 16 },
+        15: { cellWidth: 22 },
       },
       didParseCell: (data: any) => {
         // Bold the last (totals) row
@@ -597,7 +684,7 @@ export default function ProductionRecordsPage() {
                         <span className="truncate">Filters</span>
                         {hasActiveFilters && (
                           <span className="ml-1 h-5 min-w-[20px] px-1.5 rounded-full bg-orange-500 text-white text-xs flex items-center justify-center">
-                            {[search, dateFrom, dateTo, selectedFlockId !== "ALL", selectedMonth !== "ALL", selectedYear !== "ALL"].filter(Boolean).length}
+                            {[search, dateFrom, dateTo, selectedBatchId !== "ALL", selectedFlockId !== "ALL", selectedMonth !== "ALL", selectedYear !== "ALL"].filter(Boolean).length}
                           </span>
                         )}
                       </Button>
@@ -635,6 +722,22 @@ export default function ProductionRecordsPage() {
                           </div>
                         </div>
                         <div className="space-y-2">
+                          <label className="text-sm font-medium text-slate-700">Batch</label>
+                          <Select value={draftBatchId} onValueChange={handleDraftBatchChange}>
+                            <SelectTrigger className="h-12 text-base">
+                              <SelectValue placeholder="All Batches" />
+                            </SelectTrigger>
+                            <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
+                              <SelectItem value="ALL">All Batches</SelectItem>
+                              {batchOptions.map((b) => (
+                                <SelectItem key={b.value} value={b.value}>
+                                  {b.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
                           <label className="text-sm font-medium text-slate-700">Flock</label>
                           <Select value={draftFlockId} onValueChange={setDraftFlockId}>
                             <SelectTrigger className="h-12 text-base">
@@ -642,7 +745,7 @@ export default function ProductionRecordsPage() {
                             </SelectTrigger>
                             <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
                               <SelectItem value="ALL">All Flocks</SelectItem>
-                              {flocks.map((f) => (
+                              {draftFlocksForBatch.map((f) => (
                                 <SelectItem key={f.flockId} value={String(f.flockId)}>
                                   {f.name} ({f.quantity} birds)
                                 </SelectItem>
@@ -701,11 +804,13 @@ export default function ProductionRecordsPage() {
                             onClick={() => {
                               setDraftDateFrom("")
                               setDraftDateTo("")
+                              setDraftBatchId("ALL")
                               setDraftFlockId("ALL")
                               setDraftMonth("ALL")
                               setDraftYear("ALL")
                               setDateFrom("")
                               setDateTo("")
+                              setSelectedBatchId("ALL")
                               setSelectedFlockId("ALL")
                               setSelectedMonth("ALL")
                               setSelectedYear("ALL")
@@ -742,11 +847,20 @@ export default function ProductionRecordsPage() {
                 </div>
                 <Input type="date" placeholder="From" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[140px]" />
                 <Input type="date" placeholder="To" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[140px]" />
+                <Select value={selectedBatchId} onValueChange={handleBatchChange}>
+                  <SelectTrigger className="w-[180px]"><SelectValue placeholder="Batch" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Batches</SelectItem>
+                    {batchOptions.map(b => (
+                      <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Select value={selectedFlockId} onValueChange={setSelectedFlockId}>
                   <SelectTrigger className="w-[180px]"><SelectValue placeholder="Flock" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">All Flocks</SelectItem>
-                    {flocks.map(f => (
+                    {flocksForBatch.map(f => (
                       <SelectItem key={f.flockId} value={String(f.flockId)}>{f.name} ({f.quantity} birds)</SelectItem>
                     ))}
                   </SelectContent>
@@ -879,6 +993,9 @@ export default function ProductionRecordsPage() {
                                       <span className="text-slate-500">•</span>
                                       <span className="text-slate-600 truncate">{resolveFlockLabel(r)}</span>
                                     </div>
+                                    {resolveBatchLabel(r) !== "-" && (
+                                      <div className="mt-0.5 text-xs text-slate-500 truncate">Batch: {resolveBatchLabel(r)}</div>
+                                    )}
                                     <div className="mt-3 grid grid-cols-2 gap-2">
                                       <div className="rounded-lg bg-emerald-100 border border-emerald-300 px-3 py-2 shadow-sm">
                                         <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-900">Eggs</p>
@@ -901,9 +1018,10 @@ export default function ProductionRecordsPage() {
                               <CollapsibleContent>
                                 <div className="mt-4 pt-4 border-t border-slate-100 space-y-2 text-sm">
                                   <div className="grid grid-cols-2 gap-2">
-                                    <div><span className="text-slate-500">9am</span> <span className="font-medium text-blue-700">{r.production9AM ?? 0}</span></div>
-                                    <div><span className="text-slate-500">12pm</span> <span className="font-medium text-orange-700">{r.production12PM ?? 0}</span></div>
-                                    <div><span className="text-slate-500">4pm</span> <span className="font-medium text-purple-700">{r.production4PM ?? 0}</span></div>
+                                    <div><span className="text-slate-500">1st Pick</span> <span className="font-medium text-blue-700">{r.production9AM ?? 0}</span></div>
+                                    <div><span className="text-slate-500">2nd Pick</span> <span className="font-medium text-orange-700">{r.production12PM ?? 0}</span></div>
+                                    <div><span className="text-slate-500">3rd Pick</span> <span className="font-medium text-purple-700">{r.production4PM ?? 0}</span></div>
+                                    <div><span className="text-slate-500">4th Pick</span> <span className="font-medium text-teal-700">{(r as any).production4thPick ?? 0}</span></div>
                                     <div><span className="text-slate-500">Feed</span> <span className="font-medium">{(r.feedKg ?? 0).toFixed ? (r.feedKg ?? 0).toFixed(2) : r.feedKg} kg</span></div>
                                     <div><span className="text-slate-500">Deaths</span> <span className={cn("font-medium", (r.mortality ?? 0) > 0 ? "text-red-600" : "")}>{r.mortality ?? 0}</span></div>
                                     <div><span className="text-slate-500">Age</span> <span className="text-slate-700 truncate">{formatAge(r)}</span></div>
@@ -944,15 +1062,17 @@ export default function ProductionRecordsPage() {
                         </div>
                       </>
                     )}
-                    <Table className={cn("min-w-[1480px]", isMobile && "min-w-[1280px]")}>
+                    <Table className={cn("min-w-[1600px]", isMobile && "min-w-[1400px]")}>
                       <TableHeader className="sticky top-0 bg-blue-50 z-10">
                         <TableRow className="border-b border-blue-200">
                           <SortableHeader label="Date" sortKey="date" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className={cn("min-w-[100px] px-3 py-2", isMobile && "sticky-col-date bg-blue-50")} />
                           <SortableHeader label="Flock" sortKey="flockId" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className={cn("min-w-[70px] px-3 py-2", isMobile && "sticky-col-flock bg-blue-50")} />
+                          <SortableHeader label="Batch" sortKey="batchName" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[120px] px-3 py-2 whitespace-nowrap" />
                           <SortableHeader label="Age" sortKey="age" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[170px] px-3 py-2" />
-                          <SortableHeader label="9am" sortKey="production9AM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-blue-100 text-blue-900 font-semibold" />
-                          <SortableHeader label="12pm" sortKey="production12PM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-orange-100 text-orange-900 font-semibold" />
-                          <SortableHeader label="4pm" sortKey="production4PM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-purple-100 text-purple-900 font-semibold" />
+                          <SortableHeader label="1st Pick" sortKey="production9AM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-blue-100 text-blue-900 font-semibold whitespace-nowrap" />
+                          <SortableHeader label="2nd Pick" sortKey="production12PM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-orange-100 text-orange-900 font-semibold whitespace-nowrap" />
+                          <SortableHeader label="3rd Pick" sortKey="production4PM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-purple-100 text-purple-900 font-semibold whitespace-nowrap" />
+                          <SortableHeader label="4th Pick" sortKey="production4thPick" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-teal-100 text-teal-900 font-semibold whitespace-nowrap" />
                           <SortableHeader label="Brokens" sortKey="brokenEggs" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-red-50 text-red-800 font-semibold" />
                           <SortableHeader label="Total" sortKey="totalProduction" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
                           <SortableHeader label="Egg%" sortKey="eggPercent" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
@@ -967,7 +1087,7 @@ export default function ProductionRecordsPage() {
                       <TableBody>
                         {paginatedRecords.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={15} className="py-12 text-center text-slate-500">
+                            <TableCell colSpan={17} className="py-12 text-center text-slate-500">
                               No records found for the selected filters.
                               <Button variant="link" className="ml-1" onClick={() => { setEditing(null); setFormOpen(true) }}>Log one now</Button>
                             </TableCell>
@@ -982,10 +1102,12 @@ export default function ProductionRecordsPage() {
                           >
                             <TableCell className={cn("px-3 py-2 whitespace-nowrap min-w-[100px]", isMobile && "sticky-col-date bg-white")}>{isMobile ? formatDateShort(r.date) : new Date(r.date).toLocaleDateString()}</TableCell>
                             <TableCell className={cn("px-3 py-2 whitespace-nowrap min-w-[120px] font-medium text-slate-800", isMobile && "sticky-col-flock bg-white")}>{resolveFlockLabel(r)}</TableCell>
+                            <TableCell className="px-3 py-2 whitespace-nowrap min-w-[120px] text-slate-600">{resolveBatchLabel(r)}</TableCell>
                             <TableCell className="px-3 py-2">{formatAge(r)}</TableCell>
                             <TableCell className="text-right px-3 py-2 text-blue-700 bg-blue-50/40 rounded-sm">{r.production9AM ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2 text-orange-700 bg-orange-50/40 rounded-sm">{r.production12PM ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2 text-purple-700 bg-purple-50/40 rounded-sm">{r.production4PM ?? 0}</TableCell>
+                            <TableCell className="text-right px-3 py-2 text-teal-700 bg-teal-50/40 rounded-sm">{(r as any).production4thPick ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2 text-red-700 bg-red-50/40 rounded-sm">{(r as any).brokenEggs ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2 font-semibold text-slate-900">{r.totalProduction ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2">{(() => { const b = Number(r.noOfBirds)||0; const t = Number(r.totalProduction)||0; return b? ((t/b)*100).toFixed(1)+"%":"-" })()}</TableCell>
@@ -1011,9 +1133,11 @@ export default function ProductionRecordsPage() {
                             <TableCell className={cn("font-semibold text-xs px-3 py-2 bg-slate-50", isMobile && "sticky-col-date")}>Totals</TableCell>
                             <TableCell className={cn("bg-slate-50", isMobile && "sticky-col-flock")}></TableCell>
                             <TableCell></TableCell>
+                            <TableCell></TableCell>
                             <TableCell className="text-right font-semibold px-3 py-2 text-blue-800 bg-blue-50 border border-blue-100 rounded">{total9AM.toLocaleString()}<div className="text-xs font-normal text-blue-600">{Math.floor(total9AM / EGGS_PER_CRATE)}c + {total9AM % EGGS_PER_CRATE}p</div></TableCell>
                             <TableCell className="text-right font-semibold px-3 py-2 text-orange-800 bg-orange-50 border border-orange-100 rounded">{total12PM.toLocaleString()}<div className="text-xs font-normal text-orange-600">{Math.floor(total12PM / EGGS_PER_CRATE)}c + {total12PM % EGGS_PER_CRATE}p</div></TableCell>
                             <TableCell className="text-right font-semibold px-3 py-2 text-purple-800 bg-purple-50 border border-purple-100 rounded">{total4PM.toLocaleString()}<div className="text-xs font-normal text-purple-600">{Math.floor(total4PM / EGGS_PER_CRATE)}c + {total4PM % EGGS_PER_CRATE}p</div></TableCell>
+                            <TableCell className="text-right font-semibold px-3 py-2 text-teal-800 bg-teal-50 border border-teal-100 rounded">{total4thPick.toLocaleString()}<div className="text-xs font-normal text-teal-600">{Math.floor(total4thPick / EGGS_PER_CRATE)}c + {total4thPick % EGGS_PER_CRATE}p</div></TableCell>
                             <TableCell className="text-right font-semibold px-3 py-2 text-red-700 bg-red-50 border border-red-100 rounded">{totalBrokens.toLocaleString()}<div className="text-xs font-normal text-red-500">{Math.floor(totalBrokens / EGGS_PER_CRATE)}c + {totalBrokens % EGGS_PER_CRATE}p</div></TableCell>
                             <TableCell className="text-right font-semibold px-3 py-2 text-emerald-700">{totalEggs.toLocaleString()}<div className="text-xs font-normal text-slate-500">{totalEggsCrates}c + {totalEggsPieces}p</div></TableCell>
                             {/* Egg% — no meaningful total */}

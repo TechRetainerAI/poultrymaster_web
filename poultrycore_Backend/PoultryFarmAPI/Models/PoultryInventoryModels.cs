@@ -11,7 +11,8 @@ namespace PoultryFarmAPIWeb.Models
         [Required] public string FarmId { get; set; } = string.Empty;
         [Required] [StringLength(150)] public string ItemName { get; set; } = string.Empty;
         [Required] [StringLength(40)] public string Category { get; set; } = "Other";
-        [StringLength(30)] public string? UnitOfMeasure { get; set; }
+        [StringLength(30)] public string? UnitOfMeasure { get; set; }          // production-level unit
+        [StringLength(30)] public string? PurchaseUnitOfMeasure { get; set; }  // how it's bought
         public decimal MinimumStockAlert { get; set; }
         public decimal CurrentQuantity { get; set; }
         public bool IsActive { get; set; } = true;
