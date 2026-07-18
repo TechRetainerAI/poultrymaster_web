@@ -140,6 +140,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
   const productionItems = [
     { href: "/production-records", label: "Production Records", icon: FileText },
+    { href: "/batch-production-records", label: "Batch Production", icon: Boxes },
     { href: "/egg-production", label: "Egg sorting", icon: Egg },
     { href: "/feed-usage", label: "Feed Usage", icon: Package },
     { href: "/poultry-products", label: "Products", icon: Package },

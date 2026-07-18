@@ -270,7 +270,7 @@ export default function NewEggProductionPage() {
                 <Egg className="w-5 h-5 text-yellow-600" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-slate-900">Add New Production Record</h1>
+                <h1 className="text-2xl font-bold text-slate-900">Add New Egg Sorting Record</h1>
                 <p className="text-slate-600">Enter the egg production details below</p>
               </div>
             </div>
@@ -486,42 +486,6 @@ export default function NewEggProductionPage() {
                       <div className="text-lg font-bold text-emerald-700">{totalProduction.toLocaleString()} eggs</div>
                       <div className="text-xs text-emerald-600">{totalCrates} crates + {totalPieces} pieces</div>
                     </div>
-                  </div>
-                </div>
-
-                {/* Doc 4: Production costing (feed + medication used) */}
-                <div className="p-4 bg-white border border-slate-200 rounded-lg space-y-4 mt-4">
-                  <h3 className="text-md font-semibold text-slate-900">Production Costing (feed &amp; medication used)</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="space-y-2 md:col-span-2">
-                      <Label>Specific Feed Used</Label>
-                      <Select value={feedId ? String(feedId) : "0"} onValueChange={(v) => { const id = Number(v); setFeedId(id); setFeedUnitCost(latestCost[id] ?? 0) }} disabled={loading}>
-                        <SelectTrigger><SelectValue placeholder="Select feed" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="0">— None —</SelectItem>
-                          {feedItems.map((i) => <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>{i.itemName}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2"><Label>Total Feed Consumed</Label><NumberInput min="0" step="0.001" value={feedConsumed} onChange={(e) => setFeedConsumed(parseFloat(e.target.value) || 0)} disabled={loading} /></div>
-                    <div className="space-y-2"><Label>Feed Unit Cost</Label><NumberInput min="0" step="0.0001" value={feedUnitCost} onChange={(e) => setFeedUnitCost(parseFloat(e.target.value) || 0)} disabled={loading} /></div>
-                    <div className="space-y-2 md:col-span-2">
-                      <Label>Specific Medication Used</Label>
-                      <Select value={medId ? String(medId) : "0"} onValueChange={(v) => { const id = Number(v); setMedId(id); setMedUnitCost(latestCost[id] ?? 0) }} disabled={loading}>
-                        <SelectTrigger><SelectValue placeholder="Select medication" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="0">— None —</SelectItem>
-                          {medItems.map((i) => <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>{i.itemName}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2"><Label>Total Medication Consumed</Label><NumberInput min="0" step="0.001" value={medConsumed} onChange={(e) => setMedConsumed(parseFloat(e.target.value) || 0)} disabled={loading} /></div>
-                    <div className="space-y-2"><Label>Medication Unit Cost</Label><NumberInput min="0" step="0.0001" value={medUnitCost} onChange={(e) => setMedUnitCost(parseFloat(e.target.value) || 0)} disabled={loading} /></div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-3 text-sm">
-                    <div className="p-2 bg-slate-50 rounded"><div className="text-slate-500">Total Feed Cost</div><div className="font-bold">{totalFeedCost.toLocaleString()}</div></div>
-                    <div className="p-2 bg-slate-50 rounded"><div className="text-slate-500">Total Medication Cost</div><div className="font-bold">{totalMedCost.toLocaleString()}</div></div>
-                    <div className="p-2 bg-emerald-50 rounded"><div className="text-emerald-700">Total Cost of Production</div><div className="font-bold text-emerald-700">{totalCostOfProduction.toLocaleString()}</div></div>
                   </div>
                 </div>
 

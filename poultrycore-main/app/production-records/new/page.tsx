@@ -862,7 +862,7 @@ export default function NewProductionRecordPage() {
                     </Select>
                   </div>
                   <div className="col-span-12 md:col-span-6 space-y-2">
-                    <Label>Feed (kg)</Label>
+                    <Label>Feed Description</Label>
                     <NumberInput
 
                       step="0.01"
@@ -877,10 +877,10 @@ export default function NewProductionRecordPage() {
                     />
                   </div>
 
-                  {/* Used (from inventory) — reduces Raw-Material stock on save */}
+                  {/* Feed Breakdown (From Inventory) — reduces Raw-Material stock on save */}
                   <div className="col-span-12 flex items-center gap-2 pt-1">
                     <div className="h-px flex-1 bg-slate-200" />
-                    <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Used (from inventory)</span>
+                    <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Feed Breakdown (From Inventory)</span>
                     <div className="h-px flex-1 bg-slate-200" />
                   </div>
 
@@ -908,7 +908,7 @@ export default function NewProductionRecordPage() {
                 </div>
                 <div className="grid grid-cols-12 gap-4 px-4 py-4">
                   <div className="col-span-12 md:col-span-4 space-y-2">
-                    <Label>Medication</Label>
+                    <Label>Medication Description</Label>
                     <Input
                       value={form.medication}
                       onChange={(e) =>
@@ -921,10 +921,10 @@ export default function NewProductionRecordPage() {
                     />
                   </div>
 
-                  {/* Used (from inventory) — reduces Raw-Material stock on save */}
+                  {/* Medication Breakdown (From Inventory) — reduces Raw-Material stock on save */}
                   <div className="col-span-12 flex items-center gap-2 pt-1">
                     <div className="h-px flex-1 bg-slate-200" />
-                    <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Used (from inventory)</span>
+                    <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Medication Breakdown (From Inventory)</span>
                     <div className="h-px flex-1 bg-slate-200" />
                   </div>
 
