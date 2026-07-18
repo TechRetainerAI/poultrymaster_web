@@ -8,12 +8,15 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
-import { ArrowLeft, Scale, RotateCcw } from "lucide-react"
+import { ArrowLeft, Scale, RotateCcw, Send, Trash2 } from "lucide-react"
 import { getUserContext } from "@/lib/utils/user-context"
 import {
   getBatchProductionRecord,
   reverseBatchProduction,
+  postBatchAllocation,
+  deleteBatchAllocation,
   batchNameLabel,
   batchScopeLabel,
   BATCH_STATUS_LABELS,
@@ -37,6 +40,7 @@ export default function BatchProductionDetailPage() {
   const [batch, setBatch] = useState<ProductionBatchRecord | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
+  const [deleteAllocOpen, setDeleteAllocOpen] = useState(false)
 
   async function load() {
     const { farmId } = getUserContext()
@@ -60,12 +64,51 @@ export default function BatchProductionDetailPage() {
     const res = await reverseBatchProduction(batch.id, farmId, userId)
     setBusy(false)
     if (res.success) {
-      toast({ title: "Batch reversed" })
+      toast({ title: "Batch reversed", description: "You can edit the allocation and repost it." })
       load()
     } else {
       toast({ title: "Reverse failed", description: res.message, variant: "destructive" })
     }
   }
+
+  async function handleRepost() {
+    if (!batch) return
+    const { userId, farmId } = getUserContext()
+    setBusy(true)
+    const res = await postBatchAllocation(batch.id, farmId, userId)
+    setBusy(false)
+    if (res.success) {
+      toast({ title: "Allocation reposted", description: "Fresh flock records, inventory and bird counts have been created." })
+      load()
+    } else {
+      toast({ title: "Repost failed", description: res.message, variant: "destructive" })
+    }
+  }
+
+  async function handleDeleteAllocation() {
+    if (!batch) return
+    const wasPosted = batch.status === "Posted"
+    const { userId, farmId } = getUserContext()
+    setBusy(true)
+    const res = await deleteBatchAllocation(batch.id, farmId, userId)
+    setBusy(false)
+    setDeleteAllocOpen(false)
+    if (res.success) {
+      toast({
+        title: "Allocation deleted",
+        description: wasPosted
+          ? "Inventory and bird effects were reversed. The batch is back to Pending Allocation."
+          : "The batch is back to Pending Allocation.",
+      })
+      load()
+    } else {
+      toast({ title: "Delete failed", description: res.message, variant: "destructive" })
+    }
+  }
+
+  const canAllocate = !!batch && ["PendingAllocation", "Allocated", "Reversed"].includes(batch.status)
+  const canRepost = !!batch && batch.status === "Reversed" && batch.allocations.length > 0
+  const hasAllocation = !!batch && batch.allocations.length > 0 && batch.status !== "PendingAllocation"
 
   const handleLogout = () => {
     localStorage.clear()
@@ -92,16 +135,27 @@ export default function BatchProductionDetailPage() {
                 )}
               </div>
               {batch && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Badge variant="outline">{BATCH_STATUS_LABELS[batch.status]}</Badge>
-                  {["PendingAllocation", "Allocated"].includes(batch.status) && (
+                  {canAllocate && (
                     <Button size="sm" onClick={() => router.push(`/batch-production-records/${batch.id}/allocate`)}>
-                      <Scale className="h-4 w-4 mr-1" /> Allocation
+                      <Scale className="h-4 w-4 mr-1" /> {batch.status === "Reversed" ? "Edit Allocation" : "Allocation"}
+                    </Button>
+                  )}
+                  {canRepost && (
+                    <Button size="sm" onClick={handleRepost} disabled={busy}>
+                      <Send className="h-4 w-4 mr-1" /> Repost
                     </Button>
                   )}
                   {batch.status === "Posted" && (
                     <Button size="sm" variant="destructive" onClick={handleReverse} disabled={busy}>
                       <RotateCcw className="h-4 w-4 mr-1" /> Reverse
+                    </Button>
+                  )}
+                  {hasAllocation && (
+                    <Button size="sm" variant="outline" onClick={() => setDeleteAllocOpen(true)} disabled={busy}
+                      className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700">
+                      <Trash2 className="h-4 w-4 mr-1" /> Delete Allocation
                     </Button>
                   )}
                 </div>
@@ -204,6 +258,45 @@ export default function BatchProductionDetailPage() {
           </div>
         </main>
       </div>
+
+      <Dialog open={deleteAllocOpen} onOpenChange={setDeleteAllocOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {batch?.status === "Posted" ? "Delete Posted Allocation?" : "Delete Allocation?"}
+            </DialogTitle>
+            <DialogDescription asChild>
+              {batch?.status === "Posted" ? (
+                <div className="space-y-2 text-sm">
+                  <p>This allocation has already created flock-level production records and updated inventory.</p>
+                  <p>
+                    Deleting it will reverse egg production, feed usage, bird mortality, medication usage, and all other
+                    related inventory effects. The generated flock-level production records will be removed and reversal
+                    stock movements recorded.
+                  </p>
+                  <p>
+                    The parent batch production record will remain available so it can be edited and allocated again. This
+                    action cannot be undone automatically.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2 text-sm">
+                  <p>This will remove the allocation rows for this batch.</p>
+                  <p>No inventory has been affected yet, so nothing will be reversed. The batch record itself stays available and returns to Pending Allocation so you can allocate it again.</p>
+                </div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteAllocOpen(false)} disabled={busy}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteAllocation} disabled={busy}>
+              {batch?.status === "Posted" ? "Delete and Reverse Allocation" : "Delete Allocation"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

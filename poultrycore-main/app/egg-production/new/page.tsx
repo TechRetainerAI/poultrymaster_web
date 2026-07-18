@@ -343,6 +343,7 @@ export default function NewEggProductionPage() {
                       id="productionDate"
                       type="date"
                       value={formData.productionDate}
+                      max={new Date().toISOString().slice(0, 10)}
                       onChange={(e) => handleInputChange("productionDate", e.target.value)}
                       required
                       disabled={loading}

@@ -17,6 +17,7 @@ import { sendReportEmail } from "@/lib/api/email"
 import {
   getBatchProductionRecords,
   deleteBatchProductionRecord,
+  deleteBatchAllocation,
   setBatchStatus,
   reverseBatchProduction,
   postBatchAllocation,
@@ -58,7 +59,15 @@ const STATUS_BADGE_CLASS: Record<BatchStatus, string> = {
   Cancelled: "bg-red-100 text-red-700 border border-red-200",
 }
 
-type ConfirmType = "delete" | "post" | "reverse" | "cancel"
+// Stable per-batch key for the Batch filter: prefer the bird-batch id
+// (SpecificBatch records), else group by scope type + name so the AllBatches /
+// CustomBatch entries still collapse into stable, selectable options.
+const batchFilterKey = (r: ProductionBatchRecord): string =>
+  r.selectedBirdBatchId != null
+    ? `b:${r.selectedBirdBatchId}`
+    : `t:${r.batchSelectionType}:${(r.batchName || "").trim().toLowerCase()}`
+
+type ConfirmType = "delete" | "post" | "reverse" | "cancel" | "deleteAllocation"
 
 interface ConfirmState {
   type: ConfirmType
@@ -85,6 +94,7 @@ export default function BatchProductionRecordsPage() {
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL")
+  const [selectedBatch, setSelectedBatch] = useState<string>("ALL")
   const [selectedMonth, setSelectedMonth] = useState<string>("ALL")
   const [selectedYear, setSelectedYear] = useState<string>("ALL")
 
@@ -105,14 +115,16 @@ export default function BatchProductionRecordsPage() {
   const [draftDateFrom, setDraftDateFrom] = useState("")
   const [draftDateTo, setDraftDateTo] = useState("")
   const [draftStatus, setDraftStatus] = useState<string>("ALL")
+  const [draftBatch, setDraftBatch] = useState<string>("ALL")
   const [draftMonth, setDraftMonth] = useState<string>("ALL")
   const [draftYear, setDraftYear] = useState<string>("ALL")
 
-  const hasActiveFilters = search || dateFrom || dateTo || selectedStatus !== "ALL" || selectedMonth !== "ALL" || selectedYear !== "ALL"
+  const hasActiveFilters = search || dateFrom || dateTo || selectedStatus !== "ALL" || selectedBatch !== "ALL" || selectedMonth !== "ALL" || selectedYear !== "ALL"
   const hasDraftChanges =
     draftDateFrom !== dateFrom ||
     draftDateTo !== dateTo ||
     draftStatus !== selectedStatus ||
+    draftBatch !== selectedBatch ||
     draftMonth !== selectedMonth ||
     draftYear !== selectedYear
 
@@ -155,6 +167,21 @@ export default function BatchProductionRecordsPage() {
   const openReverse = (r: ProductionBatchRecord) =>
     setConfirm({ type: "reverse", id: r.id, title: "Reverse Batch", description: "Reversing deletes the generated flock records and their side-effects. Continue?", actionLabel: "Reverse" })
 
+  const openRepost = (r: ProductionBatchRecord) =>
+    setConfirm({ type: "post", id: r.id, title: "Repost Allocation", description: "Reposting creates fresh flock-level production records and re-applies bird/inventory side-effects. Continue?", actionLabel: "Repost" })
+
+  const openDeleteAllocation = (r: ProductionBatchRecord) =>
+    setConfirm({
+      type: "deleteAllocation",
+      id: r.id,
+      title: r.status === "Posted" ? "Delete Posted Allocation?" : "Delete Allocation?",
+      description:
+        r.status === "Posted"
+          ? "This allocation has created flock-level production records and updated inventory. Deleting it will reverse egg production, feed usage, bird mortality and all other inventory effects, remove the generated flock records, and record reversal stock movements. The batch record itself stays available for re-allocation. This cannot be undone automatically."
+          : "This removes the allocation rows. No inventory has been affected yet, so nothing is reversed. The batch record stays available and returns to Pending Allocation.",
+      actionLabel: r.status === "Posted" ? "Delete and Reverse" : "Delete Allocation",
+    })
+
   const openCancel = (r: ProductionBatchRecord) =>
     setConfirm({ type: "cancel", id: r.id, title: "Cancel Batch", description: "This marks the batch as cancelled. Continue?", actionLabel: "Cancel batch" })
 
@@ -179,6 +206,9 @@ export default function BatchProductionRecordsPage() {
         break
       case "cancel":
         res = await setBatchStatus(confirm.id, farmId, "Cancelled", userId)
+        break
+      case "deleteAllocation":
+        res = await deleteBatchAllocation(confirm.id, farmId, userId)
         break
     }
     if (res.success) {
@@ -205,6 +235,18 @@ export default function BatchProductionRecordsPage() {
     return { distinctMonths: Array.from(monthSet).sort().reverse(), distinctYears: Array.from(yearSet).sort().reverse() }
   }, [records])
 
+  // Batches present in the loaded records, keyed by a stable id (bird-batch id
+  // where available). Only batches that actually have records are offered — a
+  // batch with none can't be filtered to meaningfully.
+  const distinctBatches = useMemo(() => {
+    const map = new Map<string, string>()
+    records.forEach((r) => {
+      const key = batchFilterKey(r)
+      if (!map.has(key)) map.set(key, batchNameLabel(r))
+    })
+    return Array.from(map, ([key, label]) => ({ key, label })).sort((a, b) => a.label.localeCompare(b.label))
+  }, [records])
+
   // Apply filters
   const filtered = useMemo(() => {
     let list = records.slice()
@@ -220,12 +262,13 @@ export default function BatchProductionRecordsPage() {
     if (dateFrom) list = list.filter((r) => toLocalDateKey(r.productionDate) >= dateFrom)
     if (dateTo) list = list.filter((r) => toLocalDateKey(r.productionDate) <= dateTo)
     if (selectedStatus !== "ALL") list = list.filter((r) => r.status === selectedStatus)
+    if (selectedBatch !== "ALL") list = list.filter((r) => batchFilterKey(r) === selectedBatch)
     if (selectedMonth !== "ALL") list = list.filter((r) => {
       const d = new Date(r.productionDate); const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; return m === selectedMonth
     })
     if (selectedYear !== "ALL") list = list.filter((r) => new Date(r.productionDate).getFullYear().toString() === selectedYear)
     return list
-  }, [records, search, dateFrom, dateTo, selectedStatus, selectedMonth, selectedYear])
+  }, [records, search, dateFrom, dateTo, selectedStatus, selectedBatch, selectedMonth, selectedYear])
 
   // Summaries
   const totalEggs = useMemo(() => filtered.reduce((s, r) => s + (Number(r.totalEggs) || 0), 0), [filtered])
@@ -274,7 +317,7 @@ export default function BatchProductionRecordsPage() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [search, dateFrom, dateTo, selectedStatus, selectedMonth, selectedYear])
+  }, [search, dateFrom, dateTo, selectedStatus, selectedBatch, selectedMonth, selectedYear])
 
   const handlePageChange = (page: number) => setCurrentPage(page)
   const handlePreviousPage = () => { if (currentPage > 1) setCurrentPage(currentPage - 1) }
@@ -340,11 +383,13 @@ export default function BatchProductionRecordsPage() {
     setDateFrom("")
     setDateTo("")
     setSelectedStatus("ALL")
+    setSelectedBatch("ALL")
     setSelectedMonth("ALL")
     setSelectedYear("ALL")
     setDraftDateFrom("")
     setDraftDateTo("")
     setDraftStatus("ALL")
+    setDraftBatch("ALL")
     setDraftMonth("ALL")
     setDraftYear("ALL")
   }
@@ -353,6 +398,7 @@ export default function BatchProductionRecordsPage() {
     setDraftDateFrom(dateFrom)
     setDraftDateTo(dateTo)
     setDraftStatus(selectedStatus)
+    setDraftBatch(selectedBatch)
     setDraftMonth(selectedMonth)
     setDraftYear(selectedYear)
   }
@@ -361,6 +407,7 @@ export default function BatchProductionRecordsPage() {
     setDateFrom(draftDateFrom)
     setDateTo(draftDateTo)
     setSelectedStatus(draftStatus)
+    setSelectedBatch(draftBatch)
     setSelectedMonth(draftMonth)
     setSelectedYear(draftYear)
     setFiltersOpen(false)
@@ -500,13 +547,20 @@ export default function BatchProductionRecordsPage() {
       case "Allocated":
         push(<Button key="alloc" variant="ghost" size="sm" className="text-blue-600 shrink-0" onClick={() => router.push(`/batch-production-records/${r.id}/allocate`)}>Allocation</Button>)
         push(<Button key="post" variant="ghost" size="sm" className="text-emerald-600 shrink-0" onClick={() => openPost(r)}>Post</Button>)
+        push(<Button key="delalloc" variant="ghost" size="sm" className="text-red-600 shrink-0" onClick={() => openDeleteAllocation(r)}>Delete Allocation</Button>)
         push(<Button key="cancel" variant="ghost" size="sm" className="text-slate-500 shrink-0" onClick={() => openCancel(r)}>Cancel</Button>)
         break
       case "Posted":
         push(<Button key="view" variant="ghost" size="sm" className="shrink-0" onClick={() => router.push(`/batch-production-records/${r.id}`)}>View</Button>)
         push(<Button key="rev" variant="ghost" size="sm" className="text-amber-600 shrink-0" onClick={() => openReverse(r)}>Reverse</Button>)
+        if (permissions.canDelete) push(<Button key="delalloc" variant="ghost" size="sm" className="text-red-600 shrink-0" onClick={() => openDeleteAllocation(r)}>Delete Allocation</Button>)
         break
       case "Reversed":
+        push(<Button key="view" variant="ghost" size="sm" className="shrink-0" onClick={() => router.push(`/batch-production-records/${r.id}`)}>View</Button>)
+        push(<Button key="alloc" variant="ghost" size="sm" className="text-blue-600 shrink-0" onClick={() => router.push(`/batch-production-records/${r.id}/allocate`)}>Edit Allocation</Button>)
+        push(<Button key="repost" variant="ghost" size="sm" className="text-emerald-600 shrink-0" onClick={() => openRepost(r)}>Repost</Button>)
+        if (permissions.canDelete) push(<Button key="delalloc" variant="ghost" size="sm" className="text-red-600 shrink-0" onClick={() => openDeleteAllocation(r)}>Delete Allocation</Button>)
+        break
       case "Cancelled":
         push(<Button key="view" variant="ghost" size="sm" className="shrink-0" onClick={() => router.push(`/batch-production-records/${r.id}`)}>View</Button>)
         break
@@ -563,7 +617,7 @@ export default function BatchProductionRecordsPage() {
                         <span className="truncate">Filters</span>
                         {hasActiveFilters && (
                           <span className="ml-1 h-5 min-w-[20px] px-1.5 rounded-full bg-orange-500 text-white text-xs flex items-center justify-center">
-                            {[search, dateFrom, dateTo, selectedStatus !== "ALL", selectedMonth !== "ALL", selectedYear !== "ALL"].filter(Boolean).length}
+                            {[search, dateFrom, dateTo, selectedStatus !== "ALL", selectedBatch !== "ALL", selectedMonth !== "ALL", selectedYear !== "ALL"].filter(Boolean).length}
                           </span>
                         )}
                       </Button>
@@ -592,6 +646,18 @@ export default function BatchProductionRecordsPage() {
                               <SelectItem value="ALL">All Statuses</SelectItem>
                               {ALL_STATUSES.map((s) => (
                                 <SelectItem key={s} value={s}>{BATCH_STATUS_LABELS[s]}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-slate-700">Batch</label>
+                          <Select value={draftBatch} onValueChange={setDraftBatch}>
+                            <SelectTrigger className="h-12 text-base"><SelectValue placeholder="All Batches" /></SelectTrigger>
+                            <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
+                              <SelectItem value="ALL">All Batches</SelectItem>
+                              {distinctBatches.map((b) => (
+                                <SelectItem key={b.key} value={b.key}>{b.label}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
@@ -666,6 +732,15 @@ export default function BatchProductionRecordsPage() {
                     <SelectItem value="ALL">All Statuses</SelectItem>
                     {ALL_STATUSES.map((s) => (
                       <SelectItem key={s} value={s}>{BATCH_STATUS_LABELS[s]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={selectedBatch} onValueChange={setSelectedBatch}>
+                  <SelectTrigger className="w-[200px]"><SelectValue placeholder="Batch" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Batches</SelectItem>
+                    {distinctBatches.map((b) => (
+                      <SelectItem key={b.key} value={b.key}>{b.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

@@ -344,6 +344,29 @@ export async function postBatchAllocation(id: number, farmId: string, userId: st
   }
 }
 
+/**
+ * Delete the allocation only, keeping the parent batch record. When the batch is
+ * Posted the server reverses the generated flock records (undoing inventory + bird
+ * effects) before removing the rows; the batch returns to Pending Allocation.
+ */
+export async function deleteBatchAllocation(id: number, farmId: string, userId: string) {
+  try {
+    const url = `${BASE}/${id}/allocation?farmId=${encodeURIComponent(farmId)}&userId=${encodeURIComponent(userId)}`
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...getAuthHeaders() },
+    })
+    if (!response.ok) {
+      return { success: false, message: await readError(response), data: null as ProductionBatchRecord | null }
+    }
+    const data = (await response.json().catch(() => null)) as ProductionBatchRecord | null
+    return { success: true, message: 'Allocation deleted', data }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Network error'
+    return { success: false, message, data: null as ProductionBatchRecord | null }
+  }
+}
+
 /** Reverse a posted batch — deletes the generated flock records + their side-effects. */
 export async function reverseBatchProduction(id: number, farmId: string, userId: string) {
   try {

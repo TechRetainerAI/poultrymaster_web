@@ -234,6 +234,17 @@ namespace PoultryFarmAPIWeb.Business
             await cmd.ExecuteNonQueryAsync();
         }
 
+        public async Task DeleteAllocation(int id, string farmId, string updatedBy)
+        {
+            using var conn = new SqlConnection(_connectionString);
+            using var cmd = new SqlCommand("spProductionBatchRecord_DeleteAllocation", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@Id", id);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@UpdatedBy", updatedBy);
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
         // ---- Reading helpers ----
 
         private static ProductionBatchRecordModel MapHeader(SqlDataReader reader, bool includeAllocations)
