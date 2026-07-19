@@ -2,35 +2,17 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Eye, EyeOff, ChevronLeft } from "lucide-react"
+import { Eye, EyeOff, ChevronLeft, Check, Loader2, X } from "lucide-react"
 import { register, checkOrgCodeAvailable } from "@/lib/api/auth"
 import Link from "next/link"
 
-// Derive a friendly org code from a name (letters/numbers only, min 4, max 20).
+// Derive a friendly org code from a name (letters/numbers only, max 20).
 function suggestOrgCode(name: string): string {
-  const base = (name || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 20)
-  return base.length >= 4 ? base : (base + "ORG").slice(0, 6)
-}
-
-// The Business Office (headquarters) is created automatically from the owner's
-// details — the owner only picks their first company's type and (optionally)
-// names it. This resolves a unique Organization Code without asking the owner.
-async function resolveOrgCode(seedName: string): Promise<string> {
-  const base = suggestOrgCode(seedName)
-  try {
-    const r = await checkOrgCodeAvailable(base)
-    if (r.available) return base
-    if (r.suggestions && r.suggestions.length > 0) return r.suggestions[0]
-  } catch { /* fall through to random suffix */ }
-  for (let i = 0; i < 5; i++) {
-    const cand = (base.slice(0, 16) + Math.floor(1000 + Math.random() * 9000)).slice(0, 20)
-    try { if ((await checkOrgCodeAvailable(cand)).available) return cand } catch { /* keep trying */ }
-  }
-  return base // last resort — server may still adjust/reject
+  return (name || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 20)
 }
 
 // Identity-style errors come back as a string[] OR an object map ({ field: [msgs] }).
@@ -61,15 +43,36 @@ export default function RegisterPage() {
   const [f, setF] = useState({
     firstName: "", lastName: "", username: "", email: "", phoneNumber: "",
     password: "", confirmPassword: "",
-    companyType: "" as CType, companyName: "",
+    organizationCode: "", companyType: "" as CType, companyName: "",
   })
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }))
+  const [codeTouched, setCodeTouched] = useState(false)
+  const [codeCheck, setCodeCheck] = useState<{ status: "idle" | "checking" | "ok" | "bad"; reason?: string; suggestions?: string[] }>({ status: "idle" })
 
-  // Everything the old steps 2 & 3 asked for is derived from step 1.
+  // The Business Office (headquarters) is created automatically from the owner's
+  // name; the owner only picks their first company's type (+ optional name).
   const ownerName = [f.firstName.trim(), f.lastName.trim()].filter(Boolean).join(" ")
   const businessOfficeName = ownerName || f.username.trim() || "My Business Office"
   const derivedCompanyName =
     f.companyName.trim() || (f.companyType ? `${f.firstName.trim() || businessOfficeName}'s ${f.companyType} Company`.trim() : "")
+
+  // Auto-suggest the business code from the company name (or owner name) until
+  // the owner edits it themselves.
+  useEffect(() => {
+    if (!codeTouched) setF((p) => ({ ...p, organizationCode: suggestOrgCode(p.companyName.trim() || ownerName) }))
+  }, [f.companyName, ownerName, codeTouched])
+
+  // Debounced availability check.
+  useEffect(() => {
+    const code = f.organizationCode.trim()
+    if (code.length < 4) { setCodeCheck({ status: code.length === 0 ? "idle" : "bad", reason: code.length === 0 ? undefined : "At least 4 characters." }); return }
+    setCodeCheck({ status: "checking" })
+    const t = setTimeout(async () => {
+      const r = await checkOrgCodeAvailable(code)
+      setCodeCheck(r.available ? { status: "ok" } : { status: "bad", reason: r.reason, suggestions: r.suggestions })
+    }, 450)
+    return () => clearTimeout(t)
+  }, [f.organizationCode])
 
   function validate(): string | null {
     if (!f.firstName.trim() || !f.lastName.trim()) return "Please enter your first and last name."
@@ -78,6 +81,9 @@ export default function RegisterPage() {
     if (!PHONE_RE.test(f.phoneNumber.replace(/[\s()-]/g, ""))) return "Enter a valid phone number including the country code (e.g. +233XXXXXXXXX)."
     if (f.password.length < 6) return "Password must be at least 6 characters."
     if (f.password !== f.confirmPassword) return "Passwords do not match."
+    if (f.organizationCode.trim().length < 4) return "Please choose a Business Code (at least 4 characters)."
+    if (codeCheck.status === "bad") return codeCheck.reason || "That Business Code can't be used. Please pick another."
+    if (codeCheck.status === "checking") return "Please wait — still checking the Business Code."
     if (f.companyType !== "Poultry" && f.companyType !== "Water" && f.companyType !== "Generic")
       return "Please choose your first company's type."
     return null
@@ -90,9 +96,9 @@ export default function RegisterPage() {
     if (v) { setError(v); return }
 
     setIsLoading(true)
-    // Auto-create the Business Office (name, unique code, currency, country) and
-    // the first company — the owner never fills those steps.
-    const organizationCode = await resolveOrgCode(businessOfficeName)
+    // Auto-create the Business Office (name, currency, country) and the first
+    // company — the owner only supplied their details, the Business Code, and
+    // the company type.
     const result = await register({
       farmName: derivedCompanyName,               // first company name (auto if blank)
       username: f.username.trim(),
@@ -106,7 +112,7 @@ export default function RegisterPage() {
       businessOfficeName,
       businessOfficeCurrency: "GHS",
       businessOfficeCountry: "Ghana",
-      organizationCode,
+      organizationCode: f.organizationCode.trim(),
     })
 
     if (result.success) {
@@ -190,6 +196,35 @@ export default function RegisterPage() {
               <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300" aria-label="Toggle confirm password">
                 {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
+            </div>
+
+            {/* Business Code (Organization Code) — auto-suggested, editable. */}
+            <div>
+              <div className="relative">
+                <Input
+                  placeholder="Business Code (e.g. EVANSBIZ)"
+                  value={f.organizationCode}
+                  onChange={(e) => { setCodeTouched(true); set("organizationCode", e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, "")) }}
+                  className={`${inputCls} pr-10 tracking-wide`}
+                  maxLength={30}
+                  disabled={isLoading}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                  {codeCheck.status === "checking" && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
+                  {codeCheck.status === "ok" && <Check className="w-4 h-4 text-emerald-400" />}
+                  {codeCheck.status === "bad" && <X className="w-4 h-4 text-red-400" />}
+                </span>
+              </div>
+              {codeCheck.status === "ok" && <p className="mt-1 text-xs text-emerald-300">✓ {f.organizationCode} is available.</p>}
+              {codeCheck.status === "bad" && <p className="mt-1 text-xs text-red-300">{codeCheck.reason}</p>}
+              {codeCheck.status === "bad" && codeCheck.suggestions && codeCheck.suggestions.length > 0 && (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {codeCheck.suggestions.map((s) => (
+                    <button key={s} type="button" onClick={() => { setCodeTouched(true); set("organizationCode", s) }} className="text-xs rounded bg-slate-700 text-slate-200 px-2 py-0.5 hover:bg-slate-600">{s}</button>
+                  ))}
+                </div>
+              )}
+              <p className="mt-1 text-[11px] text-slate-400">You and your staff type this code when signing in. Short and memorable is best.</p>
             </div>
 
             {/* First company — only the type is required; name is optional (auto-derived). */}
