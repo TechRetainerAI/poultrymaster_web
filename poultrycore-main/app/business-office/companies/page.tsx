@@ -12,13 +12,13 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Building2, Bird, Droplets, ShoppingBag, Plus, Loader2, ArrowRight, Check, Pencil } from "lucide-react"
+import { Building2, Bird, Droplets, ShoppingBag, Plus, Loader2, ArrowRight, Check, Pencil, Trash2 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
 import { BusinessOfficeShell } from "@/components/dashboard/business-office-shell"
 import {
-  getMyCompanies, createCompany, updateCompany, sendCompanyWelcomeEmail, switchCompany,
+  getMyCompanies, createCompany, updateCompany, deleteCompany, sendCompanyWelcomeEmail, switchCompany,
   dashboardHomeForType, type Company, type CompanyType,
 } from "@/lib/api/companies"
 
@@ -48,6 +48,9 @@ export default function BusinessOfficeCompaniesPage() {
   const [editing, setEditing] = useState<Company | null>(null)
   const [editForm, setEditForm] = useState<{ name: string; email: string; phoneNumber: string }>({ name: "", email: "", phoneNumber: "" })
   const [editSaving, setEditSaving] = useState(false)
+  // Soft-delete a company (owner only; confirmed first).
+  const [deleteTarget, setDeleteTarget] = useState<Company | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -93,6 +96,22 @@ export default function BusinessOfficeCompaniesPage() {
       setEditing(null); await load()
     } catch (e: any) { toast({ title: "Update failed", description: e?.message, variant: "destructive" }) }
     finally { setEditSaving(false) }
+  }
+
+  async function doDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    try {
+      const wasActive = deleteTarget.farmId === activeFarmId
+      await deleteCompany(deleteTarget.farmId)
+      toast({ title: `Deleted ${deleteTarget.name}` })
+      setDeleteTarget(null)
+      await load()
+      // If we just deleted the company we were working in, drop back to the
+      // Business Office (neutral) rather than leaving a stale active company.
+      if (wasActive) setActiveCompany("", "", "" as CompanyType)
+    } catch (e: any) { toast({ title: "Delete failed", description: e?.message, variant: "destructive" }) }
+    finally { setDeleting(false) }
   }
 
   const visible = useMemo(() => companies.filter((c) => {
@@ -151,6 +170,7 @@ export default function BusinessOfficeCompaniesPage() {
                       </Button>
                       {isAdmin && <Button size="sm" variant="outline" onClick={() => startEdit(c)} title="Edit company"><Pencil className="h-4 w-4" /></Button>}
                       {isAdmin && <Button size="sm" variant="outline" onClick={() => router.push("/business-office/users")}>Access</Button>}
+                      {isAdmin && <Button size="sm" variant="outline" className="text-red-600 border-red-200 hover:bg-red-50" onClick={() => setDeleteTarget(c)} title="Delete company"><Trash2 className="h-4 w-4" /></Button>}
                     </div>
                   </CardContent>
                 </Card>
@@ -188,6 +208,26 @@ export default function BusinessOfficeCompaniesPage() {
             <div><Label>Contact email</Label><Input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} /></div>
             <div><Label>Phone</Label><Input value={editForm.phoneNumber} onChange={(e) => setEditForm({ ...editForm, phoneNumber: e.target.value })} /></div>
             <div className="flex justify-end gap-2 pt-1"><Button variant="ghost" onClick={() => setEditing(null)}>Cancel</Button><Button onClick={saveEdit} disabled={editSaving}>{editSaving ? "Saving…" : "Save changes"}</Button></div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete company — confirm before soft-deleting. */}
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Delete company{deleteTarget ? ` — ${deleteTarget.name}` : ""}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600">
+              This removes <span className="font-medium">{deleteTarget?.name}</span> from your Business Office. Its records are kept
+              and it can be restored later, but it will disappear from the app and no one will be able to open it.
+            </p>
+            <p className="text-xs text-slate-400">Only the company owner can delete it.</p>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="ghost" onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancel</Button>
+              <Button className="bg-red-600 hover:bg-red-700 text-white" onClick={doDelete} disabled={deleting}>
+                {deleting ? "Deleting…" : "Delete company"}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

@@ -101,6 +101,13 @@ export async function updateCompany(farmId: string, input: UpdateCompanyInput): 
   return lower<Company>(await res.json())
 }
 
+// Soft-delete a company (owner only). It's flagged deleted + unlinked from
+// everyone, but its data is retained. Returns nothing on success.
+export async function deleteCompany(farmId: string): Promise<void> {
+  const res = await loginApiFetch(`/Companies/${encodeURIComponent(farmId)}`, { method: "DELETE" })
+  if (!res.ok) throw new Error(await readApiError(res, "Couldn't delete the company"))
+}
+
 // Email a "company created" confirmation. Call after createCompany. The backend
 // returns 200 with { success, message } even on send failure.
 export async function sendCompanyWelcomeEmail(input: { email: string; companyName?: string; companyType?: string }): Promise<{ success: boolean; message?: string }> {

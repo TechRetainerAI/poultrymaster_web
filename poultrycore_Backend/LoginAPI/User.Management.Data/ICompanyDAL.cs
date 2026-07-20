@@ -19,5 +19,6 @@ namespace User.Management.Data
         // Doc 3 §7: user ids granted access to a company (access-based employee list).
         Task<List<string>> GetMemberUserIdsAsync(string farmId);
         Task UpdateAsync(string farmId, CreateCompanyRequest req);
+        Task<bool> DeleteAsync(string farmId, string userId);
     }
 }

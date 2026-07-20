@@ -84,8 +84,7 @@ export default function RegisterPage() {
     if (f.organizationCode.trim().length < 4) return "Please choose a Business Code (at least 4 characters)."
     if (codeCheck.status === "bad") return codeCheck.reason || "That Business Code can't be used. Please pick another."
     if (codeCheck.status === "checking") return "Please wait — still checking the Business Code."
-    if (f.companyType !== "Poultry" && f.companyType !== "Water" && f.companyType !== "Generic")
-      return "Please choose your first company's type."
+    // Company is optional — an owner can create it later in the Business Office.
     return null
   }
 
@@ -100,14 +99,14 @@ export default function RegisterPage() {
     // company — the owner only supplied their details, the Business Code, and
     // the company type.
     const result = await register({
-      farmName: derivedCompanyName,               // first company name (auto if blank)
+      farmName: derivedCompanyName || undefined,  // first company (optional — omit to register with none)
       username: f.username.trim(),
       email: f.email.trim(),
       password: f.password,
       firstName: f.firstName.trim(),
       lastName: f.lastName.trim(),
       phoneNumber: f.phoneNumber.replace(/[\s()-]/g, ""),
-      companyType: f.companyType as "Poultry" | "Water" | "Generic",
+      companyType: f.companyType || undefined,
       roles: ["Admin"], // the registrant is the Business Office owner/admin
       businessOfficeName,
       businessOfficeCurrency: "GHS",
@@ -227,9 +226,11 @@ export default function RegisterPage() {
               <p className="mt-1 text-[11px] text-slate-400">You and your staff type this code when signing in. Short and memorable is best.</p>
             </div>
 
-            {/* First company — only the type is required; name is optional (auto-derived). */}
+            {/* First company — fully optional. Skip it and create one later in
+                the Business Office; pick a type here to set it up right away. */}
             <div className="pt-1">
-              <p className="text-sm font-medium text-slate-200 mb-2">Your first company</p>
+              <p className="text-sm font-medium text-slate-200">Your first company <span className="text-slate-400 font-normal">(optional)</span></p>
+              <p className="text-[11px] text-slate-400 mb-2">Pick a type to set one up now, or skip it and add companies later from your Business Office.</p>
               <div className="grid grid-cols-3 gap-2">
                 {([
                   { value: "Poultry", emoji: "🐔", title: "Poultry" },
@@ -237,8 +238,9 @@ export default function RegisterPage() {
                   { value: "Generic", emoji: "🏪", title: "Generic" },
                 ] as const).map((opt) => {
                   const selected = f.companyType === opt.value
+                  // Clicking a selected type again clears it (company stays optional).
                   return (
-                    <button key={opt.value} type="button" onClick={() => set("companyType", opt.value)} disabled={isLoading} aria-pressed={selected}
+                    <button key={opt.value} type="button" onClick={() => set("companyType", selected ? "" : opt.value)} disabled={isLoading} aria-pressed={selected}
                       className={`p-3 rounded-lg border-2 text-center transition-all ${selected ? "border-orange-500 bg-orange-500/10 ring-2 ring-orange-500/40" : "border-slate-600 bg-slate-700/30 hover:border-slate-500"} disabled:opacity-50`}>
                       <div className="text-2xl mb-1">{opt.emoji}</div>
                       <div className="text-xs font-semibold text-white">{opt.title}</div>
@@ -246,7 +248,9 @@ export default function RegisterPage() {
                   )
                 })}
               </div>
-              <Input placeholder="Company name (optional)" value={f.companyName} onChange={(e) => set("companyName", e.target.value)} className={`${inputCls} mt-3`} disabled={isLoading} />
+              {f.companyType && (
+                <Input placeholder="Company name (optional)" value={f.companyName} onChange={(e) => set("companyName", e.target.value)} className={`${inputCls} mt-3`} disabled={isLoading} />
+              )}
             </div>
 
             <Button type="submit" disabled={isLoading} className="h-12 w-full bg-orange-500 hover:bg-orange-600 text-white font-medium">

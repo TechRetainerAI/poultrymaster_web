@@ -15,6 +15,8 @@ namespace User.Management.Service.Services
         // Doc 3 §8: edit a company the user belongs to (name/email/phone).
         Task<ApiResponse<CompanyResponse>> UpdateAsync(string userId, string farmId, CreateCompanyRequest req);
 
+        Task<ApiResponse<object>> DeleteAsync(string userId, string farmId);
+
         // Switch the user's active farm; persists the new FarmId/FarmName on the
         // AspNetUsers row and re-issues a JWT with updated claims.
         Task<ApiResponse<LoginResponse>> SwitchAsync(string userId, string targetFarmId);
