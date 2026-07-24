@@ -10,6 +10,7 @@
 // =============================================================================
 
 import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -20,7 +21,7 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { History, Search, Download, Eye, RefreshCw } from "lucide-react"
+import { History, Search, Download, Eye, RefreshCw, ArrowLeft } from "lucide-react"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useLogout } from "@/hooks/use-logout"
 import { useAuthStore } from "@/lib/store/auth-store"
@@ -257,6 +258,11 @@ export default function PoultryChangesReportPage() {
         <DashboardHeader />
         <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
           <div className="space-y-6">
+            {/* Back to the reports catalogue — matches every other report page. */}
+            <Button asChild variant="outline" size="sm" className="gap-1">
+              <Link href="/poultry/reports"><ArrowLeft className="h-4 w-4" /> Poultry reports</Link>
+            </Button>
+
             {/* Header */}
             <div className={cn("flex gap-4", isMobile ? "flex-col" : "items-center justify-between")}>
               <div className="flex items-start gap-3 min-w-0">

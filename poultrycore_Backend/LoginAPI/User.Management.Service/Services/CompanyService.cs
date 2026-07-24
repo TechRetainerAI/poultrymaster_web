@@ -90,6 +90,24 @@ namespace User.Management.Service.Services
             };
         }
 
+        // Soft-delete a company. Only the OWNER may delete it (enforced again in
+        // the SP). The company is flagged deleted and unlinked from all members.
+        public async Task<ApiResponse<object>> DeleteAsync(string userId, string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId))
+            {
+                return new ApiResponse<object> { IsSuccess = false, StatusCode = 400, Message = "Company id is required." };
+            }
+
+            var deleted = await _dal.DeleteAsync(farmId, userId);
+            if (!deleted)
+            {
+                return new ApiResponse<object> { IsSuccess = false, StatusCode = 403, Message = "Only the owner can delete this company." };
+            }
+
+            return new ApiResponse<object> { IsSuccess = true, StatusCode = 200, Message = "Company deleted" };
+        }
+
         public async Task<ApiResponse<LoginResponse>> SwitchAsync(string userId, string targetFarmId)
         {
             if (string.IsNullOrWhiteSpace(targetFarmId))

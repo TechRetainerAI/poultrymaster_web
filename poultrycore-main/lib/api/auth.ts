@@ -85,7 +85,9 @@ function logLoginDiagnostic(label: string, extra?: unknown) {
 }
 
 export interface RegisterData {
-  farmName: string
+  // Company is optional at signup — owners can create it later in the Business
+  // Office. Leave both blank to register with no company.
+  farmName?: string
   username: string
   email: string
   password: string
@@ -93,7 +95,7 @@ export interface RegisterData {
   lastName: string
   roles: string[]
   phoneNumber: string
-  companyType: "Poultry" | "Water" | "Generic"
+  companyType?: "Poultry" | "Water" | "Generic"
   // Prompt 2 — owner's Business Office (HQ), persisted on the account.
   businessOfficeName?: string
   businessOfficeCurrency?: string

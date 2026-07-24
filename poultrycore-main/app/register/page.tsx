@@ -6,11 +6,11 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Eye, EyeOff, ChevronLeft, ChevronRight, Check, Loader2, X } from "lucide-react"
+import { Eye, EyeOff, ChevronLeft, Check, Loader2, X } from "lucide-react"
 import { register, checkOrgCodeAvailable } from "@/lib/api/auth"
 import Link from "next/link"
 
-// Derive a friendly code suggestion from the Business Office name.
+// Derive a friendly org code from a name (letters/numbers only, max 20).
 function suggestOrgCode(name: string): string {
   return (name || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 20)
 }
@@ -27,21 +27,12 @@ function flattenErrors(errors: unknown): string[] {
 
 const USERNAME_RE = /^[A-Za-z0-9._-]{3,30}$/
 const PHONE_RE = /^(\+?\d{7,15}|0\d{6,14})$/
-
-type Step = 1 | 2 | 3
 type CType = "" | "Poultry" | "Water" | "Generic"
-
-const STEPS: { n: Step; title: string }[] = [
-  { n: 1, title: "Owner account" },
-  { n: 2, title: "Business Office" },
-  { n: 3, title: "First company" },
-]
 
 const inputCls = "h-10 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-orange-500 focus:ring-orange-500"
 
 export default function RegisterPage() {
   const router = useRouter()
-  const [step, setStep] = useState<Step>(1)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -50,22 +41,26 @@ export default function RegisterPage() {
   const [success, setSuccess] = useState(false)
 
   const [f, setF] = useState({
-    // Step 1 — owner
     firstName: "", lastName: "", username: "", email: "", phoneNumber: "",
     password: "", confirmPassword: "",
-    // Step 2 — business office
-    businessOfficeName: "", organizationCode: "", currency: "GHS", country: "Ghana",
-    // Step 3 — first company
-    companyType: "" as CType, farmName: "", companyLocation: "",
+    organizationCode: "", companyType: "" as CType, companyName: "",
   })
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }))
   const [codeTouched, setCodeTouched] = useState(false)
   const [codeCheck, setCodeCheck] = useState<{ status: "idle" | "checking" | "ok" | "bad"; reason?: string; suggestions?: string[] }>({ status: "idle" })
 
-  // Suggest a code from the office name until the owner edits the code field.
+  // The Business Office (headquarters) is created automatically from the owner's
+  // name; the owner only picks their first company's type (+ optional name).
+  const ownerName = [f.firstName.trim(), f.lastName.trim()].filter(Boolean).join(" ")
+  const businessOfficeName = ownerName || f.username.trim() || "My Business Office"
+  const derivedCompanyName =
+    f.companyName.trim() || (f.companyType ? `${f.firstName.trim() || businessOfficeName}'s ${f.companyType} Company`.trim() : "")
+
+  // Auto-suggest the business code from the company name (or owner name) until
+  // the owner edits it themselves.
   useEffect(() => {
-    if (!codeTouched) setF((p) => ({ ...p, organizationCode: suggestOrgCode(p.businessOfficeName) }))
-  }, [f.businessOfficeName, codeTouched])
+    if (!codeTouched) setF((p) => ({ ...p, organizationCode: suggestOrgCode(p.companyName.trim() || ownerName) }))
+  }, [f.companyName, ownerName, codeTouched])
 
   // Debounced availability check.
   useEffect(() => {
@@ -79,70 +74,53 @@ export default function RegisterPage() {
     return () => clearTimeout(t)
   }, [f.organizationCode])
 
-  function validateStep1(): string | null {
+  function validate(): string | null {
     if (!f.firstName.trim() || !f.lastName.trim()) return "Please enter your first and last name."
     if (!USERNAME_RE.test(f.username.trim())) return "Username must be 3–30 characters: letters, numbers, dot, underscore, or hyphen (no spaces)."
     if (!f.email.trim()) return "Please enter your email address."
     if (!PHONE_RE.test(f.phoneNumber.replace(/[\s()-]/g, ""))) return "Enter a valid phone number including the country code (e.g. +233XXXXXXXXX)."
     if (f.password.length < 6) return "Password must be at least 6 characters."
     if (f.password !== f.confirmPassword) return "Passwords do not match."
+    if (f.organizationCode.trim().length < 4) return "Please choose a Business Code (at least 4 characters)."
+    if (codeCheck.status === "bad") return codeCheck.reason || "That Business Code can't be used. Please pick another."
+    if (codeCheck.status === "checking") return "Please wait — still checking the Business Code."
+    // Company is optional — an owner can create it later in the Business Office.
     return null
   }
-  function validateStep2(): string | null {
-    if (!f.businessOfficeName.trim()) return "Please name your Business Office (e.g. “Evans Businesses”)."
-    if (f.organizationCode.trim().length < 4) return "Please choose an Organization Code (at least 4 characters)."
-    if (codeCheck.status === "bad") return codeCheck.reason || "That Organization Code can't be used. Please pick another."
-    if (codeCheck.status === "checking") return "Please wait — still checking the Organization Code."
-    return null
-  }
-  function validateStep3(): string | null {
-    if (f.companyType !== "Poultry" && f.companyType !== "Water" && f.companyType !== "Generic")
-      return "Please choose your first company's type."
-    if (!f.farmName.trim()) return "Please enter your first company's name."
-    return null
-  }
-
-  function next() {
-    setError(""); setErrorList([])
-    const v = step === 1 ? validateStep1() : step === 2 ? validateStep2() : null
-    if (v) { setError(v); return }
-    setStep((s) => (s < 3 ? ((s + 1) as Step) : s))
-  }
-  function back() { setError(""); setErrorList([]); setStep((s) => (s > 1 ? ((s - 1) as Step) : s)) }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(""); setErrorList([])
-    const v = validateStep3()
+    const v = validate()
     if (v) { setError(v); return }
 
     setIsLoading(true)
+    // Auto-create the Business Office (name, currency, country) and the first
+    // company — the owner only supplied their details, the Business Code, and
+    // the company type.
     const result = await register({
-      farmName: f.farmName.trim(),            // first company name
+      farmName: derivedCompanyName || undefined,  // first company (optional — omit to register with none)
       username: f.username.trim(),
       email: f.email.trim(),
       password: f.password,
       firstName: f.firstName.trim(),
       lastName: f.lastName.trim(),
       phoneNumber: f.phoneNumber.replace(/[\s()-]/g, ""),
-      companyType: f.companyType as "Poultry" | "Water" | "Generic",
+      companyType: f.companyType || undefined,
       roles: ["Admin"], // the registrant is the Business Office owner/admin
-      businessOfficeName: f.businessOfficeName.trim(),
-      businessOfficeCurrency: f.currency.trim() || undefined,
-      businessOfficeCountry: f.country.trim() || undefined,
-      organizationCode: f.organizationCode.trim() || undefined,
+      businessOfficeName,
+      businessOfficeCurrency: "GHS",
+      businessOfficeCountry: "Ghana",
+      organizationCode: f.organizationCode.trim(),
     })
 
     if (result.success) {
-      // Persist the Business Office name so the headquarters page shows it.
-      try { localStorage.setItem("businessOfficeName", f.businessOfficeName.trim()) } catch {}
+      try { localStorage.setItem("businessOfficeName", businessOfficeName) } catch {}
       setSuccess(true)
       setTimeout(() => router.push("/login"), 1800)
     } else {
       setError(result.message || "Registration failed. Please try again.")
       setErrorList(flattenErrors(result.errors))
-      // Validation errors usually belong to step 1 (account); send the user back.
-      setStep(1)
     }
     setIsLoading(false)
   }
@@ -153,7 +131,7 @@ export default function RegisterPage() {
         <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
           <div className="mb-6 flex justify-center"><div className="text-6xl">🎉</div></div>
           <h2 className="text-2xl font-bold text-slate-900 mb-3">Business Office created!</h2>
-          <p className="text-slate-500 mb-2">Your account, <span className="font-medium">{f.businessOfficeName.trim() || "Business Office"}</span>, and your first company are ready.</p>
+          <p className="text-slate-500 mb-2">Your account, <span className="font-medium">{businessOfficeName}</span>, and your first company are ready.</p>
           <p className="text-slate-500">Taking you to sign in…</p>
         </div>
       </div>
@@ -175,28 +153,12 @@ export default function RegisterPage() {
         </div>
       </div>
 
-      {/* Right Panel - Wizard */}
+      {/* Right Panel */}
       <div className="w-full lg:w-1/2 bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
           <Link href="/login" className="inline-flex items-center gap-2 text-orange-400 hover:text-orange-300 mb-6 transition-colors">
             <ChevronLeft className="w-5 h-5" /><span className="font-medium">Back to login</span>
           </Link>
-
-          {/* Stepper */}
-          <div className="flex items-center justify-between mb-6">
-            {STEPS.map((s, i) => (
-              <div key={s.n} className="flex items-center flex-1 last:flex-none">
-                <div className="flex flex-col items-center">
-                  <div className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${
-                    step > s.n ? "bg-emerald-500 text-white" : step === s.n ? "bg-orange-500 text-white" : "bg-slate-700 text-slate-400"}`}>
-                    {step > s.n ? <Check className="h-4 w-4" /> : s.n}
-                  </div>
-                  <span className={`mt-1 text-[10px] ${step === s.n ? "text-orange-300" : "text-slate-400"}`}>{s.title}</span>
-                </div>
-                {i < STEPS.length - 1 && <div className={`h-0.5 flex-1 mx-2 ${step > s.n ? "bg-emerald-500" : "bg-slate-700"}`} />}
-              </div>
-            ))}
-          </div>
 
           {(error || errorList.length > 0) && (
             <div className="mb-5 p-4 bg-red-900/20 border border-red-500/30 rounded-lg">
@@ -210,122 +172,90 @@ export default function RegisterPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* STEP 1 — Owner account */}
-            {step === 1 && (
-              <>
-                <div className="text-center mb-2"><h2 className="text-xl font-bold text-white">Create your owner account</h2></div>
-                <div className="grid grid-cols-2 gap-3">
-                  <Input placeholder="First name" value={f.firstName} onChange={(e) => set("firstName", e.target.value)} className={inputCls} disabled={isLoading} />
-                  <Input placeholder="Last name" value={f.lastName} onChange={(e) => set("lastName", e.target.value)} className={inputCls} disabled={isLoading} />
-                </div>
-                <Input placeholder="Username" value={f.username} onChange={(e) => set("username", e.target.value)} className={inputCls} disabled={isLoading} />
-                <Input type="email" placeholder="Email address" value={f.email} onChange={(e) => set("email", e.target.value)} className={inputCls} disabled={isLoading} />
-                <Input type="tel" placeholder="Phone number (e.g. +233...)" value={f.phoneNumber} onChange={(e) => set("phoneNumber", e.target.value)} className={inputCls} disabled={isLoading} />
-                <div className="relative">
-                  <Input type={showPassword ? "text" : "password"} placeholder="Password" value={f.password} onChange={(e) => set("password", e.target.value)} className={`${inputCls} pr-12`} disabled={isLoading} />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300" aria-label="Toggle password">
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
-                <div className="relative">
-                  <Input type={showConfirmPassword ? "text" : "password"} placeholder="Confirm password" value={f.confirmPassword} onChange={(e) => set("confirmPassword", e.target.value)} className={`${inputCls} pr-12`} disabled={isLoading} />
-                  <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300" aria-label="Toggle confirm password">
-                    {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
-              </>
-            )}
+            <div className="text-center mb-2">
+              <h2 className="text-xl font-bold text-white">Create your account</h2>
+              <p className="text-sm text-slate-300">Your Business Office is set up automatically — just pick your first company.</p>
+            </div>
 
-            {/* STEP 2 — Business Office */}
-            {step === 2 && (
-              <>
-                <div className="text-center mb-2">
-                  <h2 className="text-xl font-bold text-white">Name your Business Office</h2>
-                  <p className="text-sm text-slate-300">Your headquarters that holds all your companies.</p>
-                </div>
-                <Input placeholder="Business Office name (e.g. Evans Businesses)" value={f.businessOfficeName} onChange={(e) => set("businessOfficeName", e.target.value)} className={inputCls} disabled={isLoading} />
+            <div className="grid grid-cols-2 gap-3">
+              <Input placeholder="First name" value={f.firstName} onChange={(e) => set("firstName", e.target.value)} className={inputCls} disabled={isLoading} />
+              <Input placeholder="Last name" value={f.lastName} onChange={(e) => set("lastName", e.target.value)} className={inputCls} disabled={isLoading} />
+            </div>
+            <Input placeholder="Username" value={f.username} onChange={(e) => set("username", e.target.value)} className={inputCls} disabled={isLoading} />
+            <Input type="email" placeholder="Email address" value={f.email} onChange={(e) => set("email", e.target.value)} className={inputCls} disabled={isLoading} />
+            <Input type="tel" placeholder="Phone number (e.g. +233...)" value={f.phoneNumber} onChange={(e) => set("phoneNumber", e.target.value)} className={inputCls} disabled={isLoading} />
+            <div className="relative">
+              <Input type={showPassword ? "text" : "password"} placeholder="Password" value={f.password} onChange={(e) => set("password", e.target.value)} className={`${inputCls} pr-12`} disabled={isLoading} />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300" aria-label="Toggle password">
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
+            <div className="relative">
+              <Input type={showConfirmPassword ? "text" : "password"} placeholder="Confirm password" value={f.confirmPassword} onChange={(e) => set("confirmPassword", e.target.value)} className={`${inputCls} pr-12`} disabled={isLoading} />
+              <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300" aria-label="Toggle confirm password">
+                {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
 
-                {/* Organization Code */}
-                <div>
-                  <div className="relative">
-                    <Input
-                      placeholder="Organization Code (e.g. EVANSBIZ)"
-                      value={f.organizationCode}
-                      onChange={(e) => { setCodeTouched(true); set("organizationCode", e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, "")) }}
-                      className={`${inputCls} pr-10 tracking-wide`}
-                      maxLength={30}
-                      disabled={isLoading}
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2">
-                      {codeCheck.status === "checking" && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
-                      {codeCheck.status === "ok" && <Check className="w-4 h-4 text-emerald-400" />}
-                      {codeCheck.status === "bad" && <X className="w-4 h-4 text-red-400" />}
-                    </span>
-                  </div>
-                  {codeCheck.status === "ok" && <p className="mt-1 text-xs text-emerald-300">✓ {f.organizationCode} is available.</p>}
-                  {codeCheck.status === "bad" && <p className="mt-1 text-xs text-red-300">{codeCheck.reason}</p>}
-                  {codeCheck.status === "bad" && codeCheck.suggestions && codeCheck.suggestions.length > 0 && (
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {codeCheck.suggestions.map((s) => (
-                        <button key={s} type="button" onClick={() => { setCodeTouched(true); set("organizationCode", s) }} className="text-xs rounded bg-slate-700 text-slate-200 px-2 py-0.5 hover:bg-slate-600">{s}</button>
-                      ))}
-                    </div>
-                  )}
-                  <p className="mt-1 text-[11px] text-slate-400">This code is what you and your staff type when signing in. Choose something short and memorable.</p>
+            {/* Business Code (Organization Code) — auto-suggested, editable. */}
+            <div>
+              <div className="relative">
+                <Input
+                  placeholder="Business Code (e.g. EVANSBIZ)"
+                  value={f.organizationCode}
+                  onChange={(e) => { setCodeTouched(true); set("organizationCode", e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, "")) }}
+                  className={`${inputCls} pr-10 tracking-wide`}
+                  maxLength={30}
+                  disabled={isLoading}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                  {codeCheck.status === "checking" && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
+                  {codeCheck.status === "ok" && <Check className="w-4 h-4 text-emerald-400" />}
+                  {codeCheck.status === "bad" && <X className="w-4 h-4 text-red-400" />}
+                </span>
+              </div>
+              {codeCheck.status === "ok" && <p className="mt-1 text-xs text-emerald-300">✓ {f.organizationCode} is available.</p>}
+              {codeCheck.status === "bad" && <p className="mt-1 text-xs text-red-300">{codeCheck.reason}</p>}
+              {codeCheck.status === "bad" && codeCheck.suggestions && codeCheck.suggestions.length > 0 && (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {codeCheck.suggestions.map((s) => (
+                    <button key={s} type="button" onClick={() => { setCodeTouched(true); set("organizationCode", s) }} className="text-xs rounded bg-slate-700 text-slate-200 px-2 py-0.5 hover:bg-slate-600">{s}</button>
+                  ))}
                 </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <Input placeholder="Default currency (e.g. GHS)" value={f.currency} onChange={(e) => set("currency", e.target.value)} className={inputCls} disabled={isLoading} />
-                  <Input placeholder="Country" value={f.country} onChange={(e) => set("country", e.target.value)} className={inputCls} disabled={isLoading} />
-                </div>
-              </>
-            )}
-
-            {/* STEP 3 — First company */}
-            {step === 3 && (
-              <>
-                <div className="text-center mb-2">
-                  <h2 className="text-xl font-bold text-white">Create your first company</h2>
-                  <p className="text-sm text-slate-300">You can add more from the Business Office anytime.</p>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {([
-                    { value: "Poultry", emoji: "🐔", title: "Poultry" },
-                    { value: "Water", emoji: "💧", title: "Water" },
-                    { value: "Generic", emoji: "🏪", title: "Generic" },
-                  ] as const).map((opt) => {
-                    const selected = f.companyType === opt.value
-                    return (
-                      <button key={opt.value} type="button" onClick={() => set("companyType", opt.value)} disabled={isLoading} aria-pressed={selected}
-                        className={`p-3 rounded-lg border-2 text-center transition-all ${selected ? "border-orange-500 bg-orange-500/10 ring-2 ring-orange-500/40" : "border-slate-600 bg-slate-700/30 hover:border-slate-500"} disabled:opacity-50`}>
-                        <div className="text-2xl mb-1">{opt.emoji}</div>
-                        <div className="text-xs font-semibold text-white">{opt.title}</div>
-                      </button>
-                    )
-                  })}
-                </div>
-                <Input placeholder="Company name (e.g. Great Favour Water Co.)" value={f.farmName} onChange={(e) => set("farmName", e.target.value)} className={inputCls} disabled={isLoading} />
-                <Input placeholder="Location (optional)" value={f.companyLocation} onChange={(e) => set("companyLocation", e.target.value)} className={inputCls} disabled={isLoading} />
-              </>
-            )}
-
-            {/* Nav buttons */}
-            <div className="flex items-center gap-3 pt-2">
-              {step > 1 && (
-                <Button type="button" variant="outline" onClick={back} disabled={isLoading} className="h-12 flex-1 border-slate-600 bg-transparent text-white hover:bg-slate-700">
-                  <ChevronLeft className="w-4 h-4 mr-1" /> Back
-                </Button>
               )}
-              {step < 3 ? (
-                <Button type="button" onClick={next} disabled={isLoading} className="h-12 flex-1 bg-orange-500 hover:bg-orange-600 text-white font-medium">
-                  Next <ChevronRight className="w-4 h-4 ml-1" />
-                </Button>
-              ) : (
-                <Button type="submit" disabled={isLoading} className="h-12 flex-1 bg-orange-500 hover:bg-orange-600 text-white font-medium">
-                  {isLoading ? "Creating…" : "Create Business Office"}
-                </Button>
+              <p className="mt-1 text-[11px] text-slate-400">You and your staff type this code when signing in. Short and memorable is best.</p>
+            </div>
+
+            {/* First company — fully optional. Skip it and create one later in
+                the Business Office; pick a type here to set it up right away. */}
+            <div className="pt-1">
+              <p className="text-sm font-medium text-slate-200">Your first company <span className="text-slate-400 font-normal">(optional)</span></p>
+              <p className="text-[11px] text-slate-400 mb-2">Pick a type to set one up now, or skip it and add companies later from your Business Office.</p>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { value: "Poultry", emoji: "🐔", title: "Poultry" },
+                  { value: "Water", emoji: "💧", title: "Water" },
+                  { value: "Generic", emoji: "🏪", title: "Generic" },
+                ] as const).map((opt) => {
+                  const selected = f.companyType === opt.value
+                  // Clicking a selected type again clears it (company stays optional).
+                  return (
+                    <button key={opt.value} type="button" onClick={() => set("companyType", selected ? "" : opt.value)} disabled={isLoading} aria-pressed={selected}
+                      className={`p-3 rounded-lg border-2 text-center transition-all ${selected ? "border-orange-500 bg-orange-500/10 ring-2 ring-orange-500/40" : "border-slate-600 bg-slate-700/30 hover:border-slate-500"} disabled:opacity-50`}>
+                      <div className="text-2xl mb-1">{opt.emoji}</div>
+                      <div className="text-xs font-semibold text-white">{opt.title}</div>
+                    </button>
+                  )
+                })}
+              </div>
+              {f.companyType && (
+                <Input placeholder="Company name (optional)" value={f.companyName} onChange={(e) => set("companyName", e.target.value)} className={`${inputCls} mt-3`} disabled={isLoading} />
               )}
             </div>
+
+            <Button type="submit" disabled={isLoading} className="h-12 w-full bg-orange-500 hover:bg-orange-600 text-white font-medium">
+              {isLoading ? "Creating…" : "Create account"}
+            </Button>
 
             <div className="text-center">
               <p className="text-sm text-slate-300">Already have an account?{" "}

@@ -4,7 +4,8 @@ namespace User.Management.Service.Models.Authentication.SignUp
 {
     public class RegisterUser
     {
-        [Required(ErrorMessage = "FarmName  is required")]
+        // Optional: an owner may register with no company and create their first
+        // company later in the Business Office.
         public string? FarmName { get; set; }
 
         [Required(ErrorMessage = "User Name is required")]
@@ -29,8 +30,9 @@ namespace User.Management.Service.Models.Authentication.SignUp
         // Must be Poultry / Water / Generic. The previous "optional, defaults to Poultry"
         // shim hid a real bug: stale frontends or JSON-case mismatches silently
         // created Poultry farms regardless of what the user picked.
-        [Required(ErrorMessage = "CompanyType is required (Poultry, Water, or Generic).")]
-        [RegularExpression("^(Poultry|Water|Generic)$",
+        // Optional at signup. When present it must be one of the three types;
+        // empty/null means "no company yet" (create it later in the Business Office).
+        [RegularExpression("^(Poultry|Water|Generic)?$",
             ErrorMessage = "CompanyType must be Poultry, Water, or Generic.")]
         public string? CompanyType { get; set; }
 

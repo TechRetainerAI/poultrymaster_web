@@ -85,6 +85,28 @@ namespace User.Management.API.Controllers
             }
         }
 
+        // DELETE /api/Companies/{farmId}
+        // Soft-deletes a company. Owner only.
+        [HttpDelete("{farmId}")]
+        public async Task<IActionResult> Delete(string farmId)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+            try
+            {
+                var result = await _companies.DeleteAsync(userId, farmId);
+                return result.IsSuccess
+                    ? Ok(new { message = result.Message })
+                    : StatusCode(result.StatusCode, new { message = result.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[Companies] Delete failed");
+                return StatusCode(500, new { message = ex.Message });
+            }
+        }
+
         // POST /api/Companies/switch
         // Switches the user's active company. Returns a new JWT scoped to that
         // company. Frontend should replace the stored token with the response.
