@@ -41,26 +41,36 @@ export default function RegisterPage() {
   const [success, setSuccess] = useState(false)
 
   const [f, setF] = useState({
+    businessName: "",
     firstName: "", lastName: "", username: "", email: "", phoneNumber: "",
     password: "", confirmPassword: "",
     organizationCode: "", companyType: "" as CType, companyName: "",
   })
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }))
+  // First company is opt-in: the icons + company form stay hidden until ticked.
+  const [createCompany, setCreateCompany] = useState(false)
+  const toggleCreateCompany = () =>
+    setCreateCompany((prev) => {
+      const next = !prev
+      if (!next) setF((p) => ({ ...p, companyType: "", companyName: "" }))
+      return next
+    })
   const [codeTouched, setCodeTouched] = useState(false)
   const [codeCheck, setCodeCheck] = useState<{ status: "idle" | "checking" | "ok" | "bad"; reason?: string; suggestions?: string[] }>({ status: "idle" })
 
-  // The Business Office (headquarters) is created automatically from the owner's
-  // name; the owner only picks their first company's type (+ optional name).
+  // The Business Office (headquarters) is named after the business the owner
+  // enters at the top; the owner may then opt in to create a first company.
   const ownerName = [f.firstName.trim(), f.lastName.trim()].filter(Boolean).join(" ")
-  const businessOfficeName = ownerName || f.username.trim() || "My Business Office"
-  const derivedCompanyName =
-    f.companyName.trim() || (f.companyType ? `${f.firstName.trim() || businessOfficeName}'s ${f.companyType} Company`.trim() : "")
+  const businessOfficeName = f.businessName.trim() || ownerName || f.username.trim() || "My Business Office"
+  const derivedCompanyName = createCompany
+    ? (f.companyName.trim() || (f.companyType ? `${f.firstName.trim() || businessOfficeName}'s ${f.companyType} Company`.trim() : ""))
+    : ""
 
-  // Auto-suggest the business code from the company name (or owner name) until
-  // the owner edits it themselves.
+  // Auto-suggest the organization code from the business name (or owner name)
+  // until the owner edits it themselves.
   useEffect(() => {
-    if (!codeTouched) setF((p) => ({ ...p, organizationCode: suggestOrgCode(p.companyName.trim() || ownerName) }))
-  }, [f.companyName, ownerName, codeTouched])
+    if (!codeTouched) setF((p) => ({ ...p, organizationCode: suggestOrgCode(p.businessName.trim() || ownerName) }))
+  }, [f.businessName, ownerName, codeTouched])
 
   // Debounced availability check.
   useEffect(() => {
@@ -75,15 +85,16 @@ export default function RegisterPage() {
   }, [f.organizationCode])
 
   function validate(): string | null {
+    if (!f.businessName.trim()) return "Please enter your business / organization name."
     if (!f.firstName.trim() || !f.lastName.trim()) return "Please enter your first and last name."
     if (!USERNAME_RE.test(f.username.trim())) return "Username must be 3–30 characters: letters, numbers, dot, underscore, or hyphen (no spaces)."
     if (!f.email.trim()) return "Please enter your email address."
     if (!PHONE_RE.test(f.phoneNumber.replace(/[\s()-]/g, ""))) return "Enter a valid phone number including the country code (e.g. +233XXXXXXXXX)."
     if (f.password.length < 6) return "Password must be at least 6 characters."
     if (f.password !== f.confirmPassword) return "Passwords do not match."
-    if (f.organizationCode.trim().length < 4) return "Please choose a Business Code (at least 4 characters)."
-    if (codeCheck.status === "bad") return codeCheck.reason || "That Business Code can't be used. Please pick another."
-    if (codeCheck.status === "checking") return "Please wait — still checking the Business Code."
+    if (f.organizationCode.trim().length < 4) return "Please choose an Organization Code (at least 4 characters)."
+    if (codeCheck.status === "bad") return codeCheck.reason || "That Organization Code can't be used. Please pick another."
+    if (codeCheck.status === "checking") return "Please wait — still checking the Organization Code."
     // Company is optional — an owner can create it later in the Business Office.
     return null
   }
@@ -106,7 +117,7 @@ export default function RegisterPage() {
       firstName: f.firstName.trim(),
       lastName: f.lastName.trim(),
       phoneNumber: f.phoneNumber.replace(/[\s()-]/g, ""),
-      companyType: f.companyType || undefined,
+      companyType: createCompany ? (f.companyType || undefined) : undefined,
       roles: ["Admin"], // the registrant is the Business Office owner/admin
       businessOfficeName,
       businessOfficeCurrency: "GHS",
@@ -174,12 +185,19 @@ export default function RegisterPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="text-center mb-2">
               <h2 className="text-xl font-bold text-white">Create your account</h2>
-              <p className="text-sm text-slate-300">Your Business Office is set up automatically — just pick your first company.</p>
+              <p className="text-sm text-slate-300">Name your organization to get started — you can add companies now or later.</p>
+            </div>
+
+            {/* Business / Organization name — the headline field. Names the
+                Business Office and seeds the Organization Code below. */}
+            <div>
+              <Input placeholder="Business / organization name" value={f.businessName} onChange={(e) => set("businessName", e.target.value)} className={`${inputCls} text-base font-medium`} disabled={isLoading} autoFocus />
+              <p className="mt-1 text-[11px] text-slate-400">This names your Business Office — the home for all your companies.</p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <Input placeholder="First name" value={f.firstName} onChange={(e) => set("firstName", e.target.value)} className={inputCls} disabled={isLoading} />
-              <Input placeholder="Last name" value={f.lastName} onChange={(e) => set("lastName", e.target.value)} className={inputCls} disabled={isLoading} />
+              <Input placeholder="Owner first name" value={f.firstName} onChange={(e) => set("firstName", e.target.value)} className={inputCls} disabled={isLoading} />
+              <Input placeholder="Owner last name" value={f.lastName} onChange={(e) => set("lastName", e.target.value)} className={inputCls} disabled={isLoading} />
             </div>
             <Input placeholder="Username" value={f.username} onChange={(e) => set("username", e.target.value)} className={inputCls} disabled={isLoading} />
             <Input type="email" placeholder="Email address" value={f.email} onChange={(e) => set("email", e.target.value)} className={inputCls} disabled={isLoading} />
@@ -197,11 +215,11 @@ export default function RegisterPage() {
               </button>
             </div>
 
-            {/* Business Code (Organization Code) — auto-suggested, editable. */}
+            {/* Organization Code — auto-suggested from the business name, editable. */}
             <div>
               <div className="relative">
                 <Input
-                  placeholder="Business Code (e.g. EVANSBIZ)"
+                  placeholder="Organization Code (e.g. EVANSBIZ)"
                   value={f.organizationCode}
                   onChange={(e) => { setCodeTouched(true); set("organizationCode", e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, "")) }}
                   className={`${inputCls} pr-10 tracking-wide`}
@@ -226,30 +244,42 @@ export default function RegisterPage() {
               <p className="mt-1 text-[11px] text-slate-400">You and your staff type this code when signing in. Short and memorable is best.</p>
             </div>
 
-            {/* First company — fully optional. Skip it and create one later in
-                the Business Office; pick a type here to set it up right away. */}
+            {/* First company — fully optional and opt-in. The type icons + the
+                company-name form stay hidden until the owner ticks the box. */}
             <div className="pt-1">
-              <p className="text-sm font-medium text-slate-200">Your first company <span className="text-slate-400 font-normal">(optional)</span></p>
-              <p className="text-[11px] text-slate-400 mb-2">Pick a type to set one up now, or skip it and add companies later from your Business Office.</p>
-              <div className="grid grid-cols-3 gap-2">
-                {([
-                  { value: "Poultry", emoji: "🐔", title: "Poultry" },
-                  { value: "Water", emoji: "💧", title: "Water" },
-                  { value: "Generic", emoji: "🏪", title: "Generic" },
-                ] as const).map((opt) => {
-                  const selected = f.companyType === opt.value
-                  // Clicking a selected type again clears it (company stays optional).
-                  return (
-                    <button key={opt.value} type="button" onClick={() => set("companyType", selected ? "" : opt.value)} disabled={isLoading} aria-pressed={selected}
-                      className={`p-3 rounded-lg border-2 text-center transition-all ${selected ? "border-orange-500 bg-orange-500/10 ring-2 ring-orange-500/40" : "border-slate-600 bg-slate-700/30 hover:border-slate-500"} disabled:opacity-50`}>
-                      <div className="text-2xl mb-1">{opt.emoji}</div>
-                      <div className="text-xs font-semibold text-white">{opt.title}</div>
-                    </button>
-                  )
-                })}
-              </div>
-              {f.companyType && (
-                <Input placeholder="Company name (optional)" value={f.companyName} onChange={(e) => set("companyName", e.target.value)} className={`${inputCls} mt-3`} disabled={isLoading} />
+              <label className="flex items-start gap-2 cursor-pointer select-none">
+                <input type="checkbox" checked={createCompany} onChange={toggleCreateCompany} disabled={isLoading}
+                  className="mt-0.5 h-4 w-4 accent-orange-500 disabled:opacity-50" />
+                <span>
+                  <span className="block text-sm font-medium text-slate-200">Create my first company now <span className="text-slate-400 font-normal">(optional)</span></span>
+                  <span className="block text-[11px] text-slate-400">Leave unchecked to add companies later from your Business Office.</span>
+                </span>
+              </label>
+
+              {createCompany && (
+                <div className="mt-3">
+                  <p className="text-[11px] text-slate-400 mb-2">Pick a company type to set it up right away.</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {([
+                      { value: "Poultry", emoji: "🐔", title: "Poultry" },
+                      { value: "Water", emoji: "💧", title: "Water" },
+                      { value: "Generic", emoji: "🏪", title: "Generic" },
+                    ] as const).map((opt) => {
+                      const selected = f.companyType === opt.value
+                      // Clicking a selected type again clears it (type stays optional).
+                      return (
+                        <button key={opt.value} type="button" onClick={() => set("companyType", selected ? "" : opt.value)} disabled={isLoading} aria-pressed={selected}
+                          className={`p-3 rounded-lg border-2 text-center transition-all ${selected ? "border-orange-500 bg-orange-500/10 ring-2 ring-orange-500/40" : "border-slate-600 bg-slate-700/30 hover:border-slate-500"} disabled:opacity-50`}>
+                          <div className="text-2xl mb-1">{opt.emoji}</div>
+                          <div className="text-xs font-semibold text-white">{opt.title}</div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {f.companyType && (
+                    <Input placeholder="Company name (optional)" value={f.companyName} onChange={(e) => set("companyName", e.target.value)} className={`${inputCls} mt-3`} disabled={isLoading} />
+                  )}
+                </div>
               )}
             </div>
 
