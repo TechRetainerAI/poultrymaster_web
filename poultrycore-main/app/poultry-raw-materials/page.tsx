@@ -19,7 +19,7 @@ import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, AlertTriangle } from "lucide-react"
+import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, AlertTriangle, Factory } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
@@ -32,7 +32,14 @@ import {
 } from "@/lib/api/poultry-inventory"
 import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
 
-const CATEGORIES = ["FeedIngredient", "Packaging", "Medication", "Vaccine", "Bedding", "Disinfectant", "SparePart", "Fuel", "Other"]
+const CATEGORIES = ["FeedIngredient", "FinishedFeed", "Packaging", "Medication", "Vaccine", "Bedding", "Disinfectant", "SparePart", "Fuel", "Other"]
+// Readable labels for the camel-case category codes stored in the DB.
+const CATEGORY_LABELS: Record<string, string> = {
+  FeedIngredient: "Feed Ingredient",
+  FinishedFeed: "Finished Feed",
+  SparePart: "Spare Part",
+}
+const categoryLabel = (c: string) => CATEGORY_LABELS[c] ?? c
 const PAYMENT_METHODS = ["Cash", "MoMo", "Bank", "Credit"]
 const UNITS = ["Bag", "Sack", "Tonne", "Kilogram", "Gram", "Litre", "Millilitre", "Bottle", "Sachet", "Piece", "Pack", "Carton", "Box", "Bundle", "Dozen", "Crate", "Unit", "Other"]
 
@@ -42,7 +49,7 @@ const EMPTY_ITEM: ItemForm = { itemName: "", category: "FeedIngredient", unitOfM
 // Categories whose stock is actually drawn from a specific batch when recorded
 // as "used" (production-records feed/medication pickers). Only these show the
 // FIFO/LIFO/HIFO consumption-policy picker on the item form.
-const USAGE_METHOD_CATEGORIES = ["FeedIngredient", "Medication"]
+const USAGE_METHOD_CATEGORIES = ["FeedIngredient", "FinishedFeed", "Medication"]
 const USAGE_METHOD_OPTIONS: { value: RawMaterialUsageMethod; label: string; hint: string }[] = [
   { value: "FIFO", label: "FIFO", hint: "First bought, first used" },
   { value: "LIFO", label: "LIFO", hint: "Last bought, first used" },
@@ -351,6 +358,7 @@ export default function PoultryRawMaterialsPage() {
             </div>
             <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto sm:ml-auto">
               <Button variant="outline" onClick={openNewItem}><Plus className="w-4 h-4 mr-1" /> New Item</Button>
+              <Button variant="outline" onClick={() => router.push("/poultry-feed-production/new")}><Factory className="w-4 h-4 mr-1" /> Produce Feed</Button>
               <Button onClick={openNewPurchase}><ShoppingCart className="w-4 h-4 mr-1" /> Record Purchase</Button>
             </div>
           </div>
@@ -408,7 +416,7 @@ export default function PoultryRawMaterialsPage() {
                       <SelectTrigger className="w-[160px]"><SelectValue placeholder="All categories" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All categories</SelectItem>
-                        {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{categoryLabel(c)}</SelectItem>)}
                       </SelectContent>
                     </Select>
                     <Select value={unitFilter} onValueChange={setUnitFilter}>
@@ -438,7 +446,7 @@ export default function PoultryRawMaterialsPage() {
                       ) : sortedItems.map((i) => (
                         <TableRow key={i.poultryRawMaterialItemId}>
                           <TableCell className="font-medium">{i.itemName}</TableCell>
-                          <TableCell>{i.category}</TableCell>
+                          <TableCell>{categoryLabel(i.category)}</TableCell>
                           <TableCell>{i.purchaseUnitOfMeasure ?? "—"}</TableCell>
                           <TableCell>{i.unitOfMeasure ?? "—"}</TableCell>
                           <TableCell className="text-right">{i.currentQuantity.toLocaleString()}</TableCell>
@@ -462,7 +470,7 @@ export default function PoultryRawMaterialsPage() {
                       : sortedItems.map((i) => (
                         <FieldCard key={i.poultryRawMaterialItemId} title={i.itemName}
                           badge={!i.isActive ? <Badge variant="secondary">Inactive</Badge> : i.isLowStock ? <Badge className="bg-amber-100 text-amber-700">Low stock</Badge> : <Badge className="bg-green-100 text-green-700">OK</Badge>}
-                          fields={[["Category", i.category], ["Purchase Unit", i.purchaseUnitOfMeasure ?? "—"], ["Production Unit", i.unitOfMeasure ?? "—"], ["In stock", i.currentQuantity.toLocaleString()], ["Min alert", i.minimumStockAlert.toLocaleString()]]}
+                          fields={[["Category", categoryLabel(i.category)], ["Purchase Unit", i.purchaseUnitOfMeasure ?? "—"], ["Production Unit", i.unitOfMeasure ?? "—"], ["In stock", i.currentQuantity.toLocaleString()], ["Min alert", i.minimumStockAlert.toLocaleString()]]}
                           actions={<>
                             <Button variant="ghost" size="sm" onClick={() => openEditItem(i)}><Pencil className="w-4 h-4" /></Button>
                             <Button variant="ghost" size="sm" onClick={() => setDeleteItemTarget(i)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
@@ -595,7 +603,7 @@ export default function PoultryRawMaterialsPage() {
             <FormField label="Category *">
               <Select value={itemForm.category} onValueChange={(v) => setItemForm({ ...itemForm, category: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                <SelectContent>{CATEGORIES.map((c) => <SelectItem key={c} value={c}>{categoryLabel(c)}</SelectItem>)}</SelectContent>
               </Select>
             </FormField>
             <FormField label="Production unit of measure" hint="How it's stocked & consumed">
