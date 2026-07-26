@@ -235,7 +235,9 @@ export interface PoultryRawMaterialRecalcRow {
 export const recalculatePoultryRawMaterialStock = (itemId?: number) => {
   const qs = new URLSearchParams({ farmId: activeFarmId() })
   if (itemId) qs.append("itemId", String(itemId))
-  return jsend<PoultryRawMaterialRecalcRow[]>(`/Poultry/raw-material-items/recalculate-stock?${qs.toString()}`, "POST")
+  // Send an empty body so a Content-Length is always set — a bodyless POST can
+  // 411 (Length Required) when relayed through the same-origin proxy's fetch.
+  return jsend<PoultryRawMaterialRecalcRow[]>(`/Poultry/raw-material-items/recalculate-stock?${qs.toString()}`, "POST", {})
 }
 
 // ===================== Products + Stock (slice 2) =====================
