@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
-import { Plus, Loader2, Eye, Pencil, Trash2, FlaskConical, Factory, BarChart3 } from "lucide-react"
+import { Plus, Loader2, Eye, Pencil, Trash2, FlaskConical, Factory } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
@@ -72,7 +72,7 @@ export default function PoultryFeedProductionPage() {
     if (!deleteTarget) return
     try {
       await deleteFeedProductionBatch(deleteTarget.poultryFeedProductionBatchId)
-      toast({ title: "Draft deleted" })
+      toast({ title: "Batch deleted" })
       setDeleteTarget(null)
       await load()
     } catch (e: any) {
@@ -92,7 +92,6 @@ export default function PoultryFeedProductionPage() {
               <p className="text-sm text-slate-500">Produce finished feed from ingredients — with full costing, inventory and cash impact.</p>
             </div>
             <div className="flex flex-wrap items-center gap-2 self-start sm:ml-auto">
-              {showCost && <Button variant="outline" onClick={() => router.push("/poultry-feed-production/reports")}><BarChart3 className="w-4 h-4 mr-1" /> Reports</Button>}
               <Button variant="outline" onClick={() => router.push("/poultry-feed-formulas")}><FlaskConical className="w-4 h-4 mr-1" /> Feed Formulas</Button>
               {canManage && <Button onClick={() => router.push("/poultry-feed-production/new")}><Plus className="w-4 h-4 mr-1" /> New Batch</Button>}
             </div>
@@ -160,7 +159,7 @@ export default function PoultryFeedProductionPage() {
                             <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex justify-end gap-1">
                                 <Button variant="ghost" size="sm" onClick={() => router.push(`/poultry-feed-production/${b.poultryFeedProductionBatchId}`)}><Eye className="w-4 h-4" /></Button>
-                                {b.status === "Draft" && canManage && <>
+                                {(b.status === "Draft" || b.status === "Reversed") && canManage && <>
                                   <Button variant="ghost" size="sm" onClick={() => router.push(`/poultry-feed-production/${b.poultryFeedProductionBatchId}`)}><Pencil className="w-4 h-4" /></Button>
                                   <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(b)}><Trash2 className="w-4 h-4 text-red-600" /></Button>
                                 </>}
@@ -182,8 +181,8 @@ export default function PoultryFeedProductionPage() {
         open={!!deleteTarget}
         onOpenChange={(v) => { if (!v) setDeleteTarget(null) }}
         onConfirm={() => void doDelete()}
-        title="Delete draft batch?"
-        description={deleteTarget ? `Draft ${deleteTarget.batchNumber} will be permanently removed.` : ""}
+        title="Delete batch?"
+        description={deleteTarget ? `Batch ${deleteTarget.batchNumber} will be permanently removed.` : ""}
       />
     </div>
   )
