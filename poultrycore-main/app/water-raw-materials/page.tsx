@@ -35,6 +35,7 @@ import {
   type WaterCashAccount,
 } from "@/lib/api/water"
 import { SupplierSelect } from "@/components/water/supplier-select"
+import { WaterRecalculateStockButton } from "@/components/water/recalculate-stock-button"
 
 const CATEGORIES = ["PackagingRoll","SachetFilm","OuterBag","Chemical","Filter","UVLamp","SparePart","Fuel","CleaningSupply","Other"]
 const PAYMENT_METHODS = ["Cash","MoMo","Bank","Credit"]
@@ -321,6 +322,7 @@ export default function WaterRawMaterialsPage() {
               <Box className="h-6 w-6 text-sky-600" /> Raw materials
             </h1>
             <div className="flex flex-wrap gap-2">
+              <WaterRecalculateStockButton items={items} onDone={load} />
               <Button variant="outline" onClick={openNewItem}><Plus className="h-4 w-4 mr-1" /> New item</Button>
               <Button onClick={openNewPurchase}><ShoppingCart className="h-4 w-4 mr-1" /> Record purchase</Button>
             </div>

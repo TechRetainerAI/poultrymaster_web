@@ -1867,6 +1867,25 @@ export const updateWaterRawMaterialItem = (id: number, input: Omit<WaterRawMater
   jsend<void>(`/Water/raw-material-items/${id}`, "PUT", { ...input, waterRawMaterialItemId: id, farmId: activeFarmId() })
 export const deleteWaterRawMaterialItem = (id: number) =>
   jsend<void>(`/Water/raw-material-items/${id}?farmId=${encodeURIComponent(activeFarmId())}`, "DELETE")
+
+// Recompute raw-material CurrentQuantity from purchases and usage. Omit itemId to
+// recalculate every raw material / supply for the active company.
+export interface WaterRawMaterialRecalcRow {
+  waterRawMaterialItemId: number
+  itemName?: string | null
+  category?: string | null
+  unitOfMeasure?: string | null
+  oldQuantity: number
+  newQuantity: number
+  delta: number
+}
+export const recalculateWaterRawMaterialStock = (itemId?: number) => {
+  const qs = new URLSearchParams({ farmId: activeFarmId() })
+  if (itemId) qs.append("itemId", String(itemId))
+  // Send an empty body so a Content-Length is always set — a bodyless POST can
+  // 411 (Length Required) when relayed through the same-origin proxy's fetch.
+  return jsend<WaterRawMaterialRecalcRow[]>(`/Water/raw-material-items/recalculate-stock?${qs.toString()}`, "POST", {})
+}
 export const listWaterRawMaterialPurchases = (opts?: { fromDate?: string; toDate?: string }) => {
   const qs = new URLSearchParams({ farmId: activeFarmId() })
   if (opts?.fromDate) qs.append("fromDate", opts.fromDate)

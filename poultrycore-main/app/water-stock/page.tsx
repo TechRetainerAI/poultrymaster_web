@@ -22,9 +22,10 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import {
-  listWaterStockTransactions, addWaterStockTransaction, listWaterProducts,
-  type WaterStockTransaction, type WaterProduct,
+  listWaterStockTransactions, addWaterStockTransaction, listWaterProducts, listWaterRawMaterialItems,
+  type WaterStockTransaction, type WaterProduct, type WaterRawMaterialItem,
 } from "@/lib/api/water"
+import { WaterRecalculateStockButton } from "@/components/water/recalculate-stock-button"
 
 // #23: stock entries typed in by hand use these txn types; everything else
 // (Production, ProductionConsume, Sale, DeliveryOut, …) is system-generated.
@@ -39,6 +40,7 @@ export default function WaterStockPage() {
 
   const [txns, setTxns] = useState<WaterStockTransaction[]>([])
   const [products, setProducts] = useState<WaterProduct[]>([])
+  const [rawItems, setRawItems] = useState<WaterRawMaterialItem[]>([])
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
@@ -84,8 +86,8 @@ export default function WaterStockPage() {
   async function load() {
     setLoading(true)
     try {
-      const [t, p] = await Promise.all([listWaterStockTransactions(filterProductId ?? undefined), listWaterProducts()])
-      setTxns(t); setProducts(p)
+      const [t, p, ri] = await Promise.all([listWaterStockTransactions(filterProductId ?? undefined), listWaterProducts(), listWaterRawMaterialItems().catch(() => [])])
+      setTxns(t); setProducts(p); setRawItems(ri)
     } catch (e: any) { toast({ title: "Could not load stock", description: e?.message ?? String(e), variant: "destructive" }) }
     finally { setLoading(false) }
   }
@@ -147,6 +149,7 @@ export default function WaterStockPage() {
                   <SelectItem value="system">System only</SelectItem>
                 </SelectContent>
               </Select>
+              <WaterRecalculateStockButton items={rawItems} onDone={load} />
               <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-1" /> New entry</Button>
             </div>
           </div>

@@ -15,6 +15,7 @@ namespace PoultryFarmAPIWeb.Business
         Task UpdateAsync(WaterRawMaterialItemModel m);
         Task DeleteAsync(int id, string farmId);
         Task<List<WaterRawMaterialItemModel>> GetLowStockAsync(string farmId);
+        Task<List<WaterRawMaterialRecalcRow>> RecalculateStockAsync(string farmId, int? itemId);
     }
 
     public interface IWaterRawMaterialPurchaseService
@@ -148,6 +149,24 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<List<WaterRawMaterialItemModel>> GetLowStockAsync(string farmId)
             => await ReadList("spWaterRawMaterialItem_GetLowStock", _cs, c => c.Parameters.AddWithValue("@FarmId", farmId), Read);
+
+        // Recompute CurrentQuantity from purchases and usage. Returns before/after
+        // for each item (one item when itemId is given, otherwise all).
+        public async Task<List<WaterRawMaterialRecalcRow>> RecalculateStockAsync(string farmId, int? itemId)
+            => await ReadList("spWaterRawMaterialItem_RecalculateStock", _cs, c =>
+            {
+                c.Parameters.AddWithValue("@FarmId", farmId);
+                c.Parameters.AddWithValue("@WaterRawMaterialItemId", (object?)itemId ?? DBNull.Value);
+            }, r => new WaterRawMaterialRecalcRow
+            {
+                WaterRawMaterialItemId = r.GetInt32(r.GetOrdinal("WaterRawMaterialItemId")),
+                ItemName = r.IsDBNull(r.GetOrdinal("ItemName")) ? null : r.GetString(r.GetOrdinal("ItemName")),
+                Category = r.IsDBNull(r.GetOrdinal("Category")) ? null : r.GetString(r.GetOrdinal("Category")),
+                UnitOfMeasure = r.IsDBNull(r.GetOrdinal("UnitOfMeasure")) ? null : r.GetString(r.GetOrdinal("UnitOfMeasure")),
+                OldQuantity = r.GetDecimal(r.GetOrdinal("OldQuantity")),
+                NewQuantity = r.GetDecimal(r.GetOrdinal("NewQuantity")),
+                Delta = r.GetDecimal(r.GetOrdinal("Delta")),
+            });
 
         internal static WaterRawMaterialItemModel Read(SqlDataReader r) => new()
         {

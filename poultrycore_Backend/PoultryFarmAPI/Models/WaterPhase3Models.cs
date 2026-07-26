@@ -26,6 +26,19 @@ namespace PoultryFarmAPIWeb.Models
         public DateTime? UpdatedAt { get; set; }
     }
 
+    // One row of a stock recalculation: what an item's CurrentQuantity was vs the
+    // value recomputed from purchases and usage.
+    public class WaterRawMaterialRecalcRow
+    {
+        public int WaterRawMaterialItemId { get; set; }
+        public string? ItemName { get; set; }
+        public string? Category { get; set; }
+        public string? UnitOfMeasure { get; set; }
+        public decimal OldQuantity { get; set; }
+        public decimal NewQuantity { get; set; }
+        public decimal Delta { get; set; }
+    }
+
     public class WaterRawMaterialPurchaseModel
     {
         [Key] public int WaterRawMaterialPurchaseId { get; set; }
