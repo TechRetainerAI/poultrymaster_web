@@ -277,7 +277,7 @@ export default function RegisterPage() {
                     })}
                   </div>
                   {f.companyType && (
-                    <Input placeholder="Company name (optional)" value={f.companyName} onChange={(e) => set("companyName", e.target.value)} className={`${inputCls} mt-3`} disabled={isLoading} />
+                    <Input placeholder="Company name" value={f.companyName} onChange={(e) => set("companyName", e.target.value)} className={`${inputCls} mt-3`} disabled={isLoading} />
                   )}
                 </div>
               )}
