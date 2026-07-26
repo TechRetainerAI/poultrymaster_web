@@ -27,10 +27,11 @@ import { useFmt } from "@/lib/currency"
 import {
   listPoultryRawMaterialItems, createPoultryRawMaterialItem, updatePoultryRawMaterialItem, deletePoultryRawMaterialItem,
   listPoultryRawMaterialPurchases, createPoultryRawMaterialPurchase, updatePoultryRawMaterialPurchase, deletePoultryRawMaterialPurchase,
-  payPoultryRawMaterialPurchaseBalance, listPoultryRawMaterialUsageHistory,
+  payPoultryRawMaterialPurchaseBalance, listPoultryRawMaterialUsageHistory, listPoultryRawMaterialAdjustments,
   type PoultryRawMaterialItem, type PoultryRawMaterialPurchase, type PoultryRawMaterialUsage, type RawMaterialUsageMethod,
 } from "@/lib/api/poultry-inventory"
 import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
+import { RecalculateStockButton } from "@/components/poultry/recalculate-stock-button"
 
 const CATEGORIES = ["FeedIngredient", "FinishedFeed", "Packaging", "Medication", "Vaccine", "Bedding", "Disinfectant", "SparePart", "Fuel", "Other"]
 // Readable labels for the camel-case category codes stored in the DB.
@@ -177,7 +178,32 @@ export default function PoultryRawMaterialsPage() {
 
   async function loadUsage() {
     if (usageLoaded) return
-    try { setUsage(await listPoultryRawMaterialUsageHistory()); setUsageLoaded(true) }
+    try {
+      const [hist, adj] = await Promise.all([
+        listPoultryRawMaterialUsageHistory(),
+        listPoultryRawMaterialAdjustments().catch(() => []),
+      ])
+      // Show manual stock adjustments alongside production usage. An adjustment
+      // that decreases stock reads as a positive "used"; an increase reads as a
+      // negative used (a return). Synthetic negative id keeps React keys unique.
+      const adjRows: PoultryRawMaterialUsage[] = adj.map((a) => ({
+        poultryRawMaterialUsageId: -a.poultryRawMaterialAdjustmentId,
+        farmId: a.farmId,
+        poultryRawMaterialItemId: a.poultryRawMaterialItemId,
+        itemName: a.itemName ?? null,
+        unitOfMeasure: a.unitOfMeasure ?? null,
+        poultryProductionBatchId: null,
+        usedDate: a.adjustedDate,
+        quantityUsed: -Number(a.quantity),
+        expectedQuantityUsed: null,
+        variance: 0,
+        varianceReason: `Manual adjustment${a.movementType ? ` (${a.movementType})` : ""}${a.note ? ` — ${a.note}` : ""}`,
+        notes: a.note ?? null,
+        createdAt: a.createdAt,
+      }))
+      setUsage([...hist, ...adjRows])
+      setUsageLoaded(true)
+    }
     catch (e: any) { toast({ title: "Could not load usage history", description: e?.message, variant: "destructive" }) }
   }
 
@@ -357,6 +383,7 @@ export default function PoultryRawMaterialsPage() {
               <p className="text-sm text-slate-500">Track feed inputs, packaging, medication and other supplies — purchases, costing and usage.</p>
             </div>
             <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto sm:ml-auto">
+              <RecalculateStockButton items={items} onDone={load} />
               <Button variant="outline" onClick={openNewItem}><Plus className="w-4 h-4 mr-1" /> New Item</Button>
               <Button variant="outline" onClick={() => router.push("/poultry-feed-production/new")}><Factory className="w-4 h-4 mr-1" /> Produce Feed</Button>
               <Button onClick={openNewPurchase}><ShoppingCart className="w-4 h-4 mr-1" /> Record Purchase</Button>

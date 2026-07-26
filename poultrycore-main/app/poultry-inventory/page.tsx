@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import Link from "next/link"
 import { listPoultryProducts, listPoultryRawMaterialItems, ensurePoultryDefaults, type PoultryProduct, type PoultryRawMaterialItem } from "@/lib/api/poultry-inventory"
+import { RecalculateStockButton } from "@/components/poultry/recalculate-stock-button"
 import { exportTableToPdf, emailTableAsPdf, type PdfExportOptions } from "@/lib/utils/pdf-export"
 
 type Row = {
@@ -165,6 +166,7 @@ export default function PoultryInventoryPage() {
               <Link href="/poultry-products" className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
                 <Package className="h-4 w-4" /> Manage Finished Products
               </Link>
+              <RecalculateStockButton items={items} size="sm" onDone={async () => setItems(await listPoultryRawMaterialItems())} />
             </div>
           </div>
           {loading ? <div className="flex items-center gap-2 text-slate-500 p-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div> : (
