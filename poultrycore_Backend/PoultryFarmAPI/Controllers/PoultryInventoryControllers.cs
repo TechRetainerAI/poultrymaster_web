@@ -51,6 +51,28 @@ namespace PoultryFarmAPIWeb.Controllers
             await _svc.DeleteAsync(id, farmId);
             return NoContent();
         }
+
+        // Manual stock adjustment (increase/decrease) on a raw material / supply.
+        // Side-effect-free: does not post to Expense or production usage.
+        [HttpPost("{id:int}/adjust")] public async Task<ActionResult<object>> Adjust(int id, [FromBody] PoultryRawMaterialAdjustRequest body)
+        {
+            if (body is null || string.IsNullOrWhiteSpace(body.FarmId)) return BadRequest("Company ID is required.");
+            if (body.Quantity == 0) return BadRequest("Adjustment quantity cannot be zero.");
+            var current = await _svc.AdjustAsync(id, body);
+            return Ok(new { CurrentQuantity = current });
+        }
+    }
+
+    [ApiController]
+    [Route("api/Poultry/raw-material-adjustments")]
+    public class PoultryRawMaterialAdjustmentController : ControllerBase
+    {
+        private readonly IPoultryRawMaterialItemService _svc;
+        public PoultryRawMaterialAdjustmentController(IPoultryRawMaterialItemService svc) => _svc = svc;
+
+        [HttpGet] public async Task<ActionResult<IEnumerable<PoultryRawMaterialAdjustmentModel>>> GetAll(
+            [FromQuery] string farmId, [FromQuery] DateTime? fromDate, [FromQuery] DateTime? toDate)
+            => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.GetAdjustmentsAsync(farmId, fromDate, toDate));
     }
 
     [ApiController]

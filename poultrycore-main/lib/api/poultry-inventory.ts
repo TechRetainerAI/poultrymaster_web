@@ -187,6 +187,39 @@ export const listPoultryRawMaterialUsageHistory = (opts?: { itemId?: number; fro
   return jget<PoultryRawMaterialUsage[]>(`/Poultry/raw-material-usage/history?${qs.toString()}`)
 }
 
+// ----- Manual adjustments (increase/decrease a raw material / supply directly) -----
+export interface PoultryRawMaterialAdjustment {
+  poultryRawMaterialAdjustmentId: number
+  farmId: string
+  poultryRawMaterialItemId: number
+  itemName?: string | null
+  category?: string | null
+  unitOfMeasure?: string | null
+  adjustedDate: string
+  quantity: number            // signed: + increase, - decrease
+  unitCost?: number | null
+  movementType?: string | null
+  note?: string | null
+  createdBy?: string | null
+  createdAt: string
+}
+
+export const listPoultryRawMaterialAdjustments = (opts?: { fromDate?: string; toDate?: string }) => {
+  const qs = new URLSearchParams({ farmId: activeFarmId() })
+  if (opts?.fromDate) qs.append("fromDate", opts.fromDate)
+  if (opts?.toDate) qs.append("toDate", opts.toDate)
+  return jget<PoultryRawMaterialAdjustment[]>(`/Poultry/raw-material-adjustments?${qs.toString()}`)
+}
+
+// quantity is a SIGNED delta (positive increases stock, negative decreases it).
+export const adjustPoultryRawMaterialItem = (
+  itemId: number,
+  input: { quantity: number; unitCost?: number | null; movementType?: string; note?: string | null },
+) =>
+  jsend<{ currentQuantity: number }>(`/Poultry/raw-material-items/${itemId}/adjust`, "POST", {
+    ...input, farmId: activeFarmId(), createdBy: activeUserId(),
+  })
+
 // ===================== Products + Stock (slice 2) =====================
 export interface PoultryProduct {
   poultryProductId: number

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
@@ -23,7 +23,8 @@ import { useFmt } from "@/lib/currency"
 import {
   listPoultryProducts, listPoultryStockTransactions, addPoultryStockTransaction,
   listPoultryRawMaterialPurchases, listPoultryRawMaterialUsageHistory,
-  type PoultryProduct, type PoultryStockTransaction,
+  listPoultryRawMaterialItems, listPoultryRawMaterialAdjustments, adjustPoultryRawMaterialItem,
+  type PoultryProduct, type PoultryStockTransaction, type PoultryRawMaterialItem,
 } from "@/lib/api/poultry-inventory"
 
 // Doc 5: movement types with sign. Positive = increase, negative = decrease.
@@ -52,12 +53,14 @@ export default function PoultryStockPage() {
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const gh = useFmt()
   const [products, setProducts] = useState<PoultryProduct[]>([])
+  const [rawItems, setRawItems] = useState<PoultryRawMaterialItem[]>([])
   const [txns, setTxns] = useState<PoultryStockTransaction[]>([])
   const [rawMoves, setRawMoves] = useState<Move[]>([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({ poultryProductId: 0, movementType: "Increase", quantity: 0, unitCost: 0, note: "" })
+  // `target` encodes the picked item: "p:<id>" = finished product, "r:<id>" = raw material / supply.
+  const [form, setForm] = useState({ target: "", movementType: "Increase", quantity: 0, unitCost: 0, note: "" })
 
   // List filters + column sort.
   const [search, setSearch] = useState("")
@@ -77,14 +80,16 @@ export default function PoultryStockPage() {
   async function load() {
     setLoading(true)
     try {
-      const [ps, ts, purch, usage] = await Promise.all([
-        listPoultryProducts(), listPoultryStockTransactions(),
+      const [ps, items, ts, purch, usage, adjust] = await Promise.all([
+        listPoultryProducts(), listPoultryRawMaterialItems().catch(() => []), listPoultryStockTransactions(),
         listPoultryRawMaterialPurchases().catch(() => []), listPoultryRawMaterialUsageHistory().catch(() => []),
+        listPoultryRawMaterialAdjustments().catch(() => []),
       ])
-      setProducts(ps); setTxns(ts)
+      setProducts(ps); setRawItems(items); setTxns(ts)
       const rm: Move[] = [
         ...purch.map((p) => ({ key: `rp${p.poultryRawMaterialPurchaseId}`, date: p.purchaseDate, item: p.itemName ?? "", parentType: "Raw Material", movementType: "Increase", qty: p.quantity, unitCost: p.unitCost, total: p.totalCost, source: "Raw Material Purchase", note: p.notes ?? null })),
         ...usage.map((u) => ({ key: `ru${u.poultryRawMaterialUsageId}`, date: u.usedDate, item: u.itemName ?? "", parentType: "Raw Material", movementType: "Decrease", qty: -Math.abs(u.quantityUsed), unitCost: null, total: null, source: "Production Usage", note: u.varianceReason ?? null })),
+        ...adjust.map((a) => ({ key: `ra${a.poultryRawMaterialAdjustmentId}`, date: a.adjustedDate, item: a.itemName ?? "", parentType: a.category === "Supplies" ? "Supplies" : "Raw Material", movementType: a.movementType || (a.quantity >= 0 ? "Increase" : "Decrease"), qty: a.quantity, unitCost: a.unitCost ?? null, total: a.unitCost != null ? Number((a.unitCost * Math.abs(a.quantity)).toFixed(2)) : null, source: "Manual Adjustment", note: a.note ?? null })),
       ]
       setRawMoves(rm)
     } catch (e: any) { toast({ title: "Could not load stock", description: e?.message, variant: "destructive" }) }
@@ -117,14 +122,21 @@ export default function PoultryStockPage() {
   const sortedMoves = useMemo(() => sortData(filteredMoves, sort.key, sort.direction), [filteredMoves, sort])
 
   async function save() {
-    if (!form.poultryProductId) { toast({ title: "Pick a product", variant: "destructive" }); return }
+    if (!form.target) { toast({ title: "Pick an item", variant: "destructive" }); return }
     if (form.quantity <= 0) { toast({ title: "Quantity must be greater than 0", variant: "destructive" }); return }
     const mv = MOVEMENTS.find((m) => m.value === form.movementType)!
     const signed = mv.sign * Math.abs(form.quantity)
+    const [kind, idStr] = form.target.split(":")
+    const id = Number(idStr)
     setSaving(true)
     try {
-      await addPoultryStockTransaction({ poultryProductId: form.poultryProductId, txnType: form.movementType, quantity: signed, unitCost: form.unitCost || null, note: form.note || "Manual stock entry" })
-      toast({ title: "Stock movement added" }); setOpen(false); setForm({ poultryProductId: 0, movementType: "Increase", quantity: 0, unitCost: 0, note: "" }); await load()
+      if (kind === "r") {
+        // Raw material / supply — adjust its stock directly (no expense/usage side effects).
+        await adjustPoultryRawMaterialItem(id, { quantity: signed, unitCost: form.unitCost || null, movementType: form.movementType, note: form.note || "Manual stock adjustment" })
+      } else {
+        await addPoultryStockTransaction({ poultryProductId: id, txnType: form.movementType, quantity: signed, unitCost: form.unitCost || null, note: form.note || "Manual stock entry" })
+      }
+      toast({ title: "Stock movement added" }); setOpen(false); setForm({ target: "", movementType: "Increase", quantity: 0, unitCost: 0, note: "" }); await load()
     } catch (e: any) { toast({ title: "Save failed", description: e?.message, variant: "destructive" }) }
     finally { setSaving(false) }
   }
@@ -213,11 +225,28 @@ export default function PoultryStockPage() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>New stock movement</DialogTitle></DialogHeader>
-          <FormSection title="Movement (finished product)" color="blue">
-            <FormField label="Product *">
-              <Select value={form.poultryProductId ? String(form.poultryProductId) : ""} onValueChange={(v) => setForm({ ...form, poultryProductId: Number(v) })}>
-                <SelectTrigger><SelectValue placeholder="Pick product" /></SelectTrigger>
-                <SelectContent>{products.filter((p) => p.isActive).map((p) => <SelectItem key={p.poultryProductId} value={String(p.poultryProductId)}>{p.name}</SelectItem>)}</SelectContent>
+          <FormSection title="Movement" color="blue">
+            <FormField label="Item *">
+              <Select value={form.target} onValueChange={(v) => setForm({ ...form, target: v })}>
+                <SelectTrigger><SelectValue placeholder="Pick a finished product, raw material or supply" /></SelectTrigger>
+                <SelectContent>
+                  {products.filter((p) => p.isActive).length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel>Finished products</SelectLabel>
+                      {products.filter((p) => p.isActive).map((p) => <SelectItem key={`p${p.poultryProductId}`} value={`p:${p.poultryProductId}`}>{p.name}</SelectItem>)}
+                    </SelectGroup>
+                  )}
+                  {rawItems.filter((i) => i.isActive).length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel>Raw materials &amp; supplies</SelectLabel>
+                      {rawItems.filter((i) => i.isActive).map((i) => (
+                        <SelectItem key={`r${i.poultryRawMaterialItemId}`} value={`r:${i.poultryRawMaterialItemId}`}>
+                          {i.itemName}{i.category ? ` — ${i.category}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )}
+                </SelectContent>
               </Select>
             </FormField>
             <FormField label="Movement type">

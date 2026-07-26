@@ -17,6 +17,8 @@ namespace PoultryFarmAPIWeb.Business
         Task<int> InsertAsync(PoultryRawMaterialItemModel m);
         Task UpdateAsync(PoultryRawMaterialItemModel m);
         Task DeleteAsync(int id, string farmId);
+        Task<decimal> AdjustAsync(int itemId, PoultryRawMaterialAdjustRequest req);
+        Task<List<PoultryRawMaterialAdjustmentModel>> GetAdjustmentsAsync(string farmId, DateTime? fromDate, DateTime? toDate);
     }
 
     public interface IPoultryRawMaterialPurchaseService
@@ -126,6 +128,59 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
+        }
+
+        // Manual stock adjustment: signed delta on CurrentQuantity + ledger row.
+        // Returns the item's resulting CurrentQuantity.
+        public async Task<decimal> AdjustAsync(int itemId, PoultryRawMaterialAdjustRequest req)
+        {
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spPoultryRawMaterialItem_Adjust", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@FarmId", req.FarmId);
+            cmd.Parameters.AddWithValue("@PoultryRawMaterialItemId", itemId);
+            cmd.Parameters.AddWithValue("@Quantity", req.Quantity);
+            cmd.Parameters.AddWithValue("@UnitCost", (object?)req.UnitCost ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@MovementType", (object?)req.MovementType ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Note", (object?)req.Note ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@CreatedBy", (object?)req.CreatedBy ?? DBNull.Value);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            decimal current = 0m;
+            if (await r.ReadAsync())
+                current = r.IsDBNull(r.GetOrdinal("CurrentQuantity")) ? 0m : r.GetDecimal(r.GetOrdinal("CurrentQuantity"));
+            return current;
+        }
+
+        public async Task<List<PoultryRawMaterialAdjustmentModel>> GetAdjustmentsAsync(string farmId, DateTime? fromDate, DateTime? toDate)
+        {
+            var list = new List<PoultryRawMaterialAdjustmentModel>();
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spPoultryRawMaterialAdjustment_GetAll", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@FromDate", (object?)fromDate ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ToDate", (object?)toDate ?? DBNull.Value);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                list.Add(new PoultryRawMaterialAdjustmentModel
+                {
+                    PoultryRawMaterialAdjustmentId = r.GetInt32(r.GetOrdinal("PoultryRawMaterialAdjustmentId")),
+                    FarmId = r.GetString(r.GetOrdinal("FarmId")),
+                    PoultryRawMaterialItemId = r.GetInt32(r.GetOrdinal("PoultryRawMaterialItemId")),
+                    ItemName = r.IsDBNull(r.GetOrdinal("ItemName")) ? null : r.GetString(r.GetOrdinal("ItemName")),
+                    Category = r.IsDBNull(r.GetOrdinal("Category")) ? null : r.GetString(r.GetOrdinal("Category")),
+                    UnitOfMeasure = r.IsDBNull(r.GetOrdinal("UnitOfMeasure")) ? null : r.GetString(r.GetOrdinal("UnitOfMeasure")),
+                    AdjustedDate = r.GetDateTime(r.GetOrdinal("AdjustedDate")),
+                    Quantity = r.GetDecimal(r.GetOrdinal("Quantity")),
+                    UnitCost = r.IsDBNull(r.GetOrdinal("UnitCost")) ? null : r.GetDecimal(r.GetOrdinal("UnitCost")),
+                    MovementType = r.IsDBNull(r.GetOrdinal("MovementType")) ? null : r.GetString(r.GetOrdinal("MovementType")),
+                    Note = r.IsDBNull(r.GetOrdinal("Note")) ? null : r.GetString(r.GetOrdinal("Note")),
+                    CreatedBy = r.IsDBNull(r.GetOrdinal("CreatedBy")) ? null : r.GetString(r.GetOrdinal("CreatedBy")),
+                    CreatedAt = r.GetDateTime(r.GetOrdinal("CreatedAt")),
+                });
+            }
+            return list;
         }
     }
 
