@@ -16,7 +16,7 @@ import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { Badge } from "@/components/ui/badge"
 import { FieldCard } from "@/components/ui/field-card"
-import { Plus, Loader2 } from "lucide-react"
+import { Plus, Loader2, RefreshCw } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
@@ -24,7 +24,8 @@ import {
   listPoultryProducts, listPoultryStockTransactions, addPoultryStockTransaction,
   listPoultryRawMaterialPurchases, listPoultryRawMaterialUsageHistory,
   listPoultryRawMaterialItems, listPoultryRawMaterialAdjustments, adjustPoultryRawMaterialItem,
-  type PoultryProduct, type PoultryStockTransaction, type PoultryRawMaterialItem,
+  recalculatePoultryRawMaterialStock,
+  type PoultryProduct, type PoultryStockTransaction, type PoultryRawMaterialItem, type PoultryRawMaterialRecalcRow,
 } from "@/lib/api/poultry-inventory"
 
 // Doc 5: movement types with sign. Positive = increase, negative = decrease.
@@ -59,6 +60,10 @@ export default function PoultryStockPage() {
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  // Recalculate-stock confirm dialog + last result.
+  const [recalcOpen, setRecalcOpen] = useState(false)
+  const [recalcing, setRecalcing] = useState(false)
+  const [recalcResult, setRecalcResult] = useState<PoultryRawMaterialRecalcRow[] | null>(null)
   // `target` encodes the picked item: "p:<id>" = finished product, "r:<id>" = raw material / supply.
   const [form, setForm] = useState({ target: "", movementType: "Increase", quantity: 0, unitCost: 0, note: "" })
 
@@ -141,6 +146,18 @@ export default function PoultryStockPage() {
     finally { setSaving(false) }
   }
 
+  async function recalcStock() {
+    setRecalcing(true)
+    try {
+      const rows = await recalculatePoultryRawMaterialStock()
+      const changed = rows.filter((r) => Number(r.delta) !== 0)
+      setRecalcResult(changed)
+      toast({ title: "Stock recalculated", description: `${rows.length} item(s) checked, ${changed.length} updated.` })
+      await load()
+    } catch (e: any) { toast({ title: "Recalculate failed", description: e?.message, variant: "destructive" }) }
+    finally { setRecalcing(false) }
+  }
+
   return (
     <div className="flex min-h-screen bg-gray-50">
       <DashboardSidebar />
@@ -149,7 +166,12 @@ export default function PoultryStockPage() {
         <main className="flex-1 p-4 sm:p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div><h1 className="text-2xl font-bold">Stock Movements</h1><p className="text-sm text-slate-500">All stock increases and decreases — finished products and raw materials. Production, sales, purchases and manual entries.</p></div>
-            <Button onClick={() => setOpen(true)}><Plus className="w-4 h-4 mr-1" /> New movement</Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => { setRecalcResult(null); setRecalcOpen(true) }} title="Recompute raw-material stock from purchases, usage and adjustments">
+                <RefreshCw className="w-4 h-4 mr-1" /> Recalculate stock
+              </Button>
+              <Button onClick={() => setOpen(true)}><Plus className="w-4 h-4 mr-1" /> New movement</Button>
+            </div>
           </div>
           <Card><CardContent className="p-4">
             {loading ? <div className="flex items-center gap-2 text-slate-500 p-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div> : (
@@ -263,6 +285,57 @@ export default function PoultryStockPage() {
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={save} disabled={saving}>{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}</Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Recalculate raw-material stock — confirm, then show what changed. */}
+      <Dialog open={recalcOpen} onOpenChange={setRecalcOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Recalculate raw-material stock</DialogTitle></DialogHeader>
+          {recalcResult === null ? (
+            <div className="space-y-3">
+              <p className="text-sm text-slate-600">
+                This recomputes each raw material and supply's current stock from its history —
+                <span className="font-medium"> total purchased (in production units) − used in production + manual adjustments</span>.
+                Finished products are not affected. Use this if a raw-material stock figure looks wrong.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setRecalcOpen(false)}>Cancel</Button>
+                <Button onClick={recalcStock} disabled={recalcing}>{recalcing ? <Loader2 className="w-4 h-4 animate-spin" /> : "Recalculate"}</Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {recalcResult.length === 0 ? (
+                <p className="text-sm text-slate-600">Everything already matched — no stock figures needed changing.</p>
+              ) : (
+                <>
+                  <p className="text-sm text-slate-600">{recalcResult.length} item(s) updated:</p>
+                  <div className="max-h-72 overflow-y-auto rounded border">
+                    <Table>
+                      <TableHeader><TableRow>
+                        <TableHead>Item</TableHead>
+                        <TableHead className="text-right">Was</TableHead>
+                        <TableHead className="text-right">Now</TableHead>
+                        <TableHead className="text-right">Change</TableHead>
+                      </TableRow></TableHeader>
+                      <TableBody>
+                        {recalcResult.map((r) => (
+                          <TableRow key={r.poultryRawMaterialItemId}>
+                            <TableCell className="font-medium">{r.itemName}{r.category ? <span className="text-slate-400"> — {r.category}</span> : null}</TableCell>
+                            <TableCell className="text-right">{Number(r.oldQuantity).toLocaleString()}</TableCell>
+                            <TableCell className="text-right">{Number(r.newQuantity).toLocaleString()}</TableCell>
+                            <TableCell className={`text-right ${Number(r.delta) < 0 ? "text-red-600" : "text-green-700"}`}>{Number(r.delta) > 0 ? "+" : ""}{Number(r.delta).toLocaleString()}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </>
+              )}
+              <div className="flex justify-end"><Button onClick={() => setRecalcOpen(false)}>Done</Button></div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

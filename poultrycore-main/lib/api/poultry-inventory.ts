@@ -220,6 +220,24 @@ export const adjustPoultryRawMaterialItem = (
     ...input, farmId: activeFarmId(), createdBy: activeUserId(),
   })
 
+// Recompute raw-material CurrentQuantity from purchases, usage and adjustments.
+// Omit itemId to recalculate every raw material / supply for the active company.
+export interface PoultryRawMaterialRecalcRow {
+  poultryRawMaterialItemId: number
+  itemName?: string | null
+  category?: string | null
+  unitOfMeasure?: string | null
+  oldQuantity: number
+  newQuantity: number
+  delta: number
+}
+
+export const recalculatePoultryRawMaterialStock = (itemId?: number) => {
+  const qs = new URLSearchParams({ farmId: activeFarmId() })
+  if (itemId) qs.append("itemId", String(itemId))
+  return jsend<PoultryRawMaterialRecalcRow[]>(`/Poultry/raw-material-items/recalculate-stock?${qs.toString()}`, "POST")
+}
+
 // ===================== Products + Stock (slice 2) =====================
 export interface PoultryProduct {
   poultryProductId: number

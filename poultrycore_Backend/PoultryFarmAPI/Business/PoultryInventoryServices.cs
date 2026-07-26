@@ -19,6 +19,7 @@ namespace PoultryFarmAPIWeb.Business
         Task DeleteAsync(int id, string farmId);
         Task<decimal> AdjustAsync(int itemId, PoultryRawMaterialAdjustRequest req);
         Task<List<PoultryRawMaterialAdjustmentModel>> GetAdjustmentsAsync(string farmId, DateTime? fromDate, DateTime? toDate);
+        Task<List<PoultryRawMaterialRecalcRow>> RecalculateStockAsync(string farmId, int? itemId);
     }
 
     public interface IPoultryRawMaterialPurchaseService
@@ -178,6 +179,33 @@ namespace PoultryFarmAPIWeb.Business
                     Note = r.IsDBNull(r.GetOrdinal("Note")) ? null : r.GetString(r.GetOrdinal("Note")),
                     CreatedBy = r.IsDBNull(r.GetOrdinal("CreatedBy")) ? null : r.GetString(r.GetOrdinal("CreatedBy")),
                     CreatedAt = r.GetDateTime(r.GetOrdinal("CreatedAt")),
+                });
+            }
+            return list;
+        }
+
+        // Recompute CurrentQuantity for one item (or all) from purchases, usage and
+        // adjustments. Returns before/after for each item.
+        public async Task<List<PoultryRawMaterialRecalcRow>> RecalculateStockAsync(string farmId, int? itemId)
+        {
+            var list = new List<PoultryRawMaterialRecalcRow>();
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spPoultryRawMaterialItem_RecalculateStock", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@PoultryRawMaterialItemId", (object?)itemId ?? DBNull.Value);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                list.Add(new PoultryRawMaterialRecalcRow
+                {
+                    PoultryRawMaterialItemId = r.GetInt32(r.GetOrdinal("PoultryRawMaterialItemId")),
+                    ItemName = r.IsDBNull(r.GetOrdinal("ItemName")) ? null : r.GetString(r.GetOrdinal("ItemName")),
+                    Category = r.IsDBNull(r.GetOrdinal("Category")) ? null : r.GetString(r.GetOrdinal("Category")),
+                    UnitOfMeasure = r.IsDBNull(r.GetOrdinal("UnitOfMeasure")) ? null : r.GetString(r.GetOrdinal("UnitOfMeasure")),
+                    OldQuantity = r.GetDecimal(r.GetOrdinal("OldQuantity")),
+                    NewQuantity = r.GetDecimal(r.GetOrdinal("NewQuantity")),
+                    Delta = r.GetDecimal(r.GetOrdinal("Delta")),
                 });
             }
             return list;

@@ -114,4 +114,17 @@ namespace PoultryFarmAPIWeb.Models
         public string? Note { get; set; }
         public string? CreatedBy { get; set; }
     }
+
+    // One row of a stock recalculation: what an item's CurrentQuantity was vs the
+    // value recomputed from purchases, usage and adjustments.
+    public class PoultryRawMaterialRecalcRow
+    {
+        public int PoultryRawMaterialItemId { get; set; }
+        public string? ItemName { get; set; }
+        public string? Category { get; set; }
+        public string? UnitOfMeasure { get; set; }
+        public decimal OldQuantity { get; set; }
+        public decimal NewQuantity { get; set; }
+        public decimal Delta { get; set; }
+    }
 }

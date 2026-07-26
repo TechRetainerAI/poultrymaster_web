@@ -61,6 +61,12 @@ namespace PoultryFarmAPIWeb.Controllers
             var current = await _svc.AdjustAsync(id, body);
             return Ok(new { CurrentQuantity = current });
         }
+
+        // Recompute CurrentQuantity from purchases, usage and adjustments. Omit
+        // itemId to recalculate every raw material / supply for the company.
+        [HttpPost("recalculate-stock")] public async Task<ActionResult<IEnumerable<PoultryRawMaterialRecalcRow>>> RecalculateStock(
+            [FromQuery] string farmId, [FromQuery] int? itemId)
+            => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.RecalculateStockAsync(farmId, itemId));
     }
 
     [ApiController]
