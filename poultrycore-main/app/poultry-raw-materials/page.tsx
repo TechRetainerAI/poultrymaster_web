@@ -358,7 +358,7 @@ export default function PoultryRawMaterialsPage() {
             </div>
             <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto sm:ml-auto">
               <Button variant="outline" onClick={openNewItem}><Plus className="w-4 h-4 mr-1" /> New Item</Button>
-              <Button variant="outline" onClick={() => router.push("/poultry-feed-production/new")}><Factory className="w-4 h-4 mr-1" /> Produce Feed</Button>
+              <Button variant="outline" onClick={() => router.push("/poultry-feed-production")}><Factory className="w-4 h-4 mr-1" /> Produce Feed</Button>
               <Button onClick={openNewPurchase}><ShoppingCart className="w-4 h-4 mr-1" /> Record Purchase</Button>
             </div>
           </div>

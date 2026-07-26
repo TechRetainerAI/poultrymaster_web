@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
-import { Plus, Loader2, Eye, Pencil, Trash2, FlaskConical, Factory, BarChart3 } from "lucide-react"
+import { Plus, Loader2, Eye, Pencil, Trash2, FlaskConical, Factory } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
@@ -92,7 +92,6 @@ export default function PoultryFeedProductionPage() {
               <p className="text-sm text-slate-500">Produce finished feed from ingredients — with full costing, inventory and cash impact.</p>
             </div>
             <div className="flex flex-wrap items-center gap-2 self-start sm:ml-auto">
-              {showCost && <Button variant="outline" onClick={() => router.push("/poultry-feed-production/reports")}><BarChart3 className="w-4 h-4 mr-1" /> Reports</Button>}
               <Button variant="outline" onClick={() => router.push("/poultry-feed-formulas")}><FlaskConical className="w-4 h-4 mr-1" /> Feed Formulas</Button>
               {canManage && <Button onClick={() => router.push("/poultry-feed-production/new")}><Plus className="w-4 h-4 mr-1" /> New Batch</Button>}
             </div>
