@@ -72,7 +72,7 @@ export default function PoultryFeedProductionPage() {
     if (!deleteTarget) return
     try {
       await deleteFeedProductionBatch(deleteTarget.poultryFeedProductionBatchId)
-      toast({ title: "Draft deleted" })
+      toast({ title: "Batch deleted" })
       setDeleteTarget(null)
       await load()
     } catch (e: any) {
@@ -160,7 +160,7 @@ export default function PoultryFeedProductionPage() {
                             <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex justify-end gap-1">
                                 <Button variant="ghost" size="sm" onClick={() => router.push(`/poultry-feed-production/${b.poultryFeedProductionBatchId}`)}><Eye className="w-4 h-4" /></Button>
-                                {b.status === "Draft" && canManage && <>
+                                {(b.status === "Draft" || b.status === "Reversed") && canManage && <>
                                   <Button variant="ghost" size="sm" onClick={() => router.push(`/poultry-feed-production/${b.poultryFeedProductionBatchId}`)}><Pencil className="w-4 h-4" /></Button>
                                   <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(b)}><Trash2 className="w-4 h-4 text-red-600" /></Button>
                                 </>}
@@ -182,8 +182,8 @@ export default function PoultryFeedProductionPage() {
         open={!!deleteTarget}
         onOpenChange={(v) => { if (!v) setDeleteTarget(null) }}
         onConfirm={() => void doDelete()}
-        title="Delete draft batch?"
-        description={deleteTarget ? `Draft ${deleteTarget.batchNumber} will be permanently removed.` : ""}
+        title="Delete batch?"
+        description={deleteTarget ? `Batch ${deleteTarget.batchNumber} will be permanently removed.` : ""}
       />
     </div>
   )
