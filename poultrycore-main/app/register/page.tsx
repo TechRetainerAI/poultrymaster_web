@@ -201,7 +201,7 @@ export default function RegisterPage() {
             </div>
             <Input placeholder="Username" value={f.username} onChange={(e) => set("username", e.target.value)} className={inputCls} disabled={isLoading} />
             <Input type="email" placeholder="Email address" value={f.email} onChange={(e) => set("email", e.target.value)} className={inputCls} disabled={isLoading} />
-            <Input type="tel" placeholder="Phone number (e.g. +233...)" value={f.phoneNumber} onChange={(e) => set("phoneNumber", e.target.value)} className={inputCls} disabled={isLoading} />
+            <Input type="tel" placeholder="Phone number" value={f.phoneNumber} onChange={(e) => set("phoneNumber", e.target.value)} className={inputCls} disabled={isLoading} />
             <div className="relative">
               <Input type={showPassword ? "text" : "password"} placeholder="Password" value={f.password} onChange={(e) => set("password", e.target.value)} className={`${inputCls} pr-12`} disabled={isLoading} />
               <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300" aria-label="Toggle password">
