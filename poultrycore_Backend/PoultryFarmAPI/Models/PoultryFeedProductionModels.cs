@@ -29,7 +29,7 @@ namespace PoultryFarmAPIWeb.Models
         public int PoultryFeedFormulaId { get; set; }
         [Required] public string FarmId { get; set; } = string.Empty;
         [Required] [StringLength(150)] public string FormulaName { get; set; } = string.Empty;
-        public int FinishedFeedItemId { get; set; }
+        public int? FinishedFeedItemId { get; set; }   // optional: a formula is reusable across any finished feed
         public string? FinishedFeedItemName { get; set; }
         public string? FinishedFeedUnit { get; set; }
         [StringLength(30)] public string? DefaultOutputUnit { get; set; }
@@ -60,7 +60,7 @@ namespace PoultryFarmAPIWeb.Models
         [Required] public string FarmId { get; set; } = string.Empty;
         public int? PoultryFeedFormulaId { get; set; }
         [Required] [StringLength(150)] public string FormulaName { get; set; } = string.Empty;
-        public int FinishedFeedItemId { get; set; }
+        public int? FinishedFeedItemId { get; set; }   // optional: not bound to a single finished feed
         [StringLength(30)] public string? DefaultOutputUnit { get; set; }
         [StringLength(500)] public string? Notes { get; set; }
         public bool IsActive { get; set; } = true;

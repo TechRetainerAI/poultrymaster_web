@@ -660,6 +660,12 @@ export function TopNavigation() {
       { href: "/batch-production-records", label: "Batch Production", icon: Boxes },
       { href: "/egg-production", label: "Egg sorting", icon: Egg },
       { href: "/feed-usage", label: "Feed Usage", icon: Package },
+      // Feed Production (produce finished feed from ingredients) belongs under
+      // Production. Gated by canViewFeedProduction to match the sidebar.
+      ...(permissions.featureAccess.canViewFeedProduction ? [
+        { href: "/poultry-feed-production", label: "Feed Production", icon: Factory },
+        { href: "/poultry-feed-formulas",   label: "Feed Formulas",  icon: Wheat },
+      ] : []),
     ],
   }
 

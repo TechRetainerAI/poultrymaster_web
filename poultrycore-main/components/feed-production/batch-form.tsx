@@ -160,10 +160,9 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
   const itemById = useMemo(() => new Map(items.map((i) => [i.poultryRawMaterialItemId, i])), [items])
   const finishedFeedItems = useMemo(() => items.filter((i) => isFinishedFeed(i.category)), [items])
   const ingredientItems = useMemo(() => items.filter((i) => isIngredient(i.category)), [items])
-  const activeFormulas = useMemo(
-    () => formulas.filter((f) => f.isActive && (!header.finishedFeedItemId || f.finishedFeedItemId === header.finishedFeedItemId)),
-    [formulas, header.finishedFeedItemId],
-  )
+  // A formula is a reusable ingredient pattern — any active formula can be applied
+  // to any finished feed the batch produces (it is not bound to a feed item).
+  const activeFormulas = useMemo(() => formulas.filter((f) => f.isActive), [formulas])
 
   useEffect(() => {
     (async () => {

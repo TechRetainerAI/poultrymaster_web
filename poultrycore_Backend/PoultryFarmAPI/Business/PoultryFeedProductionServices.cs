@@ -32,7 +32,7 @@ namespace PoultryFarmAPIWeb.Business
             PoultryFeedFormulaId = r.Int("PoultryFeedFormulaId"),
             FarmId = r.Str("FarmId"),
             FormulaName = r.Str("FormulaName"),
-            FinishedFeedItemId = r.Int("FinishedFeedItemId"),
+            FinishedFeedItemId = r.IntN("FinishedFeedItemId"),
             FinishedFeedItemName = r.Has("FinishedFeedItemName") ? r.StrN("FinishedFeedItemName") : null,
             FinishedFeedUnit = r.Has("FinishedFeedUnit") ? r.StrN("FinishedFeedUnit") : null,
             DefaultOutputUnit = r.StrN("DefaultOutputUnit"),
@@ -97,7 +97,7 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@FarmId", req.FarmId);
             cmd.Parameters.AddWithValue("@PoultryFeedFormulaId", (object?)req.PoultryFeedFormulaId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@FormulaName", req.FormulaName);
-            cmd.Parameters.AddWithValue("@FinishedFeedItemId", req.FinishedFeedItemId);
+            cmd.Parameters.AddWithValue("@FinishedFeedItemId", (object?)req.FinishedFeedItemId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@DefaultOutputUnit", (object?)req.DefaultOutputUnit ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Notes", (object?)req.Notes ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@IsActive", req.IsActive);

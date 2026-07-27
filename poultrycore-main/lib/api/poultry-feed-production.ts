@@ -63,7 +63,7 @@ export interface FeedFormula {
   poultryFeedFormulaId: number
   farmId: string
   formulaName: string
-  finishedFeedItemId: number
+  finishedFeedItemId?: number | null   // optional: a formula is reusable across any finished feed
   finishedFeedItemName?: string | null
   finishedFeedUnit?: string | null
   defaultOutputUnit?: string | null
@@ -92,7 +92,7 @@ export interface FeedFormulaLineInput {
 export interface FeedFormulaUpsertInput {
   poultryFeedFormulaId?: number | null
   formulaName: string
-  finishedFeedItemId: number
+  finishedFeedItemId?: number | null   // optional: leave null to keep the formula reusable
   defaultOutputUnit?: string | null
   notes?: string | null
   isActive?: boolean

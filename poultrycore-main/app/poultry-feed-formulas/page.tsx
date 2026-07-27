@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
@@ -16,7 +17,7 @@ import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Pencil, Loader2, Trash2, FlaskConical, AlertTriangle, CheckCircle2 } from "lucide-react"
+import { Plus, Pencil, Loader2, Trash2, FlaskConical, AlertTriangle, CheckCircle2, ArrowLeft } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
@@ -54,6 +55,7 @@ const EMPTY_FORM: FormState = { poultryFeedFormulaId: null, formulaName: "", fin
 
 export default function PoultryFeedFormulasPage() {
   const { toast } = useToast()
+  const router = useRouter()
   const canManage = usePermissions().featureAccess.canManageFeedProduction
   const [loading, setLoading] = useState(true)
   const [formulas, setFormulas] = useState<FeedFormula[]>([])
@@ -141,7 +143,7 @@ export default function PoultryFeedFormulasPage() {
   async function save() {
     if (savingRef.current) return
     if (!form.formulaName.trim()) { toast({ title: "Formula name is required", variant: "destructive" }); return }
-    if (!form.finishedFeedItemId) { toast({ title: "Pick the finished feed this formula produces", variant: "destructive" }); return }
+    // Finished feed is optional — a formula is a reusable ingredient pattern usable with any feed.
     const lines = form.lines.filter((l) => l.ingredientItemId && Number(l.value) > 0)
     if (!lines.length) { toast({ title: "Add at least one ingredient line", variant: "destructive" }); return }
 
@@ -151,7 +153,7 @@ export default function PoultryFeedFormulasPage() {
       await upsertFeedFormula({
         poultryFeedFormulaId: form.poultryFeedFormulaId ?? undefined,
         formulaName: form.formulaName.trim(),
-        finishedFeedItemId: form.finishedFeedItemId,
+        finishedFeedItemId: form.finishedFeedItemId ?? null,
         defaultOutputUnit: form.defaultOutputUnit || null,
         notes: form.notes || null,
         isActive: form.isActive,
@@ -194,6 +196,8 @@ export default function PoultryFeedFormulasPage() {
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
         <main className="flex-1 p-4 sm:p-6 space-y-4">
+          <Button variant="ghost" size="sm" onClick={() => router.push("/poultry-feed-production")}><ArrowLeft className="w-4 h-4 mr-1" /> Back</Button>
+
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h1 className="text-2xl font-bold">Feed Formulas</h1>
@@ -269,10 +273,13 @@ export default function PoultryFeedFormulasPage() {
 
           <FormSection title="Formula details" color="blue">
             <FormField label="Formula name *"><Input value={form.formulaName} onChange={(e) => setForm({ ...form, formulaName: e.target.value })} placeholder="e.g. Layer Mash Formula" /></FormField>
-            <FormField label="Finished feed *" hint="The feed this formula produces">
-              <Select value={form.finishedFeedItemId ? String(form.finishedFeedItemId) : ""} onValueChange={(v) => setForm({ ...form, finishedFeedItemId: Number(v) })}>
-                <SelectTrigger><SelectValue placeholder={finishedFeedItems.length ? "Pick finished feed" : "No finished-feed items — create one first"} /></SelectTrigger>
-                <SelectContent>{finishedFeedItems.map((i) => <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>{i.itemName}</SelectItem>)}</SelectContent>
+            <FormField label="Finished feed (optional)" hint="Formulas are reusable — leave blank to use with any finished feed">
+              <Select value={form.finishedFeedItemId ? String(form.finishedFeedItemId) : "none"} onValueChange={(v) => setForm({ ...form, finishedFeedItemId: v === "none" ? null : Number(v) })}>
+                <SelectTrigger><SelectValue placeholder="Any finished feed" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Any finished feed (reusable)</SelectItem>
+                  {finishedFeedItems.map((i) => <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>{i.itemName}</SelectItem>)}
+                </SelectContent>
               </Select>
             </FormField>
             <FormField label="Default output unit" hint="e.g. kg, bag"><Input value={form.defaultOutputUnit} onChange={(e) => setForm({ ...form, defaultOutputUnit: e.target.value })} /></FormField>
