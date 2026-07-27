@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { Badge } from "@/components/ui/badge"
@@ -22,9 +22,12 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import {
-  listWaterStockTransactions, addWaterStockTransaction, listWaterProducts,
-  type WaterStockTransaction, type WaterProduct,
+  listWaterStockTransactions, addWaterStockTransaction, listWaterProducts, listWaterRawMaterialItems,
+  adjustWaterRawMaterialItem, reconcileWaterProductStock,
+  type WaterStockTransaction, type WaterProduct, type WaterRawMaterialItem,
 } from "@/lib/api/water"
+import { WaterRecalculateStockButton } from "@/components/water/recalculate-stock-button"
+import { ReconcileProductStockButton } from "@/components/inventory/reconcile-product-stock-button"
 
 // #23: stock entries typed in by hand use these txn types; everything else
 // (Production, ProductionConsume, Sale, DeliveryOut, …) is system-generated.
@@ -39,6 +42,7 @@ export default function WaterStockPage() {
 
   const [txns, setTxns] = useState<WaterStockTransaction[]>([])
   const [products, setProducts] = useState<WaterProduct[]>([])
+  const [rawItems, setRawItems] = useState<WaterRawMaterialItem[]>([])
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
@@ -71,8 +75,9 @@ export default function WaterStockPage() {
 
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState<{ productId: number | null; txnType: "Restock" | "Adjust" | "Return"; quantity: number; unitCost?: number; note: string }>({
-    productId: null, txnType: "Restock", quantity: 0, unitCost: undefined, note: "",
+  // `target` encodes the picked item: "p:<id>" = finished product, "r:<id>" = raw material / supply.
+  const [form, setForm] = useState<{ target: string; txnType: "Restock" | "Adjust" | "Return"; quantity: number; unitCost?: number; note: string }>({
+    target: "", txnType: "Restock", quantity: 0, unitCost: undefined, note: "",
   })
 
   useEffect(() => {
@@ -84,8 +89,8 @@ export default function WaterStockPage() {
   async function load() {
     setLoading(true)
     try {
-      const [t, p] = await Promise.all([listWaterStockTransactions(filterProductId ?? undefined), listWaterProducts()])
-      setTxns(t); setProducts(p)
+      const [t, p, ri] = await Promise.all([listWaterStockTransactions(filterProductId ?? undefined), listWaterProducts(), listWaterRawMaterialItems().catch(() => [])])
+      setTxns(t); setProducts(p); setRawItems(ri)
     } catch (e: any) { toast({ title: "Could not load stock", description: e?.message ?? String(e), variant: "destructive" }) }
     finally { setLoading(false) }
   }
@@ -93,7 +98,7 @@ export default function WaterStockPage() {
   useEffect(() => { if (!loading) void load() /* refilter */ }, [filterProductId]) // eslint-disable-line
 
   async function save() {
-    if (!form.productId) return toast({ title: "Pick a product", variant: "destructive" })
+    if (!form.target) return toast({ title: "Pick an item", variant: "destructive" })
     if (!form.quantity || form.quantity === 0) return toast({ title: "Quantity must be non-zero", variant: "destructive" })
 
     // For Adjust we accept signed quantity. For Restock/Return we treat input as positive units IN.
@@ -101,17 +106,24 @@ export default function WaterStockPage() {
     if (form.txnType === "Restock") signedQty = Math.abs(form.quantity)
     if (form.txnType === "Return")  signedQty = Math.abs(form.quantity)   // returning unsold goods back to stock
 
+    const [kind, idStr] = form.target.split(":")
+    const id = Number(idStr)
     setSaving(true)
     try {
-      await addWaterStockTransaction({
-        waterProductId: form.productId,
-        txnType: form.txnType,
-        quantity: signedQty,
-        unitCost: form.unitCost ?? null,
-        note: form.note || null,
-      })
+      if (kind === "r") {
+        // Raw material / supply — adjust its stock directly (no sale/production side effects).
+        await adjustWaterRawMaterialItem(id, { quantity: signedQty, unitCost: form.unitCost ?? null, movementType: form.txnType, note: form.note || "Manual stock adjustment" })
+      } else {
+        await addWaterStockTransaction({
+          waterProductId: id,
+          txnType: form.txnType,
+          quantity: signedQty,
+          unitCost: form.unitCost ?? null,
+          note: form.note || null,
+        })
+      }
       toast({ title: "Stock updated" })
-      setOpen(false); setForm({ productId: null, txnType: "Restock", quantity: 0, unitCost: undefined, note: "" })
+      setOpen(false); setForm({ target: "", txnType: "Restock", quantity: 0, unitCost: undefined, note: "" })
       await load()
     } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
     finally { setSaving(false) }
@@ -147,6 +159,8 @@ export default function WaterStockPage() {
                   <SelectItem value="system">System only</SelectItem>
                 </SelectContent>
               </Select>
+              <WaterRecalculateStockButton items={rawItems} onDone={load} />
+              <ReconcileProductStockButton products={products.map((p) => ({ id: p.waterProductId, name: p.name }))} reconcile={reconcileWaterProductStock} onDone={load} />
               <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-1" /> New entry</Button>
             </div>
           </div>
@@ -247,11 +261,26 @@ export default function WaterStockPage() {
           </DialogHeader>
           <div className="space-y-4">
             <FormSection title="Stock entry" color="sky">
-              <FormField label="Product *" full>
-                <Select value={form.productId ? String(form.productId) : ""} onValueChange={(v) => setForm({ ...form, productId: parseInt(v, 10) })}>
-                  <SelectTrigger><SelectValue placeholder="Pick a product…" /></SelectTrigger>
+              <FormField label="Item *" full>
+                <Select value={form.target} onValueChange={(v) => setForm({ ...form, target: v })}>
+                  <SelectTrigger><SelectValue placeholder="Pick a finished product, raw material or supply…" /></SelectTrigger>
                   <SelectContent>
-                    {products.map((p) => <SelectItem key={p.waterProductId} value={String(p.waterProductId)}>{p.name}</SelectItem>)}
+                    {products.length > 0 && (
+                      <SelectGroup>
+                        <SelectLabel>Finished products</SelectLabel>
+                        {products.map((p) => <SelectItem key={`p${p.waterProductId}`} value={`p:${p.waterProductId}`}>{p.name}</SelectItem>)}
+                      </SelectGroup>
+                    )}
+                    {rawItems.filter((i) => i.isActive).length > 0 && (
+                      <SelectGroup>
+                        <SelectLabel>Raw materials &amp; supplies</SelectLabel>
+                        {rawItems.filter((i) => i.isActive).map((i) => (
+                          <SelectItem key={`r${i.waterRawMaterialItemId}`} value={`r:${i.waterRawMaterialItemId}`}>
+                            {i.itemName}{i.category ? ` — ${i.category}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
                   </SelectContent>
                 </Select>
               </FormField>

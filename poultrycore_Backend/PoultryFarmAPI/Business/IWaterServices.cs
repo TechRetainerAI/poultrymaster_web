@@ -9,6 +9,7 @@ namespace PoultryFarmAPIWeb.Business
         Task<WaterProductModel?> GetById(int id, string farmId);
         Task<List<WaterProductModel>> GetAll(string farmId);
         Task Delete(int id, string farmId);
+        Task<List<ProductReconcileRow>> ReconcileStockAsync(string farmId, int? productId);
     }
 
     public interface IWaterCustomerService

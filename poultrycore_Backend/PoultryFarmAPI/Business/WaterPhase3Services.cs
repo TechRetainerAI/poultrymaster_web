@@ -15,6 +15,9 @@ namespace PoultryFarmAPIWeb.Business
         Task UpdateAsync(WaterRawMaterialItemModel m);
         Task DeleteAsync(int id, string farmId);
         Task<List<WaterRawMaterialItemModel>> GetLowStockAsync(string farmId);
+        Task<List<WaterRawMaterialRecalcRow>> RecalculateStockAsync(string farmId, int? itemId);
+        Task<decimal> AdjustAsync(int itemId, WaterRawMaterialAdjustRequest req);
+        Task<List<WaterRawMaterialAdjustmentModel>> GetAdjustmentsAsync(string farmId, DateTime? fromDate, DateTime? toDate);
     }
 
     public interface IWaterRawMaterialPurchaseService
@@ -148,6 +151,68 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<List<WaterRawMaterialItemModel>> GetLowStockAsync(string farmId)
             => await ReadList("spWaterRawMaterialItem_GetLowStock", _cs, c => c.Parameters.AddWithValue("@FarmId", farmId), Read);
+
+        // Recompute CurrentQuantity from purchases and usage. Returns before/after
+        // for each item (one item when itemId is given, otherwise all).
+        public async Task<List<WaterRawMaterialRecalcRow>> RecalculateStockAsync(string farmId, int? itemId)
+            => await ReadList("spWaterRawMaterialItem_RecalculateStock", _cs, c =>
+            {
+                c.Parameters.AddWithValue("@FarmId", farmId);
+                c.Parameters.AddWithValue("@WaterRawMaterialItemId", (object?)itemId ?? DBNull.Value);
+            }, r => new WaterRawMaterialRecalcRow
+            {
+                WaterRawMaterialItemId = r.GetInt32(r.GetOrdinal("WaterRawMaterialItemId")),
+                ItemName = r.IsDBNull(r.GetOrdinal("ItemName")) ? null : r.GetString(r.GetOrdinal("ItemName")),
+                Category = r.IsDBNull(r.GetOrdinal("Category")) ? null : r.GetString(r.GetOrdinal("Category")),
+                UnitOfMeasure = r.IsDBNull(r.GetOrdinal("UnitOfMeasure")) ? null : r.GetString(r.GetOrdinal("UnitOfMeasure")),
+                OldQuantity = r.GetDecimal(r.GetOrdinal("OldQuantity")),
+                NewQuantity = r.GetDecimal(r.GetOrdinal("NewQuantity")),
+                Delta = r.GetDecimal(r.GetOrdinal("Delta")),
+            });
+
+        // Manual stock adjustment: signed delta on CurrentQuantity + ledger row.
+        // Returns the item's resulting CurrentQuantity.
+        public async Task<decimal> AdjustAsync(int itemId, WaterRawMaterialAdjustRequest req)
+        {
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand("spWaterRawMaterialItem_Adjust", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@FarmId", req.FarmId);
+            cmd.Parameters.AddWithValue("@WaterRawMaterialItemId", itemId);
+            cmd.Parameters.AddWithValue("@Quantity", req.Quantity);
+            cmd.Parameters.AddWithValue("@UnitCost", (object?)req.UnitCost ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@MovementType", (object?)req.MovementType ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Note", (object?)req.Note ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@CreatedBy", (object?)req.CreatedBy ?? DBNull.Value);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            decimal current = 0m;
+            if (await r.ReadAsync())
+                current = r.IsDBNull(r.GetOrdinal("CurrentQuantity")) ? 0m : r.GetDecimal(r.GetOrdinal("CurrentQuantity"));
+            return current;
+        }
+
+        public async Task<List<WaterRawMaterialAdjustmentModel>> GetAdjustmentsAsync(string farmId, DateTime? fromDate, DateTime? toDate)
+            => await ReadList("spWaterRawMaterialAdjustment_GetAll", _cs, c =>
+            {
+                c.Parameters.AddWithValue("@FarmId", farmId);
+                c.Parameters.AddWithValue("@FromDate", (object?)fromDate ?? DBNull.Value);
+                c.Parameters.AddWithValue("@ToDate", (object?)toDate ?? DBNull.Value);
+            }, r => new WaterRawMaterialAdjustmentModel
+            {
+                WaterRawMaterialAdjustmentId = r.GetInt32(r.GetOrdinal("WaterRawMaterialAdjustmentId")),
+                FarmId = r.GetString(r.GetOrdinal("FarmId")),
+                WaterRawMaterialItemId = r.GetInt32(r.GetOrdinal("WaterRawMaterialItemId")),
+                ItemName = r.IsDBNull(r.GetOrdinal("ItemName")) ? null : r.GetString(r.GetOrdinal("ItemName")),
+                Category = r.IsDBNull(r.GetOrdinal("Category")) ? null : r.GetString(r.GetOrdinal("Category")),
+                UnitOfMeasure = r.IsDBNull(r.GetOrdinal("UnitOfMeasure")) ? null : r.GetString(r.GetOrdinal("UnitOfMeasure")),
+                AdjustedDate = r.GetDateTime(r.GetOrdinal("AdjustedDate")),
+                Quantity = r.GetDecimal(r.GetOrdinal("Quantity")),
+                UnitCost = r.IsDBNull(r.GetOrdinal("UnitCost")) ? null : r.GetDecimal(r.GetOrdinal("UnitCost")),
+                MovementType = r.IsDBNull(r.GetOrdinal("MovementType")) ? null : r.GetString(r.GetOrdinal("MovementType")),
+                Note = r.IsDBNull(r.GetOrdinal("Note")) ? null : r.GetString(r.GetOrdinal("Note")),
+                CreatedBy = r.IsDBNull(r.GetOrdinal("CreatedBy")) ? null : r.GetString(r.GetOrdinal("CreatedBy")),
+                CreatedAt = r.GetDateTime(r.GetOrdinal("CreatedAt")),
+            });
 
         internal static WaterRawMaterialItemModel Read(SqlDataReader r) => new()
         {

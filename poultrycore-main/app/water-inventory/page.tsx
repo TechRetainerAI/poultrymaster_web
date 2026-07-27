@@ -25,9 +25,11 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import {
-  listWaterProducts, listWaterRawMaterialItems,
+  listWaterProducts, listWaterRawMaterialItems, reconcileWaterProductStock,
   type WaterProduct, type WaterRawMaterialItem,
 } from "@/lib/api/water"
+import { WaterRecalculateStockButton } from "@/components/water/recalculate-stock-button"
+import { ReconcileProductStockButton } from "@/components/inventory/reconcile-product-stock-button"
 import { useFmt } from "@/lib/currency"
 
 // Anything below this many units triggers a "low stock" badge for finished products.
@@ -145,9 +147,13 @@ export default function WaterInventoryPage() {
                 <p className="text-sm text-slate-600">Finished products and raw materials in one place.</p>
               </div>
             </div>
-            <div className="relative w-full md:w-80">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input placeholder="Search by name, SKU, category…" className="pl-9" value={q} onChange={(e) => setQ(e.target.value)} />
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              <div className="relative w-full md:w-80">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input placeholder="Search by name, SKU, category…" className="pl-9" value={q} onChange={(e) => setQ(e.target.value)} />
+              </div>
+              <WaterRecalculateStockButton items={rawItems} onDone={async () => setRawItems(await listWaterRawMaterialItems())} />
+              <ReconcileProductStockButton products={products.map((p) => ({ id: p.waterProductId, name: p.name }))} reconcile={reconcileWaterProductStock} onDone={async () => setProducts(await listWaterProducts())} />
             </div>
           </div>
 

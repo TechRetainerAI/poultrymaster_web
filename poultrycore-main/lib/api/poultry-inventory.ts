@@ -187,6 +187,74 @@ export const listPoultryRawMaterialUsageHistory = (opts?: { itemId?: number; fro
   return jget<PoultryRawMaterialUsage[]>(`/Poultry/raw-material-usage/history?${qs.toString()}`)
 }
 
+// ----- Manual adjustments (increase/decrease a raw material / supply directly) -----
+export interface PoultryRawMaterialAdjustment {
+  poultryRawMaterialAdjustmentId: number
+  farmId: string
+  poultryRawMaterialItemId: number
+  itemName?: string | null
+  category?: string | null
+  unitOfMeasure?: string | null
+  adjustedDate: string
+  quantity: number            // signed: + increase, - decrease
+  unitCost?: number | null
+  movementType?: string | null
+  note?: string | null
+  createdBy?: string | null
+  createdAt: string
+}
+
+export const listPoultryRawMaterialAdjustments = (opts?: { fromDate?: string; toDate?: string }) => {
+  const qs = new URLSearchParams({ farmId: activeFarmId() })
+  if (opts?.fromDate) qs.append("fromDate", opts.fromDate)
+  if (opts?.toDate) qs.append("toDate", opts.toDate)
+  return jget<PoultryRawMaterialAdjustment[]>(`/Poultry/raw-material-adjustments?${qs.toString()}`)
+}
+
+// quantity is a SIGNED delta (positive increases stock, negative decreases it).
+export const adjustPoultryRawMaterialItem = (
+  itemId: number,
+  input: { quantity: number; unitCost?: number | null; movementType?: string; note?: string | null },
+) =>
+  jsend<{ currentQuantity: number }>(`/Poultry/raw-material-items/${itemId}/adjust`, "POST", {
+    ...input, farmId: activeFarmId(), createdBy: activeUserId(),
+  })
+
+// Recompute raw-material CurrentQuantity from purchases, usage and adjustments.
+// Omit itemId to recalculate every raw material / supply for the active company.
+export interface PoultryRawMaterialRecalcRow {
+  poultryRawMaterialItemId: number
+  itemName?: string | null
+  category?: string | null
+  unitOfMeasure?: string | null
+  oldQuantity: number
+  newQuantity: number
+  delta: number
+}
+
+export const recalculatePoultryRawMaterialStock = (itemId?: number) => {
+  const qs = new URLSearchParams({ farmId: activeFarmId() })
+  if (itemId) qs.append("itemId", String(itemId))
+  // Send an empty body so a Content-Length is always set — a bodyless POST can
+  // 411 (Length Required) when relayed through the same-origin proxy's fetch.
+  return jsend<PoultryRawMaterialRecalcRow[]>(`/Poultry/raw-material-items/recalculate-stock?${qs.toString()}`, "POST", {})
+}
+
+// Finished-product stock reconciliation (Birds, Eggs, …) — in/out breakdown
+// re-derived from the transaction ledger. Read-only.
+export interface ProductReconcileRow {
+  productId: number
+  name?: string | null
+  stockIn: number
+  stockOut: number
+  currentStock: number
+}
+export const reconcilePoultryProductStock = (productId?: number) => {
+  const qs = new URLSearchParams({ farmId: activeFarmId() })
+  if (productId) qs.append("productId", String(productId))
+  return jget<ProductReconcileRow[]>(`/Poultry/products/reconcile-stock?${qs.toString()}`)
+}
+
 // ===================== Products + Stock (slice 2) =====================
 export interface PoultryProduct {
   poultryProductId: number

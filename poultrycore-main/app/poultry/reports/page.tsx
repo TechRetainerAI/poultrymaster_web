@@ -1,71 +1,41 @@
 "use client"
 
 // =============================================================================
-// Poultry Reports — tabbed dashboard (/poultry/reports).
+// Poultry Reports — index page (catalogue).
 //
-// Mirrors the established /reports page exactly: a single page with a tab bar
-// (Production · Financial · Daily Report · More Reports) that swaps the dashboard
-// content in place, backed by the shared usePoultryDashboardData hook. Only shown
-// inside a Poultry company context. The 20 advanced reports remain reachable from
-// the Reports mega-menu in the top-nav.
+// Mirrors the water side (/water-reports): a data-driven catalogue that lists
+// EVERY poultry report. Both the top-nav Reports mega-menu "View all reports →"
+// and the Back button on each individual report land here, so this is the single
+// browsable home for all reports.
+//
+// Layout: a masonry column flow (like the Reports mega-menu) so every group packs
+// tightly under the next with no wasted rows — the whole catalogue fits on ~one
+// screen with minimal scrolling. Driven by POULTRY_REPORT_MENU_GROUPS (the 20
+// advanced reports + Batch Production Summary + Farm Dashboards + Closing +
+// Activity), each item carrying a ready `href`.
 // =============================================================================
 
-import { useState, useEffect, Suspense } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
-import { Button } from "@/components/ui/button"
+import Link from "next/link"
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
-import { BarChart3, Plus, Egg, TrendingUp, CalendarDays, Wallet } from "lucide-react"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useIsMobile } from "@/hooks/use-mobile"
-import { useLogout } from "@/hooks/use-logout"
+import { BarChart3, ChevronRight } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
-import { cn } from "@/lib/utils"
-import {
-  usePoultryDashboardData,
-  DashboardFilterBar,
-  PoultryDashboardSection,
-  type DashboardView,
-} from "@/components/poultry-reports/poultry-dashboard-view"
+import { useLogout } from "@/hooks/use-logout"
+import { POULTRY_REPORT_MENU_GROUPS } from "@/lib/reports/poultry-reports-config"
 
-const VALID_TABS: DashboardView[] = ["production", "financial", "daily", "insights"]
+const TOTAL_REPORTS = POULTRY_REPORT_MENU_GROUPS.reduce((n, g) => n + g.items.length, 0)
 
-function PoultryReportsPageInner() {
-  const isMobile = useIsMobile()
+export default function PoultryReportsIndexPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
+  const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const logout = useLogout()
 
-  // Gate: this page only exists inside a Poultry company context.
-  const activeFarmType = useAuthStore((s) => s.activeFarmType)
+  // Gate: this catalogue only exists inside a Poultry company context.
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Poultry") router.replace("/dashboard")
   }, [activeFarmType, router])
-
-  // The dashboard data + filters live in the shared hook (single source of
-  // truth shared with the /reports page and the dedicated dashboard pages).
-  const data = usePoultryDashboardData()
-
-  // Tab can be deep-linked via ?tab= (used by the Reports mega-menu / catalogue
-  // "Farm Dashboards" links). Falls back to Production.
-  const initialTab = (() => {
-    const t = searchParams.get("tab")
-    return t && VALID_TABS.includes(t as DashboardView) ? (t as DashboardView) : "production"
-  })()
-  const [tab, setTab] = useState<DashboardView>(initialTab)
-
-  // Keep the tab in sync when the ?tab= param changes (e.g. picking another
-  // dashboard from the mega-menu while already on this page).
-  useEffect(() => {
-    const t = searchParams.get("tab")
-    if (t && VALID_TABS.includes(t as DashboardView) && t !== tab) setTab(t as DashboardView)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams])
-
-  const changeTab = (v: string) => {
-    setTab(v as DashboardView)
-    router.replace(`/poultry/reports?tab=${v}`, { scroll: false })
-  }
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -73,68 +43,54 @@ function PoultryReportsPageInner() {
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
         <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
-          <div className="space-y-6">
-            {/* Page Header — aligned with /reports */}
-            <div className={cn("flex gap-4", isMobile ? "flex-col" : "items-center justify-between")}>
-              <div className="flex items-start gap-3 min-w-0">
-                <div className="w-10 h-10 shrink-0 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <BarChart3 className="w-5 h-5 text-blue-600" />
-                </div>
-                <div className="min-w-0">
-                  <h1 className={cn("font-bold text-slate-900", isMobile ? "text-xl" : "text-2xl")}>Reports</h1>
-                  <p className="text-sm text-slate-600">Comprehensive farm analytics and insights</p>
-                </div>
+          <div className="mx-auto w-full max-w-7xl">
+            {/* Page header */}
+            <div className="mb-5 flex items-start gap-3">
+              <div className="rounded-xl bg-blue-100 p-2.5">
+                <BarChart3 className="h-6 w-6 text-blue-700" />
               </div>
-              <Button className={cn("gap-2 bg-blue-600 hover:bg-blue-700 shrink-0", isMobile && "w-full sm:w-auto h-11 sm:h-10")}>
-                <Plus className="w-4 h-4" />
-                New Report
-              </Button>
+              <div>
+                <h1 className="text-2xl font-semibold text-slate-900">Reports</h1>
+                <p className="mt-0.5 text-sm text-slate-500">
+                  {TOTAL_REPORTS} reports — each with its own filters, summary cards and PDF export.
+                </p>
+              </div>
             </div>
 
-            {/* Tabs + filters — same pattern as /reports (web + mobile) */}
-            <Tabs value={tab} onValueChange={changeTab} className="w-full">
-              <TabsList
-                className={cn(
-                  "w-full",
-                  isMobile && "grid h-auto grid-cols-2 gap-1 sm:grid-cols-4"
-                )}
-              >
-                <TabsTrigger value="production" className={cn(isMobile && "min-w-0 px-2 py-2 text-xs")}>
-                  <Egg className={cn("w-4 h-4 shrink-0", isMobile ? "mr-1" : "mr-2")} />
-                  Production
-                </TabsTrigger>
-                <TabsTrigger value="financial" className={cn(isMobile && "min-w-0 px-2 py-2 text-xs")}>
-                  <Wallet className={cn("w-4 h-4 shrink-0", isMobile ? "mr-1" : "mr-2")} />
-                  Financial
-                </TabsTrigger>
-                <TabsTrigger value="daily" className={cn(isMobile && "min-w-0 px-2 py-2 text-xs")}>
-                  <CalendarDays className={cn("w-4 h-4 shrink-0", isMobile ? "mr-1" : "mr-2")} />
-                  {isMobile ? "Daily" : "Daily Report"}
-                </TabsTrigger>
-                <TabsTrigger value="insights" className={cn(isMobile && "min-w-0 px-2 py-2 text-xs")}>
-                  <TrendingUp className={cn("w-4 h-4 shrink-0", isMobile ? "mr-1" : "mr-2")} />
-                  {isMobile ? "More" : "More Reports"}
-                </TabsTrigger>
-              </TabsList>
+            {/* Masonry column flow — groups pack tightly with no wasted rows. */}
+            <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 xl:columns-4">
+              {POULTRY_REPORT_MENU_GROUPS.map((g) => (
+                <section key={g.key} className="mb-4 break-inside-avoid">
+                  <div className="mb-2 flex items-center gap-2 px-1">
+                    <span className={`inline-block h-2 w-2 rounded-full ${g.color}`} />
+                    <h2 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{g.label}</h2>
+                    <span className="text-[11px] font-normal text-slate-400">{g.items.length}</span>
+                  </div>
 
-              <DashboardFilterBar data={data} />
-            </Tabs>
-
-            <div className="space-y-4">
-              <PoultryDashboardSection view={tab} data={data} />
+                  <div className="space-y-1.5">
+                    {g.items.map((r) => (
+                      <Link
+                        key={r.id}
+                        href={r.href}
+                        className="group flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-2.5 py-2 transition-colors hover:border-slate-300 hover:bg-slate-50"
+                      >
+                        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${g.color}`}>
+                          <r.icon className="h-4 w-4 text-white" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="truncate text-sm font-medium text-slate-900">{r.title}</h3>
+                          <p className="truncate text-[11px] text-slate-500">{r.description}</p>
+                        </div>
+                        <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 opacity-0 transition-opacity group-hover:opacity-100" />
+                      </Link>
+                    ))}
+                  </div>
+                </section>
+              ))}
             </div>
           </div>
         </main>
       </div>
     </div>
-  )
-}
-
-// useSearchParams must sit under a Suspense boundary for the page shell.
-export default function PoultryReportsPage() {
-  return (
-    <Suspense fallback={null}>
-      <PoultryReportsPageInner />
-    </Suspense>
   )
 }

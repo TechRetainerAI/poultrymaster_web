@@ -85,7 +85,9 @@ function logLoginDiagnostic(label: string, extra?: unknown) {
 }
 
 export interface RegisterData {
-  farmName: string
+  // Company is optional at signup — owners can create it later in the Business
+  // Office. Leave both blank to register with no company.
+  farmName?: string
   username: string
   email: string
   password: string
@@ -93,7 +95,7 @@ export interface RegisterData {
   lastName: string
   roles: string[]
   phoneNumber: string
-  companyType: "Poultry" | "Water" | "Generic"
+  companyType?: "Poultry" | "Water" | "Generic"
   // Prompt 2 — owner's Business Office (HQ), persisted on the account.
   businessOfficeName?: string
   businessOfficeCurrency?: string
@@ -198,6 +200,9 @@ function extractFromFeatureRecord(src: Record<string, unknown>): Record<string, 
   )
   const canViewActivityLog = pick(src.canViewActivityLog, src.CanViewActivityLog, src.viewActivityLog, src.ViewActivityLog, src.activityLog, src.ActivityLog)
   const canViewSettings = pick(src.canViewSettings, src.CanViewSettings, src.viewSettings, src.ViewSettings, src.settings, src.Settings)
+  const canViewFeedProduction = pick(src.canViewFeedProduction, src.CanViewFeedProduction, src.viewFeedProduction, src.ViewFeedProduction, undefined, undefined)
+  const canManageFeedProduction = pick(src.canManageFeedProduction, src.CanManageFeedProduction, src.manageFeedProduction, src.ManageFeedProduction, undefined, undefined)
+  const canViewFeedProductionCost = pick(src.canViewFeedProductionCost, src.CanViewFeedProductionCost, src.viewFeedProductionCost, src.ViewFeedProductionCost, undefined, undefined)
 
   const normalized: Record<string, boolean> = {}
   if (canEnterSales !== undefined) normalized.canEnterSales = canEnterSales
@@ -209,6 +214,9 @@ function extractFromFeatureRecord(src: Record<string, unknown>): Record<string, 
   if (canViewCustomers !== undefined) normalized.canViewCustomers = canViewCustomers
   if (canViewActivityLog !== undefined) normalized.canViewActivityLog = canViewActivityLog
   if (canViewSettings !== undefined) normalized.canViewSettings = canViewSettings
+  if (canViewFeedProduction !== undefined) normalized.canViewFeedProduction = canViewFeedProduction
+  if (canManageFeedProduction !== undefined) normalized.canManageFeedProduction = canManageFeedProduction
+  if (canViewFeedProductionCost !== undefined) normalized.canViewFeedProductionCost = canViewFeedProductionCost
   return normalized
 }
 

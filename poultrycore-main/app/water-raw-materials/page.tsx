@@ -29,12 +29,13 @@ import {
   listWaterRawMaterialItems, createWaterRawMaterialItem, updateWaterRawMaterialItem, deleteWaterRawMaterialItem,
   listWaterRawMaterialPurchases, createWaterRawMaterialPurchase, updateWaterRawMaterialPurchase, deleteWaterRawMaterialPurchase,
   payWaterRawMaterialPurchaseBalance,
-  listWaterRawMaterialUsageHistory,
+  listWaterRawMaterialUsageHistory, listWaterRawMaterialAdjustments,
   listWaterCashAccounts,
   type WaterRawMaterialItem, type WaterRawMaterialPurchase, type WaterProductionMaterialUsageRow,
   type WaterCashAccount,
 } from "@/lib/api/water"
 import { SupplierSelect } from "@/components/water/supplier-select"
+import { WaterRecalculateStockButton } from "@/components/water/recalculate-stock-button"
 
 const CATEGORIES = ["PackagingRoll","SachetFilm","OuterBag","Chemical","Filter","UVLamp","SparePart","Fuel","CleaningSupply","Other"]
 const PAYMENT_METHODS = ["Cash","MoMo","Bank","Credit"]
@@ -146,7 +147,31 @@ export default function WaterRawMaterialsPage() {
   async function loadUsage() {
     if (usageLoaded) return
     setUsageLoading(true)
-    try { setUsage(await listWaterRawMaterialUsageHistory()) }
+    try {
+      const [hist, adj] = await Promise.all([
+        listWaterRawMaterialUsageHistory(),
+        listWaterRawMaterialAdjustments().catch(() => []),
+      ])
+      // Show manual stock adjustments alongside production usage. An adjustment
+      // that decreases stock reads as a positive "used"; an increase as a
+      // negative used (a return). Synthetic negative id keeps React keys unique.
+      const adjRows: WaterProductionMaterialUsageRow[] = adj.map((a) => ({
+        waterRawMaterialUsageId: -a.waterRawMaterialAdjustmentId,
+        farmId: a.farmId,
+        waterRawMaterialItemId: a.waterRawMaterialItemId,
+        itemName: a.itemName ?? null,
+        unitOfMeasure: a.unitOfMeasure ?? null,
+        usedDate: a.adjustedDate,
+        quantityUsed: -Number(a.quantity),
+        expectedQuantityUsed: null,
+        variance: 0,
+        varianceReason: `Manual adjustment${a.movementType ? ` (${a.movementType})` : ""}${a.note ? ` — ${a.note}` : ""}`,
+        unitCost: a.unitCost ?? null,
+        notes: a.note ?? null,
+        createdAt: a.createdAt,
+      }))
+      setUsage([...hist, ...adjRows])
+    }
     catch (e: any) { toast({ title: "Couldn't load usage history", description: e?.message, variant: "destructive" }) }
     finally { setUsageLoading(false); setUsageLoaded(true) }
   }
@@ -321,6 +346,7 @@ export default function WaterRawMaterialsPage() {
               <Box className="h-6 w-6 text-sky-600" /> Raw materials
             </h1>
             <div className="flex flex-wrap gap-2">
+              <WaterRecalculateStockButton items={items} onDone={load} />
               <Button variant="outline" onClick={openNewItem}><Plus className="h-4 w-4 mr-1" /> New item</Button>
               <Button onClick={openNewPurchase}><ShoppingCart className="h-4 w-4 mr-1" /> Record purchase</Button>
             </div>

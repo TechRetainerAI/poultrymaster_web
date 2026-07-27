@@ -48,6 +48,34 @@ namespace PoultryFarmAPIWeb.Controllers
             await _svc.DeleteAsync(id, farmId);
             return NoContent();
         }
+
+        // Recompute CurrentQuantity from purchases, usage and adjustments. Omit
+        // itemId to recalculate every raw material / supply for the company.
+        [HttpPost("recalculate-stock")] public async Task<ActionResult<IEnumerable<WaterRawMaterialRecalcRow>>> RecalculateStock(
+            [FromQuery] string farmId, [FromQuery] int? itemId)
+            => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.RecalculateStockAsync(farmId, itemId));
+
+        // Manual stock adjustment (increase/decrease) on a raw material / supply.
+        // Side-effect-free: does not post to Expense or production usage.
+        [HttpPost("{id:int}/adjust")] public async Task<ActionResult<object>> Adjust(int id, [FromBody] WaterRawMaterialAdjustRequest body)
+        {
+            if (body is null || string.IsNullOrWhiteSpace(body.FarmId)) return BadRequest("Company ID is required.");
+            if (body.Quantity == 0) return BadRequest("Adjustment quantity cannot be zero.");
+            var current = await _svc.AdjustAsync(id, body);
+            return Ok(new { CurrentQuantity = current });
+        }
+    }
+
+    [ApiController]
+    [Route("api/Water/raw-material-adjustments")]
+    public class WaterRawMaterialAdjustmentController : ControllerBase
+    {
+        private readonly IWaterRawMaterialItemService _svc;
+        public WaterRawMaterialAdjustmentController(IWaterRawMaterialItemService svc) => _svc = svc;
+
+        [HttpGet] public async Task<ActionResult<IEnumerable<WaterRawMaterialAdjustmentModel>>> GetAll(
+            [FromQuery] string farmId, [FromQuery] DateTime? fromDate, [FromQuery] DateTime? toDate)
+            => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.GetAdjustmentsAsync(farmId, fromDate, toDate));
     }
 
     [ApiController]

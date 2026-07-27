@@ -154,6 +154,19 @@ namespace User.Management.Data
             await cmd.ExecuteNonQueryAsync();
         }
 
+        // Soft-delete (owner-only). Returns true if the company was deleted.
+        public async Task<bool> DeleteAsync(string farmId, string userId)
+        {
+            using var conn = new SqlConnection(_connectionString);
+            using var cmd = new SqlCommand("spCompany_Delete", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@UserId", userId);
+
+            await conn.OpenAsync();
+            var result = await cmd.ExecuteScalarAsync();
+            return result != null && result != DBNull.Value && Convert.ToInt32(result) == 1;
+        }
+
         private static CompanyResponse Map(SqlDataReader r) => new()
         {
             FarmId      = r["FarmId"].ToString() ?? string.Empty,

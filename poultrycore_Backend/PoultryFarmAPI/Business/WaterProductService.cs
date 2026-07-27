@@ -109,6 +109,29 @@ namespace PoultryFarmAPIWeb.Business
             await cmd.ExecuteNonQueryAsync();
         }
 
+        // Reconcile finished-product stock from the transaction ledger (in/out
+        // breakdown). Read-only: water finished stock is derived, not stored.
+        public async Task<List<ProductReconcileRow>> ReconcileStockAsync(string farmId, int? productId)
+        {
+            var list = new List<ProductReconcileRow>();
+            using var conn = new SqlConnection(_connectionString);
+            using var cmd = new SqlCommand("spWaterProduct_ReconcileStock", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@WaterProductId", (object?)productId ?? DBNull.Value);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+                list.Add(new ProductReconcileRow
+                {
+                    ProductId = r.GetInt32(r.GetOrdinal("WaterProductId")),
+                    Name = r.IsDBNull(r.GetOrdinal("Name")) ? null : r.GetString(r.GetOrdinal("Name")),
+                    StockIn = r.GetDecimal(r.GetOrdinal("StockIn")),
+                    StockOut = r.GetDecimal(r.GetOrdinal("StockOut")),
+                    CurrentStock = r.GetDecimal(r.GetOrdinal("CurrentStock")),
+                });
+            return list;
+        }
+
         private static WaterProductModel Read(SqlDataReader r) => new()
         {
             WaterProductId = r.GetInt32(r.GetOrdinal("WaterProductId")),

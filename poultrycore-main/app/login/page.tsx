@@ -39,7 +39,6 @@ export default function LoginPage() {
   // Business Office; "Change Business Office" reveals the field again.
   const [orgCode, setOrgCode] = useState("")
   const [rememberedCode, setRememberedCode] = useState("")
-  const [rememberOffice, setRememberOffice] = useState(true)
   const [changingOffice, setChangingOffice] = useState(false)
   useEffect(() => {
     try {
@@ -125,7 +124,12 @@ export default function LoginPage() {
           // company (previously the first company / Poultry default).
           useAuthStore.getState().clearActiveCompany()
           setPostLoginHome("/business-office")
-          if (code && rememberOffice) { try { localStorage.setItem("lastOrgCode", code) } catch {} }
+          // Remember the Business Office code only when "Remember me" is ticked;
+          // otherwise forget any previously remembered one.
+          try {
+            if (code && rememberMe) localStorage.setItem("lastOrgCode", code)
+            else if (!rememberMe) localStorage.removeItem("lastOrgCode")
+          } catch {}
         }
       } catch (e) {
         console.warn("[Login] Could not resolve company type post-login:", e)
@@ -250,16 +254,7 @@ export default function LoginPage() {
                       disabled={isLoading}
                     />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="rememberOffice"
-                      checked={rememberOffice}
-                      onCheckedChange={(c) => setRememberOffice(c as boolean)}
-                      className="border-slate-500 data-[state=checked]:bg-orange-500 data-[state=checked]:border-orange-500"
-                      disabled={isLoading}
-                    />
-                    <Label htmlFor="rememberOffice" className="text-sm text-slate-200 cursor-pointer">Remember this Business Office</Label>
-                  </div>
+                  <p className="text-xs text-slate-400">Tick “Remember me” below to keep this Business Office for next time.</p>
                 </div>
               ) : (
                 <div className="flex items-center justify-between rounded-lg border border-slate-600 bg-slate-700/40 px-3 py-2">

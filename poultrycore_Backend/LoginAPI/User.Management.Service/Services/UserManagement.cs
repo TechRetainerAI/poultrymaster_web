@@ -123,7 +123,12 @@ namespace User.Management.Service.Services
                         return new ApiResponse<CreateUserResponse> { IsSuccess = false, StatusCode = 409, Message = "This Organization Code is already taken." };
                 }
 
-                var farmId = Guid.NewGuid().ToString();
+                // Company is optional at signup — owners can create their first
+                // company later in the Business Office. Only mint a FarmId when a
+                // company is actually being created.
+                bool hasCompany = !string.IsNullOrWhiteSpace(registerUser.FarmName)
+                               && !string.IsNullOrWhiteSpace(registerUser.CompanyType);
+                var farmId = hasCompany ? Guid.NewGuid().ToString() : string.Empty;
 
                 // Create the user.
                 // EmailConfirmed = true: signup auto-confirms; the controller does not send a
@@ -131,7 +136,7 @@ namespace User.Management.Service.Services
                 ApplicationUser user = new()
                 {
                     FarmId = farmId,                                 //saving farmID as well
-                    FarmName = registerUser.FarmName,
+                    FarmName = registerUser.FarmName ?? string.Empty,
                     FirstName = registerUser.FirstName,
                     LastName = registerUser.LastName,
                     Email = registerUser.Email,
@@ -179,29 +184,31 @@ namespace User.Management.Service.Services
                             string.Join("; ", ensureFields.Errors.Select(e => e.Description)));
                     }
 
-                    // 2. Create the farm and get farmId.
-                    // CompanyType is validated [Required] + RegularExpression on the
-                    // request model — ModelState rejection runs before this method,
-                    // so by the time we get here it's a valid value.
-                    Farm farm = new Farm
+                    // 2. Create the first company — ONLY if one was provided. Owners
+                    // may register with no company and create it later in the
+                    // Business Office.
+                    if (hasCompany)
                     {
-                        FarmId = farmId,
-                        Name = registerUser.FarmName,
-                        Type = registerUser.CompanyType!,
-                        Email = registerUser.Email,
-                        PhoneNumber = registerUser.PhoneNumber
-                    };
-                    var createFarmResult = await _subscriptionService.CreateFarmAsync(farm);
-                    if (!createFarmResult)
-                    {
-                        // Compensating delete: don't leave an orphan user that has no farm to log into.
-                        await _userManager.DeleteAsync(user);
-                        return new ApiResponse<CreateUserResponse>
+                        Farm farm = new Farm
                         {
-                            IsSuccess = false,
-                            StatusCode = 500,
-                            Message = "Farm creation failed. Please try again."
+                            FarmId = farmId,
+                            Name = registerUser.FarmName!,
+                            Type = registerUser.CompanyType!,
+                            Email = registerUser.Email,
+                            PhoneNumber = registerUser.PhoneNumber
                         };
+                        var createFarmResult = await _subscriptionService.CreateFarmAsync(farm);
+                        if (!createFarmResult)
+                        {
+                            // Compensating delete: don't leave an orphan user that has no farm to log into.
+                            await _userManager.DeleteAsync(user);
+                            return new ApiResponse<CreateUserResponse>
+                            {
+                                IsSuccess = false,
+                                StatusCode = 500,
+                                Message = "Company creation failed. Please try again."
+                            };
+                        }
                     }
 
                     // 4. Return success (no email-confirmation token: signup is auto-confirmed).

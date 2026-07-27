@@ -1867,6 +1867,71 @@ export const updateWaterRawMaterialItem = (id: number, input: Omit<WaterRawMater
   jsend<void>(`/Water/raw-material-items/${id}`, "PUT", { ...input, waterRawMaterialItemId: id, farmId: activeFarmId() })
 export const deleteWaterRawMaterialItem = (id: number) =>
   jsend<void>(`/Water/raw-material-items/${id}?farmId=${encodeURIComponent(activeFarmId())}`, "DELETE")
+
+// Recompute raw-material CurrentQuantity from purchases and usage. Omit itemId to
+// recalculate every raw material / supply for the active company.
+export interface WaterRawMaterialRecalcRow {
+  waterRawMaterialItemId: number
+  itemName?: string | null
+  category?: string | null
+  unitOfMeasure?: string | null
+  oldQuantity: number
+  newQuantity: number
+  delta: number
+}
+export const recalculateWaterRawMaterialStock = (itemId?: number) => {
+  const qs = new URLSearchParams({ farmId: activeFarmId() })
+  if (itemId) qs.append("itemId", String(itemId))
+  // Send an empty body so a Content-Length is always set — a bodyless POST can
+  // 411 (Length Required) when relayed through the same-origin proxy's fetch.
+  return jsend<WaterRawMaterialRecalcRow[]>(`/Water/raw-material-items/recalculate-stock?${qs.toString()}`, "POST", {})
+}
+
+// ----- Manual adjustments (increase/decrease a raw material / supply directly) -----
+export interface WaterRawMaterialAdjustment {
+  waterRawMaterialAdjustmentId: number
+  farmId: string
+  waterRawMaterialItemId: number
+  itemName?: string | null
+  category?: string | null
+  unitOfMeasure?: string | null
+  adjustedDate: string
+  quantity: number            // signed: + increase, - decrease
+  unitCost?: number | null
+  movementType?: string | null
+  note?: string | null
+  createdBy?: string | null
+  createdAt: string
+}
+export const listWaterRawMaterialAdjustments = (opts?: { fromDate?: string; toDate?: string }) => {
+  const qs = new URLSearchParams({ farmId: activeFarmId() })
+  if (opts?.fromDate) qs.append("fromDate", opts.fromDate)
+  if (opts?.toDate) qs.append("toDate", opts.toDate)
+  return jget<WaterRawMaterialAdjustment[]>(`/Water/raw-material-adjustments?${qs.toString()}`)
+}
+// quantity is a SIGNED delta (positive increases stock, negative decreases it).
+export const adjustWaterRawMaterialItem = (
+  itemId: number,
+  input: { quantity: number; unitCost?: number | null; movementType?: string; note?: string | null },
+) =>
+  jsend<{ currentQuantity: number }>(`/Water/raw-material-items/${itemId}/adjust`, "POST", {
+    ...input, farmId: activeFarmId(), createdBy: currentUserId(),
+  })
+
+// Finished-product stock reconciliation (Sachet Water, Bottled, …) — in/out
+// breakdown re-derived from the transaction ledger. Read-only.
+export interface WaterProductReconcileRow {
+  productId: number
+  name?: string | null
+  stockIn: number
+  stockOut: number
+  currentStock: number
+}
+export const reconcileWaterProductStock = (productId?: number) => {
+  const qs = new URLSearchParams({ farmId: activeFarmId() })
+  if (productId) qs.append("productId", String(productId))
+  return jget<WaterProductReconcileRow[]>(`/Water/products/reconcile-stock?${qs.toString()}`)
+}
 export const listWaterRawMaterialPurchases = (opts?: { fromDate?: string; toDate?: string }) => {
   const qs = new URLSearchParams({ farmId: activeFarmId() })
   if (opts?.fromDate) qs.append("fromDate", opts.fromDate)

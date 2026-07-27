@@ -43,6 +43,12 @@ namespace PoultryFarmAPIWeb.Controllers
             return Ok(new { eggProductId = egg, birdsProductId = birds });
         }
 
+        // Reconcile finished-product stock from the transaction ledger (in/out
+        // breakdown). Read-only: finished stock is derived, not stored.
+        [HttpGet("reconcile-stock")] public async Task<ActionResult<IEnumerable<ProductReconcileRow>>> ReconcileStock(
+            [FromQuery] string farmId, [FromQuery] int? productId)
+            => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.ReconcileStockAsync(farmId, productId));
+
         // Recipe (bill of materials) for a product.
         [HttpGet("{id:int}/recipe")] public async Task<ActionResult<PoultryProductionRecipeModel>> GetRecipe(int id, [FromQuery] string farmId)
         { if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required."); var r = await _recipes.GetByProductAsync(farmId, id); return r is null ? Ok(null) : Ok(r); }

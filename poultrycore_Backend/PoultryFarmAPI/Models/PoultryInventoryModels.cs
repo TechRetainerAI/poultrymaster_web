@@ -84,4 +84,47 @@ namespace PoultryFarmAPIWeb.Models
         public DateTime? PaymentDate { get; set; }
         public string? CreatedBy { get; set; }
     }
+
+    // A manual stock adjustment on a raw material / supply. Signed Quantity:
+    // positive increases stock, negative decreases it.
+    public class PoultryRawMaterialAdjustmentModel
+    {
+        [Key] public int PoultryRawMaterialAdjustmentId { get; set; }
+        [Required] public string FarmId { get; set; } = string.Empty;
+        [Required] public int PoultryRawMaterialItemId { get; set; }
+        public string? ItemName { get; set; }
+        public string? Category { get; set; }
+        public string? UnitOfMeasure { get; set; }
+        public DateTime AdjustedDate { get; set; }
+        public decimal Quantity { get; set; }
+        public decimal? UnitCost { get; set; }
+        [StringLength(30)] public string? MovementType { get; set; }
+        [StringLength(500)] public string? Note { get; set; }
+        public string? CreatedBy { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+
+    // POST body for adjusting a raw-material item's stock.
+    public class PoultryRawMaterialAdjustRequest
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public decimal Quantity { get; set; }   // signed delta
+        public decimal? UnitCost { get; set; }
+        public string? MovementType { get; set; }
+        public string? Note { get; set; }
+        public string? CreatedBy { get; set; }
+    }
+
+    // One row of a stock recalculation: what an item's CurrentQuantity was vs the
+    // value recomputed from purchases, usage and adjustments.
+    public class PoultryRawMaterialRecalcRow
+    {
+        public int PoultryRawMaterialItemId { get; set; }
+        public string? ItemName { get; set; }
+        public string? Category { get; set; }
+        public string? UnitOfMeasure { get; set; }
+        public decimal OldQuantity { get; set; }
+        public decimal NewQuantity { get; set; }
+        public decimal Delta { get; set; }
+    }
 }

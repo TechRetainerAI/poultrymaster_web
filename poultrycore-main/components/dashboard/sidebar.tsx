@@ -169,6 +169,13 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/inventory", label: "Other Inventory", icon: Package },
   ]
 
+  // Feed Production — produce finished feed from ingredients (formulas + batches).
+  // Batch pages/reports are added alongside as the module lands.
+  const poultryFeedProductionItems = [
+    { href: "/poultry-feed-production", label: "Feed Production", icon: Factory },
+    { href: "/poultry-feed-formulas",   label: "Feed Formulas",  icon: Wheat },
+  ]
+
   // Full driver / distribution suite for Poultry (ported from Water). Coexists
   // with the simple /poultry-deliveries quick-delivery page above.
   const poultryDeliveryItems = [
@@ -587,6 +594,14 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
             {/* Divider */}
             <div className="border-t border-slate-800 mx-2" />
+
+            {/* Feed Production (produce finished feed from ingredients) */}
+            {permissions.featureAccess.canViewFeedProduction && <>
+              {renderGroup("Feed Production", poultryFeedProductionItems, "poultryFeedProduction")}
+
+              {/* Divider */}
+              <div className="border-t border-slate-800 mx-2" />
+            </>}
 
             {/* Delivery (driver / vehicle / route suite, ported from Water) */}
             {renderGroup("Delivery", poultryDeliveryItems, "poultryDelivery")}

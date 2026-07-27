@@ -12,6 +12,12 @@ export interface FeatureAccessPermissions {
   canViewCustomers: boolean
   canViewActivityLog: boolean
   canViewSettings: boolean
+  /** Feed Production module: see the pages/batches/formulas. */
+  canViewFeedProduction: boolean
+  /** Feed Production module: create/edit/post/reverse batches + manage formulas. */
+  canManageFeedProduction: boolean
+  /** Feed Production module: see cost figures (unit costs, totals, cost reports). */
+  canViewFeedProductionCost: boolean
 }
 
 export interface UserPermissions {
@@ -37,6 +43,9 @@ const DEFAULT_FEATURE_ACCESS: FeatureAccessPermissions = {
   canViewCustomers: true,
   canViewActivityLog: true,
   canViewSettings: true,
+  canViewFeedProduction: true,
+  canManageFeedProduction: true,
+  canViewFeedProductionCost: true,
 }
 
 /** Staff must be deny-by-default; merging with DEFAULT_FEATURE_ACCESS let missing keys stay "on". */
@@ -50,6 +59,9 @@ const STAFF_FEATURE_BASE: FeatureAccessPermissions = {
   canViewCustomers: false,
   canViewActivityLog: false,
   canViewSettings: false,
+  canViewFeedProduction: false,
+  canManageFeedProduction: false,
+  canViewFeedProductionCost: false,
 }
 
 function toBoolean(value: unknown): boolean | undefined {
@@ -102,6 +114,15 @@ function normalizeFeatureAccess(raw: Record<string, unknown>): Partial<FeatureAc
 
   const settings = toBoolean(raw.canViewSettings ?? raw.CanViewSettings ?? raw.viewSettings ?? raw.ViewSettings ?? raw.settings ?? raw.Settings)
   if (settings !== undefined) normalized.canViewSettings = settings
+
+  const viewFeedProd = toBoolean(raw.canViewFeedProduction ?? raw.CanViewFeedProduction ?? raw.viewFeedProduction ?? raw.ViewFeedProduction)
+  if (viewFeedProd !== undefined) normalized.canViewFeedProduction = viewFeedProd
+
+  const manageFeedProd = toBoolean(raw.canManageFeedProduction ?? raw.CanManageFeedProduction ?? raw.manageFeedProduction ?? raw.ManageFeedProduction)
+  if (manageFeedProd !== undefined) normalized.canManageFeedProduction = manageFeedProd
+
+  const feedProdCost = toBoolean(raw.canViewFeedProductionCost ?? raw.CanViewFeedProductionCost ?? raw.viewFeedProductionCost ?? raw.ViewFeedProductionCost)
+  if (feedProdCost !== undefined) normalized.canViewFeedProductionCost = feedProdCost
 
   return normalized
 }

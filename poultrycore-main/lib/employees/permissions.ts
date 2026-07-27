@@ -47,6 +47,9 @@ export type StaffFeaturePermissionKey =
   | "canViewCustomers"
   | "canViewActivityLog"
   | "canViewSettings"
+  | "canViewFeedProduction"
+  | "canManageFeedProduction"
+  | "canViewFeedProductionCost"
 
 export const DEFAULT_STAFF_FEATURE_PERMISSIONS: Record<StaffFeaturePermissionKey, boolean> = {
   canEnterSales: true,
@@ -58,6 +61,9 @@ export const DEFAULT_STAFF_FEATURE_PERMISSIONS: Record<StaffFeaturePermissionKey
   canViewCustomers: true,
   canViewActivityLog: true,
   canViewSettings: true,
+  canViewFeedProduction: true,
+  canManageFeedProduction: true,
+  canViewFeedProductionCost: true,
 }
 
 export const STAFF_FEATURE_PERMISSION_OPTIONS: Array<{ key: StaffFeaturePermissionKey; label: string }> = [
@@ -70,4 +76,7 @@ export const STAFF_FEATURE_PERMISSION_OPTIONS: Array<{ key: StaffFeaturePermissi
   { key: "canViewCustomers", label: "View Customers" },
   { key: "canViewActivityLog", label: "View Activity Log" },
   { key: "canViewSettings", label: "View Settings" },
+  { key: "canViewFeedProduction", label: "View Feed Production" },
+  { key: "canManageFeedProduction", label: "Manage Feed Production (produce, post, reverse)" },
+  { key: "canViewFeedProductionCost", label: "View Feed Production Costs" },
 ]

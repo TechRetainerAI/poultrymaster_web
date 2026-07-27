@@ -203,4 +203,16 @@ namespace PoultryFarmAPIWeb.Models
         public string? ManagerNotes { get; set; }
         public string? SubmittedBy { get; set; }
     }
+
+    // Finished-product stock reconciliation row (shared by Poultry + Water).
+    // Finished stock is derived from the transaction ledger; this shows the
+    // total in vs out that make up the current stock.
+    public class ProductReconcileRow
+    {
+        public int ProductId { get; set; }
+        public string? Name { get; set; }
+        public decimal StockIn { get; set; }
+        public decimal StockOut { get; set; }
+        public decimal CurrentStock { get; set; }
+    }
 }
