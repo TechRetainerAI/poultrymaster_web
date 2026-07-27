@@ -240,6 +240,21 @@ export const recalculatePoultryRawMaterialStock = (itemId?: number) => {
   return jsend<PoultryRawMaterialRecalcRow[]>(`/Poultry/raw-material-items/recalculate-stock?${qs.toString()}`, "POST", {})
 }
 
+// Finished-product stock reconciliation (Birds, Eggs, …) — in/out breakdown
+// re-derived from the transaction ledger. Read-only.
+export interface ProductReconcileRow {
+  productId: number
+  name?: string | null
+  stockIn: number
+  stockOut: number
+  currentStock: number
+}
+export const reconcilePoultryProductStock = (productId?: number) => {
+  const qs = new URLSearchParams({ farmId: activeFarmId() })
+  if (productId) qs.append("productId", String(productId))
+  return jget<ProductReconcileRow[]>(`/Poultry/products/reconcile-stock?${qs.toString()}`)
+}
+
 // ===================== Products + Stock (slice 2) =====================
 export interface PoultryProduct {
   poultryProductId: number

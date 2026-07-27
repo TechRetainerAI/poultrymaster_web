@@ -16,8 +16,9 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import Link from "next/link"
-import { listPoultryProducts, listPoultryRawMaterialItems, ensurePoultryDefaults, type PoultryProduct, type PoultryRawMaterialItem } from "@/lib/api/poultry-inventory"
+import { listPoultryProducts, listPoultryRawMaterialItems, ensurePoultryDefaults, reconcilePoultryProductStock, type PoultryProduct, type PoultryRawMaterialItem } from "@/lib/api/poultry-inventory"
 import { RecalculateStockButton } from "@/components/poultry/recalculate-stock-button"
+import { ReconcileProductStockButton } from "@/components/inventory/reconcile-product-stock-button"
 import { exportTableToPdf, emailTableAsPdf, type PdfExportOptions } from "@/lib/utils/pdf-export"
 
 type Row = {
@@ -167,6 +168,7 @@ export default function PoultryInventoryPage() {
                 <Package className="h-4 w-4" /> Manage Finished Products
               </Link>
               <RecalculateStockButton items={items} size="sm" onDone={async () => setItems(await listPoultryRawMaterialItems())} />
+              <ReconcileProductStockButton size="sm" products={products.map((p) => ({ id: p.poultryProductId, name: p.name }))} reconcile={reconcilePoultryProductStock} onDone={async () => setProducts(await listPoultryProducts())} />
             </div>
           </div>
           {loading ? <div className="flex items-center gap-2 text-slate-500 p-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div> : (

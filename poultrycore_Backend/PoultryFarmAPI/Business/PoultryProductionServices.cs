@@ -36,6 +36,7 @@ namespace PoultryFarmAPIWeb.Business
         Task DeleteAsync(int id, string farmId);
         Task<int> EnsureDefaultEggAsync(string farmId);
         Task<int> EnsureDefaultBirdsAsync(string farmId);
+        Task<List<ProductReconcileRow>> ReconcileStockAsync(string farmId, int? productId);
     }
 
     public class PoultryProductService : IPoultryProductService
@@ -63,6 +64,18 @@ namespace PoultryFarmAPIWeb.Business
         }
         public async Task<PoultryProductModel?> GetByIdAsync(int id, string farmId)
             => (await GetAllAsync(farmId)).FirstOrDefault(x => x.PoultryProductId == id);
+        public async Task<List<ProductReconcileRow>> ReconcileStockAsync(string farmId, int? productId)
+        {
+            var list = new List<ProductReconcileRow>();
+            using var c = new SqlConnection(_cs); using var cmd = new SqlCommand("spPoultryProduct_ReconcileStock", c) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@PoultryProductId", (object?)productId ?? DBNull.Value);
+            await c.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+                list.Add(new ProductReconcileRow { ProductId = r.Int("PoultryProductId"), Name = r.Str("Name"), StockIn = r.Dec("StockIn"), StockOut = r.Dec("StockOut"), CurrentStock = r.Dec("CurrentStock") });
+            return list;
+        }
         public async Task<int> InsertAsync(PoultryProductModel m)
         {
             using var c = new SqlConnection(_cs); using var cmd = new SqlCommand("spPoultryProduct_Insert", c) { CommandType = CommandType.StoredProcedure };

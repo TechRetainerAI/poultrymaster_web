@@ -29,6 +29,12 @@ namespace PoultryFarmAPIWeb.Controllers
             return model is null ? NotFound() : Ok(model);
         }
 
+        // Reconcile finished-product stock from the transaction ledger (in/out
+        // breakdown). Read-only: finished stock is derived, not stored.
+        [HttpGet("reconcile-stock")]
+        public async Task<ActionResult<IEnumerable<ProductReconcileRow>>> ReconcileStock([FromQuery] string farmId, [FromQuery] int? productId)
+            => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.ReconcileStockAsync(farmId, productId));
+
         [HttpPost]
         public async Task<ActionResult<WaterProductModel>> Create([FromBody] WaterProductModel model)
         {
