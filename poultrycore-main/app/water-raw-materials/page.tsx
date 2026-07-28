@@ -685,10 +685,21 @@ export default function WaterRawMaterialsPage() {
                 </Select>
               </FormField>
               <FormField label="Production unit of measure">
-                <Input value={itemForm.unitOfMeasure ?? ""} onChange={(e) => setItemForm({ ...itemForm, unitOfMeasure: e.target.value || null })} placeholder="kg / roll / pcs" />
+                <Select value={itemForm.unitOfMeasure ?? ""} onValueChange={(v) => setItemForm({ ...itemForm, unitOfMeasure: v || null })}>
+                  <SelectTrigger><SelectValue placeholder="Pick a unit" /></SelectTrigger>
+                  <SelectContent>
+                    {(itemForm.unitOfMeasure && !UNITS.includes(itemForm.unitOfMeasure) ? [itemForm.unitOfMeasure, ...UNITS] : UNITS).map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </FormField>
               <FormField label="Purchase unit of measure">
-                <Input value={itemForm.purchaseUnitOfMeasure ?? ""} onChange={(e) => setItemForm({ ...itemForm, purchaseUnitOfMeasure: e.target.value || null })} placeholder="Same as production unit" />
+                <Select value={itemForm.purchaseUnitOfMeasure || "__same__"} onValueChange={(v) => setItemForm({ ...itemForm, purchaseUnitOfMeasure: v === "__same__" ? null : v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__same__">Same as production unit</SelectItem>
+                    {(itemForm.purchaseUnitOfMeasure && !UNITS.includes(itemForm.purchaseUnitOfMeasure) ? [itemForm.purchaseUnitOfMeasure, ...UNITS] : UNITS).map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </FormField>
               <FormField label="Minimum stock alert" full>
                 <NumberInput min={0} value={itemForm.minimumStockAlert ?? 0} onChange={(e) => setItemForm({ ...itemForm, minimumStockAlert: Number(e.target.value) || 0 })} />
