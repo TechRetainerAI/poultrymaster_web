@@ -1932,6 +1932,12 @@ export const reconcileWaterProductStock = (productId?: number) => {
   if (productId) qs.append("productId", String(productId))
   return jget<WaterProductReconcileRow[]>(`/Water/products/reconcile-stock?${qs.toString()}`)
 }
+// Set a finished product's stock to a physical count — writes a correcting
+// Adjust transaction for (target − current). Returns the new stock.
+export const setWaterProductStock = (productId: number, targetQuantity: number, note?: string) =>
+  jsend<{ currentStock: number }>(`/Water/products/${productId}/set-stock`, "POST", {
+    farmId: activeFarmId(), targetQuantity, note: note || "Stock-take correction", createdBy: currentUserId(),
+  })
 export const listWaterRawMaterialPurchases = (opts?: { fromDate?: string; toDate?: string }) => {
   const qs = new URLSearchParams({ farmId: activeFarmId() })
   if (opts?.fromDate) qs.append("fromDate", opts.fromDate)

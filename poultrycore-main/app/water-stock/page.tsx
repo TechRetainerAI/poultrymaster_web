@@ -23,11 +23,11 @@ import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import {
   listWaterStockTransactions, addWaterStockTransaction, listWaterProducts, listWaterRawMaterialItems,
-  adjustWaterRawMaterialItem, reconcileWaterProductStock,
+  adjustWaterRawMaterialItem, setWaterProductStock,
   type WaterStockTransaction, type WaterProduct, type WaterRawMaterialItem,
 } from "@/lib/api/water"
 import { WaterRecalculateStockButton } from "@/components/water/recalculate-stock-button"
-import { ReconcileProductStockButton } from "@/components/inventory/reconcile-product-stock-button"
+import { SetProductStockButton } from "@/components/inventory/set-product-stock-button"
 
 // #23: stock entries typed in by hand use these txn types; everything else
 // (Production, ProductionConsume, Sale, DeliveryOut, …) is system-generated.
@@ -160,7 +160,7 @@ export default function WaterStockPage() {
                 </SelectContent>
               </Select>
               <WaterRecalculateStockButton items={rawItems} onDone={load} />
-              <ReconcileProductStockButton products={products.map((p) => ({ id: p.waterProductId, name: p.name }))} reconcile={reconcileWaterProductStock} onDone={load} />
+              <SetProductStockButton products={products.map((p) => ({ id: p.waterProductId, name: p.name, currentStock: p.stockOnHand }))} setStock={setWaterProductStock} onDone={load} />
               <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4 mr-1" /> New entry</Button>
             </div>
           </div>

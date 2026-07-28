@@ -37,6 +37,7 @@ namespace PoultryFarmAPIWeb.Business
         Task<int> EnsureDefaultEggAsync(string farmId);
         Task<int> EnsureDefaultBirdsAsync(string farmId);
         Task<List<ProductReconcileRow>> ReconcileStockAsync(string farmId, int? productId);
+        Task<decimal> SetStockAsync(int productId, ProductSetStockRequest req);
     }
 
     public class PoultryProductService : IPoultryProductService
@@ -75,6 +76,18 @@ namespace PoultryFarmAPIWeb.Business
             while (await r.ReadAsync())
                 list.Add(new ProductReconcileRow { ProductId = r.Int("PoultryProductId"), Name = r.Str("Name"), StockIn = r.Dec("StockIn"), StockOut = r.Dec("StockOut"), CurrentStock = r.Dec("CurrentStock") });
             return list;
+        }
+        public async Task<decimal> SetStockAsync(int productId, ProductSetStockRequest req)
+        {
+            using var c = new SqlConnection(_cs); using var cmd = new SqlCommand("spPoultryProduct_SetStock", c) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@FarmId", req.FarmId);
+            cmd.Parameters.AddWithValue("@PoultryProductId", productId);
+            cmd.Parameters.AddWithValue("@TargetQuantity", req.TargetQuantity);
+            cmd.Parameters.AddWithValue("@Note", (object?)req.Note ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@CreatedBy", (object?)req.CreatedBy ?? DBNull.Value);
+            await c.OpenAsync();
+            var v = await cmd.ExecuteScalarAsync();
+            return v is null || v == DBNull.Value ? 0 : Convert.ToDecimal(v);
         }
         public async Task<int> InsertAsync(PoultryProductModel m)
         {

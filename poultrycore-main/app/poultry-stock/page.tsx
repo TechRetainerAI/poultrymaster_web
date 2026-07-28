@@ -24,11 +24,11 @@ import {
   listPoultryProducts, listPoultryStockTransactions, addPoultryStockTransaction,
   listPoultryRawMaterialPurchases, listPoultryRawMaterialUsageHistory,
   listPoultryRawMaterialItems, listPoultryRawMaterialAdjustments, adjustPoultryRawMaterialItem,
-  reconcilePoultryProductStock,
+  setPoultryProductStock,
   type PoultryProduct, type PoultryStockTransaction, type PoultryRawMaterialItem,
 } from "@/lib/api/poultry-inventory"
 import { RecalculateStockButton } from "@/components/poultry/recalculate-stock-button"
-import { ReconcileProductStockButton } from "@/components/inventory/reconcile-product-stock-button"
+import { SetProductStockButton } from "@/components/inventory/set-product-stock-button"
 
 // Doc 5: movement types with sign. Positive = increase, negative = decrease.
 const MOVEMENTS: { value: string; sign: 1 | -1 }[] = [
@@ -154,7 +154,7 @@ export default function PoultryStockPage() {
             <div><h1 className="text-2xl font-bold">Stock Movements</h1><p className="text-sm text-slate-500">All stock increases and decreases — finished products and raw materials. Production, sales, purchases and manual entries.</p></div>
             <div className="flex items-center gap-2">
               <RecalculateStockButton items={rawItems} onDone={load} />
-              <ReconcileProductStockButton products={products.map((p) => ({ id: p.poultryProductId, name: p.name }))} reconcile={reconcilePoultryProductStock} onDone={load} />
+              <SetProductStockButton products={products.map((p) => ({ id: p.poultryProductId, name: p.name, currentStock: p.stockOnHand }))} setStock={setPoultryProductStock} onDone={load} />
               <Button onClick={() => setOpen(true)}><Plus className="w-4 h-4 mr-1" /> New movement</Button>
             </div>
           </div>

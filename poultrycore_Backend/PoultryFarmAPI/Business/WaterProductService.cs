@@ -132,6 +132,20 @@ namespace PoultryFarmAPIWeb.Business
             return list;
         }
 
+        public async Task<decimal> SetStockAsync(int productId, ProductSetStockRequest req)
+        {
+            using var conn = new SqlConnection(_connectionString);
+            using var cmd = new SqlCommand("spWaterProduct_SetStock", conn) { CommandType = CommandType.StoredProcedure };
+            cmd.Parameters.AddWithValue("@FarmId", req.FarmId);
+            cmd.Parameters.AddWithValue("@WaterProductId", productId);
+            cmd.Parameters.AddWithValue("@TargetQuantity", req.TargetQuantity);
+            cmd.Parameters.AddWithValue("@Note", (object?)req.Note ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@CreatedBy", (object?)req.CreatedBy ?? DBNull.Value);
+            await conn.OpenAsync();
+            var v = await cmd.ExecuteScalarAsync();
+            return v is null || v == DBNull.Value ? 0 : Convert.ToDecimal(v);
+        }
+
         private static WaterProductModel Read(SqlDataReader r) => new()
         {
             WaterProductId = r.GetInt32(r.GetOrdinal("WaterProductId")),

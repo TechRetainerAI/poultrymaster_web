@@ -254,6 +254,12 @@ export const reconcilePoultryProductStock = (productId?: number) => {
   if (productId) qs.append("productId", String(productId))
   return jget<ProductReconcileRow[]>(`/Poultry/products/reconcile-stock?${qs.toString()}`)
 }
+// Set a finished product's stock to a physical count — writes a correcting
+// Adjust transaction for (target − current). Returns the new stock.
+export const setPoultryProductStock = (productId: number, targetQuantity: number, note?: string) =>
+  jsend<{ currentStock: number }>(`/Poultry/products/${productId}/set-stock`, "POST", {
+    farmId: activeFarmId(), targetQuantity, note: note || "Stock-take correction", createdBy: activeUserId(),
+  })
 
 // ===================== Products + Stock (slice 2) =====================
 export interface PoultryProduct {

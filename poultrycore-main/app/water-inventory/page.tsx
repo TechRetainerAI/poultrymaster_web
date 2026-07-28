@@ -25,11 +25,11 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import {
-  listWaterProducts, listWaterRawMaterialItems, reconcileWaterProductStock,
+  listWaterProducts, listWaterRawMaterialItems, setWaterProductStock,
   type WaterProduct, type WaterRawMaterialItem,
 } from "@/lib/api/water"
 import { WaterRecalculateStockButton } from "@/components/water/recalculate-stock-button"
-import { ReconcileProductStockButton } from "@/components/inventory/reconcile-product-stock-button"
+import { SetProductStockButton } from "@/components/inventory/set-product-stock-button"
 import { useFmt } from "@/lib/currency"
 
 // Anything below this many units triggers a "low stock" badge for finished products.
@@ -153,7 +153,7 @@ export default function WaterInventoryPage() {
                 <Input placeholder="Search by name, SKU, category…" className="pl-9" value={q} onChange={(e) => setQ(e.target.value)} />
               </div>
               <WaterRecalculateStockButton items={rawItems} onDone={async () => setRawItems(await listWaterRawMaterialItems())} />
-              <ReconcileProductStockButton products={products.map((p) => ({ id: p.waterProductId, name: p.name }))} reconcile={reconcileWaterProductStock} onDone={async () => setProducts(await listWaterProducts())} />
+              <SetProductStockButton products={products.map((p) => ({ id: p.waterProductId, name: p.name, currentStock: p.stockOnHand }))} setStock={setWaterProductStock} onDone={async () => setProducts(await listWaterProducts())} />
             </div>
           </div>
 
