@@ -238,5 +238,9 @@ namespace PoultryFarmAPIWeb.Models
         public decimal CurrentQuantity { get; set; }
         public bool IsActive { get; set; }
         public decimal LatestUnitCost { get; set; }
+        // Drawable stock across purchase lots, in production units — what posting
+        // can actually consume. Lower than CurrentQuantity when stock was added by
+        // adjustment rather than by a purchase (adjustments create no lot).
+        public decimal AvailableFromLots { get; set; }
     }
 }

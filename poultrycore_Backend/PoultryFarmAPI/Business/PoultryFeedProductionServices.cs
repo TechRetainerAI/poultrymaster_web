@@ -364,6 +364,7 @@ namespace PoultryFarmAPIWeb.Business
                 CurrentQuantity = r.Dec("CurrentQuantity"),
                 IsActive = r.Bool("IsActive"),
                 LatestUnitCost = r.Dec("LatestUnitCost"),
+                AvailableFromLots = r.Dec("AvailableFromLots"),
             });
             return list;
         }

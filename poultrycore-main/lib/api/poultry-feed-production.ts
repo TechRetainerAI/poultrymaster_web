@@ -245,6 +245,9 @@ export interface FeedBatchItem {
   currentQuantity: number
   isActive: boolean
   latestUnitCost: number
+  // Stock that posting can actually draw, across purchase lots. Lower than
+  // currentQuantity when stock was added by adjustment (which creates no lot).
+  availableFromLots: number
 }
 
 export const listFeedProductionItems = () =>

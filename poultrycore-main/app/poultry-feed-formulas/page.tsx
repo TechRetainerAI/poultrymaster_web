@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
 import { listPoultryRawMaterialItems, type PoultryRawMaterialItem } from "@/lib/api/poultry-inventory"
+import { unitOptions } from "@/lib/units"
 import {
   listFeedFormulas, getFeedFormula, upsertFeedFormula, deleteFeedFormula,
   type FeedFormula, type FeedFormulaQuantityMode,
@@ -101,7 +102,7 @@ export default function PoultryFeedFormulasPage() {
       setForm({
         poultryFeedFormulaId: full.poultryFeedFormulaId,
         formulaName: full.formulaName,
-        finishedFeedItemId: full.finishedFeedItemId,
+        finishedFeedItemId: full.finishedFeedItemId ?? null,
         defaultOutputUnit: full.defaultOutputUnit ?? "",
         notes: full.notes ?? "",
         isActive: full.isActive,
@@ -139,6 +140,16 @@ export default function PoultryFeedFormulasPage() {
   )
   const hasPercentageLines = form.lines.some((l) => l.quantityMode === "Percentage")
   const pctOk = !hasPercentageLines || Math.abs(pctTotal - 100) < 0.01
+
+  // Fixed-quantity total. For an all-fixed formula this IS the base recipe size
+  // that production scales from (50/30/20 => base 100), so it's worth showing.
+  const fixedLines = useMemo(() => form.lines.filter((l) => l.quantityMode === "FixedQuantity"), [form.lines])
+  const fixedTotal = useMemo(() => fixedLines.reduce((s, l) => s + (Number(l.value) || 0), 0), [fixedLines])
+  // Only label a unit when every fixed line agrees on one.
+  const fixedUnit = useMemo(() => {
+    const units = new Set(fixedLines.map((l) => (l.unitOfMeasure || "").trim()).filter(Boolean))
+    return units.size === 1 ? [...units][0] : ""
+  }, [fixedLines])
 
   async function save() {
     if (savingRef.current) return
@@ -282,7 +293,15 @@ export default function PoultryFeedFormulasPage() {
                 </SelectContent>
               </Select>
             </FormField>
-            <FormField label="Default output unit" hint="e.g. kg, bag"><Input value={form.defaultOutputUnit} onChange={(e) => setForm({ ...form, defaultOutputUnit: e.target.value })} /></FormField>
+            <FormField label="Default output unit" hint="Used as the batch's output unit when this formula is applied">
+              <Select value={form.defaultOutputUnit || "none"} onValueChange={(v) => setForm({ ...form, defaultOutputUnit: v === "none" ? "" : v })}>
+                <SelectTrigger><SelectValue placeholder="Pick a unit" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No default</SelectItem>
+                  {unitOptions(form.defaultOutputUnit).map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </FormField>
             <FormField label="Active"><div className="pt-1"><Switch checked={form.isActive} onCheckedChange={(v) => setForm({ ...form, isActive: v })} /></div></FormField>
             <FormField label="Notes" full><Textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></FormField>
           </FormSection>
@@ -321,15 +340,27 @@ export default function PoultryFeedFormulasPage() {
                   </div>
                 </div>
               ))}
-              <div className="flex items-center justify-between pt-1">
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                 <Button variant="outline" size="sm" onClick={addLine}><Plus className="w-4 h-4 mr-1" /> Add ingredient</Button>
-                {hasPercentageLines && (
-                  <div className={cn("text-sm font-medium inline-flex items-center gap-1.5", pctOk ? "text-emerald-700" : "text-amber-700")}>
-                    {pctOk ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
-                    Percentage total: {pctTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}%
-                    {!pctOk && <span className="text-slate-500 font-normal">(should be 100%)</span>}
-                  </div>
-                )}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 justify-end">
+                  {hasPercentageLines && (
+                    <div className={cn("text-sm font-medium inline-flex items-center gap-1.5", pctOk ? "text-emerald-700" : "text-amber-700")}>
+                      {pctOk ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+                      Percentage total: {pctTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}%
+                      {!pctOk && <span className="text-slate-500 font-normal">(should be 100%)</span>}
+                    </div>
+                  )}
+                  {fixedLines.length > 0 && (
+                    <div className="text-sm font-medium text-slate-700">
+                      Fixed total: {fixedTotal.toLocaleString(undefined, { maximumFractionDigits: 3 })}{fixedUnit ? ` ${fixedUnit}` : ""}
+                      <span className="text-slate-500 font-normal">
+                        {hasPercentageLines
+                          ? " (shares the leftover of the batch)"
+                          : " (base recipe — scales to any batch size)"}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </FormSection>

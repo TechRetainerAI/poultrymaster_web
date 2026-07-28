@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge"
 import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, AlertTriangle, Factory } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { cn } from "@/lib/utils"
+import { RAW_MATERIAL_UNITS } from "@/lib/units"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import {
@@ -42,7 +43,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 }
 const categoryLabel = (c: string) => CATEGORY_LABELS[c] ?? c
 const PAYMENT_METHODS = ["Cash", "MoMo", "Bank", "Credit"]
-const UNITS = ["Bag", "Sack", "Tonne", "Kilogram", "Gram", "Litre", "Millilitre", "Bottle", "Sachet", "Piece", "Pack", "Carton", "Box", "Bundle", "Dozen", "Crate", "Unit", "Other"]
+const UNITS = RAW_MATERIAL_UNITS
 
 type ItemForm = { itemName: string; category: string; unitOfMeasure: string; purchaseUnitOfMeasure: string; minimumStockAlert: number; isActive: boolean; notes: string | null; usageMethod: RawMaterialUsageMethod }
 const EMPTY_ITEM: ItemForm = { itemName: "", category: "FeedIngredient", unitOfMeasure: "", purchaseUnitOfMeasure: "", minimumStockAlert: 0, isActive: true, notes: null, usageMethod: "FIFO" }
