@@ -16,7 +16,9 @@ import { useToast } from "@/hooks/use-toast"
 export function SetProductStockButton({
   products, setStock, onDone, variant = "outline", size, className, label = "Set product stock",
 }: {
-  products: { id: number; name: string; currentStock: number }[]
+  // disabledReason: if set, the product can't be set to a count here (e.g. poultry
+  // Birds, whose stock is derived from flocks) — shown as a note, save disabled.
+  products: { id: number; name: string; currentStock: number; disabledReason?: string }[]
   setStock: (productId: number, target: number, note?: string) => Promise<{ currentStock: number }>
   onDone?: () => void | Promise<void>
   variant?: "default" | "outline" | "secondary" | "ghost"
@@ -42,6 +44,7 @@ export function SetProductStockButton({
 
   async function save() {
     if (!selected) { toast({ title: "Pick a product", variant: "destructive" }); return }
+    if (selected.disabledReason) { toast({ title: "Can't set this here", description: selected.disabledReason, variant: "destructive" }); return }
     const target = Number(count)
     if (count === "" || Number.isNaN(target) || target < 0) { toast({ title: "Enter a valid count", variant: "destructive" }); return }
     setBusy(true)
@@ -85,7 +88,10 @@ export function SetProductStockButton({
                 </SelectContent>
               </Select>
             </div>
-            {selected && (
+            {selected && selected.disabledReason && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{selected.disabledReason}</div>
+            )}
+            {selected && !selected.disabledReason && (
               <>
                 <div className="flex items-center gap-3 text-sm">
                   <span className="text-slate-500">Current: <span className="font-medium text-slate-800">{Number(selected.currentStock).toLocaleString()}</span></span>
@@ -105,7 +111,7 @@ export function SetProductStockButton({
             )}
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-              <Button onClick={save} disabled={busy || !selected}>{busy ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save correction"}</Button>
+              <Button onClick={save} disabled={busy || !selected || !!selected?.disabledReason}>{busy ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save correction"}</Button>
             </div>
           </div>
         </DialogContent>

@@ -154,7 +154,7 @@ export default function PoultryStockPage() {
             <div><h1 className="text-2xl font-bold">Stock Movements</h1><p className="text-sm text-slate-500">All stock increases and decreases — finished products and raw materials. Production, sales, purchases and manual entries.</p></div>
             <div className="flex items-center gap-2">
               <RecalculateStockButton items={rawItems} onDone={load} />
-              <SetProductStockButton products={products.map((p) => ({ id: p.poultryProductId, name: p.name, currentStock: p.stockOnHand }))} setStock={setPoultryProductStock} onDone={load} />
+              <SetProductStockButton products={products.map((p) => ({ id: p.poultryProductId, name: p.name, currentStock: p.stockOnHand, disabledReason: (p.isBirdProduct || p.name === "Birds") ? "Bird stock comes from the birds left in your flocks — correct it in the flock / production records (record mortality, or edit the flock)." : undefined }))} setStock={setPoultryProductStock} onDone={load} />
               <Button onClick={() => setOpen(true)}><Plus className="w-4 h-4 mr-1" /> New movement</Button>
             </div>
           </div>
