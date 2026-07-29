@@ -62,7 +62,7 @@ export default function FeedProductionReportsPage() {
         <DashboardHeader />
         <main className="flex-1 p-4 sm:p-6 space-y-4">
           <div className="flex items-center gap-2 flex-wrap">
-            <Button variant="ghost" size="sm" onClick={() => router.push("/poultry-feed-production")}><ArrowLeft className="w-4 h-4 mr-1" /> Back</Button>
+            <Button variant="ghost" size="sm" onClick={() => router.push("/poultry/reports")}><ArrowLeft className="w-4 h-4 mr-1" /> Back</Button>
             <h1 className="text-2xl font-bold">Feed Production Reports</h1>
           </div>
 

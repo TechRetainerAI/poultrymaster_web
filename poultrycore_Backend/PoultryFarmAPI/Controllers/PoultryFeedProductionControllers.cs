@@ -29,7 +29,7 @@ namespace PoultryFarmAPIWeb.Controllers
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
             if (string.IsNullOrWhiteSpace(req.FarmId)) return BadRequest("Company ID is required.");
-            if (req.FinishedFeedItemId <= 0) return BadRequest("A finished feed item is required.");
+            // A formula is a reusable ingredient pattern — it is NOT bound to a finished feed item.
             var id = await _svc.UpsertAsync(req);
             return Ok(new { PoultryFeedFormulaId = id });
         }

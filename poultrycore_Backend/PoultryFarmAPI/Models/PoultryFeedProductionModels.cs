@@ -29,7 +29,7 @@ namespace PoultryFarmAPIWeb.Models
         public int PoultryFeedFormulaId { get; set; }
         [Required] public string FarmId { get; set; } = string.Empty;
         [Required] [StringLength(150)] public string FormulaName { get; set; } = string.Empty;
-        public int FinishedFeedItemId { get; set; }
+        public int? FinishedFeedItemId { get; set; }   // optional: a formula is reusable across any finished feed
         public string? FinishedFeedItemName { get; set; }
         public string? FinishedFeedUnit { get; set; }
         [StringLength(30)] public string? DefaultOutputUnit { get; set; }
@@ -60,7 +60,7 @@ namespace PoultryFarmAPIWeb.Models
         [Required] public string FarmId { get; set; } = string.Empty;
         public int? PoultryFeedFormulaId { get; set; }
         [Required] [StringLength(150)] public string FormulaName { get; set; } = string.Empty;
-        public int FinishedFeedItemId { get; set; }
+        public int? FinishedFeedItemId { get; set; }   // optional: not bound to a single finished feed
         [StringLength(30)] public string? DefaultOutputUnit { get; set; }
         [StringLength(500)] public string? Notes { get; set; }
         public bool IsActive { get; set; } = true;
@@ -238,5 +238,9 @@ namespace PoultryFarmAPIWeb.Models
         public decimal CurrentQuantity { get; set; }
         public bool IsActive { get; set; }
         public decimal LatestUnitCost { get; set; }
+        // Drawable stock across purchase lots, in production units — what posting
+        // can actually consume. Lower than CurrentQuantity when stock was added by
+        // adjustment rather than by a purchase (adjustments create no lot).
+        public decimal AvailableFromLots { get; set; }
     }
 }
