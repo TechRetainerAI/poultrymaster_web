@@ -3,21 +3,20 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { NumberInput } from "@/components/ui/number-input"
 import { Input } from "@/components/ui/input"
 import { Loader2, ClipboardCheck } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
-// "Set to actual count" for FINISHED products (Sachet Water, Birds, Eggs…).
-// Finished stock is the live sum of its transactions, so you can't edit it
-// directly — enter the physical count and this writes a correcting Adjust
-// transaction (count − current). The displayed stock then equals the count.
+// Stock-take for FINISHED products. Lists every product with its current stock and
+// an editable actual (physical) count; Save writes a correcting Adjust entry for
+// each changed row so the displayed stock matches the count. Works all-at-once,
+// like the raw-material "Recalculate stock" button. Products with disabledReason
+// (e.g. poultry Birds, derived from flocks) are shown read-only.
 export function SetProductStockButton({
   products, setStock, onDone, variant = "outline", size, className, label = "Set product stock",
 }: {
-  // disabledReason: if set, the product can't be set to a count here (e.g. poultry
-  // Birds, whose stock is derived from flocks) — shown as a note, save disabled.
   products: { id: number; name: string; currentStock: number; disabledReason?: string }[]
   setStock: (productId: number, target: number, note?: string) => Promise<{ currentStock: number }>
   onDone?: () => void | Promise<void>
@@ -28,90 +27,93 @@ export function SetProductStockButton({
 }) {
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
-  const [productId, setProductId] = useState<string>("")
-  const [count, setCount] = useState<string>("")
-  const [note, setNote] = useState<string>("")
+  const [counts, setCounts] = useState<Record<number, string>>({})
+  const [note, setNote] = useState("")
   const [busy, setBusy] = useState(false)
 
-  const selected = products.find((p) => String(p.id) === productId)
-
-  function pick(v: string) {
-    setProductId(v)
-    const p = products.find((x) => String(x.id) === v)
-    setCount(p ? String(p.currentStock) : "")   // prefill with current so the owner edits from there
+  function openDialog() {
+    const init: Record<number, string> = {}
+    products.forEach((p) => { init[p.id] = String(p.currentStock) })
+    setCounts(init); setNote(""); setOpen(true)
   }
-  function reset() { setProductId(""); setCount(""); setNote("") }
+
+  const changed = products.filter((p) => !p.disabledReason).filter((p) => {
+    const v = Number(counts[p.id])
+    return counts[p.id] !== undefined && counts[p.id] !== "" && !Number.isNaN(v) && v !== Number(p.currentStock)
+  })
 
   async function save() {
-    if (!selected) { toast({ title: "Pick a product", variant: "destructive" }); return }
-    if (selected.disabledReason) { toast({ title: "Can't set this here", description: selected.disabledReason, variant: "destructive" }); return }
-    const target = Number(count)
-    if (count === "" || Number.isNaN(target) || target < 0) { toast({ title: "Enter a valid count", variant: "destructive" }); return }
+    if (changed.length === 0) { toast({ title: "No changes to apply" }); return }
     setBusy(true)
-    try {
-      const r = await setStock(selected.id, target, note || undefined)
-      const delta = Number(r.currentStock) - Number(selected.currentStock)
-      toast({ title: "Stock corrected", description: `${selected.name} set to ${Number(r.currentStock).toLocaleString()} (${delta >= 0 ? "+" : ""}${delta.toLocaleString()}).` })
-      setOpen(false); reset()
-      await onDone?.()
-    } catch (e: any) { toast({ title: "Update failed", description: e?.message, variant: "destructive" }) }
-    finally { setBusy(false) }
+    let ok = 0, fail = 0
+    for (const p of changed) {
+      try { await setStock(p.id, Number(counts[p.id]), note || undefined); ok++ }
+      catch { fail++ }
+    }
+    setBusy(false)
+    toast({ title: "Stock updated", description: `${ok} product(s) corrected${fail ? `, ${fail} failed` : ""}.`, variant: fail ? "destructive" : undefined })
+    setOpen(false)
+    await onDone?.()
   }
-
-  const target = Number(count)
-  const delta = selected && count !== "" && !Number.isNaN(target) ? target - Number(selected.currentStock) : null
 
   return (
     <>
-      <Button variant={variant} size={size} className={className}
-        onClick={() => { reset(); setOpen(true) }}
-        title="Correct a finished product's stock to a physical count">
+      <Button variant={variant} size={size} className={className} onClick={openDialog}
+        title="Correct finished-product stock to a physical count">
         <ClipboardCheck className="w-4 h-4 mr-1" /> {label}
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Set product stock to actual count</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <p className="text-sm text-slate-600">
-              Pick a finished product and enter its <span className="font-medium">actual (physical) count</span>.
-              We write a correcting stock entry so the displayed stock matches your count.
-            </p>
-            <div>
-              <label className="text-sm font-medium text-slate-700">Product</label>
-              <Select value={productId} onValueChange={pick}>
-                <SelectTrigger className="mt-1"><SelectValue placeholder="Pick a finished product…" /></SelectTrigger>
-                <SelectContent>
-                  {products.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>{p.name} — in stock: {Number(p.currentStock).toLocaleString()}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {selected && selected.disabledReason && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{selected.disabledReason}</div>
-            )}
-            {selected && !selected.disabledReason && (
-              <>
-                <div className="flex items-center gap-3 text-sm">
-                  <span className="text-slate-500">Current: <span className="font-medium text-slate-800">{Number(selected.currentStock).toLocaleString()}</span></span>
-                  {delta !== null && delta !== 0 && (
-                    <span className={delta < 0 ? "text-red-600" : "text-green-700"}>correction {delta > 0 ? "+" : ""}{delta.toLocaleString()}</span>
-                  )}
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-slate-700">Actual count</label>
-                  <NumberInput className="mt-1" min={0} step="0.001" value={count} onChange={(e) => setCount(e.target.value)} />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-slate-700">Note (optional)</label>
-                  <Input className="mt-1" value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. month-end stock take" />
-                </div>
-              </>
-            )}
-            <div className="flex justify-end gap-2 pt-1">
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>Set product stock to actual counts</DialogTitle></DialogHeader>
+          <p className="text-sm text-slate-600">
+            Enter each finished product's <span className="font-medium">actual (physical) count</span>.
+            We write a correcting stock entry for any that changed, so the displayed stock matches your count.
+          </p>
+          <div className="max-h-80 overflow-y-auto rounded border">
+            <Table>
+              <TableHeader><TableRow>
+                <TableHead>Product</TableHead>
+                <TableHead className="text-right">Current</TableHead>
+                <TableHead className="text-right">Actual count</TableHead>
+                <TableHead className="text-right">Change</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>
+                {products.length === 0 ? (
+                  <TableRow><TableCell colSpan={4} className="text-center text-slate-500 py-6">No finished products.</TableCell></TableRow>
+                ) : products.map((p) => {
+                  const v = Number(counts[p.id])
+                  const delta = counts[p.id] !== undefined && counts[p.id] !== "" && !Number.isNaN(v) ? v - Number(p.currentStock) : null
+                  return (
+                    <TableRow key={p.id}>
+                      <TableCell className="font-medium">
+                        {p.name}
+                        {p.disabledReason && <div className="text-[11px] font-normal text-amber-700">{p.disabledReason}</div>}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">{Number(p.currentStock).toLocaleString()}</TableCell>
+                      <TableCell className="text-right">
+                        {p.disabledReason ? <span className="text-slate-400">—</span> : (
+                          <NumberInput min={0} step="0.001" value={counts[p.id] ?? ""} onChange={(e) => setCounts((c) => ({ ...c, [p.id]: e.target.value }))} className="w-28 ml-auto text-right" />
+                        )}
+                      </TableCell>
+                      <TableCell className={`text-right tabular-nums ${delta && delta < 0 ? "text-red-600" : delta && delta > 0 ? "text-green-700" : "text-slate-400"}`}>
+                        {delta === null || delta === 0 ? "—" : `${delta > 0 ? "+" : ""}${delta.toLocaleString()}`}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-700">Note (optional)</label>
+            <Input className="mt-1" value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. month-end stock take" />
+          </div>
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-xs text-slate-500">{changed.length} product(s) will be corrected.</span>
+            <div className="flex gap-2">
               <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-              <Button onClick={save} disabled={busy || !selected || !!selected?.disabledReason}>{busy ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save correction"}</Button>
+              <Button onClick={save} disabled={busy || changed.length === 0}>{busy ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save corrections"}</Button>
             </div>
           </div>
         </DialogContent>
