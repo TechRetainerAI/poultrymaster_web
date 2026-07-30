@@ -176,6 +176,10 @@ namespace PoultryFarmAPIWeb.Business
             SourceType = r.Str("SourceType"),
             QuantityUsed = r.Dec("QuantityUsed"),
             UnitOfMeasure = r.StrN("UnitOfMeasure"),
+            // Guarded: migration 184 adds these, so an API running against a
+            // database that hasn't caught up still serves batches.
+            QuantityMode = r.Has("QuantityMode") ? (r.StrN("QuantityMode") ?? "Quantity") : "Quantity",
+            FixedQuantity = r.Has("FixedQuantity") ? r.DecN("FixedQuantity") : null,
             InventoryQuantityUsed = r.DecN("InventoryQuantityUsed"),
             PurchasedQuantityUsed = r.DecN("PurchasedQuantityUsed"),
             InventoryUnitCost = r.DecN("InventoryUnitCost"),

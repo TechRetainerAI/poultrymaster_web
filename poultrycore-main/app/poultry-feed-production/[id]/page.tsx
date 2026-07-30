@@ -206,7 +206,13 @@ function ReadOnlyDetail({ batch, gh, onBack, onReverse, onRepost, onEdit, onDele
                 <TableRow key={l.poultryFeedProductionBatchLineId}>
                   <TableCell>{l.ingredientName}</TableCell>
                   <TableCell>{SOURCE_LABELS[l.sourceType] ?? l.sourceType}</TableCell>
-                  <TableCell className="text-right tabular-nums">{l.quantityUsed.toLocaleString()}{l.unitOfMeasure ? ` ${l.unitOfMeasure}` : ""}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {l.quantityUsed.toLocaleString()}{l.unitOfMeasure ? ` ${l.unitOfMeasure}` : ""}
+                    {/* The recipe amount behind it, when the quantity was scaled. */}
+                    {l.quantityMode === "FixedQuantity" && (l.fixedQuantity ?? 0) > 0 && (
+                      <div className="text-[11px] text-slate-400">from {Number(l.fixedQuantity).toLocaleString()} in the recipe</div>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">{gh(l.unitCost)}</TableCell>
                   <TableCell className="text-right tabular-nums">{gh(l.totalCost)}</TableCell>
                   <TableCell>{l.supplierName ?? "—"}</TableCell>
