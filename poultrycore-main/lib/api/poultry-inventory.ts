@@ -63,6 +63,11 @@ export interface PoultryRawMaterialPurchase {
   balance: number
   receiptUrl?: string | null
   notes?: string | null
+  /** Set when the feed-production posting engine created this lot, not "Record Purchase". */
+  sourceFeedProductionBatchId?: number | null
+  feedProductionBatchNumber?: string | null
+  /** "Produced" — the feed a batch made; "Purchased" — an ingredient it bought. */
+  feedProductionRole?: "Produced" | "Purchased" | null
   createdBy?: string | null
   createdAt: string
   updatedAt?: string | null
@@ -98,6 +103,11 @@ export interface PoultryRawMaterialUsage {
   variance: number
   varianceReason?: string | null
   notes?: string | null
+  /** Set when a feed production batch consumed this stock. */
+  poultryFeedProductionBatchId?: number | null
+  feedProductionBatchNumber?: string | null
+  /** The finished feed that batch produced. */
+  feedProductionFeedName?: string | null
   createdAt: string
 }
 

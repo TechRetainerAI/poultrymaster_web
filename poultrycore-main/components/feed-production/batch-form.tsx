@@ -10,12 +10,14 @@ import { NumberInput } from "@/components/ui/number-input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Trash2, Loader2, Save, ArrowLeft, RefreshCw, CheckCircle2, ShoppingCart, ExternalLink } from "lucide-react"
+import { Plus, Trash2, Loader2, Save, ArrowLeft, RefreshCw, CheckCircle2, ShoppingCart } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import { usePermissions } from "@/hooks/use-permissions"
 import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
+import { listPoultryRawMaterialItems, type PoultryRawMaterialItem } from "@/lib/api/poultry-inventory"
+import { PoultryPurchaseDialog } from "@/components/raw-materials/poultry-purchase-dialog"
 import {
   listFeedProductionItems, listFeedFormulas, getFeedFormula, saveFeedProductionBatch, postFeedProductionBatch,
   type FeedBatchItem, type FeedFormula, type FeedFormulaLine, type FeedProductionBatch, type FeedProductionBatchLine,
@@ -209,6 +211,9 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
   const [items, setItems] = useState<FeedBatchItem[]>([])
   const [formulas, setFormulas] = useState<FeedFormula[]>([])
   const [cashAccounts, setCashAccounts] = useState<PoultryCashAccount[]>([])
+  // The full raw-material list the purchase dialog needs (the feed-production
+  // item list is a trimmed, different shape).
+  const [rawItems, setRawItems] = useState<PoultryRawMaterialItem[]>([])
   // The formula currently driving the ingredient quantities (full detail, with lines).
   const [appliedFormula, setAppliedFormula] = useState<FeedFormula | null>(null)
 
@@ -261,13 +266,14 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
       setLoading(true)
       try {
         const savedFormulaId = existing?.formulaId ?? null
-        const [it, f, ca, full] = await Promise.all([
+        const [it, f, ca, raw, full] = await Promise.all([
           listFeedProductionItems(),
           listFeedFormulas(),
           listPoultryCashAccounts().catch(() => []),
+          listPoultryRawMaterialItems().catch(() => [] as PoultryRawMaterialItem[]),
           savedFormulaId ? getFeedFormula(savedFormulaId).catch(() => null) : Promise.resolve(null),
         ])
-        setItems(it); setFormulas(f); setCashAccounts(ca)
+        setItems(it); setFormulas(f); setCashAccounts(ca); setRawItems(raw)
         // Re-link a saved draft to its formula so quantities keep scaling on edit.
         if (full?.lines?.length) {
           setLines((ls) => relinkToFormula(ls, full.lines!, num(existing?.quantityProduced)))
@@ -555,7 +561,7 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
   function postBlocker(): string | null {
     if (!purchasingLines.length) return null
     const names = purchasingLines.map((x) => itemById.get(x.l.ingredientItemId!)?.itemName).filter(Boolean)
-    return `Record the purchase for ${names.join(", ") || "this ingredient"} in Raw Materials, then set the line to From Inventory.`
+    return `Use Record purchase on the ${names.join(", ") || "ingredient"} line${names.length === 1 ? "" : "s"} — it books the stock and switches the line to From Inventory.`
   }
 
   const [posting, setPosting] = useState(false)
@@ -642,38 +648,40 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
     void saveAndPost()
   }
 
-  // Leaving for Raw Materials abandons the form, so offer to park the batch as
-  // a draft on the way out. The bought line is saved with it — reopening the
-  // draft after the purchase is recorded, the farmer switches it to From
-  // Inventory and the stock is there to draw.
-  const [leaveFor, setLeaveFor] = useState<LineState | null>(null)
-  const [leaving, setLeaving] = useState(false)
-  // Carry the ingredient and the quantity to buy across, so the purchase form
-  // opens on exactly what this batch needs — the whole line for a bought row,
-  // only the shortfall for a mixed one.
-  function purchaseUrl(l: LineState | null) {
-    if (!l) return "/poultry-raw-materials?purchase=1"
-    const qs = new URLSearchParams({ purchase: "1" })
-    if (l.ingredientItemId) qs.set("itemId", String(l.ingredientItemId))
-    const buy = lineDerived(l).purQty
-    if (buy > 0) qs.set("qty", String(roundQty(buy)))
-    return `/poultry-raw-materials?${qs.toString()}`
-  }
-  async function leaveToPurchase(saveFirst: boolean) {
-    const target = purchaseUrl(leaveFor)
-    if (!saveFirst) { router.push(target); return }
-    if (savingRef.current) return
-    savingRef.current = true
-    setLeaving(true)
+  // The purchase is recorded right here, in the same dialog /poultry-raw-materials
+  // uses — the batch form stays exactly as it is behind it. The row being bought
+  // for seeds the dialog: the whole line for a bought row, only the shortfall
+  // for a mixed one.
+  const [purchaseFor, setPurchaseFor] = useState<LineState | null>(null)
+  const purchaseDefaults = useMemo(() => {
+    if (!purchaseFor) return undefined
+    const buy = lineDerived(purchaseFor).purQty
+    return { itemId: purchaseFor.ingredientItemId, quantity: buy > 0 ? roundQty(buy) : null }
+  }, [purchaseFor])
+  // Mirrors the Raw Materials page: prefer "Main Cash Account", else the first.
+  const defaultCashAccountId = useMemo(() => {
+    const main = cashAccounts.find((a) => a.accountName.trim().toLowerCase() === "main cash account")
+    return (main ?? cashAccounts[0])?.poultryCashAccountId ?? null
+  }, [cashAccounts])
+
+  // The purchase created a stock lot, so the line can now draw from inventory —
+  // switch it over rather than making the farmer find the dropdown, and pull the
+  // item list again so the new availability shows.
+  async function afterPurchase(line: LineState) {
+    setLine(line.key, { sourceType: "FromInventory", inventoryQuantityUsed: "", purchasedQuantityUsed: "" })
+    setPurchaseFor(null)
     try {
-      const saved = await persist()
-      toast({ title: "Draft saved", description: saved?.batchNumber ? `Batch ${saved.batchNumber} — reopen it once the purchase is recorded.` : undefined })
-      router.push(target)
-    } catch (e: any) {
-      toast({ title: "Failed to save batch", description: e?.message ?? String(e), variant: "destructive" })
-      setLeaving(false)
-    } finally {
-      savingRef.current = false
+      const fresh = await listFeedProductionItems()
+      setItems(fresh)
+      const it = fresh.find((i) => i.poultryRawMaterialItemId === line.ingredientItemId)
+      toast({
+        title: "Stock updated",
+        description: it
+          ? `${it.itemName} — ${it.availableFromLots.toLocaleString()} available to draw. The line now draws from inventory.`
+          : "The line now draws from inventory.",
+      })
+    } catch {
+      toast({ title: "Purchase saved", description: "Reload the page if the available stock looks stale." })
     }
   }
 
@@ -769,6 +777,30 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
             const buying = d.hasPurchase
             return (
               <div key={l.key} className={cn("rounded-lg border p-3 bg-white space-y-2", shortBy > 0 ? "border-red-300" : "border-slate-200")}>
+                {/* Row status, kept above the fields. These messages come and go
+                    as the row is filled in; underneath the inputs they shifted
+                    everything below them down the page, cards included. */}
+                {(it || scaledTo !== null || isBought) && (
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] leading-tight">
+                    {it && !isBought && (
+                      shortBy > 0 ? (
+                        <span className="text-red-600 font-medium">
+                          Short {shortBy.toLocaleString()} — only {it.availableFromLots.toLocaleString()} of {it.itemName} available to draw
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">
+                          Available: {it.availableFromLots.toLocaleString()}{l.unitOfMeasure ? ` ${l.unitOfMeasure}` : ""}
+                        </span>
+                      )
+                    )}
+                    {scaledTo !== null && (
+                      <span className="text-emerald-600">
+                        → uses {scaledTo.toLocaleString()}{l.unitOfMeasure ? ` ${l.unitOfMeasure}` : ""}
+                      </span>
+                    )}
+                    {isBought && <span className="text-slate-400">Cost comes from the purchase you record</span>}
+                  </div>
+                )}
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
                   <div className="sm:col-span-4">
                     <label className="text-xs text-slate-500">Ingredient</label>
@@ -803,10 +835,6 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
                       </div>
                     ) : fromFormula ? (
                       <div className="text-[11px] text-slate-400 mt-0.5">{shareOf(l) ?? "Follows the quantity produced"}</div>
-                    ) : scaledTo !== null ? (
-                      <div className="text-[11px] text-emerald-600 mt-0.5">
-                        → uses {scaledTo.toLocaleString()}{l.unitOfMeasure ? ` ${l.unitOfMeasure}` : ""}
-                      </div>
                     ) : null}
                   </div>
                   <div className="sm:col-span-3">
@@ -814,7 +842,6 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
                       <>
                         <label className="text-xs text-slate-500">Cost</label>
                         <div className="h-9 flex items-center font-medium text-slate-400">—</div>
-                        <div className="text-[11px] text-slate-400 mt-0.5">Comes from the purchase you record</div>
                       </>
                     ) : (
                       <>
@@ -832,16 +859,6 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
                     <Button variant="ghost" size="sm" onClick={() => removeLine(l.key)} disabled={lines.length <= 1}><Trash2 className="w-4 h-4 text-red-600" /></Button>
                   </div>
                 </div>
-
-                {/* Stock availability — the figure that decides whether it posts.
-                    A bought row draws nothing, so it has nothing to be short of. */}
-                {it && !isBought && (
-                  <div className={cn("text-[11px]", shortBy > 0 ? "text-red-600 font-medium" : "text-slate-400")}>
-                    {shortBy > 0
-                      ? `Short ${shortBy.toLocaleString()} — only ${it.availableFromLots.toLocaleString()} of ${it.itemName} available to draw`
-                      : `Available: ${it.availableFromLots.toLocaleString()}${l.unitOfMeasure ? ` ${l.unitOfMeasure}` : ""}`}
-                  </div>
-                )}
 
                 {/* Mixed-source split */}
                 {l.sourceType === "MixedSource" && (
@@ -875,13 +892,13 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
                       </div>
                       <div className="text-indigo-800/80 mt-0.5">
                         {isBought
-                          ? <>Record the purchase{it ? <> for <span className="font-medium">{it.itemName}</span></> : null} there to create the stock lot, then set this line back to <span className="font-medium">From Inventory</span>.</>
-                          : <>Buy the {d.purQty > 0 ? <span className="font-medium tabular-nums">{d.purQty.toLocaleString()}{l.unitOfMeasure ? ` ${l.unitOfMeasure}` : ""}</span> : "part"} stock can&apos;t cover{it ? <> of <span className="font-medium">{it.itemName}</span></> : null} there, then set this line to <span className="font-medium">From Inventory</span> for the full {d.qty > 0 ? d.qty.toLocaleString() : "quantity"}.</>}
+                          ? <>Record it{it ? <> for <span className="font-medium">{it.itemName}</span></> : null} here without leaving the batch — it creates the stock lot and switches this line to <span className="font-medium">From Inventory</span>.</>
+                          : <>Buy the {d.purQty > 0 ? <span className="font-medium tabular-nums">{d.purQty.toLocaleString()}{l.unitOfMeasure ? ` ${l.unitOfMeasure}` : ""}</span> : "part"} stock can&apos;t cover{it ? <> of <span className="font-medium">{it.itemName}</span></> : null} here; the line then draws the full {d.qty > 0 ? d.qty.toLocaleString() : "quantity"} from inventory.</>}
                         {" "}This batch can&apos;t be posted until you do.
                       </div>
                     </div>
-                    <Button variant="outline" size="sm" className="bg-white border-indigo-300 text-indigo-800 hover:bg-indigo-100" onClick={() => setLeaveFor(l)}>
-                      Record purchase <ExternalLink className="w-3.5 h-3.5 ml-1.5" />
+                    <Button variant="outline" size="sm" className="bg-white border-indigo-300 text-indigo-800 hover:bg-indigo-100" onClick={() => setPurchaseFor(l)}>
+                      <Plus className="w-3.5 h-3.5 mr-1.5" /> Record purchase
                     </Button>
                   </div>
                 )}
@@ -910,7 +927,7 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
                 </div>
               ))}
               <div className="text-red-700">
-                Reduce the quantity produced, or record a purchase in Raw Materials for the shortfall. This batch can&apos;t be posted until it fits.
+                Reduce the quantity produced, or set the short lines to <span className="font-medium">Bought During Production</span> / <span className="font-medium">Mixed Source</span> and record the purchase from the line. This batch can&apos;t be posted until it fits.
               </div>
               {shortages.some((s) => s.byAdjustment > 0) && (
                 <div className="text-red-700 border-t border-red-200 pt-1">
@@ -1026,7 +1043,7 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
               not by this batch, so they aren't previewed as stock movement. */}
           {purchasingLines.length > 0 && (
             <div className="text-[11px] text-indigo-700 bg-indigo-50 border border-indigo-200 rounded px-2 py-1">
-              {purchasingLines.length} ingredient{purchasingLines.length === 1 ? "" : "s"} awaiting a purchase in Raw Materials — not counted here.
+              {purchasingLines.length} ingredient{purchasingLines.length === 1 ? "" : "s"} awaiting a purchase — not counted here.
             </div>
           )}
           <div className="border-t border-slate-200 my-1" />
@@ -1077,7 +1094,7 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
                   <div className="font-medium text-slate-700">What you can do:</div>
                   <ul className="list-disc pl-5 space-y-0.5">
                     <li>Lower the quantity produced{stockLimit && stockLimit.max > 0 ? ` — stock covers about ${stockLimit.max.toLocaleString()}` : ""}.</li>
-                    <li>Buy the shortfall: record a <span className="font-medium">purchase</span> in Raw Materials, then post — the new stock is drawable straight away.</li>
+                    <li>Buy the shortfall: set the line to <span className="font-medium">Bought During Production</span> or <span className="font-medium">Mixed Source</span> and use <span className="font-medium">Record purchase</span> — the new stock is drawable straight away.</li>
                     {shortages.some((s) => s.byAdjustment > 0) && (
                       <li>Record a <span className="font-medium">purchase</span> for stock that was added by adjustment — adjusted stock has no batch to draw from.</li>
                     )}
@@ -1092,35 +1109,17 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Heading off to Raw Materials — this form is left behind, so offer to
-          park it as a draft first. */}
-      <AlertDialog open={!!leaveFor} onOpenChange={(open) => { if (!open && !leaving) setLeaveFor(null) }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Record the purchase{leaveFor?.ingredientItemId ? ` for ${itemById.get(leaveFor.ingredientItemId)?.itemName ?? "this ingredient"}` : ""}
-            </AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-3">
-                <div>
-                  Raw Materials opens with the purchase form ready. Once it&apos;s saved the stock is available to draw,
-                  so come back here and set the line to <span className="font-medium">From Inventory</span>.
-                </div>
-                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
-                  This batch form closes when you go. Save it as a draft first and you can pick it up exactly where you left off.
-                </div>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2">
-            <AlertDialogCancel disabled={leaving}>Cancel</AlertDialogCancel>
-            <Button variant="outline" onClick={() => void leaveToPurchase(false)} disabled={leaving}>Go without saving</Button>
-            <Button onClick={() => void leaveToPurchase(true)} disabled={leaving || !!validate()} title={validate() ?? undefined}>
-              {leaving ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Saving…</> : <><Save className="w-4 h-4 mr-1" /> Save draft &amp; go</>}
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* The same Record Purchase dialog /poultry-raw-materials uses, raised
+          in place so the batch form is never abandoned mid-entry. */}
+      <PoultryPurchaseDialog
+        open={!!purchaseFor}
+        onOpenChange={(open) => { if (!open) setPurchaseFor(null) }}
+        items={rawItems}
+        cashAccounts={cashAccounts}
+        defaults={purchaseDefaults}
+        defaultCashAccountId={defaultCashAccountId}
+        onSaved={() => { if (purchaseFor) void afterPurchase(purchaseFor) }}
+      />
     </div>
   )
 }

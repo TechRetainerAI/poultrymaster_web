@@ -52,6 +52,11 @@ namespace PoultryFarmAPIWeb.Models
         public decimal Balance { get; set; }               // derived (read-only)
         [StringLength(500)] public string? ReceiptUrl { get; set; }
         [StringLength(500)] public string? Notes { get; set; }
+        /// <summary>Set when the posting engine created this lot, not "Record Purchase".</summary>
+        public int? SourceFeedProductionBatchId { get; set; }
+        public string? FeedProductionBatchNumber { get; set; }
+        /// <summary>'Produced' (the feed the batch made), 'Purchased' (an ingredient it bought), or null.</summary>
+        public string? FeedProductionRole { get; set; }
         public string? CreatedBy { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
@@ -72,6 +77,11 @@ namespace PoultryFarmAPIWeb.Models
         [StringLength(500)] public string? VarianceReason { get; set; }
         public int? UsedByStaffId { get; set; }
         [StringLength(500)] public string? Notes { get; set; }
+        /// <summary>Set when a feed production batch consumed this stock.</summary>
+        public int? PoultryFeedProductionBatchId { get; set; }
+        public string? FeedProductionBatchNumber { get; set; }
+        /// <summary>The finished feed that batch produced.</summary>
+        public string? FeedProductionFeedName { get; set; }
         public string? CreatedBy { get; set; }
         public DateTime CreatedAt { get; set; }
     }
