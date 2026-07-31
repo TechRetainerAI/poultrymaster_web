@@ -10,7 +10,7 @@ import { NumberInput } from "@/components/ui/number-input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Trash2, Loader2, Save, ArrowLeft, RefreshCw, CheckCircle2 } from "lucide-react"
+import { Plus, Trash2, Loader2, Save, ArrowLeft, RefreshCw, CheckCircle2, ShoppingCart, ExternalLink } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
@@ -18,8 +18,8 @@ import { usePermissions } from "@/hooks/use-permissions"
 import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
 import {
   listFeedProductionItems, listFeedFormulas, getFeedFormula, saveFeedProductionBatch, postFeedProductionBatch,
-  type FeedBatchItem, type FeedFormula, type FeedFormulaLine, type FeedProductionBatch, type FeedProductionSourceType,
-  type PaymentStatus,
+  type FeedBatchItem, type FeedFormula, type FeedFormulaLine, type FeedProductionBatch, type FeedProductionBatchLine,
+  type FeedProductionBatchLineInput, type FeedProductionSourceType, type PaymentStatus,
 } from "@/lib/api/poultry-feed-production"
 import { scaleFormulaLines, formulaCoverage, formulaUnitFactors, roundQty } from "@/lib/feed-formula-scale"
 import {
@@ -38,14 +38,10 @@ const SOURCE_TYPES: { value: FeedProductionSourceType; label: string }[] = [
 const COST_TYPES = ["Labor", "Grinding", "Transport", "Electricity", "Fuel", "Packaging", "MachineMaintenance", "Other"]
 const COST_LABELS: Record<string, string> = { MachineMaintenance: "Machine Maintenance" }
 const costLabel = (c: string) => COST_LABELS[c] ?? c
-const PAYMENT_METHODS = ["Cash", "MoMo", "Bank", "Card"]
 const PAYMENT_STATUSES: PaymentStatus[] = ["Paid", "Unpaid", "Partial"]
 
 const num = (v: string | number | null | undefined) => (typeof v === "number" ? v : Number(v) || 0)
 const rid = () => Math.random().toString(36).slice(2)
-// A derived number shown inside an input: trimmed to dp, no trailing zeros,
-// and blank at zero so the field doesn't read as a real entry.
-const numStr = (n: number, dp: number) => (n > 0 ? String(Number(n.toFixed(dp))) : "")
 
 // Stock errors from the shared lot-consumption SP arrive as one raw line per
 // ingredient. Tidy them into something a farmer can read, and drop the
@@ -72,6 +68,10 @@ type LineState = {
   // so the formula stops overwriting it until they reset the row.
   formulaLineId: number | null
   qtyOverridden: boolean
+  // What the farmer typed in the quantity box on a hand-added row. With no
+  // formula it's a recipe amount that gets scaled to fill the batch, so it is
+  // kept apart from quantityUsed (the resolved figure everything else uses).
+  enteredQty: string
   sourceType: FeedProductionSourceType
   quantityUsed: string
   unitOfMeasure: string
@@ -79,11 +79,6 @@ type LineState = {
   purchasedQuantityUsed: string
   inventoryUnitCost: string
   purchasedUnitCost: string
-  // The purchased cost can be given per unit or as a total; this says which the
-  // farmer typed, and the other is shown derived. Only the unit cost is stored
-  // — the line has no total column.
-  purchasedTotalCost: string
-  purchasedCostMode: "Unit" | "Total"
   supplierName: string
   purchaseReference: string
   paymentStatus: PaymentStatus
@@ -93,12 +88,32 @@ type LineState = {
   notes: string
 }
 const newLine = (): LineState => ({
-  key: rid(), ingredientItemId: null, formulaLineId: null, qtyOverridden: false,
+  key: rid(), ingredientItemId: null, formulaLineId: null, qtyOverridden: false, enteredQty: "",
   sourceType: "FromInventory", quantityUsed: "", unitOfMeasure: "",
   inventoryQuantityUsed: "", purchasedQuantityUsed: "", inventoryUnitCost: "", purchasedUnitCost: "",
-  purchasedTotalCost: "", purchasedCostMode: "Unit",
   supplierName: "", purchaseReference: "", paymentStatus: "Unpaid", amountPaid: "", paidFromCashAccountId: null, paymentMethod: "Cash", notes: "",
 })
+
+// What to persist about how a row's quantity was reached. A scaled row stores
+// the recipe amount the farmer typed so reopening keeps following the batch
+// size; everything else — formula rows, and hand rows alongside a formula — is
+// a plain quantity. A formula row's recipe lives on the formula itself, which
+// the batch's FormulaId links back to.
+function quantityInput(l: LineState, scaled: boolean): Pick<FeedProductionBatchLineInput, "quantityMode" | "fixedQuantity"> {
+  const entered = num(l.enteredQty)
+  return scaled && l.formulaLineId === null && entered > 0
+    ? { quantityMode: "FixedQuantity", fixedQuantity: entered }
+    : { quantityMode: "Quantity", fixedQuantity: null }
+}
+
+// Read a saved line back into the quantity box. A row saved as a recipe amount
+// comes back on that amount; anything else — including every line saved before
+// migration 184 — comes back on its plain quantity.
+function savedEnteredQty(l: FeedProductionBatchLine): string {
+  return l.quantityMode === "FixedQuantity" && num(l.fixedQuantity) > 0
+    ? String(l.fixedQuantity)
+    : String(l.quantityUsed)
+}
 
 type CostState = {
   key: string
@@ -130,15 +145,13 @@ function lineDerived(l: LineState) {
   else if (l.sourceType === "BoughtDuringProduction") purQty = qty
   else { invQty = num(l.inventoryQuantityUsed); purQty = num(l.purchasedQuantityUsed) }
 
-  // The purchased cost is entered either way round: per unit, or as the cost of
-  // the purchased portion. Whichever was typed is authoritative and the other is
-  // derived, so they can't drift as the formula rescales the quantity. The
-  // inventory portion is never typed — posting prices it from the stock lots.
+  // Neither side is priced on the line: the inventory portion is priced from
+  // the stock lots at posting, and a bought portion is priced by the purchase
+  // recorded in Raw Materials. purchasedUnitCost only ever carries a figure
+  // loaded from a draft saved before purchases moved out of this form.
   const invUnit = num(l.inventoryUnitCost)
   const invCost = invQty * invUnit
-  const purCost = purQty > 0
-    ? (l.purchasedCostMode === "Total" ? num(l.purchasedTotalCost) : purQty * num(l.purchasedUnitCost))
-    : 0
+  const purCost = purQty * num(l.purchasedUnitCost)
   const purUnit = purQty > 0 ? purCost / purQty : 0
 
   const total = invCost + purCost
@@ -212,12 +225,12 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
     existing?.lines?.length
       ? existing.lines.map((l) => ({
           key: rid(), ingredientItemId: l.ingredientItemId, formulaLineId: null, qtyOverridden: false,
+          enteredQty: savedEnteredQty(l),
           sourceType: l.sourceType, quantityUsed: String(l.quantityUsed),
           unitOfMeasure: l.unitOfMeasure ?? "", inventoryQuantityUsed: l.inventoryQuantityUsed != null ? String(l.inventoryQuantityUsed) : "",
           purchasedQuantityUsed: l.purchasedQuantityUsed != null ? String(l.purchasedQuantityUsed) : "",
           inventoryUnitCost: l.inventoryUnitCost != null ? String(l.inventoryUnitCost) : "",
           purchasedUnitCost: l.purchasedUnitCost != null ? String(l.purchasedUnitCost) : "",
-          purchasedTotalCost: "", purchasedCostMode: "Unit" as const,
           supplierName: l.supplierName ?? "", purchaseReference: l.purchaseReference ?? "",
           paymentStatus: (l.paymentStatus ?? "Unpaid") as PaymentStatus, amountPaid: l.amountPaid != null ? String(l.amountPaid) : "",
           paidFromCashAccountId: l.paidFromCashAccountId ?? null, paymentMethod: l.paymentMethod ?? "Cash", notes: l.notes ?? "",
@@ -314,7 +327,7 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
       const seeded = linesFromFormula(full)
       if (seeded.length) {
         // Hand-added rows the farmer already filled in survive a formula swap.
-        setLines((ls) => [...seeded, ...ls.filter((l) => l.formulaLineId === null && l.ingredientItemId && num(l.quantityUsed) > 0)])
+        setLines((ls) => [...seeded, ...ls.filter((l) => l.formulaLineId === null && l.ingredientItemId && num(l.enteredQty) > 0)])
       }
       setAppliedFormula(full)
       toast({ title: "Formula applied", description: `${seeded.length} ingredient${seeded.length === 1 ? "" : "s"} — quantities follow the quantity produced.` })
@@ -326,7 +339,7 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
   // Hand back every overridden row to the formula.
   function resetToFormula() {
     if (!appliedFormula) return
-    setLines((ls) => ls.map((l) => (l.formulaLineId !== null ? { ...l, qtyOverridden: false } : l)))
+    setLines((ls) => ls.map((l) => (l.qtyOverridden ? { ...l, qtyOverridden: false } : l)))
     toast({ title: "Reset to formula", description: "Edited quantities now follow the quantity produced again." })
   }
 
@@ -334,7 +347,44 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
     () => new Map((appliedFormula?.lines ?? []).map((fl) => [fl.poultryFeedFormulaLineId, fl])),
     [appliedFormula],
   )
-  const coverage = useMemo(() => formulaCoverage(appliedFormula?.lines), [appliedFormula])
+
+  // With no formula the quantities the farmer types ARE the recipe: they're read
+  // as a base mix and scaled to fill the batch, exactly the way an all-fixed
+  // formula is (50/30/20 at 500 produced becomes 250/150/100 — and quantities
+  // that already add up to the batch come back unchanged). Picking a formula
+  // hands the calculation over to it, and hand-added rows alongside a formula
+  // are plain extras that no longer scale.
+  const scaling = !appliedFormula
+
+  // The recipe driving the quantities: the formula's lines, or — with no
+  // formula — every hand-typed row. Ids are re-keyed onto a dense index so the
+  // ad-hoc rows can't collide with formula line ids.
+  const recipe = useMemo(() => {
+    const out: { key: string; line: FeedFormulaLine }[] = []
+    for (const l of lines) {
+      if (l.formulaLineId !== null) {
+        const fl = formulaLineById.get(l.formulaLineId)
+        if (fl) out.push({ key: l.key, line: fl })
+        continue
+      }
+      // A row with no ingredient yet would take a share of the mix it never uses.
+      if (!scaling || !l.ingredientItemId || num(l.enteredQty) <= 0) continue
+      out.push({
+        key: l.key,
+        line: {
+          poultryFeedFormulaLineId: 0, poultryFeedFormulaId: 0,
+          ingredientItemId: l.ingredientItemId, availableStock: 0, latestUnitCost: 0,
+          quantityMode: "FixedQuantity", percentage: null, fixedQuantity: num(l.enteredQty),
+          unitOfMeasure: l.unitOfMeasure || null, sortOrder: 0,
+        },
+      })
+    }
+    return out.map((e, i) => ({ key: e.key, line: { ...e.line, poultryFeedFormulaLineId: i } }))
+  }, [lines, formulaLineById, scaling])
+
+  const recipeLines = useMemo(() => recipe.map((e) => e.line), [recipe])
+  const recipeByKey = useMemo(() => new Map(recipe.map((e) => [e.key, e.line])), [recipe])
+  const coverage = useMemo(() => formulaCoverage(recipeLines), [recipeLines])
 
   // Output unit isn't typed — it comes from the formula's default unit, falling
   // back to the finished feed item's own unit. Keeping it derived stops a batch
@@ -354,14 +404,14 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
     }
   }, [derivedOutputUnit, header.outputUnit])
 
-  // What the formula says this row's share is — shown under the quantity.
-  function formulaShareOf(l: LineState): string | null {
-    const fl = l.formulaLineId !== null ? formulaLineById.get(l.formulaLineId) : undefined
+  // What the recipe says this row's share of the batch is.
+  function shareOf(l: LineState): string | null {
+    const fl = recipeByKey.get(l.key)
     if (!fl) return null
     if (fl.quantityMode === "Percentage") return `${roundQty(num(fl.percentage))}% of batch`
     if (coverage.fixedBase <= 0) return null
     const share = num(fl.fixedQuantity) / coverage.fixedBase
-    // In a mixed formula the fixed lines share whatever the percentages leave
+    // In a mixed recipe the fixed lines share whatever the percentages leave
     // over, so "parts" would misread — quote the effective share instead.
     return coverage.shape === "mixed"
       ? `${roundQty(share * (100 - coverage.pctTotal))}% of batch`
@@ -375,7 +425,7 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
   const totalAdditionalCost = useMemo(() => costCalcs.reduce((s, x) => s + x.d.amount, 0), [costCalcs])
   const totalProductionCost = totalIngredientCost + totalAdditionalCost
   const totalIngredientQty = useMemo(() => lineCalcs.reduce((s, x) => s + (x.l.ingredientItemId ? x.d.qty : 0), 0), [lineCalcs])
-  const hasOverrides = useMemo(() => lines.some((l) => l.formulaLineId !== null && l.qtyOverridden), [lines])
+  const hasOverrides = useMemo(() => lines.some((l) => l.qtyOverridden), [lines])
   const qtyProduced = num(header.quantityProduced)
   const costPerUnit = qtyProduced > 0 ? totalProductionCost / qtyProduced : 0
   // Within half a percent of the batch is close enough — rounding, and a few
@@ -410,18 +460,20 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
     return out
   }, [lineCalcs, itemById])
 
-  // The largest batch current stock can cover at this formula's ratios, and
-  // which ingredient runs out first. Rows sourced by purchase aren't limited by
+  // The largest batch current stock can cover at the recipe's ratios, and which
+  // ingredient runs out first. Rows sourced by purchase aren't limited by
   // stock, and a hand-overridden row no longer follows the ratios, so both sit
   // this out.
   const stockLimit = useMemo(() => {
-    if (!appliedFormula?.lines?.length) return null
-    const factors = formulaUnitFactors(appliedFormula.lines)
+    if (!recipe.length) return null
+    const factors = formulaUnitFactors(recipeLines)
+    const byKey = new Map(lines.map((l) => [l.key, l]))
     let limit = Infinity
     let by = ""
-    for (const l of lines) {
-      if (l.formulaLineId === null || l.qtyOverridden || l.sourceType !== "FromInventory") continue
-      const f = factors.get(l.formulaLineId)
+    for (const e of recipe) {
+      const l = byKey.get(e.key)
+      if (!l || l.qtyOverridden || l.sourceType !== "FromInventory") continue
+      const f = factors.get(e.line.poultryFeedFormulaLineId)
       const it = l.ingredientItemId ? itemById.get(l.ingredientItemId) : undefined
       if (!f || f <= 0 || !it) continue
       const max = it.availableFromLots / f
@@ -429,20 +481,22 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
     }
     // Floor, so the suggested quantity can never round back into a shortfall.
     return Number.isFinite(limit) ? { max: Math.floor(limit * 1000) / 1000, by } : null
-  }, [appliedFormula, lines, itemById])
+  }, [recipe, recipeLines, lines, itemById])
 
-  // The distribution itself: whenever the quantity to produce (or the formula)
+  // The distribution itself: whenever the quantity to produce (or the recipe)
   // changes, redistribute the ingredients by ratio. Patches quantity only —
   // source, unit cost, supplier and payment details on the row are untouched,
   // and rows the farmer typed a quantity into keep their number.
   useEffect(() => {
-    if (!appliedFormula?.lines?.length) return
-    const required = scaleFormulaLines(appliedFormula.lines, qtyProduced)
+    const required = scaleFormulaLines(recipeLines, qtyProduced)
+    const wantByKey = new Map(recipe.map((e) => [e.key, required.get(e.line.poultryFeedFormulaLineId) ?? 0]))
     setLines((ls) => {
       let changed = false
       const next = ls.map((l) => {
-        if (l.formulaLineId === null || l.qtyOverridden) return l
-        const want = required.get(l.formulaLineId)
+        if (l.qtyOverridden) return l
+        // A hand-added row outside the recipe — an extra alongside a formula,
+        // or one with no ingredient picked yet — is used exactly as typed.
+        const want = wantByKey.get(l.key) ?? (l.formulaLineId === null ? roundQty(num(l.enteredQty)) : undefined)
         if (want === undefined) return l
         const text = want > 0 ? String(want) : ""
         if (text === l.quantityUsed) return l
@@ -451,7 +505,7 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
       })
       return changed ? next : ls
     })
-  }, [appliedFormula, qtyProduced])
+  }, [recipe, recipeLines, qtyProduced])
 
   const cashOut = useMemo(() => {
     const map = new Map<number, number>()
@@ -478,14 +532,30 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
     if (!active.length) return "Add at least one ingredient line."
     for (const { l, d } of active) {
       if (!d.mixedBalanced) return "A mixed-source line's inventory + purchased quantities must equal the quantity used."
-      if (d.hasPurchase && d.purUnit <= 0) return "Enter the purchased unit cost, or the line cost, for bought / mixed ingredient lines."
-      if (l.paymentStatus === "Partial" && num(l.amountPaid) > d.purCost) return "Amount paid cannot exceed the purchased cost."
+      // Nothing is priced on the line any more — a bought quantity is priced by
+      // the purchase recorded in Raw Materials, and postBlocker() holds the
+      // batch until that's done.
     }
     for (const { c, d } of costCalcs) {
       if (d.amount < 0) return "Additional cost amounts cannot be negative."
       if (c.paymentStatus === "Partial" && num(c.amountPaid) > d.amount) return "Amount paid cannot exceed the cost amount."
     }
     return null
+  }
+
+  // A bought quantity carries no cost on the line — the purchase lives in Raw
+  // Materials. It's fine to park one in a draft as a note to self, but posting
+  // it would book the ingredient at zero and never draw the stock, so posting
+  // is blocked until the purchase is recorded and the line switched to From
+  // Inventory. Covers both bought and the bought half of a mixed line.
+  const purchasingLines = useMemo(
+    () => lineCalcs.filter((x) => x.l.ingredientItemId && x.d.qty > 0 && x.l.sourceType !== "FromInventory"),
+    [lineCalcs],
+  )
+  function postBlocker(): string | null {
+    if (!purchasingLines.length) return null
+    const names = purchasingLines.map((x) => itemById.get(x.l.ingredientItemId!)?.itemName).filter(Boolean)
+    return `Record the purchase for ${names.join(", ") || "this ingredient"} in Raw Materials, then set the line to From Inventory.`
   }
 
   const [posting, setPosting] = useState(false)
@@ -508,6 +578,9 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
             sourceType: x.l.sourceType,
             quantityUsed: x.d.qty,
             unitOfMeasure: x.l.unitOfMeasure || null,
+            // The recipe amount behind the quantity, so reopening the draft
+            // keeps scaling it to the batch.
+            ...quantityInput(x.l, scaling),
             inventoryQuantityUsed: x.l.sourceType === "MixedSource" ? x.d.invQty : x.l.sourceType === "FromInventory" ? x.d.qty : 0,
             purchasedQuantityUsed: x.l.sourceType === "MixedSource" ? x.d.purQty : x.l.sourceType === "BoughtDuringProduction" ? x.d.qty : 0,
             // Always the resolved per-unit figures — the line has no total
@@ -563,8 +636,45 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
   function requestPost() {
     const err = validate()
     if (err) { toast({ title: err, variant: "destructive" }); return }
+    const bought = postBlocker()
+    if (bought) { toast({ title: "Purchase not recorded yet", description: bought, variant: "destructive" }); return }
     if (shortages.length) { setShortStockBlocked(true); return }
     void saveAndPost()
+  }
+
+  // Leaving for Raw Materials abandons the form, so offer to park the batch as
+  // a draft on the way out. The bought line is saved with it — reopening the
+  // draft after the purchase is recorded, the farmer switches it to From
+  // Inventory and the stock is there to draw.
+  const [leaveFor, setLeaveFor] = useState<LineState | null>(null)
+  const [leaving, setLeaving] = useState(false)
+  // Carry the ingredient and the quantity to buy across, so the purchase form
+  // opens on exactly what this batch needs — the whole line for a bought row,
+  // only the shortfall for a mixed one.
+  function purchaseUrl(l: LineState | null) {
+    if (!l) return "/poultry-raw-materials?purchase=1"
+    const qs = new URLSearchParams({ purchase: "1" })
+    if (l.ingredientItemId) qs.set("itemId", String(l.ingredientItemId))
+    const buy = lineDerived(l).purQty
+    if (buy > 0) qs.set("qty", String(roundQty(buy)))
+    return `/poultry-raw-materials?${qs.toString()}`
+  }
+  async function leaveToPurchase(saveFirst: boolean) {
+    const target = purchaseUrl(leaveFor)
+    if (!saveFirst) { router.push(target); return }
+    if (savingRef.current) return
+    savingRef.current = true
+    setLeaving(true)
+    try {
+      const saved = await persist()
+      toast({ title: "Draft saved", description: saved?.batchNumber ? `Batch ${saved.batchNumber} — reopen it once the purchase is recorded.` : undefined })
+      router.push(target)
+    } catch (e: any) {
+      toast({ title: "Failed to save batch", description: e?.message ?? String(e), variant: "destructive" })
+      setLeaving(false)
+    } finally {
+      savingRef.current = false
+    }
   }
 
   // Save the draft, then post it (inventory draws, produced stock, cash/payables).
@@ -605,14 +715,21 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
             <SelectContent>{finishedFeedItems.map((i) => <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>{i.itemName}</SelectItem>)}</SelectContent>
           </Select>
         </FormField>
-        <FormField label="Feed formula" hint="Optional — auto-calculates ingredient quantities">
+        <FormField label="Feed formula" hint="Optional — without one, the quantities you type below are scaled to fill the batch">
           <Select value={header.formulaId ? String(header.formulaId) : ""} onValueChange={(v) => void applyFormula(Number(v))}>
             <SelectTrigger><SelectValue placeholder={activeFormulas.length ? "Pick a formula" : "No formulas"} /></SelectTrigger>
             <SelectContent>{activeFormulas.map((f) => <SelectItem key={f.poultryFeedFormulaId} value={String(f.poultryFeedFormulaId)}>{f.formulaName}</SelectItem>)}</SelectContent>
           </Select>
         </FormField>
         <FormField label="Production date"><Input type="date" value={header.productionDate} onChange={(e) => setHeader({ ...header, productionDate: e.target.value })} /></FormField>
-        <FormField label="Quantity produced *" hint={appliedFormula ? `Ingredients redistribute from ${appliedFormula.formulaName} as you type` : undefined}>
+        <FormField
+          label="Quantity produced *"
+          hint={appliedFormula
+            ? `Ingredients redistribute from ${appliedFormula.formulaName} as you type`
+            : recipe.length
+              ? "Ingredients rescale to fill the batch as you type"
+              : undefined}
+        >
           <NumberInput min={0} step="0.001" value={header.quantityProduced} onChange={(e) => setHeader({ ...header, quantityProduced: e.target.value })} />
         </FormField>
         <FormField label="Output unit" hint={outputUnitSource}>
@@ -625,13 +742,31 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
       {/* Section 2 — Ingredient breakdown */}
       <FormSection title="Ingredient breakdown" color="emerald" columns={1}>
         <div className="space-y-3">
+          {/* Without a formula the typed quantities are a recipe, not literals —
+              say so plainly, because a rescaled number is a surprise otherwise. */}
+          {scaling && (
+            <div className="text-xs rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-slate-600">
+              No formula picked — the quantities you type are read as a <span className="font-medium">recipe</span> and scaled to fill
+              the batch. For a {qtyProduced > 0 ? qtyProduced.toLocaleString() : "500"}
+              {header.outputUnit ? ` ${header.outputUnit}` : ""} batch, typing 50 / 30 / 20 uses{" "}
+              {qtyProduced > 0
+                ? `${roundQty(qtyProduced * 0.5).toLocaleString()} / ${roundQty(qtyProduced * 0.3).toLocaleString()} / ${roundQty(qtyProduced * 0.2).toLocaleString()}`
+                : "250 / 150 / 100"}. Quantities that already add up to the batch are used as they are.
+            </div>
+          )}
           {lineCalcs.map(({ l, d }) => {
             const it = l.ingredientItemId ? itemById.get(l.ingredientItemId) : undefined
             const shortBy = it && d.invQty > it.availableFromLots ? roundQty(d.invQty - it.availableFromLots) : 0
-            // A From-Inventory line's quantity is whatever the formula worked
-            // out — change the batch quantity to move it. Hand-added lines have
-            // no formula behind them, so they stay editable or they'd be unusable.
-            const qtyLocked = l.sourceType === "FromInventory" && l.formulaLineId !== null
+            const fromFormula = l.formulaLineId !== null
+            // What the typed recipe amount resolved to once scaled to the batch.
+            // Only worth showing when it isn't simply the number they typed.
+            const scaledTo = !fromFormula && recipeByKey.has(l.key) && Math.abs(d.qty - num(l.enteredQty)) > 0.001 ? d.qty : null
+            // Anything not coming wholly from stock is bought in Raw Materials,
+            // not priced here — the row points there instead of collecting cost
+            // and payment. Mixed still splits its quantity, so the callout knows
+            // to buy only the part stock can't cover.
+            const isBought = l.sourceType === "BoughtDuringProduction"
+            const buying = d.hasPurchase
             return (
               <div key={l.key} className={cn("rounded-lg border p-3 bg-white space-y-2", shortBy > 0 ? "border-red-300" : "border-slate-200")}>
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
@@ -651,43 +786,45 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
                   </div>
                   <div className="sm:col-span-2">
                     <label className="text-xs text-slate-500">Qty used{l.unitOfMeasure ? ` (${l.unitOfMeasure})` : ""}</label>
+                    {/* Always editable. Typing over a formula row detaches it:
+                        it keeps the number you gave it and stops following the
+                        batch until it's reset, here or from the button below. */}
                     <NumberInput
-                      min={0} step="0.001" value={l.quantityUsed}
-                      readOnly={qtyLocked} disabled={qtyLocked}
-                      className={cn(qtyLocked && "bg-slate-50 text-slate-600")}
-                      onChange={(e) => setLine(l.key, { quantityUsed: e.target.value, qtyOverridden: l.formulaLineId !== null })}
+                      min={0} step="0.001"
+                      value={fromFormula ? l.quantityUsed : l.enteredQty}
+                      onChange={(e) => fromFormula
+                        ? setLine(l.key, { quantityUsed: e.target.value, qtyOverridden: true })
+                        : setLine(l.key, { enteredQty: e.target.value })}
                     />
-                    {qtyLocked ? (
-                      <div className="text-[11px] text-slate-400 mt-0.5">{formulaShareOf(l) ?? "Set by the formula"}</div>
-                    ) : l.qtyOverridden ? (
+                    {l.qtyOverridden ? (
                       <div className="text-[11px] text-amber-600 mt-0.5">
                         ✎ edited —{" "}
                         <button type="button" className="underline hover:text-amber-700" onClick={() => setLine(l.key, { qtyOverridden: false })}>reset</button>
                       </div>
-                    ) : formulaShareOf(l) ? (
-                      <div className="text-[11px] text-slate-400 mt-0.5">{formulaShareOf(l)}</div>
+                    ) : fromFormula ? (
+                      <div className="text-[11px] text-slate-400 mt-0.5">{shareOf(l) ?? "Follows the quantity produced"}</div>
+                    ) : scaledTo !== null ? (
+                      <div className="text-[11px] text-emerald-600 mt-0.5">
+                        → uses {scaledTo.toLocaleString()}{l.unitOfMeasure ? ` ${l.unitOfMeasure}` : ""}
+                      </div>
                     ) : null}
                   </div>
                   <div className="sm:col-span-3">
-                    {d.hasPurchase ? (
+                    {isBought ? (
                       <>
-                        <label className="text-xs text-slate-500">Purchased cost *</label>
-                        <NumberInput
-                          min={0} step="0.01"
-                          value={l.purchasedCostMode === "Total" ? l.purchasedTotalCost : numStr(d.purCost, 2)}
-                          onChange={(e) => setLine(l.key, { purchasedTotalCost: e.target.value, purchasedCostMode: "Total" })}
-                        />
-                        <div className="text-[11px] text-slate-400 mt-0.5">
-                          {d.purQty > 0
-                            ? `${gh(d.purUnit)}/unit${l.sourceType === "MixedSource" ? " · purchased part only" : ""}`
-                            : "Enter the quantity first"}
-                        </div>
+                        <label className="text-xs text-slate-500">Cost</label>
+                        <div className="h-9 flex items-center font-medium text-slate-400">—</div>
+                        <div className="text-[11px] text-slate-400 mt-0.5">Comes from the purchase you record</div>
                       </>
                     ) : (
                       <>
                         <label className="text-xs text-slate-500">Cost from stock</label>
-                        <div className="h-9 flex items-center font-semibold tabular-nums text-slate-800">{gh(d.total)}</div>
-                        <div className="text-[11px] text-slate-400 mt-0.5">{gh(d.unit)}/unit — priced from stock lots at posting</div>
+                        <div className="h-9 flex items-center font-semibold tabular-nums text-slate-800">{gh(d.invCost)}</div>
+                        <div className="text-[11px] text-slate-400 mt-0.5">
+                          {buying
+                            ? `${gh(d.invUnit)}/unit — the bought part is priced by its purchase`
+                            : `${gh(d.unit)}/unit — priced from stock lots at posting`}
+                        </div>
                       </>
                     )}
                   </div>
@@ -696,8 +833,9 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
                   </div>
                 </div>
 
-                {/* Stock availability — the figure that decides whether it posts. */}
-                {it && (
+                {/* Stock availability — the figure that decides whether it posts.
+                    A bought row draws nothing, so it has nothing to be short of. */}
+                {it && !isBought && (
                   <div className={cn("text-[11px]", shortBy > 0 ? "text-red-600 font-medium" : "text-slate-400")}>
                     {shortBy > 0
                       ? `Short ${shortBy.toLocaleString()} — only ${it.availableFromLots.toLocaleString()} of ${it.itemName} available to draw`
@@ -716,6 +854,7 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
                     <div className="sm:col-span-3">
                       <label className="text-xs text-slate-500">Purchased qty</label>
                       <NumberInput min={0} step="0.001" value={l.purchasedQuantityUsed} onChange={(e) => setLine(l.key, { purchasedQuantityUsed: e.target.value })} />
+                      <div className="text-[11px] text-slate-400 mt-0.5">The part to buy in Raw Materials</div>
                     </div>
                     <div className="sm:col-span-6">
                       {!d.mixedBalanced && (
@@ -725,59 +864,25 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
                   </div>
                 )}
 
-                {/* Purchased portion (bought + mixed) */}
-                {d.hasPurchase && (
-                  <div className="rounded-md bg-slate-50 border border-slate-200 p-2.5 grid grid-cols-1 sm:grid-cols-12 gap-2 items-start">
-                    <div className="sm:col-span-3">
-                      <label className="text-xs text-slate-500">Purchased unit cost *</label>
-                      <NumberInput
-                        min={0} step="0.0001"
-                        value={l.purchasedCostMode === "Unit" ? l.purchasedUnitCost : numStr(d.purUnit, 4)}
-                        onChange={(e) => setLine(l.key, { purchasedUnitCost: e.target.value, purchasedCostMode: "Unit" })}
-                      />
-                      <div className="text-[11px] text-slate-400 mt-0.5">
-                        {l.purchasedCostMode === "Total" ? "From the purchased cost" : "or type the purchased cost above"}
+                {/* Anything bought belongs in Raw Materials, where it becomes a
+                    real purchase with a stock lot this batch can then draw from.
+                    Mixed buys only the part stock can't cover. */}
+                {buying && (
+                  <div className="rounded-md border border-indigo-200 bg-indigo-50 p-2.5 flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-xs text-indigo-900">
+                      <div className="font-medium flex items-center gap-1.5">
+                        <ShoppingCart className="w-3.5 h-3.5" /> Purchases are recorded in Raw Materials
+                      </div>
+                      <div className="text-indigo-800/80 mt-0.5">
+                        {isBought
+                          ? <>Record the purchase{it ? <> for <span className="font-medium">{it.itemName}</span></> : null} there to create the stock lot, then set this line back to <span className="font-medium">From Inventory</span>.</>
+                          : <>Buy the {d.purQty > 0 ? <span className="font-medium tabular-nums">{d.purQty.toLocaleString()}{l.unitOfMeasure ? ` ${l.unitOfMeasure}` : ""}</span> : "part"} stock can&apos;t cover{it ? <> of <span className="font-medium">{it.itemName}</span></> : null} there, then set this line to <span className="font-medium">From Inventory</span> for the full {d.qty > 0 ? d.qty.toLocaleString() : "quantity"}.</>}
+                        {" "}This batch can&apos;t be posted until you do.
                       </div>
                     </div>
-                    <div className="sm:col-span-3">
-                      <label className="text-xs text-slate-500">Supplier</label>
-                      <Input value={l.supplierName} onChange={(e) => setLine(l.key, { supplierName: e.target.value })} />
-                    </div>
-                    <div className="sm:col-span-3">
-                      <label className="text-xs text-slate-500">Payment</label>
-                      <Select value={l.paymentStatus} onValueChange={(v) => setLine(l.key, { paymentStatus: v as PaymentStatus })}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>{PAYMENT_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-                      </Select>
-                    </div>
-                    <div className="sm:col-span-3 text-right">
-                      <label className="text-xs text-slate-500">Payable</label>
-                      <div className={cn("h-9 flex items-center justify-end font-medium tabular-nums", d.payable > 0 ? "text-red-600" : "text-slate-400")}>{gh(d.payable)}</div>
-                    </div>
-                    {l.paymentStatus === "Partial" && (
-                      <div className="sm:col-span-3">
-                        <label className="text-xs text-slate-500">Amount paid</label>
-                        <NumberInput min={0} step="0.01" value={l.amountPaid} onChange={(e) => setLine(l.key, { amountPaid: e.target.value })} />
-                      </div>
-                    )}
-                    {l.paymentStatus !== "Unpaid" && (
-                      <>
-                        <div className="sm:col-span-3">
-                          <label className="text-xs text-slate-500">Paid from</label>
-                          <Select value={l.paidFromCashAccountId ? String(l.paidFromCashAccountId) : ""} onValueChange={(v) => setLine(l.key, { paidFromCashAccountId: Number(v) })}>
-                            <SelectTrigger><SelectValue placeholder="Cash account" /></SelectTrigger>
-                            <SelectContent>{cashAccounts.map((a) => <SelectItem key={a.poultryCashAccountId} value={String(a.poultryCashAccountId)}>{a.accountName}</SelectItem>)}</SelectContent>
-                          </Select>
-                        </div>
-                        <div className="sm:col-span-3">
-                          <label className="text-xs text-slate-500">Method</label>
-                          <Select value={l.paymentMethod} onValueChange={(v) => setLine(l.key, { paymentMethod: v })}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>{PAYMENT_METHODS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
-                          </Select>
-                        </div>
-                      </>
-                    )}
+                    <Button variant="outline" size="sm" className="bg-white border-indigo-300 text-indigo-800 hover:bg-indigo-100" onClick={() => setLeaveFor(l)}>
+                      Record purchase <ExternalLink className="w-3.5 h-3.5 ml-1.5" />
+                    </Button>
                   </div>
                 )}
               </div>
@@ -805,7 +910,7 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
                 </div>
               ))}
               <div className="text-red-700">
-                Reduce the quantity produced, or set the short lines to <span className="font-medium">Bought During Production</span> / <span className="font-medium">Mixed Source</span>. This batch can&apos;t be posted until it fits.
+                Reduce the quantity produced, or record a purchase in Raw Materials for the shortfall. This batch can&apos;t be posted until it fits.
               </div>
               {shortages.some((s) => s.byAdjustment > 0) && (
                 <div className="text-red-700 border-t border-red-200 pt-1">
@@ -820,7 +925,7 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
             <div className="text-xs rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-800 flex flex-wrap items-center gap-2">
               <span>
                 Stock covers about <span className="font-semibold tabular-nums">{stockLimit.max.toLocaleString()}</span>
-                {header.outputUnit ? ` ${header.outputUnit}` : ""} with this formula — limited by <span className="font-medium">{stockLimit.by}</span>.
+                {header.outputUnit ? ` ${header.outputUnit}` : ""} {appliedFormula ? "with this formula" : "at these proportions"} — limited by <span className="font-medium">{stockLimit.by}</span>.
               </span>
               {stockLimit.max > 0 && (
                 <Button variant="outline" size="sm" className="h-6 px-2 text-xs" onClick={() => setHeader((h) => ({ ...h, quantityProduced: String(stockLimit.max) }))}>
@@ -830,7 +935,9 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
             </div>
           )}
 
-          {/* Does the formula actually fill the batch? */}
+          {/* Does the formula actually fill the batch? Scaled quantities always
+              add up to it, so this only has something to say under a formula —
+              whose percentages may not total 100, and whose rows can be edited. */}
           {appliedFormula && qtyProduced > 0 && (
             <div className={cn("text-xs rounded-md border px-3 py-2", ingredientsCoverBatch ? "border-slate-200 bg-slate-50 text-slate-600" : "border-amber-300 bg-amber-50 text-amber-800")}>
               Ingredients total <span className="font-semibold tabular-nums">{roundQty(totalIngredientQty).toLocaleString()}</span> of{" "}
@@ -915,9 +1022,13 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
           {lineCalcs.filter((x) => x.l.ingredientItemId && x.d.invQty > 0).map(({ l, d }) => (
             <div key={l.key} className="flex justify-between text-sm"><span className="text-slate-600">{itemById.get(l.ingredientItemId!)?.itemName}</span><span className="tabular-nums text-red-600">-{d.invQty.toLocaleString()}</span></div>
           ))}
-          {lineCalcs.filter((x) => x.l.ingredientItemId && x.d.purQty > 0).map(({ l, d }) => (
-            <div key={l.key} className="flex justify-between text-sm"><span className="text-slate-600">{itemById.get(l.ingredientItemId!)?.itemName} <span className="text-[11px] text-slate-400">(bought → used)</span></span><span className="tabular-nums text-slate-400">+{d.purQty.toLocaleString()} / -{d.purQty.toLocaleString()}</span></div>
-          ))}
+          {/* Bought quantities are brought in by their Raw Materials purchase,
+              not by this batch, so they aren't previewed as stock movement. */}
+          {purchasingLines.length > 0 && (
+            <div className="text-[11px] text-indigo-700 bg-indigo-50 border border-indigo-200 rounded px-2 py-1">
+              {purchasingLines.length} ingredient{purchasingLines.length === 1 ? "" : "s"} awaiting a purchase in Raw Materials — not counted here.
+            </div>
+          )}
           <div className="border-t border-slate-200 my-1" />
           <div className="flex justify-between text-sm font-medium"><span>{finishedFeedName ?? "Finished feed"}</span><span className="tabular-nums text-emerald-600">+{qtyProduced.toLocaleString()}</span></div>
         </CardContent></Card>
@@ -966,7 +1077,7 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
                   <div className="font-medium text-slate-700">What you can do:</div>
                   <ul className="list-disc pl-5 space-y-0.5">
                     <li>Lower the quantity produced{stockLimit && stockLimit.max > 0 ? ` — stock covers about ${stockLimit.max.toLocaleString()}` : ""}.</li>
-                    <li>Set the short ingredients to <span className="font-medium">Bought During Production</span> so they&apos;re purchased with the batch.</li>
+                    <li>Buy the shortfall: record a <span className="font-medium">purchase</span> in Raw Materials, then post — the new stock is drawable straight away.</li>
                     {shortages.some((s) => s.byAdjustment > 0) && (
                       <li>Record a <span className="font-medium">purchase</span> for stock that was added by adjustment — adjusted stock has no batch to draw from.</li>
                     )}
@@ -977,6 +1088,36 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Close</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Heading off to Raw Materials — this form is left behind, so offer to
+          park it as a draft first. */}
+      <AlertDialog open={!!leaveFor} onOpenChange={(open) => { if (!open && !leaving) setLeaveFor(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Record the purchase{leaveFor?.ingredientItemId ? ` for ${itemById.get(leaveFor.ingredientItemId)?.itemName ?? "this ingredient"}` : ""}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <div>
+                  Raw Materials opens with the purchase form ready. Once it&apos;s saved the stock is available to draw,
+                  so come back here and set the line to <span className="font-medium">From Inventory</span>.
+                </div>
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
+                  This batch form closes when you go. Save it as a draft first and you can pick it up exactly where you left off.
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel disabled={leaving}>Cancel</AlertDialogCancel>
+            <Button variant="outline" onClick={() => void leaveToPurchase(false)} disabled={leaving}>Go without saving</Button>
+            <Button onClick={() => void leaveToPurchase(true)} disabled={leaving || !!validate()} title={validate() ?? undefined}>
+              {leaving ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Saving…</> : <><Save className="w-4 h-4 mr-1" /> Save draft &amp; go</>}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

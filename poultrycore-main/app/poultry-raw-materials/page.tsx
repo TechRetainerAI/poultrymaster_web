@@ -167,6 +167,36 @@ export default function PoultryRawMaterialsPage() {
     }
   }, [purchaseOpen, editPurchaseId, defaultCashAccountId])
 
+  // ?purchase=1[&itemId=N][&qty=X] opens the purchase dialog straight away with
+  // the item preselected and the quantity prefilled. Feed Production sends
+  // farmers here to buy an ingredient rather than recording it inline, and
+  // passes the quantity that batch is short of. Waits for the items to load so
+  // the item can actually be matched, and only fires once. Read off
+  // window.location so this stays a plain client page — useSearchParams would
+  // need a Suspense boundary around the whole thing.
+  const deepLinkHandled = useRef(false)
+  useEffect(() => {
+    if (deepLinkHandled.current || loading) return
+    let qs: URLSearchParams
+    try { qs = new URLSearchParams(window.location.search) } catch { return }
+    if (qs.get("purchase") !== "1") return
+    deepLinkHandled.current = true
+    const it = items.find((i) => i.poultryRawMaterialItemId === Number(qs.get("itemId")) && i.isActive)
+    const qty = Number(qs.get("qty"))
+    setEditPurchaseId(null); setManualProdCost(false); setManualPurchaseCost(false)
+    setPurchaseForm({
+      ...EMPTY_PURCHASE,
+      poultryCashAccountId: defaultCashAccountId ?? 0,
+      poultryRawMaterialItemId: it?.poultryRawMaterialItemId ?? 0,
+      purchaseUnit: it?.purchaseUnitOfMeasure || it?.unitOfMeasure || "",
+      productionUnit: it?.unitOfMeasure || "",
+      quantity: Number.isFinite(qty) && qty > 0 ? qty : 0,
+    })
+    setPurchaseOpen(true)
+    // Drop the params so a refresh or a back-navigation doesn't reopen it.
+    router.replace("/poultry-raw-materials", { scroll: false })
+  }, [loading, items, defaultCashAccountId, router])
+
   async function load() {
     setLoading(true)
     try {

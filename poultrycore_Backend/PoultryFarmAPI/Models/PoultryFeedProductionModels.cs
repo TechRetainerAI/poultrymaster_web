@@ -79,6 +79,11 @@ namespace PoultryFarmAPIWeb.Models
         [StringLength(30)] public string SourceType { get; set; } = "FromInventory";
         public decimal QuantityUsed { get; set; }
         [StringLength(30)] public string? UnitOfMeasure { get; set; }
+        // How QuantityUsed was arrived at: 'Quantity' (the literal figure) or
+        // 'FixedQuantity' (a recipe amount scaled to fill the batch, held in
+        // FixedQuantity). A record of intent — QuantityUsed stays authoritative.
+        [StringLength(20)] public string QuantityMode { get; set; } = "Quantity";
+        public decimal? FixedQuantity { get; set; }
         public decimal? InventoryQuantityUsed { get; set; }
         public decimal? PurchasedQuantityUsed { get; set; }
         public decimal? InventoryUnitCost { get; set; }
@@ -149,6 +154,10 @@ namespace PoultryFarmAPIWeb.Models
         public string SourceType { get; set; } = "FromInventory";
         public decimal QuantityUsed { get; set; }
         public string? UnitOfMeasure { get; set; }
+        // 'Quantity' | 'FixedQuantity' — see the model above. The SP falls back
+        // to 'Quantity' when the recipe amount is missing or zero.
+        public string? QuantityMode { get; set; }
+        public decimal? FixedQuantity { get; set; }
         public decimal? InventoryQuantityUsed { get; set; }
         public decimal? PurchasedQuantityUsed { get; set; }
         public decimal? InventoryUnitCost { get; set; }

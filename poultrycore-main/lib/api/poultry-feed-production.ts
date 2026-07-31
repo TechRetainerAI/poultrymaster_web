@@ -120,6 +120,13 @@ export type FeedProductionSourceType = "FromInventory" | "BoughtDuringProduction
 export type FeedProductionStatus = "Draft" | "Posted" | "Reversed"
 export type PaymentStatus = "Paid" | "Unpaid" | "Partial"
 
+// How a batch line's quantity was arrived at. "Quantity" is the literal figure;
+// "FixedQuantity" means fixedQuantity holds the recipe amount the farmer typed,
+// scaled to fill the batch the way an all-fixed formula is — see
+// lib/feed-formula-scale.ts. Persisted by migration 184 so reopening a draft
+// keeps following the batch size.
+export type FeedProductionLineQuantityMode = "Quantity" | "FixedQuantity"
+
 export interface FeedProductionBatchLine {
   poultryFeedProductionBatchLineId: number
   poultryFeedProductionBatchId: number
@@ -129,6 +136,8 @@ export interface FeedProductionBatchLine {
   sourceType: FeedProductionSourceType
   quantityUsed: number
   unitOfMeasure?: string | null
+  quantityMode?: FeedProductionLineQuantityMode | null
+  fixedQuantity?: number | null
   inventoryQuantityUsed?: number | null
   purchasedQuantityUsed?: number | null
   inventoryUnitCost?: number | null
@@ -196,6 +205,9 @@ export interface FeedProductionBatchLineInput {
   sourceType: FeedProductionSourceType
   quantityUsed: number
   unitOfMeasure?: string | null
+  // The server falls back to "Quantity" when the recipe amount is missing or zero.
+  quantityMode?: FeedProductionLineQuantityMode | null
+  fixedQuantity?: number | null
   inventoryQuantityUsed?: number | null
   purchasedQuantityUsed?: number | null
   inventoryUnitCost?: number | null
