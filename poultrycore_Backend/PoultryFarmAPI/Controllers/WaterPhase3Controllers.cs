@@ -24,6 +24,12 @@ namespace PoultryFarmAPIWeb.Controllers
         [HttpGet("low-stock")] public async Task<ActionResult<IEnumerable<WaterRawMaterialItemModel>>> GetLowStock([FromQuery] string farmId)
             => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.GetLowStockAsync(farmId));
 
+        // Open purchase lots, ordered by each item's FIFO/LIFO/HIFO policy. The
+        // production batch form uses these to show which lots a quantity will be
+        // drawn from, and at what price, before the batch is approved.
+        [HttpGet("open-lots")] public async Task<ActionResult<IEnumerable<WaterRawMaterialLotModel>>> GetOpenLots([FromQuery] string farmId, [FromQuery] int? itemId = null)
+            => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.GetOpenLotsAsync(farmId, itemId));
+
         [HttpPost] public async Task<ActionResult<WaterRawMaterialItemModel>> Create([FromBody] WaterRawMaterialItemModel m)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);

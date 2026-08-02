@@ -16,6 +16,7 @@ namespace PoultryFarmAPIWeb.Business
         Task DeleteAsync(int id, string farmId);
         Task<List<WaterRawMaterialItemModel>> GetLowStockAsync(string farmId);
         Task<List<WaterRawMaterialRecalcRow>> RecalculateStockAsync(string farmId, int? itemId);
+        Task<List<WaterRawMaterialLotModel>> GetOpenLotsAsync(string farmId, int? itemId);
         Task<decimal> AdjustAsync(int itemId, WaterRawMaterialAdjustRequest req);
         Task<List<WaterRawMaterialAdjustmentModel>> GetAdjustmentsAsync(string farmId, DateTime? fromDate, DateTime? toDate);
     }
@@ -118,6 +119,7 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@IsActive", m.IsActive);
             cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@PurchaseUnitOfMeasure", (object?)m.PurchaseUnitOfMeasure ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@UsageMethod", (object?)m.UsageMethod ?? DBNull.Value);
             await conn.OpenAsync();
             return Convert.ToInt32(await cmd.ExecuteScalarAsync());
         }
@@ -135,6 +137,7 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@IsActive", m.IsActive);
             cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@PurchaseUnitOfMeasure", (object?)m.PurchaseUnitOfMeasure ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@UsageMethod", (object?)m.UsageMethod ?? DBNull.Value);
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
         }
@@ -168,6 +171,28 @@ namespace PoultryFarmAPIWeb.Business
                 OldQuantity = r.GetDecimal(r.GetOrdinal("OldQuantity")),
                 NewQuantity = r.GetDecimal(r.GetOrdinal("NewQuantity")),
                 Delta = r.GetDecimal(r.GetOrdinal("Delta")),
+            });
+
+        // Open purchase lots for the batch form's draw preview. Ordered by the
+        // item's policy in the SP, so the client walks them in consumption order.
+        public async Task<List<WaterRawMaterialLotModel>> GetOpenLotsAsync(string farmId, int? itemId)
+            => await ReadList("spWaterRawMaterialItem_GetOpenLots", _cs, c =>
+            {
+                c.Parameters.AddWithValue("@FarmId", farmId);
+                c.Parameters.AddWithValue("@WaterRawMaterialItemId", (object?)itemId ?? DBNull.Value);
+            }, r => new WaterRawMaterialLotModel
+            {
+                WaterRawMaterialPurchaseId = r.GetInt32(r.GetOrdinal("WaterRawMaterialPurchaseId")),
+                WaterRawMaterialItemId = r.GetInt32(r.GetOrdinal("WaterRawMaterialItemId")),
+                ItemName = r.IsDBNull(r.GetOrdinal("ItemName")) ? null : r.GetString(r.GetOrdinal("ItemName")),
+                UsageMethod = r.IsDBNull(r.GetOrdinal("UsageMethod")) ? "FIFO" : r.GetString(r.GetOrdinal("UsageMethod")),
+                PurchaseDate = r.GetDateTime(r.GetOrdinal("PurchaseDate")),
+                SupplierName = r.IsDBNull(r.GetOrdinal("SupplierName")) ? null : r.GetString(r.GetOrdinal("SupplierName")),
+                RemainingQuantity = r.GetDecimal(r.GetOrdinal("RemainingQuantity")),
+                ProductionUnitsPerPurchaseUnit = r.GetDecimal(r.GetOrdinal("ProductionUnitsPerPurchaseUnit")),
+                RemainingProductionQuantity = r.GetDecimal(r.GetOrdinal("RemainingProductionQuantity")),
+                UnitCost = r.GetDecimal(r.GetOrdinal("UnitCost")),
+                ProductionUnitCost = r.GetDecimal(r.GetOrdinal("ProductionUnitCost")),
             });
 
         // Manual stock adjustment: signed delta on CurrentQuantity + ledger row.
@@ -222,6 +247,9 @@ namespace PoultryFarmAPIWeb.Business
             Category          = r.GetString(r.GetOrdinal("Category")),
             UnitOfMeasure     = r.IsDBNull(r.GetOrdinal("UnitOfMeasure")) ? null : r.GetString(r.GetOrdinal("UnitOfMeasure")),
             PurchaseUnitOfMeasure = HasCol(r, "PurchaseUnitOfMeasure") && !r.IsDBNull(r.GetOrdinal("PurchaseUnitOfMeasure")) ? r.GetString(r.GetOrdinal("PurchaseUnitOfMeasure")) : null,
+            // Guarded: migration 187 adds the column; an API ahead of the
+            // database simply reports every item as FIFO.
+            UsageMethod = HasCol(r, "UsageMethod") && !r.IsDBNull(r.GetOrdinal("UsageMethod")) ? r.GetString(r.GetOrdinal("UsageMethod")) : "FIFO",
             MinimumStockAlert = r.GetDecimal(r.GetOrdinal("MinimumStockAlert")),
             CurrentQuantity   = r.GetDecimal(r.GetOrdinal("CurrentQuantity")),
             IsActive          = r.GetBoolean(r.GetOrdinal("IsActive")),
