@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -26,11 +26,13 @@ import { useToast } from "@/hooks/use-toast"
 import {
   listWaterProductionBatches, createWaterProductionBatch, updateWaterProductionBatch,
   approveWaterProductionBatch, cancelWaterProductionBatch, reopenWaterProductionBatch,
+  listWaterRawMaterialOpenLots,
   listWaterMachines, listWaterProducts, listWaterRawMaterialItems,
   getWaterProductionRecipe, listWaterProductionBatchMaterials,
   type WaterProductionBatch, type WaterMachine, type WaterProduct,
-  type WaterRawMaterialItem, type WaterProductionMaterialUsageInput,
+  type WaterRawMaterialItem, type WaterProductionMaterialUsageInput, type WaterRawMaterialLot,
 } from "@/lib/api/water"
+import { planDraw, lotsForItem, type DrawPlan } from "@/lib/water-lot-draw"
 import { useFmt } from "@/lib/currency"
 
 const STATUS_COLORS: Record<string, string> = {
@@ -77,6 +79,13 @@ export default function WaterProductionBatchesPage() {
   // True when this batch's selected product has a saved recipe — drives the
   // "Use expected quantities" button + warns when missing materials.
   const [hasRecipe, setHasRecipe] = useState(false)
+  // Open purchase lots for every raw material, in the order each item's policy
+  // consumes them. Drives the per-row draw preview below: what a typed quantity
+  // will actually be taken from, and what that costs.
+  const [openLots, setOpenLots] = useState<WaterRawMaterialLot[]>([])
+  // Rows whose lot breakdown is expanded.
+  const [expandedDraw, setExpandedDraw] = useState<Record<number, boolean>>({})
+
   // User chose to override the "materials missing" guard at Approve time.
   const [overrideMissing, setOverrideMissing] = useState(false)
 
@@ -124,13 +133,16 @@ export default function WaterProductionBatchesPage() {
   async function load() {
     setLoading(true)
     try {
-      const [bs, ms, ps, mats] = await Promise.all([
+      const [bs, ms, ps, mats, lots] = await Promise.all([
         listWaterProductionBatches(),
         listWaterMachines(),
         listWaterProducts(),
         listWaterRawMaterialItems(),
+        // Tolerated failure: without lots the form falls back to headline stock
+        // and the latest-purchase price, which is what it showed before.
+        listWaterRawMaterialOpenLots().catch(() => [] as WaterRawMaterialLot[]),
       ])
-      setBatches(bs); setMachines(ms); setProducts(ps); setRawMaterials(mats)
+      setBatches(bs); setMachines(ms); setProducts(ps); setRawMaterials(mats); setOpenLots(lots)
     } catch (e: any) { toast({ title: "Could not load production batches", description: e?.message ?? String(e), variant: "destructive" }) }
     finally { setLoading(false) }
   }
@@ -405,7 +417,24 @@ export default function WaterProductionBatchesPage() {
   const totalSachets = form.bagsProduced * form.sachetsPerBag
   const otherProductionCost = form.electricityCost + form.fuelCost + form.laborCost + form.otherProductionCost
   // Migration 063: raw material cost is part of the live total.
-  const rawMaterialCost = materialRows.reduce((s, r) => s + (r.actualQuantity * r.unitCost), 0)
+  // What each material line will actually draw, walked down that item's lots in
+  // its own FIFO/LIFO/HIFO order. This is the preview of what approval will do,
+  // so the price shown is the one the batch gets costed at — not the latest
+  // purchase price, which only matches when there is a single lot.
+  const drawPlans = useMemo(() => {
+    const out: Record<number, DrawPlan> = {}
+    materialRows.forEach((r, idx) => {
+      out[idx] = planDraw(lotsForItem(openLots, r.waterRawMaterialItemId), r.actualQuantity)
+    })
+    return out
+  }, [materialRows, openLots])
+
+  // Cost from the draw where we have lots to walk; fall back to the row's own
+  // unit cost when an item has none (nothing purchased, or lots not yet loaded).
+  const rawMaterialCost = materialRows.reduce((s, r, idx) => {
+    const plan = drawPlans[idx]
+    return s + (plan && plan.takes.length ? plan.totalCost : r.actualQuantity * r.unitCost)
+  }, 0)
   const totalProductionCost = otherProductionCost + rawMaterialCost
   // Migration 067: Cost per Bag must use GOOD bags (Produced - Damaged), not
   // total Produced. Otherwise damaging stock makes per-bag cost look cheap.
@@ -744,10 +773,16 @@ export default function WaterProductionBatchesPage() {
                       </TableHeader>
                       <TableBody>
                         {materialRows.map((row, idx) => {
-                          const overStock = row.actualQuantity > row.availableStock
+                          const plan = drawPlans[idx]
+                      // Warn on what can actually be drawn, which is what approval
+                      // checks. Stock added by adjustment counts as on hand but has
+                      // no lot behind it, so the two figures differ.
+                      const drawable = plan ? plan.available : row.availableStock
+                      const overStock = plan ? plan.shortfall > 0 : row.actualQuantity > row.availableStock
                           const cost = row.actualQuantity * row.unitCost
                           return (
-                            <TableRow key={idx}>
+                          <React.Fragment key={idx}>
+                            <TableRow>
                               <TableCell>
                                 <Select value={String(row.waterRawMaterialItemId)} onValueChange={(v) => {
                                   const id = Number(v)
@@ -781,24 +816,49 @@ export default function WaterProductionBatchesPage() {
                                 />
                                 {overStock && (
                                   <div className="text-[10px] text-amber-700 mt-0.5">
-                                    Over stock ({row.availableStock.toLocaleString()})
+                                    Only {drawable.toLocaleString(undefined, { maximumFractionDigits: 3 })} in purchase batches
                                   </div>
                                 )}
                               </TableCell>
                               <TableCell className="text-slate-500">{row.unitOfMeasure || "—"}</TableCell>
+                              {/* The price this line will actually be charged:
+                                  the blend of the lots its quantity reaches, in
+                                  the item's own FIFO/LIFO/HIFO order. Click to
+                                  see which lots. Re-run for real at approval. */}
                               <TableCell className="text-right">
-                                <NumberInput
-                                   min={0} step="0.01"
-                                  value={row.unitCost}
-                                  onChange={(e) => updateMaterialRow(idx, { unitCost: Number(e.target.value) || 0 })}
-                                  className="w-20 ml-auto text-right"
-                                />
+                                {plan && plan.takes.length ? (
+                                  <button
+                                    type="button"
+                                    className="text-right hover:underline"
+                                    onClick={() => setExpandedDraw(m => ({ ...m, [idx]: !m[idx] }))}
+                                    title={plan.takes.length > 1 ? "Blended across purchase batches — click for the split" : "From one purchase batch — click for detail"}
+                                  >
+                                    <div className="tabular-nums text-slate-700">{fmtGhc(plan.unitCost)}</div>
+                                    <div className="text-[10px] text-sky-600">
+                                      {plan.takes.length === 1
+                                        ? `1 batch${expandedDraw[idx] ? " ▴" : " ▾"}`
+                                        : `${plan.takes.length} batches${expandedDraw[idx] ? " ▴" : " ▾"}`}
+                                    </div>
+                                  </button>
+                                ) : (
+                                  <>
+                                    <div className="tabular-nums text-slate-600">{fmtGhc(row.unitCost)}</div>
+                                    <div className="text-[10px] text-slate-400">latest purchase</div>
+                                  </>
+                                )}
                               </TableCell>
                               <TableCell className="text-right tabular-nums text-slate-500">
-                                {row.availableStock.toLocaleString(undefined, { maximumFractionDigits: 3 })}
+                                {drawable.toLocaleString(undefined, { maximumFractionDigits: 3 })}
+                                {/* Headline stock above the drawable pool means some
+                                    arrived by adjustment, with no lot to draw it from. */}
+                                {plan && row.availableStock - plan.available > 0.001 && (
+                                  <div className="text-[10px] text-amber-600">
+                                    {row.availableStock.toLocaleString(undefined, { maximumFractionDigits: 3 })} on hand
+                                  </div>
+                                )}
                               </TableCell>
                               <TableCell className="text-right tabular-nums">
-                                {cost.toFixed(2)}
+                                {(plan && plan.takes.length ? plan.totalCost : cost).toFixed(2)}
                               </TableCell>
                               <TableCell>
                                 <Button type="button" size="sm" variant="ghost" onClick={() => removeMaterialRow(idx)}>
@@ -806,6 +866,54 @@ export default function WaterProductionBatchesPage() {
                                 </Button>
                               </TableCell>
                             </TableRow>
+                            {/* The draw itself, lot by lot, in consumption order. */}
+                            {expandedDraw[idx] && plan && plan.takes.length > 0 && (
+                              <TableRow key={`${idx}-draw`} className="bg-sky-50/60 hover:bg-sky-50/60">
+                                <TableCell colSpan={8} className="py-2">
+                                  <div className="text-[11px] text-sky-900">
+                                    <div className="font-medium mb-1">
+                                      Drawn from {plan.takes.length} purchase batch{plan.takes.length === 1 ? "" : "es"}
+                                      {row.itemName ? ` of ${row.itemName}` : ""}
+                                      {" · "}
+                                      <span className="uppercase">{lotsForItem(openLots, row.waterRawMaterialItemId)[0]?.usageMethod ?? "FIFO"}</span>
+                                    </div>
+                                    <table className="w-full max-w-2xl tabular-nums">
+                                      <tbody>
+                                        {plan.takes.map((t) => (
+                                          <tr key={t.lot.waterRawMaterialPurchaseId} className="text-sky-800">
+                                            <td className="py-0.5 pr-3">{(t.lot.purchaseDate || "").split("T")[0]}</td>
+                                            <td className="py-0.5 pr-3 text-slate-500">{t.lot.supplierName || "—"}</td>
+                                            <td className="py-0.5 pr-3 text-right">
+                                              {t.productionQuantity.toLocaleString(undefined, { maximumFractionDigits: 3 })} {row.unitOfMeasure}
+                                            </td>
+                                            <td className="py-0.5 pr-3 text-right">@ {fmtGhc(t.lot.productionUnitCost)}</td>
+                                            <td className="py-0.5 text-right font-medium">{fmtGhc(t.cost)}</td>
+                                          </tr>
+                                        ))}
+                                        <tr className="border-t border-sky-200 font-semibold text-sky-900">
+                                          <td className="py-1 pr-3" colSpan={2}>Total</td>
+                                          <td className="py-1 pr-3 text-right">
+                                            {plan.drawn.toLocaleString(undefined, { maximumFractionDigits: 3 })} {row.unitOfMeasure}
+                                          </td>
+                                          <td className="py-1 pr-3 text-right">{fmtGhc(plan.unitCost)}</td>
+                                          <td className="py-1 text-right">{fmtGhc(plan.totalCost)}</td>
+                                        </tr>
+                                      </tbody>
+                                    </table>
+                                    {plan.shortfall > 0 && (
+                                      <div className="mt-1 text-amber-700">
+                                        Short {plan.shortfall.toLocaleString(undefined, { maximumFractionDigits: 3 })} {row.unitOfMeasure} —
+                                        approving will be refused until a purchase covers it.
+                                      </div>
+                                    )}
+                                    <div className="mt-1 text-sky-700/70">
+                                      Re-checked when the batch is approved, so this can change if another batch draws the same stock first.
+                                    </div>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </React.Fragment>
                           )
                         })}
                       </TableBody>
@@ -820,7 +928,12 @@ export default function WaterProductionBatchesPage() {
                       Material/inputs. */}
                   <div className="xl:hidden space-y-3">
                     {materialRows.map((row, idx) => {
-                      const overStock = row.actualQuantity > row.availableStock
+                      const plan = drawPlans[idx]
+                      // Warn on what can actually be drawn, which is what approval
+                      // checks. Stock added by adjustment counts as on hand but has
+                      // no lot behind it, so the two figures differ.
+                      const drawable = plan ? plan.available : row.availableStock
+                      const overStock = plan ? plan.shortfall > 0 : row.actualQuantity > row.availableStock
                       const cost = row.actualQuantity * row.unitCost
                       // #25.2: thicker outer border so each material block is
                       // clearly separated from the next.
@@ -861,12 +974,19 @@ export default function WaterProductionBatchesPage() {
                               </div>
                               <div>
                                 <label className="text-xs text-slate-500">Unit cost</label>
-                                <NumberInput
-                                   min={0} step="0.01"
-                                  value={row.unitCost}
-                                  onChange={(e) => updateMaterialRow(idx, { unitCost: Number(e.target.value) || 0 })}
-                                  className="text-right"
-                                />
+                                {plan && plan.takes.length ? (
+                                  <>
+                                    <div className="h-9 flex items-center justify-end tabular-nums text-slate-700">{fmtGhc(plan.unitCost)}</div>
+                                    <div className="text-[10px] text-sky-700 text-right">
+                                      {plan.takes.length === 1 ? "from 1 purchase batch" : `blended over ${plan.takes.length} purchase batches`}
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="h-9 flex items-center justify-end tabular-nums text-slate-600">{fmtGhc(row.unitCost)}</div>
+                                    <div className="text-[10px] text-slate-400 text-right">latest purchase — repriced on approval</div>
+                                  </>
+                                )}
                               </div>
                             </div>
                             <div className="md:col-span-1 flex md:justify-end">
@@ -889,7 +1009,7 @@ export default function WaterProductionBatchesPage() {
                             </div>
                             <div>
                               <div className="text-slate-500">Stock</div>
-                              <div className={`tabular-nums ${overStock ? "text-amber-700 font-semibold" : ""}`}>{row.availableStock.toLocaleString(undefined, { maximumFractionDigits: 3 })}</div>
+                              <div className={`tabular-nums ${overStock ? "text-amber-700 font-semibold" : ""}`}>{drawable.toLocaleString(undefined, { maximumFractionDigits: 3 })}</div>
                             </div>
                             <div className="text-right">
                               <div className="text-slate-500">Cost</div>
@@ -897,7 +1017,7 @@ export default function WaterProductionBatchesPage() {
                             </div>
                           </div>
                           {overStock && (
-                            <div className="text-[11px] text-amber-700">Over stock ({row.availableStock.toLocaleString()} on hand)</div>
+                            <div className="text-[11px] text-amber-700">Only {drawable.toLocaleString(undefined, { maximumFractionDigits: 3 })} in purchase batches ({row.availableStock.toLocaleString()} on hand)</div>
                           )}
                         </div>
                       )

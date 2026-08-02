@@ -1209,6 +1209,13 @@ export const updateWaterProductionBatch = (id: number, input: Partial<WaterProdu
   jsend<void>(`/Water/production-batches/${id}`, "PUT", { ...input, waterProductionBatchId: id, farmId: activeFarmId() })
 export const createWaterProductionBatch = (input: Partial<WaterProductionBatch> & { bagsProduced: number; sachetsPerBag: number; productionDate?: string }) =>
   jsend<WaterProductionBatch>(`/Water/production-batches`, "POST", { ...input, farmId: activeFarmId(), createdBy: currentUserId() || null })
+/** Open purchase lots, for previewing what a production batch will draw. */
+export const listWaterRawMaterialOpenLots = (itemId?: number) => {
+  const qs = new URLSearchParams({ farmId: activeFarmId() })
+  if (itemId) qs.append("itemId", String(itemId))
+  return jget<WaterRawMaterialLot[]>(`/Water/raw-material-items/open-lots?${qs.toString()}`)
+}
+
 export const approveWaterProductionBatch = (id: number) =>
   jsend<void>(`/Water/production-batches/${id}/approve?farmId=${encodeURIComponent(activeFarmId())}&approvedBy=${encodeURIComponent(currentUserId() || "")}`, "POST")
 export const cancelWaterProductionBatch = (id: number) =>
@@ -1745,6 +1752,32 @@ export const listWaterDriverReturnExpenses = (returnId: number) =>
 // W3: Raw materials, loss records, daily closing, reports
 // =============================================================================
 
+/** Which purchase lot a production batch draws from first. */
+export type WaterRawMaterialUsageMethod = "FIFO" | "LIFO" | "HIFO"
+
+/**
+ * An open purchase lot — what's left of one purchase and what it cost. Returned
+ * already ordered by the item's usage method, so walking the list top-down is
+ * the same order production will consume in. See lib/water-lot-draw.ts.
+ */
+export interface WaterRawMaterialLot {
+  waterRawMaterialPurchaseId: number
+  waterRawMaterialItemId: number
+  itemName?: string | null
+  usageMethod?: WaterRawMaterialUsageMethod | null
+  purchaseDate: string
+  supplierName?: string | null
+  /** Left in the lot, in PURCHASE units. */
+  remainingQuantity: number
+  productionUnitsPerPurchaseUnit: number
+  /** The same balance in the PRODUCTION units a batch is typed in. */
+  remainingProductionQuantity: number
+  /** Cost per purchase unit, as bought. */
+  unitCost: number
+  /** Cost per production unit, as consumed. */
+  productionUnitCost: number
+}
+
 export interface WaterRawMaterialItem {
   waterRawMaterialItemId: number
   farmId: string
@@ -1757,6 +1790,8 @@ export interface WaterRawMaterialItem {
   currentQuantity?: number
   isActive: boolean
   notes?: string | null
+  /** Drives which lot an approved production batch consumes, and at what price. */
+  usageMethod: WaterRawMaterialUsageMethod
 }
 
 export interface WaterRawMaterialPurchase {
