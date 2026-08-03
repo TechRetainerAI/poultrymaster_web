@@ -258,6 +258,11 @@ namespace PoultryFarmAPIWeb.Business
             Balance = r.GetDecimal(r.GetOrdinal("Balance")),
             ReceiptUrl = r.IsDBNull(r.GetOrdinal("ReceiptUrl")) ? null : r.GetString(r.GetOrdinal("ReceiptUrl")),
             Notes = r.IsDBNull(r.GetOrdinal("Notes")) ? null : r.GetString(r.GetOrdinal("Notes")),
+            // Guarded: migration 185 surfaces these on the list SP. A database
+            // that hasn't caught up simply reports every lot as an ordinary purchase.
+            SourceFeedProductionBatchId = HasColumn(r, "SourceFeedProductionBatchId") && !r.IsDBNull(r.GetOrdinal("SourceFeedProductionBatchId")) ? r.GetInt32(r.GetOrdinal("SourceFeedProductionBatchId")) : (int?)null,
+            FeedProductionBatchNumber = HasColumn(r, "FeedProductionBatchNumber") && !r.IsDBNull(r.GetOrdinal("FeedProductionBatchNumber")) ? r.GetString(r.GetOrdinal("FeedProductionBatchNumber")) : null,
+            FeedProductionRole = HasColumn(r, "FeedProductionRole") && !r.IsDBNull(r.GetOrdinal("FeedProductionRole")) ? r.GetString(r.GetOrdinal("FeedProductionRole")) : null,
             CreatedBy = r.IsDBNull(r.GetOrdinal("CreatedBy")) ? null : r.GetString(r.GetOrdinal("CreatedBy")),
             CreatedAt = r.GetDateTime(r.GetOrdinal("CreatedAt")),
             UpdatedAt = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
@@ -319,8 +324,28 @@ namespace PoultryFarmAPIWeb.Business
             await cmd.ExecuteNonQueryAsync();
         }
 
+        // A lot the feed-production posting engine created belongs to its batch:
+        // its quantity, cost and cash are all derived from that batch, so editing
+        // or deleting it here would desync the two. Migration 185 made these rows
+        // visible in the purchase history, so the write paths need saying no —
+        // reverse the batch instead.
+        private async Task GuardNotFeedProductionLotAsync(int id, string farmId)
+        {
+            using var conn = new SqlConnection(_cs);
+            using var cmd = new SqlCommand(
+                "SELECT SourceFeedProductionBatchId FROM dbo.PoultryRawMaterialPurchases WHERE PoultryRawMaterialPurchaseId = @Id AND FarmId = @FarmId", conn);
+            cmd.Parameters.AddWithValue("@Id", id);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await conn.OpenAsync();
+            var result = await cmd.ExecuteScalarAsync();
+            if (result != null && result != DBNull.Value)
+                throw new InvalidOperationException(
+                    "This stock lot was created by a feed production batch and can't be changed here. Reverse the batch instead.");
+        }
+
         public async Task UpdateAsync(PoultryRawMaterialPurchaseModel m)
         {
+            await GuardNotFeedProductionLotAsync(m.PoultryRawMaterialPurchaseId, m.FarmId);
             using var conn = new SqlConnection(_cs);
             using var cmd = new SqlCommand("spPoultryRawMaterialPurchase_Update", conn) { CommandType = CommandType.StoredProcedure };
             cmd.Parameters.AddWithValue("@PoultryRawMaterialPurchaseId", m.PoultryRawMaterialPurchaseId);
@@ -345,6 +370,7 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task DeleteAsync(int id, string farmId)
         {
+            await GuardNotFeedProductionLotAsync(id, farmId);
             using (var conn = new SqlConnection(_cs))
             using (var cmd = new SqlCommand("spPoultryRawMaterialPurchase_Delete", conn) { CommandType = CommandType.StoredProcedure })
             {
@@ -359,6 +385,7 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<decimal> PayBalanceAsync(int id, string farmId, decimal amount, string? paymentMethod, DateTime? paymentDate, string? createdBy)
         {
+            await GuardNotFeedProductionLotAsync(id, farmId);
             decimal balance;
             using (var conn = new SqlConnection(_cs))
             using (var cmd = new SqlCommand("spPoultryRawMaterialPurchase_PayBalance", conn) { CommandType = CommandType.StoredProcedure })
@@ -386,6 +413,13 @@ namespace PoultryFarmAPIWeb.Business
     {
         private readonly string _cs;
         public PoultryRawMaterialUsageService(string cs) => _cs = cs;
+
+        private static bool HasColumn(SqlDataReader r, string name)
+        {
+            for (int i = 0; i < r.FieldCount; i++)
+                if (string.Equals(r.GetName(i), name, StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
+        }
 
         public async Task<List<PoultryRawMaterialUsageModel>> GetHistoryAsync(string farmId, int? itemId, DateTime? fromDate, DateTime? toDate)
         {
@@ -415,6 +449,12 @@ namespace PoultryFarmAPIWeb.Business
                     VarianceReason = r.IsDBNull(r.GetOrdinal("VarianceReason")) ? null : r.GetString(r.GetOrdinal("VarianceReason")),
                     UsedByStaffId = r.IsDBNull(r.GetOrdinal("UsedByStaffId")) ? null : r.GetInt32(r.GetOrdinal("UsedByStaffId")),
                     Notes = r.IsDBNull(r.GetOrdinal("Notes")) ? null : r.GetString(r.GetOrdinal("Notes")),
+                    // Guarded: the batch id arrives from migration 171, the two
+                    // names from 186. A database behind on either simply reports
+                    // the draw with no batch attached.
+                    PoultryFeedProductionBatchId = HasColumn(r, "PoultryFeedProductionBatchId") && !r.IsDBNull(r.GetOrdinal("PoultryFeedProductionBatchId")) ? r.GetInt32(r.GetOrdinal("PoultryFeedProductionBatchId")) : (int?)null,
+                    FeedProductionBatchNumber = HasColumn(r, "FeedProductionBatchNumber") && !r.IsDBNull(r.GetOrdinal("FeedProductionBatchNumber")) ? r.GetString(r.GetOrdinal("FeedProductionBatchNumber")) : null,
+                    FeedProductionFeedName = HasColumn(r, "FeedProductionFeedName") && !r.IsDBNull(r.GetOrdinal("FeedProductionFeedName")) ? r.GetString(r.GetOrdinal("FeedProductionFeedName")) : null,
                     CreatedBy = r.IsDBNull(r.GetOrdinal("CreatedBy")) ? null : r.GetString(r.GetOrdinal("CreatedBy")),
                     CreatedAt = r.GetDateTime(r.GetOrdinal("CreatedAt")),
                 });

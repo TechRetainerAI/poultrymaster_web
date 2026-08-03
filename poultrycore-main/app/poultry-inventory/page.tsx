@@ -16,8 +16,9 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import Link from "next/link"
-import { listPoultryProducts, listPoultryRawMaterialItems, ensurePoultryDefaults, reconcilePoultryProductStock, type PoultryProduct, type PoultryRawMaterialItem } from "@/lib/api/poultry-inventory"
+import { listPoultryProducts, listPoultryRawMaterialItems, ensurePoultryDefaults, setPoultryProductStock, reconcilePoultryProductStock, type PoultryProduct, type PoultryRawMaterialItem } from "@/lib/api/poultry-inventory"
 import { RecalculateStockButton } from "@/components/poultry/recalculate-stock-button"
+import { SetProductStockButton } from "@/components/inventory/set-product-stock-button"
 import { ReconcileProductStockButton } from "@/components/inventory/reconcile-product-stock-button"
 import { exportTableToPdf, emailTableAsPdf, type PdfExportOptions } from "@/lib/utils/pdf-export"
 
@@ -169,6 +170,7 @@ export default function PoultryInventoryPage() {
               </Link>
               <RecalculateStockButton items={items} size="sm" onDone={async () => setItems(await listPoultryRawMaterialItems())} />
               <ReconcileProductStockButton size="sm" products={products.map((p) => ({ id: p.poultryProductId, name: p.name }))} reconcile={reconcilePoultryProductStock} onDone={async () => setProducts(await listPoultryProducts())} />
+              <SetProductStockButton size="sm" products={products.map((p) => ({ id: p.poultryProductId, name: p.name, currentStock: p.stockOnHand, disabledReason: (p.isBirdProduct || p.name === "Birds") ? "Bird stock comes from the birds left in your flocks — correct it in the flock / production records (record mortality, or edit the flock)." : undefined }))} setStock={setPoultryProductStock} onDone={async () => setProducts(await listPoultryProducts())} />
             </div>
           </div>
           {loading ? <div className="flex items-center gap-2 text-slate-500 p-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div> : (

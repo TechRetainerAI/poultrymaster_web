@@ -143,6 +143,12 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/batch-production-records", label: "Batch Production", icon: Boxes },
     { href: "/egg-production", label: "Egg sorting", icon: Egg },
     { href: "/feed-usage", label: "Feed Usage", icon: Package },
+    // Feed Production is a production activity (producing finished feed from
+    // ingredients), so it lives under Production. Gated by canViewFeedProduction.
+    ...(permissions.featureAccess.canViewFeedProduction ? [
+      { href: "/poultry-feed-production", label: "Feed Production", icon: Factory },
+      { href: "/poultry-feed-formulas",   label: "Feed Formulas",  icon: Wheat },
+    ] : []),
     { href: "/poultry-products", label: "Products", icon: Package },
     // Egg pick times are a farm-level setup (admin only). The page renders in the
     // standard poultry chrome, so it's fine to link straight to it from here.
@@ -167,13 +173,6 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/health", label: "Health Records", icon: AlertTriangle },
     { href: "/poultry-loss-records", label: "Loss & Damage", icon: AlertTriangle },
     { href: "/inventory", label: "Other Inventory", icon: Package },
-  ]
-
-  // Feed Production — produce finished feed from ingredients (formulas + batches).
-  // Batch pages/reports are added alongside as the module lands.
-  const poultryFeedProductionItems = [
-    { href: "/poultry-feed-production", label: "Feed Production", icon: Factory },
-    { href: "/poultry-feed-formulas",   label: "Feed Formulas",  icon: Wheat },
   ]
 
   // Full driver / distribution suite for Poultry (ported from Water). Coexists
@@ -595,13 +594,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
             {/* Divider */}
             <div className="border-t border-slate-800 mx-2" />
 
-            {/* Feed Production (produce finished feed from ingredients) */}
-            {permissions.featureAccess.canViewFeedProduction && <>
-              {renderGroup("Feed Production", poultryFeedProductionItems, "poultryFeedProduction")}
-
-              {/* Divider */}
-              <div className="border-t border-slate-800 mx-2" />
-            </>}
+            {/* Feed Production + Feed Formulas now live under the Production group above. */}
 
             {/* Delivery (driver / vehicle / route suite, ported from Water) */}
             {renderGroup("Delivery", poultryDeliveryItems, "poultryDelivery")}

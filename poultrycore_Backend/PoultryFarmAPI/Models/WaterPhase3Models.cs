@@ -22,8 +22,34 @@ namespace PoultryFarmAPIWeb.Models
         public decimal CurrentQuantity { get; set; }
         public bool IsActive { get; set; } = true;
         [StringLength(500)] public string? Notes { get; set; }
+        /// <summary>Which purchase lot a production batch draws first: FIFO | LIFO | HIFO.</summary>
+        [StringLength(10)] public string UsageMethod { get; set; } = "FIFO";
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
+    }
+
+    /// <summary>
+    /// An open purchase lot — what's left of one purchase, and what it cost.
+    /// Rows arrive already ordered by the item's FIFO/LIFO/HIFO policy, so a
+    /// client can walk them straight down to preview what a batch will draw.
+    /// </summary>
+    public class WaterRawMaterialLotModel
+    {
+        public int WaterRawMaterialPurchaseId { get; set; }
+        public int WaterRawMaterialItemId { get; set; }
+        public string? ItemName { get; set; }
+        public string? UsageMethod { get; set; }
+        public DateTime PurchaseDate { get; set; }
+        public string? SupplierName { get; set; }
+        /// <summary>Left in the lot, in PURCHASE units.</summary>
+        public decimal RemainingQuantity { get; set; }
+        public decimal ProductionUnitsPerPurchaseUnit { get; set; }
+        /// <summary>The same balance in the PRODUCTION units a batch is typed in.</summary>
+        public decimal RemainingProductionQuantity { get; set; }
+        /// <summary>Cost per purchase unit, as bought.</summary>
+        public decimal UnitCost { get; set; }
+        /// <summary>Cost per production unit, as consumed.</summary>
+        public decimal ProductionUnitCost { get; set; }
     }
 
     // One row of a stock recalculation: what an item's CurrentQuantity was vs the

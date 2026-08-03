@@ -10,13 +10,14 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Loader2, ArrowLeft, Undo2 } from "lucide-react"
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
+import { Loader2, ArrowLeft, Undo2, RotateCcw, Pencil, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import { usePermissions } from "@/hooks/use-permissions"
 import { FeedProductionBatchForm } from "@/components/feed-production/batch-form"
-import { getFeedProductionBatch, reverseFeedProductionBatch, getFeedProductionTraceability, type FeedProductionBatch, type FeedTraceabilityRow } from "@/lib/api/poultry-feed-production"
+import { getFeedProductionBatch, reverseFeedProductionBatch, postFeedProductionBatch, deleteFeedProductionBatch, getFeedProductionTraceability, type FeedProductionBatch, type FeedTraceabilityRow } from "@/lib/api/poultry-feed-production"
 
 const SOURCE_LABELS: Record<string, string> = {
   FromInventory: "From inventory",
@@ -37,6 +38,9 @@ export default function FeedProductionBatchDetailPage() {
   const [reverseOpen, setReverseOpen] = useState(false)
   const [reason, setReason] = useState("")
   const [reversing, setReversing] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [reposting, setReposting] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -65,6 +69,29 @@ export default function FeedProductionBatchDetailPage() {
     }
   }
 
+  async function doRepost() {
+    setReposting(true)
+    try {
+      const posted = await postFeedProductionBatch(id)
+      toast({ title: "Batch reposted", description: `Cost/unit ${gh(posted?.costPerOutputUnit ?? 0)} · stock & cash updated.` })
+      await load()
+    } catch (e: any) {
+      toast({ title: "Failed to repost batch", description: e?.message ?? String(e), variant: "destructive" })
+    } finally {
+      setReposting(false)
+    }
+  }
+
+  async function doDelete() {
+    try {
+      await deleteFeedProductionBatch(id)
+      toast({ title: "Batch deleted" })
+      router.push("/poultry-feed-production")
+    } catch (e: any) {
+      toast({ title: "Failed to delete batch", description: e?.message ?? String(e), variant: "destructive" })
+    }
+  }
+
   return (
     <div className="flex min-h-screen bg-gray-50">
       <DashboardSidebar />
@@ -75,10 +102,19 @@ export default function FeedProductionBatchDetailPage() {
             <div className="flex items-center gap-2 text-slate-500 p-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
           ) : !batch ? (
             <div className="p-8 text-slate-500">Batch not found.</div>
-          ) : batch.status === "Draft" ? (
+          ) : batch.status === "Draft" || (batch.status === "Reversed" && editing) ? (
             <FeedProductionBatchForm existing={batch} />
           ) : (
-            <ReadOnlyDetail batch={batch} gh={gh} onBack={() => router.push("/poultry-feed-production")} onReverse={batch.status === "Posted" && canManage ? () => setReverseOpen(true) : undefined} />
+            <ReadOnlyDetail
+              batch={batch}
+              gh={gh}
+              onBack={() => router.push("/poultry-feed-production")}
+              onReverse={batch.status === "Posted" && canManage ? () => setReverseOpen(true) : undefined}
+              onRepost={batch.status === "Reversed" && canManage ? () => void doRepost() : undefined}
+              onEdit={batch.status === "Reversed" && canManage ? () => setEditing(true) : undefined}
+              onDelete={batch.status === "Reversed" && canManage ? () => setDeleteOpen(true) : undefined}
+              reposting={reposting}
+            />
           )}
         </main>
       </div>
@@ -99,11 +135,19 @@ export default function FeedProductionBatchDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDeleteDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        onConfirm={() => void doDelete()}
+        title="Delete reversed batch?"
+        description={batch ? `Batch ${batch.batchNumber} will be permanently removed. This is only allowed because it has already been reversed.` : ""}
+      />
     </div>
   )
 }
 
-function ReadOnlyDetail({ batch, gh, onBack, onReverse }: { batch: FeedProductionBatch; gh: (n: number) => string; onBack: () => void; onReverse?: () => void }) {
+function ReadOnlyDetail({ batch, gh, onBack, onReverse, onRepost, onEdit, onDelete, reposting }: { batch: FeedProductionBatch; gh: (n: number) => string; onBack: () => void; onReverse?: () => void; onRepost?: () => void; onEdit?: () => void; onDelete?: () => void; reposting?: boolean }) {
   const [trace, setTrace] = useState<FeedTraceabilityRow[]>([])
   useEffect(() => {
     getFeedProductionTraceability(batch.poultryFeedProductionBatchId).then(setTrace).catch(() => setTrace([]))
@@ -114,7 +158,12 @@ function ReadOnlyDetail({ batch, gh, onBack, onReverse }: { batch: FeedProductio
         <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="w-4 h-4 mr-1" /> Back</Button>
         <h1 className="text-2xl font-bold">Batch {batch.batchNumber}</h1>
         <Badge variant={batch.status === "Posted" ? "default" : "outline"} className={cn(batch.status === "Posted" && "bg-emerald-600 hover:bg-emerald-600")}>{batch.status}</Badge>
-        {onReverse && <Button variant="outline" size="sm" className="ml-auto" onClick={onReverse}><Undo2 className="w-4 h-4 mr-1" /> Reverse</Button>}
+        <div className="ml-auto flex items-center gap-2">
+          {onReverse && <Button variant="outline" size="sm" onClick={onReverse}><Undo2 className="w-4 h-4 mr-1" /> Reverse</Button>}
+          {onRepost && <Button variant="outline" size="sm" onClick={onRepost} disabled={reposting}>{reposting ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Reposting…</> : <><RotateCcw className="w-4 h-4 mr-1" /> Repost</>}</Button>}
+          {onEdit && <Button variant="outline" size="sm" onClick={onEdit}><Pencil className="w-4 h-4 mr-1" /> Edit</Button>}
+          {onDelete && <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700" onClick={onDelete}><Trash2 className="w-4 h-4 mr-1" /> Delete</Button>}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
@@ -157,7 +206,13 @@ function ReadOnlyDetail({ batch, gh, onBack, onReverse }: { batch: FeedProductio
                 <TableRow key={l.poultryFeedProductionBatchLineId}>
                   <TableCell>{l.ingredientName}</TableCell>
                   <TableCell>{SOURCE_LABELS[l.sourceType] ?? l.sourceType}</TableCell>
-                  <TableCell className="text-right tabular-nums">{l.quantityUsed.toLocaleString()}{l.unitOfMeasure ? ` ${l.unitOfMeasure}` : ""}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {l.quantityUsed.toLocaleString()}{l.unitOfMeasure ? ` ${l.unitOfMeasure}` : ""}
+                    {/* The recipe amount behind it, when the quantity was scaled. */}
+                    {l.quantityMode === "FixedQuantity" && (l.fixedQuantity ?? 0) > 0 && (
+                      <div className="text-[11px] text-slate-400">from {Number(l.fixedQuantity).toLocaleString()} in the recipe</div>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">{gh(l.unitCost)}</TableCell>
                   <TableCell className="text-right tabular-nums">{gh(l.totalCost)}</TableCell>
                   <TableCell>{l.supplierName ?? "—"}</TableCell>

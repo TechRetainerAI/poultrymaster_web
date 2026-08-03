@@ -31,7 +31,7 @@ import {
   payWaterRawMaterialPurchaseBalance,
   listWaterRawMaterialUsageHistory, listWaterRawMaterialAdjustments,
   listWaterCashAccounts,
-  type WaterRawMaterialItem, type WaterRawMaterialPurchase, type WaterProductionMaterialUsageRow,
+  type WaterRawMaterialItem, type WaterRawMaterialUsageMethod, type WaterRawMaterialPurchase, type WaterProductionMaterialUsageRow,
   type WaterCashAccount,
 } from "@/lib/api/water"
 import { SupplierSelect } from "@/components/water/supplier-select"
@@ -44,7 +44,16 @@ const PAYMENT_METHODS = ["Cash","MoMo","Bank","Credit"]
 const UNITS = ["Roll","Bag","Sachet","Bottle","Piece","Pack","Carton","Box","Bundle","Dozen","Litre","Millilitre","Tonne","Kilogram","Gram","Bale","Unit","Other"]
 
 type ItemForm = Omit<WaterRawMaterialItem, "waterRawMaterialItemId" | "farmId" | "currentQuantity">
-const EMPTY_ITEM: ItemForm = { itemName: "", category: "PackagingRoll", unitOfMeasure: "", purchaseUnitOfMeasure: "", minimumStockAlert: 0, isActive: true, notes: null }
+const EMPTY_ITEM: ItemForm = { itemName: "", category: "PackagingRoll", unitOfMeasure: "", purchaseUnitOfMeasure: "", minimumStockAlert: 0, isActive: true, notes: null, usageMethod: "FIFO" }
+
+// Which purchase lot an approved production batch draws from first. Offered on
+// every category — unlike Poultry, any water raw material can appear in a
+// product recipe, so any of them can be drawn.
+const USAGE_METHOD_OPTIONS: { value: WaterRawMaterialUsageMethod; label: string; hint: string }[] = [
+  { value: "FIFO", label: "FIFO", hint: "First bought, first used" },
+  { value: "LIFO", label: "LIFO", hint: "Last bought, first used" },
+  { value: "HIFO", label: "HIFO", hint: "Highest cost, first used" },
+]
 
 export default function WaterRawMaterialsPage() {
   const router = useRouter()
@@ -179,7 +188,7 @@ export default function WaterRawMaterialsPage() {
   function openNewItem() { setEditItemId(null); setItemForm(EMPTY_ITEM); setItemOpen(true) }
   function openEditItem(it: WaterRawMaterialItem) {
     setEditItemId(it.waterRawMaterialItemId)
-    setItemForm({ itemName: it.itemName, category: it.category, unitOfMeasure: it.unitOfMeasure, purchaseUnitOfMeasure: it.purchaseUnitOfMeasure ?? "", minimumStockAlert: it.minimumStockAlert, isActive: it.isActive, notes: it.notes })
+    setItemForm({ itemName: it.itemName, category: it.category, unitOfMeasure: it.unitOfMeasure, purchaseUnitOfMeasure: it.purchaseUnitOfMeasure ?? "", minimumStockAlert: it.minimumStockAlert, isActive: it.isActive, notes: it.notes, usageMethod: it.usageMethod ?? "FIFO" })
     setItemOpen(true)
   }
 
@@ -685,13 +694,51 @@ export default function WaterRawMaterialsPage() {
                 </Select>
               </FormField>
               <FormField label="Production unit of measure">
-                <Input value={itemForm.unitOfMeasure ?? ""} onChange={(e) => setItemForm({ ...itemForm, unitOfMeasure: e.target.value || null })} placeholder="kg / roll / pcs" />
+                <Select value={itemForm.unitOfMeasure ?? ""} onValueChange={(v) => setItemForm({ ...itemForm, unitOfMeasure: v || null })}>
+                  <SelectTrigger><SelectValue placeholder="Pick a unit" /></SelectTrigger>
+                  <SelectContent>
+                    {(itemForm.unitOfMeasure && !UNITS.includes(itemForm.unitOfMeasure) ? [itemForm.unitOfMeasure, ...UNITS] : UNITS).map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </FormField>
               <FormField label="Purchase unit of measure">
-                <Input value={itemForm.purchaseUnitOfMeasure ?? ""} onChange={(e) => setItemForm({ ...itemForm, purchaseUnitOfMeasure: e.target.value || null })} placeholder="Same as production unit" />
+                <Select value={itemForm.purchaseUnitOfMeasure || "__same__"} onValueChange={(v) => setItemForm({ ...itemForm, purchaseUnitOfMeasure: v === "__same__" ? null : v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__same__">Same as production unit</SelectItem>
+                    {(itemForm.purchaseUnitOfMeasure && !UNITS.includes(itemForm.purchaseUnitOfMeasure) ? [itemForm.purchaseUnitOfMeasure, ...UNITS] : UNITS).map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </FormField>
               <FormField label="Minimum stock alert" full>
                 <NumberInput min={0} value={itemForm.minimumStockAlert ?? 0} onChange={(e) => setItemForm({ ...itemForm, minimumStockAlert: Number(e.target.value) || 0 })} />
+              </FormField>
+              <FormField label="Order of item usage" hint="Decides which purchase batch a production run consumes, and the price it is costed at" full>
+                <div className="flex flex-col gap-2">
+                  {USAGE_METHOD_OPTIONS.map((o) => (
+                    <label
+                      key={o.value}
+                      className={`flex items-start gap-2.5 rounded-md border px-3 py-2 cursor-pointer transition-colors ${
+                        itemForm.usageMethod === o.value
+                          ? "border-sky-600 bg-sky-50"
+                          : "border-slate-200 hover:border-slate-300"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="usageMethod"
+                        value={o.value}
+                        checked={itemForm.usageMethod === o.value}
+                        onChange={() => setItemForm({ ...itemForm, usageMethod: o.value })}
+                        className="mt-0.5 accent-sky-600"
+                      />
+                      <span>
+                        <span className="block text-sm font-semibold text-slate-800">{o.label}</span>
+                        <span className="block text-xs text-slate-500">{o.hint}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
               </FormField>
             </FormSection>
 

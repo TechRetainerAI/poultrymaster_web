@@ -24,10 +24,11 @@ import {
   listPoultryProducts, listPoultryStockTransactions, addPoultryStockTransaction,
   listPoultryRawMaterialPurchases, listPoultryRawMaterialUsageHistory,
   listPoultryRawMaterialItems, listPoultryRawMaterialAdjustments, adjustPoultryRawMaterialItem,
-  reconcilePoultryProductStock,
+  setPoultryProductStock, reconcilePoultryProductStock,
   type PoultryProduct, type PoultryStockTransaction, type PoultryRawMaterialItem,
 } from "@/lib/api/poultry-inventory"
 import { RecalculateStockButton } from "@/components/poultry/recalculate-stock-button"
+import { SetProductStockButton } from "@/components/inventory/set-product-stock-button"
 import { ReconcileProductStockButton } from "@/components/inventory/reconcile-product-stock-button"
 
 // Doc 5: movement types with sign. Positive = increase, negative = decrease.
@@ -155,6 +156,7 @@ export default function PoultryStockPage() {
             <div className="flex items-center gap-2">
               <RecalculateStockButton items={rawItems} onDone={load} />
               <ReconcileProductStockButton products={products.map((p) => ({ id: p.poultryProductId, name: p.name }))} reconcile={reconcilePoultryProductStock} onDone={load} />
+              <SetProductStockButton products={products.map((p) => ({ id: p.poultryProductId, name: p.name, currentStock: p.stockOnHand, disabledReason: (p.isBirdProduct || p.name === "Birds") ? "Bird stock comes from the birds left in your flocks — correct it in the flock / production records (record mortality, or edit the flock)." : undefined }))} setStock={setPoultryProductStock} onDone={load} />
               <Button onClick={() => setOpen(true)}><Plus className="w-4 h-4 mr-1" /> New movement</Button>
             </div>
           </div>

@@ -215,4 +215,14 @@ namespace PoultryFarmAPIWeb.Models
         public decimal StockOut { get; set; }
         public decimal CurrentStock { get; set; }
     }
+
+    // "Set to actual count" — corrects a finished product's stock to a physical
+    // count by writing an Adjust transaction for (target - current).
+    public class ProductSetStockRequest
+    {
+        public string FarmId { get; set; } = string.Empty;
+        public decimal TargetQuantity { get; set; }
+        public string? Note { get; set; }
+        public string? CreatedBy { get; set; }
+    }
 }

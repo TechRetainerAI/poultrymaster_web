@@ -63,6 +63,11 @@ export interface PoultryRawMaterialPurchase {
   balance: number
   receiptUrl?: string | null
   notes?: string | null
+  /** Set when the feed-production posting engine created this lot, not "Record Purchase". */
+  sourceFeedProductionBatchId?: number | null
+  feedProductionBatchNumber?: string | null
+  /** "Produced" — the feed a batch made; "Purchased" — an ingredient it bought. */
+  feedProductionRole?: "Produced" | "Purchased" | null
   createdBy?: string | null
   createdAt: string
   updatedAt?: string | null
@@ -98,6 +103,11 @@ export interface PoultryRawMaterialUsage {
   variance: number
   varianceReason?: string | null
   notes?: string | null
+  /** Set when a feed production batch consumed this stock. */
+  poultryFeedProductionBatchId?: number | null
+  feedProductionBatchNumber?: string | null
+  /** The finished feed that batch produced. */
+  feedProductionFeedName?: string | null
   createdAt: string
 }
 
@@ -254,6 +264,12 @@ export const reconcilePoultryProductStock = (productId?: number) => {
   if (productId) qs.append("productId", String(productId))
   return jget<ProductReconcileRow[]>(`/Poultry/products/reconcile-stock?${qs.toString()}`)
 }
+// Set a finished product's stock to a physical count — writes a correcting
+// Adjust transaction for (target − current). Returns the new stock.
+export const setPoultryProductStock = (productId: number, targetQuantity: number, note?: string) =>
+  jsend<{ currentStock: number }>(`/Poultry/products/${productId}/set-stock`, "POST", {
+    farmId: activeFarmId(), targetQuantity, note: note || "Stock-take correction", createdBy: activeUserId(),
+  })
 
 // ===================== Products + Stock (slice 2) =====================
 export interface PoultryProduct {

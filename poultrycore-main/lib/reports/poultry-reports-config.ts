@@ -11,7 +11,7 @@ import {
   LayoutDashboard, Egg, BarChart3, Activity, HeartPulse, Bird, Skull,
   Wheat, Package, Boxes, Coins, Users, Receipt, Wallet, TrendingUp,
   Calculator, Syringe, Pill, ClipboardCheck, Flag, CalendarDays, Scale,
-  History,
+  History, Factory,
 } from "lucide-react"
 import type { PoultryReportSlug } from "@/lib/api/poultry-reports"
 
@@ -224,6 +224,20 @@ if (productionMenu) {
     description: "Production performance rolled up per flock batch.",
     icon: Boxes,
     href: "/poultry/reports/batch-production-summary",
+  })
+}
+
+// Feed Production Report is a standalone page (feed produced + ingredient usage
+// with full costing — not a data-driven /poultry/reports/<slug>), so it's added
+// to the Feed group by href.
+const feedMenu = advancedMenuGroups.find((g) => g.key === "feed")
+if (feedMenu) {
+  feedMenu.items.push({
+    id: "feed-production-report",
+    title: "Feed Production",
+    description: "Feed produced and ingredient usage, with full costing.",
+    icon: Factory,
+    href: "/poultry-feed-production/reports",
   })
 }
 

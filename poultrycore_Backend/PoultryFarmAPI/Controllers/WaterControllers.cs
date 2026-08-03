@@ -35,6 +35,17 @@ namespace PoultryFarmAPIWeb.Controllers
         public async Task<ActionResult<IEnumerable<ProductReconcileRow>>> ReconcileStock([FromQuery] string farmId, [FromQuery] int? productId)
             => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.ReconcileStockAsync(farmId, productId));
 
+        // Set a finished product's stock to a physical count (writes a correcting
+        // Adjust transaction for the difference).
+        [HttpPost("{id:int}/set-stock")]
+        public async Task<ActionResult<object>> SetStock(int id, [FromBody] ProductSetStockRequest body)
+        {
+            if (body is null || string.IsNullOrWhiteSpace(body.FarmId)) return BadRequest("Company ID is required.");
+            if (body.TargetQuantity < 0) return BadRequest("Count cannot be negative.");
+            var current = await _svc.SetStockAsync(id, body);
+            return Ok(new { CurrentStock = current });
+        }
+
         [HttpPost]
         public async Task<ActionResult<WaterProductModel>> Create([FromBody] WaterProductModel model)
         {
