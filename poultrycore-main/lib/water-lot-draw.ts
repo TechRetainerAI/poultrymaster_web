@@ -13,7 +13,9 @@
 // It is a PREVIEW, not the decision. The server re-runs the real draw at
 // approval, and between the two another batch may have consumed the same lots.
 // The numbers agree as long as this walk matches the SP: same order (the API
-// returns the lots pre-sorted by policy, ties on purchase id), same arithmetic.
+// returns the lots pre-sorted by policy — ties break on purchase id, DESC under
+// LIFO and ASC otherwise, see migration 193), same arithmetic. Never re-sort the
+// lots here; the order is the server's to decide.
 //
 // UNITS. Lots hold their balance in PURCHASE units; a batch is typed in
 // PRODUCTION units. Every lot carries both, so the walk compares production

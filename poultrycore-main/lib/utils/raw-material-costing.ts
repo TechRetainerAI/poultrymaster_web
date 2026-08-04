@@ -1,10 +1,17 @@
 import type { PoultryRawMaterialItem, PoultryRawMaterialPurchase, RawMaterialUsageMethod } from "@/lib/api/poultry-inventory"
 
 // Mirrors the server-side FIFO/LIFO/HIFO batch walk
-// (spPoultryRawMaterialItem_ConsumeBatches in migration 146) so the "used from
-// inventory" pickers can show a live cost preview before saving. The server
-// recomputes and persists the authoritative cost/quantity at save time — this
-// is a preview only and can be stale if purchases changed since the page loaded.
+// (spPoultryRawMaterialItem_ConsumeBatches, latest in migration 194) so the
+// "used from inventory" pickers can show a live cost preview before saving. The
+// server recomputes and persists the authoritative cost/quantity at save time —
+// this is a preview only and can be stale if purchases changed since the page
+// loaded.
+//
+// The sort below has to stay in step with that SP, tie-break included: a
+// purchase is entered as a date with no time, so lots bought on the same day
+// compare equal and the purchase id alone decides their order — descending
+// under LIFO, ascending otherwise. Tie-breaking ascending for every policy is
+// what made LIFO draw its same-day lots oldest-first, i.e. as FIFO.
 
 export interface BatchCostPreview {
   /** Quantity-weighted average unit cost across the batches that would be drawn, or null if none available. */
@@ -40,7 +47,8 @@ export function previewBatchConsumption(
     const bd = new Date(b.purchaseDate).getTime()
     const direction = method === "LIFO" ? -1 : 1
     if (ad !== bd) return direction * (ad - bd)
-    return a.poultryRawMaterialPurchaseId - b.poultryRawMaterialPurchaseId
+    // Same day: the higher id is the later purchase, so LIFO takes it first.
+    return direction * (a.poultryRawMaterialPurchaseId - b.poultryRawMaterialPurchaseId)
   })
 
   // neededQty is in PRODUCTION units (the item's stock unit). A batch's
@@ -144,7 +152,8 @@ export function previewLinesSequential(
       const bd = new Date(b.purchaseDate).getTime()
       const direction = method === "LIFO" ? -1 : 1
       if (ad !== bd) return direction * (ad - bd)
-      return a.id - b.id
+      // Same day: the higher id is the later purchase, so LIFO takes it first.
+      return direction * (a.id - b.id)
     })
 
     // Work in PRODUCTION units (the item's stock unit, what `qty` is entered in).
