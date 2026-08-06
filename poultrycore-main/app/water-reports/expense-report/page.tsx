@@ -116,7 +116,7 @@ export default function ExpenseReportPage() {
                 <TableCell>{e.categoryName ?? "—"}</TableCell>
                 <TableCell className="max-w-[260px] truncate">{e.description ?? "—"}</TableCell>
                 <TableCell>{e.paymentMethod ?? "—"}</TableCell>
-                <TableCell>{e.linkedWaterProductionBatchId ? "Production batch" : "Manual"}</TableCell>
+                <TableCell>{e.linkedWaterProductionBatchId ? "Production" : "Manual"}</TableCell>
                 <TableCell className="text-right tabular-nums whitespace-nowrap">{fmtMoney(e.amount ?? 0)}</TableCell>
                 <TableCell>{e.status ?? "—"}</TableCell>
               </TableRow>

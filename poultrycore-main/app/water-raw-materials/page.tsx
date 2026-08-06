@@ -500,7 +500,7 @@ export default function WaterRawMaterialsPage() {
                     <div className="p-6 text-slate-500 flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading usage…</div>
                   ) : usage.length === 0 ? (
                     <div className="p-8 text-center text-slate-500 text-sm">
-                      No usage recorded yet. Raw materials &amp; supplies are consumed when production batches are approved.
+                      No usage recorded yet. Raw materials &amp; supplies are consumed when production records are approved.
                     </div>
                   ) : (
                     <MobileCardList

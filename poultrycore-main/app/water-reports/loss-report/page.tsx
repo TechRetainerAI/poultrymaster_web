@@ -54,7 +54,7 @@ export default function LossReportPage() {
           status: r.status ?? "—",
         })),
         ...(production ?? []).map((r: any) => ({
-          source: "Production Batch",
+          source: "Production",
           date: (r.lossDate ?? "").slice(0, 10),
           type: r.lossType ?? "ProductionDamage",
           product: r.productName ?? "—",

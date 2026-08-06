@@ -1,16 +1,21 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { useState, useRef, useEffect } from "react"
+import { usePathname, useRouter } from "next/navigation"
+import { useMemo } from "react"
 import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
 import { usePermissions } from "@/hooks/use-permissions"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { Droplets, ShoppingBag } from "lucide-react"
-import { WATER_REPORT_GROUPS, waterReportHref } from "@/lib/reports/water-reports-config"
-import { POULTRY_REPORT_MENU_GROUPS } from "@/lib/reports/poultry-reports-config"
+import { navPathActive, type NavGroup, type NavItem } from "@/lib/nav/nav-model"
+import { WATER_REPORT_NAV_GROUPS, POULTRY_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
+import { buildWaterNavConfig } from "@/lib/nav/water-nav-config"
+import { NavMegaMenu } from "./nav/nav-mega-menu"
+import {
+  useNavPopover, NAV_TRIGGER_CLASS, NAV_TRIGGER_ACTIVE, NAV_TRIGGER_IDLE,
+} from "./nav/use-nav-popover"
 import {
   Home,
   Bird,
@@ -36,106 +41,44 @@ import {
   Pill,
   Truck,
   Factory,
-  Receipt,
-  Wrench,
-  Cog,
-  Route as RouteIcon,
   Users2,
   Banknote,
-  Box as BoxIcon,
 } from "lucide-react"
-
-interface NavItem {
-  href: string
-  label: string
-  icon: any
-}
-
-interface NavGroup {
-  label: string
-  items: NavItem[]
-}
 
 function NavDropdown({ group }: { group: NavGroup }) {
   const pathname = usePathname()
-  const [open, setOpen] = useState(false)
-  const triggerRef = useRef<HTMLDivElement>(null)
-  const dropdownRef = useRef<HTMLDivElement>(null)
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const [position, setPosition] = useState({ top: 0, left: 0 })
-  const [mounted, setMounted] = useState(false)
+  // Width passed so a dropdown opened near the right edge can't run off-screen
+  // (the pre-extraction copy had no clamp at all).
+  const pop = useNavPopover({ closeDelayMs: 150, menuWidthPx: 208 })
 
   const isGroupActive = group.items.some((item) => navPathActive(pathname, item.href))
 
-  useEffect(() => { setMounted(true) }, [])
-
-  const updatePosition = () => {
-    if (triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect()
-      setPosition({
-        top: rect.bottom + 4,
-        left: rect.left,
-      })
-    }
-  }
-
-  const handleMouseEnter = () => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current)
-    updatePosition()
-    setOpen(true)
-  }
-
-  const handleMouseLeave = () => {
-    timeoutRef.current = setTimeout(() => setOpen(false), 150)
-  }
-
-  // Close on click outside
-  useEffect(() => {
-    if (!open) return
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as Node
-      if (
-        triggerRef.current && !triggerRef.current.contains(target) &&
-        (!dropdownRef.current || !dropdownRef.current.contains(target))
-      ) {
-        setOpen(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [open])
-
   return (
     <div
-      ref={triggerRef}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
+      ref={pop.triggerRef}
+      onMouseEnter={pop.handleMouseEnter}
+      onMouseLeave={pop.handleMouseLeave}
     >
       <button
-        onClick={() => { updatePosition(); setOpen(!open) }}
-        className={cn(
-          "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap",
-          isGroupActive
-            ? "bg-white/25 text-white font-semibold"
-            : "text-orange-100 hover:bg-white/15 hover:text-white"
-        )}
+        onClick={pop.toggle}
+        className={cn(NAV_TRIGGER_CLASS, isGroupActive ? NAV_TRIGGER_ACTIVE : NAV_TRIGGER_IDLE)}
       >
         {group.label}
         <ChevronDown
           className={cn(
             "h-3.5 w-3.5 transition-transform",
-            open ? "rotate-180" : ""
+            pop.open ? "rotate-180" : ""
           )}
         />
       </button>
 
-      {open && mounted && createPortal(
+      {pop.open && pop.mounted && createPortal(
         <div
-          ref={dropdownRef}
-          style={{ position: "fixed", top: position.top, left: position.left }}
+          ref={pop.menuRef}
+          style={{ position: "fixed", top: pop.position.top, left: pop.position.left }}
           className="w-52 rounded-lg bg-blue-600 py-1 shadow-lg border border-blue-500 z-[9999]"
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
+          onMouseEnter={pop.handleMouseEnter}
+          onMouseLeave={pop.handleMouseLeave}
         >
           {group.items.map((item) => {
             const Icon = item.icon
@@ -145,7 +88,7 @@ function NavDropdown({ group }: { group: NavGroup }) {
                 key={item.href}
                 href={item.href}
                 prefetch={true}
-                onClick={() => setOpen(false)}
+                onClick={pop.close}
                 className={cn(
                   "flex items-center gap-2.5 px-3 py-2 text-sm transition-colors",
                   isActive
@@ -165,10 +108,6 @@ function NavDropdown({ group }: { group: NavGroup }) {
   )
 }
 
-function navPathActive(pathname: string, href: string) {
-  return pathname === href || (href !== "/dashboard" && pathname.startsWith(`${href}/`))
-}
-
 function NavLink({ item }: { item: NavItem }) {
   const pathname = usePathname()
   const isActive = navPathActive(pathname, item.href)
@@ -178,12 +117,7 @@ function NavLink({ item }: { item: NavItem }) {
     <Link
       href={item.href}
       prefetch={true}
-      className={cn(
-        "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap",
-        isActive
-          ? "bg-white/25 text-white font-semibold"
-          : "text-orange-100 hover:bg-white/15 hover:text-white"
-      )}
+      className={cn(NAV_TRIGGER_CLASS, isActive ? NAV_TRIGGER_ACTIVE : NAV_TRIGGER_IDLE)}
     >
       <Icon className={cn("h-4 w-4", isActive ? "text-white" : "text-orange-200")} />
       {item.label}
@@ -191,381 +125,81 @@ function NavLink({ item }: { item: NavItem }) {
   )
 }
 
-/**
- * 4-column Reports mega-menu shown in the Water top-nav. Opens on hover (with
- * a small close delay so the user can travel diagonally into it) and on click.
- * Reports come from the shared `WATER_REPORT_GROUPS` catalog so the menu and
- * the /water-reports index can never drift apart.
- *
- * The menu is portalled into <body> so the sky-600 nav bar's overflow doesn't
- * clip it. Width is fixed at 56rem; collapses with horizontal scroll on narrow
- * desktop widths via overflow-auto on the container.
- */
-function ReportsMegaMenu() {
-  const pathname = usePathname()
-  const [open, setOpen] = useState(false)
-  const [mounted, setMounted] = useState(false)
-  const [position, setPosition] = useState({ top: 0, left: 0 })
-  const triggerRef = useRef<HTMLDivElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
-
-  useEffect(() => { setMounted(true) }, [])
-
-  const updatePosition = () => {
-    if (!triggerRef.current) return
-    const rect = triggerRef.current.getBoundingClientRect()
-    // Keep within viewport: max width 56rem (896px), give 16px right margin.
-    const desiredLeft = rect.left
-    const maxLeft = Math.max(8, window.innerWidth - 896 - 16)
-    setPosition({ top: rect.bottom + 4, left: Math.min(desiredLeft, maxLeft) })
-  }
-
-  const handleMouseEnter = () => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current)
-    updatePosition()
-    setOpen(true)
-  }
-  const handleMouseLeave = () => {
-    timeoutRef.current = setTimeout(() => setOpen(false), 180)
-  }
-
-  useEffect(() => {
-    if (!open) return
-    const handleClickOutside = (e: MouseEvent) => {
-      const t = e.target as Node
-      if (
-        triggerRef.current && !triggerRef.current.contains(t) &&
-        (!menuRef.current || !menuRef.current.contains(t))
-      ) setOpen(false)
-    }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [open])
-
-  const isReportsActive = pathname === "/water-reports" || pathname.startsWith("/water-reports/")
-
-  return (
-    <div
-      ref={triggerRef}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-    >
-      <button
-        onClick={() => { updatePosition(); setOpen(!open) }}
-        className={cn(
-          "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap",
-          isReportsActive
-            ? "bg-white/25 text-white font-semibold"
-            : "text-orange-100 hover:bg-white/15 hover:text-white",
-        )}
-      >
-        <BarChart3 className="h-4 w-4" />
-        Reports
-        <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open ? "rotate-180" : "")} />
-      </button>
-
-      {open && mounted && createPortal(
-        <div
-          ref={menuRef}
-          style={{ position: "fixed", top: position.top, left: position.left }}
-          className="w-[56rem] max-w-[calc(100vw-16px)] rounded-lg bg-white shadow-2xl border border-slate-200 z-[9999] overflow-hidden"
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
-        >
-          {/* Header strip — gives the menu a clear identity, mirrors the
-              recommended visual from the design reference. */}
-          <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 flex items-center justify-between">
-            <div>
-              <div className="font-semibold text-slate-900 text-sm">Reports</div>
-              <div className="text-xs text-slate-500">Quickly access Business, Sales, Inventory, Production and Delivery reports.</div>
-            </div>
-            <Link
-              href="/water-reports"
-              prefetch
-              onClick={() => setOpen(false)}
-              className="text-xs font-medium text-sky-700 hover:text-sky-900 hover:underline whitespace-nowrap"
-            >
-              View all reports →
-            </Link>
-          </div>
-
-          <div className="columns-2 lg:columns-4 gap-x-4 p-4 max-h-[70vh] overflow-y-auto">
-            {WATER_REPORT_GROUPS.map((g) => (
-              <div key={g.key} className="min-w-0 mb-4 break-inside-avoid">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className={cn("inline-block h-2 w-2 rounded-full", g.color)} />
-                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-600">{g.label}</h3>
-                </div>
-                <ul className="space-y-0.5">
-                  {g.reports.map((r) => {
-                    const href = waterReportHref(r.slug)
-                    const active = pathname === href
-                    const Icon = r.icon
-                    return (
-                      <li key={r.slug}>
-                        <Link
-                          href={href}
-                          prefetch
-                          onClick={() => setOpen(false)}
-                          className={cn(
-                            "flex items-start gap-2 px-2 py-1.5 rounded-md text-sm transition-colors",
-                            active
-                              ? "bg-sky-50 text-sky-900 font-medium"
-                              : "text-slate-700 hover:bg-slate-100",
-                          )}
-                        >
-                          <Icon className={cn("h-4 w-4 mt-0.5 shrink-0", active ? "text-sky-700" : "text-slate-400")} />
-                          <span className="truncate">{r.title}</span>
-                        </Link>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </div>,
-        document.body,
-      )}
-    </div>
-  )
-}
-
-/**
- * Reports mega-menu for the Poultry top-nav. Same hover-card pattern as the
- * Water ReportsMegaMenu, but sourced from POULTRY_REPORT_GROUPS so the menu and
- * the /poultry/reports catalogue stay in sync. Items link to the individual
- * report pages (/poultry/reports/<slug>); "View all" opens the catalogue.
- */
-function PoultryReportsMegaMenu() {
-  const pathname = usePathname()
-  const [open, setOpen] = useState(false)
-  const [mounted, setMounted] = useState(false)
-  const [position, setPosition] = useState({ top: 0, left: 0 })
-  const triggerRef = useRef<HTMLDivElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
-
-  useEffect(() => { setMounted(true) }, [])
-
-  const updatePosition = () => {
-    if (!triggerRef.current) return
-    const rect = triggerRef.current.getBoundingClientRect()
-    const desiredLeft = rect.left
-    const maxLeft = Math.max(8, window.innerWidth - 896 - 16)
-    setPosition({ top: rect.bottom + 4, left: Math.min(desiredLeft, maxLeft) })
-  }
-
-  const handleMouseEnter = () => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current)
-    updatePosition()
-    setOpen(true)
-  }
-  const handleMouseLeave = () => {
-    timeoutRef.current = setTimeout(() => setOpen(false), 180)
-  }
-
-  useEffect(() => {
-    if (!open) return
-    const handleClickOutside = (e: MouseEvent) => {
-      const t = e.target as Node
-      if (
-        triggerRef.current && !triggerRef.current.contains(t) &&
-        (!menuRef.current || !menuRef.current.contains(t))
-      ) setOpen(false)
-    }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [open])
-
-  const isReportsActive =
-    pathname === "/reports" || pathname === "/poultry/reports" || pathname.startsWith("/poultry/reports/")
-
-  return (
-    <div ref={triggerRef} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
-      <button
-        onClick={() => { updatePosition(); setOpen(!open) }}
-        className={cn(
-          "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap",
-          isReportsActive
-            ? "bg-white/25 text-white font-semibold"
-            : "text-orange-100 hover:bg-white/15 hover:text-white",
-        )}
-      >
-        <BarChart3 className="h-4 w-4" />
-        Reports
-        <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open ? "rotate-180" : "")} />
-      </button>
-
-      {open && mounted && createPortal(
-        <div
-          ref={menuRef}
-          style={{ position: "fixed", top: position.top, left: position.left }}
-          className="w-[56rem] max-w-[calc(100vw-16px)] rounded-lg bg-white shadow-2xl border border-slate-200 z-[9999] overflow-hidden"
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
-        >
-          <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 flex items-center justify-between">
-            <div>
-              <div className="font-semibold text-slate-900 text-sm">Reports</div>
-              <div className="text-xs text-slate-500">Production, birds &amp; mortality, feed, inventory, sales, expenses, profitability and health.</div>
-            </div>
-            <Link
-              href="/poultry/reports"
-              prefetch
-              onClick={() => setOpen(false)}
-              className="text-xs font-medium text-amber-700 hover:text-amber-900 hover:underline whitespace-nowrap"
-            >
-              View all reports →
-            </Link>
-          </div>
-
-          <div className="columns-2 lg:columns-4 gap-x-4 p-4 max-h-[70vh] overflow-y-auto">
-            {POULTRY_REPORT_MENU_GROUPS.map((g) => (
-              <div key={g.key} className="min-w-0 mb-4 break-inside-avoid">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className={cn("inline-block h-2 w-2 rounded-full", g.color)} />
-                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-600">{g.label}</h3>
-                </div>
-                <ul className="space-y-0.5">
-                  {g.items.map((it) => {
-                    const active = pathname === it.href
-                    const Icon = it.icon
-                    return (
-                      <li key={it.id}>
-                        <Link
-                          href={it.href}
-                          prefetch
-                          onClick={() => setOpen(false)}
-                          className={cn(
-                            "flex items-start gap-2 px-2 py-1.5 rounded-md text-sm transition-colors",
-                            active
-                              ? "bg-amber-50 text-amber-900 font-medium"
-                              : "text-slate-700 hover:bg-slate-100",
-                          )}
-                        >
-                          <Icon className={cn("h-4 w-4 mt-0.5 shrink-0", active ? "text-amber-700" : "text-slate-400")} />
-                          <span className="truncate">{it.title}</span>
-                        </Link>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </div>,
-        document.body,
-      )}
-    </div>
-  )
-}
-
 function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermissions> }) {
-  // James (2026-06-02): top nav mirrors the new sidebar layout — Quick Links
-  // (shortcuts) / Delivery / Production / Inventory / Sales & Money / People
-  // / Reports (mega-menu) / Admin · Setup. Delivery and Production graduated
-  // out of Admin/Setup; Quick Links is a fast-access bar for the most-used
-  // daily flows (its items also live in their canonical groups).
-  // See: components/dashboard/sidebar.tsx waterQuickLinkItems / waterDeliveryItems
-  // / waterProductionItems / waterInventoryItems / waterSalesMoneyItems
-  // / waterPeopleItems / waterAdminItems.
-  const quickLinksGroup: NavGroup = {
-    label: "Quick Links",
-    items: [
-      { href: "/water-daily-closing",      label: "Daily Closing",      icon: FileText },
-      { href: "/water-driver-returns",     label: "Deliveries",         icon: Truck },
-      { href: "/water-production-batches", label: "Production Batches", icon: Factory },
-      { href: "/water-sales",              label: "Sales",              icon: ShoppingCart },
-    ],
-  }
+  // 2026-08-06: the rail used to carry nine near-identical narrow dropdowns
+  // (Quick Links / Delivery / Production / Inventory / Sales & Money / People /
+  // Reports / Admin · Setup), which made users hunt for items. Related groups
+  // now share one wide panel each — the pattern Reports already used — so the
+  // rail is Dashboard | Quick Links | Operations | Sales & Money | Reports |
+  // Setup. Contents live in lib/nav/water-nav-config.ts.
+  //
+  // The sidebar and mobile nav keep their own copies of the water nav and were
+  // deliberately left alone in this pass.
+  const router = useRouter()
+  const clearActiveCompany = useAuthStore((s) => s.clearActiveCompany)
 
-  const deliveryGroup: NavGroup = {
-    label: "Delivery",
-    items: [
-      { href: "/water-driver-returns", label: "Deliveries", icon: Truck },
-      { href: "/water-drivers",        label: "Drivers",    icon: Users2 },
-      { href: "/water-vehicles",       label: "Vehicles",   icon: Truck },
-      { href: "/water-routes",         label: "Routes",     icon: RouteIcon },
-    ],
-  }
-
-  const productionGroup: NavGroup = {
-    label: "Production",
-    items: [
-      { href: "/water-production-batches", label: "Production Batches", icon: Factory },
-      { href: "/water-products",           label: "Products",           icon: ShoppingBag },
-      { href: "/water-machines",           label: "Machines",           icon: Cog },
-      { href: "/water-boreholes",          label: "Boreholes",          icon: Droplets },
-      { href: "/water-maintenance",        label: "Maintenance",        icon: Wrench },
-    ],
-  }
-
-  const inventoryGroup: NavGroup = {
-    label: "Inventory",
-    items: [
-      { href: "/water-stock",             label: "Stock",                    icon: Boxes },
-      { href: "/water-inventory",         label: "Inventory",                icon: Boxes },
-      { href: "/water-raw-materials",     label: "Raw materials & supplies", icon: BoxIcon },
-      { href: "/water-loss-records",      label: "Damages & loss",           icon: AlertTriangle },
-      { href: "/water-production-losses", label: "Production losses",        icon: AlertTriangle },
-    ],
-  }
-
-  const salesMoneyGroup: NavGroup = {
-    label: "Sales & Money",
-    items: [
-      { href: "/water-customers",     label: "Customers",       icon: Users },
-      { href: "/water-sales",         label: "Sales",           icon: ShoppingCart },
-      { href: "/water-payments",      label: "Payments",        icon: CreditCard },
-      { href: "/water-expenses",      label: "Expenses",        icon: Receipt },
-      { href: "/water-cash-accounts", label: "Cash & Accounts", icon: Wallet },
-    ],
-  }
-
-  const peopleGroup: NavGroup = {
-    label: "People",
-    items: [
-      { href: "/water-staff",   label: "Staff",   icon: Users2 },
-      { href: "/water-payroll", label: "Payroll", icon: Banknote },
-    ],
-  }
-
-  // Admin / Setup is now the lean rare-touch config bucket. Delivery/Production
-  // fleet items have moved into their own groups above. Driver collection
-  // report stays here as an admin/operations artifact.
-  const adminGroup: NavGroup = {
-    label: "Admin · Setup",
-    items: [
-      { href: "/water-setup",          label: "Setup",                    icon: Settings },
-      { href: "/water-company-setup",  label: "Company Setup",            icon: Settings },
-      { href: "/water-suppliers",      label: "Suppliers",                icon: Truck },
-      { href: "/water-driver-report",  label: "Driver collection report", icon: BarChart3 },
-    ],
-  }
+  const nav = useMemo(
+    () => buildWaterNavConfig({
+      permissions,
+      // Same behaviour as sidebar.tsx: the Business Office is the owner's HQ
+      // above all companies, so the active company is cleared on the way in.
+      onBusinessOffice: () => {
+        try { clearActiveCompany() } catch {}
+        router.push("/business-office")
+      },
+    }),
+    [permissions, clearActiveCompany, router],
+  )
 
   return (
     <div className="hidden lg:block bg-sky-600 border-b border-sky-700">
       <div className="flex items-center gap-1 px-4 pt-1.5 pb-2.5 nav-rail-scroll">
         <NavLink item={{ href: "/water-dashboard", label: "Dashboard", icon: Droplets }} />
         <div className="h-5 w-px bg-white/30 mx-1" />
-        <NavDropdown group={quickLinksGroup} />
-        <NavDropdown group={deliveryGroup} />
-        <NavDropdown group={productionGroup} />
-        <NavDropdown group={inventoryGroup} />
-        <NavDropdown group={salesMoneyGroup} />
-        <NavDropdown group={peopleGroup} />
-        {/* Reports opens a 4-column mega-menu sourced from
-            lib/reports/water-reports-config.ts (single source of truth shared
-            with the /water-reports index page). */}
-        <ReportsMegaMenu />
-        <NavDropdown group={adminGroup} />
+
+        <NavDropdown group={nav.quickLinks} />
+
+        <NavMegaMenu
+          label="Operations" icon={Factory}
+          title="Operations"
+          blurb="Delivery runs, production and stock — everything that moves water."
+          groups={nav.operations}
+          columns={3} widthRem={46} layout="grid"
+        />
+
+        <NavMegaMenu
+          label="Sales & Money" icon={Wallet}
+          title="Sales & Money"
+          blurb="Customers, orders, collections, expenses and cash."
+          groups={nav.salesMoney}
+          columns={2} widthRem={34} layout="grid"
+        />
+
+        {/* Sourced from lib/reports/water-reports-config.ts — the single source
+            of truth shared with the /water-reports index page. Keeps the
+            "columns" layout so it renders exactly as it always has. */}
+        <NavMegaMenu
+          label="Reports" icon={BarChart3}
+          title="Reports"
+          blurb="Quickly access Business, Sales, Inventory, Production and Delivery reports."
+          viewAll={{ href: "/water-reports", label: "View all reports →" }}
+          triggerActiveHrefs={["/water-reports"]}
+          groups={WATER_REPORT_NAV_GROUPS}
+          columns={4} widthRem={56}
+        />
+
+        <NavMegaMenu
+          label="Setup" icon={Settings}
+          title="Setup & account"
+          blurb="Company configuration, your team, and your own account."
+          groups={nav.setup}
+          columns={3} widthRem={46} layout="grid"
+        />
+
         <div className="ml-auto flex items-center gap-1">
-          {/* James 2026-06-02 — Employees and Activity Log are still reachable
-              from the sidebar; removed from the top nav to keep the right side
-              of the bar focused on the user's own context (Account, Companies). */}
-          <NavLink item={{ href: "/profile",   label: "Account",   icon: User }} />
+          {/* Companies stays pinned even though it is also inside Setup: the
+              header's CompanySwitcher is hidden below xl, so between 1024 and
+              1279px this link is the only way to switch company. */}
           <NavLink item={{ href: "/companies", label: "Companies", icon: Building2 }} />
         </div>
       </div>
@@ -760,7 +394,17 @@ export function TopNavigation() {
           {/* Reports opens a hover mega-menu of the 20 poultry reports, sourced
               from lib/reports/poultry-reports-config.ts (shared with the
               /poultry/reports catalogue). */}
-          {permissions.featureAccess.canViewReports && <PoultryReportsMegaMenu />}
+          {permissions.featureAccess.canViewReports && (
+            <NavMegaMenu
+              label="Reports" icon={BarChart3}
+              title="Reports"
+              blurb="Production, birds & mortality, feed, inventory, sales and profitability."
+              viewAll={{ href: "/poultry/reports", label: "View all reports →" }}
+              triggerActiveHrefs={["/reports", "/poultry/reports"]}
+              groups={POULTRY_REPORT_NAV_GROUPS}
+              columns={4} widthRem={56} accent="amber"
+            />
+          )}
           <NavDropdown group={analyticsGroup} />
           <NavDropdown group={moreGroup} />
           <div className="ml-auto flex items-center gap-1">

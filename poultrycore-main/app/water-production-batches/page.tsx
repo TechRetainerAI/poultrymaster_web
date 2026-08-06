@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { Badge } from "@/components/ui/badge"
 import { FormSection, FormField } from "@/components/ui/form-section"
-import { Plus, Loader2, Factory, CheckCircle2, XCircle, Pencil, Undo2, Trash2, Eye } from "lucide-react"
+import { Plus, Loader2, Factory, CheckCircle2, XCircle, Pencil, Undo2, Trash2, Eye, CalendarDays } from "lucide-react"
 import Link from "next/link"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
@@ -28,7 +28,7 @@ import {
   approveWaterProductionBatch, cancelWaterProductionBatch, reopenWaterProductionBatch,
   listWaterRawMaterialOpenLots,
   listWaterMachines, listWaterProducts, listWaterRawMaterialItems,
-  getWaterProductionRecipe, listWaterProductionBatchMaterials,
+  getWaterProductionRecipe, listWaterProductionBatchMaterials, isDailyProductionChild,
   type WaterProductionBatch, type WaterMachine, type WaterProduct,
   type WaterRawMaterialItem, type WaterProductionMaterialUsageInput, type WaterRawMaterialLot,
 } from "@/lib/api/water"
@@ -143,7 +143,7 @@ export default function WaterProductionBatchesPage() {
         listWaterRawMaterialOpenLots().catch(() => [] as WaterRawMaterialLot[]),
       ])
       setBatches(bs); setMachines(ms); setProducts(ps); setRawMaterials(mats); setOpenLots(lots)
-    } catch (e: any) { toast({ title: "Could not load production batches", description: e?.message ?? String(e), variant: "destructive" }) }
+    } catch (e: any) { toast({ title: "Could not load production records", description: e?.message ?? String(e), variant: "destructive" }) }
     finally { setLoading(false) }
   }
 
@@ -289,7 +289,7 @@ export default function WaterProductionBatchesPage() {
     if (hasRecipe && materialRows.some(r => r.actualQuantity <= 0) && !overrideMissing) {
       return toast({
         title: "Some materials are missing",
-        description: "Tick \"Save anyway (override)\" below the Raw Materials section if you want to record this batch without them.",
+        description: "Tick \"Save anyway (override)\" below the Raw Materials section if you want to record this production without them.",
         variant: "destructive",
       })
     }
@@ -317,16 +317,16 @@ export default function WaterProductionBatchesPage() {
       let approveId: number | null = editingId
       if (editingId != null) {
         await updateWaterProductionBatch(editingId, payload as any)
-        if (!andApprove) toast({ title: "Production batch updated" })
+        if (!andApprove) toast({ title: "Production record updated" })
       } else {
         const created = await createWaterProductionBatch(payload as any)
         approveId = (created as any)?.waterProductionBatchId ?? null
-        if (!andApprove) toast({ title: "Production batch saved as Draft", description: "Approve to add to inventory." })
+        if (!andApprove) toast({ title: "Production record saved as Draft", description: "Approve to add to inventory." })
       }
       // #26: approve right from the popup so the operator skips the list round-trip.
       if (andApprove && approveId != null) {
         await approveWaterProductionBatch(approveId)
-        toast({ title: "Batch saved & approved — bags added to inventory" })
+        toast({ title: "Production saved & approved — bags added to inventory" })
       }
       setOpen(false); setEditingId(null); await load()
     } catch (e: any) { toast({ title: andApprove ? "Save & approve failed" : (editingId != null ? "Update failed" : "Save failed"), description: e?.message, variant: "destructive" }) }
@@ -455,8 +455,8 @@ export default function WaterProductionBatchesPage() {
                 <Factory className="h-5 w-5 text-sky-600" />
               </div>
               <div className="min-w-0">
-                <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 truncate">Production batches</h1>
-                <p className="text-xs sm:text-sm text-slate-500">{batches.length} batch{batches.length === 1 ? "" : "es"} on record.</p>
+                <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 truncate">Production</h1>
+                <p className="text-xs sm:text-sm text-slate-500">{batches.length} production record{batches.length === 1 ? "" : "s"} on file.</p>
               </div>
             </div>
             <Button onClick={openNew} className="gap-2 w-full sm:w-auto h-11 sm:h-10 shrink-0">
@@ -487,7 +487,7 @@ export default function WaterProductionBatchesPage() {
               {loading ? (
                 <div className="p-6 text-slate-500 flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
               ) : batches.length === 0 ? (
-                <div className="p-8 text-center text-slate-500">No production batches yet.</div>
+                <div className="p-8 text-center text-slate-500">No production records yet.</div>
               ) : (
                 <MobileCardList
                   items={visibleBatches}
@@ -523,25 +523,38 @@ export default function WaterProductionBatchesPage() {
                           <Eye className="h-4 w-4 mr-1" /> View
                         </Link>
                       </Button>
-                      {b.status === "Draft" && (
-                        <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openEdit(b)}>
-                          <Pencil className="h-4 w-4 mr-1" /> Edit
+                      {/* A record generated by a Batch Production day is managed
+                          from its parent: reopening it here would leave the day
+                          claiming Posted with a posting log that lies. */}
+                      {isDailyProductionChild(b) ? (
+                        <Button asChild size="sm" variant="outline" className="flex-1 h-10 text-sky-700 border-sky-200">
+                          <Link href={`/water-daily-production/${b.waterDailyProductionId}`}>
+                            <CalendarDays className="h-4 w-4 mr-1" /> Open batch production
+                          </Link>
                         </Button>
-                      )}
-                      {b.status === "Draft" && (
-                        <Button size="sm" variant="outline" className="flex-1 h-10 text-green-700 border-green-200" onClick={() => approve(b)}>
-                          <CheckCircle2 className="h-4 w-4 mr-1" /> Approve
-                        </Button>
-                      )}
-                      {b.status !== "Cancelled" && b.status !== "Approved" && (
-                        <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 border-red-200" onClick={() => cancel(b)}>
-                          <XCircle className="h-4 w-4 mr-1" /> Cancel
-                        </Button>
-                      )}
-                      {b.status === "Approved" && (
-                        <Button size="sm" variant="outline" className="flex-1 h-10 text-amber-700 border-amber-200" onClick={() => setReopenTarget(b)}>
-                          <Undo2 className="h-4 w-4 mr-1" /> Reopen
-                        </Button>
+                      ) : (
+                        <>
+                          {b.status === "Draft" && (
+                            <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openEdit(b)}>
+                              <Pencil className="h-4 w-4 mr-1" /> Edit
+                            </Button>
+                          )}
+                          {b.status === "Draft" && (
+                            <Button size="sm" variant="outline" className="flex-1 h-10 text-green-700 border-green-200" onClick={() => approve(b)}>
+                              <CheckCircle2 className="h-4 w-4 mr-1" /> Approve
+                            </Button>
+                          )}
+                          {b.status !== "Cancelled" && b.status !== "Approved" && (
+                            <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 border-red-200" onClick={() => cancel(b)}>
+                              <XCircle className="h-4 w-4 mr-1" /> Cancel
+                            </Button>
+                          )}
+                          {b.status === "Approved" && (
+                            <Button size="sm" variant="outline" className="flex-1 h-10 text-amber-700 border-amber-200" onClick={() => setReopenTarget(b)}>
+                              <Undo2 className="h-4 w-4 mr-1" /> Reopen
+                            </Button>
+                          )}
+                        </>
                       )}
                     </>
                   )}
@@ -588,12 +601,23 @@ export default function WaterProductionBatchesPage() {
                                   <Button asChild size="sm" variant="ghost" title="View details">
                                     <Link href={`/water-production-batches/${b.waterProductionBatchId}`}><Eye className="h-4 w-4" /></Link>
                                   </Button>
-                                  {/* Edit only allowed in Draft — once approved the batch has moved stock + cash and edits would corrupt the books. */}
-                                  {b.status === "Draft" && <Button size="sm" variant="ghost" onClick={() => openEdit(b)} title="Edit"><Pencil className="h-4 w-4" /></Button>}
-                                  {b.status === "Draft" && <Button size="sm" variant="ghost" onClick={() => approve(b)} title="Approve"><CheckCircle2 className="h-4 w-4 text-green-600" /></Button>}
-                                  {b.status !== "Cancelled" && b.status !== "Approved" && <Button size="sm" variant="ghost" onClick={() => cancel(b)} title="Cancel"><XCircle className="h-4 w-4 text-rose-500" /></Button>}
-                                  {/* Reopen reverses the stock txn and flips back to Draft so the user can edit/delete. Blocked by backend if bags have already sold. */}
-                                  {b.status === "Approved" && <Button size="sm" variant="ghost" onClick={() => setReopenTarget(b)} title="Reopen for edit"><Undo2 className="h-4 w-4 text-amber-600" /></Button>}
+                                  {isDailyProductionChild(b) ? (
+                                    // Managed from the parent day — see the mobile branch above.
+                                    <Button asChild size="sm" variant="ghost" title="Open the batch production that created this record">
+                                      <Link href={`/water-daily-production/${b.waterDailyProductionId}`}>
+                                        <CalendarDays className="h-4 w-4 text-sky-600" />
+                                      </Link>
+                                    </Button>
+                                  ) : (
+                                    <>
+                                      {/* Edit only allowed in Draft — once approved the batch has moved stock + cash and edits would corrupt the books. */}
+                                      {b.status === "Draft" && <Button size="sm" variant="ghost" onClick={() => openEdit(b)} title="Edit"><Pencil className="h-4 w-4" /></Button>}
+                                      {b.status === "Draft" && <Button size="sm" variant="ghost" onClick={() => approve(b)} title="Approve"><CheckCircle2 className="h-4 w-4 text-green-600" /></Button>}
+                                      {b.status !== "Cancelled" && b.status !== "Approved" && <Button size="sm" variant="ghost" onClick={() => cancel(b)} title="Cancel"><XCircle className="h-4 w-4 text-rose-500" /></Button>}
+                                      {/* Reopen reverses the stock txn and flips back to Draft so the user can edit/delete. Blocked by backend if bags have already sold. */}
+                                      {b.status === "Approved" && <Button size="sm" variant="ghost" onClick={() => setReopenTarget(b)} title="Reopen for edit"><Undo2 className="h-4 w-4 text-amber-600" /></Button>}
+                                    </>
+                                  )}
                                 </TableCell>
                               </TableRow>
                             )
@@ -609,7 +633,7 @@ export default function WaterProductionBatchesPage() {
         </main>
       </div>
 
-      {/* Production batch is a large modal. James (2026-05-30): "some of the
+      {/* The production record form is a large modal. James (2026-05-30): "some of the
           popup page is hidden" — the raw-materials table has 8 columns and
           even at max-w-7xl + min-w-[160px] on the Material select, total
           width exceeds the dialog on mid-size screens, so the right-side
@@ -626,7 +650,7 @@ export default function WaterProductionBatchesPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Factory className="w-5 h-5 text-blue-600" />
-              {editingId != null ? "Edit production batch" : "Record production batch"}
+              {editingId != null ? "Edit production record" : "Record production"}
             </DialogTitle>
             <DialogDescription>
               Record what was produced, the raw materials consumed, and the costs incurred. Saved as Draft until approved.
@@ -1085,12 +1109,12 @@ export default function WaterProductionBatchesPage() {
       <ConfirmDeleteDialog
         open={!!reopenTarget}
         onOpenChange={(o) => { if (!o) setReopenTarget(null) }}
-        title="Reopen this approved batch?"
+        title="Reopen this approved production record?"
         description={reopenTarget
-          ? `Reversing batch "${reopenTarget.batchNumber}" will subtract its ${(reopenTarget.bagsProduced ?? 0) - (reopenTarget.damagedBags ?? 0)} good bags from stock and flip it back to Draft. If those bags have already been sold this will fail — cancel the sales first.`
+          ? `Reversing "${reopenTarget.batchNumber}" will subtract its ${(reopenTarget.bagsProduced ?? 0) - (reopenTarget.damagedBags ?? 0)} good bags from stock and flip it back to Draft. If those bags have already been sold this will fail — cancel the sales first.`
           : undefined}
         confirmLabel="Reopen"
-        successTitle="Batch reopened — back to Draft"
+        successTitle="Production record reopened — back to Draft"
         errorTitle="Reopen failed"
         onConfirm={async () => { if (reopenTarget) await performReopen(reopenTarget) }}
       />

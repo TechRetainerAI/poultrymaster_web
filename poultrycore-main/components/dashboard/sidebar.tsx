@@ -49,6 +49,7 @@ import {
   Route as RouteIcon,
   Briefcase,
   Clock,
+  CalendarDays,
 } from "lucide-react"
 import { InventoryLogo } from "@/components/auth/logo"
 import { useAlertsStore, type AlertItem } from "@/lib/store/alerts-store"
@@ -227,7 +228,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const waterQuickLinkItems = [
     { href: "/water-daily-closing",      label: "Daily Closing",      icon: FileText },
     { href: "/water-driver-returns",     label: "Deliveries",         icon: Truck },
-    { href: "/water-production-batches", label: "Production Batches", icon: Factory },
+    { href: "/water-production-batches", label: "Production",          icon: Factory },
     { href: "/water-sales",              label: "Sales",              icon: ShoppingCart },
   ]
   const waterDeliveryItems = [
@@ -237,7 +238,11 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/water-routes",         label: "Routes",     icon: RouteIcon },
   ]
   const waterProductionItems = [
-    { href: "/water-production-batches", label: "Production Batches", icon: Factory },
+    // Mirrors the poultry Production group: "Production" is the per-machine
+    // record, "Batch Production" is the day-level entry that allocates across
+    // machines (poultry: Production Records / Batch Production).
+    { href: "/water-production-batches", label: "Production",         icon: Factory },
+    { href: "/water-daily-production",   label: "Batch Production",   icon: CalendarDays },
     { href: "/water-products",           label: "Products",           icon: ShoppingBag },
     { href: "/water-machines",           label: "Machines",           icon: Cog },
     { href: "/water-boreholes",          label: "Boreholes",          icon: Droplets },
