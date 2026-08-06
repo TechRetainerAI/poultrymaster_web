@@ -1,9 +1,9 @@
 "use client"
 
 /**
- * Production Batch Details — read-only view (prompt #3).
+ * Production Record Details — read-only view (prompt #3).
  *
- * Reachable from the Production Batches list via the Eye / "View" action on
+ * Reachable from the Production list via the Eye / "View" action on
  * Draft and Approved rows alike. Shows every field the user can think to ask
  * for (batch number, shift, machine, product, output counts, raw materials
  * expected vs actual, all cost fields, totals, related stock txns, expenses,
@@ -109,7 +109,7 @@ export default function WaterProductionBatchDetailsPage() {
               </div>
               <div className="min-w-0">
                 <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 break-words">
-                  {batch?.batchNumber ?? `Batch #${batchId}`}
+                  {batch?.batchNumber ?? `Production #${batchId}`}
                 </h1>
                 <p className="text-xs sm:text-sm text-slate-500">
                   {batch?.productionDate ? `Produced ${batch.productionDate.split("T")[0]}` : "—"}
@@ -120,7 +120,7 @@ export default function WaterProductionBatchDetailsPage() {
             </div>
             <Button asChild variant="outline" className="gap-2">
               <Link href="/water-production-batches">
-                <ArrowLeft className="h-4 w-4" /> Back to batches
+                <ArrowLeft className="h-4 w-4" /> Back to production
               </Link>
             </Button>
           </div>
@@ -131,7 +131,7 @@ export default function WaterProductionBatchDetailsPage() {
               <Loader2 className="h-4 w-4 animate-spin" /> Loading details…
             </div>
           ) : !batch ? (
-            <Card><CardContent className="p-6 text-slate-500">Batch not found.</CardContent></Card>
+            <Card><CardContent className="p-6 text-slate-500">Production record not found.</CardContent></Card>
           ) : (
             <>
               {/* Status banner */}

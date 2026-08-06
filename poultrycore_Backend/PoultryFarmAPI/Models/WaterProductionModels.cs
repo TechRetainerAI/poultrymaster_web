@@ -196,6 +196,13 @@ namespace PoultryFarmAPIWeb.Models
         [StringLength(20)]
         public string MachineScope { get; set; } = "SingleMachine";
 
+        // Migration 193 — set when a Daily Production allocation generated this
+        // batch. Such a batch is managed from its parent day: approving,
+        // reopening or editing it directly would desync the day's posting log.
+        public int? WaterDailyProductionId { get; set; }
+        public int? WaterDailyProductionAllocationId { get; set; }
+        public string SourceType { get; set; } = "ManualSingleBatch";
+
         [StringLength(20)]
         public string QualityStatus { get; set; } = WaterQualityResult.Pending;
 

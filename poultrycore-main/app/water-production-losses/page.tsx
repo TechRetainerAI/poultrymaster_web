@@ -3,10 +3,10 @@
 /**
  * Production Losses (migration 067 / prompt #5).
  *
- * Loss records are auto-created when a Production Batch is approved with
+ * Loss records are auto-created when a Production record is approved with
  * DamagedBags > 0 or RejectedSachets > 0. The same records get a cancellation
- * when the batch is reopened. This page is read-only — record management
- * happens via the batch.
+ * when the production record is reopened. This page is read-only — record
+ * management happens via the production record.
  */
 
 import { useEffect, useMemo, useState } from "react"
@@ -91,7 +91,7 @@ export default function WaterProductionLossesPage() {
               <div className="min-w-0">
                 <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 truncate">Production losses</h1>
                 <p className="text-xs sm:text-sm text-slate-500">
-                  Damaged bags / rejected sachets auto-recorded on production batch approval.
+                  Damaged bags / rejected sachets auto-recorded on production approval.
                 </p>
               </div>
             </div>

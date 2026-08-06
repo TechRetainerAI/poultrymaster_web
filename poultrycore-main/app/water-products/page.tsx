@@ -376,7 +376,7 @@ export default function WaterProductsPage() {
           </DialogHeader>
           <p className="text-sm text-slate-600">
             Do you want to set up the production recipe for <span className="font-medium">{postCreateProduct?.name}</span> now?
-            The recipe tells the app which raw materials are used to produce one bag, so production batches auto-load them.
+            The recipe tells the app which raw materials are used to produce one bag, so production records auto-load them.
           </p>
           <DialogFooter className="gap-2">
             <Button variant="ghost" onClick={() => setPostCreateProduct(null)}>Later</Button>

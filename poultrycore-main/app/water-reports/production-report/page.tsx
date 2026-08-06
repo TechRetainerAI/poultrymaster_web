@@ -45,7 +45,7 @@ export default function ProductionReportPage() {
   return (
     <ReportShell
       title="Production Report"
-      description="Batches, output and cost analysis. Only Approved batches count toward totals."
+      description="Production records, output and cost analysis. Only Approved records count toward totals."
       busy={busy} error={error} onClearError={() => setError(null)}
       fromDate={fromDate} toDate={toDate}
       onFromDateChange={setFromDate} onToDateChange={setToDate}
@@ -55,7 +55,7 @@ export default function ProductionReportPage() {
         filename: "water-production-report",
         columns: [
           { header: "Date" },
-          { header: "Batch" },
+          { header: "Production" },
           { header: "Machine" },
           { header: "Product" },
           { header: "Produced", align: "right" },
@@ -82,14 +82,14 @@ export default function ProductionReportPage() {
           ]
         }),
         summaryLines: [
-          `Batches: ${totals.approved} / ${totals.batches}`,
+          `Production records: ${totals.approved} / ${totals.batches}`,
           `Good bags: ${totals.goodBags.toLocaleString()}`,
           `Damaged: ${totals.damaged.toLocaleString()}`,
           `Avg cost/bag: ${fmtMoney(totals.avgCpb)}`,
         ],
       }}
       summary={<>
-        <SumTile label="Batches"  value={`${totals.approved} / ${totals.batches}`} />
+        <SumTile label="Records"  value={`${totals.approved} / ${totals.batches}`} />
         <SumTile label="Good bags" value={totals.goodBags.toLocaleString()} accent="green" />
         <SumTile label="Damaged" value={totals.damaged.toLocaleString()} accent="rose" />
         <SumTile label="Avg cost/bag" value={fmtMoney(totals.avgCpb)} />
@@ -100,7 +100,7 @@ export default function ProductionReportPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Date</TableHead>
-              <TableHead>Batch</TableHead>
+              <TableHead>Production</TableHead>
               <TableHead>Machine</TableHead>
               <TableHead>Product</TableHead>
               <TableHead className="text-right">Produced</TableHead>
@@ -113,7 +113,7 @@ export default function ProductionReportPage() {
           </TableHeader>
           <TableBody>
             {rows.length === 0 ? (
-              <TableRow><TableCell colSpan={10} className="text-slate-500 text-center p-4">No batches in this period.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={10} className="text-slate-500 text-center p-4">No production records in this period.</TableCell></TableRow>
             ) : rows.map((b: any) => {
               const good = b.goodBags ?? (b.bagsProduced - (b.damagedBags ?? 0))
               const cost = b.allInCost ?? ((b.totalProductionCost ?? 0) + (b.rawMaterialCost ?? 0))

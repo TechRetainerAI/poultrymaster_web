@@ -40,6 +40,7 @@ import {
   Wrench,
   Banknote,
   Receipt,
+  CalendarDays,
 } from "lucide-react"
 import {
   Sheet,
@@ -129,6 +130,7 @@ export function MobileBottomNav() {
           { href: "/water-vehicles",      label: "Vehicles",          icon: Truck },
           { href: "/water-routes",        label: "Routes",            icon: Activity },
           // Production group
+          { href: "/water-daily-production", label: "Batch Production", icon: CalendarDays },
           { href: "/water-products",      label: "Products",          icon: ShoppingBag },
           { href: "/water-machines",      label: "Machines",          icon: Cog },
           { href: "/water-boreholes",     label: "Boreholes",         icon: Droplets },

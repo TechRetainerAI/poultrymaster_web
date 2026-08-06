@@ -117,6 +117,9 @@ builder.Services.AddScoped<IWaterDashboardService>(sp => new WaterDashboardServi
 builder.Services.AddScoped<IWaterBoreholeService>(sp => new WaterBoreholeService(connectionString));
 builder.Services.AddScoped<IWaterMachineService>(sp => new WaterMachineService(connectionString));
 builder.Services.AddScoped<IWaterProductionBatchService>(sp => new WaterProductionBatchService(connectionString));
+// Migration 193: Daily Production — day totals allocated across machines, posting
+// into real production batches (the water mirror of poultry Batch Production)
+builder.Services.AddScoped<IWaterDailyProductionService>(sp => new WaterDailyProductionService(connectionString));
 // Migration 063: Production Recipes + Raw Material Usage history
 builder.Services.AddScoped<IWaterProductionRecipeService>(sp => new WaterProductionRecipeService(connectionString));
 // Migration 067: Production Loss page

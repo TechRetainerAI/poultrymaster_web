@@ -52,7 +52,7 @@ export function ExpenseSourceLink({
           href={`/water-production-batches/${resolvedId}`}
           className="inline-flex items-center gap-1 text-indigo-700 hover:underline text-xs"
         >
-          <Factory className="h-3.5 w-3.5" /> Production Batch
+          <Factory className="h-3.5 w-3.5" /> Production
         </Link>
       )
     case "RawMaterialPurchase":
