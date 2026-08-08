@@ -361,13 +361,13 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
   "egg-sales": {
     slug: "egg-sales",
     title: "Poultry Egg Sales Report",
-    description: "Egg sales by date, customer and product.",
+    description: "Egg sales by date, customer and product. Paid/unpaid cover sales made in the selected period — for all-time receivables use the Customer Balance report.",
     filters: { flock: true, customer: true },
     cards: [
       { label: "Total sales revenue", value: (s, c) => c.money(s.totalSalesRevenue), accent: "green" },
       { label: "Total eggs sold", value: (s, c) => c.num(s.totalEggsSold) },
-      { label: "Total paid", value: (s, c) => c.money(s.totalPaid), accent: "green" },
-      { label: "Total unpaid", value: (s, c) => c.money(s.totalUnpaid), accent: "rose" },
+      { label: "Paid in period", value: (s, c) => c.money(s.totalPaid), accent: "green" },
+      { label: "Unpaid in period", value: (s, c) => c.money(s.totalUnpaid), accent: "rose" },
       { label: "Top customer", value: (s, c) => c.text(s.topCustomer) },
     ],
     columns: [
@@ -388,11 +388,11 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
   "customer-balance": {
     slug: "customer-balance",
     title: "Poultry Customer Balance Report",
-    description: "Customer receivables from poultry sales.",
+    description: "Customer receivables from poultry sales — all-time outstanding up to the end date, not just the selected period.",
     filters: { customer: true },
     cards: [
       { label: "Customers with balance", value: (s, c) => c.num(s.customersWithBalance) },
-      { label: "Total receivables", value: (s, c) => c.money(s.totalReceivables), accent: "rose" },
+      { label: "Total receivables (all time)", value: (s, c) => c.money(s.totalReceivables), accent: "rose" },
       { label: "Overdue amount", value: (s, c) => c.money(s.overdueAmount) },
       { label: "Highest owing customer", value: (s, c) => c.text(s.highestOwingCustomer) },
     ],

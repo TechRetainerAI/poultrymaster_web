@@ -1,99 +1,114 @@
 "use client"
 
-// Doc 3 §3: Business Setup — the org-level setup hub (Employees, Companies, Org Profile).
-import Link from "next/link"
+// Doc 3 §3: Business Setup — the org-level setup hub. Two views only: TABS
+// (default) and SCORECARDS. Each section renders its real page content inline —
+// no links out.
+//
+// The sidebar's Organization Profile / Users & Permissions entries link here
+// with ?tab=org|users, so the tab is deep-linkable and the sidebar highlights
+// the section you're actually looking at.
+import { Suspense, useEffect, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { BusinessOfficeShell } from "@/components/dashboard/business-office-shell"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { useViewMode } from "@/hooks/use-view-mode"
-import { ViewModeToggle } from "@/components/ui/view-mode-toggle"
-import { Users, Building2, UserCog, Clock, ArrowRight } from "lucide-react"
+import { OrganizationProfilePanel } from "@/components/business-office/organization-profile-panel"
+import { UsersPermissionsPanel } from "@/components/business-office/users-permissions-panel"
+import { CompaniesPanel } from "@/components/business-office/companies-panel"
+import { UserCog, Users, Building2, LayoutGrid, Rows3 } from "lucide-react"
 
-const CARDS = [
-  { icon: Users, title: "Employees & Users", desc: "Manage all employees across your organization and assign access to companies.", href: "/business-office/users", cta: "Manage Employees", color: "bg-indigo-600" },
-  { icon: Building2, title: "Companies", desc: "Create, edit, and manage companies under this Business Office.", href: "/business-office/companies", cta: "Manage Companies", color: "bg-emerald-600" },
-  { icon: UserCog, title: "Organization Profile", desc: "Edit your organization/owner details — name, contact, currency and country.", href: "/business-office/organization-profile", cta: "Edit Organization", color: "bg-orange-600" },
-  { icon: Clock, title: "Egg Pick Times", desc: "Set the time each egg pick (1st–4th) represents for this farm, and enable the 4th pick.", href: "/business-office/egg-pick-settings", cta: "Configure Pick Times", color: "bg-teal-600" },
-]
+const SECTIONS = [
+  { key: "org", icon: UserCog, title: "Organization Profile", color: "bg-orange-600", Panel: OrganizationProfilePanel },
+  { key: "users", icon: Users, title: "Employees & Users", color: "bg-indigo-600", Panel: UsersPermissionsPanel },
+  { key: "companies", icon: Building2, title: "Companies", color: "bg-emerald-600", Panel: CompaniesPanel },
+] as const
 
-export default function BusinessSetupPage() {
-  const vm = useViewMode()
+// Page-local preference so it doesn't disturb the global vc.view.* prefs other pages share.
+const VIEW_KEY = "vc.businessSetup.view"
+type SetupView = "tabs" | "scorecards"
 
-  const Cards = () => (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      {CARDS.map((c) => {
-        const Icon = c.icon
-        return (
-          <Card key={c.title} className="overflow-hidden">
-            <div className={`${c.color} h-1.5`} />
-            <CardContent className="p-5 space-y-3">
-              <span className={`inline-flex h-10 w-10 items-center justify-center rounded-lg ${c.color} text-white`}><Icon className="h-5 w-5" /></span>
-              <h2 className="text-lg font-semibold text-slate-900">{c.title}</h2>
-              <p className="text-sm text-slate-600 min-h-[40px]">{c.desc}</p>
-              <Link href={c.href}><Button variant="outline" className="w-full justify-between">{c.cta} <ArrowRight className="h-4 w-4" /></Button></Link>
-            </CardContent>
-          </Card>
-        )
-      })}
-    </div>
-  )
+function BusinessSetupContent() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const [view, setView] = useState<SetupView>("tabs")
+
+  const param = searchParams.get("tab")
+  const tab = SECTIONS.some((s) => s.key === param) ? (param as string) : SECTIONS[0].key
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(VIEW_KEY)
+      if (saved === "scorecards" || saved === "tabs") setView(saved)
+    } catch { /* ignore */ }
+  }, [])
+
+  const choose = (v: SetupView) => {
+    setView(v)
+    try { window.localStorage.setItem(VIEW_KEY, v) } catch { /* ignore */ }
+  }
+
+  // Keep the URL (and therefore the sidebar highlight) in step with the tab,
+  // without pushing a history entry for every click.
+  const selectTab = (v: string) => router.replace(`/business-office/setup?tab=${v}`, { scroll: false })
 
   return (
     <BusinessOfficeShell active="settings">
       <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Business Setup</h1>
-          <p className="text-slate-600">Set up your organization — employees, companies and your organization profile.</p>
+          <p className="text-slate-600">Set up your organization — your organization profile, employees and companies.</p>
         </div>
 
-        <ViewModeToggle vm={vm} />
+        <div className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1">
+          <Button size="sm" variant={view === "tabs" ? "default" : "ghost"} onClick={() => choose("tabs")}>
+            <Rows3 className="h-4 w-4 mr-1.5" /> Tabs
+          </Button>
+          <Button size="sm" variant={view === "scorecards" ? "default" : "ghost"} onClick={() => choose("scorecards")}>
+            <LayoutGrid className="h-4 w-4 mr-1.5" /> Scorecards
+          </Button>
+        </div>
 
-        {vm.mode === "table" ? (
-          <Card><CardContent className="p-4">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader><TableRow><TableHead>Area</TableHead><TableHead>What you can do</TableHead><TableHead className="text-right">Action</TableHead></TableRow></TableHeader>
-                <TableBody>
-                  {CARDS.map((c) => {
-                    const Icon = c.icon
-                    return (
-                      <TableRow key={c.title}>
-                        <TableCell><span className="inline-flex items-center gap-2 font-medium text-slate-900"><span className={`inline-flex h-7 w-7 items-center justify-center rounded-md ${c.color} text-white`}><Icon className="h-4 w-4" /></span>{c.title}</span></TableCell>
-                        <TableCell className="text-sm text-slate-600 max-w-md">{c.desc}</TableCell>
-                        <TableCell className="text-right"><Link href={c.href}><Button variant="outline" size="sm">{c.cta} <ArrowRight className="h-4 w-4 ml-1" /></Button></Link></TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent></Card>
-        ) : vm.asTabs ? (
-          <Tabs defaultValue={CARDS[0].title}>
-            <TabsList>{CARDS.map((c) => <TabsTrigger key={c.title} value={c.title}>{c.title}</TabsTrigger>)}</TabsList>
-            {CARDS.map((c) => {
-              const Icon = c.icon
-              return (
-                <TabsContent key={c.title} value={c.title}>
-                  <Card className="overflow-hidden">
-                    <div className={`${c.color} h-1.5`} />
-                    <CardContent className="p-6 space-y-3 max-w-xl">
-                      <span className={`inline-flex h-10 w-10 items-center justify-center rounded-lg ${c.color} text-white`}><Icon className="h-5 w-5" /></span>
-                      <h2 className="text-lg font-semibold text-slate-900">{c.title}</h2>
-                      <p className="text-sm text-slate-600">{c.desc}</p>
-                      <Link href={c.href}><Button variant="outline" className="justify-between">{c.cta} <ArrowRight className="h-4 w-4 ml-1" /></Button></Link>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              )
-            })}
+        {view === "tabs" ? (
+          <Tabs value={tab} onValueChange={selectTab}>
+            <TabsList>
+              {SECTIONS.map((s) => {
+                const Icon = s.icon
+                return <TabsTrigger key={s.key} value={s.key}><Icon className="h-4 w-4 mr-1.5" /> {s.title}</TabsTrigger>
+              })}
+            </TabsList>
+            {SECTIONS.map(({ key, Panel }) => (
+              <TabsContent key={key} value={key} className="pt-4">
+                <Panel showHeading={false} />
+              </TabsContent>
+            ))}
           </Tabs>
         ) : (
-          <Cards />
+          <div className="space-y-4">
+            {SECTIONS.map(({ key, icon: Icon, title, color, Panel }) => (
+              <Card key={key} className="overflow-hidden">
+                <div className={`${color} h-1.5`} />
+                <CardContent className="p-5 space-y-4">
+                  <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+                    <span className={`inline-flex h-8 w-8 items-center justify-center rounded-lg ${color} text-white`}><Icon className="h-4 w-4" /></span>
+                    {title}
+                  </h2>
+                  <Panel showHeading={false} />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         )}
       </main>
     </BusinessOfficeShell>
+  )
+}
+
+export default function BusinessSetupPage() {
+  // useSearchParams needs a Suspense boundary during prerender.
+  return (
+    <Suspense fallback={null}>
+      <BusinessSetupContent />
+    </Suspense>
   )
 }

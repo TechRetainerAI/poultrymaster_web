@@ -663,7 +663,12 @@ namespace PoultryFarmAPIWeb.Business
             {
                 var total = DecOr(r, "TotalAmount");
                 var paid = BoolOr(r, "Paid", true);
-                var amountPaid = paid ? total : 0m;
+                // Migration 197 returns AmountPaid (part-payments from
+                // dbo.PoultryPayments). The default keeps older databases — where
+                // the column isn't selected — on the previous all-or-nothing rule.
+                var amountPaid = DecOr(r, "AmountPaid", paid ? total : 0m);
+                if (amountPaid > total) amountPaid = total;   // over-payment isn't negative debt
+                var balance = total - amountPaid;
                 resp.Rows.Add(new PoultryEggSalesReportRow
                 {
                     Date = DateN(r, "Date") ?? start,
@@ -676,10 +681,20 @@ namespace PoultryFarmAPIWeb.Business
                     UnitPrice = DecOr(r, "UnitPrice"),
                     TotalAmount = total,
                     AmountPaid = amountPaid,
-                    Balance = total - amountPaid,
-                    PaymentStatus = paid ? "Paid" : "Unpaid",
+                    Balance = balance,
+                    PaymentStatus = balance <= 0 ? "Paid" : amountPaid > 0 ? "Part paid" : "Unpaid",
                     PaymentMethod = Str(r, "PaymentMethod"),
                 });
+            }
+
+            // Result set 2 (migration 197): the non-egg sales the report filters
+            // out. Reported as a warning so the exclusion is never silent.
+            var excludedCount = 0;
+            var excludedAmount = 0m;
+            if (await r.NextResultAsync() && await r.ReadAsync())
+            {
+                excludedCount = IntOr(r, "ExcludedCount");
+                excludedAmount = DecOr(r, "ExcludedAmount");
             }
 
             var topCustomer = resp.Rows.Where(x => !string.IsNullOrWhiteSpace(x.Customer))
@@ -695,6 +710,8 @@ namespace PoultryFarmAPIWeb.Business
                 TopCustomer = topCustomer,
             };
             resp.Warnings.Add("Sale quantity unit is recorded free-form; crate/egg equivalents are not derived automatically.");
+            if (excludedCount > 0)
+                resp.Warnings.Add($"Egg products only — {excludedCount} non-egg sale(s) worth {excludedAmount:N2} (bird, manure or other) were excluded from these totals.");
             return resp;
         }
 
@@ -741,7 +758,7 @@ namespace PoultryFarmAPIWeb.Business
                 OverdueAmount = null,
                 HighestOwingCustomer = owing.OrderByDescending(x => x.CurrentBalance).FirstOrDefault()?.Customer,
             };
-            resp.Warnings.Add("Customer balances are derived from sale payment status (paid/unpaid). Partial payments, credit notes and due dates are not tracked, so overdue amount is N/A.");
+            resp.Warnings.Add("Balances count part-payments recorded against a sale. Credit notes and due dates are not tracked, so overdue amount is N/A.");
             return resp;
         }
 

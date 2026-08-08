@@ -24,7 +24,7 @@ import { useToast } from "@/hooks/use-toast"
 import { getUserContext } from "@/lib/api/config"
 import { getFlocks, type Flock } from "@/lib/api/flock"
 import { getCustomers } from "@/lib/api/customer"
-import { defaultReportRange, rangeToPeriod } from "@/lib/date-ranges"
+import { defaultReportRange, rangeToPeriod, PERIOD_GROUPS } from "@/lib/date-ranges"
 import { fetchPoultryReport, type PoultryReportResponse, type PoultryReportSlug } from "@/lib/api/poultry-reports"
 import { POULTRY_REPORT_DEFS, type FmtCtx, type Accent } from "@/lib/reports/poultry-report-defs"
 import {
@@ -129,22 +129,36 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
   }, [load])
 
   // Formatting context handed to the column / card definitions.
+  //
+  // Two flavours, differing only in money: TABLE cells print bare numbers (the
+  // currency is stated once in the report header — repeating "GHC" down every
+  // column is noise), while SCORECARDS keep the symbol so a headline figure
+  // reads as money on its own.
+  const baseCtx = useMemo(() => ({
+    num: (n: number | null | undefined) => (n == null ? "N/A" : Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 })),
+    pct: (n: number | null | undefined) => (n == null ? "N/A" : `${Number(n).toFixed(1)}%`),
+    date: (s: string | null | undefined) => (s ? String(s).slice(0, 10) : "—"),
+    text: (s: unknown) => (s == null || String(s).trim() === "" ? "—" : String(s)),
+  }), [])
+
   const ctx: FmtCtx = useMemo(() => ({
+    ...baseCtx,
+    money: (n) => (n == null ? "N/A" : fmtMoney(Number(n), { showSymbol: false })),
+  }), [baseCtx, fmtMoney])
+
+  const cardCtx: FmtCtx = useMemo(() => ({
+    ...baseCtx,
     money: (n) => (n == null ? "N/A" : fmtMoney(Number(n))),
-    num: (n) => (n == null ? "N/A" : Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 })),
-    pct: (n) => (n == null ? "N/A" : `${Number(n).toFixed(1)}%`),
-    date: (s) => (s ? String(s).slice(0, 10) : "—"),
-    text: (s) => (s == null || String(s).trim() === "" ? "—" : String(s)),
-  }), [fmtMoney])
+  }), [baseCtx, fmtMoney])
 
   const cards: SummaryCard[] = useMemo(() => {
     if (!data?.summary) return []
     return def.cards.map((c) => ({
       label: c.label,
-      value: c.value(data.summary, ctx),
+      value: c.value(data.summary, cardCtx),
       accent: typeof c.accent === "function" ? c.accent(data.summary) : c.accent,
     }))
-  }, [data, def, ctx])
+  }, [data, def, cardCtx])
 
   const rows = data?.rows ?? []
   const currencyLabel = `${settings?.currencyCode ?? "GHS"} (${settings?.currencySymbol ?? "GHC"})`
@@ -164,18 +178,38 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
       return { headline: arr[idx], items: arr.filter((_, n) => n !== idx) }
     }
     return rows.map((row, ri) => {
+      // These render as scorecards, not a table — keep the currency symbol.
       const build = (keep: (h: string) => boolean) =>
-        cols.filter((c) => keep(c.header.toLowerCase())).map((c) => ({ label: c.header, value: c.cell(row, ctx) }))
+        cols.filter((c) => keep(c.header.toLowerCase())).map((c) => ({ label: c.header, value: c.cell(row, cardCtx) }))
       return {
         key: ri,
-        label: labelHeader ? (def.columns.find((c) => c.header === labelHeader)?.cell(row, ctx) ?? null) : null,
+        label: labelHeader ? (def.columns.find((c) => c.header === labelHeader)?.cell(row, cardCtx) ?? null) : null,
         revenue: pick(build(isRevenue), "total revenue"),
         // "Expenses details" headlines the total expenses (Total cost). Net
         // profit is excluded entirely — it already shows in the KPI strip.
         expense: pick(build((h) => !isRevenue(h) && !h.includes("net profit")), "total cost"),
       }
     })
-  }, [def, rows, ctx])
+  }, [def, rows, cardCtx])
+
+  // The selections the user actually made, in the words they saw on screen.
+  // (The API echoes an `appliedFilters` dictionary, but it carries the raw
+  // FlockId, the preset *slug*, and a date range that already has its own line
+  // in the PDF header — so it read as gibberish on the export.)
+  const filtersUsed = useMemo(() => {
+    const out: { label: string; value: string }[] = []
+    const preset = rangeToPeriod(filter.fromDate, filter.toDate)
+    const presetLabel = PERIOD_GROUPS.flatMap((g) => g.options).find((o) => o.value === preset)?.label
+    if (presetLabel && preset !== "custom") out.push({ label: "Period", value: presetLabel })
+    if (def.filters.flock && filter.flockId != null) {
+      const f = flocks.find((x) => x.flockId === filter.flockId)
+      out.push({ label: "Flock", value: f?.name || `#${filter.flockId}` })
+    }
+    if (def.filters.customer && filter.customerName) out.push({ label: "Customer", value: filter.customerName })
+    if (def.filters.supplier && filter.supplierName) out.push({ label: "Supplier", value: filter.supplierName })
+    if (def.filters.includeClosedFlocks && filter.includeClosedFlocks) out.push({ label: "Closed flocks", value: "Included" })
+    return out
+  }, [def, filter, flocks])
 
   // --- exports ---------------------------------------------------------------
   const buildPdfOptions = useCallback((): PdfExportOptions => ({
@@ -188,10 +222,10 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
     currencyLabel,
     orientation: def.columns.length > 8 ? "landscape" : "portrait",
     summaryCards: cards.map((c) => ({ label: c.label, value: c.value, accent: c.accent as ("green" | "rose" | "indigo" | undefined) })),
-    filtersUsed: Object.entries(data?.appliedFilters ?? {}).map(([label, value]) => ({ label, value: String(value ?? "") })),
+    filtersUsed,
     columns: def.columns.map((c) => ({ header: c.header, align: c.align })),
     rows: rows.map((row) => def.columns.map((c) => c.cell(row, ctx))),
-  }), [def, slug, farmName, filter, user, currencyLabel, cards, data, rows, ctx])
+  }), [def, slug, farmName, filter, user, currencyLabel, cards, filtersUsed, rows, ctx])
 
   const onPdf = useCallback(async () => {
     setDownloading(true)
@@ -367,8 +401,9 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
               ) : (
                 <PoultryReportTable columns={def.columns} rows={rows} ctx={ctx} />
               )}
+              {/* Card-style summary panel, not the data table — keeps the symbol. */}
               {def.breakdown && data?.summary && !def.tableAsCards && (
-                <PoultryReportBreakdown groups={def.breakdown} summary={data.summary} ctx={ctx} />
+                <PoultryReportBreakdown groups={def.breakdown} summary={data.summary} ctx={cardCtx} />
               )}
             </>
           )}
