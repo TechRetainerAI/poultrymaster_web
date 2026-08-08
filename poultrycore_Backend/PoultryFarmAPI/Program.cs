@@ -208,6 +208,9 @@ builder.Services.AddScoped<IWaterMaintenanceLogService>(sp => new WaterMaintenan
 // Prompt 4 — Business Office announcements / notifications (migration 121).
 builder.Services.AddScoped<IAnnouncementService>(sp => new AnnouncementService(connectionString));
 
+// Today's numbers on the Business Office company cards (migration 195).
+builder.Services.AddScoped<IBusinessOfficeService>(sp => new BusinessOfficeService(connectionString));
+
 // Water report/closing → PDF → email. Depends only on already-registered DI
 // services (IWaterReportService for report data, IEmailService for delivery).
 builder.Services.AddScoped<IWaterReportEmailService, WaterReportEmailService>();

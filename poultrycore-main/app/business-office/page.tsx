@@ -37,6 +37,11 @@ import {
 import {
   listAnnouncements, setAnnouncementReceipt, createAnnouncement, deleteAnnouncement, type Announcement,
 } from "@/lib/api/announcements"
+import {
+  getCompanySnapshot, cardMetricsForType, snapshotValue,
+  type CompanySnapshot, type MetricFormat,
+} from "@/lib/api/business-office"
+import { useFmtShort } from "@/lib/currency"
 
 function typeIcon(type: string) {
   if (type === "Water") return Droplets
@@ -49,12 +54,6 @@ function typeTone(type: string) {
   if (type === "Poultry") return "bg-orange-100 text-orange-700"
   if (type === "Generic") return "bg-violet-100 text-violet-700"
   return "bg-slate-100 text-slate-700"
-}
-function typeMetrics(type: string): string[] {
-  if (type === "Water") return ["Production today", "Bags in stock", "Driver returns", "Today's sales"]
-  if (type === "Poultry") return ["Eggs today", "Feed stock", "Mortality", "Today's sales"]
-  if (type === "Generic") return ["Sales today", "Expenses today", "Low stock", "Customer debt"]
-  return ["Today's sales", "Today's expenses", "Cash at hand", "Alerts"]
 }
 function annStyle(type: string): { tone: string; icon: any } {
   switch (type) {
@@ -82,6 +81,10 @@ export default function BusinessOfficePage() {
 
   const [companies, setLocal] = useState<Company[]>([])
   const [loading, setLoading] = useState(true)
+  // Today's tile numbers, keyed by farmId. A company missing from the map is
+  // still loading (or its fetch failed) and shows a dash, exactly as before.
+  const [snapshots, setSnapshots] = useState<Record<string, CompanySnapshot>>({})
+  const fmtMoneyShort = useFmtShort()
   const [openingId, setOpeningId] = useState<string | null>(null)
   const [q, setQ] = useState("")
   const [typeFilter, setTypeFilter] = useState<string>("all")
@@ -114,6 +117,30 @@ export default function BusinessOfficePage() {
     finally { setLoading(false) }
   }
   useEffect(() => { void load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // One snapshot request per card, fanned out. Each lands on its own so a slow
+  // or broken company doesn't hold up the rest of the grid, and a failure just
+  // leaves that card's tiles at a dash rather than surfacing a toast — these
+  // are glanceable numbers, not the reason the page exists.
+  useEffect(() => {
+    if (companies.length === 0) return
+    let cancelled = false
+    for (const c of companies) {
+      getCompanySnapshot(c.farmId, c.type)
+        .then((snap) => { if (!cancelled) setSnapshots((prev) => ({ ...prev, [c.farmId]: snap })) })
+        .catch(() => {})
+    }
+    return () => { cancelled = true }
+  }, [companies])
+
+  function formatMetric(value: number | null, format: MetricFormat): string {
+    // Null is "no number yet" — the dash the tiles have always shown. Zero is a
+    // real measurement and prints as 0.
+    if (value === null || !Number.isFinite(value)) return "—"
+    if (format === "money") return fmtMoneyShort(value)
+    if (format === "kg") return `${Math.round(value).toLocaleString()} kg`
+    return Math.round(value).toLocaleString()
+  }
 
   async function loadAnnouncements() {
     try { setAnnouncements(await listAnnouncements({ orgOwnerUserId, isAdmin, farmId: activeFarmId })) } catch {}
@@ -278,8 +305,13 @@ export default function BusinessOfficePage() {
                         <Badge className={typeTone(c.type)}>{c.type}</Badge>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
-                        {typeMetrics(c.type).filter((m) => isAdmin || !/sales|debt|expenses|cash/i.test(m)).slice(0, 4).map((m) => (
-                          <div key={m} className="rounded-lg bg-slate-50 px-2.5 py-1.5"><div className="text-[11px] text-slate-500 truncate">{m}</div><div className="text-sm font-semibold text-slate-700">—</div></div>
+                        {cardMetricsForType(c.type).filter((m) => isAdmin || !m.adminOnly).slice(0, 4).map((m) => (
+                          <div key={m.label} className="rounded-lg bg-slate-50 px-2.5 py-1.5">
+                            <div className="text-[11px] text-slate-500 truncate">{m.label}</div>
+                            <div className="text-sm font-semibold text-slate-700 tabular-nums truncate">
+                              {formatMetric(snapshotValue(snapshots[c.farmId], m.slot), m.format)}
+                            </div>
+                          </div>
                         ))}
                       </div>
                       <div className="flex items-center gap-2 pt-1">
