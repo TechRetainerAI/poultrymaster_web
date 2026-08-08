@@ -62,8 +62,10 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
   const main = [
     { key: "home", href: "/business-office", label: "Business Office", icon: Briefcase },
     { key: "companies", href: "/business-office/companies", label: "Companies", icon: Building2 },
-    { key: "tasks", href: "/business-office#tasks", label: "My Tasks", icon: ListTodo },
-    { key: "notices", href: "/business-office#notices", label: "Notifications", icon: Bell },
+    // My Tasks + Notifications hidden from the sidebar until the feature is
+    // built out (James, 2026-08-06). Restore these two lines to bring them back.
+    // { key: "tasks", href: "/business-office#tasks", label: "My Tasks", icon: ListTodo },
+    // { key: "notices", href: "/business-office#notices", label: "Notifications", icon: Bell },
   ]
   // Users & Permissions and Business Setup open the SAME pages used inside a
   // company (/employees, /settings) with ?bo=1 so they render in this shell —
