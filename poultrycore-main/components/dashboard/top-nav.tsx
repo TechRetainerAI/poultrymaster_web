@@ -1,33 +1,30 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { useMemo } from "react"
 import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
 import { usePermissions } from "@/hooks/use-permissions"
-import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
 import { useAuthStore } from "@/lib/store/auth-store"
+import { useAlertsStore } from "@/lib/store/alerts-store"
 import { Droplets, ShoppingBag } from "lucide-react"
 import { navPathActive, type NavGroup, type NavItem } from "@/lib/nav/nav-model"
 import { WATER_REPORT_NAV_GROUPS, POULTRY_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
 import { buildWaterNavConfig } from "@/lib/nav/water-nav-config"
+import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
 import { NavMegaMenu } from "./nav/nav-mega-menu"
 import {
   useNavPopover, NAV_TRIGGER_CLASS, NAV_TRIGGER_ACTIVE, NAV_TRIGGER_IDLE,
 } from "./nav/use-nav-popover"
 import {
   Home,
-  Bird,
   Building2,
   FileText,
-  Egg,
   Package,
-  AlertTriangle,
   ShoppingCart,
   DollarSign,
   Users,
-  BookOpen,
   BarChart3,
   User,
   Settings,
@@ -35,14 +32,9 @@ import {
   ChevronDown,
   Wallet,
   Boxes,
-  Box,
   CreditCard,
-  Wheat,
-  Pill,
   Truck,
   Factory,
-  Users2,
-  Banknote,
 } from "lucide-react"
 
 function NavDropdown({ group }: { group: NavGroup }) {
@@ -135,20 +127,14 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
   //
   // The sidebar and mobile nav keep their own copies of the water nav and were
   // deliberately left alone in this pass.
-  const router = useRouter()
-  const clearActiveCompany = useAuthStore((s) => s.clearActiveCompany)
+  // Business Office is not in here — it's an icon in the header bar above,
+  // beside the search box, since it leaves the current company entirely.
+  const openAlerts = useAlertsStore((s) => s.open)
+  const alertCount = useAlertsStore((s) => s.alerts.length)
 
   const nav = useMemo(
-    () => buildWaterNavConfig({
-      permissions,
-      // Same behaviour as sidebar.tsx: the Business Office is the owner's HQ
-      // above all companies, so the active company is cleared on the way in.
-      onBusinessOffice: () => {
-        try { clearActiveCompany() } catch {}
-        router.push("/business-office")
-      },
-    }),
-    [permissions, clearActiveCompany, router],
+    () => buildWaterNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount }),
+    [permissions, openAlerts, alertCount],
   )
 
   return (
@@ -170,7 +156,7 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
         <NavMegaMenu
           label="Sales & Money" icon={Wallet}
           title="Sales & Money"
-          blurb="Customers, orders, collections, expenses and cash."
+          blurb="Orders, collections, expenses and cash."
           groups={nav.salesMoney}
           columns={2} widthRem={34} layout="grid"
         />
@@ -190,17 +176,23 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
 
         <NavMegaMenu
           label="Setup" icon={Settings}
-          title="Setup & account"
-          blurb="Company configuration, your team, and your own account."
+          title="Setup"
+          blurb="Company configuration, products, customers and your team."
           groups={nav.setup}
           columns={3} widthRem={46} layout="grid"
         />
 
         <div className="ml-auto flex items-center gap-1">
-          {/* Companies stays pinned even though it is also inside Setup: the
-              header's CompanySwitcher is hidden below xl, so between 1024 and
-              1279px this link is the only way to switch company. */}
-          <NavLink item={{ href: "/companies", label: "Companies", icon: Building2 }} />
+          {/* Same panel treatment as the other menus, just one column wide —
+              it only carries the user's own context. Companies is not here; it
+              lives in Setup > Company. */}
+          <NavMegaMenu
+            label="System" icon={User}
+            title="System"
+            blurb="Alerts, activity and terms."
+            groups={nav.system}
+            columns={1} widthRem={20} layout="grid"
+          />
         </div>
       </div>
     </div>
@@ -252,10 +244,12 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
 }
 
 export function TopNavigation() {
-  // Temporary business override while subscription enforcement is paused.
-  const TEMP_SHOW_PAYMENTS_LINK = true
   const permissions = usePermissions()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
+  // Must be read before the farm-type early returns below, or the hook order
+  // changes when the user switches company type.
+  const openAlerts = useAlertsStore((s) => s.open)
+  const alertCount = useAlertsStore((s) => s.alerts.length)
 
   // Water and Generic companies each get their own nav rail — falling through
   // to the Poultry layout below would show "Flocks / Houses / Egg sorting" on
@@ -267,115 +261,11 @@ export function TopNavigation() {
     return <GenericTopNav permissions={permissions} />
   }
 
-  // Quick Links — fast-access shortcuts (mirrors the Water side, minus
-  // Deliveries). Targets also live in their canonical groups below.
-  const quickLinksGroup: NavGroup = {
-    label: "Quick Links",
-    items: [
-      { href: "/poultry-daily-closing", label: "Daily Closing",     icon: FileText },
-      { href: "/production-records",    label: "Production Records", icon: Factory },
-      { href: "/sales",                 label: "Sales",             icon: ShoppingCart },
-    ],
-  }
-
-  const farmGroup: NavGroup = {
-    label: "Farm",
-    items: [
-      { href: "/flock-batch", label: "Flock Purchases (Batches)", icon: Boxes },
-      { href: "/flocks", label: "Flock Groups (Pens / Flocks)", icon: Bird },
-      { href: "/houses", label: "Houses", icon: Building2 },
-    ],
-  }
-
-  const productionGroup: NavGroup = {
-    label: "Production",
-    items: [
-      { href: "/production-records", label: "Production Records", icon: FileText },
-      { href: "/batch-production-records", label: "Batch Production", icon: Boxes },
-      { href: "/egg-production", label: "Egg sorting", icon: Egg },
-      { href: "/feed-usage", label: "Feed Usage", icon: Package },
-      // Feed Production (produce finished feed from ingredients) belongs under
-      // Production. Gated by canViewFeedProduction to match the sidebar.
-      ...(permissions.featureAccess.canViewFeedProduction ? [
-        { href: "/poultry-feed-production", label: "Feed Production", icon: Factory },
-        { href: "/poultry-feed-formulas",   label: "Feed Formulas",  icon: Wheat },
-      ] : []),
-    ],
-  }
-
-  const analyticsGroup: NavGroup = {
-    label: "Analytics",
-    items: [
-      { href: "/egg-tracker", label: "Egg tracker", icon: BarChart3 },
-      { href: "/feed-tracker", label: "Feed tracker", icon: Wheat },
-      { href: "/medication-tracker", label: "Medication tracker", icon: Pill },
-      { href: "/birds-left-tracker", label: "Bird Left Tracker", icon: Bird },
-      { href: "/weekly-report", label: "Analytical Report", icon: FileText },
-    ],
-  }
-
-  const inventoryGroup: NavGroup = {
-    label: "Inventory & Health",
-    items: [
-      { href: "/poultry-inventory", label: "Inventory", icon: Boxes },
-      { href: "/poultry-stock", label: "Stock movements", icon: Boxes },
-      { href: "/poultry-raw-materials", label: "Raw Materials & Supplies", icon: Box },
-      { href: "/supplies", label: "Supplies", icon: ShoppingCart },
-      { href: "/health", label: "Health Records", icon: AlertTriangle },
-      { href: "/poultry-loss-records", label: "Loss & Damage", icon: AlertTriangle },
-      { href: "/inventory", label: "Other Inventory", icon: Package },
-    ],
-  }
-
-  const deliveryGroup: NavGroup = {
-    label: "Delivery",
-    items: [
-      { href: "/poultry-driver-returns", label: "Deliveries", icon: Truck },
-      { href: "/poultry-drivers", label: "Drivers", icon: Users2 },
-      { href: "/poultry-vehicles", label: "Vehicles", icon: Truck },
-      { href: "/poultry-routes", label: "Routes", icon: Truck },
-      { href: "/poultry-driver-report", label: "Driver report", icon: BarChart3 },
-    ],
-  }
-
-  const financialGroup: NavGroup = {
-    label: "Financial",
-    items: [
-      { href: "/cash", label: "Cash", icon: Wallet },
-      { href: "/poultry-cash-accounts", label: "Cash Account", icon: Wallet },
-      { href: "/sales", label: "Sales", icon: ShoppingCart },
-      { href: "/poultry-payments", label: "Payments received", icon: Wallet },
-      { href: "/expenses", label: "Expenses", icon: DollarSign },
-      { href: "/customers", label: "Customers", icon: Users },
-      { href: "/suppliers", label: "Suppliers", icon: Truck },
-      { href: "/billing", label: "Billing", icon: CreditCard },
-    ].filter((item) =>
-      isFinancialNavItemVisible(item.href, permissions.featureAccess, permissions.isAdmin)
-    ),
-  }
-
-  const peopleGroup: NavGroup = {
-    label: "People",
-    items: [
-      ...((permissions.isAdmin || permissions.featureAccess.canSeeEmployees)
-        ? [{ href: "/poultry-staff", label: "Staff", icon: Users2 }]
-        : []),
-      { href: "/poultry-payroll", label: "Payroll", icon: Banknote },
-    ],
-  }
-
-  const moreGroup: NavGroup = {
-    label: "More",
-    items: [
-      { href: "/profile", label: "Account", icon: User },
-      { href: "/resources", label: "Resources", icon: BookOpen },
-      // James 2026-06-02 — Employees and Activity Log removed from the top
-      // nav (still in the sidebar).
-      ...(permissions.featureAccess.canViewSettings
-        ? [{ href: "/settings", label: "Settings", icon: Settings }]
-        : []),
-    ],
-  }
+  // 2026-08-07: same treatment as the water rail — nine near-identical narrow
+  // dropdowns collapse into grouped panels. Contents live in
+  // lib/nav/poultry-nav-config.ts. The sidebar and mobile nav keep their own
+  // copies and were left alone.
+  const nav = buildPoultryNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount })
 
   return (
     <>
@@ -383,17 +273,36 @@ export function TopNavigation() {
         <div className="flex items-center gap-1 px-4 pt-1.5 pb-2.5 nav-rail-scroll">
           <NavLink item={{ href: "/dashboard", label: "Dashboard", icon: Home }} />
           <div className="h-5 w-px bg-white/30 mx-1" />
-          <NavDropdown group={quickLinksGroup} />
-          <NavDropdown group={farmGroup} />
-          <NavDropdown group={productionGroup} />
-          <NavDropdown group={inventoryGroup} />
-          <NavDropdown group={deliveryGroup} />
-          {financialGroup.items.length > 0 && <NavDropdown group={financialGroup} />}
-          {peopleGroup.items.length > 0 && <NavDropdown group={peopleGroup} />}
-          <div className="h-5 w-px bg-white/30 mx-1" />
-          {/* Reports opens a hover mega-menu of the 20 poultry reports, sourced
-              from lib/reports/poultry-reports-config.ts (shared with the
-              /poultry/reports catalogue). */}
+
+          <NavDropdown group={nav.quickLinks} />
+
+          <NavMegaMenu
+            label="Operations" icon={Factory}
+            title="Operations"
+            blurb="Production, flocks, deliveries, stock and health."
+            groups={nav.operations}
+            columns={4} widthRem={58} layout="grid" accent="amber"
+          />
+
+          <NavMegaMenu
+            label="Sales & Money" icon={Wallet}
+            title="Sales & Money"
+            blurb="Orders, collections, expenses, cash and payroll."
+            groups={nav.salesMoney}
+            columns={2} widthRem={34} layout="grid" accent="amber"
+          />
+
+          <NavMegaMenu
+            label="Analytics" icon={BarChart3}
+            title="Analytics"
+            blurb="Day-to-day trackers for eggs, feed, medication and birds."
+            groups={nav.analytics}
+            columns={1} widthRem={22} layout="grid" accent="amber"
+          />
+
+          {/* Sourced from lib/reports/poultry-reports-config.ts — the single
+              source of truth shared with the /poultry/reports catalogue. Keeps
+              the "columns" layout so it renders exactly as it always has. */}
           {permissions.featureAccess.canViewReports && (
             <NavMegaMenu
               label="Reports" icon={BarChart3}
@@ -405,14 +314,25 @@ export function TopNavigation() {
               columns={4} widthRem={56} accent="amber"
             />
           )}
-          <NavDropdown group={analyticsGroup} />
-          <NavDropdown group={moreGroup} />
+
+          <NavMegaMenu
+            label="Setup" icon={Settings}
+            title="Setup"
+            blurb="Farm settings, products, customers, suppliers and your team."
+            groups={nav.setup}
+            columns={3} widthRem={46} layout="grid" accent="amber"
+          />
+
           <div className="ml-auto flex items-center gap-1">
-            {(TEMP_SHOW_PAYMENTS_LINK || permissions.isAdmin || permissions.featureAccess.canViewFinancial) && (
-              <NavLink item={{ href: "/billing", label: "Billing", icon: CreditCard }} />
-            )}
-            <NavLink item={{ href: "/terms", label: "Terms", icon: FileText }} />
-            <NavLink item={{ href: "/help", label: "Help Center", icon: BookOpen }} />
+            {/* Billing, Terms and Help Center used to be pinned here; they now
+                live in Sales & Money and System respectively. */}
+            <NavMegaMenu
+              label="System" icon={User}
+              title="System"
+              blurb="Alerts, activity, help and terms."
+              groups={nav.system}
+              columns={1} widthRem={22} layout="grid" accent="amber"
+            />
           </div>
         </div>
       </div>

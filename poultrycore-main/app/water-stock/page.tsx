@@ -138,7 +138,7 @@ export default function WaterStockPage() {
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
-              <Boxes className="h-6 w-6 text-sky-600" /> Stock transactions
+              <Boxes className="h-6 w-6 text-sky-600" /> Stock movement
             </h1>
             <div className="flex flex-wrap items-center gap-2">
               <Select
@@ -179,7 +179,7 @@ export default function WaterStockPage() {
               {loading ? (
                 <div className="p-6 text-slate-500 flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
               ) : txns.length === 0 ? (
-                <div className="p-8 text-center text-slate-500">No stock transactions yet.</div>
+                <div className="p-8 text-center text-slate-500">No stock movement recorded yet.</div>
               ) : (
                 <MobileCardList
                   items={sortedTxns}
