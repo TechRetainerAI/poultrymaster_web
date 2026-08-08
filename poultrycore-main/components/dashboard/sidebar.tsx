@@ -63,6 +63,17 @@ interface SidebarProps {
   onLogout?: () => void
 }
 
+/** A sidebar row. `isButton`/`onClick`/`badge` are for rows that trigger an
+ *  action instead of navigating — currently just Alerts. */
+type SidebarItem = {
+  href: string
+  label: string
+  icon: any
+  isButton?: boolean
+  onClick?: () => void
+  badge?: number
+}
+
 export function DashboardSidebar({ onLogout }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
@@ -236,6 +247,9 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/water-drivers",        label: "Drivers",    icon: Users2 },
     { href: "/water-vehicles",       label: "Vehicles",   icon: Truck },
     { href: "/water-routes",         label: "Routes",     icon: RouteIcon },
+    // The sidebar had no route to this page at all — the top nav and mobile
+    // sheet both carry it under Delivery.
+    { href: "/water-driver-report",  label: "Driver collection report", icon: BarChart3 },
   ]
   const waterProductionItems = [
     // Mirrors the poultry Production group: "Production" is the per-machine
@@ -251,7 +265,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   // Inventory absorbs Raw materials & supplies; Products moved out into the
   // Production group above.
   const waterInventoryItems = [
-    { href: "/water-stock",             label: "Stock",                    icon: Boxes },
+    { href: "/water-stock",             label: "Stock movement",           icon: Boxes },
     { href: "/water-inventory",         label: "Inventory",                icon: Boxes },
     { href: "/water-raw-materials",     label: "Raw materials & supplies", icon: Box },
     { href: "/water-loss-records",      label: "Damages & loss",           icon: AlertTriangle },
@@ -262,7 +276,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/water-sales",         label: "Sales",           icon: ShoppingCart },
     { href: "/water-payments",      label: "Payments",        icon: CreditCard },
     { href: "/water-expenses",      label: "Expenses",        icon: Receipt },
-    { href: "/water-cash-accounts", label: "Cash & Accounts", icon: Wallet },
+    { href: "/water-cash-accounts", label: "Cash accounts",   icon: Wallet },
   ]
   // James: group Employees + Payroll under People and hide the Staff item.
   // "Employees" points at the water staff page (/water-staff) — the global
@@ -317,6 +331,33 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const genericAdminItems = [
     { href: "/generic-reports", label: "Reports", icon: BarChart3 },
     { href: "/generic-setup",   label: "Setup",   icon: Settings },
+  ]
+
+  // System — was a flat, unlabelled block at the bottom of the rail; now a real
+  // collapsible group so it matches the top nav's System menu. Order and every
+  // permission / farm-type guard are carried over unchanged from that block.
+  const systemItems: SidebarItem[] = [
+    ...((permissions.isAdmin || permissions.featureAccess.canSeeEmployees)
+      ? [{ href: "/employees", label: "Users & Permissions", icon: UserCog }] : []),
+    // #28: /reports is the poultry report page. Water and Generic have their own
+    // (water-reports / generic-reports), so linking it here sent water users to
+    // the wrong page.
+    ...((permissions.featureAccess.canViewReports && !isWater && !isGeneric)
+      ? [{ href: "/reports", label: "Reports", icon: BarChart3 }] : []),
+    { href: "/profile", label: "Account", icon: User },
+    // Resources is poultry-specific (vaccination / feed / medication schedules).
+    ...((!isWater && !isGeneric) ? [{ href: "/resources", label: "Resources", icon: BookOpen }] : []),
+    { href: "#", label: "Alerts", icon: Bell, isButton: true, onClick: openAlerts, badge: alerts.length },
+    { href: "/companies", label: "Companies", icon: Building2 },
+    ...(permissions.featureAccess.canViewActivityLog
+      ? [{ href: "/audit-logs", label: "Activity Log", icon: Activity }] : []),
+    // /settings is the poultry farm-profile page; Water and Generic have their
+    // own setup links in their groups above.
+    ...((!isWater && !isGeneric && permissions.featureAccess.canViewSettings)
+      ? [{ href: "/settings", label: "Settings", icon: Settings }] : []),
+    // /help is poultry-specific (flocks, eggs, vaccinations).
+    ...((!isWater && !isGeneric) ? [{ href: "/help", label: "Help Center", icon: HelpCircle }] : []),
+    { href: "/terms", label: "Terms & Conditions", icon: ListTodo },
   ]
 
   // Single items (no group)
@@ -389,7 +430,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     )
   }
 
-  const renderGroup = (title: string, items: typeof farmItems, groupKey: string) => {
+  const renderGroup = (title: string, items: SidebarItem[], groupKey: string) => {
     const isOpen = openGroups[groupKey] !== false
 
     if (isCollapsed && !isMobile) {
@@ -419,7 +460,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         {isOpen && (
           <div className="space-y-0.5 mt-0.5">
             {items.map((item) => (
-              <div key={item.href}>{renderNavItem(item)}</div>
+              <div key={item.href}>{renderNavItem(item, item.isButton, item.onClick, item.badge)}</div>
             ))}
           </div>
         )}
@@ -618,46 +659,14 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
           </>
         )}
 
-        {/* Admin — Employees. The /employees page creates employee LOGIN
-            accounts (and emails credentials); it adapts to Water. Shown for
-            Water again on request (2026-06-22), alongside the water People
-            group's "Employees" -> /water-staff (staff master / payroll). */}
-        {(permissions.isAdmin || permissions.featureAccess.canSeeEmployees) && (
-          <>
-            <div className="border-t border-slate-800 mx-2" />
-            <div className="space-y-0.5">
-              {renderNavItem({ href: "/employees", label: "Users & Permissions", icon: UserCog })}
-            </div>
-          </>
-        )}
-
         {/* Divider */}
         <div className="border-t border-slate-800 mx-2" />
 
-        {/* System */}
-        <div className="space-y-0.5">
-          {/* #28: the generic /reports page is poultry-only. Water and Generic
-              companies have their own Reports links (water-reports / generic-reports),
-              so showing this one too sent water users to the wrong (poultry) page. */}
-          {permissions.featureAccess.canViewReports && !isWater && !isGeneric && renderNavItem({ href: "/reports", label: "Reports", icon: BarChart3 })}
-          {renderNavItem({ href: "/profile", label: "Account", icon: User })}
-          {/* Resources page is poultry-only (vaccination/feed/medication schedules for chickens). */}
-          {!isWater && !isGeneric && renderNavItem({ href: "/resources", label: "Resources", icon: BookOpen })}
-          {renderNavItem(
-            { href: "#", label: "Alerts", icon: Bell },
-            true,
-            openAlerts,
-            alerts.length
-          )}
-          {renderNavItem({ href: "/companies", label: "Companies", icon: Building2 })}
-          {permissions.featureAccess.canViewActivityLog && renderNavItem({ href: "/audit-logs", label: "Activity Log", icon: Activity })}
-          {/* /settings is the poultry farm-profile page. Water and Generic have their own
-              dedicated setup links inside their respective sidebar groups above. */}
-          {!isWater && !isGeneric && permissions.featureAccess.canViewSettings && renderNavItem({ href: "/settings", label: "Settings", icon: Settings })}
-          {/* /help is poultry-specific (flocks, eggs, vaccinations). */}
-          {!isWater && !isGeneric && renderNavItem({ href: "/help", label: "Help Center", icon: HelpCircle })}
-          {renderNavItem({ href: "/terms", label: "Terms & Conditions", icon: ListTodo })}
-        </div>
+        {/* System — Users & Permissions (the /employees page creates employee
+            LOGIN accounts; it adapts to Water), account, alerts, companies,
+            audit log and legal. Mirrors the top nav's System menu. Contents are
+            built in systemItems above, guards and all. */}
+        {renderGroup("System", systemItems, "system")}
       </nav>
 
       {/* Logout */}

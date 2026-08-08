@@ -28,7 +28,7 @@ export interface NavMegaMenuProps {
   title: string
   blurb?: string
   viewAll?: { href: string; label: string }
-  columns?: 2 | 3 | 4
+  columns?: 1 | 2 | 3 | 4
   /** Panel width in rem. Also drives the right-edge clamp, so the two can't drift. */
   widthRem?: number
   accent?: MegaMenuAccent
@@ -45,7 +45,8 @@ export interface NavMegaMenuProps {
   closeDelayMs?: number
 }
 
-const COLUMNS_CLASS: Record<2 | 3 | 4, string> = {
+const COLUMNS_CLASS: Record<1 | 2 | 3 | 4, string> = {
+  1: "columns-1",
   2: "columns-1 lg:columns-2",
   3: "columns-2 lg:columns-3",
   4: "columns-2 lg:columns-4",
@@ -53,7 +54,8 @@ const COLUMNS_CLASS: Record<2 | 3 | 4, string> = {
 
 // items-start, or a short column stretches to the tallest one and its hover
 // targets grow into the empty space below the last row.
-const GRID_CLASS: Record<2 | 3 | 4, string> = {
+const GRID_CLASS: Record<1 | 2 | 3 | 4, string> = {
+  1: "grid grid-cols-1 items-start",
   2: "grid grid-cols-1 lg:grid-cols-2 items-start",
   3: "grid grid-cols-2 lg:grid-cols-3 items-start",
   4: "grid grid-cols-2 lg:grid-cols-4 items-start",

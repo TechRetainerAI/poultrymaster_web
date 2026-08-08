@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, Users, MessageCircle, User, Menu } from "lucide-react"
+import { Search, Users, MessageCircle, User, Menu, Briefcase } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useChatStore } from "@/lib/store/chat-store"
@@ -19,6 +19,7 @@ export function DashboardHeader() {
   const openChat = useChatStore((s) => s.openChat)
   const { isCollapsed, isMobileOpen, toggleMobile } = useSidebarStore()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
+  const clearActiveCompany = useAuthStore((s) => s.clearActiveCompany)
   const [username, setUsername] = useState("")
   const [roleLabel, setRoleLabel] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
@@ -195,6 +196,24 @@ export function DashboardHeader() {
               />
             </div>
           </form>
+
+          {/* Business Office — the owner's HQ above all companies, so the active
+              company is cleared on the way in (same behaviour as the sidebar).
+              Lives here rather than in a company menu because it is the one
+              destination that leaves the current company entirely. */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              try { clearActiveCompany() } catch {}
+              router.push("/business-office")
+            }}
+            title="Business Office"
+            aria-label="Business Office"
+            className="shrink-0 text-slate-300 hover:text-white hover:bg-slate-800"
+          >
+            <Briefcase className="h-5 w-5" />
+          </Button>
 
           {/* Right side actions */}
           <div className="flex items-center gap-2 sm:gap-4">
