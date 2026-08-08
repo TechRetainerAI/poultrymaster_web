@@ -61,29 +61,23 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
 
   const main = [
     { key: "home", href: "/business-office", label: "Business Office", icon: Briefcase },
-    { key: "companies", href: "/business-office/companies", label: "Companies", icon: Building2 },
     // My Tasks + Notifications hidden from the sidebar until the feature is
     // built out (James, 2026-08-06). Restore these two lines to bring them back.
     // { key: "tasks", href: "/business-office#tasks", label: "My Tasks", icon: ListTodo },
     // { key: "notices", href: "/business-office#notices", label: "Notifications", icon: Bell },
   ]
-  // Users & Permissions and Business Setup open the SAME pages used inside a
-  // company (/employees, /settings) with ?bo=1 so they render in this shell —
-  // same data, same features, just kept in the Business Office.
-  const admin = isAdmin ? [
-    // Employees removed from the Business Office sidebar (James, 2026-07-05).
-    { key: "users", href: "/business-office/users", label: "Users & Permissions", icon: ShieldCheck },
-  ] : []
-  const settings = isAdmin ? [
+  // Business group — one entry. Organization Profile, Users & Permissions and
+  // Companies are tabs inside the Business Setup hub, so they no longer need
+  // their own sidebar rows. (Employees removed here too — James, 2026-07-05.)
+  const business = isAdmin ? [
     { key: "settings", href: "/business-office/setup", label: "Business Setup", icon: Settings },
-    { key: "org", href: "/business-office/organization-profile", label: "Organization Profile", icon: UserCog },
   ] : []
   const footer = [{ key: "help", href: "/business-office/help", label: "Help Center", icon: HelpCircle }]
 
-  function Group({ title, items }: { title: string; items: { key: string; href: string; label: string; icon: any }[] }) {
+  function Group({ title, items }: { title?: string; items: { key: string; href: string; label: string; icon: any }[] }) {
     return (
       <div>
-        <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">{title}</div>
+        {title && <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">{title}</div>}
         <div className="space-y-0.5">
           {items.map((it) => {
             const Icon = it.icon
@@ -110,10 +104,10 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
         </div>
       </Link>
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-5 text-sm">
-        <Group title="Main" items={main} />
-        {admin.length > 0 && <Group title="People & Access" items={admin} />}
-        {settings.length > 0 && <Group title="Settings" items={settings} />}
-        <Group title="Help" items={footer} />
+        {/* Home needs no group header — it's the one item above the groups. */}
+        <Group items={main} />
+        {business.length > 0 && <Group title="Business" items={business} />}
+        <Group title="Support" items={footer} />
       </nav>
       <div className="border-t border-slate-800 p-2">
         <button onClick={logout} className="flex w-full items-center gap-3 px-3 py-2.5 rounded-md text-slate-300 hover:bg-slate-800 hover:text-white">
@@ -149,7 +143,7 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
           <div className="ml-auto flex items-center gap-2">
             {isAdmin && (
               <>
-                <Link href="/business-office/users" className="hidden sm:inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-white/30 bg-white/10 text-sm font-medium text-white hover:bg-white/20 transition-colors">
+                <Link href="/business-office/setup?tab=users" className="hidden sm:inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-white/30 bg-white/10 text-sm font-medium text-white hover:bg-white/20 transition-colors">
                   <ShieldCheck className="h-4 w-4" /> <span className="hidden lg:inline">Users &amp; Permissions</span><span className="lg:hidden">Users</span>
                 </Link>
                 <button onClick={goNewCompany} className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-white text-orange-700 text-sm font-semibold hover:bg-orange-50 transition-colors shadow-sm">
