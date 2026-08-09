@@ -67,7 +67,6 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
       {
         key: "production",
         label: "Production",
-        color: "bg-indigo-600",
         items: [
           // "Water Production", not "Production": a row called Production
           // inside a column called Production tells the user nothing.
@@ -78,24 +77,11 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
           { id: "maintenance",      title: "Maintenance",      icon: Wrench,       href: "/water-maintenance" },
         ],
       },
-      {
-        key: "delivery",
-        label: "Delivery",
-        color: "bg-rose-600",
-        items: [
-          { id: "deliveries",    title: "Deliveries",              icon: Truck,      href: "/water-driver-returns" },
-          { id: "drivers",       title: "Drivers",                 icon: Users2,     href: "/water-drivers" },
-          { id: "vehicles",      title: "Vehicles",                icon: Truck,      href: "/water-vehicles" },
-          { id: "routes",        title: "Routes",                  icon: RouteIcon,  href: "/water-routes" },
-          // Was filed under Admin/Setup, which is not where anyone looks for a
-          // delivery artifact. Poultry already files its equivalent here.
-          { id: "driver-report", title: "Driver collection report", icon: BarChart3, href: "/water-driver-report" },
-        ],
-      },
+      // Inventory sits in the middle column — it's the tallest group, so the
+      // panel reads better with its weight centred than pushed to the edge.
       {
         key: "inventory",
         label: "Inventory",
-        color: "bg-amber-600",
         items: [
           { id: "stock",             title: "Stock movement",            icon: Boxes,         href: "/water-stock" },
           { id: "inventory",         title: "Inventory",                 icon: Boxes,         href: "/water-inventory" },
@@ -104,13 +90,23 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
           { id: "production-losses", title: "Production losses",         icon: AlertTriangle, href: "/water-production-losses" },
         ],
       },
+      {
+        key: "delivery",
+        label: "Delivery",
+        items: [
+          // Drivers, Vehicles and Routes are fleet records you maintain — they
+          // live in Setup > Fleet. What's left here is the daily run and its
+          // reconciliation.
+          { id: "deliveries",    title: "Deliveries",              icon: Truck,      href: "/water-driver-returns" },
+          { id: "driver-report", title: "Driver collection report", icon: BarChart3, href: "/water-driver-report" },
+        ],
+      },
     ],
 
     salesMoney: [
       {
         key: "sales",
         label: "Sales",
-        color: "bg-sky-600",
         items: [
           { id: "sales",    title: "Sales",    icon: ShoppingCart, href: "/water-sales" },
           { id: "payments", title: "Payments", icon: CreditCard,   href: "/water-payments" },
@@ -119,7 +115,6 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
       {
         key: "money",
         label: "Money",
-        color: "bg-emerald-600",
         items: [
           { id: "expenses",      title: "Expenses",        icon: Receipt,  href: "/water-expenses" },
           { id: "cash-accounts", title: "Cash accounts",   icon: Wallet,   href: "/water-cash-accounts" },
@@ -134,7 +129,6 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
       {
         key: "company",
         label: "Company",
-        color: "bg-slate-600",
         items: [
           { id: "setup",         title: "Setup",         icon: Settings,  href: "/water-setup" },
           { id: "company-setup", title: "Company Setup", icon: Settings,  href: "/water-company-setup" },
@@ -148,7 +142,6 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
       {
         key: "production-setup",
         label: "Production",
-        color: "bg-indigo-600",
         items: [
           { id: "products",  title: "Products",  icon: ShoppingBag, href: "/water-products" },
           { id: "machines",  title: "Machines",  icon: Cog,         href: "/water-machines" },
@@ -156,9 +149,17 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
         ],
       },
       {
+        key: "fleet",
+        label: "Fleet",
+        items: [
+          { id: "drivers",  title: "Drivers",  icon: Users2,    href: "/water-drivers" },
+          { id: "vehicles", title: "Vehicles", icon: Truck,     href: "/water-vehicles" },
+          { id: "routes",   title: "Routes",   icon: RouteIcon, href: "/water-routes" },
+        ],
+      },
+      {
         key: "people",
         label: "People",
-        color: "bg-violet-600",
         // Both rows share one gate now that Payroll has moved to Sales & Money,
         // so for a staff user without canSeeEmployees the whole column drops
         // out. That's safe — Company and Production are ungated, so the Setup
@@ -178,7 +179,6 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
       {
         key: "system",
         label: "Your account",
-        color: "bg-slate-500",
         items: [
           // Hidden for now (2026-08-07) — flip `visible` back to restore it,
           // and put "account" back in the System blurb in top-nav.tsx.

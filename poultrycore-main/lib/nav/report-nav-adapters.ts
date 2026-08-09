@@ -19,7 +19,6 @@ import type { MegaMenuGroup } from "./nav-model"
 export const WATER_REPORT_NAV_GROUPS: MegaMenuGroup[] = WATER_REPORT_GROUPS.map((g) => ({
   key: g.key,
   label: g.label,
-  color: g.color,
   items: g.reports.map((r) => ({
     // Slugs are unique per group, not globally — prefix to be safe.
     id: `${g.key}:${r.slug}`,
@@ -40,7 +39,6 @@ export const WATER_REPORT_NAV_GROUPS: MegaMenuGroup[] = WATER_REPORT_GROUPS.map(
 export const POULTRY_REPORT_NAV_GROUPS: MegaMenuGroup[] = POULTRY_REPORT_MENU_GROUPS.map((g) => ({
   key: g.key,
   label: g.label,
-  color: g.color,
   items: g.items.map((it) => ({
     id: `${g.key}:${it.id}`,
     title: it.title,

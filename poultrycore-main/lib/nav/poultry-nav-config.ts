@@ -68,7 +68,6 @@ export function buildPoultryNavConfig(
       {
         key: "production",
         label: "Production",
-        color: "bg-indigo-600",
         items: [
           { id: "production-records", title: "Production Records", icon: FileText, href: "/production-records" },
           { id: "batch-production",   title: "Batch Production",   icon: Boxes,    href: "/batch-production-records" },
@@ -80,32 +79,14 @@ export function buildPoultryNavConfig(
           { id: "feed-production", title: "Feed Production", icon: Factory, href: "/poultry-feed-production", visible: featureAccess.canViewFeedProduction },
         ],
       },
-      {
-        key: "farm",
-        label: "Farm",
-        color: "bg-emerald-600",
-        items: [
-          { id: "flock-batch", title: "Flock Purchases (Batches)",   icon: Boxes,     href: "/flock-batch" },
-          { id: "flocks",      title: "Flock Groups (Pens / Flocks)", icon: Bird,      href: "/flocks" },
-          { id: "houses",      title: "Houses",                       icon: Building2, href: "/houses" },
-        ],
-      },
-      {
-        key: "delivery",
-        label: "Delivery",
-        color: "bg-rose-600",
-        items: [
-          { id: "deliveries",    title: "Deliveries",    icon: Truck,     href: "/poultry-driver-returns" },
-          { id: "drivers",       title: "Drivers",       icon: Users2,    href: "/poultry-drivers" },
-          { id: "vehicles",      title: "Vehicles",      icon: Truck,     href: "/poultry-vehicles" },
-          { id: "routes",        title: "Routes",        icon: Truck,     href: "/poultry-routes" },
-          { id: "driver-report", title: "Driver report", icon: BarChart3, href: "/poultry-driver-report" },
-        ],
-      },
+      // Group ORDER is load-bearing in the 2x2 grid: each row is as tall as its
+      // tallest group, so pairing the two long groups (Production 5, Inventory
+      // 7) in row 1 and the two short ones (Farm 3, Delivery 2) in row 2 makes
+      // the panel 10 rows instead of 12 — enough to clear max-h-[70vh] without
+      // scrolling. Reordering these will bring the scrollbar back.
       {
         key: "inventory-health",
         label: "Inventory & Health",
-        color: "bg-amber-600",
         items: [
           { id: "inventory",      title: "Inventory",                 icon: Boxes,         href: "/poultry-inventory" },
           { id: "stock",          title: "Stock movements",           icon: Boxes,         href: "/poultry-stock" },
@@ -116,13 +97,32 @@ export function buildPoultryNavConfig(
           { id: "other-inventory", title: "Other Inventory",          icon: Package,       href: "/inventory" },
         ],
       },
+      {
+        key: "farm",
+        label: "Farm",
+        items: [
+          { id: "flock-batch", title: "Flock Purchases (Batches)",   icon: Boxes,     href: "/flock-batch" },
+          { id: "flocks",      title: "Flock Groups (Pens / Flocks)", icon: Bird,      href: "/flocks" },
+          { id: "houses",      title: "Houses",                       icon: Building2, href: "/houses" },
+        ],
+      },
+      {
+        key: "delivery",
+        label: "Delivery",
+        items: [
+          // Drivers, Vehicles and Routes are fleet records you maintain — they
+          // live in Setup > Fleet. What's left here is the daily run and its
+          // reconciliation.
+          { id: "deliveries",    title: "Deliveries",    icon: Truck,     href: "/poultry-driver-returns" },
+          { id: "driver-report", title: "Driver report", icon: BarChart3, href: "/poultry-driver-report" },
+        ],
+      },
     ],
 
     salesMoney: [
       {
         key: "sales",
         label: "Sales",
-        color: "bg-sky-600",
         items: [
           { id: "sales",    title: "Sales",             icon: ShoppingCart, href: "/sales",            visible: money("/sales") },
           { id: "payments", title: "Payments received", icon: Wallet,       href: "/poultry-payments", visible: money("/poultry-payments") },
@@ -132,7 +132,6 @@ export function buildPoultryNavConfig(
       {
         key: "money",
         label: "Money",
-        color: "bg-emerald-600",
         items: [
           { id: "cash",          title: "Cash",         icon: Wallet,     href: "/cash",                   visible: money("/cash") },
           { id: "cash-accounts", title: "Cash Account", icon: Wallet,     href: "/poultry-cash-accounts",  visible: money("/poultry-cash-accounts") },
@@ -149,7 +148,6 @@ export function buildPoultryNavConfig(
       {
         key: "trackers",
         label: "Trackers",
-        color: "bg-violet-600",
         items: [
           { id: "egg-tracker",        title: "Egg tracker",        icon: BarChart3, href: "/egg-tracker" },
           { id: "feed-tracker",       title: "Feed tracker",       icon: Wheat,     href: "/feed-tracker" },
@@ -164,7 +162,6 @@ export function buildPoultryNavConfig(
       {
         key: "company",
         label: "Company",
-        color: "bg-slate-600",
         items: [
           { id: "settings",   title: "Settings",  icon: Settings,  href: "/settings",  visible: featureAccess.canViewSettings },
           // Customers and Suppliers are master data maintained here, not part of
@@ -173,24 +170,33 @@ export function buildPoultryNavConfig(
           { id: "suppliers",  title: "Suppliers", icon: Truck,     href: "/suppliers", visible: money("/suppliers") },
           // Ungated, so this column (and the Setup trigger) always renders.
           { id: "companies",  title: "Companies", icon: Building2, href: "/companies" },
-          { id: "egg-picks",  title: "Egg Pick Times", icon: Clock, href: "/business-office/egg-pick-settings", visible: isAdmin },
         ],
       },
       {
         key: "production-setup",
         label: "Production",
-        color: "bg-indigo-600",
         items: [
           // Products is ungated, which keeps this column — and the Setup
           // trigger — from ever disappearing.
           { id: "products",      title: "Products",      icon: Package, href: "/poultry-products" },
           { id: "feed-formulas", title: "Feed Formulas", icon: Wheat,   href: "/poultry-feed-formulas", visible: featureAccess.canViewFeedProduction },
+          // A farm-level schedule that production records key off, so it sits
+          // with the other production master data rather than under Company.
+          { id: "egg-picks",     title: "Egg Pick Times", icon: Clock,  href: "/business-office/egg-pick-settings", visible: isAdmin },
+        ],
+      },
+      {
+        key: "fleet",
+        label: "Fleet",
+        items: [
+          { id: "drivers",  title: "Drivers",  icon: Users2, href: "/poultry-drivers" },
+          { id: "vehicles", title: "Vehicles", icon: Truck,  href: "/poultry-vehicles" },
+          { id: "routes",   title: "Routes",   icon: Truck,  href: "/poultry-routes" },
         ],
       },
       {
         key: "people",
         label: "People",
-        color: "bg-violet-600",
         items: [
           { id: "staff",     title: "Staff",               icon: Users2,  href: "/poultry-staff", visible: canSeeStaff },
           { id: "employees", title: "Users & Permissions", icon: UserCog, href: "/employees",     visible: canSeeStaff },
@@ -202,7 +208,6 @@ export function buildPoultryNavConfig(
       {
         key: "system",
         label: "Your account",
-        color: "bg-slate-500",
         items: [
           // Hidden to match the water rail — the header avatar still opens
           // /profile. Flip `visible` to bring the row back.
