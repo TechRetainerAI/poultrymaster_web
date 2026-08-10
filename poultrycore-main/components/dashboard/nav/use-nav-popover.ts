@@ -14,13 +14,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 
-/** Shared trigger-button classes. Kept identical to the pre-extraction values.
- *  Note `text-orange-100` is what the sky-600 water bar already used — leaving
- *  it alone keeps this refactor pixel-neutral. Recolouring is a separate call. */
+/** Shared trigger-button classes. Layout and the active state are the same on
+ *  every bar; the idle state is per-company and lives in NAV_SURFACE
+ *  (`triggerIdle` / `triggerIcon`), since it has to sit on a sky, orange or
+ *  emerald bar. bg-white/25 works on all three. */
 export const NAV_TRIGGER_CLASS =
   "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap"
 export const NAV_TRIGGER_ACTIVE = "bg-white/25 text-white font-semibold"
-export const NAV_TRIGGER_IDLE = "text-orange-100 hover:bg-white/15 hover:text-white"
 
 export interface UseNavPopoverOptions {
   /** Grace period after the pointer leaves, so the user can travel diagonally
