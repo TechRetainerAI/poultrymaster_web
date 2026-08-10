@@ -9,14 +9,13 @@ import { usePermissions } from "@/hooks/use-permissions"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useAlertsStore } from "@/lib/store/alerts-store"
 import { Droplets, ShoppingBag } from "lucide-react"
-import { navPathActive, type NavGroup, type NavItem } from "@/lib/nav/nav-model"
+import { navPathActive, type NavAccent, type NavGroup, type NavItem } from "@/lib/nav/nav-model"
+import { NAV_SURFACE } from "./nav/nav-surface"
 import { WATER_REPORT_NAV_GROUPS, POULTRY_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
 import { buildWaterNavConfig } from "@/lib/nav/water-nav-config"
 import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
 import { NavMegaMenu } from "./nav/nav-mega-menu"
-import {
-  useNavPopover, NAV_TRIGGER_CLASS, NAV_TRIGGER_ACTIVE, NAV_TRIGGER_IDLE,
-} from "./nav/use-nav-popover"
+import { useNavPopover, NAV_TRIGGER_CLASS, NAV_TRIGGER_ACTIVE } from "./nav/use-nav-popover"
 import {
   Home,
   Building2,
@@ -37,11 +36,14 @@ import {
   Factory,
 } from "lucide-react"
 
-function NavDropdown({ group }: { group: NavGroup }) {
+function NavDropdown({ group, accent = "sky" }: { group: NavGroup; accent?: NavAccent }) {
   const pathname = usePathname()
   // Width passed so a dropdown opened near the right edge can't run off-screen
   // (the pre-extraction copy had no clamp at all).
   const pop = useNavPopover({ closeDelayMs: 150, menuWidthPx: 208 })
+  // Same tinted surface as NavMegaMenu. This used to be a hardcoded bg-blue-600
+  // that matched none of the three nav bars.
+  const a = NAV_SURFACE[accent]
 
   const isGroupActive = group.items.some((item) => navPathActive(pathname, item.href))
 
@@ -53,7 +55,7 @@ function NavDropdown({ group }: { group: NavGroup }) {
     >
       <button
         onClick={pop.toggle}
-        className={cn(NAV_TRIGGER_CLASS, isGroupActive ? NAV_TRIGGER_ACTIVE : NAV_TRIGGER_IDLE)}
+        className={cn(NAV_TRIGGER_CLASS, isGroupActive ? NAV_TRIGGER_ACTIVE : a.triggerIdle)}
       >
         {group.label}
         <ChevronDown
@@ -68,7 +70,7 @@ function NavDropdown({ group }: { group: NavGroup }) {
         <div
           ref={pop.menuRef}
           style={{ position: "fixed", top: pop.position.top, left: pop.position.left }}
-          className="w-52 rounded-lg bg-blue-600 py-1 shadow-lg border border-blue-500 z-[9999]"
+          className={cn("w-52 rounded-lg py-1 shadow-lg border z-[9999]", a.panel)}
           onMouseEnter={pop.handleMouseEnter}
           onMouseLeave={pop.handleMouseLeave}
         >
@@ -83,12 +85,10 @@ function NavDropdown({ group }: { group: NavGroup }) {
                 onClick={pop.close}
                 className={cn(
                   "flex items-center gap-2.5 px-3 py-2 text-sm transition-colors",
-                  isActive
-                    ? "bg-blue-700 text-white font-medium"
-                    : "text-blue-50 hover:bg-blue-700 hover:text-white"
+                  isActive ? cn(a.rowActive, "font-medium") : a.rowIdle,
                 )}
               >
-                <Icon className={cn("h-4 w-4", isActive ? "text-white" : "text-blue-100")} />
+                <Icon className={cn("h-4 w-4", isActive ? a.iconActive : a.iconIdle)} />
                 {item.label}
               </Link>
             )
@@ -100,18 +100,19 @@ function NavDropdown({ group }: { group: NavGroup }) {
   )
 }
 
-function NavLink({ item }: { item: NavItem }) {
+function NavLink({ item, accent = "sky" }: { item: NavItem; accent?: NavAccent }) {
   const pathname = usePathname()
   const isActive = navPathActive(pathname, item.href)
   const Icon = item.icon
+  const a = NAV_SURFACE[accent]
 
   return (
     <Link
       href={item.href}
       prefetch={true}
-      className={cn(NAV_TRIGGER_CLASS, isActive ? NAV_TRIGGER_ACTIVE : NAV_TRIGGER_IDLE)}
+      className={cn(NAV_TRIGGER_CLASS, isActive ? NAV_TRIGGER_ACTIVE : a.triggerIdle)}
     >
-      <Icon className={cn("h-4 w-4", isActive ? "text-white" : "text-orange-200")} />
+      <Icon className={cn("h-4 w-4", isActive ? "text-white" : a.triggerIcon)} />
       {item.label}
     </Link>
   )
@@ -177,9 +178,11 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
         <NavMegaMenu
           label="Setup" icon={Settings}
           title="Setup"
-          blurb="Company configuration, products, customers and your team."
+          blurb="Company configuration, products, fleet, customers and your team."
           groups={nav.setup}
-          columns={3} widthRem={46} layout="grid"
+          /* 4 groups over 2 columns = a 2x2 block. Denser than one wide row,
+             and it keeps the panel the same width as Sales & Money. */
+          columns={2} widthRem={36} layout="grid"
         />
 
         <div className="ml-auto flex items-center gap-1">
@@ -224,18 +227,18 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
   return (
     <div className="hidden lg:block bg-emerald-600 border-b border-emerald-700">
       <div className="flex items-center gap-1 px-4 pt-1.5 pb-2.5 nav-rail-scroll">
-        <NavLink item={{ href: "/generic-dashboard",          label: "Dashboard",         icon: Home }} />
+        <NavLink item={{ href: "/generic-dashboard",          label: "Dashboard",         icon: Home }} accent="emerald" />
         <div className="h-5 w-px bg-white/30 mx-1" />
-        <NavLink item={{ href: "/generic-products",           label: "Products",          icon: ShoppingBag }} />
-        <NavLink item={{ href: "/generic-stock-adjustments",  label: "Stock adjustments", icon: Boxes }} />
-        <NavLink item={{ href: "/generic-sales",              label: "Sales",             icon: ShoppingCart }} />
-        <NavLink item={{ href: "/generic-customers",          label: "Customers",         icon: Users }} />
-        <NavLink item={{ href: "/generic-suppliers",          label: "Suppliers",         icon: Truck }} />
-        <NavLink item={{ href: "/generic-purchases",          label: "Purchases",         icon: Package }} />
-        <NavLink item={{ href: "/generic-expenses",           label: "Expenses",          icon: DollarSign }} />
-        <NavDropdown group={moreGroup} />
+        <NavLink item={{ href: "/generic-products",           label: "Products",          icon: ShoppingBag }} accent="emerald" />
+        <NavLink item={{ href: "/generic-stock-adjustments",  label: "Stock adjustments", icon: Boxes }} accent="emerald" />
+        <NavLink item={{ href: "/generic-sales",              label: "Sales",             icon: ShoppingCart }} accent="emerald" />
+        <NavLink item={{ href: "/generic-customers",          label: "Customers",         icon: Users }} accent="emerald" />
+        <NavLink item={{ href: "/generic-suppliers",          label: "Suppliers",         icon: Truck }} accent="emerald" />
+        <NavLink item={{ href: "/generic-purchases",          label: "Purchases",         icon: Package }} accent="emerald" />
+        <NavLink item={{ href: "/generic-expenses",           label: "Expenses",          icon: DollarSign }} accent="emerald" />
+        <NavDropdown group={moreGroup} accent="emerald" />
         <div className="ml-auto flex items-center gap-1">
-          <NavLink item={{ href: "/companies", label: "Companies", icon: Building2 }} />
+          <NavLink item={{ href: "/companies", label: "Companies", icon: Building2 }} accent="emerald" />
           {/* /help is poultry-specific */}
         </div>
       </div>
@@ -271,17 +274,20 @@ export function TopNavigation() {
     <>
       <div className="hidden lg:block bg-orange-500 border-b border-orange-600">
         <div className="flex items-center gap-1 px-4 pt-1.5 pb-2.5 nav-rail-scroll">
-          <NavLink item={{ href: "/dashboard", label: "Dashboard", icon: Home }} />
+          <NavLink item={{ href: "/dashboard", label: "Dashboard", icon: Home }} accent="orange" />
           <div className="h-5 w-px bg-white/30 mx-1" />
 
-          <NavDropdown group={nav.quickLinks} />
+          <NavDropdown group={nav.quickLinks} accent="orange" />
 
           <NavMegaMenu
             label="Operations" icon={Factory}
             title="Operations"
             blurb="Production, flocks, deliveries, stock and health."
             groups={nav.operations}
-            columns={4} widthRem={58} layout="grid" accent="amber"
+            /* 4 groups over 2 columns = a 2x2 block, same as Setup. Slightly
+               wider than Setup's 36rem because the labels here are longer
+               ("Flock Groups (Pens / Flocks)", "Raw Materials & Supplies"). */
+            columns={2} widthRem={38} layout="grid" accent="orange"
           />
 
           <NavMegaMenu
@@ -289,7 +295,7 @@ export function TopNavigation() {
             title="Sales & Money"
             blurb="Orders, collections, expenses, cash and payroll."
             groups={nav.salesMoney}
-            columns={2} widthRem={34} layout="grid" accent="amber"
+            columns={2} widthRem={34} layout="grid" accent="orange"
           />
 
           <NavMegaMenu
@@ -297,7 +303,7 @@ export function TopNavigation() {
             title="Analytics"
             blurb="Day-to-day trackers for eggs, feed, medication and birds."
             groups={nav.analytics}
-            columns={1} widthRem={22} layout="grid" accent="amber"
+            columns={1} widthRem={22} layout="grid" accent="orange"
           />
 
           {/* Sourced from lib/reports/poultry-reports-config.ts — the single
@@ -311,16 +317,17 @@ export function TopNavigation() {
               viewAll={{ href: "/poultry/reports", label: "View all reports →" }}
               triggerActiveHrefs={["/reports", "/poultry/reports"]}
               groups={POULTRY_REPORT_NAV_GROUPS}
-              columns={4} widthRem={56} accent="amber"
+              columns={4} widthRem={56} accent="orange"
             />
           )}
 
           <NavMegaMenu
             label="Setup" icon={Settings}
             title="Setup"
-            blurb="Farm settings, products, customers, suppliers and your team."
+            blurb="Farm settings, products, fleet, customers and your team."
             groups={nav.setup}
-            columns={3} widthRem={46} layout="grid" accent="amber"
+            /* 2x2 block — see the water rail for why. */
+            columns={2} widthRem={36} layout="grid" accent="orange"
           />
 
           <div className="ml-auto flex items-center gap-1">
@@ -331,7 +338,7 @@ export function TopNavigation() {
               title="System"
               blurb="Alerts, activity, help and terms."
               groups={nav.system}
-              columns={1} widthRem={22} layout="grid" accent="amber"
+              columns={1} widthRem={22} layout="grid" accent="orange"
             />
           </div>
         </div>

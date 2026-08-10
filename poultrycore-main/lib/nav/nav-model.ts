@@ -31,8 +31,15 @@ export interface NavGroup {
   items: NavItem[]
 }
 
-/** Active-row tint. One entry per nav bar colour that hosts a mega-menu. */
-export type MegaMenuAccent = "sky" | "amber"
+/**
+ * Which company colour a nav panel is tinted with. One entry per nav bar:
+ * sky = Water (bg-sky-600), orange = Poultry (bg-orange-500),
+ * emerald = Generic (bg-emerald-600).
+ *
+ * Used by both the wide NavMegaMenu and the narrow NavDropdown — the classes
+ * themselves live in components/dashboard/nav/nav-surface.ts.
+ */
+export type NavAccent = "sky" | "orange" | "emerald"
 
 export interface MegaMenuItem {
   /**
@@ -62,10 +69,11 @@ export interface MegaMenuItem {
 export interface MegaMenuGroup {
   key: string
   label: string
-  /**
-   * Tailwind bg-* class for the 2x2 group dot, e.g. "bg-emerald-600". Must be a
-   * literal — Tailwind cannot see interpolated class names.
-   */
-  color: string
   items: MegaMenuItem[]
 }
+// NOTE: groups used to carry a `color` for a 2x2 dot beside the heading. The
+// dot is gone (arbitrary hues that encoded nothing, and some vanished against
+// the tinted panel) — headings now use a rule in the panel's own border colour.
+// The report CONFIGS still have a `color`; the /water-reports and
+// /poultry/reports index pages render it as a solid icon tile, which is a real
+// use. It just no longer travels into the nav model.
