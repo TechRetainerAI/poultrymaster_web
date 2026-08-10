@@ -556,11 +556,13 @@ export async function deleteEmployee(id: string): Promise<ApiResponse> {
       }
     }
     
-    // SECURITY: Verify user context exists (should be checked by calling component)
+    // SECURITY: Verify user context exists (should be checked by calling component).
+    // Only userId is required — the Business Office is deliberately company-neutral
+    // (no farmId in localStorage), and org-wide deletes happen from there. The real
+    // authorization is the bearer token checked server-side.
     if (typeof window !== 'undefined') {
       const userId = localStorage.getItem('userId')
-      const farmId = localStorage.getItem('farmId')
-      if (!userId || !farmId) {
+      if (!userId) {
         console.error("[Admin API] Security: Missing user context")
         return {
           success: false,

@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Textarea } from "@/components/ui/textarea"
 import {
   Building2, Bird, Droplets, ShoppingBag, Plus, Loader2, Users, ArrowRight, Check,
-  ListTodo, HelpCircle, X, Megaphone, Activity, ChevronRight, Trash2, AlertTriangle, Info,
+  HelpCircle, X, Megaphone, ChevronRight, Trash2, AlertTriangle, Info,
   ShieldAlert, Wrench, CreditCard, Sparkles, Briefcase,
 } from "lucide-react"
 
@@ -197,6 +197,8 @@ export default function BusinessOfficePage() {
       const to = (form.email.trim() || userEmail || "").trim()
       if (to) { try { await sendCompanyWelcomeEmail({ email: to, companyName: form.name, companyType: form.type }) } catch {} }
       setOpen(false); setForm({ name: "", type: "Water", email: "", phoneNumber: "" }); await load()
+      // The shell's sidebar keeps its own copy of the company list — tell it to reload.
+      window.dispatchEvent(new CustomEvent("bo:companies-changed"))
     } catch (e: any) { toast({ title: "Create failed", description: e?.message, variant: "destructive" }) }
     finally { setSaving(false) }
   }
@@ -328,21 +330,7 @@ export default function BusinessOfficePage() {
           )}
         </section>
 
-        {/* My Tasks + Recent activity */}
-        <div className="grid lg:grid-cols-2 gap-4">
-          <section id="tasks">
-            <Card><CardContent className="p-5">
-              <div className="flex items-center gap-2 mb-3"><ListTodo className="h-5 w-5 text-slate-500" /> <h3 className="font-semibold">My Tasks</h3></div>
-              <div className="text-center py-8 text-slate-400"><Check className="h-8 w-8 mx-auto mb-2 text-emerald-400" /> You&apos;re all caught up.</div>
-            </CardContent></Card>
-          </section>
-          <section>
-            <Card><CardContent className="p-5">
-              <div className="flex items-center gap-2 mb-3"><Activity className="h-5 w-5 text-slate-500" /> <h3 className="font-semibold">Recent activity</h3></div>
-              <div className="text-center py-8 text-slate-400">Activity from your companies will appear here.</div>
-            </CardContent></Card>
-          </section>
-        </div>
+        {/* My Tasks + Recent activity removed — both were empty placeholders. */}
 
         {/* Quick actions */}
         <section>

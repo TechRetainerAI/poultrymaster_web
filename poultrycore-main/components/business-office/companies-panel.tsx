@@ -59,6 +59,9 @@ export function CompaniesPanel({ showHeading = true }: { showHeading?: boolean }
     finally { setLoading(false) }
   }
   useEffect(() => { void load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // The Business Office sidebar lists companies too and keeps its own copy —
+  // tell it to reload after any create/edit/delete here.
+  const notifyShell = () => { try { window.dispatchEvent(new CustomEvent("bo:companies-changed")) } catch {} }
   // Seed the search box from the Business Office header search (?q=).
   useEffect(() => { try { const v = new URLSearchParams(window.location.search).get("q"); if (v) setQ(v) } catch {} }, [])
 
@@ -75,7 +78,7 @@ export function CompaniesPanel({ showHeading = true }: { showHeading?: boolean }
       toast({ title: `Created ${form.name}` })
       const to = (form.email.trim() || userEmail || "").trim()
       if (to) { try { await sendCompanyWelcomeEmail({ email: to, companyName: form.name, companyType: form.type }) } catch {} }
-      setOpen(false); setForm({ name: "", type: "Water", email: "", phoneNumber: "" }); await load()
+      setOpen(false); setForm({ name: "", type: "Water", email: "", phoneNumber: "" }); await load(); notifyShell()
     } catch (e: any) { toast({ title: "Create failed", description: e?.message, variant: "destructive" }) }
     finally { setSaving(false) }
   }
@@ -93,7 +96,7 @@ export function CompaniesPanel({ showHeading = true }: { showHeading?: boolean }
       toast({ title: "Company updated" })
       // Keep the active company name in sync if we edited the current one.
       if (editing.farmId === activeFarmId) setActiveCompany(editing.farmId, editForm.name, editing.type)
-      setEditing(null); await load()
+      setEditing(null); await load(); notifyShell()
     } catch (e: any) { toast({ title: "Update failed", description: e?.message, variant: "destructive" }) }
     finally { setEditSaving(false) }
   }
@@ -106,7 +109,7 @@ export function CompaniesPanel({ showHeading = true }: { showHeading?: boolean }
       await deleteCompany(deleteTarget.farmId)
       toast({ title: `Deleted ${deleteTarget.name}` })
       setDeleteTarget(null)
-      await load()
+      await load(); notifyShell()
       // If we just deleted the company we were working in, drop back to the
       // Business Office (neutral) rather than leaving a stale active company.
       if (wasActive) setActiveCompany("", "", "" as CompanyType)
