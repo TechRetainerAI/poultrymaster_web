@@ -40,6 +40,7 @@ import {
   Wrench,
   Banknote,
   Receipt,
+  CalendarDays,
 } from "lucide-react"
 import {
   Sheet,
@@ -129,12 +130,13 @@ export function MobileBottomNav() {
           { href: "/water-vehicles",      label: "Vehicles",          icon: Truck },
           { href: "/water-routes",        label: "Routes",            icon: Activity },
           // Production group
+          { href: "/water-daily-production", label: "Batch Production", icon: CalendarDays },
           { href: "/water-products",      label: "Products",          icon: ShoppingBag },
           { href: "/water-machines",      label: "Machines",          icon: Cog },
           { href: "/water-boreholes",     label: "Boreholes",         icon: Droplets },
           { href: "/water-maintenance",   label: "Maintenance",       icon: Wrench },
           // Inventory group
-          { href: "/water-stock",         label: "Stock",             icon: Boxes },
+          { href: "/water-stock",         label: "Stock movement",    icon: Boxes },
           { href: "/water-inventory",     label: "Inventory",         icon: Boxes },
           { href: "/water-raw-materials", label: "Raw materials & supplies", icon: Box },
           { href: "/water-loss-records",  label: "Damages & loss",    icon: AlertTriangle },
@@ -142,7 +144,7 @@ export function MobileBottomNav() {
           { href: "/water-customers",     label: "Customers",         icon: Users },
           { href: "/water-payments",      label: "Payments",          icon: CreditCard },
           { href: "/water-expenses",      label: "Expenses",          icon: Receipt },
-          { href: "/water-cash-accounts", label: "Cash & Accounts",   icon: Wallet },
+          { href: "/water-cash-accounts", label: "Cash accounts",     icon: Wallet },
           // People
           { href: "/water-staff",         label: "Staff",             icon: Users2 },
           { href: "/water-payroll",       label: "Payroll",           icon: Banknote },

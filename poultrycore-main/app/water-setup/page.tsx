@@ -430,7 +430,7 @@ export default function WaterSetupPage() {
               <h1 className="text-2xl font-semibold text-slate-900">Water company setup</h1>
               <p className="text-sm text-slate-600">
                 Everything the daily flow depends on — products, drivers, machines, routes, suppliers, staff.
-                Add a row here to make it available in production batches, sales, payroll, etc.
+                Add a row here to make it available in production, sales, payroll, etc.
               </p>
             </div>
           </div>
@@ -670,7 +670,7 @@ function CompanySettingsCard() {
         </FormSection>
 
         <FormSection title="Production defaults" color="green">
-          <FormField label="Sachets per bag" hint="Used as default when recording production batches.">
+          <FormField label="Sachets per bag" hint="Used as default when recording production.">
             <NumberInput min={1} value={profile.defaultBagSachetCount}
               onChange={(e) => setProfile({ ...profile, defaultBagSachetCount: Number(e.target.value) || 30 })} />
           </FormField>

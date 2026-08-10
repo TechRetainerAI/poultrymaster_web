@@ -22,7 +22,10 @@ var builder = WebApplication.CreateBuilder(args);
 // (e.g. EmailConfiguration.Password = Gmail App Password). Loaded after the
 // committed Development overlay so it wins. Not loaded in containerized
 // Cloud Run since the file is never shipped; prod uses env vars.
-builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
+// Development-only: in Cloud Run (Production) this must NOT load, or it would
+// override the real env-var secrets (it previously shadowed the Resend key).
+if (builder.Environment.IsDevelopment())
+    builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
 
 // For Entity Framework
 var configuration = builder.Configuration;

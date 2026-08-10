@@ -848,13 +848,15 @@ namespace PoultryFarmAPIWeb.Business
                 WaterDriverId       = r.GetInt32(r.GetOrdinal("WaterDriverId")),
                 DriverName          = r.GetString(r.GetOrdinal("DriverName")),
                 PhoneNumber         = r.IsDBNull(r.GetOrdinal("PhoneNumber")) ? null : r.GetString(r.GetOrdinal("PhoneNumber")),
-                TotalBagsLoaded     = r.GetDecimal(r.GetOrdinal("TotalBagsLoaded")),
-                TotalBagsSold       = r.GetDecimal(r.GetOrdinal("TotalBagsSold")),
-                TotalBagsReturned   = r.GetDecimal(r.GetOrdinal("TotalBagsReturned")),
-                TotalBagsLost       = r.GetDecimal(r.GetOrdinal("TotalBagsLost")),
-                ExpectedRevenue     = r.GetDecimal(r.GetOrdinal("ExpectedRevenue")),
-                ActualAccountedFor  = r.GetDecimal(r.GetOrdinal("ActualAccountedFor")),
-                TotalShortages      = r.GetDecimal(r.GetOrdinal("TotalShortages")),
+                // The bag counts are SUM()s of INT columns, so SQL hands them back
+                // as Int32 — GetDecimal would throw. Dec() converts either shape.
+                TotalBagsLoaded     = Dec(r, "TotalBagsLoaded"),
+                TotalBagsSold       = Dec(r, "TotalBagsSold"),
+                TotalBagsReturned   = Dec(r, "TotalBagsReturned"),
+                TotalBagsLost       = Dec(r, "TotalBagsLost"),
+                ExpectedRevenue     = Dec(r, "ExpectedRevenue"),
+                ActualAccountedFor  = Dec(r, "ActualAccountedFor"),
+                TotalShortages      = Dec(r, "TotalShortages"),
                 ShortageOccurrences = r.GetInt32(r.GetOrdinal("ShortageOccurrences")),
             });
         }
@@ -941,11 +943,13 @@ namespace PoultryFarmAPIWeb.Business
             {
                 model.Today = new WaterDashboardExtendedToday
                 {
-                    TodayBagsProduced      = r.GetDecimal(r.GetOrdinal("TodayBagsProduced")),
-                    TodayBagsSold          = r.GetDecimal(r.GetOrdinal("TodayBagsSold")),
+                    // Bag counts are SUM()s of INT columns (BagsProduced, sale
+                    // Quantity, stock Quantity) — GetDecimal would throw on Int32.
+                    TodayBagsProduced      = Dec(r, "TodayBagsProduced"),
+                    TodayBagsSold          = Dec(r, "TodayBagsSold"),
                     TodayRevenue           = r.GetDecimal(r.GetOrdinal("TodayRevenue")),
                     TodayProductionCost    = r.GetDecimal(r.GetOrdinal("TodayProductionCost")),
-                    BagsOnHand             = r.GetDecimal(r.GetOrdinal("BagsOnHand")),
+                    BagsOnHand             = Dec(r, "BagsOnHand"),
                     TotalCustomerDebt      = r.GetDecimal(r.GetOrdinal("TotalCustomerDebt")),
                     PendingDriverShortages = r.GetDecimal(r.GetOrdinal("PendingDriverShortages")),
                 };

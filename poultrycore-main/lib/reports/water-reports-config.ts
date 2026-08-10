@@ -64,7 +64,7 @@ export const WATER_REPORT_GROUPS: WaterReportGroup[] = [
     label: "Production & Inventory",
     color: "bg-indigo-600",
     reports: [
-      { slug: "production-report",     title: "Production Report",      description: "Batches, machine, product, good bags, cost/bag, efficiency.", icon: Factory,     status: "ready" },
+      { slug: "production-report",     title: "Production Report",      description: "Production records, machine, product, good bags, cost/bag, efficiency.", icon: Factory,     status: "ready" },
       { slug: "raw-material-usage",    title: "Raw Material Usage",     description: "Expected vs actual usage with variance.",                     icon: Layers,      status: "ready" },
       { slug: "raw-material-purchase", title: "Raw Material Purchases", description: "Suppliers, costs, payment methods.",                          icon: ShoppingBag, status: "ready" },
       { slug: "inventory-report",      title: "Inventory / Stock",      description: "Current stock by product/material with low-stock alerts.",    icon: Boxes,       status: "ready" },

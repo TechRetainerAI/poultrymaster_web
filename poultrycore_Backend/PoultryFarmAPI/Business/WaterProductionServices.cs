@@ -403,6 +403,10 @@ namespace PoultryFarmAPIWeb.Business
             CostPerBag               = HasCol(r, "CostPerBag")  && !r.IsDBNull(r.GetOrdinal("CostPerBag"))  ? r.GetDecimal(r.GetOrdinal("CostPerBag")) : 0m,
             ProductionEfficiencyPercent = HasCol(r, "ProductionEfficiencyPercent") && !r.IsDBNull(r.GetOrdinal("ProductionEfficiencyPercent")) ? r.GetDecimal(r.GetOrdinal("ProductionEfficiencyPercent")) : 0m,
             MachineScope             = HasCol(r, "MachineScope") && !r.IsDBNull(r.GetOrdinal("MachineScope")) ? r.GetString(r.GetOrdinal("MachineScope")) : "SingleMachine",
+            // Migration 193 — HasCol-guarded so the API still runs before 193 is applied.
+            WaterDailyProductionId   = HasCol(r, "WaterDailyProductionId") && !r.IsDBNull(r.GetOrdinal("WaterDailyProductionId")) ? r.GetInt32(r.GetOrdinal("WaterDailyProductionId")) : null,
+            WaterDailyProductionAllocationId = HasCol(r, "WaterDailyProductionAllocationId") && !r.IsDBNull(r.GetOrdinal("WaterDailyProductionAllocationId")) ? r.GetInt32(r.GetOrdinal("WaterDailyProductionAllocationId")) : null,
+            SourceType               = HasCol(r, "SourceType") && !r.IsDBNull(r.GetOrdinal("SourceType")) ? r.GetString(r.GetOrdinal("SourceType")) : "ManualSingleBatch",
             QualityStatus            = r.GetString(r.GetOrdinal("QualityStatus")),
             QualityPHLevel           = r.IsDBNull(r.GetOrdinal("QualityPHLevel")) ? null : r.GetDecimal(r.GetOrdinal("QualityPHLevel")),
             QualityChlorinePpm       = r.IsDBNull(r.GetOrdinal("QualityChlorinePpm")) ? null : r.GetDecimal(r.GetOrdinal("QualityChlorinePpm")),

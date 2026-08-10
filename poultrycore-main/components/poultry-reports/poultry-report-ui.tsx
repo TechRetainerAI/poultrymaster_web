@@ -14,7 +14,7 @@ import type { Accent, BreakdownGroup, ColumnDef, FmtCtx } from "@/lib/reports/po
 
 // --- Status badge ------------------------------------------------------------
 const GOOD = ["good", "profit", "paid", "complete", "in stock", "ok", "settled", "balanced", "active", "completed"]
-const WARN = ["watch", "owing", "incomplete", "low", "minor variance", "not itemised", "n/a"]
+const WARN = ["watch", "owing", "incomplete", "low", "minor variance", "not itemised", "n/a", "part paid"]
 const BAD = ["critical", "loss", "unpaid", "high", "out of stock", "check count", "empty", "closed", "overdue"]
 
 export function PoultryReportStatusBadge({ status }: { status: string }) {

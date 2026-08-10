@@ -1,76 +1,137 @@
 "use client"
 
+// Poultry inventory page. Same shape as /water-inventory: one page, two tabs
+// (finished products / raw materials), stat cards up top, search in the header.
+//
+// Read-only here on purpose — adjustments go through the dedicated routes
+// (/poultry-products, /poultry-raw-materials) so the audit log captures
+// who/what/when. This page is the at-a-glance view, plus the PDF/email report
+// and the per-item links into the egg / birds / feed / medication trackers.
+
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Card, CardContent } from "@/components/ui/card"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { FieldCard } from "@/components/ui/field-card"
-import { Loader2, AlertTriangle, Box, Package, Search, RefreshCw, Download, Mail } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Boxes, Box, ShoppingBag, AlertTriangle, AlertCircle, Layers, Loader2, Search,
+  ExternalLink, RefreshCw, Download, Mail,
+} from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
+import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
-import Link from "next/link"
-import { listPoultryProducts, listPoultryRawMaterialItems, ensurePoultryDefaults, setPoultryProductStock, reconcilePoultryProductStock, type PoultryProduct, type PoultryRawMaterialItem } from "@/lib/api/poultry-inventory"
+import {
+  listPoultryProducts, listPoultryRawMaterialItems, ensurePoultryDefaults,
+  setPoultryProductStock, reconcilePoultryProductStock,
+  type PoultryProduct, type PoultryRawMaterialItem,
+} from "@/lib/api/poultry-inventory"
 import { RecalculateStockButton } from "@/components/poultry/recalculate-stock-button"
 import { SetProductStockButton } from "@/components/inventory/set-product-stock-button"
 import { ReconcileProductStockButton } from "@/components/inventory/reconcile-product-stock-button"
 import { exportTableToPdf, emailTableAsPdf, type PdfExportOptions } from "@/lib/utils/pdf-export"
 
-type Row = {
-  key: string; seq: number; parentType: "Finished Product" | "Raw Material"
-  id: number; name: string; type: string; size: string | null; unit: string | null
-  unitPrice: number | null; stock: number; low: boolean; active: boolean
-  date: string | null; isEgg?: boolean; isBird?: boolean
+type Tone = "ok" | "low" | "out" | "inactive"
+
+function StatCard({ label, value, icon: Icon, accent }: { label: string; value: string | number; icon: any; accent?: "amber" | "rose" | "emerald" }) {
+  const colors = accent === "amber" ? "bg-amber-100 text-amber-700"
+    : accent === "rose" ? "bg-rose-100 text-rose-700"
+    : accent === "emerald" ? "bg-emerald-100 text-emerald-700"
+    : "bg-orange-100 text-orange-700"
+  return (
+    <Card>
+      <CardContent className="p-4 flex items-center gap-3">
+        <div className={`rounded-lg p-2 ${colors}`}><Icon className="h-5 w-5" /></div>
+        <div className="min-w-0">
+          <div className="text-xs text-slate-500">{label}</div>
+          <div className="text-2xl font-semibold text-slate-900 tabular-nums">{value}</div>
+        </div>
+      </CardContent>
+    </Card>
+  )
 }
 
-// Doc 2 §3-5: Details link routes to the right tracker, filtered by the item.
-function detailLink(r: Row): { href: string; label: string } {
-  if (r.parentType === "Finished Product") {
-    if (r.isEgg) return { href: `/egg-tracker?inventoryItemId=${r.id}`, label: "View Egg Tracker" }
-    if (r.isBird) return { href: `/birds-left-tracker?inventoryItemId=${r.id}`, label: "View Birds Tracker" }
-    return { href: `/poultry-stock?productId=${r.id}`, label: "View Stock" }
-  }
-  if (r.type === "FeedIngredient") return { href: `/feed-tracker?inventoryItemId=${r.id}`, label: "View Feed Tracker" }
-  if (r.type === "Medication" || r.type === "Vaccine") return { href: `/medication-tracker?inventoryItemId=${r.id}`, label: "View Medication Tracker" }
-  return { href: `/poultry-stock?rawId=${r.id}`, label: "View Details" }
+const ToneBadge = ({ tone, label }: { tone: Tone; label: string }) =>
+  tone === "inactive" ? <Badge variant="secondary">{label}</Badge>
+    : tone === "out" ? <Badge className="bg-rose-100 text-rose-700">{label}</Badge>
+    : tone === "low" ? <Badge className="bg-amber-100 text-amber-700"><AlertTriangle className="h-3 w-3 mr-1" />{label}</Badge>
+    : <Badge className="bg-emerald-100 text-emerald-700">{label}</Badge>
+
+// Details link routes to the right tracker, filtered by the item.
+function productLink(p: PoultryProduct): { href: string; label: string } {
+  if (p.isRawEggProduct) return { href: `/egg-tracker?inventoryItemId=${p.poultryProductId}`, label: "Egg Tracker" }
+  if (p.isBirdProduct) return { href: `/birds-left-tracker?inventoryItemId=${p.poultryProductId}`, label: "Birds Tracker" }
+  return { href: `/poultry-stock?productId=${p.poultryProductId}`, label: "View Stock" }
 }
+function rawLink(r: PoultryRawMaterialItem): { href: string; label: string } {
+  const id = r.poultryRawMaterialItemId
+  if (r.category === "FeedIngredient") return { href: `/feed-tracker?inventoryItemId=${id}`, label: "Feed Tracker" }
+  if (r.category === "Medication" || r.category === "Vaccine") return { href: `/medication-tracker?inventoryItemId=${id}`, label: "Medication Tracker" }
+  return { href: `/poultry-stock?rawId=${id}`, label: "View Details" }
+}
+
+const DetailLink = ({ href, label }: { href: string; label: string }) => (
+  <Link href={href} className="text-blue-600 hover:underline text-sm whitespace-nowrap">{label}</Link>
+)
 
 export default function PoultryInventoryPage() {
   const router = useRouter()
   const { toast } = useToast()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
+  const logout = useLogout()
   const gh = useFmt()
+
   const [products, setProducts] = useState<PoultryProduct[]>([])
   const [items, setItems] = useState<PoultryRawMaterialItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState("")
-  // Filters (mirrors the /inventory "Other Inventory" filter bar).
-  const [parentType, setParentType] = useState<string>("ALL")
-  const [category, setCategory] = useState<string>("ALL")
-  const [status, setStatus] = useState<string>("ALL")
+  const [q, setQ] = useState("")
+  const [category, setCategory] = useState("ALL")
+  const [status, setStatus] = useState("ALL")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [emailingReport, setEmailingReport] = useState(false)
-  const resetFilters = () => { setSearch(""); setParentType("ALL"); setCategory("ALL"); setStatus("ALL"); setDateFrom(""); setDateTo("") }
+  const resetFilters = () => { setQ(""); setCategory("ALL"); setStatus("ALL"); setDateFrom(""); setDateTo("") }
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Poultry") { router.replace("/dashboard"); return }
+    let cancelled = false
     ;(async () => {
       try {
         await ensurePoultryDefaults().catch(() => {})   // doc: Eggs + Birds defaults visible in inventory
-        const [ps, is] = await Promise.all([listPoultryProducts(), listPoultryRawMaterialItems()]); setProducts(ps); setItems(is)
+        const [ps, is] = await Promise.all([listPoultryProducts(), listPoultryRawMaterialItems()])
+        if (!cancelled) { setProducts(ps); setItems(is) }
+      } catch (e: any) {
+        if (!cancelled) toast({ title: "Could not load inventory", description: e?.message ?? String(e), variant: "destructive" })
+      } finally {
+        if (!cancelled) setLoading(false)
       }
-      catch (e: any) { toast({ title: "Could not load inventory", description: e?.message, variant: "destructive" }) }
-      finally { setLoading(false) }
     })()
+    return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFarmType])
+
+  // Status helpers.
+  const productStatus = (p: PoultryProduct): { label: string; tone: Tone } => {
+    if (!p.isActive) return { label: "Inactive", tone: "inactive" }
+    if ((p.stockOnHand ?? 0) <= 0) return { label: "Out of stock", tone: "out" }
+    return { label: "In stock", tone: "ok" }
+  }
+  const rawStatus = (r: PoultryRawMaterialItem): { label: string; tone: Tone } => {
+    if (!r.isActive) return { label: "Inactive", tone: "inactive" }
+    const s = r.currentQuantity ?? 0
+    const min = r.minimumStockAlert ?? 0
+    if (s <= 0) return { label: "Out of stock", tone: "out" }
+    if (r.isLowStock || (min > 0 && s <= min)) return { label: "Low stock", tone: "low" }
+    return { label: "In stock", tone: "ok" }
+  }
 
   // Distinct Type / Category values across finished products + raw materials.
   const categories = useMemo(() => {
@@ -80,35 +141,63 @@ export default function PoultryInventoryPage() {
     return Array.from(set).sort((a, b) => a.localeCompare(b))
   }, [products, items])
 
-  // doc 2/3/8: one table, Finished Products first (seq 1), then Raw Materials (seq 2).
-  const rows: Row[] = useMemo(() => {
-    const fin: Row[] = products.map((p) => ({ key: `p${p.poultryProductId}`, seq: 1, parentType: "Finished Product", id: p.poultryProductId, name: p.name, type: p.productType, size: p.size ?? null, unit: p.unit ?? null, unitPrice: p.unitPrice, stock: p.stockOnHand, low: false, active: p.isActive, date: p.createdDate ?? null, isEgg: p.isRawEggProduct, isBird: p.isBirdProduct }))
-    const raw: Row[] = items.map((i) => ({ key: `r${i.poultryRawMaterialItemId}`, seq: 2, parentType: "Raw Material", id: i.poultryRawMaterialItemId, name: i.itemName, type: i.category, size: null, unit: i.unitOfMeasure ?? null, unitPrice: null, stock: i.currentQuantity, low: !!i.isLowStock, active: i.isActive, date: i.createdAt ?? null }))
-    const all = [...fin, ...raw]
-    const q = search.trim().toLowerCase()
-    const filtered = all.filter((r) => {
-      if (q && !(r.name.toLowerCase().includes(q) || r.type.toLowerCase().includes(q) || r.parentType.toLowerCase().includes(q))) return false
-      if (parentType !== "ALL" && r.parentType !== parentType) return false
-      if (category !== "ALL" && r.type !== category) return false
-      if (status !== "ALL") {
-        const s = !r.active ? "inactive" : r.low ? "low" : "ok"
-        if (s !== status) return false
-      }
-      // Date added range (compare the YYYY-MM-DD portion).
-      const day = r.date ? r.date.slice(0, 10) : ""
-      if (dateFrom && (!day || day < dateFrom)) return false
-      if (dateTo && (!day || day > dateTo)) return false
-      return true
-    })
-    return filtered.sort((a, b) => a.seq - b.seq || a.name.localeCompare(b.name))
-  }, [products, items, search, parentType, category, status, dateFrom, dateTo])
+  // Shared filter predicate: search + category + status + date-added range.
+  const matchesQ = (...fields: (string | null | undefined)[]) =>
+    !q.trim() || fields.some((f) => (f ?? "").toLowerCase().includes(q.trim().toLowerCase()))
+  const matchesDate = (iso?: string | null) => {
+    const day = iso ? iso.slice(0, 10) : ""
+    if (dateFrom && (!day || day < dateFrom)) return false
+    if (dateTo && (!day || day > dateTo)) return false
+    return true
+  }
+  const matchesStatus = (tone: Tone) => {
+    if (status === "ALL") return true
+    if (status === "inactive") return tone === "inactive"
+    if (status === "low") return tone === "low"
+    if (status === "out") return tone === "out"
+    return tone === "ok"
+  }
 
-  const lowRaw = items.filter((i) => i.isActive && i.isLowStock).length
-  const stat = (label: string, value: string | number, cls = "") => (
-    <Card><CardContent className="p-4"><div className="text-sm text-slate-500">{label}</div><div className={`text-2xl font-bold ${cls}`}>{value}</div></CardContent></Card>
+  const filteredProducts = useMemo(
+    () => products
+      .filter((p) => matchesQ(p.name, p.sku, p.productType, p.unit))
+      .filter((p) => category === "ALL" || p.productType === category)
+      .filter((p) => matchesStatus(productStatus(p).tone))
+      .filter((p) => matchesDate(p.createdDate))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    [products, q, category, status, dateFrom, dateTo]
+  )
+  const filteredRaw = useMemo(
+    () => items
+      .filter((r) => matchesQ(r.itemName, r.category, r.unitOfMeasure))
+      .filter((r) => category === "ALL" || r.category === category)
+      .filter((r) => matchesStatus(rawStatus(r).tone))
+      .filter((r) => matchesDate(r.createdAt))
+      .sort((a, b) => a.itemName.localeCompare(b.itemName)),
+    [items, q, category, status, dateFrom, dateTo]
   )
 
-  // PDF / email report built from the currently filtered rows.
+  const counts = useMemo(() => {
+    let low = 0, out = 0
+    for (const p of products) {
+      const t = productStatus(p).tone
+      if (t === "low") low++
+      else if (t === "out") out++
+    }
+    for (const r of items) {
+      const t = rawStatus(r).tone
+      if (t === "low") low++
+      else if (t === "out") out++
+    }
+    return {
+      totalItems: products.length + items.length,
+      low,
+      out,
+      finishedStock: products.reduce((s, p) => s + (p.stockOnHand || 0), 0),
+    }
+  }, [products, items])
+
+  // PDF / email report built from the currently filtered rows (both tabs).
   const buildPdfOpts = (): PdfExportOptions => ({
     title: "Inventory Report",
     filename: "poultry-inventory",
@@ -122,28 +211,30 @@ export default function PoultryInventoryPage() {
       { header: "In stock", align: "right" },
       { header: "Status" },
     ],
-    rows: rows.map((r) => [
-      r.name,
-      r.parentType,
-      r.type,
-      r.size ?? "",
-      r.unit ?? "",
-      r.unitPrice != null ? gh(r.unitPrice) : "",
-      r.stock.toLocaleString(),
-      !r.active ? "Inactive" : r.low ? "Low" : "OK",
-    ]),
-    summaryLines: [`Items: ${rows.length}`],
+    rows: [
+      ...filteredProducts.map((p) => [
+        p.name, "Finished Product", p.productType, p.size ?? "", p.unit ?? "",
+        gh(p.unitPrice), (p.stockOnHand ?? 0).toLocaleString(), productStatus(p).label,
+      ]),
+      ...filteredRaw.map((r) => [
+        r.itemName, "Raw Material", r.category, "", r.unitOfMeasure ?? "",
+        "", (r.currentQuantity ?? 0).toLocaleString(), rawStatus(r).label,
+      ]),
+    ],
+    summaryLines: [`Items: ${filteredProducts.length + filteredRaw.length}`],
     headFillColor: [234, 88, 12],
   })
 
+  const reportRowCount = filteredProducts.length + filteredRaw.length
+
   const handleExportPdf = async () => {
-    if (rows.length === 0) { toast({ title: "Nothing to export", description: "No inventory items match the current filters.", variant: "destructive" }); return }
+    if (reportRowCount === 0) { toast({ title: "Nothing to export", description: "No inventory items match the current filters.", variant: "destructive" }); return }
     try { await exportTableToPdf(buildPdfOpts()) }
     catch { toast({ title: "PDF export failed", description: "Could not generate PDF. Please try again.", variant: "destructive" }) }
   }
 
   const handleEmailReport = async () => {
-    if (rows.length === 0) { toast({ title: "Nothing to email", description: "No inventory items match the current filters.", variant: "destructive" }); return }
+    if (reportRowCount === 0) { toast({ title: "Nothing to email", description: "No inventory items match the current filters.", variant: "destructive" }); return }
     setEmailingReport(true)
     try {
       const res = await emailTableAsPdf(buildPdfOpts())
@@ -153,113 +244,236 @@ export default function PoultryInventoryPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <DashboardSidebar />
-      <div className="flex-1 flex flex-col min-w-0">
+    <div className="flex h-screen bg-slate-50">
+      <DashboardSidebar onLogout={logout} />
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <DashboardHeader />
-        <main className="flex-1 p-4 sm:p-6 space-y-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div><h1 className="text-2xl font-bold">Inventory</h1><p className="text-sm text-slate-500">All finished products and raw materials in one view. Finished products first.</p></div>
-            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-              <span className="text-sm font-medium text-slate-600">Applicable Inventory:</span>
-              <Link href="/poultry-raw-materials" className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
-                <Box className="h-4 w-4" /> Manage/Add Raw Materials
-              </Link>
-              <Link href="/poultry-products" className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900">
-                <Package className="h-4 w-4" /> Manage Finished Products
-              </Link>
+        <main className="flex-1 overflow-auto p-4 md:p-6 space-y-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-orange-100 p-2"><Boxes className="h-6 w-6 text-orange-700" /></div>
+              <div>
+                <h1 className="text-2xl font-semibold text-slate-900">Poultry inventory</h1>
+                <p className="text-sm text-slate-600">Finished products and raw materials in one place.</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              <div className="relative w-full md:w-80">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input placeholder="Search by name, SKU, category…" className="pl-9" value={q} onChange={(e) => setQ(e.target.value)} />
+              </div>
               <RecalculateStockButton items={items} size="sm" onDone={async () => setItems(await listPoultryRawMaterialItems())} />
               <ReconcileProductStockButton size="sm" products={products.map((p) => ({ id: p.poultryProductId, name: p.name }))} reconcile={reconcilePoultryProductStock} onDone={async () => setProducts(await listPoultryProducts())} />
               <SetProductStockButton size="sm" products={products.map((p) => ({ id: p.poultryProductId, name: p.name, currentStock: p.stockOnHand, disabledReason: (p.isBirdProduct || p.name === "Birds") ? "Bird stock comes from the birds left in your flocks — correct it in the flock / production records (record mortality, or edit the flock)." : undefined }))} setStock={setPoultryProductStock} onDone={async () => setProducts(await listPoultryProducts())} />
             </div>
           </div>
-          {loading ? <div className="flex items-center gap-2 text-slate-500 p-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div> : (
-            <>
-              <Card><CardContent className="p-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="relative w-full sm:w-[240px]">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                    <Input placeholder="Search inventory…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
-                  </div>
-                  <Select value={parentType} onValueChange={setParentType}>
-                    <SelectTrigger className="w-[190px]"><SelectValue placeholder="Parent type" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ALL">All parent types</SelectItem>
-                      <SelectItem value="Finished Product">Finished Product</SelectItem>
-                      <SelectItem value="Raw Material">Raw Material</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select value={category} onValueChange={setCategory}>
-                    <SelectTrigger className="w-[190px]"><SelectValue placeholder="Type / Category" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ALL">All categories</SelectItem>
-                      {categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <Select value={status} onValueChange={setStatus}>
-                    <SelectTrigger className="w-[150px]"><SelectValue placeholder="Status" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ALL">All statuses</SelectItem>
-                      <SelectItem value="ok">OK</SelectItem>
-                      <SelectItem value="low">Low stock</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Input type="date" aria-label="Date added from" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[160px]" />
-                  <Input type="date" aria-label="Date added to" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[160px]" />
-                  <div className="ml-auto flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={handleExportPdf} className="gap-2"><Download className="h-4 w-4" /> Export PDF</Button>
-                    <Button variant="outline" size="sm" onClick={handleEmailReport} disabled={emailingReport} className="gap-2">
-                      {emailingReport ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />} Email Report
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={resetFilters}><RefreshCw className="h-4 w-4 mr-2" /> Reset</Button>
-                  </div>
+
+          {/* Top stat cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <StatCard label="Total items" value={loading ? "…" : counts.totalItems} icon={Boxes} />
+            <StatCard label="Low stock" value={loading ? "…" : counts.low} icon={AlertTriangle} accent="amber" />
+            <StatCard label="Out of stock" value={loading ? "…" : counts.out} icon={AlertCircle} accent="rose" />
+            <StatCard label="Total finished stock" value={loading ? "…" : counts.finishedStock.toLocaleString()} icon={Layers} accent="emerald" />
+          </div>
+
+          {/* Filters + report actions */}
+          <Card>
+            <CardContent className="p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={category} onValueChange={setCategory}>
+                  <SelectTrigger className="w-full sm:w-[190px]"><SelectValue placeholder="Type / Category" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All categories</SelectItem>
+                    {categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={status} onValueChange={setStatus}>
+                  <SelectTrigger className="w-full sm:w-[160px]"><SelectValue placeholder="Status" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All statuses</SelectItem>
+                    <SelectItem value="ok">In stock</SelectItem>
+                    <SelectItem value="low">Low stock</SelectItem>
+                    <SelectItem value="out">Out of stock</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input type="date" aria-label="Date added from" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-full sm:w-[160px]" />
+                <Input type="date" aria-label="Date added to" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-full sm:w-[160px]" />
+                <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+                  <Button variant="outline" size="sm" onClick={handleExportPdf} className="gap-2"><Download className="h-4 w-4" /> Export PDF</Button>
+                  <Button variant="outline" size="sm" onClick={handleEmailReport} disabled={emailingReport} className="gap-2">
+                    {emailingReport ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />} Email Report
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={resetFilters}><RefreshCw className="h-4 w-4 mr-2" /> Reset</Button>
                 </div>
-              </CardContent></Card>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {stat("Finished products", products.length)}
-                {stat("Raw material items", items.length)}
-                {stat("Low-stock raw items", lowRaw, lowRaw > 0 ? "text-amber-600" : "")}
-                {stat("Total finished stock", products.reduce((s, p) => s + (p.stockOnHand || 0), 0).toLocaleString())}
               </div>
-              <Card><CardContent className="p-4 space-y-3">
-                <div className="hidden md:block overflow-x-auto">
-                <Table className="min-w-[720px]">
-                  <TableHeader><TableRow>
-                    <TableHead>Item</TableHead><TableHead>Parent Type</TableHead><TableHead>Type / Category</TableHead>
-                    <TableHead>Size</TableHead><TableHead>Unit</TableHead><TableHead className="text-right">Unit Price</TableHead>
-                    <TableHead className="text-right">In stock</TableHead><TableHead>Status</TableHead><TableHead>Details</TableHead>
-                  </TableRow></TableHeader>
-                  <TableBody>
-                    {rows.length === 0 ? <TableRow><TableCell colSpan={9} className="text-center text-slate-500 py-6">No inventory yet.</TableCell></TableRow>
-                      : rows.map((r) => (
-                        <TableRow key={r.key}>
-                          <TableCell className="font-medium">{r.name}</TableCell>
-                          <TableCell><Badge className={r.parentType === "Finished Product" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-700"}>{r.parentType}</Badge></TableCell>
-                          <TableCell>{r.type}</TableCell>
-                          <TableCell>{r.size ?? "—"}</TableCell>
-                          <TableCell>{r.unit ?? "—"}</TableCell>
-                          <TableCell className="text-right">{r.unitPrice != null ? gh(r.unitPrice) : "—"}</TableCell>
-                          <TableCell className="text-right">{r.stock.toLocaleString()}</TableCell>
-                          <TableCell>{!r.active ? <Badge variant="secondary">Inactive</Badge> : r.low ? <Badge className="bg-amber-100 text-amber-700"><AlertTriangle className="w-3 h-3 mr-1" />Low</Badge> : <Badge className="bg-green-100 text-green-700">OK</Badge>}</TableCell>
-                          <TableCell>{(() => { const l = detailLink(r); return <Link href={l.href} className="text-blue-600 hover:underline text-sm whitespace-nowrap">{l.label}</Link> })()}</TableCell>
-                        </TableRow>
-                      ))}
-                  </TableBody>
-                </Table>
-                </div>
-                {/* Mobile cards */}
-                <div className="md:hidden space-y-2">
-                  {rows.length === 0 ? <div className="text-center text-slate-500 py-6">No inventory yet.</div>
-                    : rows.map((r) => (
-                      <FieldCard key={r.key} title={r.name}
-                        badge={!r.active ? <Badge variant="secondary">Inactive</Badge> : r.low ? <Badge className="bg-amber-100 text-amber-700">Low</Badge> : <Badge className="bg-green-100 text-green-700">OK</Badge>}
-                        fields={[["Type", r.parentType], ["Category", r.type], ["Unit", r.unit ?? "—"], ["Unit price", r.unitPrice != null ? gh(r.unitPrice) : "—"], ["In stock", r.stock.toLocaleString()], ["", (() => { const l = detailLink(r); return <Link href={l.href} className="text-blue-600 hover:underline">{l.label}</Link> })()]]} />
-                    ))}
-                </div>
-              </CardContent></Card>
-            </>
-          )}
+            </CardContent>
+          </Card>
+
+          <Tabs defaultValue="products" className="w-full">
+            <TabsList className="flex flex-wrap h-auto gap-1 bg-slate-100 p-1">
+              <TabsTrigger value="products" className="data-[state=active]:bg-white">
+                <ShoppingBag className="h-4 w-4 mr-1.5" /> Finished products
+                <Badge variant="secondary" className="ml-2">{filteredProducts.length}</Badge>
+              </TabsTrigger>
+              <TabsTrigger value="raw" className="data-[state=active]:bg-white">
+                <Box className="h-4 w-4 mr-1.5" /> Raw materials
+                <Badge variant="secondary" className="ml-2">{filteredRaw.length}</Badge>
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="products" className="mt-4">
+              <Card>
+                <CardContent className="p-0">
+                  <div className="flex flex-col gap-2 p-3 border-b bg-slate-50 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 text-sm text-slate-600">Eggs, birds and packaged products. Stock = SUM(PoultryStockTransactions).</div>
+                    <Button asChild size="sm" variant="outline" className="w-full shrink-0 sm:w-auto">
+                      <Link href="/poultry-products"><ExternalLink className="h-4 w-4 mr-1" /> Manage products</Link>
+                    </Button>
+                  </div>
+                  {loading ? (
+                    <div className="p-6 text-slate-500 flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
+                  ) : filteredProducts.length === 0 ? (
+                    <div className="p-8 text-center text-slate-500">{q || category !== "ALL" || status !== "ALL" || dateFrom || dateTo ? "No products match your filters." : "No products yet."}</div>
+                  ) : (
+                    <MobileCardList
+                      items={filteredProducts}
+                      defaultOpen
+                      getKey={(p) => p.poultryProductId}
+                      primary={(p) => p.name}
+                      secondary={(p) => {
+                        const st = productStatus(p)
+                        return <ToneBadge tone={st.tone} label={st.label} />
+                      }}
+                      details={(p) => {
+                        const l = productLink(p)
+                        return [
+                          { label: "Type", value: p.productType || "—" },
+                          { label: "SKU", value: p.sku ?? "—" },
+                          { label: "Size", value: p.size ?? "—" },
+                          { label: "Unit", value: p.unit ?? "—" },
+                          { label: "Unit price", value: gh(p.unitPrice) },
+                          { label: "In stock", value: (p.stockOnHand ?? 0).toLocaleString() },
+                          { label: "Details", value: <DetailLink href={l.href} label={l.label} /> },
+                        ]
+                      }}
+                      desktopTable={
+                        <div className="overflow-x-auto">
+                          <Table className="min-w-[720px]">
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Item</TableHead>
+                                <TableHead>Type</TableHead>
+                                <TableHead>SKU</TableHead>
+                                <TableHead>Size</TableHead>
+                                <TableHead>Unit</TableHead>
+                                <TableHead className="text-right">Unit price</TableHead>
+                                <TableHead className="text-right">In stock</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead>Details</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {filteredProducts.map((p) => {
+                                const st = productStatus(p)
+                                const l = productLink(p)
+                                return (
+                                  <TableRow key={p.poultryProductId}>
+                                    <TableCell className="font-medium">{p.name}</TableCell>
+                                    <TableCell>{p.productType || "—"}</TableCell>
+                                    <TableCell className="text-slate-600">{p.sku ?? "—"}</TableCell>
+                                    <TableCell>{p.size ?? "—"}</TableCell>
+                                    <TableCell>{p.unit ?? "—"}</TableCell>
+                                    <TableCell className="text-right tabular-nums">{gh(p.unitPrice)}</TableCell>
+                                    <TableCell className="text-right tabular-nums font-semibold">{(p.stockOnHand ?? 0).toLocaleString()}</TableCell>
+                                    <TableCell><ToneBadge tone={st.tone} label={st.label} /></TableCell>
+                                    <TableCell><DetailLink href={l.href} label={l.label} /></TableCell>
+                                  </TableRow>
+                                )
+                              })}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      }
+                    />
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="raw" className="mt-4">
+              <Card>
+                <CardContent className="p-0">
+                  <div className="flex flex-col gap-2 p-3 border-b bg-slate-50 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 text-sm text-slate-600">Feed ingredients, medication, vaccines. Stock updated by purchases + production usage.</div>
+                    <Button asChild size="sm" variant="outline" className="w-full shrink-0 sm:w-auto">
+                      <Link href="/poultry-raw-materials"><ExternalLink className="h-4 w-4 mr-1" /> Manage raw materials</Link>
+                    </Button>
+                  </div>
+                  {loading ? (
+                    <div className="p-6 text-slate-500 flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
+                  ) : filteredRaw.length === 0 ? (
+                    <div className="p-8 text-center text-slate-500">{q || category !== "ALL" || status !== "ALL" || dateFrom || dateTo ? "No raw materials match your filters." : "No raw materials yet."}</div>
+                  ) : (
+                    <MobileCardList
+                      items={filteredRaw}
+                      defaultOpen
+                      getKey={(r) => r.poultryRawMaterialItemId}
+                      primary={(r) => r.itemName}
+                      secondary={(r) => {
+                        const st = rawStatus(r)
+                        return <ToneBadge tone={st.tone} label={st.label} />
+                      }}
+                      details={(r) => {
+                        const l = rawLink(r)
+                        return [
+                          { label: "Category", value: r.category ?? "—" },
+                          { label: "Unit", value: r.unitOfMeasure ?? "—" },
+                          { label: "In stock", value: (r.currentQuantity ?? 0).toLocaleString() },
+                          { label: "Min alert", value: (r.minimumStockAlert ?? 0).toLocaleString() },
+                          { label: "Details", value: <DetailLink href={l.href} label={l.label} /> },
+                        ]
+                      }}
+                      desktopTable={
+                        <div className="overflow-x-auto">
+                          <Table className="min-w-[720px]">
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Item</TableHead>
+                                <TableHead>Category</TableHead>
+                                <TableHead>Unit</TableHead>
+                                <TableHead className="text-right">In stock</TableHead>
+                                <TableHead className="text-right">Min alert</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead>Details</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {filteredRaw.map((r) => {
+                                const st = rawStatus(r)
+                                const l = rawLink(r)
+                                return (
+                                  <TableRow key={r.poultryRawMaterialItemId}>
+                                    <TableCell className="font-medium">{r.itemName}</TableCell>
+                                    <TableCell>{r.category ?? "—"}</TableCell>
+                                    <TableCell>{r.unitOfMeasure ?? "—"}</TableCell>
+                                    <TableCell className="text-right tabular-nums font-semibold">{(r.currentQuantity ?? 0).toLocaleString()}</TableCell>
+                                    <TableCell className="text-right tabular-nums text-slate-500">{(r.minimumStockAlert ?? 0).toLocaleString()}</TableCell>
+                                    <TableCell><ToneBadge tone={st.tone} label={st.label} /></TableCell>
+                                    <TableCell><DetailLink href={l.href} label={l.label} /></TableCell>
+                                  </TableRow>
+                                )
+                              })}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      }
+                    />
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </main>
       </div>
     </div>
