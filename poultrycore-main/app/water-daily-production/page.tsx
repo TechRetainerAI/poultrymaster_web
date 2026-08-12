@@ -10,6 +10,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -89,6 +91,10 @@ export default function WaterDailyProductionPage() {
     } as any)
     return status === "all" ? byDate : byDate.filter((r: WaterDailyProduction) => r.status === status)
   }, [rows, search, dateFrom, dateTo, status])
+
+  // Client-side paging. `totals` below deliberately stays on `filtered` — the
+  // summary is for the whole filtered set, not the visible page.
+  const pg = usePagination(filtered)
 
   const totals = useMemo(() => ({
     days: filtered.length,
@@ -290,7 +296,7 @@ export default function WaterDailyProductionPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filtered.map((r) => (
+                    {pg.pageItems.map((r) => (
                       <TableRow key={r.waterDailyProductionId}>
                         <TableCell className="whitespace-nowrap">{(r.productionDate || "").slice(0, 10)}</TableCell>
                         <TableCell className="font-medium">{r.productionNumber || `#${r.waterDailyProductionId}`}</TableCell>
@@ -311,6 +317,11 @@ export default function WaterDailyProductionPage() {
                     ))}
                   </TableBody>
                 </Table>
+              )}
+              {!loading && filtered.length > 0 && (
+                <div className="px-4 pb-4">
+                  <DataPagination {...pg.paginationProps} />
+                </div>
               )}
             </CardContent>
           </Card>

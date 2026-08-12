@@ -11,6 +11,7 @@ import { NumberInput } from "@/components/ui/number-input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { ListFilters } from "@/components/ui/list-filters"
 import { filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -48,6 +49,10 @@ export default function PoultryCashAccountsPage() {
     () => filterByDateAndSearch(accounts, { search, dateFrom, dateTo, searchKeys: ["accountName", "accountType"] }),
     [accounts, search, dateFrom, dateTo],
   )
+
+  // Client-side paging: the whole list is already in memory, so this is a
+  // slice. Feed the SAME slice to the cards and the desktop table.
+  const pg = usePagination(visibleAccounts)
 
   const [open, setOpen] = useState(false)
   const [editId, setEditId] = useState<number | null>(null)
@@ -199,7 +204,8 @@ export default function PoultryCashAccountsPage() {
                 </div>
               ) : (
                 <MobileCardList
-                  items={visibleAccounts}
+                  items={pg.pageItems}
+                  pagination={pg.paginationProps}
                   getKey={(a) => a.poultryCashAccountId}
                   primary={(a) => a.accountName}
                   secondary={(a) => (
@@ -237,7 +243,7 @@ export default function PoultryCashAccountsPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {visibleAccounts.map((a) => (
+                        {pg.pageItems.map((a) => (
                           <TableRow key={a.poultryCashAccountId}>
                             <TableCell className="font-medium">{a.accountName}</TableCell>
                             <TableCell>{a.accountType}</TableCell>

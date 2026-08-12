@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { Plus, Building2, Bird, Droplets, Loader2, Check } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
@@ -25,6 +27,7 @@ export default function CompaniesPage() {
   const logout = useLogout()
 
   const [companies, setLocal] = useState<Company[]>([])
+  const pg = usePagination(companies)
   const [loading, setLoading] = useState(true)
 
   const [open, setOpen] = useState(false)
@@ -110,7 +113,7 @@ export default function CompaniesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {companies.map((c) => {
+                    {pg.pageItems.map((c) => {
                       const Icon = c.type === "Water" ? Droplets : c.type === "Poultry" ? Bird : Building2
                       const isActive = c.farmId === activeFarmId
                       return (
@@ -137,6 +140,7 @@ export default function CompaniesPage() {
                   </TableBody>
                 </Table>
               )}
+              <DataPagination {...pg.paginationProps} />
             </CardContent>
           </Card>
         </main>

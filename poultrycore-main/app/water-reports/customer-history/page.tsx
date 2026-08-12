@@ -6,6 +6,8 @@ import { useEffect, useMemo, useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ReportShell, SumTile } from "@/components/reports/report-shell"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { listWaterCustomers, listWaterSales, listWaterPaymentsBySale } from "@/lib/api/water"
 import { useFmt } from "@/lib/currency"
 
@@ -30,6 +32,7 @@ export default function CustomerHistoryReportPage() {
   const [customers, setCustomers] = useState<any[]>([])
   const [customerId, setCustomerId] = useState<string>("ALL")
   const [sales, setSales] = useState<SaleRow[]>([])
+  const pg = usePagination(sales)
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -163,7 +166,7 @@ export default function CustomerHistoryReportPage() {
               <TableBody>
                 {sales.length === 0 ? (
                   <TableRow><TableCell colSpan={7} className="text-slate-500 text-center p-4">No sales for this customer in the selected period.</TableCell></TableRow>
-                ) : sales.map((r) => (
+                ) : pg.pageItems.map((r) => (
                   <TableRow key={r.saleId}>
                     <TableCell className="whitespace-nowrap">{r.date}</TableCell>
                     <TableCell>{r.saleId}</TableCell>
@@ -183,6 +186,7 @@ export default function CustomerHistoryReportPage() {
           </div>
         </>
       )}
+      <DataPagination {...pg.paginationProps} />
     </ReportShell>
   )
 }

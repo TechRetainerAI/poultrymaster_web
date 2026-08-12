@@ -9,6 +9,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { Loader2, ArrowLeft, Factory, Wheat } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
@@ -26,7 +28,9 @@ export default function FeedProductionReportsPage() {
   const [toDate, setToDate] = useState("")
   const [loading, setLoading] = useState(true)
   const [batches, setBatches] = useState<FeedProductionBatch[]>([])
+  const pgBatches = usePagination(batches)
   const [usage, setUsage] = useState<FeedIngredientUsageRow[]>([])
+  const pgUsage = usePagination(usage)
 
   async function load() {
     setLoading(true)
@@ -102,7 +106,7 @@ export default function FeedProductionReportsPage() {
                       <TableBody>
                         {batches.length === 0 ? (
                           <TableRow><TableCell colSpan={8} className="text-center text-slate-400 py-8">No posted batches in this range.</TableCell></TableRow>
-                        ) : batches.map((b) => (
+                        ) : pgBatches.pageItems.map((b) => (
                           <TableRow key={b.poultryFeedProductionBatchId} className="cursor-pointer" onClick={() => router.push(`/poultry-feed-production/${b.poultryFeedProductionBatchId}`)}>
                             <TableCell className="font-medium">{b.batchNumber}</TableCell>
                             <TableCell>{b.productionDate ? new Date(b.productionDate).toLocaleDateString() : "—"}</TableCell>
@@ -117,6 +121,7 @@ export default function FeedProductionReportsPage() {
                       </TableBody>
                     </Table>
                   </div>
+                  <DataPagination {...pgBatches.paginationProps} />
                 </CardContent></Card>
               </TabsContent>
 
@@ -136,7 +141,7 @@ export default function FeedProductionReportsPage() {
                       <TableBody>
                         {usage.length === 0 ? (
                           <TableRow><TableCell colSpan={6} className="text-center text-slate-400 py-8">No ingredient usage in this range.</TableCell></TableRow>
-                        ) : usage.map((u) => (
+                        ) : pgUsage.pageItems.map((u) => (
                           <TableRow key={u.ingredientItemId}>
                             <TableCell className="font-medium">{u.ingredientName}</TableCell>
                             <TableCell className="text-right tabular-nums">{u.totalQuantityUsed.toLocaleString()}{u.unitOfMeasure ? ` ${u.unitOfMeasure}` : ""}</TableCell>
@@ -149,6 +154,7 @@ export default function FeedProductionReportsPage() {
                       </TableBody>
                     </Table>
                   </div>
+                  <DataPagination {...pgUsage.paginationProps} />
                 </CardContent></Card>
               </TabsContent>
             </Tabs>

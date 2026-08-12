@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
@@ -48,6 +49,10 @@ export default function WaterRoutesPage() {
     }),
     [items, search, dateFrom, dateTo],
   )
+
+  // Client-side paging: the whole list is already in memory, so this is a
+  // slice. Feed the SAME slice to the cards and the desktop table.
+  const pg = usePagination(visibleItems)
   const [open, setOpen] = useState(false)
   const [editId, setEditId] = useState<number | null>(null)
   const [form, setForm] = useState<FormState>(EMPTY)
@@ -121,7 +126,8 @@ export default function WaterRoutesPage() {
                 <div className="p-8 text-center text-slate-500">No routes yet.</div>
               ) : (
                 <MobileCardList
-                  items={visibleItems}
+                  items={pg.pageItems}
+                  pagination={pg.paginationProps}
                   getKey={(r) => r.waterRouteId}
                   primary={(r) => r.routeName}
                   secondary={(r) => (
@@ -152,7 +158,7 @@ export default function WaterRoutesPage() {
                         <TableRow><TableHead>Name</TableHead><TableHead>Area</TableHead><TableHead>Default vehicle</TableHead><TableHead className="text-right">Expected customers</TableHead><TableHead className="text-right">Expected bags</TableHead><TableHead className="text-right">Actions</TableHead></TableRow>
                       </TableHeader>
                       <TableBody>
-                        {visibleItems.map((r) => (
+                        {pg.pageItems.map((r) => (
                           <TableRow key={r.waterRouteId}>
                             <TableCell className="font-medium">{r.routeName}</TableCell>
                             <TableCell>{r.areaCovered ?? "—"}</TableCell>

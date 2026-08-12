@@ -19,6 +19,8 @@ import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, AlertTriangle, Factory } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { cn } from "@/lib/utils"
@@ -227,8 +229,11 @@ export default function PoultryRawMaterialsPage() {
   )
 
   const sortedItems = useMemo(() => sortData(filteredItems, itemsSort.key, itemsSort.direction), [filteredItems, itemsSort])
+  const pgItems = usePagination(sortedItems)
   const sortedPurchases = useMemo(() => sortData(filteredPurchases, purchasesSort.key, purchasesSort.direction), [filteredPurchases, purchasesSort])
+  const pgPurchases = usePagination(sortedPurchases)
   const sortedUsage = useMemo(() => sortData(filteredUsage, usageSort.key, usageSort.direction), [filteredUsage, usageSort])
+  const pgUsage = usePagination(sortedUsage)
 
   // Item dropdown shared by the Purchases + Usage filter strips.
   const itemFilterDropdown = (
@@ -425,7 +430,7 @@ export default function PoultryRawMaterialsPage() {
                     <TableBody>
                       {filteredItems.length === 0 ? (
                         <TableRow><TableCell colSpan={8} className="text-center text-slate-500 py-6">No items yet.</TableCell></TableRow>
-                      ) : sortedItems.map((i) => (
+                      ) : pgItems.pageItems.map((i) => (
                         <TableRow key={i.poultryRawMaterialItemId}>
                           <TableCell className="font-medium">{i.itemName}</TableCell>
                           <TableCell>{categoryLabel(i.category)}</TableCell>
@@ -446,6 +451,7 @@ export default function PoultryRawMaterialsPage() {
                       ))}
                     </TableBody>
                   </Table></div>
+                  <DataPagination {...pgItems.paginationProps} />
                   {/* Mobile cards */}
                   <div className="md:hidden space-y-2">
                     {filteredItems.length === 0 ? <div className="text-center text-slate-500 py-6">No items yet.</div>
@@ -488,7 +494,7 @@ export default function PoultryRawMaterialsPage() {
                     <TableBody>
                       {filteredPurchases.length === 0 ? (
                         <TableRow><TableCell colSpan={10} className="text-center text-slate-500 py-6">No purchases yet.</TableCell></TableRow>
-                      ) : sortedPurchases.map((p) => (
+                      ) : pgPurchases.pageItems.map((p) => (
                         <TableRow key={p.poultryRawMaterialPurchaseId}>
                           <TableCell>{(p.purchaseDate || "").split("T")[0]}</TableCell>
                           <TableCell className="font-medium">
@@ -527,6 +533,7 @@ export default function PoultryRawMaterialsPage() {
                       ))}
                     </TableBody>
                   </Table></div>
+                  <DataPagination {...pgPurchases.paginationProps} />
                   {/* Mobile cards */}
                   <div className="md:hidden space-y-2">
                     {filteredPurchases.length === 0 ? <div className="text-center text-slate-500 py-6">No purchases yet.</div>
@@ -570,7 +577,7 @@ export default function PoultryRawMaterialsPage() {
                     <TableBody>
                       {filteredUsage.length === 0 ? (
                         <TableRow><TableCell colSpan={6} className="text-center text-slate-500 py-6">No usage recorded yet. Usage is created when production batches are approved (coming with the production slice).</TableCell></TableRow>
-                      ) : sortedUsage.map((u) => (
+                      ) : pgUsage.pageItems.map((u) => (
                         <TableRow key={u.poultryRawMaterialUsageId}>
                           <TableCell>{(u.usedDate || "").split("T")[0]}</TableCell>
                           <TableCell className="font-medium">
@@ -596,6 +603,7 @@ export default function PoultryRawMaterialsPage() {
                       ))}
                     </TableBody>
                   </Table></div>
+                  <DataPagination {...pgUsage.paginationProps} />
                   {/* Mobile cards */}
                   <div className="md:hidden space-y-2">
                     {filteredUsage.length === 0 ? <div className="text-center text-slate-500 py-6">No usage recorded yet.</div>

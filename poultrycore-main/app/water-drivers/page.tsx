@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
@@ -52,6 +53,10 @@ export default function WaterDriversPage() {
   const [form, setForm] = useState<FormState>(EMPTY)
   const [saving, setSaving] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<WaterDriver | null>(null)
+
+  // Client-side paging: the whole list is already in memory, so this is a
+  // slice. Feed the SAME slice to the cards and the desktop table.
+  const pg = usePagination(drivers)
 
   // #18 — "Add existing employee as driver" flow.
   const [employees, setEmployees] = useState<Employee[]>([])
@@ -221,7 +226,8 @@ export default function WaterDriversPage() {
                 <div className="p-8 text-center text-slate-500">No drivers yet. Add one to assign a vehicle.</div>
               ) : (
                 <MobileCardList
-                  items={drivers}
+                  items={pg.pageItems}
+                  pagination={pg.paginationProps}
                   getKey={(d) => d.waterDriverId}
                   primary={(d) => d.driverName}
                   secondary={(d) => (
@@ -256,7 +262,7 @@ export default function WaterDriversPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {drivers.map((d) => (
+                        {pg.pageItems.map((d) => (
                           <TableRow key={d.waterDriverId}>
                             <TableCell className="font-medium">{d.driverName}</TableCell>
                             <TableCell>{d.phoneNumber ?? "—"}</TableCell>

@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Loader2, TrendingDown, Eye } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
@@ -66,6 +67,10 @@ export default function WaterProductionLossesPage() {
       searchKeys: ["batchNumber", "productName", "lossType", "reason"],
       dateKey: "lossDate",
     }), [losses, search, dateFrom, dateTo])
+
+  // Client-side paging: the whole list is already in memory, so this is a
+  // slice. Feed the SAME slice to the cards and the desktop table.
+  const pg = usePagination(visible)
 
   // Roll-up of "Approved" losses for the cards (Cancelled rows are reopened
   // and shouldn't count towards money lost).
@@ -119,7 +124,8 @@ export default function WaterProductionLossesPage() {
                 <div className="p-8 text-center text-slate-500">No production losses recorded yet.</div>
               ) : (
                 <MobileCardList
-                  items={visible}
+                  items={pg.pageItems}
+                  pagination={pg.paginationProps}
                   getKey={(l) => l.waterProductionLossId}
                   primary={(l) => `${l.batchNumber ?? `#${l.sourceId}`} · ${l.productName ?? "—"}`}
                   secondary={(l) => (
@@ -164,7 +170,7 @@ export default function WaterProductionLossesPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {visible.map((l) => (
+                          {pg.pageItems.map((l) => (
                             <TableRow key={l.waterProductionLossId}>
                               <TableCell className="whitespace-nowrap">{l.lossDate?.split("T")[0]}</TableCell>
                               <TableCell>{l.batchNumber ?? `#${l.sourceId}`}</TableCell>

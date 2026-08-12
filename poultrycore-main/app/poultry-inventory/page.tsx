@@ -17,6 +17,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -176,6 +177,11 @@ export default function PoultryInventoryPage() {
       .sort((a, b) => a.itemName.localeCompare(b.itemName)),
     [items, q, category, status, dateFrom, dateTo]
   )
+
+  // Client-side paging — one pager per tab, each fed the same slice its cards
+  // and its desktop table render.
+  const pgProducts = usePagination(filteredProducts)
+  const pgRaw = usePagination(filteredRaw)
 
   const counts = useMemo(() => {
     let low = 0, out = 0
@@ -337,7 +343,8 @@ export default function PoultryInventoryPage() {
                     <div className="p-8 text-center text-slate-500">{q || category !== "ALL" || status !== "ALL" || dateFrom || dateTo ? "No products match your filters." : "No products yet."}</div>
                   ) : (
                     <MobileCardList
-                      items={filteredProducts}
+                      items={pgProducts.pageItems}
+                      pagination={pgProducts.paginationProps}
                       defaultOpen
                       getKey={(p) => p.poultryProductId}
                       primary={(p) => p.name}
@@ -374,7 +381,7 @@ export default function PoultryInventoryPage() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {filteredProducts.map((p) => {
+                              {pgProducts.pageItems.map((p) => {
                                 const st = productStatus(p)
                                 const l = productLink(p)
                                 return (
@@ -416,7 +423,8 @@ export default function PoultryInventoryPage() {
                     <div className="p-8 text-center text-slate-500">{q || category !== "ALL" || status !== "ALL" || dateFrom || dateTo ? "No raw materials match your filters." : "No raw materials yet."}</div>
                   ) : (
                     <MobileCardList
-                      items={filteredRaw}
+                      items={pgRaw.pageItems}
+                      pagination={pgRaw.paginationProps}
                       defaultOpen
                       getKey={(r) => r.poultryRawMaterialItemId}
                       primary={(r) => r.itemName}
@@ -449,7 +457,7 @@ export default function PoultryInventoryPage() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {filteredRaw.map((r) => {
+                              {pgRaw.pageItems.map((r) => {
                                 const st = rawStatus(r)
                                 const l = rawLink(r)
                                 return (

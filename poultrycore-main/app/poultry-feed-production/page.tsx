@@ -11,6 +11,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { Plus, Loader2, Eye, Pencil, Trash2, FlaskConical, Factory } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
@@ -58,6 +60,7 @@ export default function PoultryFeedProductionPage() {
     if (statusFilter !== "all") rows = rows.filter((b) => b.status === statusFilter)
     return rows
   }, [batches, search, statusFilter])
+  const pg = usePagination(filtered)
 
   const stats = useMemo(() => {
     const posted = batches.filter((b) => b.status === "Posted")
@@ -141,7 +144,7 @@ export default function PoultryFeedProductionPage() {
                     <TableBody>
                       {filtered.length === 0 ? (
                         <TableRow><TableCell colSpan={showCost ? 10 : 6} className="text-center text-slate-400 py-8">No feed production batches yet.</TableCell></TableRow>
-                      ) : filtered.map((b) => {
+                      ) : pg.pageItems.map((b) => {
                         const badge = STATUS_BADGE[b.status]
                         return (
                           <TableRow key={b.poultryFeedProductionBatchId} className="cursor-pointer" onClick={() => router.push(`/poultry-feed-production/${b.poultryFeedProductionBatchId}`)}>
@@ -171,6 +174,7 @@ export default function PoultryFeedProductionPage() {
                     </TableBody>
                   </Table>
                 </div>
+                <DataPagination {...pg.paginationProps} />
               </CardContent></Card>
             </>
           )}

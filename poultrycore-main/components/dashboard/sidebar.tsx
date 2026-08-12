@@ -144,10 +144,18 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   }
 
   // Navigation items
+  // Houses and Flock Groups moved to the Setup group below — they're master
+  // data you maintain, not a daily activity. Matches the top nav's
+  // Setup > Farm column (lib/nav/poultry-nav-config.ts).
   const farmItems = [
     { href: "/flock-batch", label: "Flock Purchases (Batches)", icon: Boxes },
-    { href: "/flocks", label: "Flock Groups (Pens / Flocks)", icon: Bird },
+  ]
+
+  // Setup — the farm master data behind the daily flows. Mirrors the top nav's
+  // Setup > Farm column.
+  const poultrySetupItems = [
     { href: "/houses", label: "Houses", icon: Building2 },
+    { href: "/flocks", label: "Flock Groups (Pens / Flocks)", icon: Bird },
   ]
 
   const productionItems = [
@@ -213,9 +221,21 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/sales", label: "Sales", icon: ShoppingCart },
     { href: "/poultry-payments", label: "Payments received", icon: Wallet },
     { href: "/expenses", label: "Expenses", icon: DollarSign },
+    { href: "/billing", label: "Billing", icon: CreditCard },
+  ].filter((item) =>
+    isFinancialNavItemVisible(item.href, permissions.featureAccess, permissions.isAdmin, {
+      tempShowPayments: TEMP_SHOW_PAYMENTS_LINK,
+    })
+  )
+
+  // Finance — the two trading parties every receivable and payable hangs off.
+  // They're master data rather than part of the day's selling flow, so they get
+  // their own group instead of sitting among the money pages above. Same gate
+  // as before the split, so nobody gains or loses access. Mirrors the top nav's
+  // Setup > Finance column.
+  const poultryFinanceItems = [
     { href: "/customers", label: "Customers", icon: Users },
     { href: "/suppliers", label: "Suppliers", icon: Truck },
-    { href: "/billing", label: "Billing", icon: CreditCard },
   ].filter((item) =>
     isFinancialNavItemVisible(item.href, permissions.featureAccess, permissions.isAdmin, {
       tempShowPayments: TEMP_SHOW_PAYMENTS_LINK,
@@ -272,11 +292,18 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/water-production-losses", label: "Production losses",        icon: AlertTriangle },
   ]
   const waterSalesMoneyItems = [
-    { href: "/water-customers",     label: "Customers",       icon: Users },
     { href: "/water-sales",         label: "Sales",           icon: ShoppingCart },
     { href: "/water-payments",      label: "Payments",        icon: CreditCard },
     { href: "/water-expenses",      label: "Expenses",        icon: Receipt },
     { href: "/water-cash-accounts", label: "Cash accounts",   icon: Wallet },
+  ]
+  // Finance — Customers (was in Sales & money) and Suppliers (was buried in
+  // Admin / Setup) now sit together: both are master data, and they're the two
+  // trading parties every receivable and payable hangs off. Mirrors the top
+  // nav's Setup > Finance column (lib/nav/water-nav-config.ts).
+  const waterFinanceItems = [
+    { href: "/water-customers", label: "Customers", icon: Users },
+    { href: "/water-suppliers", label: "Suppliers", icon: Truck },
   ]
   // James: group Employees + Payroll under People and hide the Staff item.
   // "Employees" points at the water staff page (/water-staff) — the global
@@ -291,11 +318,11 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/water-reports", label: "Reports", icon: BarChart3 },
   ]
   // Admin / Setup now only carries the genuinely rare-touch config — the
-  // delivery/production fleet items moved into their own first-class groups.
+  // delivery/production items moved into their own first-class groups, and
+  // Suppliers moved to Finance beside Customers.
   const waterAdminItems = [
     { href: "/water-setup",         label: "Setup",         icon: Settings },
     { href: "/water-company-setup", label: "Company Setup", icon: Settings },
-    { href: "/water-suppliers",     label: "Suppliers",     icon: Truck },
   ]
 
   // Generic Company nav items (shown when activeFarmType === "Generic")
@@ -546,8 +573,8 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         {isWater ? (
           <>
             {/* Water — Quick Links (shortcuts) → Delivery → Production →
-                Inventory → Sales & Money → People → Reports → Admin/Setup.
-                James 2026-06-02 reorg. */}
+                Inventory → Sales & Money → Finance → People → Reports →
+                Admin/Setup. James 2026-06-02 reorg. */}
             {renderGroup("Quick Links", waterQuickLinkItems, "waterQuickLinks")}
 
             <div className="border-t border-slate-800 mx-2" />
@@ -565,6 +592,10 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
             <div className="border-t border-slate-800 mx-2" />
 
             {renderGroup("Sales & money", waterSalesMoneyItems, "waterSalesMoney")}
+
+            <div className="border-t border-slate-800 mx-2" />
+
+            {renderGroup("Finance", waterFinanceItems, "waterFinance")}
 
             <div className="border-t border-slate-800 mx-2" />
 
@@ -654,8 +685,20 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
             {/* Divider */}
             <div className="border-t border-slate-800 mx-2" />
 
+            {/* Finance — Customers + Suppliers (see poultryFinanceItems) */}
+            {poultryFinanceItems.length > 0 && renderGroup("Finance", poultryFinanceItems, "poultryFinance")}
+
+            {/* Divider */}
+            <div className="border-t border-slate-800 mx-2" />
+
             {/* People (Staff + Payroll) */}
             {renderGroup("People", poultryPeopleItems, "poultryPeople")}
+
+            {/* Divider */}
+            <div className="border-t border-slate-800 mx-2" />
+
+            {/* Setup — Houses + Flock Groups (see poultrySetupItems) */}
+            {renderGroup("Setup", poultrySetupItems, "poultrySetup")}
           </>
         )}
 

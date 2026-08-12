@@ -94,8 +94,8 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
         key: "delivery",
         label: "Delivery",
         items: [
-          // Drivers, Vehicles and Routes are fleet records you maintain — they
-          // live in Setup > Fleet. What's left here is the daily run and its
+          // Drivers, Vehicles and Routes are records you maintain — they live
+          // in Setup > Delivery. What's left here is the daily run and its
           // reconciliation.
           { id: "deliveries",    title: "Deliveries",              icon: Truck,      href: "/water-driver-returns" },
           { id: "driver-report", title: "Driver collection report", icon: BarChart3, href: "/water-driver-report" },
@@ -132,11 +132,20 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
         items: [
           { id: "setup",         title: "Setup",         icon: Settings,  href: "/water-setup" },
           { id: "company-setup", title: "Company Setup", icon: Settings,  href: "/water-company-setup" },
-          // Customers sits beside Suppliers: both are master data maintained
-          // here, not part of the day's selling flow.
-          { id: "customers",     title: "Customers",     icon: Users,     href: "/water-customers" },
-          { id: "suppliers",     title: "Suppliers",     icon: Truck,     href: "/water-suppliers" },
           { id: "companies",     title: "Companies",     icon: Building2, href: "/companies" },
+        ],
+      },
+      {
+        // Customers sits beside Suppliers: both are master data maintained
+        // here, not part of the day's selling flow — but they're the two
+        // trading parties every receivable and payable hangs off, so they get
+        // their own Finance column rather than sitting under Company. Mirrors
+        // the poultry rail.
+        key: "finance",
+        label: "Finance",
+        items: [
+          { id: "customers", title: "Customers", icon: Users, href: "/water-customers" },
+          { id: "suppliers", title: "Suppliers", icon: Truck, href: "/water-suppliers" },
         ],
       },
       {
@@ -149,8 +158,8 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
         ],
       },
       {
-        key: "fleet",
-        label: "Fleet",
+        key: "delivery-setup",
+        label: "Delivery",
         items: [
           { id: "drivers",  title: "Drivers",  icon: Users2,    href: "/water-drivers" },
           { id: "vehicles", title: "Vehicles", icon: Truck,     href: "/water-vehicles" },

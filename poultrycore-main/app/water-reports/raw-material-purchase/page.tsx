@@ -5,6 +5,8 @@
 import { useEffect, useMemo, useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ReportShell, SumTile } from "@/components/reports/report-shell"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { listWaterRawMaterialPurchases } from "@/lib/api/water"
 import { useFmt } from "@/lib/currency"
 import { defaultReportRange } from "@/lib/date-ranges"
@@ -19,6 +21,7 @@ export default function RawMaterialPurchaseReportPage() {
   const [fromDate, setFromDate] = useState(DEFAULT_RANGE.from)
   const [toDate, setToDate] = useState(DEFAULT_RANGE.to)
   const [rows, setRows] = useState<any[]>([])
+  const pg = usePagination(rows)
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -109,7 +112,7 @@ export default function RawMaterialPurchaseReportPage() {
           <TableBody>
             {rows.length === 0 ? (
               <TableRow><TableCell colSpan={9} className="text-slate-500 text-center p-4">No purchases in this period.</TableCell></TableRow>
-            ) : rows.map((p: any) => {
+            ) : pg.pageItems.map((p: any) => {
               const total = p.totalCost ?? ((p.quantity ?? 0) * (p.unitCost ?? 0))
               const balance = total - (p.amountPaid ?? 0)
               return (
@@ -129,6 +132,7 @@ export default function RawMaterialPurchaseReportPage() {
           </TableBody>
         </Table>
       </div>
+      <DataPagination {...pg.paginationProps} />
     </ReportShell>
   )
 }

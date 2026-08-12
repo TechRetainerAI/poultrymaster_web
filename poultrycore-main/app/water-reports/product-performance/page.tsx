@@ -5,6 +5,8 @@
 import { useEffect, useMemo, useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ReportShell, SumTile } from "@/components/reports/report-shell"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { listWaterProducts, listWaterSales, listWaterProductionBatches } from "@/lib/api/water"
 import { useFmt } from "@/lib/currency"
 import { defaultReportRange } from "@/lib/date-ranges"
@@ -32,6 +34,7 @@ export default function ProductPerformanceReportPage() {
   const [fromDate, setFromDate] = useState(DEFAULT_RANGE.from)
   const [toDate, setToDate] = useState(DEFAULT_RANGE.to)
   const [rows, setRows] = useState<Row[]>([])
+  const pg = usePagination(rows)
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -138,7 +141,7 @@ export default function ProductPerformanceReportPage() {
           <TableBody>
             {rows.length === 0 ? (
               <TableRow><TableCell colSpan={6} className="text-slate-500 text-center p-4">No production for any product in this period.</TableCell></TableRow>
-            ) : rows.map((r) => (
+            ) : pg.pageItems.map((r) => (
               <TableRow key={r.productId}>
                 <TableCell className="font-medium">{r.name}</TableCell>
                 <TableCell>{r.type}</TableCell>
@@ -151,6 +154,7 @@ export default function ProductPerformanceReportPage() {
           </TableBody>
         </Table>
       </div>
+      <DataPagination {...pg.paginationProps} />
     </ReportShell>
   )
 }

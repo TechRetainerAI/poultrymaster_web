@@ -11,6 +11,7 @@ import { NumberInput } from "@/components/ui/number-input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
@@ -47,6 +48,10 @@ export default function PoultryStaffPage() {
     () => filterByDateAndSearch(staff, { search, dateFrom: "", dateTo: "", searchKeys: ["firstName", "lastName", "role", "phoneNumber"] }),
     [staff, search],
   )
+
+  // Client-side paging: the whole list is already in memory, so this is a
+  // slice. Feed the SAME slice to the cards and the desktop table.
+  const pg = usePagination(visible)
 
   const emptyForm = { firstName: "", lastName: "", phoneNumber: "", email: "", role: "FarmHand", salaryType: "Monthly", basePay: 0, commissionRate: 0, isActive: true, notes: "" }
   const [open, setOpen] = useState(false)
@@ -146,7 +151,8 @@ export default function PoultryStaffPage() {
                 <div className="p-8 text-center text-slate-500">No staff yet. Add your first team member above.</div>
               ) : (
                 <MobileCardList
-                  items={visible}
+                  items={pg.pageItems}
+                  pagination={pg.paginationProps}
                   getKey={(s) => s.poultryStaffId}
                   primary={(s) => `${s.firstName} ${s.lastName}`}
                   secondary={(s) => (<><span>{s.role}</span>{s.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="outline">Inactive</Badge>}</>)}
@@ -178,7 +184,7 @@ export default function PoultryStaffPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {visible.map((s) => (
+                          {pg.pageItems.map((s) => (
                             <TableRow key={s.poultryStaffId}>
                               <TableCell className="font-medium">{s.firstName} {s.lastName}</TableCell>
                               <TableCell>{s.role}</TableCell>

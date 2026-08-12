@@ -36,6 +36,7 @@
 import { useState, type ReactNode } from "react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Button } from "@/components/ui/button"
+import { DataPagination, type DataPaginationProps } from "@/components/ui/data-pagination"
 import { ChevronDown, ChevronUp } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -56,21 +57,34 @@ export interface MobileCardListProps<T> {
   alwaysExpanded?: boolean
   /** Start cards expanded but KEEP the "view table format" toggle available. */
   defaultOpen?: boolean
+  /**
+   * Spread usePagination()'s `paginationProps` here and pass the PAGE SLICE
+   * (`pg.pageItems`) as both `items` and the array the `desktopTable` maps
+   * over — the footer then sits below the cards and the table alike.
+   */
+  pagination?: DataPaginationProps
 }
 
 export function MobileCardList<T>({
-  items, getKey, primary, secondary, details, actions, desktopTable, emptyState, trailing, alwaysExpanded = false, defaultOpen = false,
+  items, getKey, primary, secondary, details, actions, desktopTable, emptyState, trailing, alwaysExpanded = false, defaultOpen = false, pagination,
 }: MobileCardListProps<T>) {
   const [showTable, setShowTable] = useState(false)
 
+  // `items` is the current page, so this only fires when the whole (filtered)
+  // list is empty — usePagination snaps back to page 1 whenever it resizes.
   if (items.length === 0) {
     return <>{emptyState ?? null}</>
   }
 
+  const pager = pagination ? <DataPagination {...pagination} className="px-3 pb-3" /> : null
+
   return (
     <>
       {/* Desktop: always the existing table */}
-      <div className="hidden lg:block">{desktopTable}</div>
+      <div className="hidden lg:block">
+        {desktopTable}
+        {pager}
+      </div>
 
       {/* Mobile + tablet: collapsible cards by default; user can toggle into
           the table for the column-rich view. Uniform white cards with a
@@ -138,6 +152,7 @@ export function MobileCardList<T>({
               </Button>
             </div>
             )}
+            {pager}
           </div>
         ) : (
           <>
@@ -150,6 +165,7 @@ export function MobileCardList<T>({
             <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: "touch" }}>
               {desktopTable}
             </div>
+            {pager}
           </>
         )}
       </div>

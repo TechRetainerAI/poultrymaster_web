@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
@@ -85,6 +86,10 @@ export default function WaterProductsPage() {
     }),
     [products, search, dateFrom, dateTo],
   )
+
+  // Client-side paging: the whole list is already in memory, so this is a
+  // slice. Feed the SAME slice to the cards and the desktop table.
+  const pg = usePagination(visibleProducts)
 
   const [createOpen, setCreateOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
@@ -218,7 +223,8 @@ export default function WaterProductsPage() {
                 </div>
               ) : (
                 <MobileCardList
-                  items={visibleProducts}
+                  items={pg.pageItems}
+                  pagination={pg.paginationProps}
                   getKey={(p) => p.waterProductId}
                   primary={(p) => (
                     <Link href={`/water-products/${p.waterProductId}`} className="text-sky-700 hover:underline">
@@ -280,7 +286,7 @@ export default function WaterProductsPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {visibleProducts.map((p) => (
+                        {pg.pageItems.map((p) => (
                           <TableRow key={p.waterProductId}>
                             <TableCell className="font-medium">
                               {/* Make the name a deep link into the details page so
