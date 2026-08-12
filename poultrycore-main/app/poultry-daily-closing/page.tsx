@@ -17,6 +17,8 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { useViewMode } from "@/hooks/use-view-mode"
 import { ViewModeToggle } from "@/components/ui/view-mode-toggle"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { Plus, Loader2, CheckCircle2, XCircle, Eye, Trash2, Pencil, RotateCcw, RefreshCw } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
@@ -70,6 +72,7 @@ export default function PoultryDailyClosingPage() {
   const gh = useFmt()
   const n = (v?: number) => (v ?? 0).toLocaleString()
   const [rows, setRows] = useState<PoultryDailyClosing[]>([])
+  const pg = usePagination(rows)
   const [loading, setLoading] = useState(true)
   const [newOpen, setNewOpen] = useState(false)
   const [newDate, setNewDate] = useState(new Date().toISOString().split("T")[0])
@@ -174,7 +177,7 @@ export default function PoultryDailyClosingPage() {
                 </TableRow></TableHeader>
                 <TableBody>
                   {rows.length === 0 ? <TableRow><TableCell colSpan={9} className="text-center text-slate-500 py-6">No closings yet.</TableCell></TableRow>
-                    : rows.map((c) => (
+                    : pg.pageItems.map((c) => (
                       <TableRow key={c.poultryDailyClosingId}>
                         <TableCell className="font-medium">{(c.closingDate || "").split("T")[0]}</TableCell>
                         <TableCell className="text-right">{n(c.quantityProduced)}</TableCell>
@@ -190,6 +193,7 @@ export default function PoultryDailyClosingPage() {
                 </TableBody>
               </Table>
               </div>
+              <DataPagination {...pg.paginationProps} />
             </CardContent></Card>
             )}
         </main>

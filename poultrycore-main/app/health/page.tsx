@@ -32,6 +32,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { isMedicationPhotoReferenceRecord } from "@/lib/utils/medication-photo"
 
 type HealthType = "flock" | "house" | "inventory"
@@ -268,6 +270,7 @@ export default function HealthPage() {
 
     return list
   }, [healthRecords, activeTab, search, selectedFlockId, selectedHouseId, selectedItemId, dateFrom, dateTo, sortField, sortDirection])
+  const pg = usePagination(filteredRecords)
 
   /** Records that belong to the current tab type (before search / date / dropdown filters). */
   const tabBaseRecords = useMemo(() => {
@@ -1076,7 +1079,7 @@ export default function HealthPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredRecords.map((record, idx) => (
+                      {pg.pageItems.map((record, idx) => (
                         <TableRow key={record.id || idx}>
                           <TableCell className={cn("bg-white", isMobile && "sticky-col-date")}>{record.recordDate ? (isMobile ? formatDateShort(record.recordDate) : new Date(record.recordDate).toLocaleDateString()) : "-"}</TableCell>
                           {activeTab === "flock" && <TableCell>{getFlockName(record.flockId)}</TableCell>}
@@ -1133,6 +1136,7 @@ export default function HealthPage() {
                   </Table>
                   </div>
                   )}
+                  <DataPagination {...pg.paginationProps} />
                 </CardContent>
               </Card>
             )}

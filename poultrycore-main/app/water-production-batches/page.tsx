@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
@@ -413,6 +414,10 @@ export default function WaterProductionBatchesPage() {
     [batches, search, dateFrom, dateTo],
   )
 
+  // Client-side paging: the whole list is already in memory, so this is a
+  // slice. Feed the SAME slice to the cards and the desktop table.
+  const pg = usePagination(visibleBatches)
+
   // Live preview values in the dialog.
   const totalSachets = form.bagsProduced * form.sachetsPerBag
   const otherProductionCost = form.electricityCost + form.fuelCost + form.laborCost + form.otherProductionCost
@@ -490,7 +495,8 @@ export default function WaterProductionBatchesPage() {
                 <div className="p-8 text-center text-slate-500">No production records yet.</div>
               ) : (
                 <MobileCardList
-                  items={visibleBatches}
+                  items={pg.pageItems}
+                  pagination={pg.paginationProps}
                   getKey={(b) => b.waterProductionBatchId}
                   primary={(b) => `${b.batchNumber ?? `#${b.waterProductionBatchId}`} · ${(b.goodBags ?? (b.bagsProduced - (b.damagedBags ?? 0))).toLocaleString()} good bags`}
                   secondary={(b) => (
@@ -577,7 +583,7 @@ export default function WaterProductionBatchesPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {visibleBatches.map((b) => {
+                          {pg.pageItems.map((b) => {
                             const totalCost = b.allInCost ?? ((b.totalProductionCost ?? 0) + (b.rawMaterialCost ?? 0))
                             const cpb       = b.costPerBag ?? 0
                             const good      = b.goodBags ?? (b.bagsProduced - (b.damagedBags ?? 0))

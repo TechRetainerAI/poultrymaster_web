@@ -10,6 +10,7 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Loader2, Wallet } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
@@ -36,6 +37,10 @@ export default function PoultryPaymentsPage() {
     }),
     [items, search, dateFrom, dateTo],
   )
+
+  // Client-side paging: the whole list is already in memory, so this is a
+  // slice. Feed the SAME slice to the cards and the desktop table.
+  const pg = usePagination(visibleItems)
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Poultry") { router.replace("/dashboard"); return }
@@ -74,7 +79,8 @@ export default function PoultryPaymentsPage() {
                 <div className="p-8 text-center text-slate-500">No payments yet.</div>
               ) : (
                 <MobileCardList
-                  items={visibleItems}
+                  items={pg.pageItems}
+                  pagination={pg.paginationProps}
                   getKey={(p) => p.poultryPaymentId}
                   primary={(p) => `${p.customerName ?? "Walk-in"} · ${p.amount.toFixed(2)}`}
                   secondary={(p) => (
@@ -108,7 +114,7 @@ export default function PoultryPaymentsPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {visibleItems.map((p) => (
+                        {pg.pageItems.map((p) => (
                           <TableRow key={p.poultryPaymentId}>
                             <TableCell>{new Date(p.paymentDate).toLocaleString()}</TableCell>
                             <TableCell>#{p.saleId}</TableCell>

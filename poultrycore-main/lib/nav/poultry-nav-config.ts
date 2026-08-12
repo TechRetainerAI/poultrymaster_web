@@ -81,7 +81,7 @@ export function buildPoultryNavConfig(
       },
       // Group ORDER is load-bearing in the 2x2 grid: each row is as tall as its
       // tallest group, so pairing the two long groups (Production 5, Inventory
-      // 7) in row 1 and the two short ones (Farm 1, Delivery 2) in row 2 keeps
+      // 7) in row 1 and the two short ones (Delivery 2, Farm 1) in row 2 keeps
       // the panel clear of max-h-[70vh] without scrolling. Reordering these will
       // bring the scrollbar back.
       {
@@ -98,16 +98,6 @@ export function buildPoultryNavConfig(
         ],
       },
       {
-        key: "farm",
-        label: "Farm",
-        items: [
-          // Houses and Flock Groups are master data you maintain, not a daily
-          // activity — they live in Setup > Farm. What's left here is the
-          // purchase transaction that brings birds onto the farm.
-          { id: "flock-batch", title: "Flock Purchases (Batches)", icon: Boxes, href: "/flock-batch" },
-        ],
-      },
-      {
         key: "delivery",
         label: "Delivery",
         items: [
@@ -116,6 +106,16 @@ export function buildPoultryNavConfig(
           // reconciliation.
           { id: "deliveries",    title: "Deliveries",    icon: Truck,     href: "/poultry-driver-returns" },
           { id: "driver-report", title: "Driver report", icon: BarChart3, href: "/poultry-driver-report" },
+        ],
+      },
+      {
+        key: "farm",
+        label: "Farm",
+        items: [
+          // Houses and Flock Groups are master data you maintain, not a daily
+          // activity — they live in Setup > Farm. What's left here is the
+          // purchase transaction that brings birds onto the farm.
+          { id: "flock-batch", title: "Flock Purchases (Batches)", icon: Boxes, href: "/flock-batch" },
         ],
       },
     ],

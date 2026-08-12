@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -19,6 +19,8 @@ import { Badge } from "@/components/ui/badge"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Plus, Edit, Trash2, BookOpen, Calendar, Pill, UtensilsCrossed } from "lucide-react"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { useToast } from "@/hooks/use-toast"
 
 interface VaccinationSchedule {
@@ -139,6 +141,15 @@ export default function ResourcesPage() {
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<SortDirection>(null)
   const handleSort = (key: string) => { const r = toggleSort(key, sortKey, sortDir); setSortKey(r.key); setSortDir(r.direction) }
+
+  // The three reference tables share one sort key, so sort here and page each
+  // tab separately. (They used to call sortData() inline inside the JSX.)
+  const sortedVaccination  = useMemo(() => sortData(vaccinationSchedules, sortKey, sortDir), [vaccinationSchedules, sortKey, sortDir])
+  const sortedMedication   = useMemo(() => sortData(medicationSchedules,  sortKey, sortDir), [medicationSchedules,  sortKey, sortDir])
+  const sortedFormulations = useMemo(() => sortData(feedFormulations,     sortKey, sortDir), [feedFormulations,     sortKey, sortDir])
+  const pgVaccination  = usePagination(sortedVaccination)
+  const pgMedication   = usePagination(sortedMedication)
+  const pgFormulations = usePagination(sortedFormulations)
 
   const [vaccinationForm, setVaccinationForm] = useState<Omit<VaccinationSchedule, 'id'>>({
     vaccineName: "",
@@ -493,7 +504,7 @@ export default function ResourcesPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {sortData(vaccinationSchedules, sortKey, sortDir).map((schedule) => (
+                        {pgVaccination.pageItems.map((schedule) => (
                           <TableRow key={schedule.id}>
                             <TableCell className="font-medium">{schedule.vaccineName}</TableCell>
                             <TableCell>
@@ -520,6 +531,7 @@ export default function ResourcesPage() {
                         ))}
                       </TableBody>
                     </Table>
+                    <DataPagination {...pgVaccination.paginationProps} />
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -644,7 +656,7 @@ export default function ResourcesPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {sortData(medicationSchedules, sortKey, sortDir).map((schedule) => (
+                        {pgMedication.pageItems.map((schedule) => (
                           <TableRow key={schedule.id}>
                             <TableCell className="font-medium">{schedule.medicationName}</TableCell>
                             <TableCell>
@@ -670,6 +682,7 @@ export default function ResourcesPage() {
                         ))}
                       </TableBody>
                     </Table>
+                    <DataPagination {...pgMedication.paginationProps} />
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -785,7 +798,7 @@ export default function ResourcesPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {sortData(feedFormulations, sortKey, sortDir).map((formulation) => (
+                        {pgFormulations.pageItems.map((formulation) => (
                           <TableRow key={formulation.id}>
                             <TableCell className="font-medium">{formulation.feedName}</TableCell>
                             <TableCell>
@@ -809,6 +822,7 @@ export default function ResourcesPage() {
                         ))}
                       </TableBody>
                     </Table>
+                    <DataPagination {...pgFormulations.paginationProps} />
                   </CardContent>
                 </Card>
               </TabsContent>

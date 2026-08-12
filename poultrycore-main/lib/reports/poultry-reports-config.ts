@@ -149,47 +149,29 @@ const item = (slug: PoultryReportSlug): PoultryReportMenuItem => {
 }
 
 /**
- * The display taxonomy — FIVE groups, deliberately coarser than the eight
+ * The display taxonomy — FOUR groups, deliberately coarser than the eight
  * catalogue groups above.
  *
  * The menu used to render the catalogue groups verbatim plus three standalone
  * ones: eleven groups of 3/2/2/5/4/3/1/2/4/1/2. Both surfaces lay groups out
  * side by side, so a third of the catalogue was single-row sections whose
  * heading outweighed their contents, and neither the menu nor the index page
- * had a readable shape. These five merge the stragglers into the section a user
+ * had a readable shape. These four merge the stragglers into the section a user
  * would look in anyway:
  *
  *   Inventory (Egg Stock Balance)     -> Production & Eggs
  *   Sales & Customers, Expenses & Cash-> Sales, Money & Profit
- *   Health (2)                        -> Birds & Health, beside mortality
+ *   Health (2) + Birds & Mortality    -> Feed, Birds & Health
  *   Closing + Activity + Dashboards   -> Overview & Dashboards
+ *
+ * ORDER is the layout: the Reports mega-menu is four columns, so these four
+ * groups are one column each, and Overview & Dashboards sits last.
  *
  * Nothing was dropped: all 29 entries survive the merge. The catalogue above
  * (POULTRY_REPORT_GROUPS) keeps its finer grouping — it's the slug source of
  * truth, not a layout.
  */
 export const POULTRY_REPORT_MENU_GROUPS: PoultryReportMenuGroup[] = [
-  {
-    key: "overview",
-    label: "Overview & Dashboards",
-    blurb: "Start here — the whole farm at a glance",
-    color: "bg-blue-600",
-    tint: "bg-blue-50 text-blue-700",
-    items: [
-      // farm-summary is a data-driven report but has no catalogue entry (it's
-      // the one slug POULTRY_REPORT_GROUPS doesn't list), so it's spelled out.
-      { id: "farm-summary", title: "Poultry Farm Summary", description: "High-level snapshot of the whole farm for the period.", icon: LayoutDashboard, href: poultryReportHref("farm-summary") },
-      // The four interactive dashboards. Each opens its own page under
-      // /poultry/reports/<view> rather than deep-linking the legacy tabs.
-      { id: "production-dashboard", title: "Production Dashboard", description: "Egg production trends, collection times and flock metrics.", icon: Egg, href: "/poultry/reports/production" },
-      { id: "financial-dashboard", title: "Financial Dashboard", description: "Revenue, expenses and net profit / loss.", icon: Wallet, href: "/poultry/reports/financial" },
-      { id: "daily", title: "Daily Report", description: "Daily eggs vs expenses, best and worst days.", icon: CalendarDays, href: "/poultry/reports/daily" },
-      { id: "more", title: "More Reports", description: "Sales by product, expense categories and flock performance.", icon: TrendingUp, href: "/poultry/reports/more" },
-      // Both standalone pages, not /poultry/reports/<slug> reports.
-      { id: "closing-report", title: "Closing Report", description: "Daily closing summary and reconciliation.", icon: ClipboardCheck, href: "/poultry-closing-report" },
-      { id: "changes", title: "Changes Report", description: "Every create, update and delete of records — who changed what, and when.", icon: History, href: "/poultry/reports/changes" },
-    ],
-  },
   {
     key: "money",
     label: "Sales, Money & Profit",
@@ -228,9 +210,13 @@ export const POULTRY_REPORT_MENU_GROUPS: PoultryReportMenuGroup[] = [
     ],
   },
   {
-    key: "feed",
-    label: "Feed",
-    blurb: "Consumption, stock and cost per egg",
+    // Feed and Birds & Health were two adjacent groups of 4 and 5. Feed goes in
+    // and mortality/medicine come out of the same flock, so they read as one
+    // section — and one group of 9 fills a menu column instead of leaving two
+    // half-empty ones.
+    key: "feed-birds-health",
+    label: "Feed, Birds & Health",
+    blurb: "Feed, head count, losses, vaccines and medicine",
     color: "bg-yellow-600",
     tint: "bg-yellow-50 text-yellow-700",
     items: [
@@ -239,20 +225,34 @@ export const POULTRY_REPORT_MENU_GROUPS: PoultryReportMenuGroup[] = [
       item("feed-cost-per-egg"),
       // Standalone page (feed produced + ingredient usage with full costing).
       { id: "feed-production-report", title: "Feed Production", description: "Feed produced and ingredient usage, with full costing.", icon: Factory, href: "/poultry-feed-production/reports" },
-    ],
-  },
-  {
-    key: "birds-health",
-    label: "Birds & Health",
-    blurb: "Head count, losses, vaccines and medicine",
-    color: "bg-rose-600",
-    tint: "bg-rose-50 text-rose-700",
-    items: [
       item("mortality"),
       item("birds-on-hand"),
       item("end-of-flock"),
       item("vaccination-schedule"),
       item("medicine-usage"),
+    ],
+  },
+  {
+    // Last column: the dashboards are where you *land*, not where you look
+    // something up, so the report sections come first on both surfaces.
+    key: "overview",
+    label: "Overview & Dashboards",
+    blurb: "The whole farm at a glance",
+    color: "bg-blue-600",
+    tint: "bg-blue-50 text-blue-700",
+    items: [
+      // farm-summary is a data-driven report but has no catalogue entry (it's
+      // the one slug POULTRY_REPORT_GROUPS doesn't list), so it's spelled out.
+      { id: "farm-summary", title: "Poultry Farm Summary", description: "High-level snapshot of the whole farm for the period.", icon: LayoutDashboard, href: poultryReportHref("farm-summary") },
+      // The four interactive dashboards. Each opens its own page under
+      // /poultry/reports/<view> rather than deep-linking the legacy tabs.
+      { id: "production-dashboard", title: "Production Dashboard", description: "Egg production trends, collection times and flock metrics.", icon: Egg, href: "/poultry/reports/production" },
+      { id: "financial-dashboard", title: "Financial Dashboard", description: "Revenue, expenses and net profit / loss.", icon: Wallet, href: "/poultry/reports/financial" },
+      { id: "daily", title: "Daily Report", description: "Daily eggs vs expenses, best and worst days.", icon: CalendarDays, href: "/poultry/reports/daily" },
+      { id: "more", title: "More Reports", description: "Sales by product, expense categories and flock performance.", icon: TrendingUp, href: "/poultry/reports/more" },
+      // Both standalone pages, not /poultry/reports/<slug> reports.
+      { id: "closing-report", title: "Closing Report", description: "Daily closing summary and reconciliation.", icon: ClipboardCheck, href: "/poultry-closing-report" },
+      { id: "changes", title: "Changes Report", description: "Every create, update and delete of records — who changed what, and when.", icon: History, href: "/poultry/reports/changes" },
     ],
   },
 ]

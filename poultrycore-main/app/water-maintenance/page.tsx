@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
@@ -87,6 +88,10 @@ export default function WaterMaintenancePage() {
     }),
     [logs, search, dateFrom, dateTo],
   )
+
+  // Client-side paging: the whole list is already in memory, so this is a
+  // slice. Feed the SAME slice to the cards and the desktop table.
+  const pg = usePagination(visibleLogs)
 
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<WaterMaintenanceLogInput>(EMPTY)
@@ -187,7 +192,8 @@ export default function WaterMaintenancePage() {
                 <div className="p-8 text-center text-slate-500">No maintenance logs yet.</div>
               ) : (
                 <MobileCardList
-                  items={visibleLogs}
+                  items={pg.pageItems}
+                  pagination={pg.paginationProps}
                   getKey={(l) => l.waterMaintenanceLogId}
                   primary={(l) => `${l.assetType} · ${l.assetLabel ?? "—"}`}
                   secondary={(l) => (
@@ -225,7 +231,7 @@ export default function WaterMaintenancePage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {visibleLogs.map((l) => (
+                        {pg.pageItems.map((l) => (
                           <TableRow key={l.waterMaintenanceLogId}>
                             <TableCell>{l.issueDate.split("T")[0]}</TableCell>
                             <TableCell><Badge variant="outline">{l.assetType}</Badge> {l.assetLabel ?? ""}</TableCell>

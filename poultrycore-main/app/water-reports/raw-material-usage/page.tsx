@@ -8,6 +8,8 @@
 import { useEffect, useMemo, useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ReportShell, SumTile } from "@/components/reports/report-shell"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { listWaterRawMaterialUsageHistory, getWaterRawMaterialVariance, type WaterRawMaterialVarianceRow } from "@/lib/api/water"
 import { useFmt } from "@/lib/currency"
 import { defaultReportRange } from "@/lib/date-ranges"
@@ -23,6 +25,7 @@ export default function RawMaterialUsageReportPage() {
   const [fromDate, setFromDate] = useState(DEFAULT_RANGE.from)
   const [toDate, setToDate] = useState(DEFAULT_RANGE.to)
   const [variance, setVariance] = useState<WaterRawMaterialVarianceRow[]>([])
+  const pg = usePagination(variance)
   const [rows, setRows] = useState<any[]>([])
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -102,7 +105,7 @@ export default function RawMaterialUsageReportPage() {
           <TableBody>
             {variance.length === 0 ? (
               <TableRow><TableCell colSpan={7} className="text-slate-500 text-center p-4">No usage in this period.</TableCell></TableRow>
-            ) : variance.map((v) => (
+            ) : pg.pageItems.map((v) => (
               <TableRow key={v.waterRawMaterialItemId}>
                 <TableCell className="font-medium max-w-[180px] truncate">{v.itemName}</TableCell>
                 <TableCell>{v.category}</TableCell>
@@ -150,6 +153,7 @@ export default function RawMaterialUsageReportPage() {
           </TableBody>
         </Table>
       </div>
+      <DataPagination {...pg.paginationProps} />
     </ReportShell>
   )
 }

@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Loader2, BarChart3, RefreshCw } from "lucide-react"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -42,6 +44,11 @@ export default function WaterReportsPage() {
   const [routes, setRoutes] = useState<WaterRouteProfitabilityRow[]>([])
   const [drivers, setDrivers] = useState<WaterDriverReconciliationRow[]>([])
   const [variance, setVariance] = useState<WaterRawMaterialVarianceRow[]>([])
+  // One pager per tab. DataPagination hides itself while a tab is short, so a
+  // three-route farm sees no change.
+  const pgRoutes = usePagination(routes)
+  const pgDrivers = usePagination(drivers)
+  const pgVariance = usePagination(variance)
   const [loading, setLoading] = useState(true)
 
   // Auto-refetch when the company resolves or the date range changes — matches
@@ -145,7 +152,7 @@ export default function WaterReportsPage() {
                       <Table>
                         <TableHeader><TableRow><TableHead>Route</TableHead><TableHead className="text-right">Loaded</TableHead><TableHead className="text-right">Sold</TableHead><TableHead className="text-right">Revenue</TableHead><TableHead className="text-right">Shortages</TableHead><TableHead className="text-right">Net</TableHead></TableRow></TableHeader>
                         <TableBody>
-                          {routes.map((r) => (
+                          {pgRoutes.pageItems.map((r) => (
                             <TableRow key={r.waterRouteId}>
                               <TableCell className="font-medium">{r.routeName}</TableCell>
                               <TableCell className="text-right tabular-nums">{r.totalBagsLoaded}</TableCell>
@@ -159,6 +166,7 @@ export default function WaterReportsPage() {
                       </Table>
                       </div>
                     )}
+                    <DataPagination {...pgRoutes.paginationProps} className="px-4 pb-4" />
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -171,7 +179,7 @@ export default function WaterReportsPage() {
                       <Table>
                         <TableHeader><TableRow><TableHead>Driver</TableHead><TableHead className="text-right">Loaded</TableHead><TableHead className="text-right">Sold</TableHead><TableHead className="text-right">Expected</TableHead><TableHead className="text-right">Accounted</TableHead><TableHead className="text-right">Shortages</TableHead></TableRow></TableHeader>
                         <TableBody>
-                          {drivers.map((d) => (
+                          {pgDrivers.pageItems.map((d) => (
                             <TableRow key={d.waterDriverId}>
                               <TableCell className="font-medium">{d.driverName}</TableCell>
                               <TableCell className="text-right tabular-nums">{d.totalBagsLoaded}</TableCell>
@@ -185,6 +193,7 @@ export default function WaterReportsPage() {
                       </Table>
                       </div>
                     )}
+                    <DataPagination {...pgDrivers.paginationProps} className="px-4 pb-4" />
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -197,7 +206,7 @@ export default function WaterReportsPage() {
                       <Table>
                         <TableHeader><TableRow><TableHead>Item</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Expected</TableHead><TableHead className="text-right">Actual</TableHead><TableHead className="text-right">Variance</TableHead><TableHead className="text-right">Usage count</TableHead></TableRow></TableHeader>
                         <TableBody>
-                          {variance.map((v) => (
+                          {pgVariance.pageItems.map((v) => (
                             <TableRow key={v.waterRawMaterialItemId}>
                               <TableCell className="font-medium">{v.itemName}</TableCell>
                               <TableCell>{v.category}</TableCell>
@@ -211,6 +220,7 @@ export default function WaterReportsPage() {
                       </Table>
                       </div>
                     )}
+                    <DataPagination {...pgVariance.paginationProps} className="px-4 pb-4" />
                   </CardContent>
                 </Card>
               </TabsContent>

@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
@@ -234,6 +235,10 @@ export default function PoultryDriverReturnsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [returns, loadings, returnsSearch, returnsDateFrom, returnsDateTo, filterDriver, filterVehicle, filterRoute, filterStatus],
   )
+
+  // Client-side paging: the whole list is already in memory, so this is a
+  // slice. Feed the SAME slice to the cards and the desktop table.
+  const pgReturns = usePagination(visibleReturns)
 
   // ===== Load Vehicle dialog state =====
   const [loadDlg, setLoadDlg] = useState(false)
@@ -874,7 +879,8 @@ export default function PoultryDriverReturnsPage() {
                     <div className="p-8 text-center text-slate-500">No driver returns recorded yet.</div>
                   ) : (
                     <MobileCardList
-                      items={visibleReturns}
+                      items={pgReturns.pageItems}
+                      pagination={pgReturns.paginationProps}
                       getKey={(r) => r.poultryDriverReturnId}
                       primary={(r) => `Delivery #${r.poultryVehicleLoadingId} · ${r.vehicleName ?? "Vehicle —"} · ${r.cratesSold} crates sold`}
                       secondary={(r) => (
@@ -958,7 +964,7 @@ export default function PoultryDriverReturnsPage() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {visibleReturns.map((r) => (
+                              {pgReturns.pageItems.map((r) => (
                             <TableRow key={r.poultryDriverReturnId}>
                               <TableCell className="font-medium tabular-nums">#{r.poultryVehicleLoadingId}</TableCell>
                               <TableCell>{r.returnDate.split("T")[0]}</TableCell>
@@ -2119,9 +2125,12 @@ function DeliveriesTable({
   onEditReconciled?: (l: PoultryVehicleLoading) => void
   showActions: boolean
 }) {
+  // Client-side paging for the deliveries (vehicle loadings) list.
+  const pg = usePagination(rows)
   return (
     <MobileCardList
-      items={rows}
+      items={pg.pageItems}
+      pagination={pg.paginationProps}
       getKey={(l) => l.poultryVehicleLoadingId}
       primary={(l) => (
         <Link href={`/poultry-driver-returns/${l.poultryVehicleLoadingId}`} className="text-sky-700 hover:underline">
@@ -2191,7 +2200,7 @@ function DeliveriesTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((l) => (
+              {pg.pageItems.map((l) => (
                 <TableRow key={l.poultryVehicleLoadingId}>
                   <TableCell>
                     <Link href={`/poultry-driver-returns/${l.poultryVehicleLoadingId}`} className="text-sky-700 hover:underline">
