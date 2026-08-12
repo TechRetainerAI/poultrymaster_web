@@ -56,7 +56,7 @@ function BusinessSetupContent() {
     <BusinessOfficeShell active="settings">
       <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Business Setup</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Main Setup</h1>
           <p className="text-slate-600">Set up your organization — your organization profile, employees and companies.</p>
         </div>
 

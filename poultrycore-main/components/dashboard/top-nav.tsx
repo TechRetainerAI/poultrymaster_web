@@ -178,10 +178,11 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
         <NavMegaMenu
           label="Setup" icon={Settings}
           title="Setup"
-          blurb="Company configuration, products, fleet, customers and your team."
+          blurb="Company configuration, products, delivery, customers and your team."
           groups={nav.setup}
-          /* 4 groups over 2 columns = a 2x2 block. Denser than one wide row,
-             and it keeps the panel the same width as Sales & Money. */
+          /* 5 groups over 2 columns = a 3x2 block with the last cell empty.
+             Denser than one wide row, and it keeps the panel the same width as
+             Sales & Money. */
           columns={2} widthRem={36} layout="grid"
         />
 
@@ -282,11 +283,11 @@ export function TopNavigation() {
           <NavMegaMenu
             label="Operations" icon={Factory}
             title="Operations"
-            blurb="Production, flocks, deliveries, stock and health."
+            blurb="Production, flock purchases, deliveries, stock and health."
             groups={nav.operations}
-            /* 4 groups over 2 columns = a 2x2 block, same as Setup. Slightly
-               wider than Setup's 36rem because the labels here are longer
-               ("Flock Groups (Pens / Flocks)", "Raw Materials & Supplies"). */
+            /* 4 groups over 2 columns = a 2x2 block. 38rem because the labels
+               here are long ("Flock Purchases (Batches)", "Raw Materials &
+               Supplies"). */
             columns={2} widthRem={38} layout="grid" accent="orange"
           />
 
@@ -313,10 +314,12 @@ export function TopNavigation() {
             <NavMegaMenu
               label="Reports" icon={BarChart3}
               title="Reports"
-              blurb="Production, birds & mortality, feed, inventory, sales and profitability."
+              blurb="Dashboards, money, production, feed, birds and health."
               viewAll={{ href: "/poultry/reports", label: "View all reports →" }}
               triggerActiveHrefs={["/reports", "/poultry/reports"]}
               groups={POULTRY_REPORT_NAV_GROUPS}
+              /* Five groups of 7/7/6/4/5 stay on the height-balancing "columns"
+                 layout — it packs the two short groups into one column. */
               columns={4} widthRem={56} accent="orange"
             />
           )}
@@ -324,10 +327,11 @@ export function TopNavigation() {
           <NavMegaMenu
             label="Setup" icon={Settings}
             title="Setup"
-            blurb="Farm settings, products, fleet, customers and your team."
+            blurb="Houses, flocks, products, delivery, customers and your team."
             groups={nav.setup}
-            /* 2x2 block — see the water rail for why. */
-            columns={2} widthRem={36} layout="grid" accent="orange"
+            /* 6 groups over 2 columns = a 3x2 block. 38rem rather than the water
+               rail's 36 because "Flock Groups (Pens / Flocks)" lives here now. */
+            columns={2} widthRem={38} layout="grid" accent="orange"
           />
 
           <div className="ml-auto flex items-center gap-1">

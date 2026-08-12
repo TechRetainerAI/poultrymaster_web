@@ -8,15 +8,17 @@
 // Extracted from the page so Business Setup can render it inline in a tab.
 import { useEffect, useMemo, useState } from "react"
 import { AddEmployeeDialog } from "@/components/employees/add-employee-dialog"
+import { EditEmployeeDialog } from "@/components/employees/edit-employee-dialog"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Loader2, Search, ShieldCheck, UserPlus, Building2, Check } from "lucide-react"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { Loader2, Search, ShieldCheck, UserPlus, Building2, Check, Pencil, Trash2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import {
-  getOrganizationEmployees, assignCompanyAccess, removeCompanyAccess,
+  getOrganizationEmployees, assignCompanyAccess, removeCompanyAccess, deleteEmployee,
   type OrgEmployee,
 } from "@/lib/api/admin"
 import { getMyCompanies, type Company } from "@/lib/api/companies"
@@ -34,6 +36,12 @@ export function UsersPermissionsPanel({ showHeading = true }: { showHeading?: bo
   const [managed, setManaged] = useState<OrgEmployee | null>(null)
   const [busyFarm, setBusyFarm] = useState<string | null>(null)
   const [addOpen, setAddOpen] = useState(false)
+  // Same edit dialog the /employees page uses — profile, admin access and staff
+  // page permissions, opened in place rather than sending the admin elsewhere.
+  const [editOpen, setEditOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<OrgEmployee | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -73,6 +81,22 @@ export function UsersPermissionsPanel({ showHeading = true }: { showHeading?: bo
       setManaged((m) => (m && m.id === emp.id ? updated : m))
       toast({ title: hasAccess ? "Access revoked" : "Access granted", description: company.name })
     } finally { setBusyFarm(null) }
+  }
+
+  function displayName(e: OrgEmployee) {
+    return [e.firstName, e.lastName].filter(Boolean).join(" ") || e.userName || e.email || "this employee"
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    try {
+      const res = await deleteEmployee(deleteTarget.id)
+      if (!res.success) { toast({ title: "Delete failed", description: res.message, variant: "destructive" }); return }
+      setEmployees((list) => list.filter((x) => x.id !== deleteTarget.id))
+      toast({ title: "Employee deleted", description: `${displayName(deleteTarget)} has been removed.` })
+      setDeleteTarget(null)
+    } finally { setDeleting(false) }
   }
 
   return (
@@ -133,7 +157,20 @@ export function UsersPermissionsPanel({ showHeading = true }: { showHeading?: bo
                     </div>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Button variant="outline" size="sm" onClick={() => setManaged(e)}><Building2 className="h-4 w-4 mr-1.5" /> Manage access</Button>
+                    <div className="flex items-center justify-end gap-2">
+                      <Button variant="outline" size="sm" onClick={() => { setEditingId(e.id); setEditOpen(true) }}>
+                        <Pencil className="h-4 w-4 mr-1.5" /> Edit
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setManaged(e)}><Building2 className="h-4 w-4 mr-1.5" /> Manage access</Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                        onClick={() => setDeleteTarget(e)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1.5" /> Delete
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -172,6 +209,26 @@ export function UsersPermissionsPanel({ showHeading = true }: { showHeading?: bo
       </Dialog>
 
       <AddEmployeeDialog open={addOpen} onOpenChange={setAddOpen} boMode onCreated={load} />
+
+      <EditEmployeeDialog open={editOpen} onOpenChange={setEditOpen} employeeId={editingId} onSaved={load} />
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o && !deleting) setDeleteTarget(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete employee</AlertDialogTitle>
+            <AlertDialogDescription>
+              Delete {deleteTarget ? displayName(deleteTarget) : "this employee"}? They lose access to every company in
+              the organization and can no longer sign in. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); confirmDelete() }} disabled={deleting} className="bg-red-600 hover:bg-red-700 focus:ring-red-600">
+              {deleting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Deleting…</> : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
