@@ -14,9 +14,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { useViewMode } from "@/hooks/use-view-mode"
-import { ViewModeToggle } from "@/components/ui/view-mode-toggle"
 import { Plus, Loader2, CheckCircle2, XCircle, Eye, Trash2, Pencil, RotateCcw, RefreshCw } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
@@ -40,29 +37,6 @@ function Tile({ label, value, accent }: { label: string; value: string; accent?:
   )
 }
 
-function ClosingCard({ c, gh, n, onView }: { c: PoultryDailyClosing; gh: (v: number) => string; n: (v?: number) => string; onView: () => void }) {
-  const cell = (label: string, value: string) => (
-    <div><div className="text-[11px] uppercase tracking-wide text-slate-500">{label}</div><div className="font-semibold tabular-nums text-sm">{value}</div></div>
-  )
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="font-semibold">{(c.closingDate || "").split("T")[0]}</div>
-        <Badge className={STATUS_COLORS[c.status] ?? "bg-gray-100"}>{c.status}</Badge>
-      </div>
-      <div className="grid grid-cols-3 gap-3">
-        {cell("Produced", n(c.quantityProduced))}
-        {cell("Sold", n(c.eggsSold))}
-        {cell("Closing stock", n(c.closingStock))}
-        {cell("Income", gh(c.totalIncome ?? 0))}
-        {cell("Expenses", gh(c.totalExpenses ?? 0))}
-        {cell("Cash at hand", gh(c.cashAtHand))}
-      </div>
-      <Button variant="outline" size="sm" className="w-full" onClick={onView}><Eye className="w-4 h-4 mr-1" /> View</Button>
-    </div>
-  )
-}
-
 export default function PoultryDailyClosingPage() {
   const router = useRouter()
   const { toast } = useToast()
@@ -77,7 +51,6 @@ export default function PoultryDailyClosingPage() {
   const [actualCash, setActualCash] = useState(0)
   const [notes, setNotes] = useState("")
   const [busy, setBusy] = useState(false)
-  const vm = useViewMode()
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Poultry") { router.replace("/dashboard"); return }
@@ -134,35 +107,10 @@ export default function PoultryDailyClosingPage() {
             <div><h1 className="text-2xl font-bold">Daily Closing</h1><p className="text-sm text-slate-500">End-of-day production, sales, cash and stock snapshot.</p></div>
             <Button onClick={() => setNewOpen(true)}><Plus className="w-4 h-4 mr-1" /> New closing</Button>
           </div>
-          <ViewModeToggle vm={vm} />
+          {/* Table is the only view here — no scorecard/tabs toggle. */}
           {loading ? <div className="flex items-center gap-2 text-slate-500 p-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
             : rows.length === 0 ? <Card><CardContent className="p-8 text-center text-slate-500">No closings yet.</CardContent></Card>
-            : vm.mode === "scorecards" ? (
-              vm.asTabs ? (
-                (() => {
-                  const groups = ["Draft", "Submitted", "Approved", "Rejected"].filter((s) => rows.some((r) => r.status === s))
-                  const tabs = groups.length ? groups : ["All"]
-                  return (
-                    <Tabs defaultValue={tabs[0]}>
-                      <TabsList>{tabs.map((t) => <TabsTrigger key={t} value={t}>{t} ({t === "All" ? rows.length : rows.filter((r) => r.status === t).length})</TabsTrigger>)}</TabsList>
-                      {tabs.map((t) => (
-                        <TabsContent key={t} value={t}>
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                            {(t === "All" ? rows : rows.filter((r) => r.status === t)).map((c) => (
-                              <ClosingCard key={c.poultryDailyClosingId} c={c} gh={gh} n={n} onView={() => openView(c.poultryDailyClosingId)} />
-                            ))}
-                          </div>
-                        </TabsContent>
-                      ))}
-                    </Tabs>
-                  )
-                })()
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {rows.map((c) => <ClosingCard key={c.poultryDailyClosingId} c={c} gh={gh} n={n} onView={() => openView(c.poultryDailyClosingId)} />)}
-                </div>
-              )
-            ) : (
+            : (
             <Card><CardContent className="p-4">
               <div className="overflow-x-auto">
               <Table>
