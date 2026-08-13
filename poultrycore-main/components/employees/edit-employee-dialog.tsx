@@ -11,134 +11,65 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Pencil, Loader2, Save, User, ChevronDown } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { Pencil, Loader2, Save, User } from "lucide-react"
 import { getEmployee, updateEmployee, type Employee, type UpdateEmployeeData } from "@/lib/api/admin"
 import { getEmployeeJobRoles, setEmployeeJobRoles } from "@/lib/api/water"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { toastFormGuide } from "@/lib/utils/validation-toast"
+import { EmployeeAccessFields } from "@/components/employees/employee-access-fields"
 import {
-  type AdminPermissionKey,
-  DEFAULT_ADMIN_PERMISSIONS,
-  ADMIN_PERMISSION_OPTIONS,
-  type StaffFeaturePermissionKey,
-  DEFAULT_STAFF_FEATURE_PERMISSIONS,
-  STAFF_FEATURE_PERMISSION_OPTIONS,
-} from "@/lib/employees/permissions"
+  blankPermissionSnapshot,
+  cacheEmployeePermissions,
+  resolveEmployeePermissions,
+} from "@/lib/employees/permissions-io"
 
 // #18 Phase 3: water job roles assignable per employee (a person can hold several).
 const WATER_JOB_ROLES = ["Driver", "MotorKingRider", "Salesperson", "Loader", "Supervisor", "Cashier", "Other"]
 
-const toBoolean = (value: unknown): boolean | undefined => {
-  if (typeof value === "boolean") return value
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase()
-    if (normalized === "true") return true
-    if (normalized === "false") return false
-  }
-  return undefined
-}
-
-const normalizeAdminPermissions = (source: unknown): Record<AdminPermissionKey, boolean> => {
-  const normalized = { ...DEFAULT_ADMIN_PERMISSIONS }
-  if (!source || typeof source !== "object") return normalized
-
-  const record = source as Record<string, unknown>
-  for (const option of ADMIN_PERMISSION_OPTIONS) {
-    const raw = toBoolean(record[option.key] ?? record[option.key.charAt(0).toUpperCase() + option.key.slice(1)])
-    if (raw !== undefined) normalized[option.key] = raw
-  }
-
-  return normalized
-}
-
-const normalizeFeaturePermissions = (source: unknown): Record<StaffFeaturePermissionKey, boolean> => {
-  const normalized = { ...DEFAULT_STAFF_FEATURE_PERMISSIONS }
-  if (!source || typeof source !== "object") return normalized
-
-  const record = source as Record<string, unknown>
-  for (const option of STAFF_FEATURE_PERMISSION_OPTIONS) {
-    const raw = toBoolean(record[option.key] ?? record[option.key.charAt(0).toUpperCase() + option.key.slice(1)])
-    if (raw !== undefined) normalized[option.key] = raw
-  }
-
-  return normalized
-}
-
-type EmployeePermissionSnapshot = {
-  isAdmin: boolean
-  adminTitle: string
-  adminPermissions: Record<AdminPermissionKey, boolean>
-  featurePermissions: Record<StaffFeaturePermissionKey, boolean>
-}
-
-const EMPLOYEE_PERMISSION_CACHE_KEY = "employeePermissionOverrides"
-
-const loadCachedEmployeePermissions = (employeeId: string): EmployeePermissionSnapshot | null => {
-  if (typeof window === "undefined") return null
-  try {
-    const raw = localStorage.getItem(EMPLOYEE_PERMISSION_CACHE_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as Record<string, unknown>
-    const entry = parsed?.[employeeId]
-    if (!entry || typeof entry !== "object") return null
-    const record = entry as Record<string, unknown>
-    return {
-      isAdmin: toBoolean(record.isAdmin) ?? false,
-      adminTitle: typeof record.adminTitle === "string" ? record.adminTitle : "",
-      adminPermissions: normalizeAdminPermissions(record.adminPermissions),
-      featurePermissions: normalizeFeaturePermissions(record.featurePermissions),
-    }
-  } catch {
-    return null
-  }
-}
-
-const cacheEmployeePermissions = (employeeId: string, snapshot: EmployeePermissionSnapshot) => {
-  if (typeof window === "undefined") return
-  try {
-    const raw = localStorage.getItem(EMPLOYEE_PERMISSION_CACHE_KEY)
-    const parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : {}
-    const next: Record<string, unknown> = {
-      ...parsed,
-      [employeeId]: snapshot,
-    }
-    localStorage.setItem(EMPLOYEE_PERMISSION_CACHE_KEY, JSON.stringify(next))
-  } catch {
-    // Ignore cache failures: API data remains the source of truth when available.
-  }
-}
-
 const blankForm = () => ({
   firstName: "", lastName: "", phoneNumber: "", email: "", userName: "", createdDate: "",
-  isAdmin: false, adminTitle: "", adminPermissions: { ...DEFAULT_ADMIN_PERMISSIONS },
-  featurePermissions: { ...DEFAULT_STAFF_FEATURE_PERMISSIONS },
+  ...blankPermissionSnapshot(),
 })
 
 export function EditEmployeeDialog({
   open,
   onOpenChange,
   employeeId,
+  employee,
   onSaved,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** Employee to edit. The dialog fetches the full record each time it opens. */
+  /** Employee to edit. The dialog fetches the full record unless `employee` is given. */
   employeeId: string | null
+  /**
+   * Optional preloaded record. Pass this from an ORG-WIDE list: the fetch below
+   * hits GET /Admin/employees/{id}, which filters by the caller's FarmId claim
+   * (the active company) and therefore 404s for an employee who belongs to a
+   * different company in the same organization. The org endpoint already
+   * returns every field this form needs, so seeding from the row avoids the
+   * request entirely.
+   */
+  employee?: Employee | null
   onSaved?: () => void
 }) {
   const { toast } = useToast()
   const [editLoading, setEditLoading] = useState(false)
   const [editError, setEditError] = useState("")
   const [editFetching, setEditFetching] = useState(false)
-  const [showEditStaffPermissions, setShowEditStaffPermissions] = useState(false)
   // #18 Phase 3: water job roles for the employee being edited (water companies only).
   const isWaterCompany = useAuthStore((s) => s.activeFarmType) === "Water"
   const [editRoles, setEditRoles] = useState<string[]>([])
   const [editForm, setEditForm] = useState(blankForm())
+
+  const seedForm = (data: Employee, id: string) => ({
+    firstName: data.firstName, lastName: data.lastName,
+    phoneNumber: data.phoneNumber, email: data.email,
+    userName: data.userName || "", createdDate: data.createdDate || "",
+    ...resolveEmployeePermissions(data, id),
+  })
 
   // Load the employee each time the dialog opens.
   useEffect(() => {
@@ -146,8 +77,6 @@ export function EditEmployeeDialog({
     let cancelled = false
 
     setEditError("")
-    setEditFetching(true)
-    setShowEditStaffPermissions(false)
     setEditRoles([])
     // Best-effort; water only.
     if (isWaterCompany) {
@@ -156,53 +85,21 @@ export function EditEmployeeDialog({
         .catch(() => {})
     }
 
+    // Caller already has the record (org-wide list) — use it and skip the
+    // farm-scoped GET, which would 404 for an out-of-company employee.
+    if (employee && employee.id === employeeId) {
+      setEditFetching(false)
+      setEditForm(seedForm(employee, employeeId))
+      return () => { cancelled = true }
+    }
+
+    setEditFetching(true)
     ;(async () => {
       try {
         const result = await getEmployee(employeeId)
         if (cancelled) return
         if (result.success && result.data) {
-          const employeeData = result.data as Employee & {
-            IsAdmin?: boolean
-            AdminTitle?: string | null
-            Permissions?: Record<string, unknown> | null
-            FeaturePermissions?: Record<string, unknown> | null
-            FeatureAccess?: Record<string, unknown> | null
-          }
-
-          const isAdmin =
-            toBoolean(employeeData.isAdmin) ??
-            toBoolean(employeeData.IsAdmin) ??
-            false
-          const adminTitle = employeeData.adminTitle ?? employeeData.AdminTitle ?? ""
-          const apiAdminPermissionsSource = employeeData.permissions ?? employeeData.Permissions
-          const apiFeaturePermissionsSource =
-            employeeData.featurePermissions ?? employeeData.FeaturePermissions ?? employeeData.featureAccess ?? employeeData.FeatureAccess
-          const hasApiPermissions =
-            apiAdminPermissionsSource !== undefined ||
-            apiFeaturePermissionsSource !== undefined ||
-            employeeData.isAdmin !== undefined ||
-            employeeData.IsAdmin !== undefined ||
-            employeeData.adminTitle !== undefined ||
-            employeeData.AdminTitle !== undefined
-          const cachedPermissions = loadCachedEmployeePermissions(employeeId)
-          const adminPermissions = hasApiPermissions
-            ? normalizeAdminPermissions(apiAdminPermissionsSource)
-            : cachedPermissions?.adminPermissions ?? { ...DEFAULT_ADMIN_PERMISSIONS }
-          const featurePermissions = hasApiPermissions
-            ? normalizeFeaturePermissions(apiFeaturePermissionsSource)
-            : cachedPermissions?.featurePermissions ?? { ...DEFAULT_STAFF_FEATURE_PERMISSIONS }
-          const resolvedIsAdmin = hasApiPermissions ? isAdmin : (cachedPermissions?.isAdmin ?? false)
-          const resolvedAdminTitle = hasApiPermissions ? (adminTitle ?? "") : (cachedPermissions?.adminTitle ?? "")
-
-          setEditForm({
-            firstName: result.data.firstName, lastName: result.data.lastName,
-            phoneNumber: result.data.phoneNumber, email: result.data.email,
-            userName: result.data.userName || "", createdDate: result.data.createdDate || "",
-            isAdmin: resolvedIsAdmin,
-            adminTitle: resolvedAdminTitle,
-            adminPermissions,
-            featurePermissions,
-          })
+          setEditForm(seedForm(result.data, employeeId))
         } else {
           setEditError(result.message || "Failed to load employee")
         }
@@ -215,7 +112,7 @@ export function EditEmployeeDialog({
 
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, employeeId])
+  }, [open, employeeId, employee?.id])
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -327,101 +224,16 @@ export function EditEmployeeDialog({
                 {editForm.createdDate && <div className="flex items-center gap-3 text-sm"><User className="w-4 h-4 text-slate-400" /><span className="text-slate-500 w-24">Created:</span><span className="text-slate-800">{new Date(editForm.createdDate).toLocaleDateString()}</span></div>}
               </div>
             </div>
-            <div className="rounded-xl border border-slate-200 overflow-hidden">
-              <div className="bg-cyan-700 px-4 py-2 text-sm font-semibold text-white">Admin Access</div>
-              <div className="p-4 bg-white space-y-4">
-                <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-slate-200 bg-slate-50">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-800">Grant administrator access</p>
-                    <p className="text-xs text-slate-500">Turn on to configure admin-only actions for this employee.</p>
-                  </div>
-                  <Switch
-                    checked={editForm.isAdmin}
-                    onCheckedChange={(checked) => setEditForm({ ...editForm, isAdmin: checked })}
-                    disabled={editLoading}
-                    aria-label="Grant administrator access"
-                  />
-                </div>
-
-                {editForm.isAdmin && (
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-slate-700">Custom title (optional)</Label>
-                      <Input
-                        name="adminTitle"
-                        value={editForm.adminTitle}
-                        onChange={(e) => setEditForm({ ...editForm, adminTitle: e.target.value })}
-                        disabled={editLoading}
-                        placeholder="admin"
-                        maxLength={30}
-                      />
-                    </div>
-
-                    <div className="rounded-lg border border-slate-200 divide-y">
-                      <div className="px-3 py-2 bg-slate-50">
-                        <p className="text-sm font-semibold text-slate-800">What can this admin do?</p>
-                      </div>
-                      {ADMIN_PERMISSION_OPTIONS.map((perm) => (
-                        <div key={perm.key} className="flex items-center justify-between gap-3 px-3 py-2">
-                          <div className="min-w-0">
-                            <p className="text-sm text-slate-800">{perm.label}</p>
-                            {perm.hint && <p className="text-xs text-slate-500">{perm.hint}</p>}
-                          </div>
-                          <Switch
-                            checked={editForm.adminPermissions[perm.key]}
-                            onCheckedChange={(checked) =>
-                              setEditForm({
-                                ...editForm,
-                                adminPermissions: { ...editForm.adminPermissions, [perm.key]: checked },
-                              })
-                            }
-                            disabled={editLoading}
-                            aria-label={perm.label}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="rounded-xl border border-slate-200 overflow-hidden">
-              <div className="bg-slate-700 px-4 py-2 text-sm font-semibold text-white">Staff Page Access</div>
-              <div className="p-4 bg-white space-y-3">
-                <p className="text-xs text-slate-600">Set exactly what this employee can access.</p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full justify-between"
-                  onClick={() => setShowEditStaffPermissions((prev) => !prev)}
-                  disabled={editLoading}
-                >
-                  <span>Select Staff Permissions</span>
-                  <ChevronDown className={cn("h-4 w-4 transition-transform", showEditStaffPermissions && "rotate-180")} />
-                </Button>
-
-                {showEditStaffPermissions && (
-                  <div className="rounded-lg border border-slate-200 divide-y">
-                    {STAFF_FEATURE_PERMISSION_OPTIONS.map((perm) => (
-                      <div key={perm.key} className="flex items-center justify-between gap-3 px-3 py-2">
-                        <p className="text-sm text-slate-800">{perm.label}</p>
-                        <Switch
-                          checked={editForm.featurePermissions[perm.key]}
-                          onCheckedChange={(checked) =>
-                            setEditForm({
-                              ...editForm,
-                              featurePermissions: { ...editForm.featurePermissions, [perm.key]: checked },
-                            })
-                          }
-                          disabled={editLoading}
-                          aria-label={perm.label}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+            <EmployeeAccessFields
+              value={{
+                isAdmin: editForm.isAdmin,
+                adminTitle: editForm.adminTitle,
+                adminPermissions: editForm.adminPermissions,
+                featurePermissions: editForm.featurePermissions,
+              }}
+              onChange={(next) => setEditForm({ ...editForm, ...next })}
+              disabled={editLoading}
+            />
             <div className="flex gap-3 justify-end pt-2">
               <Button type="button" onClick={() => onOpenChange(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
               <Button type="submit" disabled={editLoading}>

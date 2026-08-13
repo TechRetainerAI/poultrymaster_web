@@ -9,19 +9,24 @@
 import { useEffect, useMemo, useState } from "react"
 import { AddEmployeeDialog } from "@/components/employees/add-employee-dialog"
 import { EditEmployeeDialog } from "@/components/employees/edit-employee-dialog"
+import { EmployeeAccessFields } from "@/components/employees/employee-access-fields"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Loader2, Search, ShieldCheck, UserPlus, Building2, Check, Pencil, Trash2 } from "lucide-react"
+import { Loader2, Search, ShieldCheck, UserPlus, Building2, Check, Pencil, Trash2, Save } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import {
   getOrganizationEmployees, assignCompanyAccess, removeCompanyAccess, deleteEmployee,
-  type OrgEmployee,
+  updateEmployee, type OrgEmployee, type UpdateEmployeeData,
 } from "@/lib/api/admin"
 import { getMyCompanies, type Company } from "@/lib/api/companies"
+import {
+  blankPermissionSnapshot, cacheEmployeePermissions, resolveEmployeePermissions,
+  type EmployeePermissionSnapshot,
+} from "@/lib/employees/permissions-io"
 
 const TYPE_BADGE: Record<string, string> = {
   Poultry: "bg-amber-100 text-amber-700", Water: "bg-blue-100 text-blue-700", Generic: "bg-slate-100 text-slate-700",
@@ -42,6 +47,54 @@ export function UsersPermissionsPanel({ showHeading = true }: { showHeading?: bo
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<OrgEmployee | null>(null)
   const [deleting, setDeleting] = useState(false)
+  // Admin Access + Staff Page Access, same controls as the Edit dialog. Company
+  // toggles above them apply immediately; these are a form, so they need a save.
+  const [perms, setPerms] = useState<EmployeePermissionSnapshot>(blankPermissionSnapshot())
+  const [permsSaving, setPermsSaving] = useState(false)
+
+  // Seed straight from the row rather than re-fetching. GET /Admin/employees/{id}
+  // filters by the FarmId claim (the ACTIVE company), but this list is org-wide,
+  // so it 404s for anyone outside the company you're currently in. The org
+  // endpoint already returns isAdmin, adminTitle, permissions and
+  // featurePermissions, so there is nothing extra to fetch.
+  // Keyed on the id, NOT the object: toggling company access replaces `managed`
+  // with a new object, and depending on that would discard permission edits the
+  // user hadn't saved yet.
+  const managedId = managed?.id ?? null
+  useEffect(() => {
+    if (!managed) { setPerms(blankPermissionSnapshot()); return }
+    setPerms(resolveEmployeePermissions(managed, managed.id))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [managedId])
+
+  async function savePermissions() {
+    if (!managed) return
+    setPermsSaving(true)
+    try {
+      // PUT /Admin/employees/{id} is a full-record update and is NOT farm-scoped,
+      // so it works for any employee in the org. The profile fields have to ride
+      // along unchanged or the API would blank them — they all come off the row.
+      const payload: UpdateEmployeeData = {
+        id: managed.id,
+        firstName: managed.firstName,
+        lastName: managed.lastName,
+        phoneNumber: managed.phoneNumber,
+        email: managed.email,
+        isAdmin: perms.isAdmin,
+        adminTitle: perms.isAdmin ? perms.adminTitle.trim() : "",
+        adminPermissions: perms.isAdmin ? perms.adminPermissions : undefined,
+        featurePermissions: perms.featurePermissions,
+      }
+      const res = await updateEmployee(managed.id, payload)
+      if (res.success) {
+        cacheEmployeePermissions(managed.id, { ...perms, adminTitle: perms.isAdmin ? perms.adminTitle.trim() : "" })
+        toast({ title: "Access updated", description: "Permissions saved." })
+        await load()
+      } else {
+        toast({ title: "Could not save", description: res.message || "Update failed.", variant: "destructive" })
+      }
+    } finally { setPermsSaving(false) }
+  }
 
   async function load() {
     setLoading(true)
@@ -180,11 +233,12 @@ export function UsersPermissionsPanel({ showHeading = true }: { showHeading?: bo
       )}
 
       <Dialog open={!!managed} onOpenChange={(o) => !o && setManaged(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Company access — {managed ? ([managed.firstName, managed.lastName].filter(Boolean).join(" ") || managed.userName) : ""}</DialogTitle>
+            <DialogTitle>Manage access — {managed ? ([managed.firstName, managed.lastName].filter(Boolean).join(" ") || managed.userName) : ""}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-1 max-h-96 overflow-auto">
+          <h3 className="text-sm font-semibold text-slate-800">Company access</h3>
+          <div className="space-y-1">
             {companies.length === 0 ? <p className="text-sm text-slate-500 py-4">No companies in this organization yet.</p> :
               companies.map((c) => {
                 const has = managed ? accessSet(managed).has(c.farmId) : false
@@ -205,12 +259,32 @@ export function UsersPermissionsPanel({ showHeading = true }: { showHeading?: bo
               })}
           </div>
           <p className="text-xs text-slate-400">Toggling access adds or removes this employee from the company. Changes apply immediately.</p>
+
+          <EmployeeAccessFields value={perms} onChange={setPerms} disabled={permsSaving} />
+          <div className="flex justify-end">
+            <Button onClick={savePermissions} disabled={permsSaving}>
+              {permsSaving
+                ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving…</>
+                : <><Save className="h-4 w-4 mr-2" /> Save permissions</>}
+            </Button>
+          </div>
+          <p className="text-xs text-slate-400">
+            Admin and staff permissions are a form — they apply when you press Save, unlike the company toggles above.
+          </p>
         </DialogContent>
       </Dialog>
 
       <AddEmployeeDialog open={addOpen} onOpenChange={setAddOpen} boMode onCreated={load} />
 
-      <EditEmployeeDialog open={editOpen} onOpenChange={setEditOpen} employeeId={editingId} onSaved={load} />
+      {/* `employee` is passed so the dialog seeds from this org-wide row instead
+          of the farm-scoped GET, which 404s for anyone outside the active company. */}
+      <EditEmployeeDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        employeeId={editingId}
+        employee={employees.find((e) => e.id === editingId) ?? null}
+        onSaved={load}
+      />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o && !deleting) setDeleteTarget(null) }}>
         <AlertDialogContent>
