@@ -160,9 +160,9 @@ const item = (slug: PoultryReportSlug): PoultryReportMenuItem => {
  * would look in anyway:
  *
  *   Inventory (Egg Stock Balance)     -> Production & Eggs
- *   Sales & Customers, Expenses & Cash-> Sales, Money & Profit
+ *   Sales & Customers, Expenses & Cash-> Sales, Money & Profit (+ Closing)
  *   Health (2) + Birds & Mortality    -> Feed, Birds & Health
- *   Closing + Activity + Dashboards   -> Overview & Dashboards
+ *   Activity + Dashboards             -> Overview & Dashboards
  *
  * ORDER is the layout: the Reports mega-menu is four columns, so these four
  * groups are one column each, and Overview & Dashboards sits last.
@@ -178,15 +178,19 @@ export const POULTRY_REPORT_MENU_GROUPS: PoultryReportMenuGroup[] = [
     blurb: "Money in, money out, what's left",
     color: "bg-green-700",
     tint: "bg-green-50 text-green-700",
-    // Ordered as the money actually flows: revenue -> receivables -> costs ->
-    // profit. The old split put Egg Sales two sections away from Profit & Loss.
+    // Closing Report leads, then the two Profit & Loss reports together: those
+    // are the "how did we do" answers people open this section for. The rest
+    // still runs in the order the money flows — revenue -> receivables -> costs.
     items: [
+      // A standalone page, not a /poultry/reports/<slug> report. Moved here from
+      // Overview & Dashboards.
+      { id: "closing-report", title: "Closing Report", description: "Daily closing summary and reconciliation.", icon: ClipboardCheck, href: "/poultry-closing-report" },
+      item("profit-loss"),
+      item("profit-loss-by-flock"),
       item("egg-sales"),
       item("customer-balance"),
       item("expense-summary"),
       item("cash-movement"),
-      item("profit-loss"),
-      item("profit-loss-by-flock"),
       item("cost-per-egg"),
     ],
   },
@@ -250,8 +254,8 @@ export const POULTRY_REPORT_MENU_GROUPS: PoultryReportMenuGroup[] = [
       { id: "financial-dashboard", title: "Financial Dashboard", description: "Revenue, expenses and net profit / loss.", icon: Wallet, href: "/poultry/reports/financial" },
       { id: "daily", title: "Daily Report", description: "Daily eggs vs expenses, best and worst days.", icon: CalendarDays, href: "/poultry/reports/daily" },
       { id: "more", title: "More Reports", description: "Sales by product, expense categories and flock performance.", icon: TrendingUp, href: "/poultry/reports/more" },
-      // Both standalone pages, not /poultry/reports/<slug> reports.
-      { id: "closing-report", title: "Closing Report", description: "Daily closing summary and reconciliation.", icon: ClipboardCheck, href: "/poultry-closing-report" },
+      // A standalone page, not a /poultry/reports/<slug> report. (Closing Report
+      // used to sit here too; it now leads Sales, Money & Profit.)
       { id: "changes", title: "Changes Report", description: "Every create, update and delete of records — who changed what, and when.", icon: History, href: "/poultry/reports/changes" },
     ],
   },

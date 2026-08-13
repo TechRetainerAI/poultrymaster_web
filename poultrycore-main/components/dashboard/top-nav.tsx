@@ -318,7 +318,7 @@ export function TopNavigation() {
               viewAll={{ href: "/poultry/reports", label: "View all reports →" }}
               triggerActiveHrefs={["/reports", "/poultry/reports"]}
               groups={POULTRY_REPORT_NAV_GROUPS}
-              /* Four groups of 7/6/9/7 over four columns — one group per
+              /* Four groups of 8/6/9/6 over four columns — one group per
                  column, with Overview & Dashboards last. */
               columns={4} widthRem={56} accent="orange"
             />

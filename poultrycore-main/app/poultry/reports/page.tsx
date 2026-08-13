@@ -11,7 +11,7 @@
 // Layout: one card per group in a plain CSS grid. It was a masonry column flow,
 // which balances by HEIGHT — with eleven groups (three of them a single row)
 // the columns broke wherever they liked and nothing lined up. The catalogue is
-// now four groups of 7/6/9/7 (see POULTRY_REPORT_MENU_GROUPS), which a
+// now four groups of 8/6/9/6 (see POULTRY_REPORT_MENU_GROUPS), which a
 // three-column grid lays out as 3 + 1.
 //
 // Driven by POULTRY_REPORT_MENU_GROUPS (the 21 data-driven reports + Batch
