@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from "@/components/ui/pagination"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
@@ -54,7 +55,7 @@ export default function SalesPage() {
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<SortDirection>(null)
   const [currentPage, setCurrentPage] = useState(1)
-  const pageSize = 10
+  const [itemsPerPage, setItemsPerPage] = useState(10)
   const handleSort = (key: string) => { const r = toggleSort(key, sortKey, sortDir); setSortKey(r.key); setSortDir(r.direction) }
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
@@ -805,12 +806,48 @@ export default function SalesPage() {
       default: return (item as any)[key]
     }
   }), [filteredSales, sortKey, sortDir])
-  const totalPages = Math.max(1, Math.ceil(sortedSales.length / pageSize))
+  // Pagination logic
+  const totalPages = Math.max(1, Math.ceil(sortedSales.length / itemsPerPage))
   const safePage = Math.min(currentPage, totalPages)
+  const startIndex = (safePage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
   const paginatedSales = useMemo(
-    () => sortedSales.slice((safePage - 1) * pageSize, safePage * pageSize),
-    [sortedSales, safePage]
+    () => sortedSales.slice(startIndex, endIndex),
+    [sortedSales, startIndex, endIndex]
   )
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchCustomer, dateFrom, dateTo])
+
+  const handlePageChange = (page: number) => setCurrentPage(page)
+  const handlePreviousPage = () => { if (safePage > 1) setCurrentPage(safePage - 1) }
+  const handleNextPage = () => { if (safePage < totalPages) setCurrentPage(safePage + 1) }
+
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = []
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i)
+    } else {
+      if (safePage <= 3) {
+        for (let i = 1; i <= 4; i++) pages.push(i)
+        pages.push("ellipsis")
+        pages.push(totalPages)
+      } else if (safePage >= totalPages - 2) {
+        pages.push(1)
+        pages.push("ellipsis")
+        for (let i = totalPages - 3; i <= totalPages; i++) pages.push(i)
+      } else {
+        pages.push(1)
+        pages.push("ellipsis")
+        for (let i = safePage - 1; i <= safePage + 1; i++) pages.push(i)
+        pages.push("ellipsis")
+        pages.push(totalPages)
+      }
+    }
+    return pages
+  }
   const totalSales = useMemo(() => filteredSales.reduce((sum, sale) => sum + (sale.totalAmount || 0), 0), [filteredSales])
   const totalQuantity = useMemo(() => filteredSales.reduce((sum, sale) => sum + (sale.quantity || 0), 0), [filteredSales])
   const selectedFlockId = formData.flockId ?? null
@@ -1604,32 +1641,44 @@ export default function SalesPage() {
                   </Table>
                   </div>
                   )}
+                {/* Pagination */}
                 {!loading && filteredSales.length > 0 && (
-                  <div className="flex items-center justify-between gap-2 px-4 py-3 border-t bg-slate-50">
-                    <p className="text-xs text-slate-600">
-                      Showing {(safePage - 1) * pageSize + 1}-{Math.min(safePage * pageSize, sortedSales.length)} of {sortedSales.length}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={safePage <= 1}
-                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                      >
-                        Previous
-                      </Button>
-                      <span className="text-xs text-slate-600">
-                        Page {safePage} of {totalPages}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 border-t bg-slate-50">
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm text-slate-600">
+                        Showing {startIndex + 1} to {Math.min(endIndex, sortedSales.length)} of {sortedSales.length} records
                       </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={safePage >= totalPages}
-                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                      >
-                        Next
-                      </Button>
+                      <Select value={String(itemsPerPage)} onValueChange={(v) => { setItemsPerPage(Number(v)); setCurrentPage(1) }}>
+                        <SelectTrigger className="w-[100px] h-8"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="5">5 / page</SelectItem>
+                          <SelectItem value="10">10 / page</SelectItem>
+                          <SelectItem value="15">15 / page</SelectItem>
+                          <SelectItem value="25">25 / page</SelectItem>
+                          <SelectItem value="50">50 / page</SelectItem>
+                          <SelectItem value="100">100 / page</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
+                    <Pagination>
+                      <PaginationContent>
+                        <PaginationItem>
+                          <PaginationPrevious onClick={handlePreviousPage} className={safePage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"} />
+                        </PaginationItem>
+                        {getPageNumbers().map((page, index) => (
+                          <PaginationItem key={index}>
+                            {page === "ellipsis" ? (
+                              <PaginationEllipsis />
+                            ) : (
+                              <PaginationLink onClick={() => handlePageChange(page as number)} isActive={safePage === page} className="cursor-pointer">{page}</PaginationLink>
+                            )}
+                          </PaginationItem>
+                        ))}
+                        <PaginationItem>
+                          <PaginationNext onClick={handleNextPage} className={safePage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"} />
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
                   </div>
                 )}
                 </CardContent>

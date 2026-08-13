@@ -36,6 +36,42 @@ import { flockCountsTowardBirdTotals, getFlockLifecycleStatus } from "@/lib/util
 import { batchStatusFromToggles, batchTogglesFromStatus } from "@/lib/utils/batch-status"
 import { Switch } from "@/components/ui/switch"
 
+function ScoreCard({
+  label,
+  value,
+  description,
+  note,
+  icon: Icon,
+  accent,
+}: {
+  label: string
+  value: string
+  description: string
+  note?: string
+  icon: any
+  accent: "emerald" | "sky" | "blue" | "amber"
+}) {
+  const tint = {
+    emerald: { chip: "bg-emerald-100 text-emerald-700", value: "text-emerald-600" },
+    sky: { chip: "bg-sky-100 text-sky-700", value: "text-sky-700" },
+    blue: { chip: "bg-blue-100 text-blue-700", value: "text-blue-700" },
+    amber: { chip: "bg-amber-100 text-amber-700", value: "text-amber-600" },
+  }[accent]
+  return (
+    <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+      <div className="flex items-center gap-2">
+        <div className={cn("rounded-lg p-1.5 shrink-0", tint.chip)}>
+          <Icon className="w-4 h-4" />
+        </div>
+        <div className="text-sm font-semibold text-slate-900 leading-snug min-w-0">{label}</div>
+      </div>
+      <div className={cn("mt-2 text-2xl sm:text-3xl font-bold tabular-nums leading-tight", tint.value)}>{value}</div>
+      <p className="text-xs text-slate-500 mt-1">{description}</p>
+      {note && <p className="text-xs text-slate-400 mt-0.5">{note}</p>}
+    </div>
+  )
+}
+
 export default function FlockBatchesPage() {
   const router = useRouter()
   const permissions = usePermissions()
@@ -45,7 +81,7 @@ export default function FlockBatchesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage] = useState(10)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -473,6 +509,11 @@ export default function FlockBatchesPage() {
   const endIndex = startIndex + itemsPerPage
   const currentFlockBatches = sortedBatches.slice(startIndex, endIndex)
 
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [search, dateFrom, dateTo, selectedBreed, selectedStatus])
+
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
   }
@@ -490,10 +531,9 @@ export default function FlockBatchesPage() {
   }
 
   const getPageNumbers = () => {
-    const pages = []
-    const maxVisiblePages = 5
-    
-    if (totalPages <= maxVisiblePages) {
+    const pages: (number | string)[] = []
+
+    if (totalPages <= 7) {
       for (let i = 1; i <= totalPages; i++) {
         pages.push(i)
       }
@@ -631,70 +671,40 @@ export default function FlockBatchesPage() {
 
             {/* Score Cards */}
             {!loading && flockBatches.length > 0 && (
-              <div className={cn("grid gap-3", isMobile ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4")}>
-                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
-                  <div className={cn("flex gap-3", isMobile ? "flex-col items-stretch" : "items-center justify-between")}>
-                    <div className="flex items-start gap-2 min-w-0">
-                      <DollarSign className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold text-slate-900">Total Purchase Price</div>
-                        <p className="text-xs text-slate-500 mt-0.5">Sum of total cost across all batches.</p>
-                      </div>
-                    </div>
-                    <div className={cn("font-bold text-emerald-600 tabular-nums leading-tight shrink-0", isMobile ? "text-2xl" : "text-2xl sm:text-3xl sm:text-right")}>
-                      {totalPurchasePrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </div>
-                  </div>
-                </div>
-                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
-                  <div className={cn("flex gap-3", isMobile ? "flex-col items-stretch" : "items-center justify-between")}>
-                    <div className="flex items-start gap-2 min-w-0">
-                      <DollarSign className="w-5 h-5 text-sky-600 shrink-0 mt-0.5" />
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold text-slate-900">Total Amount Paid (₵)</div>
-                        <p className="text-xs text-slate-500 mt-0.5">Sum of amount paid across all batches.</p>
-                      </div>
-                    </div>
-                    <div className={cn("font-bold text-sky-700 tabular-nums leading-tight shrink-0", isMobile ? "text-2xl" : "text-2xl sm:text-3xl sm:text-right")}>
-                      {totalAmountPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </div>
-                  </div>
-                </div>
-                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
-                  <div className={cn("flex gap-3", isMobile ? "flex-col items-stretch" : "items-center justify-between")}>
-                    <div className="flex items-start gap-2 min-w-0">
-                      <Bird className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold text-slate-900">Number of Birds</div>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          Birds that have arrived across all batches.
-                        </p>
-                        {totalBirdsPurchased > 0 && totalBirdsPurchased !== totalBirdsArrived && (
-                          <p className="text-xs text-slate-400 mt-0.5">
-                            of {totalBirdsPurchased.toLocaleString()} purchased
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <div className={cn("font-bold text-blue-700 tabular-nums leading-tight shrink-0", isMobile ? "text-2xl" : "text-2xl sm:text-3xl sm:text-right")}>
-                      {totalBirdsArrived.toLocaleString()}
-                    </div>
-                  </div>
-                </div>
-                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
-                  <div className={cn("flex gap-3", isMobile ? "flex-col items-stretch" : "items-center justify-between")}>
-                    <div className="flex items-start gap-2 min-w-0">
-                      <CheckCircle2 className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold text-slate-900">Number of Active Batches</div>
-                        <p className="text-xs text-slate-500 mt-0.5">Batches currently marked as active.</p>
-                      </div>
-                    </div>
-                    <div className={cn("font-bold text-amber-600 tabular-nums leading-tight shrink-0", isMobile ? "text-2xl" : "text-2xl sm:text-3xl sm:text-right")}>
-                      {numberOfActiveBatches.toLocaleString()}
-                    </div>
-                  </div>
-                </div>
+              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+                <ScoreCard
+                  label="Total Purchase Price (₵)"
+                  value={totalPurchasePrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  description="Sum of total cost across all batches."
+                  icon={DollarSign}
+                  accent="emerald"
+                />
+                <ScoreCard
+                  label="Total Amount Paid (₵)"
+                  value={totalAmountPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  description="Sum of amount paid across all batches."
+                  icon={Wallet}
+                  accent="sky"
+                />
+                <ScoreCard
+                  label="Number of Birds"
+                  value={totalBirdsArrived.toLocaleString()}
+                  description="Birds that have arrived across all batches."
+                  note={
+                    totalBirdsPurchased > 0 && totalBirdsPurchased !== totalBirdsArrived
+                      ? `of ${totalBirdsPurchased.toLocaleString()} purchased`
+                      : undefined
+                  }
+                  icon={Bird}
+                  accent="blue"
+                />
+                <ScoreCard
+                  label="Active Batches"
+                  value={numberOfActiveBatches.toLocaleString()}
+                  description="Batches currently marked as active."
+                  icon={CheckCircle2}
+                  accent="amber"
+                />
               </div>
             )}
 
@@ -1005,10 +1015,23 @@ export default function FlockBatchesPage() {
             )}
             
             {/* Pagination */}
-            {!loading && sortedBatches.length > 0 && totalPages > 1 && (
-              <div className="flex items-center justify-between mt-6">
-                <div className="text-sm text-slate-600">
-                  Showing {startIndex + 1} to {Math.min(endIndex, sortedBatches.length)} of {sortedBatches.length} flock batches
+            {!loading && sortedBatches.length > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-slate-600">
+                    Showing {startIndex + 1} to {Math.min(endIndex, sortedBatches.length)} of {sortedBatches.length} records
+                  </span>
+                  <Select value={String(itemsPerPage)} onValueChange={(v) => { setItemsPerPage(Number(v)); setCurrentPage(1) }}>
+                    <SelectTrigger className="w-[100px] h-8"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5 / page</SelectItem>
+                      <SelectItem value="10">10 / page</SelectItem>
+                      <SelectItem value="15">15 / page</SelectItem>
+                      <SelectItem value="25">25 / page</SelectItem>
+                      <SelectItem value="50">50 / page</SelectItem>
+                      <SelectItem value="100">100 / page</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <Pagination>
                   <PaginationContent>
