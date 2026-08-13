@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { ListFilters } from "@/components/ui/list-filters"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
@@ -263,6 +264,10 @@ export default function WaterExpensesPage() {
     })
   }, [unifiedFiltered, search, dateFrom, dateTo])
 
+  // Client-side paging: the whole list is already in memory, so this is a
+  // slice. Feed the SAME slice to the cards and the desktop table.
+  const pg = usePagination(visibleExpenses)
+
   return (
     <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={logout} />
@@ -313,7 +318,8 @@ export default function WaterExpensesPage() {
                 <div className="p-8 text-center text-slate-500">No expenses {statusFilter !== "ALL" && `with status "${statusFilter}"`} yet.</div>
               ) : (
                 <MobileCardList
-                  items={visibleExpenses}
+                  items={pg.pageItems}
+                  pagination={pg.paginationProps}
                   getKey={(e) => e.kind === "Direct" ? `exp-${e.row.waterExpenseId}` : `del-${e.row.waterDeliveryExpenseId}`}
                   primary={(e) => {
                     if (e.kind === "Direct") return `${e.row.categoryName ?? "—"} · ${e.row.amount.toFixed(2)}`
@@ -400,7 +406,7 @@ export default function WaterExpensesPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {visibleExpenses.map((e) => {
+                        {pg.pageItems.map((e) => {
                           if (e.kind === "Direct") {
                             const d = e.row
                             return (

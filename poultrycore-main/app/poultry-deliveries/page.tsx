@@ -13,6 +13,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { Plus, Loader2, CheckCircle2, Undo2, XCircle, Truck } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
@@ -31,6 +33,7 @@ export default function PoultryDeliveriesPage() {
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const gh = useFmt()
   const [rows, setRows] = useState<PoultryDelivery[]>([])
+  const pg = usePagination(rows)
   const [products, setProducts] = useState<PoultryProduct[]>([])
   const [loading, setLoading] = useState(true)
   const [loadOpen, setLoadOpen] = useState(false)
@@ -105,7 +108,7 @@ export default function PoultryDeliveriesPage() {
                 </TableRow></TableHeader>
                 <TableBody>
                   {rows.length === 0 ? <TableRow><TableCell colSpan={10} className="text-center text-slate-500 py-6">No deliveries yet.</TableCell></TableRow>
-                    : rows.map((d) => (
+                    : pg.pageItems.map((d) => (
                       <TableRow key={d.poultryDeliveryId}>
                         <TableCell>{(d.deliveryDate || "").split("T")[0]}</TableCell>
                         <TableCell>{d.driverName ?? "—"}{d.vehicleName ? ` / ${d.vehicleName}` : ""}</TableCell>
@@ -128,6 +131,7 @@ export default function PoultryDeliveriesPage() {
                 </TableBody>
               </Table>
             )}
+            <DataPagination {...pg.paginationProps} />
           </CardContent></Card>
         </main>
       </div>

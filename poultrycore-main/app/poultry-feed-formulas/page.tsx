@@ -17,6 +17,8 @@ import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Badge } from "@/components/ui/badge"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { Plus, Pencil, Loader2, Trash2, FlaskConical, AlertTriangle, CheckCircle2, ArrowLeft } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
@@ -90,6 +92,7 @@ export default function PoultryFeedFormulasPage() {
     () => filterByDateAndSearch(formulas, { search, searchKeys: ["formulaName", "finishedFeedItemName"] }),
     [formulas, search],
   )
+  const pg = usePagination(filtered)
 
   function openNew() {
     setForm(EMPTY_FORM)
@@ -241,7 +244,7 @@ export default function PoultryFeedFormulasPage() {
                   <TableBody>
                     {filtered.length === 0 ? (
                       <TableRow><TableCell colSpan={6} className="text-center text-slate-400 py-8">No feed formulas yet. Create one to speed up feed production.</TableCell></TableRow>
-                    ) : filtered.map((f) => {
+                    ) : pg.pageItems.map((f) => {
                       const usesPct = (f.percentageTotal ?? 0) > 0
                       const pctGood = !usesPct || Math.abs((f.percentageTotal ?? 0) - 100) < 0.01
                       return (
@@ -272,6 +275,7 @@ export default function PoultryFeedFormulasPage() {
                   </TableBody>
                 </Table>
               </div>
+              <DataPagination {...pg.paginationProps} />
             </CardContent></Card>
           )}
         </main>

@@ -35,9 +35,10 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
   const isAdmin = permissions.isAdmin
   const roleLabel = isAdmin ? "Organization Admin" : "Staff"
 
-  // "New company" now lives in the top bar (banner removed). The create dialog
-  // stays on the home page (it owns the company list refresh), so trigger it via
-  // an event when already there, or navigate home with ?new=1 to open it.
+  // "New company" lives as the last row of the sidebar companies list (it was
+  // also duplicated in the top bar; that copy is gone). The create dialog stays
+  // on the home page (it owns the company list refresh), so trigger it via an
+  // event when already there, or navigate home with ?new=1 to open it.
   function goNewCompany() {
     if (pathname === "/business-office") window.dispatchEvent(new CustomEvent("bo:new-company"))
     else router.push("/business-office?new=1")
@@ -111,13 +112,13 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
     // { key: "tasks", href: "/business-office#tasks", label: "My Tasks", icon: ListTodo },
     // { key: "notices", href: "/business-office#notices", label: "Notifications", icon: Bell },
   ]
-  // Setup group — one entry, and it sits at the BOTTOM of the nav (below the
-  // companies list) since day-to-day work is picking a company, not setup.
-  // Organization Profile, Users & Permissions and Companies are tabs inside it.
+  // Administration group — one entry, and it sits at the BOTTOM of the nav
+  // (below the companies list) since day-to-day work is picking a company, not
+  // setup. Organization Profile, Users & Permissions and Companies are tabs
+  // inside it.
   const business = isAdmin ? [
-    { key: "settings", href: "/business-office/setup", label: "Main Setup", icon: Settings },
+    { key: "settings", href: "/business-office/setup", label: "Administration", icon: Settings },
   ] : []
-  const footer = [{ key: "help", href: "/business-office/help", label: "Help Center", icon: HelpCircle }]
 
   function Group({ title, items }: { title?: string; items: { key: string; href: string; label: string; icon: any }[] }) {
     return (
@@ -198,10 +199,11 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
         {/* Home needs no group header — it's the one item above the groups. */}
         <Group items={main} />
         <CompaniesGroup />
-        {/* Help Center + Main Setup ride together at the bottom of the rail,
-            directly above Logout. No group headers — they'd just repeat the row. */}
+        {/* Administration sits at the bottom of the rail, directly above
+            Logout. No group header — it'd just repeat the row. Help moved to
+            the top bar, beside the account name. */}
         <div className="mt-auto pt-2">
-          <Group items={[...footer, ...business]} />
+          <Group items={business} />
         </div>
       </nav>
       <div className="border-t border-slate-800 p-2">
@@ -222,8 +224,10 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
         </div>
       )}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Brand-coloured top bar. Carries the welcome message + "New company"
-            (the Users & Permissions shortcut lives in Main Setup → its tab). */}
+        {/* Brand-coloured top bar. Carries the welcome message, the company
+            selector, and Help beside the account name. (Users & Permissions
+            lives in Administration → its tab; "New company" is a row in the
+            sidebar companies list.) */}
         <header className="relative z-30 h-16 bg-gradient-to-r from-orange-600 to-amber-500 text-white border-b border-orange-700/30 flex items-center gap-3 px-4 sm:px-6 shrink-0 shadow-sm">
           <button className="lg:hidden h-9 w-9 grid place-items-center rounded-lg border border-white/25 text-white hover:bg-white/10" onClick={() => setDrawer(true)} aria-label="Menu"><Menu className="h-5 w-5" /></button>
           <div className="min-w-0">
@@ -235,16 +239,23 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
           <BoCompanySelector />
 
           <div className="ml-auto flex items-center gap-2">
-            {isAdmin && (
-              <button onClick={goNewCompany} className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-white text-orange-700 text-sm font-semibold hover:bg-orange-50 transition-colors shadow-sm">
-                <Plus className="h-4 w-4" /> <span className="hidden sm:inline">New company</span>
-              </button>
-            )}
             <Link href="/business-office#notices" className="h-9 w-9 grid place-items-center rounded-lg hover:bg-white/15 text-white/90" aria-label="Notifications"><Bell className="h-5 w-5" /></Link>
             <div className="flex items-center gap-2 pl-1">
               <span className="hidden xl:block text-sm text-white/90">{userName || "Account"}</span>
               <span className="h-8 w-8 grid place-items-center rounded-full bg-white/20 text-white text-sm font-semibold ring-1 ring-inset ring-white/30">{(userName || "U").charAt(0).toUpperCase()}</span>
             </div>
+            {/* Help moved out of the sidebar footer to the far top-right — last
+                item in the bar, after the account. Icon-only below sm. */}
+            <Link
+              href="/business-office/help"
+              aria-label="Help"
+              aria-current={active === "help" ? "page" : undefined}
+              className={`inline-flex items-center gap-1.5 h-9 px-2.5 rounded-lg text-sm font-medium transition-colors ${
+                active === "help" ? "bg-white/20 text-white" : "text-white/90 hover:bg-white/15"
+              }`}
+            >
+              <HelpCircle className="h-5 w-5" /> <span className="hidden sm:inline">Help</span>
+            </Link>
           </div>
         </header>
 

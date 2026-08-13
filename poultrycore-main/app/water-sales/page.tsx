@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
@@ -71,6 +72,10 @@ export default function WaterSalesPage() {
     }),
     [sales, search, dateFrom, dateTo],
   )
+
+  // Client-side paging: the whole list is already in memory, so this is a
+  // slice. Feed the SAME slice to the cards and the desktop table.
+  const pg = usePagination(visibleSales)
 
   const [newOpen, setNewOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -285,7 +290,8 @@ export default function WaterSalesPage() {
                 <div className="p-8 text-center text-slate-500">No sales yet.</div>
               ) : (
                 <MobileCardList
-                  items={visibleSales}
+                  items={pg.pageItems}
+                  pagination={pg.paginationProps}
                   getKey={(s) => s.waterSaleId}
                   primary={(s) => `#${s.waterSaleId} · ${s.customerName ?? "Walk-in"}`}
                   secondary={(s) => (
@@ -355,7 +361,7 @@ export default function WaterSalesPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {visibleSales.map((s) => (
+                        {pg.pageItems.map((s) => (
                           <TableRow key={s.waterSaleId}>
                             <TableCell>#{s.waterSaleId}</TableCell>
                             <TableCell>{new Date(s.saleDate).toLocaleString()}</TableCell>

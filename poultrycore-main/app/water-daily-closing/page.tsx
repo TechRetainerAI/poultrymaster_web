@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
@@ -65,6 +66,10 @@ export default function WaterDailyClosingPage() {
     }),
     [closings, search, dateFrom, dateTo],
   )
+
+  // Client-side paging: the whole list is already in memory, so this is a
+  // slice. Feed the SAME slice to the cards and the desktop table.
+  const pg = usePagination(visibleClosings)
 
   const [newDlg, setNewDlg] = useState(false)
   const [newDate, setNewDate] = useState(new Date().toISOString().split("T")[0])
@@ -255,7 +260,8 @@ export default function WaterDailyClosingPage() {
                 <div className="p-8 text-center text-slate-500">No daily closings yet. Start today's above.</div>
               ) : (
                 <MobileCardList
-                  items={visibleClosings}
+                  items={pg.pageItems}
+                  pagination={pg.paginationProps}
                   getKey={(c) => c.waterDailyClosingId}
                   primary={(c) => c.closingDate.split("T")[0]}
                   secondary={(c) => (
@@ -316,7 +322,7 @@ export default function WaterDailyClosingPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {visibleClosings.map((c) => (
+                        {pg.pageItems.map((c) => (
                           <TableRow key={c.waterDailyClosingId}>
                             <TableCell className="font-medium">{c.closingDate.split("T")[0]}</TableCell>
                             <TableCell className="text-right tabular-nums">{c.bagsProduced ?? 0}</TableCell>

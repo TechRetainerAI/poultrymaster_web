@@ -8,6 +8,8 @@
 import { useEffect, useMemo, useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ReportShell, SumTile } from "@/components/reports/report-shell"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { listWaterExpenses, getWaterExpenseByCategory, type WaterExpenseByCategoryRow } from "@/lib/api/water"
 import { useFmt } from "@/lib/currency"
 import { defaultReportRange } from "@/lib/date-ranges"
@@ -23,6 +25,9 @@ export default function ExpenseReportPage() {
   const [toDate, setToDate] = useState(DEFAULT_RANGE.to)
   const [byCategory, setByCategory] = useState<WaterExpenseByCategoryRow[]>([])
   const [rows, setRows] = useState<any[]>([])
+  // Paging for the expense detail list. The by-category roll-up above it is one
+  // row per category, so it stays whole.
+  const pg = usePagination(rows)
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -110,7 +115,7 @@ export default function ExpenseReportPage() {
           <TableBody>
             {rows.length === 0 ? (
               <TableRow><TableCell colSpan={7} className="text-slate-500 text-center p-4">No expenses in this period.</TableCell></TableRow>
-            ) : rows.map((e: any) => (
+            ) : pg.pageItems.map((e: any) => (
               <TableRow key={e.waterExpenseId}>
                 <TableCell className="whitespace-nowrap">{(e.expenseDate ?? "").slice(0, 10)}</TableCell>
                 <TableCell>{e.categoryName ?? "—"}</TableCell>
@@ -124,6 +129,7 @@ export default function ExpenseReportPage() {
           </TableBody>
         </Table>
       </div>
+      <DataPagination {...pg.paginationProps} />
     </ReportShell>
   )
 }

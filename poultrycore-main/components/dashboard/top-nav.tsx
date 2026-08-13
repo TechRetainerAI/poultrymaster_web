@@ -314,12 +314,12 @@ export function TopNavigation() {
             <NavMegaMenu
               label="Reports" icon={BarChart3}
               title="Reports"
-              blurb="Dashboards, money, production, feed, birds and health."
+              blurb="Money, production, feed, birds, health and dashboards."
               viewAll={{ href: "/poultry/reports", label: "View all reports →" }}
               triggerActiveHrefs={["/reports", "/poultry/reports"]}
               groups={POULTRY_REPORT_NAV_GROUPS}
-              /* Five groups of 7/7/6/4/5 stay on the height-balancing "columns"
-                 layout — it packs the two short groups into one column. */
+              /* Four groups of 8/6/9/6 over four columns — one group per
+                 column, with Overview & Dashboards last. */
               columns={4} widthRem={56} accent="orange"
             />
           )}

@@ -21,6 +21,8 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { Boxes, ArrowLeft, Search, RefreshCw } from "lucide-react"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -164,6 +166,7 @@ export default function BatchProductionSummaryReport() {
       : out
     return filtered.sort((a, b) => b.totalEggs - a.totalEggs || a.batchName.localeCompare(b.batchName))
   }, [records, flocks, batches, dateFrom, dateTo, search])
+  const pg = usePagination(rows)
 
   const summary = useMemo(() => {
     const withProd = rows.filter((r) => r.records > 0).length
@@ -362,7 +365,7 @@ export default function BatchProductionSummaryReport() {
                       <TableBody>
                         {rows.length === 0 ? (
                           <TableRow><TableCell colSpan={13} className="py-12 text-center text-slate-500">No batches found for the selected filters.</TableCell></TableRow>
-                        ) : rows.map((r, idx) => (
+                        ) : pg.pageItems.map((r, idx) => (
                           <TableRow key={r.batchId} className={cn("hover:bg-slate-50/60", idx % 2 === 0 ? "bg-white" : "bg-slate-50/40")}>
                             <TableCell className="px-3 py-2 font-medium text-slate-800">{r.batchName}</TableCell>
                             <TableCell className="px-3 py-2 text-slate-600">{r.batchCode || "—"}</TableCell>
@@ -399,6 +402,7 @@ export default function BatchProductionSummaryReport() {
                       </TableBody>
                     </Table>
                   </div>
+                  <DataPagination {...pg.paginationProps} />
                 </CardContent>
               </Card>
             )}

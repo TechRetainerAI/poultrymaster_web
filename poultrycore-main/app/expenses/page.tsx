@@ -33,6 +33,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from "@/components/ui/pagination"
 import { Badge } from "@/components/ui/badge"
 import { formatCurrency as fmtCurrency } from "@/lib/utils/currency"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -85,7 +86,7 @@ export default function ExpensesPage() {
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<SortDirection>(null)
   const [currentPage, setCurrentPage] = useState(1)
-  const pageSize = 10
+  const [itemsPerPage, setItemsPerPage] = useState(10)
   const handleSort = (key: string) => { const r = toggleSort(key, sortKey, sortDir); setSortKey(r.key); setSortDir(r.direction) }
 
   // Create dialog state
@@ -413,9 +414,45 @@ export default function ExpensesPage() {
     if (key === "description") return stripReceiptSuffixFromDescription(item.description || "")
     return (item as any)[key]
   })
-  const totalPages = Math.max(1, Math.ceil(sortedExpenses.length / pageSize))
+  // Pagination logic
+  const totalPages = Math.max(1, Math.ceil(sortedExpenses.length / itemsPerPage))
   const safePage = Math.min(currentPage, totalPages)
-  const paginatedExpenses = sortedExpenses.slice((safePage - 1) * pageSize, safePage * pageSize)
+  const startIndex = (safePage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const paginatedExpenses = sortedExpenses.slice(startIndex, endIndex)
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, fromDate, toDate, selectedFlock, selectedMonth, selectedCategory])
+
+  const handlePageChange = (page: number) => setCurrentPage(page)
+  const handlePreviousPage = () => { if (safePage > 1) setCurrentPage(safePage - 1) }
+  const handleNextPage = () => { if (safePage < totalPages) setCurrentPage(safePage + 1) }
+
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = []
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i)
+    } else {
+      if (safePage <= 3) {
+        for (let i = 1; i <= 4; i++) pages.push(i)
+        pages.push("ellipsis")
+        pages.push(totalPages)
+      } else if (safePage >= totalPages - 2) {
+        pages.push(1)
+        pages.push("ellipsis")
+        for (let i = totalPages - 3; i <= totalPages; i++) pages.push(i)
+      } else {
+        pages.push(1)
+        pages.push("ellipsis")
+        for (let i = safePage - 1; i <= safePage + 1; i++) pages.push(i)
+        pages.push("ellipsis")
+        pages.push(totalPages)
+      }
+    }
+    return pages
+  }
 
   useEffect(() => {
     setCurrentPage(1)
@@ -1021,32 +1058,44 @@ export default function ExpensesPage() {
                   </Table>
                   </div>
                   )}
+                {/* Pagination */}
                 {!loading && filteredExpenses.length > 0 && (
-                  <div className="flex items-center justify-between gap-2 px-4 py-3 border-t bg-slate-50">
-                    <p className="text-xs text-slate-600">
-                      Showing {(safePage - 1) * pageSize + 1}-{Math.min(safePage * pageSize, sortedExpenses.length)} of {sortedExpenses.length}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={safePage <= 1}
-                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                      >
-                        Previous
-                      </Button>
-                      <span className="text-xs text-slate-600">
-                        Page {safePage} of {totalPages}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 border-t bg-slate-50">
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm text-slate-600">
+                        Showing {startIndex + 1} to {Math.min(endIndex, sortedExpenses.length)} of {sortedExpenses.length} records
                       </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={safePage >= totalPages}
-                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                      >
-                        Next
-                      </Button>
+                      <Select value={String(itemsPerPage)} onValueChange={(v) => { setItemsPerPage(Number(v)); setCurrentPage(1) }}>
+                        <SelectTrigger className="w-[100px] h-8"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="5">5 / page</SelectItem>
+                          <SelectItem value="10">10 / page</SelectItem>
+                          <SelectItem value="15">15 / page</SelectItem>
+                          <SelectItem value="25">25 / page</SelectItem>
+                          <SelectItem value="50">50 / page</SelectItem>
+                          <SelectItem value="100">100 / page</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
+                    <Pagination>
+                      <PaginationContent>
+                        <PaginationItem>
+                          <PaginationPrevious onClick={handlePreviousPage} className={safePage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"} />
+                        </PaginationItem>
+                        {getPageNumbers().map((page, index) => (
+                          <PaginationItem key={index}>
+                            {page === "ellipsis" ? (
+                              <PaginationEllipsis />
+                            ) : (
+                              <PaginationLink onClick={() => handlePageChange(page as number)} isActive={safePage === page} className="cursor-pointer">{page}</PaginationLink>
+                            )}
+                          </PaginationItem>
+                        ))}
+                        <PaginationItem>
+                          <PaginationNext onClick={handleNextPage} className={safePage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"} />
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
                   </div>
                 )}
                 </CardContent>

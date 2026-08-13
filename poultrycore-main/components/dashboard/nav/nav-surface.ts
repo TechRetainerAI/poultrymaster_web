@@ -29,11 +29,8 @@ export interface NavSurface {
   headerTitle: string
   /** Header strip sub-line. */
   headerBlurb: string
-  /** Uppercase group heading. */
+  /** Uppercase group heading. Carries no rule — the tracked caps are enough. */
   groupLabel: string
-  /** Hairline rule under the group heading. Reuses the panel's border colour,
-   *  so it can never clash with the tint the way the old per-group dots did. */
-  groupRule: string
   /** Row text + hover background. */
   rowIdle: string
   /** Row background + text when it is the current page. */
@@ -77,7 +74,6 @@ export const NAV_SURFACE: Record<NavAccent, NavSurface> = {
     headerTitle: "text-white",
     headerBlurb: "text-slate-400",
     groupLabel: "text-sky-400",
-    groupRule:  "border-slate-700",
     rowIdle:    "text-white hover:bg-slate-700",
     rowActive:  "bg-sky-500 text-slate-950",
     iconIdle:   "text-slate-400",
@@ -92,7 +88,6 @@ export const NAV_SURFACE: Record<NavAccent, NavSurface> = {
     headerTitle: "text-white",
     headerBlurb: "text-slate-400",
     groupLabel: "text-orange-400",
-    groupRule:  "border-slate-700",
     rowIdle:    "text-white hover:bg-slate-700",
     rowActive:  "bg-orange-500 text-slate-950",
     iconIdle:   "text-slate-400",
@@ -107,7 +102,6 @@ export const NAV_SURFACE: Record<NavAccent, NavSurface> = {
     headerTitle: "text-white",
     headerBlurb: "text-slate-400",
     groupLabel: "text-emerald-400",
-    groupRule:  "border-slate-700",
     rowIdle:    "text-white hover:bg-slate-700",
     rowActive:  "bg-emerald-500 text-slate-950",
     iconIdle:   "text-slate-400",

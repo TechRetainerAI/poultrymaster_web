@@ -17,6 +17,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -96,6 +97,11 @@ export default function WaterInventoryPage() {
     () => rawItems.filter((r) => matchesQ(r.itemName) || matchesQ(r.category) || matchesQ((r as any).unitOfMeasure)),
     [rawItems, q]
   )
+
+  // Client-side paging — one pager per tab, each fed the same slice its cards
+  // and its desktop table render.
+  const pgProducts = usePagination(filteredProducts)
+  const pgRaw = usePagination(filteredRaw)
 
   // Status helpers.
   const productStatus = (p: WaterProduct): { label: string; tone: "ok" | "low" | "out" } => {
@@ -194,7 +200,8 @@ export default function WaterInventoryPage() {
                     <div className="p-8 text-center text-slate-500">{q ? "No products match your search." : "No products yet."}</div>
                   ) : (
                     <MobileCardList
-                      items={filteredProducts}
+                      items={pgProducts.pageItems}
+                      pagination={pgProducts.paginationProps}
                       defaultOpen
                       getKey={(p) => p.waterProductId}
                       primary={(p) => p.name}
@@ -233,7 +240,7 @@ export default function WaterInventoryPage() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {filteredProducts.map((p) => {
+                            {pgProducts.pageItems.map((p) => {
                               const st = productStatus(p)
                               const isSachet = !!p.isSachetProduct || (p.unit ?? "").trim().toLowerCase() === "sachet"
                               const sachetsPerBag = p.sachetsPerBag ?? 30
@@ -278,7 +285,8 @@ export default function WaterInventoryPage() {
                     <div className="p-8 text-center text-slate-500">{q ? "No raw materials match your search." : "No raw materials yet."}</div>
                   ) : (
                     <MobileCardList
-                      items={filteredRaw}
+                      items={pgRaw.pageItems}
+                      pagination={pgRaw.paginationProps}
                       defaultOpen
                       getKey={(r) => r.waterRawMaterialItemId}
                       primary={(r) => r.itemName}
@@ -306,7 +314,7 @@ export default function WaterInventoryPage() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {filteredRaw.map((r) => {
+                            {pgRaw.pageItems.map((r) => {
                               const st = rawStatus(r)
                               return (
                                 <TableRow key={r.waterRawMaterialItemId}>

@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
@@ -46,6 +47,10 @@ export default function WaterCustomersPage() {
     }),
     [customers, search, dateFrom, dateTo],
   )
+
+  // Client-side paging: the whole list is already in memory, so this is a
+  // slice. Feed the SAME slice to the cards and the desktop table.
+  const pg = usePagination(visibleCustomers)
 
   const [open, setOpen] = useState(false)
   const [editId, setEditId] = useState<number | null>(null)
@@ -147,7 +152,8 @@ export default function WaterCustomersPage() {
                 <div className="p-8 text-center text-slate-500">No customers yet.</div>
               ) : (
                 <MobileCardList
-                  items={visibleCustomers}
+                  items={pg.pageItems}
+                  pagination={pg.paginationProps}
                   getKey={(c) => c.waterCustomerId}
                   primary={(c) => (
                     <span className="inline-flex items-center gap-1">
@@ -205,7 +211,7 @@ export default function WaterCustomersPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {visibleCustomers.map((c) => (
+                        {pg.pageItems.map((c) => (
                           <TableRow key={c.waterCustomerId}>
                             <TableCell className="font-medium">
                               <span className="inline-flex items-center gap-2">

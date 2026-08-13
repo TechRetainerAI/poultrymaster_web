@@ -16,6 +16,8 @@ import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { Badge } from "@/components/ui/badge"
 import { FieldCard } from "@/components/ui/field-card"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { Plus, Loader2 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
@@ -124,6 +126,7 @@ export default function PoultryStockPage() {
 
   // Default order stays date-desc (moves is pre-sorted); a header click overrides.
   const sortedMoves = useMemo(() => sortData(filteredMoves, sort.key, sort.direction), [filteredMoves, sort])
+  const pg = usePagination(sortedMoves)
 
   async function save() {
     if (!form.target) { toast({ title: "Pick an item", variant: "destructive" }); return }
@@ -202,7 +205,7 @@ export default function PoultryStockPage() {
                 </TableRow></TableHeader>
                 <TableBody>
                   {sortedMoves.length === 0 ? <TableRow><TableCell colSpan={9} className="text-center text-slate-500 py-6">No stock movements yet.</TableCell></TableRow>
-                    : sortedMoves.map((m) => (
+                    : pg.pageItems.map((m) => (
                       <TableRow key={m.key}>
                         <TableCell>{(m.date || "").split("T")[0]}</TableCell>
                         <TableCell className="font-medium">{m.item}</TableCell>
@@ -217,6 +220,7 @@ export default function PoultryStockPage() {
                     ))}
                 </TableBody>
               </Table></div>
+              <DataPagination {...pg.paginationProps} />
               {/* Mobile cards */}
               <div className="md:hidden space-y-2">
                 {sortedMoves.length === 0 ? <div className="text-center text-slate-500 py-6">No stock movements yet.</div>

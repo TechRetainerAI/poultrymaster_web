@@ -158,6 +158,11 @@ namespace PoultryFarmAPIWeb.Business
                         BrokenEggs = reader.IsDBNull(reader.GetOrdinal("BrokenEggs"))
                             ? null
                             : reader.GetInt32(reader.GetOrdinal("BrokenEggs")),
+                        // Optional reads: tolerate a database that has not had
+                        // migration 198 applied yet (column simply absent).
+                        MeatyEggs = ReadOptionalInt32(reader, "MeatyEggs"),
+                        SoftEggs = ReadOptionalInt32(reader, "SoftEggs"),
+                        LostEggs = ReadOptionalInt32(reader, "LostEggs"),
                         Notes = reader.IsDBNull(reader.GetOrdinal("Notes"))
                             ? null
                             : reader.GetString(reader.GetOrdinal("Notes")),
@@ -212,6 +217,11 @@ namespace PoultryFarmAPIWeb.Business
                         BrokenEggs = reader.IsDBNull(reader.GetOrdinal("BrokenEggs"))
                             ? null
                             : reader.GetInt32(reader.GetOrdinal("BrokenEggs")),
+                        // Optional reads: tolerate a database that has not had
+                        // migration 198 applied yet (column simply absent).
+                        MeatyEggs = ReadOptionalInt32(reader, "MeatyEggs"),
+                        SoftEggs = ReadOptionalInt32(reader, "SoftEggs"),
+                        LostEggs = ReadOptionalInt32(reader, "LostEggs"),
                         Notes = reader.IsDBNull(reader.GetOrdinal("Notes"))
                             ? null
                             : reader.GetString(reader.GetOrdinal("Notes")),
@@ -255,6 +265,11 @@ namespace PoultryFarmAPIWeb.Business
                         BrokenEggs = reader.IsDBNull(reader.GetOrdinal("BrokenEggs"))
                             ? null
                             : reader.GetInt32(reader.GetOrdinal("BrokenEggs")),
+                        // Optional reads: tolerate a database that has not had
+                        // migration 198 applied yet (column simply absent).
+                        MeatyEggs = ReadOptionalInt32(reader, "MeatyEggs"),
+                        SoftEggs = ReadOptionalInt32(reader, "SoftEggs"),
+                        LostEggs = ReadOptionalInt32(reader, "LostEggs"),
                         Notes = reader.IsDBNull(reader.GetOrdinal("Notes"))
                             ? null
                             : reader.GetString(reader.GetOrdinal("Notes")),

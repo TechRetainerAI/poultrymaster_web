@@ -12,6 +12,7 @@ import { NumberInput } from "@/components/ui/number-input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
@@ -89,6 +90,10 @@ export default function PoultryCashAccountDetailPage() {
     }),
     [ledger, search, dateFrom, dateTo],
   )
+
+  // Client-side paging: the whole list is already in memory, so this is a
+  // slice. Feed the SAME slice to the cards and the desktop table.
+  const pg = usePagination(visibleLedger)
 
   async function performDelete() {
     try {
@@ -170,7 +175,8 @@ export default function PoultryCashAccountDetailPage() {
                     <div className="p-8 text-center text-slate-500">No transactions match your filters.</div>
                   ) : (
                     <MobileCardList
-                      items={visibleLedger}
+                      items={pg.pageItems}
+                      pagination={pg.paginationProps}
                       getKey={(r) => r.poultryCashTransactionId}
                       primary={(r) => `${r.amount < 0 ? "−" : "+"}${gh(Math.abs(r.amount))} · ${r.transactionType}`}
                       secondary={(r) => (<><span>{r.transactionDate.split("T")[0]}</span><span>· Bal {gh(r.running)}</span></>)}
@@ -198,7 +204,7 @@ export default function PoultryCashAccountDetailPage() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {visibleLedger.map((r) => (
+                              {pg.pageItems.map((r) => (
                                 <TableRow key={r.poultryCashTransactionId}>
                                   <TableCell className="whitespace-nowrap">{r.transactionDate.split("T")[0]}</TableCell>
                                   <TableCell>{r.transactionType}</TableCell>

@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -333,6 +334,12 @@ export default function WaterRawMaterialsPage() {
   const sortedPurchases = useMemo(() => sortData(filteredPurchases, purchasesSort.key, purchasesSort.direction), [filteredPurchases, purchasesSort])
   const sortedUsage = useMemo(() => sortData(filteredUsage, usageSort.key, usageSort.direction), [filteredUsage, usageSort])
 
+  // Client-side paging — one pager per tab, each fed the same slice its cards
+  // and its desktop table render.
+  const pgItems = usePagination(sortedItems)
+  const pgUsage = usePagination(sortedUsage)
+  const pgPurchases = usePagination(sortedPurchases)
+
   // Item dropdown shared by the Purchases + Usage filter strips.
   const itemFilterDropdown = (
     <Select value={itemFilter} onValueChange={setItemFilter}>
@@ -409,7 +416,8 @@ export default function WaterRawMaterialsPage() {
                     <div className="p-8 text-center text-slate-500">No raw material items yet.</div>
                   ) : (
                     <MobileCardList
-                      items={sortedItems}
+                      items={pgItems.pageItems}
+                      pagination={pgItems.paginationProps}
                       defaultOpen
                       getKey={(it) => it.waterRawMaterialItemId}
                       primary={(it) => it.itemName}
@@ -458,7 +466,7 @@ export default function WaterRawMaterialsPage() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {sortedItems.map((it) => {
+                            {pgItems.pageItems.map((it) => {
                               const low = (it.currentQuantity ?? 0) <= (it.minimumStockAlert ?? 0)
                               return (
                                 <TableRow key={it.waterRawMaterialItemId}>
@@ -504,7 +512,8 @@ export default function WaterRawMaterialsPage() {
                     </div>
                   ) : (
                     <MobileCardList
-                      items={sortedUsage}
+                      items={pgUsage.pageItems}
+                      pagination={pgUsage.paginationProps}
                       defaultOpen
                       getKey={(u) => u.waterRawMaterialUsageId}
                       primary={(u) => u.itemName ?? "—"}
@@ -541,7 +550,7 @@ export default function WaterRawMaterialsPage() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {sortedUsage.map((u) => (
+                            {pgUsage.pageItems.map((u) => (
                               <TableRow key={u.waterRawMaterialUsageId}>
                                 <TableCell className="whitespace-nowrap">{u.usedDate.split("T")[0]}</TableCell>
                                 <TableCell className="font-medium">{u.itemName ?? "—"}</TableCell>
@@ -578,7 +587,8 @@ export default function WaterRawMaterialsPage() {
                     <div className="p-8 text-center text-slate-500">No purchases recorded yet.</div>
                   ) : (
                     <MobileCardList
-                      items={sortedPurchases}
+                      items={pgPurchases.pageItems}
+                      pagination={pgPurchases.paginationProps}
                       defaultOpen
                       getKey={(p) => p.waterRawMaterialPurchaseId}
                       primary={(p) => p.itemName ?? items.find(i => i.waterRawMaterialItemId === p.waterRawMaterialItemId)?.itemName ?? "—"}
@@ -639,7 +649,7 @@ export default function WaterRawMaterialsPage() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {sortedPurchases.map((p) => (
+                            {pgPurchases.pageItems.map((p) => (
                               <TableRow key={p.waterRawMaterialPurchaseId}>
                                 <TableCell>{p.purchaseDate.split("T")[0]}</TableCell>
                                 <TableCell>{p.itemName ?? items.find(i => i.waterRawMaterialItemId === p.waterRawMaterialItemId)?.itemName ?? "—"}</TableCell>

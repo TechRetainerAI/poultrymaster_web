@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
@@ -67,6 +68,10 @@ export default function WaterPayrollPage() {
     }),
     [runs, search, dateFrom, dateTo],
   )
+
+  // Client-side paging: the whole list is already in memory, so this is a
+  // slice. Feed the SAME slice to the cards and the desktop table.
+  const pg = usePagination(visibleRuns)
 
   const [newRunDlg, setNewRunDlg] = useState(false)
   const [runForm, setRunForm] = useState({ periodStart: "", periodEnd: "", waterCashAccountId: 0, notes: "" })
@@ -212,7 +217,8 @@ export default function WaterPayrollPage() {
                 <div className="p-8 text-center text-slate-500">No payroll runs yet.</div>
               ) : (
                 <MobileCardList
-                  items={visibleRuns}
+                  items={pg.pageItems}
+                  pagination={pg.paginationProps}
                   getKey={(r) => r.waterPayrollRunId}
                   primary={(r) => `${r.periodStart.split("T")[0]} → ${r.periodEnd.split("T")[0]}`}
                   secondary={(r) => (
@@ -266,7 +272,7 @@ export default function WaterPayrollPage() {
                         <TableRow><TableHead>Period</TableHead><TableHead className="text-right">Gross</TableHead><TableHead className="text-right">Net</TableHead><TableHead>Cash account</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow>
                       </TableHeader>
                       <TableBody>
-                        {visibleRuns.map((r) => (
+                        {pg.pageItems.map((r) => (
                           <TableRow key={r.waterPayrollRunId}>
                             <TableCell className="font-medium">{r.periodStart.split("T")[0]} → {r.periodEnd.split("T")[0]}</TableCell>
                             <TableCell className="text-right tabular-nums">{r.totalGrossPay.toFixed(2)}</TableCell>

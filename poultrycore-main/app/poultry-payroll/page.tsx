@@ -11,6 +11,7 @@ import { NumberInput } from "@/components/ui/number-input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
@@ -53,6 +54,10 @@ export default function PoultryPayrollPage() {
   const [statusFilter, setStatusFilter] = useState("all")
 
   const visible = useMemo(() => statusFilter === "all" ? runs : runs.filter(r => r.status === statusFilter), [runs, statusFilter])
+
+  // Client-side paging: the whole list is already in memory, so this is a
+  // slice. Feed the SAME slice to the cards and the desktop table.
+  const pg = usePagination(visible)
 
   // create run
   const [open, setOpen] = useState(false)
@@ -207,7 +212,8 @@ export default function PoultryPayrollPage() {
                 <div className="p-8 text-center text-slate-500">No payroll runs yet. Create one to start paying staff.</div>
               ) : (
                 <MobileCardList
-                  items={visible}
+                  items={pg.pageItems}
+                  pagination={pg.paginationProps}
                   getKey={(r) => r.poultryPayrollRunId}
                   primary={(r) => `${r.periodStart.split("T")[0]} → ${r.periodEnd.split("T")[0]}`}
                   secondary={(r) => (<><span>Net {gh(r.totalNetPay)}</span><Badge className={STATUS_STYLE[r.status] ?? ""}>{r.status}</Badge></>)}
@@ -235,7 +241,7 @@ export default function PoultryPayrollPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {visible.map((r) => (
+                          {pg.pageItems.map((r) => (
                             <TableRow key={r.poultryPayrollRunId}>
                               <TableCell className="whitespace-nowrap font-medium">{r.periodStart.split("T")[0]} → {r.periodEnd.split("T")[0]}</TableCell>
                               <TableCell className="text-right tabular-nums">{gh(r.totalGrossPay)}</TableCell>

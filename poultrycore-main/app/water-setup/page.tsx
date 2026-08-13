@@ -23,6 +23,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -100,6 +101,10 @@ function SetupSection<T>({ tab }: { tab: SetupTab<T> }) {
   }
   useEffect(() => { void load() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [])
 
+  // Client-side paging: every setup tab renders through this one panel, so
+  // one hook here gives all of them the same pager.
+  const pg = usePagination(items)
+
   async function handleDelete(item: T) {
     if (!tab.delete) return
     try {
@@ -146,7 +151,8 @@ function SetupSection<T>({ tab }: { tab: SetupTab<T> }) {
           /* #20: cards on mobile, table on desktop (was table-only). The generic
              column config drives both, so every setup tab gets cards at once. */
           <MobileCardList
-            items={items}
+            items={pg.pageItems}
+            pagination={pg.paginationProps}
             getKey={(item) => tab.idOf(item)}
             primary={(item) => tab.labelOf(item)}
             secondary={(item) => tab.columns.length > 1 ? <span>{tab.columns[1].accessor(item)}</span> : null}
@@ -175,7 +181,7 @@ function SetupSection<T>({ tab }: { tab: SetupTab<T> }) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {items.map((item) => (
+                  {pg.pageItems.map((item) => (
                     <TableRow key={tab.idOf(item)}>
                       {tab.columns.map((c) => <TableCell key={c.header}>{c.accessor(item)}</TableCell>)}
                       {(tab.delete || tab.Modal) && (

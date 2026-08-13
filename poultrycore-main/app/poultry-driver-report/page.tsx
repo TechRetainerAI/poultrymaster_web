@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { BarChart3, Loader2, RefreshCw } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
@@ -80,6 +81,10 @@ export default function PoultryDriverCollectionReportPage() {
       || (a.productName ?? "").localeCompare(b.productName ?? ""),
     )
   }, [report])
+
+  // Paging for the consolidated deliveries list. The per-driver totals table
+  // above it is one row per driver, so it stays unpaged.
+  const pgDetail = usePagination(flatDetail)
 
   const headlineTotals = useMemo(() => {
     if (!report?.totals.length) return null
@@ -227,7 +232,8 @@ export default function PoultryDriverCollectionReportPage() {
                 <CardContent className="p-0">
                   <div className="px-4 pt-4 font-medium text-slate-800">Deliveries</div>
                   <MobileCardList
-                    items={flatDetail}
+                    items={pgDetail.pageItems}
+                    pagination={pgDetail.paginationProps}
                     defaultOpen
                     getKey={(r) => `${r.poultryDriverReturnId}-${r.productName ?? "none"}`}
                     primary={(r) => `${r.driverName ?? "Unassigned"} · ${r.productName ?? "Product"}`}
@@ -264,7 +270,7 @@ export default function PoultryDriverCollectionReportPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {flatDetail.map((r, i) => (
+                          {pgDetail.pageItems.map((r, i) => (
                             <TableRow key={`${r.poultryDriverReturnId}-${r.productName ?? "none"}-${i}`}>
                               <TableCell className="font-medium">{r.driverName ?? "Unassigned"}</TableCell>
                               <TableCell className="whitespace-nowrap">{(r.returnDate ?? "").slice(0, 10)}</TableCell>
