@@ -38,6 +38,7 @@ export function EditEmployeeDialog({
   onOpenChange,
   employeeId,
   employee,
+  companyTypes,
   onSaved,
 }: {
   open: boolean
@@ -53,6 +54,13 @@ export function EditEmployeeDialog({
    * request entirely.
    */
   employee?: Employee | null
+  /**
+   * Company types this employee has access to, e.g. `["Water"]`. Narrows the
+   * Staff Page Access switches to the modules that actually apply to them.
+   * Pass from an org-wide list (which knows their companies); omit on the
+   * per-company page, where the active company is the answer.
+   */
+  companyTypes?: Array<string | null | undefined>
   onSaved?: () => void
 }) {
   const { toast } = useToast()
@@ -233,6 +241,7 @@ export function EditEmployeeDialog({
               }}
               onChange={(next) => setEditForm({ ...editForm, ...next })}
               disabled={editLoading}
+              companyTypes={companyTypes}
             />
             <div className="flex gap-3 justify-end pt-2">
               <Button type="button" onClick={() => onOpenChange(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>

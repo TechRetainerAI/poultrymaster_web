@@ -57,6 +57,7 @@ import { useSidebarStore } from "@/lib/store/sidebar-store"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
+import { filterWaterNavItems } from "@/lib/utils/water-nav-access"
 import { useLogout } from "@/hooks/use-logout"
 
 interface SidebarProps {
@@ -256,13 +257,21 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   // the old "Daily operations" group but renamed and used as a fast-access
   // shortcut bar — the items it points to also live in their canonical group
   // so navigation stays consistent.
-  const waterQuickLinkItems = [
+  //
+  // Every water group below is run through `gateWater`, which drops the items
+  // this user's Staff Page Access flags don't cover (lib/utils/water-nav-access).
+  // Before this the water rail was entirely ungated — the flags only ever
+  // applied to the poultry routes.
+  const gateWater = <T extends { href: string }>(items: T[]) =>
+    filterWaterNavItems(items, permissions.featureAccess, permissions.isAdmin)
+
+  const waterQuickLinkItems = gateWater([
     { href: "/water-daily-closing",      label: "Daily Closing",      icon: FileText },
     { href: "/water-driver-returns",     label: "Deliveries",         icon: Truck },
     { href: "/water-production-batches", label: "Production",          icon: Factory },
     { href: "/water-sales",              label: "Sales",              icon: ShoppingCart },
-  ]
-  const waterDeliveryItems = [
+  ])
+  const waterDeliveryItems = gateWater([
     { href: "/water-driver-returns", label: "Deliveries", icon: Truck },
     { href: "/water-drivers",        label: "Drivers",    icon: Users2 },
     { href: "/water-vehicles",       label: "Vehicles",   icon: Truck },
@@ -270,8 +279,8 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     // The sidebar had no route to this page at all — the top nav and mobile
     // sheet both carry it under Delivery.
     { href: "/water-driver-report",  label: "Driver collection report", icon: BarChart3 },
-  ]
-  const waterProductionItems = [
+  ])
+  const waterProductionItems = gateWater([
     // Mirrors the poultry Production group: "Production" is the per-machine
     // record, "Batch Production" is the day-level entry that allocates across
     // machines (poultry: Production Records / Batch Production).
@@ -281,49 +290,49 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/water-machines",           label: "Machines",           icon: Cog },
     { href: "/water-boreholes",          label: "Boreholes",          icon: Droplets },
     { href: "/water-maintenance",        label: "Maintenance",        icon: Wrench },
-  ]
+  ])
   // Inventory absorbs Raw materials & supplies; Products moved out into the
   // Production group above.
-  const waterInventoryItems = [
+  const waterInventoryItems = gateWater([
     { href: "/water-stock",             label: "Stock movement",           icon: Boxes },
     { href: "/water-inventory",         label: "Inventory",                icon: Boxes },
     { href: "/water-raw-materials",     label: "Raw materials & supplies", icon: Box },
     { href: "/water-loss-records",      label: "Damages & loss",           icon: AlertTriangle },
     { href: "/water-production-losses", label: "Production losses",        icon: AlertTriangle },
-  ]
-  const waterSalesMoneyItems = [
+  ])
+  const waterSalesMoneyItems = gateWater([
     { href: "/water-sales",         label: "Sales",           icon: ShoppingCart },
     { href: "/water-payments",      label: "Payments",        icon: CreditCard },
     { href: "/water-expenses",      label: "Expenses",        icon: Receipt },
     { href: "/water-cash-accounts", label: "Cash accounts",   icon: Wallet },
-  ]
+  ])
   // Finance — Customers (was in Sales & money) and Suppliers (was buried in
   // Admin / Setup) now sit together: both are master data, and they're the two
   // trading parties every receivable and payable hangs off. Mirrors the top
   // nav's Setup > Finance column (lib/nav/water-nav-config.ts).
-  const waterFinanceItems = [
+  const waterFinanceItems = gateWater([
     { href: "/water-customers", label: "Customers", icon: Users },
     { href: "/water-suppliers", label: "Suppliers", icon: Truck },
-  ]
+  ])
   // James: group Employees + Payroll under People and hide the Staff item.
   // "Employees" points at the water staff page (/water-staff) — the global
   // /employees page redirects water users to the dashboard. Admin-gated.
-  const waterPeopleItems = [
-    ...((permissions.isAdmin || permissions.featureAccess.canSeeEmployees)
-      ? [{ href: "/water-staff", label: "Staff", icon: UserCog }]
-      : []),
+  // The /water-staff gate now lives in the route map alongside every other
+  // water route rather than being spelled out here.
+  const waterPeopleItems = gateWater([
+    { href: "/water-staff", label: "Staff", icon: UserCog },
     { href: "/water-payroll", label: "Payroll", icon: Banknote },
-  ]
-  const waterReportsItems = [
+  ])
+  const waterReportsItems = gateWater([
     { href: "/water-reports", label: "Reports", icon: BarChart3 },
-  ]
+  ])
   // Admin / Setup now only carries the genuinely rare-touch config — the
   // delivery/production items moved into their own first-class groups, and
   // Suppliers moved to Finance beside Customers.
-  const waterAdminItems = [
+  const waterAdminItems = gateWater([
     { href: "/water-setup",         label: "Setup",         icon: Settings },
     { href: "/water-company-setup", label: "Company Setup", icon: Settings },
-  ]
+  ])
 
   // Generic Company nav items (shown when activeFarmType === "Generic")
   // /generic-inventory is the new at-a-glance stock page (products + cards
@@ -458,6 +467,11 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   }
 
   const renderGroup = (title: string, items: SidebarItem[], groupKey: string) => {
+    // A group whose every item was filtered out by permissions renders nothing —
+    // otherwise a staff member without, say, Deliveries sees a bare "DELIVERY"
+    // heading with an empty body under it.
+    if (items.length === 0) return null
+
     const isOpen = openGroups[groupKey] !== false
 
     if (isCollapsed && !isMobile) {
