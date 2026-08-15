@@ -1,5 +1,9 @@
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useMemo } from "react"
 import { refreshFeaturePermissionsFromServer } from "@/lib/api/auth"
+import { getEffectivePermissions, getIamStatus } from "@/lib/api/iam"
+import { resolveEffectivePermissions } from "@/lib/iam/resolve"
+import { COMPANY_CHANGED_EVENT } from "@/lib/store/auth-store"
+import type { PermissionKey } from "@/lib/iam/keys"
 
 export interface FeatureAccessPermissions {
   canEnterSales: boolean
@@ -31,6 +35,20 @@ export interface UserPermissions {
   roles: string[]
   featureAccess: FeatureAccessPermissions
   isLoading: boolean
+  /**
+   * IAM check (migration 199). `can("poultry.sales.create")`.
+   *
+   * While IAM is additive this answers from the legacy flags mapped onto
+   * catalog keys, unioned with anything IAM grants for the ACTIVE company — so
+   * it is safe to migrate a page from `featureAccess.canEnterSales` to
+   * `can("poultry.sales.create")` today without waiting for roles to be
+   * assigned. See lib/iam/resolve.ts for the rule and when it changes.
+   */
+  can: (key: PermissionKey) => boolean
+  /** Every key held in the active company. Empty when `isSuperuser`. */
+  permissionKeys: Set<PermissionKey>
+  /** Holds everything, including keys added later. Legacy admins qualify. */
+  isSuperuser: boolean
 }
 
 const DEFAULT_FEATURE_ACCESS: FeatureAccessPermissions = {
@@ -127,8 +145,16 @@ function normalizeFeatureAccess(raw: Record<string, unknown>): Partial<FeatureAc
   return normalized
 }
 
+/** The legacy half, before IAM is layered on. Kept separate so state stays plain data. */
+type BasePermissions = Omit<UserPermissions, "can" | "permissionKeys" | "isSuperuser">
+
 export function usePermissions(): UserPermissions {
-  const [permissions, setPermissions] = useState<UserPermissions>({
+  const [iamGrants, setIamGrants] = useState<string[]>([])
+  // Whether the API enforces permissions. Owned by the server (Iam:Enforced) so
+  // the two sides cannot disagree about which era they are in; false until it
+  // says otherwise, which is the permissive direction.
+  const [iamEnforced, setIamEnforced] = useState(false)
+  const [permissions, setPermissions] = useState<BasePermissions>({
     canDelete: false,
     canEdit: false,
     canCreate: false,
@@ -141,7 +167,7 @@ export function usePermissions(): UserPermissions {
     isLoading: true,
   })
 
-  const computeFromStorage = useCallback((): UserPermissions => {
+  const computeFromStorage = useCallback((): BasePermissions => {
     const isStaffStr = localStorage.getItem("isStaff")
     const isStaff = isStaffStr === "true" || isStaffStr === true
     const isSubscriberStr = localStorage.getItem("isSubscriber")
@@ -236,12 +262,51 @@ export function usePermissions(): UserPermissions {
       if (!cancelled) apply()
     })()
 
+    // IAM grants are scoped to the company you are in, so they have to be
+    // re-read whenever that changes. Without this, someone who is an Accountant
+    // in one company and Data Entry in another keeps the wider set until they
+    // reload the page.
+    const loadIam = async () => {
+      if (!localStorage.getItem("auth_token")) return
+      const farmId = localStorage.getItem("farmId")
+      const [status, res] = await Promise.all([getIamStatus(), getEffectivePermissions(farmId)])
+      if (cancelled) return
+      setIamEnforced(status?.enforced === true)
+      // null means the endpoint is unavailable or migration 199 has not been
+      // applied here — fall back to legacy flags alone rather than to nothing.
+      setIamGrants(res?.grants?.map((g) => g.permissionKey) ?? [])
+    }
+    void loadIam()
+
+    const onCompanyChanged = () => {
+      setIamGrants([])
+      void loadIam()
+    }
+    window.addEventListener(COMPANY_CHANGED_EVENT, onCompanyChanged)
+
     return () => {
       cancelled = true
+      window.removeEventListener(COMPANY_CHANGED_EVENT, onCompanyChanged)
     }
   }, [computeFromStorage])
 
-  return permissions
+  const resolved = useMemo(
+    () =>
+      resolveEffectivePermissions({
+        legacy: permissions.featureAccess,
+        isAdmin: permissions.isAdmin,
+        iamAllow: iamGrants,
+        authoritative: iamEnforced,
+      }),
+    [permissions.featureAccess, permissions.isAdmin, iamGrants, iamEnforced]
+  )
+
+  return {
+    ...permissions,
+    can: resolved.can,
+    permissionKeys: resolved.keys,
+    isSuperuser: resolved.isSuperuser,
+  }
 }
 
 // Helper function to check if user has specific permission

@@ -108,7 +108,10 @@ export default function PoultryClosingReportPage() {
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
         <main className="flex-1 p-4 sm:p-6 space-y-4">
-          <div><h1 className="text-2xl font-bold">Closing Report</h1><p className="text-sm text-slate-500">Period-end summary of production, money, inventory and losses.</p></div>
+          {/* "by Category" distinguishes this from /poultry-closing-report-daily,
+              which lists each day's closing as a row rather than totalling the
+              whole period into categories. */}
+          <div><h1 className="text-2xl font-bold">Closing by Category</h1><p className="text-sm text-slate-500">Period totals grouped into financial, production, inventory and birds.</p></div>
           <Card><CardContent className="p-4 flex flex-wrap items-end gap-3">
             <div><label className="text-xs text-slate-500 block mb-1">From</label><Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-40" /></div>
             <div><label className="text-xs text-slate-500 block mb-1">To</label><Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-40" /></div>
