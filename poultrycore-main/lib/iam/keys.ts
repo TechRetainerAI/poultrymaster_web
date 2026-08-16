@@ -93,6 +93,54 @@ export const LEGACY_PERMISSION_MAP: Record<StaffFeaturePermissionKey, Permission
   ],
 
   canViewFeedProductionCost: ["poultry.feed-production-cost.view"],
+
+  // Water — the module-specific half, mirroring the sidebar groups these flags
+  // gate (lib/utils/water-nav-access). Read generously like the rest of this
+  // map: a "view the group" flag maps onto the full CRUD set for its resources,
+  // because that is exactly what the flag lets you do today. Narrowing happens
+  // when someone is given a real IAM role, not here.
+  canViewWaterProduction: [
+    "water.daily-production.view", "water.daily-production.create",
+    "water.daily-production.edit", "water.daily-production.delete", "water.daily-production.export",
+    "water.production-batches.view", "water.production-batches.create",
+    "water.production-batches.edit", "water.production-batches.delete", "water.production-batches.approve",
+    "water.products.view", "water.products.create", "water.products.edit", "water.products.delete",
+    "water.machines.view", "water.machines.create", "water.machines.edit", "water.machines.delete",
+    "water.boreholes.view", "water.boreholes.create", "water.boreholes.edit", "water.boreholes.delete",
+    "water.production-losses.view", "water.production-losses.create",
+    "water.production-losses.edit", "water.production-losses.delete",
+  ],
+
+  canViewWaterDeliveries: [
+    "water.drivers.view", "water.drivers.create", "water.drivers.edit", "water.drivers.delete",
+    "water.vehicles.view", "water.vehicles.create", "water.vehicles.edit", "water.vehicles.delete",
+    "water.routes.view", "water.routes.create", "water.routes.edit", "water.routes.delete",
+    "water.driver-returns.view", "water.driver-returns.create",
+    "water.driver-returns.edit", "water.driver-returns.delete", "water.driver-returns.approve",
+  ],
+
+  canViewWaterInventory: [
+    "water.raw-materials.view", "water.raw-materials.create",
+    "water.raw-materials.edit", "water.raw-materials.delete",
+    "water.inventory.view", "water.inventory.create", "water.inventory.edit", "water.inventory.delete",
+    "water.stock.view", "water.stock.edit", "water.stock.export",
+    "water.production-losses.view", "water.production-losses.create",
+    "water.production-losses.edit", "water.production-losses.delete",
+  ],
+
+  canViewWaterMaintenance: [
+    "water.maintenance.view", "water.maintenance.create",
+    "water.maintenance.edit", "water.maintenance.delete", "water.maintenance.approve",
+  ],
+
+  canViewWaterPayroll: [
+    "water.payroll.view", "water.payroll.create",
+    "water.payroll.edit", "water.payroll.delete", "water.payroll.approve", "water.payroll.export",
+  ],
+
+  // No `water.settings.*` in the catalog — company configuration is the
+  // company-neutral office module, same key the poultry Settings flag uses.
+  canViewWaterSetup: ["office.settings.view"],
 }
 
 /** Every key the legacy flags can produce, for the "is this key legacy-covered?" check. */

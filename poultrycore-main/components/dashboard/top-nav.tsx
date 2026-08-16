@@ -47,6 +47,11 @@ function NavDropdown({ group, accent = "sky" }: { group: NavGroup; accent?: NavA
 
   const isGroupActive = group.items.some((item) => navPathActive(pathname, item.href))
 
+  // After the hooks — bailing earlier would break the hook order. A group whose
+  // rows were all permission-filtered would otherwise show as a trigger that
+  // opens an empty panel.
+  if (group.items.length === 0) return null
+
   return (
     <div
       ref={pop.triggerRef}

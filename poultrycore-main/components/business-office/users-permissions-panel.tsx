@@ -136,6 +136,13 @@ export function UsersPermissionsPanel({ showHeading = true }: { showHeading?: bo
     } finally { setBusyFarm(null) }
   }
 
+  // The row behind the Edit dialog. Looked up once so the dialog's seed record
+  // and its company-type list can't drift apart.
+  const editingEmployee = useMemo(
+    () => employees.find((e) => e.id === editingId) ?? null,
+    [employees, editingId],
+  )
+
   function displayName(e: OrgEmployee) {
     return [e.firstName, e.lastName].filter(Boolean).join(" ") || e.userName || e.email || "this employee"
   }
@@ -260,7 +267,17 @@ export function UsersPermissionsPanel({ showHeading = true }: { showHeading?: bo
           </div>
           <p className="text-xs text-slate-400">Toggling access adds or removes this employee from the company. Changes apply immediately.</p>
 
-          <EmployeeAccessFields value={perms} onChange={setPerms} disabled={permsSaving} />
+          {/* Driven by the company toggles directly above: an employee who is
+              only in water companies gets only the water switches, only poultry
+              gets only the poultry ones, and someone in both sees both. Reading
+              off `managed` rather than the active company means the list also
+              updates the moment you grant or revoke access up there. */}
+          <EmployeeAccessFields
+            value={perms}
+            onChange={setPerms}
+            disabled={permsSaving}
+            companyTypes={(managed?.companies ?? []).map((c) => c.type)}
+          />
           <div className="flex justify-end">
             <Button onClick={savePermissions} disabled={permsSaving}>
               {permsSaving
@@ -282,7 +299,8 @@ export function UsersPermissionsPanel({ showHeading = true }: { showHeading?: bo
         open={editOpen}
         onOpenChange={setEditOpen}
         employeeId={editingId}
-        employee={employees.find((e) => e.id === editingId) ?? null}
+        employee={editingEmployee}
+        companyTypes={(editingEmployee?.companies ?? []).map((c) => c.type)}
         onSaved={load}
       />
 

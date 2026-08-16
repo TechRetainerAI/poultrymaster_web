@@ -16,7 +16,12 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { ADMIN_PERMISSION_OPTIONS, STAFF_FEATURE_PERMISSION_OPTIONS } from "@/lib/employees/permissions"
+import {
+  ADMIN_PERMISSION_OPTIONS,
+  staffPermissionOptionsForCompanyType,
+  staffPermissionOptionsForCompanyTypes,
+} from "@/lib/employees/permissions"
+import { useAuthStore } from "@/lib/store/auth-store"
 import type { EmployeePermissionSnapshot } from "@/lib/employees/permissions-io"
 
 export function EmployeeAccessFields({
@@ -25,13 +30,36 @@ export function EmployeeAccessFields({
   disabled = false,
   /** Start the staff list expanded (the Manage access dialog is all about it). */
   defaultStaffOpen = false,
+  companyTypes,
 }: {
   value: EmployeePermissionSnapshot
   onChange: (next: EmployeePermissionSnapshot) => void
   disabled?: boolean
   defaultStaffOpen?: boolean
+  /**
+   * The company types THIS EMPLOYEE has access to, e.g. `["Water"]` or
+   * `["Water", "Poultry"]`. Decides which module's switches are on screen:
+   * water-only access shows the water switches, both shows both.
+   *
+   * Omit when the caller doesn't know (the per-company /employees page, where
+   * every employee is in the active company by definition) — it then falls back
+   * to the type of the company you're currently in.
+   */
+  companyTypes?: Array<string | null | undefined>
 }) {
   const [showStaffPermissions, setShowStaffPermissions] = useState(defaultStaffOpen)
+  // Show the toggles that apply to THIS EMPLOYEE's company access when the
+  // caller knows it, and otherwise to the company you are administering. Before
+  // this the panel was a fixed list: a water-only employee was offered the three
+  // poultry Feed Production switches and nothing at all for Production,
+  // Deliveries, Inventory, Maintenance, Payroll or Setup.
+  //
+  // The SNAPSHOT still carries every key — only the rendering is filtered — so
+  // narrowing what's on screen can never wipe the flags it isn't showing.
+  const activeFarmType = useAuthStore((s) => s.activeFarmType)
+  const staffOptions = companyTypes
+    ? staffPermissionOptionsForCompanyTypes(companyTypes)
+    : staffPermissionOptionsForCompanyType(activeFarmType)
 
   return (
     <>
@@ -108,9 +136,12 @@ export function EmployeeAccessFields({
 
           {showStaffPermissions && (
             <div className="rounded-lg border border-slate-200 divide-y">
-              {STAFF_FEATURE_PERMISSION_OPTIONS.map((perm) => (
+              {staffOptions.map((perm) => (
                 <div key={perm.key} className="flex items-center justify-between gap-3 px-3 py-2">
-                  <p className="text-sm text-slate-800">{perm.label}</p>
+                  <div className="min-w-0">
+                    <p className="text-sm text-slate-800">{perm.label}</p>
+                    {perm.hint && <p className="text-xs text-slate-500">{perm.hint}</p>}
+                  </div>
                   <Switch
                     checked={value.featurePermissions[perm.key]}
                     onCheckedChange={(checked) =>
