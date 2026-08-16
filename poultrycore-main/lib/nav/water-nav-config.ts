@@ -20,6 +20,7 @@ import {
   Users, Users2, Wallet, Wrench,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
+import { isWaterNavItemVisible } from "@/lib/utils/water-nav-access"
 import type { MegaMenuGroup, NavGroup } from "./nav-model"
 
 export interface WaterNavDeps {
@@ -48,7 +49,27 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
   const canSeeStaff = permissions.isAdmin || permissions.featureAccess.canSeeEmployees
   const canSeeActivityLog = permissions.featureAccess.canViewActivityLog
 
-  return {
+  /**
+   * Staff Page Access gate for a `/water-*` row.
+   *
+   * Applied as a post-processing pass over the whole config below rather than
+   * spelled out row by row: the route -> flag map is the single source of truth
+   * (lib/utils/water-nav-access), and a row added here later is gated the moment
+   * it appears in that map, with nothing to remember to wire up.
+   *
+   * `visible` set explicitly on a row still wins — that is how Staff and Account
+   * keep their own rules.
+   */
+  const gate = (href: string | undefined) =>
+    href === undefined ? true : isWaterNavItemVisible(href, permissions.featureAccess, permissions.isAdmin)
+
+  const gateGroups = (groups: MegaMenuGroup[]): MegaMenuGroup[] =>
+    groups.map((g) => ({
+      ...g,
+      items: g.items.map((item) => ({ ...item, visible: (item.visible ?? true) && gate(item.href) })),
+    }))
+
+  const config: WaterNavConfig = {
     quickLinks: {
       label: "Quick Links",
       items: [
@@ -198,5 +219,16 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
         ],
       },
     ],
+  }
+
+  return {
+    ...config,
+    quickLinks: { ...config.quickLinks, items: config.quickLinks.items.filter((i) => gate(i.href)) },
+    operations: gateGroups(config.operations),
+    salesMoney: gateGroups(config.salesMoney),
+    setup: gateGroups(config.setup),
+    // `system` is company-neutral (account, alerts, activity log, terms) — no
+    // /water-* route in it, so it carries its own gates unchanged.
+    system: config.system,
   }
 }

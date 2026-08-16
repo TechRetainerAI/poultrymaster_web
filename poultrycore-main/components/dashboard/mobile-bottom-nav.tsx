@@ -6,6 +6,7 @@ import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
 import { usePermissions } from "@/hooks/use-permissions"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
+import { filterWaterNavItems } from "@/lib/utils/water-nav-access"
 import { useAuthStore } from "@/lib/store/auth-store"
 import {
   Home,
@@ -107,22 +108,27 @@ export function MobileBottomNav() {
   // the desktop top-nav so the company-type identity is consistent.
   const config = (() => {
     if (activeFarmType === "Water") {
+      // Staff Page Access gate, same route -> flag map the sidebar and top nav
+      // use (lib/utils/water-nav-access) so all three surfaces agree.
+      const gateWater = (items: NavItem[]) =>
+        filterWaterNavItems(items, permissions.featureAccess, permissions.isAdmin)
+
       return {
         bg: "bg-sky-600",
         borderTop: "border-sky-700",
         palette: { inactive: "text-sky-100/90 hover:text-white", activeText: "text-white" },
         activeBg: "bg-sky-100 text-sky-800",
-        mainTabs: [
+        mainTabs: gateWater([
           { href: "/water-dashboard",          label: "Home",       icon: Droplets },
           { href: "/water-production-batches", label: "Production", icon: Factory },
           { href: "/water-driver-returns",     label: "Deliveries", icon: Truck },
           { href: "/water-sales",              label: "Sales",      icon: ShoppingCart },
-        ] as NavItem[],
+        ] as NavItem[]),
         // Order mirrors the sidebar reorg (Quick Links → Delivery → Production
         // → Inventory → Sales & Money → Finance → People → Reports →
         // Admin/Setup) so the mental model is the same between desktop and
         // mobile.
-        moreItems: [
+        moreItems: gateWater([
           // Quick Links shortcuts (the most-used daily flows)
           { href: "/water-daily-closing", label: "Daily Closing",     icon: FileText },
           { href: "/water-driver-returns", label: "Deliveries",       icon: Truck },
@@ -167,7 +173,7 @@ export function MobileBottomNav() {
             ? [{ href: "/audit-logs", label: "Activity Log", icon: Activity }] : []),
           ...(permissions.isAdmin || permissions.featureAccess.canSeeEmployees
             ? [{ href: "/employees", label: "Employees", icon: UserCog }] : []),
-        ] as NavItem[],
+        ] as NavItem[]),
       }
     }
 

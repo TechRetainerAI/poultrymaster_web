@@ -3,6 +3,7 @@ import { refreshFeaturePermissionsFromServer } from "@/lib/api/auth"
 import { getEffectivePermissions, getIamStatus } from "@/lib/api/iam"
 import { resolveEffectivePermissions } from "@/lib/iam/resolve"
 import { COMPANY_CHANGED_EVENT } from "@/lib/store/auth-store"
+import { WATER_STAFF_FEATURE_KEYS } from "@/lib/employees/permissions"
 import type { PermissionKey } from "@/lib/iam/keys"
 
 export interface FeatureAccessPermissions {
@@ -22,6 +23,18 @@ export interface FeatureAccessPermissions {
   canManageFeedProduction: boolean
   /** Feed Production module: see cost figures (unit costs, totals, cost reports). */
   canViewFeedProductionCost: boolean
+  /** Water: Production, Batch Production, Products, Machines, Boreholes. */
+  canViewWaterProduction: boolean
+  /** Water: Driver returns, Drivers, Vehicles, Routes, Driver collection report. */
+  canViewWaterDeliveries: boolean
+  /** Water: Stock movement, Inventory, Raw materials, Damages & loss, Production losses. */
+  canViewWaterInventory: boolean
+  /** Water: the Maintenance register. */
+  canViewWaterMaintenance: boolean
+  /** Water: Payroll runs. */
+  canViewWaterPayroll: boolean
+  /** Water: Setup and Company Setup. */
+  canViewWaterSetup: boolean
 }
 
 export interface UserPermissions {
@@ -64,6 +77,12 @@ const DEFAULT_FEATURE_ACCESS: FeatureAccessPermissions = {
   canViewFeedProduction: true,
   canManageFeedProduction: true,
   canViewFeedProductionCost: true,
+  canViewWaterProduction: true,
+  canViewWaterDeliveries: true,
+  canViewWaterInventory: true,
+  canViewWaterMaintenance: true,
+  canViewWaterPayroll: true,
+  canViewWaterSetup: true,
 }
 
 /** Staff must be deny-by-default; merging with DEFAULT_FEATURE_ACCESS let missing keys stay "on". */
@@ -80,6 +99,12 @@ const STAFF_FEATURE_BASE: FeatureAccessPermissions = {
   canViewFeedProduction: false,
   canManageFeedProduction: false,
   canViewFeedProductionCost: false,
+  canViewWaterProduction: false,
+  canViewWaterDeliveries: false,
+  canViewWaterInventory: false,
+  canViewWaterMaintenance: false,
+  canViewWaterPayroll: false,
+  canViewWaterSetup: false,
 }
 
 function toBoolean(value: unknown): boolean | undefined {
@@ -142,7 +167,35 @@ function normalizeFeatureAccess(raw: Record<string, unknown>): Partial<FeatureAc
   const feedProdCost = toBoolean(raw.canViewFeedProductionCost ?? raw.CanViewFeedProductionCost ?? raw.viewFeedProductionCost ?? raw.ViewFeedProductionCost)
   if (feedProdCost !== undefined) normalized.canViewFeedProductionCost = feedProdCost
 
+  for (const key of WATER_STAFF_FEATURE_KEYS) {
+    const pascal = key.charAt(0).toUpperCase() + key.slice(1)
+    const value = toBoolean(raw[key] ?? raw[pascal])
+    if (value !== undefined) normalized[key] = value
+  }
+
   return normalized
+}
+
+/**
+ * Has anyone ever set a water flag on this record?
+ *
+ * The water flags were added after the water module shipped, so every existing
+ * employee's stored `FeaturePermissions` predates them. Staff are
+ * deny-by-default, which would mean the day this deploys every water staff
+ * member loses Production, Deliveries, Inventory, Maintenance, Payroll and
+ * Setup at once — not because an admin decided that, but because the keys are
+ * absent.
+ *
+ * So: a record with NO water flag at all is grandfathered (all six granted,
+ * which is exactly today's behaviour — the water nav is ungated). The first
+ * time an admin saves the access dialog every water key is written, and from
+ * then on absence means denied like every other flag.
+ */
+function hasAnyWaterFlag(raw: Record<string, unknown>): boolean {
+  return WATER_STAFF_FEATURE_KEYS.some((key) => {
+    const pascal = key.charAt(0).toUpperCase() + key.slice(1)
+    return toBoolean(raw[key] ?? raw[pascal]) !== undefined
+  })
 }
 
 /** The legacy half, before IAM is layered on. Kept separate so state stays plain data. */
@@ -203,12 +256,16 @@ export function usePermissions(): UserPermissions {
     const isStaffOnly = isStaff && !isAdmin
 
     let storedFeatureAccess: Partial<FeatureAccessPermissions> = {}
+    // See hasAnyWaterFlag: an untouched record is grandfathered into the water
+    // pages rather than locked out of them.
+    let waterFlagsConfigured = false
     const featureAccessRaw = localStorage.getItem("featurePermissions")
     if (featureAccessRaw) {
       try {
         const parsed = JSON.parse(featureAccessRaw)
         if (parsed && typeof parsed === "object") {
           storedFeatureAccess = normalizeFeatureAccess(parsed as Record<string, unknown>)
+          waterFlagsConfigured = hasAnyWaterFlag(parsed as Record<string, unknown>)
         }
       } catch (e) {
         console.error("[v0] Error parsing featurePermissions:", e)
@@ -217,8 +274,13 @@ export function usePermissions(): UserPermissions {
     }
 
     const featureBase = isStaffOnly ? STAFF_FEATURE_BASE : DEFAULT_FEATURE_ACCESS
+    const waterGrandfather: Partial<FeatureAccessPermissions> =
+      isStaffOnly && !waterFlagsConfigured
+        ? (Object.fromEntries(WATER_STAFF_FEATURE_KEYS.map((k) => [k, true])) as Partial<FeatureAccessPermissions>)
+        : {}
     const featureAccess: FeatureAccessPermissions = {
       ...featureBase,
+      ...waterGrandfather,
       ...(isAdmin ? { canSeeEmployees: true } : {}),
       ...storedFeatureAccess,
     }

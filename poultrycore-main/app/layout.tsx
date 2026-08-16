@@ -6,6 +6,7 @@ import { QueryProvider } from '@/components/providers/query-provider'
 import { StoreHydration } from '@/components/providers/store-hydration'
 import { FloatingChatWidget } from '@/components/chat/floating-chat-widget'
 import { SubscriptionGuard } from '@/components/auth/subscription-guard'
+import { WaterAccessGuard } from '@/components/auth/water-access-guard'
 import { Toaster } from '@/components/ui/toaster'
 import './globals.css'
 
@@ -28,6 +29,7 @@ export default function RootLayout({
         <QueryProvider>
           <StoreHydration />
           <SubscriptionGuard />
+          <WaterAccessGuard />
           {children}
           <FloatingChatWidget />
           <Toaster />
