@@ -10,7 +10,7 @@ import type { LucideIcon } from "lucide-react"
 import {
   LayoutDashboard, Egg, BarChart3, Activity, HeartPulse, Bird, Skull,
   Wheat, Package, Boxes, Coins, Users, Receipt, Wallet, TrendingUp,
-  Calculator, Syringe, Pill, ClipboardCheck, Flag, CalendarDays, Scale,
+  Calculator, Syringe, Pill, ClipboardCheck, ClipboardList, Flag, CalendarDays, Scale,
   History, Factory,
 } from "lucide-react"
 import type { PoultryReportSlug } from "@/lib/api/poultry-reports"
@@ -178,13 +178,16 @@ export const POULTRY_REPORT_MENU_GROUPS: PoultryReportMenuGroup[] = [
     blurb: "Money in, money out, what's left",
     color: "bg-green-700",
     tint: "bg-green-50 text-green-700",
-    // Closing Report leads, then the two Profit & Loss reports together: those
-    // are the "how did we do" answers people open this section for. The rest
-    // still runs in the order the money flows — revenue -> receivables -> costs.
+    // The three day/period wrap-ups lead, narrowest first: one day's closing,
+    // then one day in full, then a whole period by category. After them the two
+    // Profit & Loss reports — the "how did we do" answers people open this
+    // section for — and the rest still runs in the order the money flows:
+    // revenue -> receivables -> costs.
     items: [
-      // A standalone page, not a /poultry/reports/<slug> report. Moved here from
-      // Overview & Dashboards.
-      { id: "closing-report", title: "Closing Report", description: "Daily closing summary and reconciliation.", icon: ClipboardCheck, href: "/poultry-closing-report" },
+      // Standalone pages, not /poultry/reports/<slug> reports.
+      { id: "closing-report", title: "Closing Report", description: "Every daily closing, with cash reconciliation and approval status.", icon: ClipboardList, href: "/poultry-closing-report-daily" },
+      { id: "daily-business-summary", title: "Daily Business Summary", description: "Full daily snapshot — income, production, purchases, expenses, losses, cash.", icon: BarChart3, href: "/poultry-daily-summary" },
+      { id: "closing-by-category", title: "Closing by Category", description: "Period totals grouped into financial, production, inventory and birds.", icon: ClipboardCheck, href: "/poultry-closing-report" },
       item("profit-loss"),
       item("profit-loss-by-flock"),
       item("egg-sales"),

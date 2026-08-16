@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, Users, MessageCircle, User, Menu, Briefcase } from "lucide-react"
+import { Search, MessageCircle, User, Menu, Briefcase } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useChatStore } from "@/lib/store/chat-store"
@@ -26,10 +26,8 @@ export function DashboardHeader() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const u = localStorage.getItem('username') || localStorage.getItem('userName') || ""
-    const isStaff = localStorage.getItem('isStaff') === 'true'
-    setUsername(u)
-    setRoleLabel(isStaff ? 'Staff' : 'Admin')
+    setUsername(localStorage.getItem('username') || localStorage.getItem('userName') || "")
+    setRoleLabel(localStorage.getItem('isStaff') === 'true' ? 'Staff' : 'Admin')
   }, [])
 
   // Search placeholder adapts to active company type. Poultry-only terms
@@ -197,51 +195,50 @@ export function DashboardHeader() {
             </div>
           </form>
 
-          {/* Business Office — the owner's HQ above all companies, so the active
-              company is cleared on the way in (same behaviour as the sidebar).
-              Lives here rather than in a company menu because it is the one
-              destination that leaves the current company entirely. */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => {
-              try { clearActiveCompany() } catch {}
-              router.push("/business-office")
-            }}
-            title="Business Office"
-            aria-label="Business Office"
-            className="shrink-0 text-slate-300 hover:text-white hover:bg-slate-800"
-          >
-            <Briefcase className="h-5 w-5" />
-          </Button>
-
           {/* Right side actions */}
           <div className="flex items-center gap-2 sm:gap-4">
-            <div className="flex items-center gap-2 text-slate-300">
-              <Users className="h-5 w-5" />
-              <div className="hidden sm:flex flex-col leading-tight">
-                <span className="text-xs text-slate-400">{roleLabel}</span>
-                <span className="text-sm text-white truncate max-w-[140px]">{username || 'User'}</span>
-              </div>
-            </div>
-            
-            <div className="relative">
+            <span className="text-sm text-slate-300 whitespace-nowrap">
+              Welcome, <span className="text-white font-medium">{username || 'User'}</span>
+              {roleLabel && <span className="text-slate-400"> ({roleLabel})</span>}
+            </span>
+
+            {/* Business Office and chat sit together as a pair — both leave the
+                page you are on rather than acting on it. Business Office clears
+                the active company on the way in (same behaviour as the sidebar),
+                because it is the one destination above all companies. */}
+            <div className="flex items-center gap-1">
               <Button
-                onClick={() => openChat()}
                 variant="ghost"
                 size="icon"
-                aria-label="Open chat"
-                className="text-slate-300 hover:text-white hover:bg-slate-800 relative min-h-[44px] min-w-[44px] lg:min-h-0 lg:min-w-0"
+                onClick={() => {
+                  try { clearActiveCompany() } catch {}
+                  router.push("/business-office")
+                }}
+                title="Business Office"
+                aria-label="Business Office"
+                className="shrink-0 text-slate-300 hover:text-white hover:bg-slate-800"
               >
-                <MessageCircle className="h-5 w-5" />
-                {unread > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-600 text-white text-[10px] rounded-full flex items-center justify-center">
-                    {unread > 99 ? '99+' : unread}
-                  </span>
-                )}
+                <Briefcase className="h-5 w-5" />
               </Button>
+
+              <div className="relative">
+                <Button
+                  onClick={() => openChat()}
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Open chat"
+                  className="text-slate-300 hover:text-white hover:bg-slate-800 relative min-h-[44px] min-w-[44px] lg:min-h-0 lg:min-w-0"
+                >
+                  <MessageCircle className="h-5 w-5" />
+                  {unread > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-600 text-white text-[10px] rounded-full flex items-center justify-center">
+                      {unread > 99 ? '99+' : unread}
+                    </span>
+                  )}
+                </Button>
+              </div>
             </div>
-            
+
             <Button 
               variant="ghost" 
               size="icon" 

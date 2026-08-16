@@ -17,11 +17,16 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { OrganizationProfilePanel } from "@/components/business-office/organization-profile-panel"
 import { UsersPermissionsPanel } from "@/components/business-office/users-permissions-panel"
 import { CompaniesPanel } from "@/components/business-office/companies-panel"
-import { UserCog, Users, Building2 } from "lucide-react"
+import { IamPanel } from "@/components/business-office/iam-panel"
+import { UserCog, Users, Building2, KeyRound } from "lucide-react"
 
+// Access sits after Employees & Users deliberately: you hire someone there, then
+// look at what they can do here. It is additive — Employees & Users keeps its own
+// permission controls, and IAM can only widen access until phase 3.
 const SECTIONS = [
   { key: "org", icon: UserCog, title: "Organization Profile", Panel: OrganizationProfilePanel },
   { key: "users", icon: Users, title: "Employees & Users", Panel: UsersPermissionsPanel },
+  { key: "iam", icon: KeyRound, title: "Access Management", Panel: IamPanel },
   { key: "companies", icon: Building2, title: "Companies", Panel: CompaniesPanel },
 ] as const
 
