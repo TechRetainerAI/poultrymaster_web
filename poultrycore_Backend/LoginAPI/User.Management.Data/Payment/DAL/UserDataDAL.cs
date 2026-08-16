@@ -2,7 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using System.Linq;
 using System.Threading.Tasks;
 //using User.Management.Data.Entities;
@@ -21,13 +21,20 @@ namespace User.Management.Data
 
         public async Task SaveSubscriberAsync(Subscriber subscriber)
         {
-            using (SqlConnection connection = new SqlConnection(_connectionString))
+            using (NpgsqlConnection connection = new NpgsqlConnection(_connectionString))
             {
                 await connection.OpenAsync();
-                using (SqlCommand cmd = connection.CreateCommand())
+                using (NpgsqlCommand cmd = connection.CreateCommand())
                 {
-                    cmd.CommandType = CommandType.StoredProcedure;
-                    cmd.CommandText = "SaveSubscriber"; // Replace with the actual procedure name
+                    // TODO(pg): function savesubscriber does not exist in the PostgreSQL
+                    // database and has no T-SQL source in the migration dump (legacy
+                    // Stripe-era procedure). This call will fail at runtime.
+                    cmd.CommandText = @"SELECT * FROM savesubscriber(
+                        p_subscriberid => @SubscriberId, p_customerid => @CustomerId, p_status => @Status,
+                        p_currentperiodend => @CurrentPeriodEnd, p_currentperiodstart => @CurrentPeriodStart,
+                        p_canceledat => @CanceledAt, p_created => @Created, p_endedat => @EndedAt,
+                        p_latestinvoiceid => @LatestInvoiceId, p_startdate => @StartDate,
+                        p_trialend => @TrialEnd, p_trialstart => @TrialStart)";
 
                     // Add parameters for each property in your Subscriber class
                     cmd.Parameters.AddWithValue("@SubscriberId", subscriber.SubscriberId);
@@ -54,13 +61,15 @@ namespace User.Management.Data
 
         public async Task DeleteAsync(Subscriber subscription)
         {
-            using (SqlConnection connection = new SqlConnection(_connectionString))
+            using (NpgsqlConnection connection = new NpgsqlConnection(_connectionString))
             {
                 await connection.OpenAsync();
-                using (SqlCommand cmd = connection.CreateCommand())
+                using (NpgsqlCommand cmd = connection.CreateCommand())
                 {
-                    cmd.CommandType = CommandType.StoredProcedure;
-                    cmd.CommandText = "DeleteSubscriber"; // Name of the stored procedure
+                    // TODO(pg): function deletesubscriber does not exist in the PostgreSQL
+                    // database and has no T-SQL source in the migration dump (legacy
+                    // Stripe-era procedure). This call will fail at runtime.
+                    cmd.CommandText = "SELECT * FROM deletesubscriber(p_subscriberid => @SubscriberId)";
 
                     // Add parameters
                     cmd.Parameters.AddWithValue("@SubscriberId", subscription.SubscriberId);
@@ -76,16 +85,18 @@ namespace User.Management.Data
             List<Subscriber> subscribers = new List<Subscriber>();
             try
             {
-                using (SqlConnection connection = new SqlConnection(_connectionString))
+                using (NpgsqlConnection connection = new NpgsqlConnection(_connectionString))
                 {
                     await connection.OpenAsync();
-                    using (SqlCommand cmd = connection.CreateCommand())
+                    using (NpgsqlCommand cmd = connection.CreateCommand())
                     {
-                        cmd.CommandType = CommandType.StoredProcedure;
-                        cmd.CommandText = "GetSubscribers"; // Name of the stored procedure
+                        // TODO(pg): function getsubscribers does not exist in the PostgreSQL
+                        // database and has no T-SQL source in the migration dump (legacy
+                        // Stripe-era procedure). This call will fail at runtime.
+                        cmd.CommandText = "SELECT * FROM getsubscribers()";
 
                         // Execute the stored procedure asynchronously
-                        using (SqlDataReader reader = await cmd.ExecuteReaderAsync())
+                        using (NpgsqlDataReader reader = await cmd.ExecuteReaderAsync())
                         {
                             while (await reader.ReadAsync())
                             {
@@ -132,20 +143,22 @@ namespace User.Management.Data
             Subscriber? subscriber = null;
             try
             {
-                using (SqlConnection connection = new SqlConnection(_connectionString))
+                using (NpgsqlConnection connection = new NpgsqlConnection(_connectionString))
                 {
 
                     await connection.OpenAsync();
-                    using (SqlCommand cmd = connection.CreateCommand())
+                    using (NpgsqlCommand cmd = connection.CreateCommand())
                     {
-                        cmd.CommandType = CommandType.StoredProcedure;
-                        cmd.CommandText = "GetSubscriberByCustomerId"; // Name of the stored procedure
+                        // TODO(pg): function getsubscriberbycustomerid does not exist in the
+                        // PostgreSQL database and has no T-SQL source in the migration dump
+                        // (legacy Stripe-era procedure). This call will fail at runtime.
+                        cmd.CommandText = "SELECT * FROM getsubscriberbycustomerid(p_customerid => @CustomerId)";
 
                         // Add parameter for SubscriberId
                         cmd.Parameters.AddWithValue("@CustomerId", customerId);
 
                         // Execute the stored procedure asynchronously
-                        using (SqlDataReader reader = await cmd.ExecuteReaderAsync())
+                        using (NpgsqlDataReader reader = await cmd.ExecuteReaderAsync())
                         {
                             if (await reader.ReadAsync())
                             {
@@ -191,19 +204,21 @@ namespace User.Management.Data
             Subscriber? subscriber = null;
             try
             {
-                using (SqlConnection connection = new SqlConnection(_connectionString))
+                using (NpgsqlConnection connection = new NpgsqlConnection(_connectionString))
                 {
                     await connection.OpenAsync();
-                    using (SqlCommand cmd = connection.CreateCommand())
+                    using (NpgsqlCommand cmd = connection.CreateCommand())
                     {
-                        cmd.CommandType = CommandType.StoredProcedure;
-                        cmd.CommandText = "GetSubscriberById"; // Name of the stored procedure
+                        // TODO(pg): function getsubscriberbyid does not exist in the PostgreSQL
+                        // database and has no T-SQL source in the migration dump (legacy
+                        // Stripe-era procedure). This call will fail at runtime.
+                        cmd.CommandText = "SELECT * FROM getsubscriberbyid(p_subscriberid => @SubscriberId)";
 
                         // Add parameter for SubscriberId
                         cmd.Parameters.AddWithValue("@SubscriberId", subscriberId);
 
                         // Execute the stored procedure asynchronously
-                        using (SqlDataReader reader = await cmd.ExecuteReaderAsync())
+                        using (NpgsqlDataReader reader = await cmd.ExecuteReaderAsync())
                         {
                             if (await reader.ReadAsync())
                             {
@@ -248,18 +263,20 @@ namespace User.Management.Data
             Subscriber? subscriber = null;
             try
             {
-                using (SqlConnection connection = new SqlConnection(_connectionString))
+                using (NpgsqlConnection connection = new NpgsqlConnection(_connectionString))
                 {
                     await connection.OpenAsync();
-                    using (SqlCommand cmd = connection.CreateCommand())
+                    using (NpgsqlCommand cmd = connection.CreateCommand())
                     {
-                        cmd.CommandType = CommandType.StoredProcedure;
-                        cmd.CommandText = "GetSubscriberByCustomerId"; // Name of the stored procedure
+                        // TODO(pg): function getsubscriberbycustomerid does not exist in the
+                        // PostgreSQL database and has no T-SQL source in the migration dump
+                        // (legacy Stripe-era procedure). This call will fail at runtime.
+                        cmd.CommandText = "SELECT * FROM getsubscriberbycustomerid(p_customerid => @CustomerId)";
 
                         // Add parameter for CustomerId
                         cmd.Parameters.AddWithValue("@CustomerId", customerId);
 
-                        using (SqlDataReader reader = await cmd.ExecuteReaderAsync())
+                        using (NpgsqlDataReader reader = await cmd.ExecuteReaderAsync())
                         {
                             if (await reader.ReadAsync())
                             {
@@ -302,13 +319,22 @@ namespace User.Management.Data
         public async Task<Subscriber> UpdateSubscriberAsync(Subscriber subscription)
         {
 
-            using (SqlConnection connection = new SqlConnection(_connectionString))
+            using (NpgsqlConnection connection = new NpgsqlConnection(_connectionString))
             {
                 await connection.OpenAsync();
-                using (SqlCommand cmd = connection.CreateCommand())
+                using (NpgsqlCommand cmd = connection.CreateCommand())
                 {
-                    cmd.CommandType = CommandType.StoredProcedure;
-                    cmd.CommandText = "UpdateSubscriber"; // Name of the stored procedure
+                    // TODO(pg): function updatesubscriber does not exist in the PostgreSQL
+                    // database and has no T-SQL source in the migration dump (legacy
+                    // Stripe-era procedure). This call will fail at runtime.
+                    cmd.CommandText = @"SELECT * FROM updatesubscriber(
+                        p_id => @Id, p_subscriberid => @SubscriberId, p_customerid => @CustomerId,
+                        p_email => @Email, p_currentperiodstart => @CurrentPeriodStart,
+                        p_currentperiodend => @CurrentPeriodEnd, p_status => @Status,
+                        p_canceledat => @CanceledAt, p_created => @Created, p_endedat => @EndedAt,
+                        p_latestinvoiceid => @LatestInvoiceId, p_startdate => @StartDate,
+                        p_trialend => @TrialEnd, p_trialstart => @TrialStart,
+                        p_planid => @PlanId, p_planname => @PlanName, p_planamount => @PlanAmount)";
 
                     // Add parameters for each property in the Subscriber class
                     cmd.Parameters.AddWithValue("@Id", subscription.Id);
@@ -342,19 +368,21 @@ namespace User.Management.Data
         {
             try
             {
-                using (SqlConnection connection = new SqlConnection(_connectionString))
+                using (NpgsqlConnection connection = new NpgsqlConnection(_connectionString))
                 {
                     await connection.OpenAsync();
-                    using (SqlCommand cmd = connection.CreateCommand())
+                    using (NpgsqlCommand cmd = connection.CreateCommand())
                     {
-                        cmd.CommandType = CommandType.StoredProcedure;
-                        cmd.CommandText = "FindUserByEmail"; // Name of the stored procedure
+                        // TODO(pg): function finduserbyemail does not exist in the PostgreSQL
+                        // database and has no T-SQL source in the migration dump (legacy
+                        // Stripe-era procedure). This call will fail at runtime.
+                        cmd.CommandText = "SELECT * FROM finduserbyemail(p_email => @Email)";
 
                         // Add parameter for email
                         cmd.Parameters.AddWithValue("@Email", email);
 
                         // Execute the stored procedure and read the result
-                        using (SqlDataReader reader = await cmd.ExecuteReaderAsync())
+                        using (NpgsqlDataReader reader = await cmd.ExecuteReaderAsync())
                         {
                             if (await reader.ReadAsync())
                             {
@@ -400,10 +428,10 @@ namespace User.Management.Data
         //{
         //    try
         //    {
-        //        using (SqlConnection connection = new SqlConnection(_connectionString))
+        //        using (NpgsqlConnection connection = new NpgsqlConnection(_connectionString))
         //        {
         //            await connection.OpenAsync();
-        //            using (SqlCommand cmd = connection.CreateCommand())
+        //            using (NpgsqlCommand cmd = connection.CreateCommand())
         //            {
         //                cmd.CommandType = CommandType.StoredProcedure;
         //                cmd.CommandText = "FindUserByEmail"; // Name of the stored procedure
@@ -412,7 +440,7 @@ namespace User.Management.Data
         //                cmd.Parameters.AddWithValue("@Email", email);
 
         //                // Execute the stored procedure and read the result
-        //                using (SqlDataReader reader = await cmd.ExecuteReaderAsync())
+        //                using (NpgsqlDataReader reader = await cmd.ExecuteReaderAsync())
         //                {
         //                    if (await reader.ReadAsync())
         //                    {
@@ -458,13 +486,24 @@ namespace User.Management.Data
 
         public async Task<ApplicationUser> UpdateUserAsync(ApplicationUser user)
         {
-            using (SqlConnection connection = new SqlConnection(_connectionString))
+            using (NpgsqlConnection connection = new NpgsqlConnection(_connectionString))
             {
                 await connection.OpenAsync();
-                using (SqlCommand cmd = connection.CreateCommand())
+                using (NpgsqlCommand cmd = connection.CreateCommand())
                 {
-                    cmd.CommandType = CommandType.StoredProcedure;
-                    cmd.CommandText = "UpdateUser"; // Name of the stored procedure
+                    // TODO(pg): function updateuser does not exist in the PostgreSQL database
+                    // and has no T-SQL source in the migration dump (legacy Stripe-era
+                    // procedure; distinct from sp_updateuser). This call will fail at runtime.
+                    cmd.CommandText = @"SELECT * FROM updateuser(
+                        p_id => @Id, p_customerid => @CustomerId, p_firstname => @FirstName,
+                        p_lastname => @LastName, p_username => @UserName,
+                        p_normalizedusername => @NormalizedUserName, p_email => @Email,
+                        p_normalizedemail => @NormalizedEmail, p_emailconfirmed => @EmailConfirmed,
+                        p_passwordhash => @PasswordHash, p_securitystamp => @SecurityStamp,
+                        p_concurrencystamp => @ConcurrencyStamp, p_phonenumber => @PhoneNumber,
+                        p_phonenumberconfirmed => @PhoneNumberConfirmed,
+                        p_twofactorenabled => @TwoFactorEnabled, p_lockoutenabled => @LockoutEnabled,
+                        p_accessfailedcount => @AccessFailedCount)";
 
                     // Add parameters for user properties
                     cmd.Parameters.AddWithValue("@Id", user.Id);
@@ -497,13 +536,17 @@ namespace User.Management.Data
 
         public async Task<ApplicationUser> UpdateUserCustomerIdAsync(ApplicationUser user)
         {
-            using (SqlConnection connection = new SqlConnection(_connectionString))
+            using (NpgsqlConnection connection = new NpgsqlConnection(_connectionString))
             {
                 await connection.OpenAsync();
-                using (SqlCommand cmd = connection.CreateCommand())
+                using (NpgsqlCommand cmd = connection.CreateCommand())
                 {
-                    cmd.CommandType = CommandType.StoredProcedure;
-                    cmd.CommandText = "UpdateUserCustomerId"; // Name of the stored procedure
+                    // TODO(pg): function updateusercustomerid does not exist in the PostgreSQL
+                    // database and has no T-SQL source in the migration dump (legacy
+                    // Stripe-era procedure). This call will fail at runtime.
+                    cmd.CommandText = @"SELECT * FROM updateusercustomerid(
+                        p_id => @Id, p_customerid => @CustomerId,
+                        p_issubscriber => @IsSubscriber, p_email => @Email)";
 
                     // Add parameters for user properties
                     cmd.Parameters.AddWithValue("@Id", user.Id);

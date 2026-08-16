@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Identity;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using User.Management.Data.Models;
 using User.Management.Service.Services;
@@ -57,14 +56,14 @@ public static class DatabaseBootstrap
                 await db.Database.MigrateAsync(cancellationToken);
                 logger.LogInformation("DatabaseBootstrap: EF Core migrations applied.");
             }
-            catch (SqlException ex) when (ex.Number is 2714 or 1913)
+            catch (Npgsql.PostgresException ex) when (ex.SqlState is "42P07" or "2BP01")
             {
-                // 2714: object already exists — DB was created outside EF or migrations partially applied.
-                // 1913: operation failed because another object depends on it (varies by server state).
+                // 42P07: object already exists — DB was created outside EF or migrations partially applied.
+                // 2BP01: dependent objects still exist (varies by server state).
                 logger.LogWarning(
                     ex,
-                    "DatabaseBootstrap: MigrateAsync stopped ({Number}); treating database as already initialized.",
-                    ex.Number);
+                    "DatabaseBootstrap: MigrateAsync stopped ({SqlState}); treating database as already initialized.",
+                    ex.SqlState);
             }
         }
 

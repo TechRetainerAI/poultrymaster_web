@@ -1,6 +1,6 @@
 using PoultryFarmAPIWeb.Models;
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -36,10 +36,9 @@ namespace PoultryFarmAPIWeb.Business
 
             try
             {
-                using (SqlConnection conn = new SqlConnection(_connectionString))
-                using (SqlCommand cmd = new SqlCommand("spFlock_Insert", conn))
+                using (NpgsqlConnection conn = new NpgsqlConnection(_connectionString))
+                using (NpgsqlCommand cmd = new NpgsqlCommand("SELECT * FROM spflock_insert(p_userid => @UserId::text, p_farmid => @FarmId::text, p_name => @Name::text, p_breed => @Breed::text, p_startdate => @StartDate::timestamp, p_quantity => @Quantity::int, p_batchid => @BatchId::int, p_houseid => @HouseId::int, p_inactivationreason => @InactivationReason::text, p_otherreason => @OtherReason::text, p_notes => @Notes::text, p_hasarrived => @HasArrived::boolean)", conn))
                 {
-                    cmd.CommandType = CommandType.StoredProcedure;
                     cmd.Parameters.AddWithValue("@UserId", model.UserId);
                     cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
                     cmd.Parameters.AddWithValue("@Name", model.Name);
@@ -64,10 +63,10 @@ namespace PoultryFarmAPIWeb.Business
                     return Convert.ToInt32(result);
                 }
             }
-            catch (SqlException sqlEx)
+            catch (PostgresException sqlEx)
             {
                 Console.WriteLine($"SQL Error in CreateFlock: {sqlEx.Message}");
-                Console.WriteLine($"SQL Error Number: {sqlEx.Number}");
+                Console.WriteLine($"SQL Error SqlState: {sqlEx.SqlState}");
                 throw new Exception($"Database error while creating flock: {sqlEx.Message}", sqlEx);
             }
             catch (Exception ex)
@@ -84,10 +83,9 @@ namespace PoultryFarmAPIWeb.Business
             if (string.IsNullOrWhiteSpace(model.UserId)) throw new ArgumentException("UserId is required", nameof(model.UserId));
             if (string.IsNullOrWhiteSpace(model.FarmId)) throw new ArgumentException("FarmId is required", nameof(model.FarmId));
 
-            using (SqlConnection conn = new SqlConnection(_connectionString))
-            using (SqlCommand cmd = new SqlCommand("spFlock_Update", conn))
+            using (NpgsqlConnection conn = new NpgsqlConnection(_connectionString))
+            using (NpgsqlCommand cmd = new NpgsqlCommand("SELECT * FROM spflock_update(p_flockid => @FlockId::int, p_name => @Name::text, p_breed => @Breed::text, p_startdate => @StartDate::timestamp, p_quantity => @Quantity::int, p_active => @Active::boolean, p_houseid => @HouseId::int, p_inactivationreason => @InactivationReason::text, p_otherreason => @OtherReason::text, p_userid => @UserId::text, p_farmid => @FarmId::text, p_batchid => @BatchId::int, p_notes => @Notes::text, p_hasarrived => @HasArrived::boolean)", conn))
             {
-                cmd.CommandType = CommandType.StoredProcedure;
                 cmd.Parameters.AddWithValue("@FlockId", model.FlockId);
                 cmd.Parameters.AddWithValue("@Name", model.Name);
                 cmd.Parameters.AddWithValue("@Breed", model.Breed);
@@ -111,15 +109,14 @@ namespace PoultryFarmAPIWeb.Business
         public FlockModel GetFlockById(int flockId, string userId, string farmId)
         {
             FlockModel flock = null;
-            using (SqlConnection conn = new SqlConnection(_connectionString))
-            using (SqlCommand cmd = new SqlCommand("spFlock_GetById", conn))
+            using (NpgsqlConnection conn = new NpgsqlConnection(_connectionString))
+            using (NpgsqlCommand cmd = new NpgsqlCommand("SELECT * FROM spflock_getbyid(p_flockid => @FlockId::int, p_farmid => @FarmId::text)", conn))
             {
-                cmd.CommandType = CommandType.StoredProcedure;
                 cmd.Parameters.AddWithValue("@FlockId", flockId);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
 
                 conn.Open();
-                using (SqlDataReader reader = cmd.ExecuteReader())
+                using (NpgsqlDataReader reader = cmd.ExecuteReader())
                 {
                     if (reader.Read())
                     {
@@ -147,7 +144,7 @@ namespace PoultryFarmAPIWeb.Business
             return flock;
         }
 
-        private static bool ReadHasArrived(SqlDataReader reader)
+        private static bool ReadHasArrived(NpgsqlDataReader reader)
         {
             for (int i = 0; i < reader.FieldCount; i++)
             {
@@ -162,14 +159,13 @@ namespace PoultryFarmAPIWeb.Business
         public List<FlockModel> GetAllFlocks(string userId, string farmId)
         {
             List<FlockModel> flocks = new List<FlockModel>();
-            using (SqlConnection conn = new SqlConnection(_connectionString))
-            using (SqlCommand cmd = new SqlCommand("spFlock_GetAll", conn))
+            using (NpgsqlConnection conn = new NpgsqlConnection(_connectionString))
+            using (NpgsqlCommand cmd = new NpgsqlCommand("SELECT * FROM spflock_getall(p_farmid => @FarmId::text)", conn))
             {
-                cmd.CommandType = CommandType.StoredProcedure;
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
 
                 conn.Open();
-                using (SqlDataReader reader = cmd.ExecuteReader())
+                using (NpgsqlDataReader reader = cmd.ExecuteReader())
                 {
                     while (reader.Read())
                     {
@@ -201,10 +197,9 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<int> GetTotalFlockQuantityForBatch(int batchId, string userId, string farmId, int? flockIdToExclude = null)
         {
             int totalQuantity = 0;
-            using (SqlConnection conn = new SqlConnection(_connectionString))
-            using (SqlCommand cmd = new SqlCommand("spFlock_GetTotalQuantityForBatch", conn))
+            using (NpgsqlConnection conn = new NpgsqlConnection(_connectionString))
+            using (NpgsqlCommand cmd = new NpgsqlCommand("SELECT * FROM spflock_gettotalquantityforbatch(p_batchid => @BatchId::int, p_userid => @UserId::text, p_farmid => @FarmId::text, p_flockidtoexclude => @FlockIdToExclude::int)", conn))
             {
-                cmd.CommandType = CommandType.StoredProcedure;
                 cmd.Parameters.AddWithValue("@BatchId", batchId);
                 cmd.Parameters.AddWithValue("@UserId", userId);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
@@ -224,11 +219,10 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using (SqlConnection conn = new SqlConnection(_connectionString))
+                using (NpgsqlConnection conn = new NpgsqlConnection(_connectionString))
                 {
-                    using (SqlCommand cmd = new SqlCommand("spFlock_Delete", conn))
+                    using (NpgsqlCommand cmd = new NpgsqlCommand("SELECT * FROM spflock_delete(p_flockid => @FlockId::int, p_userid => @UserId::text, p_farmid => @FarmId::text)", conn))
                     {
-                        cmd.CommandType = CommandType.StoredProcedure;
                         cmd.Parameters.AddWithValue("@FlockId", flockId);
                         cmd.Parameters.AddWithValue("@UserId", userId);
                         cmd.Parameters.AddWithValue("@FarmId", farmId);

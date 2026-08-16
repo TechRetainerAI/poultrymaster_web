@@ -1,7 +1,8 @@
 using Microsoft.Extensions.Logging;
 using PoultryFarmAPIWeb.Models;
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
+using NpgsqlTypes;
 using System.Text;
 using System.Text.Json;
 
@@ -12,7 +13,7 @@ namespace PoultryFarmAPIWeb.Business
         private readonly string _connectionString;
         private readonly ILogger<EggProductionService> _logger;
 
-        private static string? ReadOptionalString(SqlDataReader reader, string columnName)
+        private static string? ReadOptionalString(NpgsqlDataReader reader, string columnName)
         {
             for (var i = 0; i < reader.FieldCount; i++)
             {
@@ -22,7 +23,7 @@ namespace PoultryFarmAPIWeb.Business
             return null;
         }
 
-        private static int? ReadOptionalInt32(SqlDataReader reader, string columnName)
+        private static int? ReadOptionalInt32(NpgsqlDataReader reader, string columnName)
         {
             for (var i = 0; i < reader.FieldCount; i++)
             {
@@ -39,7 +40,7 @@ namespace PoultryFarmAPIWeb.Business
         }
 
         // Doc 4: pass the optional feed/medication costing params (SP defaults them to NULL).
-        private static void AddCostingParams(SqlCommand cmd, EggProductionModel m)
+        private static void AddCostingParams(NpgsqlCommand cmd, EggProductionModel m)
         {
             cmd.Parameters.AddWithValue("@SpecificFeedUsedId", (object?)m.SpecificFeedUsedId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@SpecificFeedUsedName", (object?)m.SpecificFeedUsedName ?? DBNull.Value);
@@ -58,27 +59,25 @@ namespace PoultryFarmAPIWeb.Business
             _logger.LogInformation("EggProductionService.Insert called with model: {Model}", JsonSerializer.Serialize(model));
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spEggProduction_Insert", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
-
-                cmd.Parameters.Add("@FlockId", SqlDbType.Int).Value = model.FlockId;
-                cmd.Parameters.Add("@ProductionDate", SqlDbType.Date).Value = model.ProductionDate;
-                cmd.Parameters.Add("@EggCount", SqlDbType.Int).Value = model.EggCount;
-                cmd.Parameters.Add("@Production9AM", SqlDbType.Int).Value = model.Production9AM;
-                cmd.Parameters.Add("@Production12PM", SqlDbType.Int).Value = model.Production12PM;
-                cmd.Parameters.Add("@Production4PM", SqlDbType.Int).Value = model.Production4PM;
-                cmd.Parameters.Add("@Production4thPick", SqlDbType.Int).Value = model.Production4thPick;
-                cmd.Parameters.Add("@BrokenEggs", SqlDbType.Int).Value = (object?)model.BrokenEggs ?? DBNull.Value;
-                cmd.Parameters.Add("@Notes", SqlDbType.NVarChar, -1).Value = (object?)model.Notes ?? DBNull.Value;
-                cmd.Parameters.Add("@UserId", SqlDbType.NVarChar, -1).Value = model.UserId ?? (object)DBNull.Value;
-                cmd.Parameters.Add("@FarmId", SqlDbType.NVarChar, -1).Value = model.FarmId ?? (object)DBNull.Value;
-                cmd.Parameters.Add("@EggGrade", SqlDbType.NVarChar, 50).Value = (object?)model.EggGrade ?? DBNull.Value;
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM speggproduction_insert(p_flockid => @FlockId::int, p_productiondate => @ProductionDate::date, p_eggcount => @EggCount::int, p_production9am => @Production9AM::int, p_production12pm => @Production12PM::int, p_production4pm => @Production4PM::int, p_production4thpick => @Production4thPick::int, p_brokeneggs => @BrokenEggs::int, p_notes => @Notes::text, p_userid => @UserId::text, p_farmid => @FarmId::text, p_egggrade => @EggGrade::text, p_specificfeedusedid => @SpecificFeedUsedId::int, p_specificfeedusedname => @SpecificFeedUsedName::text, p_feedunitcost => @FeedUnitCost::numeric, p_totalfeedconsumed => @TotalFeedConsumed::numeric, p_totalfeedcost => @TotalFeedCost::numeric, p_specificmedicationusedid => @SpecificMedicationUsedId::int, p_specificmedicationusedname => @SpecificMedicationUsedName::text, p_medicationunitcost => @MedicationUnitCost::numeric, p_totalmedicationconsumed => @TotalMedicationConsumed::numeric, p_totalmedicationcost => @TotalMedicationCost::numeric)", conn);
+                cmd.Parameters.Add("@FlockId", NpgsqlDbType.Integer).Value = model.FlockId;
+                cmd.Parameters.Add("@ProductionDate", NpgsqlDbType.Date).Value = model.ProductionDate;
+                cmd.Parameters.Add("@EggCount", NpgsqlDbType.Integer).Value = model.EggCount;
+                cmd.Parameters.Add("@Production9AM", NpgsqlDbType.Integer).Value = model.Production9AM;
+                cmd.Parameters.Add("@Production12PM", NpgsqlDbType.Integer).Value = model.Production12PM;
+                cmd.Parameters.Add("@Production4PM", NpgsqlDbType.Integer).Value = model.Production4PM;
+                cmd.Parameters.Add("@Production4thPick", NpgsqlDbType.Integer).Value = model.Production4thPick;
+                cmd.Parameters.Add("@BrokenEggs", NpgsqlDbType.Integer).Value = (object?)model.BrokenEggs ?? DBNull.Value;
+                cmd.Parameters.Add("@Notes", NpgsqlDbType.Text, -1).Value = (object?)model.Notes ?? DBNull.Value;
+                cmd.Parameters.Add("@UserId", NpgsqlDbType.Text, -1).Value = model.UserId ?? (object)DBNull.Value;
+                cmd.Parameters.Add("@FarmId", NpgsqlDbType.Text, -1).Value = model.FarmId ?? (object)DBNull.Value;
+                cmd.Parameters.Add("@EggGrade", NpgsqlDbType.Text, 50).Value = (object?)model.EggGrade ?? DBNull.Value;
                 AddCostingParams(cmd, model);
 
                 var sb = new StringBuilder();
                 sb.AppendLine("Executing spEggProduction_Insert with parameters:");
-                foreach (SqlParameter p in cmd.Parameters)
+                foreach (NpgsqlParameter p in cmd.Parameters)
                 {
                     sb.AppendLine($"  {p.ParameterName}: {p.Value}");
                 }
@@ -100,10 +99,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spEggProduction_Update", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
-
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM speggproduction_update(p_productionid => @ProductionId::int, p_flockid => @FlockId::int, p_productiondate => @ProductionDate::date, p_eggcount => @EggCount::int, p_production9am => @Production9AM::int, p_production12pm => @Production12PM::int, p_production4pm => @Production4PM::int, p_production4thpick => @Production4thPick::int, p_brokeneggs => @BrokenEggs::int, p_notes => @Notes::text, p_userid => @UserId::text, p_farmid => @FarmId::text, p_egggrade => @EggGrade::text, p_specificfeedusedid => @SpecificFeedUsedId::int, p_specificfeedusedname => @SpecificFeedUsedName::text, p_feedunitcost => @FeedUnitCost::numeric, p_totalfeedconsumed => @TotalFeedConsumed::numeric, p_totalfeedcost => @TotalFeedCost::numeric, p_specificmedicationusedid => @SpecificMedicationUsedId::int, p_specificmedicationusedname => @SpecificMedicationUsedName::text, p_medicationunitcost => @MedicationUnitCost::numeric, p_totalmedicationconsumed => @TotalMedicationConsumed::numeric, p_totalmedicationcost => @TotalMedicationCost::numeric)", conn);
                 cmd.Parameters.AddWithValue("@ProductionId", model.ProductionId);
                 cmd.Parameters.AddWithValue("@FlockId", model.FlockId);
                 cmd.Parameters.AddWithValue("@ProductionDate", model.ProductionDate);
@@ -132,10 +129,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spEggProduction_GetById", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
-
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM speggproduction_getbyid(p_productionid => @ProductionId::int, p_userid => @UserId::text, p_farmid => @FarmId::text)", conn);
                 cmd.Parameters.AddWithValue("@ProductionId", productionId);
                 cmd.Parameters.AddWithValue("@UserId", userId);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
@@ -186,10 +181,8 @@ namespace PoultryFarmAPIWeb.Business
             try
             {
                 var list = new List<EggProductionModel>();
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spEggProduction_GetAll", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
-
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM speggproduction_getall(p_farmid => @FarmId::text)", conn);
                 //cmd.Parameters.AddWithValue("@UserId", userId);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
 
@@ -244,10 +237,8 @@ namespace PoultryFarmAPIWeb.Business
             try
             {
                 var list = new List<EggProductionModel>();
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spEggProduction_GetByFlock", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
-
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM speggproduction_getbyflock(p_flockid => @FlockId::int, p_farmid => @FarmId::text)", conn);
                 cmd.Parameters.AddWithValue("@FlockId", flockId);
                 //cmd.Parameters.AddWithValue("@UserId", userId);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
@@ -290,10 +281,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spEggProduction_Delete", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
-
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM speggproduction_delete(p_productionid => @ProductionId::int, p_farmid => @FarmId::text)", conn);
                 cmd.Parameters.AddWithValue("@ProductionId", productionId);
                 //cmd.Parameters.AddWithValue("@UserId", userId);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);

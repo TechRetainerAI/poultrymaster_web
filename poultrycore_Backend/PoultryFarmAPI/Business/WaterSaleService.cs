@@ -1,5 +1,5 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using System.Text.Json;
 using PoultryFarmAPIWeb.Models;
 
@@ -28,8 +28,8 @@ namespace PoultryFarmAPIWeb.Business
                 SellingUnit = i.SellingUnit,
             }));
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spWaterSale_CreateV2", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatersale_createv2(p_farmid => @FarmId::text, p_watercustomerid => @WaterCustomerId::int, p_saledate => @SaleDate::timestamp, p_notes => @Notes::text, p_createdby => @CreatedBy::text, p_itemsjson => @ItemsJson::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", req.FarmId);
             cmd.Parameters.AddWithValue("@WaterCustomerId", (object?)req.WaterCustomerId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@SaleDate", (object?)req.SaleDate ?? DBNull.Value);
@@ -43,8 +43,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<WaterSaleModel?> GetById(int id, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spWaterSale_GetById", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatersale_getbyid_rs1(p_watersaleid => @WaterSaleId::int, p_farmid => @FarmId::text); SELECT * FROM spwatersale_getbyid_rs2(p_watersaleid => @WaterSaleId::int, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@WaterSaleId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
@@ -65,8 +65,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<WaterSaleModel>> GetAll(string farmId)
         {
             var list = new List<WaterSaleModel>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spWaterSale_GetAll", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatersale_getall(p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
             await conn.OpenAsync();
@@ -77,8 +77,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task Cancel(int id, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spWaterSale_Cancel", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatersale_cancel(p_watersaleid => @WaterSaleId::int, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@WaterSaleId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await conn.OpenAsync();
@@ -89,15 +89,15 @@ namespace PoultryFarmAPIWeb.Business
         // The SP rejects delivery-sourced sales.
         public async Task Delete(int id, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spWaterSale_Delete", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatersale_delete(p_watersaleid => @WaterSaleId::int, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@WaterSaleId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
         }
 
-        private static WaterSaleModel ReadHeader(SqlDataReader r) => new()
+        private static WaterSaleModel ReadHeader(NpgsqlDataReader r) => new()
         {
             WaterSaleId     = r.GetInt32(r.GetOrdinal("WaterSaleId")),
             FarmId          = r.GetString(r.GetOrdinal("FarmId")),
@@ -117,7 +117,7 @@ namespace PoultryFarmAPIWeb.Business
             SourceId        = HasCol(r, "SourceId")   && !r.IsDBNull(r.GetOrdinal("SourceId"))   ? r.GetInt32(r.GetOrdinal("SourceId"))   : (int?)null,
         };
 
-        private static WaterSaleItemModel ReadItem(SqlDataReader r) => new()
+        private static WaterSaleItemModel ReadItem(NpgsqlDataReader r) => new()
         {
             WaterSaleItemId = r.GetInt32(r.GetOrdinal("WaterSaleItemId")),
             WaterSaleId     = r.GetInt32(r.GetOrdinal("WaterSaleId")),
@@ -132,7 +132,7 @@ namespace PoultryFarmAPIWeb.Business
             BaseQuantity    = HasCol(r, "BaseQuantity") && !r.IsDBNull(r.GetOrdinal("BaseQuantity")) ? r.GetDecimal(r.GetOrdinal("BaseQuantity")) : null,
         };
 
-        private static bool HasCol(SqlDataReader r, string name)
+        private static bool HasCol(NpgsqlDataReader r, string name)
         {
             for (int i = 0; i < r.FieldCount; i++)
                 if (r.GetName(i).Equals(name, StringComparison.OrdinalIgnoreCase)) return true;

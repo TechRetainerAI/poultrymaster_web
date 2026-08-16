@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -17,8 +17,8 @@ namespace PoultryFarmAPIWeb.Business
         public List<HouseModel> GetAll(string userId, string farmId)
         {
             var list = new List<HouseModel>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spHouse_GetAll", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sphouse_getall(p_userid => @UserId::text, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@UserId", userId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             conn.Open();
@@ -40,8 +40,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public HouseModel? GetById(int id, string userId, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spHouse_GetById", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sphouse_getbyid(p_houseid => @HouseId::int, p_userid => @UserId::text, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@HouseId", id);
             cmd.Parameters.AddWithValue("@UserId", userId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
@@ -64,8 +64,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public int Create(HouseModel model)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spHouse_Insert", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sphouse_insert(p_userid => @UserId::text, p_farmid => @FarmId::text, p_housename => @HouseName::text, p_capacity => @Capacity::int, p_location => @Location::text)", conn);
             cmd.Parameters.AddWithValue("@UserId", model.UserId);
             cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
             cmd.Parameters.AddWithValue("@HouseName", model.HouseName);
@@ -78,8 +78,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public void Update(HouseModel model)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spHouse_Update", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sphouse_update(p_userid => @UserId::text, p_farmid => @FarmId::text, p_houseid => @HouseId::int, p_housename => @HouseName::text, p_capacity => @Capacity::int, p_location => @Location::text)", conn);
             cmd.Parameters.AddWithValue("@UserId", model.UserId);
             cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
             cmd.Parameters.AddWithValue("@HouseId", model.HouseId);
@@ -92,8 +92,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public void Delete(int id, string userId, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spHouse_Delete", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sphouse_delete(p_houseid => @HouseId::int, p_userid => @UserId::text, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@HouseId", id);
             cmd.Parameters.AddWithValue("@UserId", userId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);

@@ -6,7 +6,7 @@
 // handle multi-table writes inside SQL Server; the C# side just sends params.
 
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -30,8 +30,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<WaterExpenseCategoryModel>> GetAllAsync(string farmId)
         {
             var list = new List<WaterExpenseCategoryModel>();
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterExpenseCategory_GetAll", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwaterexpensecategory_getall(p_farmid => @FarmId::text)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await c.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();
@@ -41,8 +41,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<int> InsertAsync(WaterExpenseCategoryModel m)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterExpenseCategory_Insert", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwaterexpensecategory_insert(p_farmid => @FarmId::text, p_name => @Name::text, p_description => @Description::text, p_isactive => @IsActive::boolean)", c);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@Name", m.Name);
             cmd.Parameters.AddWithValue("@Description", (object?)m.Description ?? DBNull.Value);
@@ -53,8 +53,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task UpdateAsync(WaterExpenseCategoryModel m)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterExpenseCategory_Update", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwaterexpensecategory_update(p_waterexpensecategoryid => @WaterExpenseCategoryId::int, p_farmid => @FarmId::text, p_name => @Name::text, p_description => @Description::text, p_isactive => @IsActive::boolean)", c);
             cmd.Parameters.AddWithValue("@WaterExpenseCategoryId", m.WaterExpenseCategoryId);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@Name", m.Name);
@@ -66,15 +66,15 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task DeleteAsync(int id, string farmId)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterExpenseCategory_Delete", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwaterexpensecategory_delete(p_waterexpensecategoryid => @WaterExpenseCategoryId::int, p_farmid => @FarmId::text)", c);
             cmd.Parameters.AddWithValue("@WaterExpenseCategoryId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await c.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
         }
 
-        private static WaterExpenseCategoryModel Read(SqlDataReader r) => new()
+        private static WaterExpenseCategoryModel Read(NpgsqlDataReader r) => new()
         {
             WaterExpenseCategoryId = r.GetInt32(r.GetOrdinal("WaterExpenseCategoryId")),
             FarmId                 = r.GetString(r.GetOrdinal("FarmId")),
@@ -114,8 +114,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<WaterCashAccountModel>> GetAllAsync(string farmId)
         {
             var list = new List<WaterCashAccountModel>();
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterCashAccount_GetAll", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatercashaccount_getall(p_farmid => @FarmId::text)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await c.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();
@@ -125,8 +125,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<WaterCashAccountModel?> GetByIdAsync(int id, string farmId)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterCashAccount_GetById", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatercashaccount_getbyid(p_watercashaccountid => @WaterCashAccountId::int, p_farmid => @FarmId::text)", c);
             cmd.Parameters.AddWithValue("@WaterCashAccountId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await c.OpenAsync();
@@ -136,8 +136,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<int> InsertAsync(WaterCashAccountModel m)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterCashAccount_Insert", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatercashaccount_insert(p_farmid => @FarmId::text, p_accountname => @AccountName::text, p_accounttype => @AccountType::text, p_openingbalance => @OpeningBalance::numeric, p_allownegativebalance => @AllowNegativeBalance::boolean, p_notes => @Notes::text)", c);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@AccountName", m.AccountName);
             cmd.Parameters.AddWithValue("@AccountType", m.AccountType);
@@ -150,8 +150,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task UpdateAsync(WaterCashAccountModel m)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterCashAccount_Update", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatercashaccount_update(p_watercashaccountid => @WaterCashAccountId::int, p_farmid => @FarmId::text, p_accountname => @AccountName::text, p_accounttype => @AccountType::text, p_allownegativebalance => @AllowNegativeBalance::boolean, p_isactive => @IsActive::boolean, p_notes => @Notes::text)", c);
             cmd.Parameters.AddWithValue("@WaterCashAccountId", m.WaterCashAccountId);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@AccountName", m.AccountName);
@@ -165,8 +165,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task DeleteAsync(int id, string farmId)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterCashAccount_Delete", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatercashaccount_delete(p_watercashaccountid => @WaterCashAccountId::int, p_farmid => @FarmId::text)", c);
             cmd.Parameters.AddWithValue("@WaterCashAccountId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await c.OpenAsync();
@@ -175,8 +175,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task ReconcileBalanceAsync(string farmId)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterCashAccount_ReconcileBalance", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatercashaccount_reconcilebalance(p_farmid => @FarmId::text)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await c.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
@@ -184,8 +184,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task AdjustAsync(int id, string farmId, decimal amount, string reason, string? createdBy)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterCashAccount_Adjust", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatercashaccount_adjust(p_watercashaccountid => @WaterCashAccountId::int, p_farmid => @FarmId::text, p_amount => @Amount::numeric, p_reason => @Reason::text, p_createdby => @CreatedBy::text)", c);
             cmd.Parameters.AddWithValue("@WaterCashAccountId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@Amount", amount);
@@ -199,8 +199,8 @@ namespace PoultryFarmAPIWeb.Business
             string farmId, int? cashAccountId, DateTime? fromDate, DateTime? toDate)
         {
             var list = new List<WaterCashTransactionModel>();
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterCashTransaction_GetByFarm", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatercashtransaction_getbyfarm(p_farmid => @FarmId::text, p_watercashaccountid => @WaterCashAccountId::int, p_fromdate => @FromDate::timestamp, p_todate => @ToDate::timestamp)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@WaterCashAccountId", (object?)cashAccountId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@FromDate", (object?)fromDate ?? DBNull.Value);
@@ -231,7 +231,7 @@ namespace PoultryFarmAPIWeb.Business
             return list;
         }
 
-        private static WaterCashAccountModel Read(SqlDataReader r) => new()
+        private static WaterCashAccountModel Read(NpgsqlDataReader r) => new()
         {
             WaterCashAccountId   = r.GetInt32(r.GetOrdinal("WaterCashAccountId")),
             FarmId               = r.GetString(r.GetOrdinal("FarmId")),
@@ -267,8 +267,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<WaterCashTransferModel>> GetAllAsync(string farmId, string? status)
         {
             var list = new List<WaterCashTransferModel>();
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterCashTransfer_GetAll", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatercashtransfer_getall(p_farmid => @FarmId::text, p_status => @Status::text)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@Status", (object?)status ?? DBNull.Value);
             await c.OpenAsync();
@@ -279,8 +279,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<WaterCashTransferModel?> GetByIdAsync(int id, string farmId)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterCashTransfer_GetById", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatercashtransfer_getbyid(p_watercashtransferid => @WaterCashTransferId::int, p_farmid => @FarmId::text)", c);
             cmd.Parameters.AddWithValue("@WaterCashTransferId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await c.OpenAsync();
@@ -290,8 +290,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<int> InsertAsync(WaterCashTransferModel m)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterCashTransfer_Insert", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatercashtransfer_insert(p_farmid => @FarmId::text, p_fromwatercashaccountid => @FromWaterCashAccountId::int, p_towatercashaccountid => @ToWaterCashAccountId::int, p_amount => @Amount::numeric, p_transferdate => @TransferDate::timestamp, p_notes => @Notes::text, p_createdby => @CreatedBy::text)", c);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@FromWaterCashAccountId", m.FromWaterCashAccountId);
             cmd.Parameters.AddWithValue("@ToWaterCashAccountId",   m.ToWaterCashAccountId);
@@ -306,8 +306,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task ApproveAsync(int id, string farmId, string? approvedBy)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterCashTransfer_Approve", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatercashtransfer_approve(p_watercashtransferid => @WaterCashTransferId::int, p_farmid => @FarmId::text, p_approvedby => @ApprovedBy::text)", c);
             cmd.Parameters.AddWithValue("@WaterCashTransferId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@ApprovedBy", (object?)approvedBy ?? DBNull.Value);
@@ -317,15 +317,15 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task CancelAsync(int id, string farmId)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterCashTransfer_Cancel", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatercashtransfer_cancel(p_watercashtransferid => @WaterCashTransferId::int, p_farmid => @FarmId::text)", c);
             cmd.Parameters.AddWithValue("@WaterCashTransferId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await c.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
         }
 
-        private static WaterCashTransferModel Read(SqlDataReader r) => new()
+        private static WaterCashTransferModel Read(NpgsqlDataReader r) => new()
         {
             WaterCashTransferId    = r.GetInt32(r.GetOrdinal("WaterCashTransferId")),
             FarmId                 = r.GetString(r.GetOrdinal("FarmId")),
@@ -371,8 +371,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<WaterExpenseModel>> GetAllAsync(string farmId, string? status, DateTime? fromDate, DateTime? toDate)
         {
             var list = new List<WaterExpenseModel>();
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterExpense_GetAll", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwaterexpense_getall(p_farmid => @FarmId::text, p_status => @Status::text, p_fromdate => @FromDate::timestamp, p_todate => @ToDate::timestamp)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@Status",   (object?)status   ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@FromDate", (object?)fromDate ?? DBNull.Value);
@@ -385,8 +385,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<WaterExpenseModel?> GetByIdAsync(int id, string farmId)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterExpense_GetById", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwaterexpense_getbyid(p_waterexpenseid => @WaterExpenseId::int, p_farmid => @FarmId::text)", c);
             cmd.Parameters.AddWithValue("@WaterExpenseId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await c.OpenAsync();
@@ -396,8 +396,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<int> InsertAsync(WaterExpenseModel m)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterExpense_Insert", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwaterexpense_insert(p_farmid => @FarmId::text, p_expensedate => @ExpenseDate::timestamp, p_waterexpensecategoryid => @WaterExpenseCategoryId::int, p_description => @Description::text, p_amount => @Amount::numeric, p_paidto => @PaidTo::text, p_paymentmethod => @PaymentMethod::text, p_watercashaccountid => @WaterCashAccountId::int, p_receipturl => @ReceiptUrl::text, p_linkedwatervehicleid => @LinkedWaterVehicleId::int, p_linkedwatermachineid => @LinkedWaterMachineId::int, p_linkedwaterproductionbatchid => @LinkedWaterProductionBatchId::int, p_notes => @Notes::text, p_createdby => @CreatedBy::text, p_supplierid => @SupplierId::int)", c);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@ExpenseDate",
                 m.ExpenseDate == default ? (object)DBNull.Value : m.ExpenseDate);
@@ -420,8 +420,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task SubmitAsync(int id, string farmId)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterExpense_Submit", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwaterexpense_submit(p_waterexpenseid => @WaterExpenseId::int, p_farmid => @FarmId::text)", c);
             cmd.Parameters.AddWithValue("@WaterExpenseId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await c.OpenAsync();
@@ -430,8 +430,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task ApproveAsync(int id, string farmId, string? approvedBy)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterExpense_Approve", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwaterexpense_approve(p_waterexpenseid => @WaterExpenseId::int, p_farmid => @FarmId::text, p_approvedby => @ApprovedBy::text)", c);
             cmd.Parameters.AddWithValue("@WaterExpenseId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@ApprovedBy", (object?)approvedBy ?? DBNull.Value);
@@ -441,8 +441,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task RejectAsync(int id, string farmId, string? approvedBy, string? reason)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterExpense_Reject", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwaterexpense_reject(p_waterexpenseid => @WaterExpenseId::int, p_farmid => @FarmId::text, p_approvedby => @ApprovedBy::text, p_reason => @Reason::text)", c);
             cmd.Parameters.AddWithValue("@WaterExpenseId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@ApprovedBy", (object?)approvedBy ?? DBNull.Value);
@@ -453,8 +453,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task CancelAsync(int id, string farmId, string? cancelledBy, string? reason)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterExpense_Cancel", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwaterexpense_cancel(p_waterexpenseid => @WaterExpenseId::int, p_farmid => @FarmId::text, p_cancelledby => @CancelledBy::text, p_reason => @Reason::text)", c);
             cmd.Parameters.AddWithValue("@WaterExpenseId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@CancelledBy", (object?)cancelledBy ?? DBNull.Value);
@@ -465,8 +465,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task DeleteAsync(int id, string farmId)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterExpense_Delete", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwaterexpense_delete(p_waterexpenseid => @WaterExpenseId::int, p_farmid => @FarmId::text)", c);
             cmd.Parameters.AddWithValue("@WaterExpenseId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await c.OpenAsync();
@@ -475,8 +475,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<(int categoryCount, int cashAccountCount)> SeedDefaultsAsync(string farmId)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterFinance_SeedDefaults", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwaterfinance_seeddefaults(p_farmid => @FarmId::text)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await c.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();
@@ -489,7 +489,7 @@ namespace PoultryFarmAPIWeb.Business
             return (0, 0);
         }
 
-        private static WaterExpenseModel Read(SqlDataReader r) => new()
+        private static WaterExpenseModel Read(NpgsqlDataReader r) => new()
         {
             WaterExpenseId               = r.GetInt32(r.GetOrdinal("WaterExpenseId")),
             FarmId                       = r.GetString(r.GetOrdinal("FarmId")),
@@ -522,7 +522,7 @@ namespace PoultryFarmAPIWeb.Business
         // Defensive column-exists check — lets us add new columns to the SP
         // result set without breaking older deployments where the SP hasn't
         // been refreshed yet (e.g. prod skipping a dev-only migration).
-        private static bool HasCol(SqlDataReader r, string name)
+        private static bool HasCol(NpgsqlDataReader r, string name)
         {
             for (int i = 0; i < r.FieldCount; i++)
                 if (string.Equals(r.GetName(i), name, StringComparison.OrdinalIgnoreCase))
@@ -553,8 +553,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<WaterSupplierModel>> ListAsync(string farmId, bool includeInactive, bool includeDeleted, string? search)
         {
             var list = new List<WaterSupplierModel>();
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterSupplier_ListByFarm", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatersupplier_listbyfarm(p_farmid => @FarmId::text, p_includeinactive => @IncludeInactive::boolean, p_includedeleted => @IncludeDeleted::boolean, p_search => @Search::text)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@IncludeInactive", includeInactive ? 1 : 0);
             cmd.Parameters.AddWithValue("@IncludeDeleted",  includeDeleted  ? 1 : 0);
@@ -567,8 +567,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<WaterSupplierModel?> GetByIdAsync(int id, string farmId)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterSupplier_GetById", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatersupplier_getbyid(p_watersupplierid => @WaterSupplierId::int, p_farmid => @FarmId::text)", c);
             cmd.Parameters.AddWithValue("@WaterSupplierId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await c.OpenAsync();
@@ -578,8 +578,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<int> InsertAsync(WaterSupplierModel m)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterSupplier_Insert", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatersupplier_insert(p_farmid => @FarmId::text, p_suppliername => @SupplierName::text, p_contactperson => @ContactPerson::text, p_phone => @Phone::text, p_email => @Email::text, p_address => @Address::text, p_suppliertype => @SupplierType::text, p_notes => @Notes::text, p_createdby => @CreatedBy::text)", c);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@SupplierName", m.SupplierName);
             cmd.Parameters.AddWithValue("@ContactPerson", (object?)m.ContactPerson ?? DBNull.Value);
@@ -595,8 +595,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task UpdateAsync(WaterSupplierModel m)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterSupplier_Update", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatersupplier_update(p_watersupplierid => @WaterSupplierId::int, p_farmid => @FarmId::text, p_suppliername => @SupplierName::text, p_contactperson => @ContactPerson::text, p_phone => @Phone::text, p_email => @Email::text, p_address => @Address::text, p_suppliertype => @SupplierType::text, p_notes => @Notes::text, p_isactive => @IsActive::boolean, p_updatedby => @UpdatedBy::text)", c);
             cmd.Parameters.AddWithValue("@WaterSupplierId", m.WaterSupplierId);
             cmd.Parameters.AddWithValue("@FarmId",          m.FarmId);
             cmd.Parameters.AddWithValue("@SupplierName",    m.SupplierName);
@@ -614,8 +614,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task DeleteAsync(int id, string farmId, string? deletedBy)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterSupplier_Delete", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatersupplier_delete(p_watersupplierid => @WaterSupplierId::int, p_farmid => @FarmId::text, p_deletedby => @DeletedBy::text)", c);
             cmd.Parameters.AddWithValue("@WaterSupplierId", id);
             cmd.Parameters.AddWithValue("@FarmId",          farmId);
             cmd.Parameters.AddWithValue("@DeletedBy",       (object?)deletedBy ?? DBNull.Value);
@@ -623,7 +623,7 @@ namespace PoultryFarmAPIWeb.Business
             await cmd.ExecuteNonQueryAsync();
         }
 
-        private static WaterSupplierModel ReadSupplier(SqlDataReader r) => new()
+        private static WaterSupplierModel ReadSupplier(NpgsqlDataReader r) => new()
         {
             WaterSupplierId = r.GetInt32(r.GetOrdinal("WaterSupplierId")),
             FarmId          = r.GetString(r.GetOrdinal("FarmId")),
@@ -660,8 +660,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<WaterCustomerLedgerEntryModel>> GetForCustomerAsync(string farmId, int customerId)
         {
             var list = new List<WaterCustomerLedgerEntryModel>();
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterCustomerLedger_GetForCustomer", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatercustomerledger_getforcustomer(p_farmid => @FarmId::text, p_watercustomerid => @WaterCustomerId::int)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@WaterCustomerId", customerId);
             await c.OpenAsync();
@@ -690,8 +690,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<(int id, decimal newBalance)> AddEntryAsync(string farmId, WaterCustomerLedgerAddRequest req, string? createdBy)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterCustomerLedger_AddEntry", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatercustomerledger_addentry(p_farmid => @FarmId::text, p_watercustomerid => @WaterCustomerId::int, p_transactiontype => @TransactionType::text, p_watersaleid => @WaterSaleId::int, p_waterpaymentid => @WaterPaymentId::int, p_debitamount => @DebitAmount::numeric, p_creditamount => @CreditAmount::numeric, p_description => @Description::text, p_createdby => @CreatedBy::text, p_transactiondate => @TransactionDate::timestamp)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@WaterCustomerId", req.WaterCustomerId);
             cmd.Parameters.AddWithValue("@TransactionType", req.TransactionType);

@@ -1,6 +1,6 @@
-﻿using PoultryFarmAPIWeb.Models;
+using PoultryFarmAPIWeb.Models;
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -20,10 +20,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spFeedUsage_Insert", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
-
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spfeedusage_insert(p_userid => @UserId::text, p_farmid => @FarmId::text, p_flockid => @FlockId::int, p_usagedate => @UsageDate::date, p_feedtype => @FeedType::text, p_quantitykg => @QuantityKg::numeric)", conn);
                 cmd.Parameters.AddWithValue("@UserId", model.UserId);
                 cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
                 cmd.Parameters.AddWithValue("@FlockId", model.FlockId);
@@ -45,10 +43,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spFeedUsage_Update", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
-
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spfeedusage_update(p_feedusageid => @FeedUsageId::int, p_userid => @UserId::text, p_farmid => @FarmId::text, p_flockid => @FlockId::int, p_usagedate => @UsageDate::date, p_feedtype => @FeedType::text, p_quantitykg => @QuantityKg::numeric)", conn);
                 cmd.Parameters.AddWithValue("@FeedUsageId", model.FeedUsageId);
                 cmd.Parameters.AddWithValue("@UserId", model.UserId);
                 cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
@@ -70,9 +66,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spFeedUsage_GetById", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spfeedusage_getbyid(p_feedusageid => @FeedUsageId::int, p_farmid => @FarmId::text)", conn);
                 cmd.Parameters.AddWithValue("@FeedUsageId", feedUsageId);
                 //cmd.Parameters.AddWithValue("@UserId", userId);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
@@ -110,9 +105,8 @@ namespace PoultryFarmAPIWeb.Business
             try
             {
                 var list = new List<FeedUsageModel>();
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spFeedUsage_GetAll", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spfeedusage_getall(p_farmid => @FarmId::text)", conn);
                 //cmd.Parameters.AddWithValue("@UserId", userId);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
 
@@ -148,9 +142,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spFeedUsage_Delete", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spfeedusage_delete(p_feedusageid => @FeedUsageId::int, p_userid => @UserId::text, p_farmid => @FarmId::text)", conn);
                 cmd.Parameters.AddWithValue("@FeedUsageId", feedUsageId);
                 cmd.Parameters.AddWithValue("@UserId", userId);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
@@ -167,7 +160,7 @@ namespace PoultryFarmAPIWeb.Business
         /// <summary>
         /// Helper method to check if a column exists in the reader
         /// </summary>
-        private static bool HasColumn(SqlDataReader reader, string columnName)
+        private static bool HasColumn(NpgsqlDataReader reader, string columnName)
         {
             for (int i = 0; i < reader.FieldCount; i++)
             {

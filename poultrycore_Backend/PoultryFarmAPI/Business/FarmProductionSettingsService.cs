@@ -1,5 +1,5 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -20,13 +20,13 @@ namespace PoultryFarmAPIWeb.Business
             _connectionString = connectionString;
         }
 
-        private static string? GetNullableString(SqlDataReader reader, string name)
+        private static string? GetNullableString(NpgsqlDataReader reader, string name)
         {
             int o = reader.GetOrdinal(name);
             return reader.IsDBNull(o) ? null : reader.GetString(o);
         }
 
-        private static FarmProductionSettingsModel Map(SqlDataReader reader) => new()
+        private static FarmProductionSettingsModel Map(NpgsqlDataReader reader) => new()
         {
             Id = reader.GetInt32(reader.GetOrdinal("Id")),
             FarmId = reader.GetString(reader.GetOrdinal("FarmId")),
@@ -43,8 +43,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<FarmProductionSettingsModel> Get(string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spFarmProductionSettings_Get", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spfarmproductionsettings_get(p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await conn.OpenAsync();
             using var reader = await cmd.ExecuteReaderAsync();
@@ -60,8 +60,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<FarmProductionSettingsModel> Upsert(FarmProductionSettingsModel model)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spFarmProductionSettings_Upsert", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spfarmproductionsettings_upsert(p_farmid => @FarmId::text, p_firstpicktime => @FirstPickTime::text, p_secondpicktime => @SecondPickTime::text, p_thirdpicktime => @ThirdPickTime::text, p_fourthpicktime => @FourthPickTime::text, p_enablefourthpick => @EnableFourthPick::boolean, p_updatedby => @UpdatedBy::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
             cmd.Parameters.AddWithValue("@FirstPickTime", (object?)model.FirstPickTime ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@SecondPickTime", (object?)model.SecondPickTime ?? DBNull.Value);

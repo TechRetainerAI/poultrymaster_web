@@ -9,21 +9,33 @@
   <ItemGroup>
     <PackageReference Include="ClosedXML" Version="0.104.2" />
     <PackageReference Include="CsvHelper" Version="32.0.1" />
-    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.0">
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.11" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.11" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.11" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.11">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.3" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="QuestPDF" Version="2025.1.7" />
-    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
+    <PackageReference Include="Npgsql" Version="8.0.7" />
   </ItemGroup>
 
   <ItemGroup>
     <Folder Include="NewFolder\" />
+  </ItemGroup>
+
+  <!-- The 2023 EF migrations were scaffolded against SQL Server and call
+       SqlServerModelBuilderExtensions / SqlServerPropertyBuilderExtensions,
+       which no longer resolve now that the provider is Npgsql. They cannot be
+       applied to PostgreSQL either — the VisibilityCoreDB schema came from the
+       migrated dump, and DatabaseBootstrap:ApplyMigrations is off. Kept on disk
+       for history; excluded from the build. Regenerate for Npgsql if EF
+       migrations are ever needed again. -->
+  <ItemGroup>
+    <Compile Remove="Migrations\**\*.cs" />
+    <None Include="Migrations\**\*.cs" />
   </ItemGroup>
 
 </Project>

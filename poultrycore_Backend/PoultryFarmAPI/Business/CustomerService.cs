@@ -1,5 +1,5 @@
-﻿using System.Data;
-using Microsoft.Data.SqlClient;
+using System.Data;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 using System;
 using System.Collections.Generic;
@@ -20,10 +20,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spCustomer_Insert", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
-
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spcustomer_insert(p_userid => @UserId::text, p_farmid => @FarmId::text, p_name => @Name::text, p_contactemail => @ContactEmail::text, p_contactphone => @ContactPhone::text, p_address => @Address::text, p_city => @City::text)", conn);
                 cmd.Parameters.AddWithValue("@UserId", model.UserId);
                 cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
                 cmd.Parameters.AddWithValue("@Name", model.Name);
@@ -46,10 +44,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spCustomer_Update", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
-
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spcustomer_update(p_userid => @UserId::text, p_farmid => @FarmId::text, p_customerid => @CustomerId::int, p_name => @Name::text, p_contactemail => @ContactEmail::text, p_contactphone => @ContactPhone::text, p_address => @Address::text, p_city => @City::text)", conn);
                 cmd.Parameters.AddWithValue("@UserId", model.UserId);
                 cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
                 cmd.Parameters.AddWithValue("@CustomerId", model.CustomerId);
@@ -72,9 +68,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spCustomer_GetById", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spcustomer_getbyid(p_customerid => @CustomerId::int, p_userid => @UserId::text, p_farmid => @FarmId::text)", conn);
                 cmd.Parameters.AddWithValue("@CustomerId", customerId);
                 cmd.Parameters.AddWithValue("@UserId", userId);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
@@ -118,9 +113,8 @@ namespace PoultryFarmAPIWeb.Business
             try
             {
                 var list = new List<CustomerModel>();
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spCustomer_GetAll", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spcustomer_getall(p_farmid => @FarmId::text)", conn);
                 //cmd.Parameters.AddWithValue("@UserId", userId);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
 
@@ -163,9 +157,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spCustomer_Delete", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spcustomer_delete(p_customerid => @CustomerId::int, p_farmid => @FarmId::text)", conn);
                 cmd.Parameters.AddWithValue("@CustomerId", customerId);
                 //cmd.Parameters.AddWithValue("@UserId", userId);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);

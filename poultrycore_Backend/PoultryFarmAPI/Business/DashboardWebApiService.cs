@@ -1,5 +1,5 @@
-﻿using System.Data;
-using Microsoft.Data.SqlClient;
+using System.Data;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -20,10 +20,8 @@ namespace PoultryFarmAPIWeb.Business
             {
                 var model = new DashboardViewModel();
 
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spDashboard_GetSummary", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
-
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spdashboard_getsummary_rs1(p_farmid => @FarmId::text); SELECT * FROM spdashboard_getsummary_rs2(p_farmid => @FarmId::text); SELECT * FROM spdashboard_getsummary_rs3(p_farmid => @FarmId::text); SELECT * FROM spdashboard_getsummary_rs4(p_farmid => @FarmId::text); SELECT * FROM spdashboard_getsummary_rs5(p_farmid => @FarmId::text)", conn);
                 // Pass the userId to the stored procedure.
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
 

@@ -14,6 +14,10 @@ using System.Text;
 using System.Collections.Generic;
 
 
+// PostgreSQL: table columns are `timestamp without time zone`. Without this
+// switch Npgsql 6+ refuses DateTime values whose Kind is Utc for those columns.
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.WebHost.ConfigureKestrel(options =>

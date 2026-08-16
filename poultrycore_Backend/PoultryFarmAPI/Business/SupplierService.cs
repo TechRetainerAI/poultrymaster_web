@@ -1,5 +1,5 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -15,8 +15,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<int> Insert(SupplierModel model)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spSupplier_Insert", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spsupplier_insert(p_userid => @UserId::text, p_farmid => @FarmId::text, p_name => @Name::text, p_contactemail => @ContactEmail::text, p_contactphone => @ContactPhone::text, p_address => @Address::text, p_city => @City::text)", conn);
             cmd.Parameters.AddWithValue("@UserId", model.UserId);
             cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
             cmd.Parameters.AddWithValue("@Name", model.Name);
@@ -31,8 +31,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task Update(SupplierModel model)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spSupplier_Update", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spsupplier_update(p_userid => @UserId::text, p_farmid => @FarmId::text, p_supplierid => @SupplierId::int, p_name => @Name::text, p_contactemail => @ContactEmail::text, p_contactphone => @ContactPhone::text, p_address => @Address::text, p_city => @City::text)", conn);
             cmd.Parameters.AddWithValue("@UserId", model.UserId);
             cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
             cmd.Parameters.AddWithValue("@SupplierId", model.SupplierId);
@@ -47,8 +47,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<SupplierModel?> GetById(int supplierId, string userId, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spSupplier_GetById", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spsupplier_getbyid(p_supplierid => @SupplierId::int, p_userid => @UserId::text, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@SupplierId", supplierId);
             cmd.Parameters.AddWithValue("@UserId", userId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
@@ -62,8 +62,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<SupplierModel>> GetAll(string userId, string farmId)
         {
             var list = new List<SupplierModel>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spSupplier_GetAll", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spsupplier_getall(p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await conn.OpenAsync();
             using var reader = await cmd.ExecuteReaderAsync();
@@ -74,15 +74,15 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task Delete(int supplierId, string userId, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spSupplier_Delete", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spsupplier_delete(p_supplierid => @SupplierId::int, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@SupplierId", supplierId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
         }
 
-        private static SupplierModel ReadSupplier(SqlDataReader reader)
+        private static SupplierModel ReadSupplier(NpgsqlDataReader reader)
         {
             return new SupplierModel
             {

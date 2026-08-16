@@ -1,5 +1,6 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
+using NpgsqlTypes;
 using PoultryFarmAPIWeb.Models;
 using System;
 using System.Collections.Generic;
@@ -22,7 +23,7 @@ namespace PoultryFarmAPIWeb.Business
             return Guid.Empty;
         }
 
-        private static string ReadFarmIdString(SqlDataReader reader)
+        private static string ReadFarmIdString(NpgsqlDataReader reader)
         {
             if (!TryGetOrdinal(reader, "FarmId", out var ord)) return string.Empty;
             if (reader.IsDBNull(ord)) return string.Empty;
@@ -34,10 +35,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spExpense_Insert", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
-
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spexpense_insert(p_expensedate => @ExpenseDate::timestamp, p_category => @Category::text, p_description => @Description::text, p_amount => @Amount::numeric, p_paymentmethod => @PaymentMethod::text, p_supplier => @Supplier::text, p_flockid => @FlockId::int, p_userid => @UserId::text, p_farmid => @FarmId::uuid, p_attachmentimage => @AttachmentImage::bytea, p_attachmentcontenttype => @AttachmentContentType::text)", conn);
                 cmd.Parameters.AddWithValue("@ExpenseDate", model.ExpenseDate);
                 cmd.Parameters.AddWithValue("@Category", model.Category);
                 cmd.Parameters.AddWithValue("@Description", (object?)model.Description ?? DBNull.Value);
@@ -47,11 +46,11 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.AddWithValue("@FlockId", (object?)model.FlockId ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@UserId", model.UserId);
                 cmd.Parameters.AddWithValue("@FarmId", FarmIdToGuid(model.FarmId ?? string.Empty));
-                cmd.Parameters.Add(new SqlParameter("@AttachmentImage", SqlDbType.VarBinary, -1)
+                cmd.Parameters.Add(new NpgsqlParameter("@AttachmentImage", NpgsqlDbType.Bytea, -1)
                 {
                     Value = (object?)model.AttachmentImage ?? DBNull.Value
                 });
-                cmd.Parameters.Add(new SqlParameter("@AttachmentContentType", SqlDbType.NVarChar, 64)
+                cmd.Parameters.Add(new NpgsqlParameter("@AttachmentContentType", NpgsqlDbType.Text, 64)
                 {
                     Value = (object?)model.AttachmentContentType ?? DBNull.Value
                 });
@@ -73,8 +72,8 @@ namespace PoultryFarmAPIWeb.Business
         // so the cash rows scope correctly (dbo.Expense.FarmId is a GUID).
         private async Task SyncExpenseCashAsync(string farmId, int expenseId, int? cashAccountId, decimal amount, string? description, string? createdBy)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spPoultryExpenseCash_Sync", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryexpensecash_sync(p_farmid => @FarmId::text, p_expenseid => @ExpenseId::int, p_poultrycashaccountid => @PoultryCashAccountId::int, p_amount => @Amount::numeric, p_description => @Description::text, p_createdby => @CreatedBy::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@ExpenseId", expenseId);
             cmd.Parameters.AddWithValue("@PoultryCashAccountId", (object?)cashAccountId ?? DBNull.Value);
@@ -89,10 +88,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spExpense_Update", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
-
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spexpense_update(p_expenseid => @ExpenseId::int, p_expensedate => @ExpenseDate::timestamp, p_category => @Category::text, p_description => @Description::text, p_amount => @Amount::numeric, p_paymentmethod => @PaymentMethod::text, p_supplier => @Supplier::text, p_flockid => @FlockId::int, p_userid => @UserId::text, p_farmid => @FarmId::uuid, p_attachmentimageset => @AttachmentImageSet::boolean, p_attachmentimage => @AttachmentImage::bytea, p_attachmentcontenttype => @AttachmentContentType::text)", conn);
                 cmd.Parameters.AddWithValue("@ExpenseId", model.ExpenseId);
                 cmd.Parameters.AddWithValue("@ExpenseDate", model.ExpenseDate);
                 cmd.Parameters.AddWithValue("@Category", model.Category);
@@ -103,11 +100,11 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.AddWithValue("@FlockId", (object?)model.FlockId ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@UserId", model.UserId);
                 cmd.Parameters.AddWithValue("@FarmId", FarmIdToGuid(model.FarmId ?? string.Empty));
-                cmd.Parameters.Add(new SqlParameter("@AttachmentImage", SqlDbType.VarBinary, -1)
+                cmd.Parameters.Add(new NpgsqlParameter("@AttachmentImage", NpgsqlDbType.Bytea, -1)
                 {
                     Value = (object?)model.AttachmentImage ?? DBNull.Value
                 });
-                cmd.Parameters.Add(new SqlParameter("@AttachmentContentType", SqlDbType.NVarChar, 64)
+                cmd.Parameters.Add(new NpgsqlParameter("@AttachmentContentType", NpgsqlDbType.Text, 64)
                 {
                     Value = (object?)model.AttachmentContentType ?? DBNull.Value
                 });
@@ -128,9 +125,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spExpense_GetById", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spexpense_getbyid(p_expenseid => @ExpenseId::int, p_farmid => @FarmId::uuid)", conn);
                 cmd.Parameters.AddWithValue("@ExpenseId", expenseId);
                 cmd.Parameters.AddWithValue("@FarmId", FarmIdToGuid(farmId));
 
@@ -153,9 +149,8 @@ namespace PoultryFarmAPIWeb.Business
             try
             {
                 var list = new List<ExpenseModel>();
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spExpense_GetAll", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spexpense_getall(p_farmid => @FarmId::uuid)", conn);
                 cmd.Parameters.AddWithValue("@FarmId", FarmIdToGuid(farmId));
 
                 await conn.OpenAsync();
@@ -179,9 +174,8 @@ namespace PoultryFarmAPIWeb.Business
                 // Reverse any cash-out this expense posted before removing it.
                 await SyncExpenseCashAsync(farmId, expenseId, null, 0m, null, userId);
 
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spExpense_Delete", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spexpense_delete(p_expenseid => @ExpenseId::int, p_farmid => @FarmId::uuid)", conn);
                 cmd.Parameters.AddWithValue("@ExpenseId", expenseId);
                 cmd.Parameters.AddWithValue("@FarmId", FarmIdToGuid(farmId));
 
@@ -199,9 +193,8 @@ namespace PoultryFarmAPIWeb.Business
             try
             {
                 var list = new List<ExpenseModel>();
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spExpense_GetByFlock", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spexpense_getbyflock(p_flockid => @FlockId::int, p_farmid => @FarmId::uuid)", conn);
                 cmd.Parameters.AddWithValue("@FlockId", flockId);
                 cmd.Parameters.AddWithValue("@FarmId", FarmIdToGuid(farmId));
 
@@ -221,11 +214,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<(byte[] Body, string ContentType)?> GetAttachment(int expenseId, string userId, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spExpense_GetAttachment", conn)
-            {
-                CommandType = CommandType.StoredProcedure
-            };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spexpense_getattachment(p_expenseid => @ExpenseId::int, p_farmid => @FarmId::uuid)", conn);
             cmd.Parameters.AddWithValue("@ExpenseId", expenseId);
             cmd.Parameters.AddWithValue("@FarmId", FarmIdToGuid(farmId));
 
@@ -246,7 +236,7 @@ namespace PoultryFarmAPIWeb.Business
             return (buf, ct);
         }
 
-        private static ExpenseModel MapExpense(SqlDataReader reader, string userId)
+        private static ExpenseModel MapExpense(NpgsqlDataReader reader, string userId)
         {
             var hasAtt = TryGetOrdinal(reader, "HasAttachmentImage", out var ordHas)
                 && !reader.IsDBNull(ordHas)
@@ -301,7 +291,7 @@ namespace PoultryFarmAPIWeb.Business
             };
         }
 
-        private static bool TryGetOrdinal(SqlDataReader reader, string name, out int ordinal)
+        private static bool TryGetOrdinal(NpgsqlDataReader reader, string name, out int ordinal)
         {
             try
             {
@@ -327,7 +317,7 @@ namespace PoultryFarmAPIWeb.Business
             return false;
         }
 
-        private static int ReadIntFlexible(SqlDataReader reader, params string[] columns)
+        private static int ReadIntFlexible(NpgsqlDataReader reader, params string[] columns)
         {
             foreach (var column in columns)
             {

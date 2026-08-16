@@ -1,5 +1,5 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -17,9 +17,9 @@ namespace PoultryFarmAPIWeb.Business
             if (string.IsNullOrEmpty(userId))
                 return false;
                 
-            using var conn = new SqlConnection(_connectionString);
+            using var conn = new NpgsqlConnection(_connectionString);
             // Use case-insensitive comparison to handle userId format differences
-            using var cmd = new SqlCommand("SELECT 1 FROM [dbo].[ChatParticipants] WHERE ThreadId=@t AND LOWER(UserId)=LOWER(@u)", conn);
+            using var cmd = new NpgsqlCommand("SELECT 1 FROM chatparticipants WHERE threadid=@t AND LOWER(userid)=LOWER(@u)", conn);
             cmd.Parameters.AddWithValue("@t", threadId);
             cmd.Parameters.AddWithValue("@u", userId);
             await conn.OpenAsync();
@@ -29,17 +29,18 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<ChatThreadModel> CreateOrGetThreadAsync(string farmId, string userId, string otherUserId)
         {
-            using var conn = new SqlConnection(_connectionString);
+            using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
 
             // Try to find existing thread for these two participants in same farm
-            var findCmd = new SqlCommand(@"
-                SELECT TOP 1 t.ThreadId, t.FarmId, t.CreatedBy, t.CreatedAt
-                FROM [dbo].[ChatThreads] t
-                JOIN [dbo].[ChatParticipants] p1 ON p1.ThreadId = t.ThreadId AND p1.UserId = @u1
-                JOIN [dbo].[ChatParticipants] p2 ON p2.ThreadId = t.ThreadId AND p2.UserId = @u2
-                WHERE t.FarmId = @farm
-                ORDER BY t.CreatedAt DESC", conn);
+            var findCmd = new NpgsqlCommand(@"
+                SELECT t.threadid, t.farmid, t.createdby, t.createdat
+                FROM chatthreads t
+                JOIN chatparticipants p1 ON p1.threadid = t.threadid AND p1.userid = @u1
+                JOIN chatparticipants p2 ON p2.threadid = t.threadid AND p2.userid = @u2
+                WHERE t.farmid = @farm
+                ORDER BY t.createdat DESC
+                LIMIT 1", conn);
             findCmd.Parameters.AddWithValue("@u1", userId);
             findCmd.Parameters.AddWithValue("@u2", otherUserId);
             findCmd.Parameters.AddWithValue("@farm", farmId);
@@ -60,18 +61,18 @@ namespace PoultryFarmAPIWeb.Business
 
             // Create if not exists
             var threadId = Guid.NewGuid();
-            var insertThread = new SqlCommand("INSERT INTO [dbo].[ChatThreads](ThreadId,FarmId,CreatedBy) VALUES(@t,@f,@c)", conn);
+            var insertThread = new NpgsqlCommand("INSERT INTO chatthreads(threadid,farmid,createdby) VALUES(@t,@f,@c)", conn);
             insertThread.Parameters.AddWithValue("@t", threadId);
             insertThread.Parameters.AddWithValue("@f", farmId);
             insertThread.Parameters.AddWithValue("@c", userId);
             await insertThread.ExecuteNonQueryAsync();
 
-            var insertP1 = new SqlCommand("INSERT INTO [dbo].[ChatParticipants](ThreadId,UserId,Role) VALUES(@t,@u,'user')", conn);
+            var insertP1 = new NpgsqlCommand("INSERT INTO chatparticipants(threadid,userid,role) VALUES(@t,@u,'user')", conn);
             insertP1.Parameters.AddWithValue("@t", threadId);
             insertP1.Parameters.AddWithValue("@u", userId);
             await insertP1.ExecuteNonQueryAsync();
 
-            var insertP2 = new SqlCommand("INSERT INTO [dbo].[ChatParticipants](ThreadId,UserId,Role) VALUES(@t,@u,'user')", conn);
+            var insertP2 = new NpgsqlCommand("INSERT INTO chatparticipants(threadid,userid,role) VALUES(@t,@u,'user')", conn);
             insertP2.Parameters.AddWithValue("@t", threadId);
             insertP2.Parameters.AddWithValue("@u", otherUserId);
             await insertP2.ExecuteNonQueryAsync();
@@ -89,23 +90,25 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<ChatThreadModel>> GetThreadsAsync(string userId, string farmId)
         {
             var list = new List<ChatThreadModel>();
-            using var conn = new SqlConnection(_connectionString);
-            var cmd = new SqlCommand(@"
-                SELECT t.ThreadId, t.FarmId, t.CreatedBy, t.CreatedAt,
-                       (SELECT TOP 1 Content FROM [dbo].[ChatMessages] m WHERE m.ThreadId=t.ThreadId ORDER BY CreatedAt DESC) AS LastMsg,
-                       (SELECT TOP 1 CreatedAt FROM [dbo].[ChatMessages] m2 WHERE m2.ThreadId=t.ThreadId ORDER BY CreatedAt DESC) AS LastAt,
-                       (SELECT COUNT(1) FROM [dbo].[ChatMessages] m3
-                          LEFT JOIN [dbo].[ChatParticipants] p ON p.ThreadId=t.ThreadId AND p.UserId=@u
-                          WHERE m3.ThreadId=t.ThreadId AND m3.UserId<>@u AND (p.LastReadAt IS NULL OR m3.CreatedAt>p.LastReadAt)) AS Unread,
-                       (SELECT TOP 1 UserId FROM [dbo].[ChatParticipants] p2 WHERE p2.ThreadId=t.ThreadId AND p2.UserId<>@u) AS OtherUserId,
-                       u.UserName AS OtherUserName,
-                       u.FirstName AS OtherUserFirstName,
-                       u.LastName AS OtherUserLastName
-                FROM [dbo].[ChatThreads] t
-                JOIN [dbo].[ChatParticipants] p ON p.ThreadId=t.ThreadId AND p.UserId=@u
-                LEFT JOIN [dbo].[AspNetUsers] u ON u.Id = (SELECT TOP 1 UserId FROM [dbo].[ChatParticipants] p2 WHERE p2.ThreadId=t.ThreadId AND p2.UserId<>@u)
-                WHERE t.FarmId=@f
-                ORDER BY LastAt DESC", conn);
+            using var conn = new NpgsqlConnection(_connectionString);
+            // NULLS LAST keeps SQL Server's ordering for threads that have no messages yet
+            // (SQL Server sorts NULLs last under DESC; PostgreSQL would sort them first).
+            var cmd = new NpgsqlCommand(@"
+                SELECT t.threadid, t.farmid, t.createdby, t.createdat,
+                       (SELECT content FROM chatmessages m WHERE m.threadid=t.threadid ORDER BY createdat DESC LIMIT 1) AS lastmsg,
+                       (SELECT createdat FROM chatmessages m2 WHERE m2.threadid=t.threadid ORDER BY createdat DESC LIMIT 1) AS lastat,
+                       (SELECT COUNT(1)::int FROM chatmessages m3
+                          LEFT JOIN chatparticipants p ON p.threadid=t.threadid AND p.userid=@u
+                          WHERE m3.threadid=t.threadid AND m3.userid<>@u AND (p.lastreadat IS NULL OR m3.createdat>p.lastreadat)) AS unread,
+                       (SELECT userid FROM chatparticipants p2 WHERE p2.threadid=t.threadid AND p2.userid<>@u LIMIT 1) AS otheruserid,
+                       u.username AS otherusername,
+                       u.firstname AS otheruserfirstname,
+                       u.lastname AS otheruserlastname
+                FROM chatthreads t
+                JOIN chatparticipants p ON p.threadid=t.threadid AND p.userid=@u
+                LEFT JOIN aspnetusers u ON u.id = (SELECT userid FROM chatparticipants p2 WHERE p2.threadid=t.threadid AND p2.userid<>@u LIMIT 1)
+                WHERE t.farmid=@f
+                ORDER BY lastat DESC NULLS LAST", conn);
             cmd.Parameters.AddWithValue("@u", userId);
             cmd.Parameters.AddWithValue("@f", farmId);
             await conn.OpenAsync();
@@ -133,12 +136,13 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<ChatMessageModel>> GetMessagesAsync(Guid threadId, int take = 50, DateTime? before = null)
         {
             var list = new List<ChatMessageModel>();
-            using var conn = new SqlConnection(_connectionString);
-            var cmd = new SqlCommand(@"
-                SELECT TOP (@take) MessageId, ThreadId, UserId, Content, CreatedAt, IsRead
-                FROM [dbo].[ChatMessages]
-                WHERE ThreadId=@t AND (@before IS NULL OR CreatedAt < @before)
-                ORDER BY CreatedAt DESC", conn);
+            using var conn = new NpgsqlConnection(_connectionString);
+            var cmd = new NpgsqlCommand(@"
+                SELECT messageid, threadid, userid, content, createdat, isread
+                FROM chatmessages
+                WHERE threadid=@t AND (@before IS NULL OR createdat < @before)
+                ORDER BY createdat DESC
+                LIMIT @take", conn);
             cmd.Parameters.AddWithValue("@take", take);
             cmd.Parameters.AddWithValue("@t", threadId);
             cmd.Parameters.AddWithValue("@before", (object?)before ?? DBNull.Value);
@@ -163,10 +167,10 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<ChatMessageModel> SendMessageAsync(Guid threadId, string userId, string content)
         {
-            using var conn = new SqlConnection(_connectionString);
+            using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
             var msgId = Guid.NewGuid();
-            var cmd = new SqlCommand("INSERT INTO [dbo].[ChatMessages](MessageId,ThreadId,UserId,Content) VALUES(@m,@t,@u,@c)", conn);
+            var cmd = new NpgsqlCommand("INSERT INTO chatmessages(messageid,threadid,userid,content) VALUES(@m,@t,@u,@c)", conn);
             cmd.Parameters.AddWithValue("@m", msgId);
             cmd.Parameters.AddWithValue("@t", threadId);
             cmd.Parameters.AddWithValue("@u", userId);
@@ -186,8 +190,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task MarkReadAsync(Guid threadId, string userId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            var cmd = new SqlCommand("UPDATE [dbo].[ChatParticipants] SET LastReadAt=SYSDATETIME() WHERE ThreadId=@t AND UserId=@u", conn);
+            using var conn = new NpgsqlConnection(_connectionString);
+            var cmd = new NpgsqlCommand("UPDATE chatparticipants SET lastreadat=now() WHERE threadid=@t AND userid=@u", conn);
             cmd.Parameters.AddWithValue("@t", threadId);
             cmd.Parameters.AddWithValue("@u", userId);
             await conn.OpenAsync();

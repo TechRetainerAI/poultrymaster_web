@@ -1,6 +1,7 @@
 using PoultryFarmAPIWeb.Models;
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
+using NpgsqlTypes;
 
 namespace PoultryFarmAPIWeb.Business
 {
@@ -15,11 +16,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<int> Insert(HealthRecordModel model)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spHealth_Insert", conn)
-            {
-                CommandType = CommandType.StoredProcedure
-            };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sphealth_insert(p_userid => @UserId::text, p_farmid => @FarmId::text, p_flockid => @FlockId::int, p_houseid => @HouseId::int, p_itemid => @ItemId::int, p_recorddate => @RecordDate::timestamp, p_vaccination => @Vaccination::text, p_medication => @Medication::text, p_waterconsumption => @WaterConsumption::numeric, p_notes => @Notes::text, p_attachmentimage => @AttachmentImage::bytea, p_attachmentcontenttype => @AttachmentContentType::text)", conn);
 
             cmd.Parameters.AddWithValue("@UserId", model.UserId);
             cmd.Parameters.AddWithValue("@FarmId", (object?)model.FarmId ?? DBNull.Value);
@@ -31,11 +29,11 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Medication", (object?)model.Medication ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@WaterConsumption", (object?)model.WaterConsumption ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Notes", (object?)model.Notes ?? DBNull.Value);
-            cmd.Parameters.Add(new SqlParameter("@AttachmentImage", SqlDbType.VarBinary, -1)
+            cmd.Parameters.Add(new NpgsqlParameter("@AttachmentImage", NpgsqlDbType.Bytea, -1)
             {
                 Value = (object?)model.AttachmentImage ?? DBNull.Value
             });
-            cmd.Parameters.Add(new SqlParameter("@AttachmentContentType", SqlDbType.NVarChar, 64)
+            cmd.Parameters.Add(new NpgsqlParameter("@AttachmentContentType", NpgsqlDbType.Text, 64)
             {
                 Value = (object?)model.AttachmentContentType ?? DBNull.Value
             });
@@ -47,11 +45,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task Update(HealthRecordModel model)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spHealth_Update", conn)
-            {
-                CommandType = CommandType.StoredProcedure
-            };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sphealth_update(p_id => @Id::int, p_userid => @UserId::text, p_farmid => @FarmId::text, p_flockid => @FlockId::int, p_houseid => @HouseId::int, p_itemid => @ItemId::int, p_recorddate => @RecordDate::timestamp, p_vaccination => @Vaccination::text, p_medication => @Medication::text, p_waterconsumption => @WaterConsumption::numeric, p_notes => @Notes::text, p_attachmentimageset => @AttachmentImageSet::boolean, p_attachmentimage => @AttachmentImage::bytea, p_attachmentcontenttype => @AttachmentContentType::text)", conn);
 
             cmd.Parameters.AddWithValue("@Id", model.Id);
             cmd.Parameters.AddWithValue("@UserId", model.UserId);
@@ -64,11 +59,11 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Medication", (object?)model.Medication ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@WaterConsumption", (object?)model.WaterConsumption ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Notes", (object?)model.Notes ?? DBNull.Value);
-            cmd.Parameters.Add(new SqlParameter("@AttachmentImage", SqlDbType.VarBinary, -1)
+            cmd.Parameters.Add(new NpgsqlParameter("@AttachmentImage", NpgsqlDbType.Bytea, -1)
             {
                 Value = (object?)model.AttachmentImage ?? DBNull.Value
             });
-            cmd.Parameters.Add(new SqlParameter("@AttachmentContentType", SqlDbType.NVarChar, 64)
+            cmd.Parameters.Add(new NpgsqlParameter("@AttachmentContentType", NpgsqlDbType.Text, 64)
             {
                 Value = (object?)model.AttachmentContentType ?? DBNull.Value
             });
@@ -80,11 +75,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<HealthRecordModel?> GetById(int id, string userId, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spHealth_GetById", conn)
-            {
-                CommandType = CommandType.StoredProcedure
-            };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sphealth_getbyid(p_id => @Id::int, p_userid => @UserId::text, p_farmid => @FarmId::text)", conn);
 
             cmd.Parameters.AddWithValue("@Id", id);
             cmd.Parameters.AddWithValue("@UserId", userId);
@@ -101,11 +93,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             var list = new List<HealthRecordModel>();
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spHealth_GetAll", conn)
-            {
-                CommandType = CommandType.StoredProcedure
-            };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sphealth_getall(p_userid => @UserId::text, p_farmid => @FarmId::text, p_flockid => @FlockId::int, p_houseid => @HouseId::int, p_itemid => @ItemId::int)", conn);
 
             cmd.Parameters.AddWithValue("@UserId", userId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
@@ -125,11 +114,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task Delete(int id, string userId, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spHealth_Delete", conn)
-            {
-                CommandType = CommandType.StoredProcedure
-            };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sphealth_delete(p_id => @Id::int, p_userid => @UserId::text, p_farmid => @FarmId::text)", conn);
 
             cmd.Parameters.AddWithValue("@Id", id);
             cmd.Parameters.AddWithValue("@UserId", userId);
@@ -141,11 +127,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<(byte[] Body, string ContentType)?> GetAttachment(int id, string userId, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spHealth_GetAttachment", conn)
-            {
-                CommandType = CommandType.StoredProcedure
-            };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sphealth_getattachment(p_id => @Id::int, p_userid => @UserId::text, p_farmid => @FarmId::text)", conn);
 
             cmd.Parameters.AddWithValue("@Id", id);
             cmd.Parameters.AddWithValue("@UserId", userId);
@@ -168,7 +151,7 @@ namespace PoultryFarmAPIWeb.Business
             return (buf, ct);
         }
 
-        private static HealthRecordModel MapHealthRecord(SqlDataReader reader)
+        private static HealthRecordModel MapHealthRecord(NpgsqlDataReader reader)
         {
             var hasOrd = TryGetOrdinal(reader, "HasAttachmentImage", out var hasAttOrd);
             return new HealthRecordModel
@@ -189,7 +172,7 @@ namespace PoultryFarmAPIWeb.Business
             };
         }
 
-        private static bool TryGetOrdinal(SqlDataReader reader, string name, out int ordinal)
+        private static bool TryGetOrdinal(NpgsqlDataReader reader, string name, out int ordinal)
         {
             try
             {

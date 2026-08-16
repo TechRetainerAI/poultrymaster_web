@@ -1,4 +1,4 @@
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PoultryFarmAPIWeb.Business;
@@ -40,13 +40,13 @@ namespace PoultryFarmAPIWeb.Controllers
                 var logs = await _service.GetAllAsync(userId, farmId, status, startDate, endDate, page, pageSize);
                 return Ok(logs);
             }
-            catch (SqlException ex)
+            catch (PostgresException ex)
             {
-                _logger.LogError(ex, "AuditLogs GetAll failed (SQL {Number})", ex.Number);
+                _logger.LogError(ex, "AuditLogs GetAll failed (SQL {SqlState})", ex.SqlState);
                 return StatusCode(500, new
                 {
                     message = "Audit log query failed. Ensure dbo.AuditLogs exists with FarmId (run Migrations/007_AddAuditLogsFarmId.sql). On case-sensitive SQL Server, run 008_RenameLegacyAuditlogsToAuditLogs.sql if needed.",
-                    sqlNumber = ex.Number,
+                    sqlState = ex.SqlState,
                     sqlMessage = ex.Message,
                 });
             }
@@ -70,13 +70,13 @@ namespace PoultryFarmAPIWeb.Controllers
                 var logs = await _service.GetPlatformRecentAsync(take);
                 return Ok(logs);
             }
-            catch (SqlException ex)
+            catch (PostgresException ex)
             {
-                _logger.LogError(ex, "AuditLogs GetPlatform failed (SQL {Number})", ex.Number);
+                _logger.LogError(ex, "AuditLogs GetPlatform failed (SQL {SqlState})", ex.SqlState);
                 return StatusCode(500, new
                 {
                     message = "Platform audit query failed.",
-                    sqlNumber = ex.Number,
+                    sqlState = ex.SqlState,
                     sqlMessage = ex.Message,
                 });
             }
@@ -96,10 +96,10 @@ namespace PoultryFarmAPIWeb.Controllers
                 if (log == null) return NotFound();
                 return Ok(log);
             }
-            catch (SqlException ex)
+            catch (PostgresException ex)
             {
-                _logger.LogError(ex, "AuditLogs GetById failed (SQL {Number})", ex.Number);
-                return StatusCode(500, new { message = "Audit log query failed.", sqlNumber = ex.Number, sqlMessage = ex.Message });
+                _logger.LogError(ex, "AuditLogs GetById failed (SQL {SqlState})", ex.SqlState);
+                return StatusCode(500, new { message = "Audit log query failed.", sqlState = ex.SqlState, sqlMessage = ex.Message });
             }
             catch (InvalidOperationException ex)
             {
@@ -130,10 +130,10 @@ namespace PoultryFarmAPIWeb.Controllers
 
                 return CreatedAtAction(nameof(GetById), new { id }, createdLog);
             }
-            catch (SqlException ex)
+            catch (PostgresException ex)
             {
-                _logger.LogError(ex, "AuditLogs Create failed (SQL {Number})", ex.Number);
-                return StatusCode(500, new { message = "Audit log insert failed.", sqlNumber = ex.Number, sqlMessage = ex.Message });
+                _logger.LogError(ex, "AuditLogs Create failed (SQL {SqlState})", ex.SqlState);
+                return StatusCode(500, new { message = "Audit log insert failed.", sqlState = ex.SqlState, sqlMessage = ex.Message });
             }
             catch (InvalidOperationException ex)
             {
@@ -151,10 +151,10 @@ namespace PoultryFarmAPIWeb.Controllers
                 var (db, count) = await _service.GetDebugInfoAsync();
                 return Ok(new { database = db, rowCount = count });
             }
-            catch (SqlException ex)
+            catch (PostgresException ex)
             {
-                _logger.LogError(ex, "AuditLogs debug failed (SQL {Number})", ex.Number);
-                return StatusCode(500, new { message = "Audit log debug query failed.", sqlNumber = ex.Number, sqlMessage = ex.Message });
+                _logger.LogError(ex, "AuditLogs debug failed (SQL {SqlState})", ex.SqlState);
+                return StatusCode(500, new { message = "Audit log debug query failed.", sqlState = ex.SqlState, sqlMessage = ex.Message });
             }
             catch (InvalidOperationException ex)
             {

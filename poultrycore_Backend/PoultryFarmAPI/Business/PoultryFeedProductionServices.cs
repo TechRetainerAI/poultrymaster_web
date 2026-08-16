@@ -1,6 +1,6 @@
 using System.Data;
 using System.Text.Json;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -27,7 +27,7 @@ namespace PoultryFarmAPIWeb.Business
     {
         private readonly string _cs; public PoultryFeedFormulaService(string cs) => _cs = cs;
 
-        private static PoultryFeedFormulaModel MapHeader(SqlDataReader r) => new()
+        private static PoultryFeedFormulaModel MapHeader(NpgsqlDataReader r) => new()
         {
             PoultryFeedFormulaId = r.Int("PoultryFeedFormulaId"),
             FarmId = r.Str("FarmId"),
@@ -45,7 +45,7 @@ namespace PoultryFarmAPIWeb.Business
             PercentageTotal = r.Has("PercentageTotal") ? r.Dec("PercentageTotal") : 0,
         };
 
-        private static PoultryFeedFormulaLineModel MapLine(SqlDataReader r) => new()
+        private static PoultryFeedFormulaLineModel MapLine(NpgsqlDataReader r) => new()
         {
             PoultryFeedFormulaLineId = r.Int("PoultryFeedFormulaLineId"),
             PoultryFeedFormulaId = r.Int("PoultryFeedFormulaId"),
@@ -65,8 +65,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<PoultryFeedFormulaModel>> GetAllAsync(string farmId)
         {
             var list = new List<PoultryFeedFormulaModel>();
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryFeedFormula_GetAll", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryfeedformula_getall(p_farmid => @FarmId::text)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await c.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();
@@ -76,8 +76,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<PoultryFeedFormulaModel?> GetByIdAsync(string farmId, int id)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryFeedFormula_GetById", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryfeedformula_getbyid_rs1(p_farmid => @FarmId::text, p_poultryfeedformulaid => @PoultryFeedFormulaId::int); SELECT * FROM sppoultryfeedformula_getbyid_rs2(p_farmid => @FarmId::text, p_poultryfeedformulaid => @PoultryFeedFormulaId::int)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@PoultryFeedFormulaId", id);
             await c.OpenAsync();
@@ -92,8 +92,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<int> UpsertAsync(PoultryFeedFormulaUpsertRequest req)
         {
             var linesJson = JsonSerializer.Serialize(req.Lines ?? new(), FeedJson.Camel);
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryFeedFormula_Upsert", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryfeedformula_upsert(p_farmid => @FarmId::text, p_poultryfeedformulaid => @PoultryFeedFormulaId::int, p_formulaname => @FormulaName::text, p_finishedfeeditemid => @FinishedFeedItemId::int, p_defaultoutputunit => @DefaultOutputUnit::text, p_notes => @Notes::text, p_isactive => @IsActive::boolean, p_userid => @UserId::text, p_linesjson => @LinesJson::text)", c);
             cmd.Parameters.AddWithValue("@FarmId", req.FarmId);
             cmd.Parameters.AddWithValue("@PoultryFeedFormulaId", (object?)req.PoultryFeedFormulaId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@FormulaName", req.FormulaName);
@@ -110,8 +110,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task DeleteAsync(string farmId, int id)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryFeedFormula_Delete", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryfeedformula_delete(p_farmid => @FarmId::text, p_poultryfeedformulaid => @PoultryFeedFormulaId::int)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@PoultryFeedFormulaId", id);
             await c.OpenAsync();
@@ -137,7 +137,7 @@ namespace PoultryFarmAPIWeb.Business
     {
         private readonly string _cs; public PoultryFeedProductionBatchService(string cs) => _cs = cs;
 
-        private static PoultryFeedProductionBatchModel MapHeader(SqlDataReader r) => new()
+        private static PoultryFeedProductionBatchModel MapHeader(NpgsqlDataReader r) => new()
         {
             PoultryFeedProductionBatchId = r.Int("PoultryFeedProductionBatchId"),
             FarmId = r.Str("FarmId"),
@@ -166,7 +166,7 @@ namespace PoultryFarmAPIWeb.Business
             ReversalReason = r.StrN("ReversalReason"),
         };
 
-        private static PoultryFeedProductionBatchLineModel MapLine(SqlDataReader r) => new()
+        private static PoultryFeedProductionBatchLineModel MapLine(NpgsqlDataReader r) => new()
         {
             PoultryFeedProductionBatchLineId = r.Int("PoultryFeedProductionBatchLineId"),
             PoultryFeedProductionBatchId = r.Int("PoultryFeedProductionBatchId"),
@@ -197,7 +197,7 @@ namespace PoultryFarmAPIWeb.Business
             Notes = r.StrN("Notes"),
         };
 
-        private static PoultryFeedProductionAdditionalCostModel MapCost(SqlDataReader r) => new()
+        private static PoultryFeedProductionAdditionalCostModel MapCost(NpgsqlDataReader r) => new()
         {
             PoultryFeedProductionAdditionalCostId = r.Int("PoultryFeedProductionAdditionalCostId"),
             PoultryFeedProductionBatchId = r.Int("PoultryFeedProductionBatchId"),
@@ -216,8 +216,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<PoultryFeedProductionBatchModel>> GetAllAsync(string farmId, DateTime? fromDate, DateTime? toDate, string? status)
         {
             var list = new List<PoultryFeedProductionBatchModel>();
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryFeedProductionBatch_GetAll", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryfeedproductionbatch_getall(p_farmid => @FarmId::text, p_fromdate => @FromDate::timestamp, p_todate => @ToDate::timestamp, p_status => @Status::text)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@FromDate", (object?)fromDate ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@ToDate", (object?)toDate ?? DBNull.Value);
@@ -230,8 +230,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<PoultryFeedProductionBatchModel?> GetByIdAsync(string farmId, int id)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryFeedProductionBatch_GetById", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryfeedproductionbatch_getbyid_rs1(p_farmid => @FarmId::text, p_poultryfeedproductionbatchid => @PoultryFeedProductionBatchId::int); SELECT * FROM sppoultryfeedproductionbatch_getbyid_rs2(p_farmid => @FarmId::text, p_poultryfeedproductionbatchid => @PoultryFeedProductionBatchId::int); SELECT * FROM sppoultryfeedproductionbatch_getbyid_rs3(p_farmid => @FarmId::text, p_poultryfeedproductionbatchid => @PoultryFeedProductionBatchId::int)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@PoultryFeedProductionBatchId", id);
             await c.OpenAsync();
@@ -250,8 +250,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             var linesJson = JsonSerializer.Serialize(req.Lines ?? new(), FeedJson.Camel);
             var costsJson = JsonSerializer.Serialize(req.AdditionalCosts ?? new(), FeedJson.Camel);
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryFeedProductionBatch_Save", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryfeedproductionbatch_save(p_farmid => @FarmId::text, p_poultryfeedproductionbatchid => @PoultryFeedProductionBatchId::int, p_batchnumber => @BatchNumber::text, p_productiondate => @ProductionDate::timestamp, p_finishedfeeditemid => @FinishedFeedItemId::int, p_formulaid => @FormulaId::int, p_quantityproduced => @QuantityProduced::numeric, p_outputunit => @OutputUnit::text, p_notes => @Notes::text, p_userid => @UserId::text, p_linesjson => @LinesJson::text, p_costsjson => @CostsJson::text)", c);
             cmd.Parameters.AddWithValue("@FarmId", req.FarmId);
             cmd.Parameters.AddWithValue("@PoultryFeedProductionBatchId", (object?)req.PoultryFeedProductionBatchId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@BatchNumber", (object?)req.BatchNumber ?? DBNull.Value);
@@ -271,8 +271,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task DeleteAsync(string farmId, int id)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryFeedProductionBatch_Delete", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryfeedproductionbatch_delete(p_farmid => @FarmId::text, p_poultryfeedproductionbatchid => @PoultryFeedProductionBatchId::int)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@PoultryFeedProductionBatchId", id);
             await c.OpenAsync();
@@ -281,8 +281,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task PostAsync(string farmId, int id, string? postedBy)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryFeedProductionBatch_Post", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryfeedproductionbatch_post(p_farmid => @FarmId::text, p_poultryfeedproductionbatchid => @PoultryFeedProductionBatchId::int, p_postedby => @PostedBy::text)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@PoultryFeedProductionBatchId", id);
             cmd.Parameters.AddWithValue("@PostedBy", (object?)postedBy ?? DBNull.Value);
@@ -292,8 +292,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task ReverseAsync(string farmId, int id, string? reversedBy, string? reason)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryFeedProductionBatch_Reverse", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryfeedproductionbatch_reverse(p_farmid => @FarmId::text, p_poultryfeedproductionbatchid => @PoultryFeedProductionBatchId::int, p_reversedby => @ReversedBy::text, p_reversalreason => @ReversalReason::text)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@PoultryFeedProductionBatchId", id);
             cmd.Parameters.AddWithValue("@ReversedBy", (object?)reversedBy ?? DBNull.Value);
@@ -305,8 +305,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<PoultryFeedIngredientUsageRow>> GetIngredientUsageReportAsync(string farmId, DateTime? fromDate, DateTime? toDate)
         {
             var list = new List<PoultryFeedIngredientUsageRow>();
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryFeedProductionReport_IngredientUsage", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryfeedproductionreport_ingredientusage(p_farmid => @FarmId::text, p_fromdate => @FromDate::timestamp, p_todate => @ToDate::timestamp)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@FromDate", (object?)fromDate ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@ToDate", (object?)toDate ?? DBNull.Value);
@@ -329,8 +329,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<PoultryFeedTraceabilityRow>> GetTraceabilityAsync(string farmId, int batchId)
         {
             var list = new List<PoultryFeedTraceabilityRow>();
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryFeedProductionReport_Traceability", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryfeedproductionreport_traceability(p_farmid => @FarmId::text, p_poultryfeedproductionbatchid => @PoultryFeedProductionBatchId::int)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@PoultryFeedProductionBatchId", batchId);
             await c.OpenAsync();
@@ -354,8 +354,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<PoultryFeedProductionBatchItemModel>> GetBatchItemsAsync(string farmId)
         {
             var list = new List<PoultryFeedProductionBatchItemModel>();
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryFeedProduction_GetBatchItems", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryfeedproduction_getbatchitems(p_farmid => @FarmId::text)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await c.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();

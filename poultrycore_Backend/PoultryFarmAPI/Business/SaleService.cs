@@ -1,5 +1,5 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 using System;
 using System.Collections.Concurrent;
@@ -19,18 +19,18 @@ namespace PoultryFarmAPIWeb.Business
             _connectionString = connectionString;
         }
 
-        private static async Task<bool> ProcedureHasPaidParameterAsync(SqlConnection conn, string procedureName)
+        private static async Task<bool> ProcedureHasPaidParameterAsync(NpgsqlConnection conn, string procedureName)
         {
             if (SpHasPaidParamCache.TryGetValue(procedureName, out var cached))
                 return cached;
 
-            await using var probe = new SqlCommand(
+            await using var probe = new NpgsqlCommand(
                 @"SELECT 1
-                  FROM sys.parameters p
-                  INNER JOIN sys.procedures pr ON p.object_id = pr.object_id
-                  WHERE SCHEMA_NAME(pr.schema_id) = N'dbo'
-                    AND pr.name = @procName
-                    AND (p.name = N'Paid' OR p.name = N'@Paid')",
+                  FROM pg_proc p
+                  INNER JOIN pg_namespace n ON n.oid = p.pronamespace
+                  WHERE n.nspname = 'public'
+                    AND p.proname = lower(@procName)
+                    AND 'p_paid' = ANY(p.proargnames)",
                 conn);
             probe.Parameters.AddWithValue("@procName", procedureName);
             var scalar = await probe.ExecuteScalarAsync();
@@ -40,18 +40,18 @@ namespace PoultryFarmAPIWeb.Business
         }
 
         /// <summary>Probes whether the stored procedure has @Size (added by migration 018).</summary>
-        private static async Task<bool> ProcedureHasSizeParameterAsync(SqlConnection conn, string procedureName)
+        private static async Task<bool> ProcedureHasSizeParameterAsync(NpgsqlConnection conn, string procedureName)
         {
             if (SpHasSizeParamCache.TryGetValue(procedureName, out var cached))
                 return cached;
 
-            await using var probe = new SqlCommand(
+            await using var probe = new NpgsqlCommand(
                 @"SELECT 1
-                  FROM sys.parameters p
-                  INNER JOIN sys.procedures pr ON p.object_id = pr.object_id
-                  WHERE SCHEMA_NAME(pr.schema_id) = N'dbo'
-                    AND pr.name = @procName
-                    AND (p.name = N'Size' OR p.name = N'@Size')",
+                  FROM pg_proc p
+                  INNER JOIN pg_namespace n ON n.oid = p.pronamespace
+                  WHERE n.nspname = 'public'
+                    AND p.proname = lower(@procName)
+                    AND 'p_size' = ANY(p.proargnames)",
                 conn);
             probe.Parameters.AddWithValue("@procName", procedureName);
             var scalar = await probe.ExecuteScalarAsync();
@@ -60,7 +60,7 @@ namespace PoultryFarmAPIWeb.Business
             return has;
         }
 
-        private static string? GetNullableStringIfPresent(SqlDataReader reader, string columnName)
+        private static string? GetNullableStringIfPresent(NpgsqlDataReader reader, string columnName)
         {
             for (var i = 0; i < reader.FieldCount; i++)
             {
@@ -70,7 +70,7 @@ namespace PoultryFarmAPIWeb.Business
             return null;
         }
 
-        private static bool GetBooleanIfPresent(SqlDataReader reader, string columnName, bool defaultValue = true)
+        private static bool GetBooleanIfPresent(NpgsqlDataReader reader, string columnName, bool defaultValue = true)
         {
             for (var i = 0; i < reader.FieldCount; i++)
             {
@@ -80,7 +80,7 @@ namespace PoultryFarmAPIWeb.Business
             return defaultValue;
         }
 
-        private static int? GetNullableInt32IfPresent(SqlDataReader reader, string columnName)
+        private static int? GetNullableInt32IfPresent(NpgsqlDataReader reader, string columnName)
         {
             for (var i = 0; i < reader.FieldCount; i++)
             {
@@ -90,7 +90,7 @@ namespace PoultryFarmAPIWeb.Business
             return null;
         }
 
-        private static decimal GetDecimalIfPresent(SqlDataReader reader, string columnName, decimal defaultValue = 0m)
+        private static decimal GetDecimalIfPresent(NpgsqlDataReader reader, string columnName, decimal defaultValue = 0m)
         {
             for (var i = 0; i < reader.FieldCount; i++)
             {
@@ -105,8 +105,8 @@ namespace PoultryFarmAPIWeb.Business
         // sale is paid — an unpaid sale records the account but moves no money.
         private async Task SyncSaleCashAsync(string farmId, int saleId, int? cashAccountId, decimal amount, bool paid, string? description, string? createdBy)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spPoultrySaleCash_Sync", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrysalecash_sync(p_farmid => @FarmId::text, p_saleid => @SaleId::int, p_poultrycashaccountid => @PoultryCashAccountId::int, p_amount => @Amount::numeric, p_paid => @Paid::boolean, p_description => @Description::text, p_createdby => @CreatedBy::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@SaleId", saleId);
             cmd.Parameters.AddWithValue("@PoultryCashAccountId", (object?)cashAccountId ?? DBNull.Value);
@@ -122,10 +122,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spSale_Insert", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
-
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("spSale_Insert", conn);
                 cmd.Parameters.AddWithValue("@UserId", model.UserId);
                 cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
                 cmd.Parameters.AddWithValue("@SaleDate", model.SaleDate);
@@ -143,6 +141,9 @@ namespace PoultryFarmAPIWeb.Business
                     cmd.Parameters.AddWithValue("@Paid", model.Paid);
                 if (await ProcedureHasSizeParameterAsync(conn, "spSale_Insert"))
                     cmd.Parameters.AddWithValue("@Size", (object?)model.Size ?? DBNull.Value);
+                // Built after the conditional adds so the call text matches the
+                // parameters actually present.
+                cmd.CommandText = await PgCallText.ForAsync("spSale_Insert", cmd);
                 var result = await cmd.ExecuteScalarAsync();
                 var newId = Convert.ToInt32(result);
                 await SyncSaleCashAsync(model.FarmId, newId, model.PoultryCashAccountId, model.TotalAmount, model.Paid, model.SaleDescription, model.UserId);
@@ -158,10 +159,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spSale_Update", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
-
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("spSale_Update", conn);
                 cmd.Parameters.AddWithValue("@UserId", model.UserId);
                 cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
                 cmd.Parameters.AddWithValue("@SaleId", model.SaleId);
@@ -180,6 +179,7 @@ namespace PoultryFarmAPIWeb.Business
                     cmd.Parameters.AddWithValue("@Paid", model.Paid);
                 if (await ProcedureHasSizeParameterAsync(conn, "spSale_Update"))
                     cmd.Parameters.AddWithValue("@Size", (object?)model.Size ?? DBNull.Value);
+                cmd.CommandText = await PgCallText.ForAsync("spSale_Update", cmd);
                 await cmd.ExecuteNonQueryAsync();
                 conn.Close();
                 await SyncSaleCashAsync(model.FarmId, model.SaleId, model.PoultryCashAccountId, model.TotalAmount, model.Paid, model.SaleDescription, model.UserId);
@@ -194,9 +194,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spSale_GetById", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spsale_getbyid(p_saleid => @SaleId::int, p_farmid => @FarmId::text)", conn);
                 cmd.Parameters.AddWithValue("@SaleId", saleId);
                 //cmd.Parameters.AddWithValue("@UserId", userId);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
@@ -238,9 +237,8 @@ namespace PoultryFarmAPIWeb.Business
             try
             {
                 var list = new List<SaleModel>();
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spSale_GetAll", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spsale_getall(p_farmid => @FarmId::text)", conn);
                 //cmd.Parameters.AddWithValue("@UserId", userId);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
 
@@ -284,9 +282,8 @@ namespace PoultryFarmAPIWeb.Business
                 // Reverse any cash-in this sale posted before removing it.
                 await SyncSaleCashAsync(farmId, saleId, null, 0m, false, null, userId);
 
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spSale_Delete", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spsale_delete(p_saleid => @SaleId::int, p_userid => @UserId::text, p_farmid => @FarmId::text)", conn);
                 cmd.Parameters.AddWithValue("@SaleId", saleId);
                 cmd.Parameters.AddWithValue("@UserId", userId);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
@@ -305,9 +302,8 @@ namespace PoultryFarmAPIWeb.Business
             try
             {
                 var list = new List<SaleModel>();
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spSale_GetByFlock", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spsale_getbyflock(p_flockid => @FlockId::int, p_farmid => @FarmId::text)", conn);
                 cmd.Parameters.AddWithValue("@FlockId", flockId);
                 //cmd.Parameters.AddWithValue("@UserId", userId);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);

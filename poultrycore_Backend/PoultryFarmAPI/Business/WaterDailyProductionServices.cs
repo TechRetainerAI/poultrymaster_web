@@ -1,6 +1,6 @@
 using System.Data;
 using System.Text.Json;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -30,8 +30,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<WaterDailyProductionModel>> GetAllAsync(string farmId, string? status, DateTime? fromDate, DateTime? toDate)
         {
             var list = new List<WaterDailyProductionModel>();
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterDailyProduction_GetAll", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwaterdailyproduction_getall(p_farmid => @FarmId::text, p_status => @Status::text, p_fromdate => @FromDate::date, p_todate => @ToDate::date)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@Status", (object?)status ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@FromDate", (object?)fromDate ?? DBNull.Value);
@@ -44,8 +44,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<WaterDailyProductionModel?> GetByIdAsync(int id, string farmId)
         {
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterDailyProduction_GetById", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwaterdailyproduction_getbyid(p_waterdailyproductionid => @WaterDailyProductionId::int, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@WaterDailyProductionId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await conn.OpenAsync();
@@ -56,8 +56,8 @@ namespace PoultryFarmAPIWeb.Business
         // --------------------------------------------------------------- write
         public async Task<int> InsertAsync(WaterDailyProductionModel m)
         {
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterDailyProduction_Insert", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwaterdailyproduction_insert(p_farmid => @FarmId::text, p_userid => @UserId::text, p_status => @Status::text, p_createdby => @CreatedBy::text, p_machinesjson => @MachinesJson::text, p_materialsjson => @MaterialsJson::text, p_productionnumber => @ProductionNumber::text, p_productiondate => @ProductionDate::date, p_shift => @Shift::text, p_machineselectiontype => @MachineSelectionType::text, p_waterproductid => @WaterProductId::int, p_waterboreholeid => @WaterBoreholeId::int, p_operatorstaffid => @OperatorStaffId::int, p_starttime => @StartTime::timestamp, p_endtime => @EndTime::timestamp, p_bagsproduced => @BagsProduced::int, p_sachetsperbag => @SachetsPerBag::int, p_loosesachetsproduced => @LooseSachetsProduced::int, p_rejectedsachets => @RejectedSachets::int, p_damagedbags => @DamagedBags::int, p_packagingrollsused => @PackagingRollsUsed::int, p_estimatedwaterusedlitres => @EstimatedWaterUsedLitres::int, p_electricitycost => @ElectricityCost::numeric, p_fuelcost => @FuelCost::numeric, p_laborcost => @LaborCost::numeric, p_otherproductioncost => @OtherProductionCost::numeric, p_rawmaterialcost => @RawMaterialCost::numeric, p_qualitystatus => @QualityStatus::text, p_qualityphlevel => @QualityPHLevel::numeric, p_qualitychlorineppm => @QualityChlorinePpm::numeric, p_qualityturbidity => @QualityTurbidity::numeric, p_qualitytds => @QualityTDS::int, p_qualitynotes => @QualityNotes::text, p_notes => @Notes::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@UserId", (object?)m.UserId ?? DBNull.Value);
             AddHeaderParams(cmd, m);
@@ -66,18 +66,19 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@MachinesJson", (object?)BuildMachinesJson(m.Machines) ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@MaterialsJson", (object?)BuildMaterialsJson(m.Materials) ?? DBNull.Value);
 
-            var outId = new SqlParameter("@NewId", SqlDbType.Int) { Direction = ParameterDirection.Output };
-            cmd.Parameters.Add(outId);
-
+            // The PG function returns the new id directly (the T-SQL used an
+            // @NewId OUTPUT parameter). Call text is built from the parameters
+            // actually on the command, since AddHeaderParams adds several.
             await conn.OpenAsync();
-            await cmd.ExecuteNonQueryAsync();
-            return outId.Value == DBNull.Value ? 0 : (int)outId.Value;
+            cmd.CommandText = await PgCallText.ForAsync("spWaterDailyProduction_Insert", cmd);
+            var scalar = await cmd.ExecuteScalarAsync();
+            return scalar is null || scalar == DBNull.Value ? 0 : Convert.ToInt32(scalar);
         }
 
         public async Task UpdateAsync(WaterDailyProductionModel m)
         {
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterDailyProduction_Update", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwaterdailyproduction_update(p_waterdailyproductionid => @WaterDailyProductionId::int, p_farmid => @FarmId::text, p_status => @Status::text, p_updatedby => @UpdatedBy::text, p_machinesjson => @MachinesJson::text, p_materialsjson => @MaterialsJson::text, p_productionnumber => @ProductionNumber::text, p_productiondate => @ProductionDate::date, p_shift => @Shift::text, p_machineselectiontype => @MachineSelectionType::text, p_waterproductid => @WaterProductId::int, p_waterboreholeid => @WaterBoreholeId::int, p_operatorstaffid => @OperatorStaffId::int, p_starttime => @StartTime::timestamp, p_endtime => @EndTime::timestamp, p_bagsproduced => @BagsProduced::int, p_sachetsperbag => @SachetsPerBag::int, p_loosesachetsproduced => @LooseSachetsProduced::int, p_rejectedsachets => @RejectedSachets::int, p_damagedbags => @DamagedBags::int, p_packagingrollsused => @PackagingRollsUsed::int, p_estimatedwaterusedlitres => @EstimatedWaterUsedLitres::int, p_electricitycost => @ElectricityCost::numeric, p_fuelcost => @FuelCost::numeric, p_laborcost => @LaborCost::numeric, p_otherproductioncost => @OtherProductionCost::numeric, p_rawmaterialcost => @RawMaterialCost::numeric, p_qualitystatus => @QualityStatus::text, p_qualityphlevel => @QualityPHLevel::numeric, p_qualitychlorineppm => @QualityChlorinePpm::numeric, p_qualityturbidity => @QualityTurbidity::numeric, p_qualitytds => @QualityTDS::int, p_qualitynotes => @QualityNotes::text, p_notes => @Notes::text)", conn);
             cmd.Parameters.AddWithValue("@WaterDailyProductionId", m.WaterDailyProductionId);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             AddHeaderParams(cmd, m);
@@ -107,8 +108,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task SaveAllocationAsync(int id, string farmId, string? updatedBy, string? status,
                                               List<WaterDailyProductionAllocationModel> allocations)
         {
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterDailyProduction_SaveAllocation", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwaterdailyproduction_saveallocation(p_waterdailyproductionid => @WaterDailyProductionId::int, p_farmid => @FarmId::text, p_allocationsjson => @AllocationsJson::text, p_status => @Status::text, p_updatedby => @UpdatedBy::text)", conn);
             cmd.Parameters.AddWithValue("@WaterDailyProductionId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@AllocationsJson", BuildAllocationsJson(allocations));
@@ -120,16 +121,17 @@ namespace PoultryFarmAPIWeb.Business
 
         private async Task ExecAsync(string sp, int id, string farmId, params (string Name, object? Value)[] extra)
         {
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand(sp, conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("", conn);
             cmd.Parameters.AddWithValue("@WaterDailyProductionId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             foreach (var (name, value) in extra) cmd.Parameters.AddWithValue(name, value ?? DBNull.Value);
             await conn.OpenAsync();
+            cmd.CommandText = await PgCallText.ForAsync(sp, cmd);
             await cmd.ExecuteNonQueryAsync();
         }
 
-        private static void AddHeaderParams(SqlCommand cmd, WaterDailyProductionModel m)
+        private static void AddHeaderParams(NpgsqlCommand cmd, WaterDailyProductionModel m)
         {
             cmd.Parameters.AddWithValue("@ProductionNumber", (object?)m.ProductionNumber ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@ProductionDate", m.ProductionDate.Date);
@@ -232,7 +234,7 @@ namespace PoultryFarmAPIWeb.Business
         }
 
         // ------------------------------------------------------------- mapping
-        private static WaterDailyProductionModel MapHeader(SqlDataReader r)
+        private static WaterDailyProductionModel MapHeader(NpgsqlDataReader r)
         {
             var m = new WaterDailyProductionModel
             {
@@ -305,23 +307,23 @@ namespace PoultryFarmAPIWeb.Business
 
         // Column lookups are tolerant: _GetAll and _GetById return different
         // enrichment columns, and both feed this one mapper.
-        private static int Ord(SqlDataReader r, string n)
+        private static int Ord(NpgsqlDataReader r, string n)
         {
             for (int i = 0; i < r.FieldCount; i++)
                 if (r.GetName(i).Equals(n, StringComparison.OrdinalIgnoreCase)) return i;
             return -1;
         }
-        private static string? GetStr(SqlDataReader r, string n)
+        private static string? GetStr(NpgsqlDataReader r, string n)
         { var i = Ord(r, n); return i < 0 || r.IsDBNull(i) ? null : r.GetValue(i)?.ToString(); }
-        private static int GetInt(SqlDataReader r, string n)
+        private static int GetInt(NpgsqlDataReader r, string n)
         { var i = Ord(r, n); return i < 0 || r.IsDBNull(i) ? 0 : Convert.ToInt32(r.GetValue(i)); }
-        private static int? GetIntN(SqlDataReader r, string n)
+        private static int? GetIntN(NpgsqlDataReader r, string n)
         { var i = Ord(r, n); return i < 0 || r.IsDBNull(i) ? null : Convert.ToInt32(r.GetValue(i)); }
-        private static decimal GetDec(SqlDataReader r, string n)
+        private static decimal GetDec(NpgsqlDataReader r, string n)
         { var i = Ord(r, n); return i < 0 || r.IsDBNull(i) ? 0m : Convert.ToDecimal(r.GetValue(i)); }
-        private static decimal? GetDecN(SqlDataReader r, string n)
+        private static decimal? GetDecN(NpgsqlDataReader r, string n)
         { var i = Ord(r, n); return i < 0 || r.IsDBNull(i) ? null : Convert.ToDecimal(r.GetValue(i)); }
-        private static DateTime? GetDate(SqlDataReader r, string n)
+        private static DateTime? GetDate(NpgsqlDataReader r, string n)
         { var i = Ord(r, n); return i < 0 || r.IsDBNull(i) ? null : Convert.ToDateTime(r.GetValue(i)); }
     }
 }

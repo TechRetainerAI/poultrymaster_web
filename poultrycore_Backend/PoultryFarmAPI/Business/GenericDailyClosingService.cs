@@ -1,5 +1,5 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -12,8 +12,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<GenericDailyClosingModel>> GetAllAsync(string farmId, DateTime? fromDate, DateTime? toDate, string? status, int? branchId)
         {
             var list = new List<GenericDailyClosingModel>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericDailyClosing_GetAll", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericdailyclosing_getall(p_farmid => @FarmId::text, p_fromdate => @FromDate::date, p_todate => @ToDate::date, p_status => @Status::text, p_branchid => @BranchId::int)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@FromDate", (object?)fromDate ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@ToDate",   (object?)toDate   ?? DBNull.Value);
@@ -28,8 +28,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<GenericDailyClosingModel?> GetByIdAsync(int id, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericDailyClosing_GetById", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericdailyclosing_getbyid(p_genericdailyclosingid => @GenericDailyClosingId::int, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@GenericDailyClosingId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
@@ -40,8 +40,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<int> InsertAsync(string farmId, GenericDailyClosingCreateRequest req, string? createdBy)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericDailyClosing_Insert", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericdailyclosing_insert(p_farmid => @FarmId::text, p_closingdate => @ClosingDate::date, p_branchid => @BranchId::int, p_openingcash => @OpeningCash::numeric, p_actualcashcounted => @ActualCashCounted::numeric, p_managernotes => @ManagerNotes::text, p_differencereason => @DifferenceReason::text, p_createdby => @CreatedBy::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@ClosingDate", req.ClosingDate);
             cmd.Parameters.AddWithValue("@BranchId", (object?)req.BranchId ?? DBNull.Value);
@@ -57,8 +57,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<GenericDailyClosingModel?> SubmitAsync(int id, string farmId, GenericDailyClosingSubmitRequest req, string? submittedBy)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericDailyClosing_Submit", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericdailyclosing_submit(p_genericdailyclosingid => @GenericDailyClosingId::int, p_farmid => @FarmId::text, p_actualcashcounted => @ActualCashCounted::numeric, p_managernotes => @ManagerNotes::text, p_differencereason => @DifferenceReason::text, p_submittedby => @SubmittedBy::text)", conn);
             cmd.Parameters.AddWithValue("@GenericDailyClosingId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@ActualCashCounted", (object?)req.ActualCashCounted ?? DBNull.Value);
@@ -73,8 +73,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task ApproveAsync(int id, string farmId, string? approvedBy)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericDailyClosing_Approve", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericdailyclosing_approve(p_genericdailyclosingid => @GenericDailyClosingId::int, p_farmid => @FarmId::text, p_approvedby => @ApprovedBy::text)", conn);
             cmd.Parameters.AddWithValue("@GenericDailyClosingId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@ApprovedBy", (object?)approvedBy ?? DBNull.Value);
@@ -85,8 +85,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task RejectAsync(int id, string farmId, string rejectionReason, string? approvedBy)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericDailyClosing_Reject", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericdailyclosing_reject(p_genericdailyclosingid => @GenericDailyClosingId::int, p_farmid => @FarmId::text, p_rejectionreason => @RejectionReason::text, p_approvedby => @ApprovedBy::text)", conn);
             cmd.Parameters.AddWithValue("@GenericDailyClosingId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@RejectionReason", rejectionReason);
@@ -96,7 +96,7 @@ namespace PoultryFarmAPIWeb.Business
             await cmd.ExecuteNonQueryAsync();
         }
 
-        private static GenericDailyClosingModel ReadClosing(SqlDataReader r) => new()
+        private static GenericDailyClosingModel ReadClosing(NpgsqlDataReader r) => new()
         {
             GenericDailyClosingId     = r.GetInt32(r.GetOrdinal("GenericDailyClosingId")),
             FarmId                    = r.GetString(r.GetOrdinal("FarmId")),
