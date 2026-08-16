@@ -1148,7 +1148,7 @@ namespace PoultryFarmAPIWeb.Business
             var resp = NewResponse<PoultryMedicineUsageReportSummary, PoultryMedicineUsageReportRow>("Poultry Medicine Usage", f, start, end);
 
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = Proc(conn, "spPoultryReport_MedicineUsage");
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_medicineusage(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_flockid => @FlockId::int)", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
@@ -1201,7 +1201,7 @@ namespace PoultryFarmAPIWeb.Business
             var resp = NewResponse<PoultryMissingDailyRecordsReportSummary, PoultryMissingDailyRecordsReportRow>("Poultry Missing Daily Records", f, start, end);
 
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = Proc(conn, "spPoultryReport_MissingDailyRecords");
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_missingdailyrecords_rs1(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_flockid => @FlockId::int); SELECT * FROM sppoultryreport_missingdailyrecords_rs2(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_flockid => @FlockId::int)", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
@@ -1258,7 +1258,7 @@ namespace PoultryFarmAPIWeb.Business
             var resp = NewResponse<PoultryEndOfFlockReportSummary, PoultryEndOfFlockReportRow>("Poultry End-of-Flock", f, start, end);
 
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = Proc(conn, "spPoultryReport_EndOfFlock");
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_endofflock(p_farmid => @FarmId::text, p_enddate => @EndDate::date, p_includeactiveflocks => @IncludeActiveFlocks::boolean, p_flockid => @FlockId::int)", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@EndDate", end);
             cmd.Parameters.Add(PFlock(f));

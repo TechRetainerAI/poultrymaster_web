@@ -1,4 +1,4 @@
-﻿
+
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -433,8 +433,7 @@ namespace User.Management.Data
         //            await connection.OpenAsync();
         //            using (NpgsqlCommand cmd = connection.CreateCommand())
         //            {
-        //                cmd.CommandType = CommandType.StoredProcedure;
-        //                cmd.CommandText = "FindUserByEmail"; // Name of the stored procedure
+        //        //                cmd.CommandText = "FindUserByEmail"; // Name of the stored procedure
 
         //                // Add parameter for email
         //                cmd.Parameters.AddWithValue("@Email", email);
