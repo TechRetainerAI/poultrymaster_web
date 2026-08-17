@@ -332,7 +332,7 @@ export default function PoultryInventoryPage() {
               <Card>
                 <CardContent className="p-0">
                   <div className="flex flex-col gap-2 p-3 border-b bg-slate-50 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0 text-sm text-slate-600">Eggs, birds and packaged products. Stock = SUM(PoultryStockTransactions).</div>
+                    <div className="min-w-0 text-sm text-slate-600">Eggs and packaged products: stock = SUM(PoultryStockTransactions), the same ledger the Egg Tracker balances. Birds: birds left in your flocks.</div>
                     <Button asChild size="sm" variant="outline" className="w-full shrink-0 sm:w-auto">
                       <Link href="/poultry-products"><ExternalLink className="h-4 w-4 mr-1" /> Manage products</Link>
                     </Button>

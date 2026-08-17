@@ -598,6 +598,7 @@ namespace PoultryFarmAPIWeb.Business
             await conn.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();
             long opening = 0, produced = 0, broken = 0, adjustments = 0, openAdj = 0, openSales = 0, salesInRange = 0;
+            long openMoves = 0, movesInRange = 0;
             if (await r.ReadAsync())
             {
                 opening = LongOr(r, "OpeningProducedSaleable");
@@ -607,18 +608,26 @@ namespace PoultryFarmAPIWeb.Business
                 broken = LongOr(r, "BrokenInRange");
                 adjustments = LongOr(r, "AdjustmentsInRange");
                 salesInRange = LongOr(r, "SalesInRange");
+                openMoves = LongOr(r, "OpeningStockMoves");
+                movesInRange = LongOr(r, "StockMovesInRange");
             }
-            var openingStock = Math.Max(0, opening + openAdj - openSales);
-            var saleableProduced = Math.Max(0, produced - broken);
-            // Current stock = opening + saleable production + adjustments − eggs sold in range.
-            var current = Math.Max(0, openingStock + saleableProduced + adjustments - salesInRange);
+            // Stock-ledger moves (driver load-outs, deliveries, Set stock / Reconcile
+            // corrections) count as adjustments here. Without them this report drifted
+            // from /poultry-inventory and /egg-tracker, which both net the same ledger.
+            var netAdjustments = adjustments + movesInRange;
+            var openingStock = Math.Max(0, opening + openAdj + openMoves - openSales);
+            // Losses and adjustments as a single net OUTFLOW, so the row reads
+            // Opening + Produced − Sold − Losses/adj. = Current. "Produced" is the
+            // gross collected count; the losses column carries the deductions.
+            var lossesAdjustments = broken - netAdjustments;
+            var current = Math.Max(0, openingStock + produced - salesInRange - lossesAdjustments);
             resp.Rows.Add(new PoultryEggStockBalanceReportRow
             {
                 ProductGrade = "All eggs (combined)",
                 OpeningStock = openingStock,
-                ProductionAdded = saleableProduced,
+                ProductionAdded = produced,
                 SalesRemoved = salesInRange,
-                LossesAdjustments = broken,
+                LossesAdjustments = lossesAdjustments,
                 CurrentStockEggs = current,
                 CurrentStockCrates = Crates(current),
                 LooseEggs = LooseEggs(current),
@@ -636,7 +645,7 @@ namespace PoultryFarmAPIWeb.Business
                 BrokenRejectedEggs = broken,
                 StockValue = null,
             };
-            resp.Warnings.Add("Egg stock is reported as a single combined balance: egg grades and selling-price valuation are not tracked through to inventory. Eggs sold (sales with an \"egg\" product) are deducted from the balance.");
+            resp.Warnings.Add("Egg stock is reported as a single combined balance: egg grades and selling-price valuation are not tracked through to inventory. \"Produced\" is eggs collected; broken, meaty, soft and lost eggs are deducted in \"Losses/adj.\", along with stock-ledger moves (driver load-outs, deliveries and stock corrections). Eggs sold (sales with an \"egg\" product) are deducted separately.");
             return resp;
         }
 
