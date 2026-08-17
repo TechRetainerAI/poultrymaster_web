@@ -119,6 +119,18 @@ export default function PoultryInventoryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFarmType])
 
+  // Egg stock is counted in individual eggs everywhere (production records count
+  // eggs; the sales form converts crates × 30 + loose into pieces before saving).
+  // Crates are still how the farm thinks, so show the equivalent beside the count
+  // — same 30/crate the Egg Stock Balance report uses.
+  const EGGS_PER_CRATE = 30
+  const crateEquivalent = (eggs: number): string | null => {
+    if (eggs < EGGS_PER_CRATE) return null
+    const crates = Math.floor(eggs / EGGS_PER_CRATE)
+    const loose = eggs % EGGS_PER_CRATE
+    return `${crates.toLocaleString()} crate${crates === 1 ? "" : "s"}${loose ? ` + ${loose}` : ""}`
+  }
+
   // Status helpers.
   const productStatus = (p: PoultryProduct): { label: string; tone: Tone } => {
     if (!p.isActive) return { label: "Inactive", tone: "inactive" }
@@ -360,7 +372,12 @@ export default function PoultryInventoryPage() {
                           { label: "Size", value: p.size ?? "—" },
                           { label: "Unit", value: p.unit ?? "—" },
                           { label: "Unit price", value: gh(p.unitPrice) },
-                          { label: "In stock", value: (p.stockOnHand ?? 0).toLocaleString() },
+                          {
+                            label: "In stock",
+                            value: p.isRawEggProduct && crateEquivalent(p.stockOnHand ?? 0)
+                              ? `${(p.stockOnHand ?? 0).toLocaleString()} (${crateEquivalent(p.stockOnHand ?? 0)})`
+                              : (p.stockOnHand ?? 0).toLocaleString(),
+                          },
                           { label: "Details", value: <DetailLink href={l.href} label={l.label} /> },
                         ]
                       }}
@@ -392,7 +409,12 @@ export default function PoultryInventoryPage() {
                                     <TableCell>{p.size ?? "—"}</TableCell>
                                     <TableCell>{p.unit ?? "—"}</TableCell>
                                     <TableCell className="text-right tabular-nums">{gh(p.unitPrice)}</TableCell>
-                                    <TableCell className="text-right tabular-nums font-semibold">{(p.stockOnHand ?? 0).toLocaleString()}</TableCell>
+                                    <TableCell className="text-right tabular-nums font-semibold">
+                                      {(p.stockOnHand ?? 0).toLocaleString()}
+                                      {p.isRawEggProduct && crateEquivalent(p.stockOnHand ?? 0) && (
+                                        <div className="text-xs font-normal text-slate-500">{crateEquivalent(p.stockOnHand ?? 0)}</div>
+                                      )}
+                                    </TableCell>
                                     <TableCell><ToneBadge tone={st.tone} label={st.label} /></TableCell>
                                     <TableCell><DetailLink href={l.href} label={l.label} /></TableCell>
                                   </TableRow>
