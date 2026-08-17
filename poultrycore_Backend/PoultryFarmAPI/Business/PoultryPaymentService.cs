@@ -1,5 +1,5 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -24,8 +24,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<int> Record(PoultryPaymentModel m)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spPoultryPayment_Record", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrypayment_record(p_farmid => @FarmId::text, p_saleid => @SaleId::int, p_amount => @Amount::numeric, p_paymentmethod => @PaymentMethod::text, p_paymentdate => @PaymentDate::timestamp, p_reference => @Reference::text, p_note => @Note::text, p_createdby => @CreatedBy::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@SaleId", m.SaleId);
             cmd.Parameters.AddWithValue("@Amount", m.Amount);
@@ -42,8 +42,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<PoultryPaymentModel>> GetBySale(int saleId, string farmId)
         {
             var list = new List<PoultryPaymentModel>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spPoultryPayment_GetBySale", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrypayment_getbysale(p_saleid => @SaleId::int, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@SaleId", saleId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
@@ -56,8 +56,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<PoultryPaymentModel>> GetAll(string farmId)
         {
             var list = new List<PoultryPaymentModel>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spPoultryPayment_GetAll", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrypayment_getall(p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
             await conn.OpenAsync();
@@ -66,7 +66,7 @@ namespace PoultryFarmAPIWeb.Business
             return list;
         }
 
-        private static PoultryPaymentModel Read(SqlDataReader r, bool includeCustomerName) => new()
+        private static PoultryPaymentModel Read(NpgsqlDataReader r, bool includeCustomerName) => new()
         {
             PoultryPaymentId = r.GetInt32(r.GetOrdinal("PoultryPaymentId")),
             FarmId           = r.GetString(r.GetOrdinal("FarmId")),

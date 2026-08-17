@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
 using System.Security.Claims;
@@ -60,7 +60,7 @@ namespace PoultryFarmAPIWeb.Controllers
             {
                 return Ok(await _service.GetCatalogAsync());
             }
-            catch (SqlException ex)
+            catch (PostgresException ex)
             {
                 return MissingSchema(ex, "catalog");
             }
@@ -101,7 +101,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
                 return Ok(await _service.GetEffectivePermissionsAsync(targetId, scopeFarmId));
             }
-            catch (SqlException ex)
+            catch (PostgresException ex)
             {
                 return MissingSchema(ex, "effective permissions");
             }
@@ -130,7 +130,7 @@ namespace PoultryFarmAPIWeb.Controllers
                 if (!await MayManageAccess(callerId, farmId)) return Forbid();
                 return Ok(await _service.GetRolesAsync(callerId));
             }
-            catch (SqlException ex)
+            catch (PostgresException ex)
             {
                 return MissingSchema(ex, "roles");
             }
@@ -149,7 +149,7 @@ namespace PoultryFarmAPIWeb.Controllers
                 if (!await MayManageAccess(callerId, farmId)) return Forbid();
                 return Ok(await _service.GetRolePermissionsAsync(roleId));
             }
-            catch (SqlException ex)
+            catch (PostgresException ex)
             {
                 return MissingSchema(ex, "role permissions");
             }
@@ -183,7 +183,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
                 return Ok(await _service.GetUserRolesAsync(targetId, scopeFarmId));
             }
-            catch (SqlException ex)
+            catch (PostgresException ex)
             {
                 return MissingSchema(ex, "user roles");
             }
@@ -212,7 +212,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
                 return Ok(await _service.GetUserOverridesAsync(targetId, scopeFarmId));
             }
-            catch (SqlException ex)
+            catch (PostgresException ex)
             {
                 return HandleSql(ex, "overrides");
             }
@@ -239,7 +239,7 @@ namespace PoultryFarmAPIWeb.Controllers
                 _logger.LogInformation("IAM: {Caller} saved role {RoleId} ({Name}).", callerId, roleId, request.Name);
                 return Ok(new { roleId });
             }
-            catch (SqlException ex)
+            catch (PostgresException ex)
             {
                 return HandleSql(ex, "role save");
             }
@@ -259,7 +259,7 @@ namespace PoultryFarmAPIWeb.Controllers
                 _logger.LogInformation("IAM: {Caller} deleted role {RoleId}.", callerId, roleId);
                 return Ok(new { deleted = true });
             }
-            catch (SqlException ex)
+            catch (PostgresException ex)
             {
                 return HandleSql(ex, "role delete");
             }
@@ -283,7 +283,7 @@ namespace PoultryFarmAPIWeb.Controllers
                 _logger.LogInformation("IAM: {Caller} set {Count} permission(s) on role {RoleId}.", callerId, count, roleId);
                 return Ok(new { grantedCount = count });
             }
-            catch (SqlException ex)
+            catch (PostgresException ex)
             {
                 return HandleSql(ex, "role permissions");
             }
@@ -309,7 +309,7 @@ namespace PoultryFarmAPIWeb.Controllers
                     callerId, request.RoleId, request.UserId, request.FarmId ?? "org-wide");
                 return Ok(new { assigned = true });
             }
-            catch (SqlException ex)
+            catch (PostgresException ex)
             {
                 return HandleSql(ex, "role assignment");
             }
@@ -329,7 +329,7 @@ namespace PoultryFarmAPIWeb.Controllers
                 _logger.LogInformation("IAM: {Caller} revoked assignment {Id}.", callerId, id);
                 return Ok(new { revoked = true });
             }
-            catch (SqlException ex)
+            catch (PostgresException ex)
             {
                 return HandleSql(ex, "role revoke");
             }
@@ -355,7 +355,7 @@ namespace PoultryFarmAPIWeb.Controllers
                     callerId, request.Effect, request.PermissionKey, request.UserId);
                 return Ok(new { saved = true });
             }
-            catch (SqlException ex)
+            catch (PostgresException ex)
             {
                 return HandleSql(ex, "override save");
             }
@@ -375,7 +375,7 @@ namespace PoultryFarmAPIWeb.Controllers
                 _logger.LogInformation("IAM: {Caller} cleared override {Id}.", callerId, id);
                 return Ok(new { cleared = true });
             }
-            catch (SqlException ex)
+            catch (PostgresException ex)
             {
                 return HandleSql(ex, "override clear");
             }
@@ -406,7 +406,7 @@ namespace PoultryFarmAPIWeb.Controllers
 
                 return Ok(await _service.GetSessionsAsync(targetId, includeRevoked));
             }
-            catch (SqlException ex)
+            catch (PostgresException ex)
             {
                 return HandleSql(ex, "sessions");
             }
@@ -436,7 +436,7 @@ namespace PoultryFarmAPIWeb.Controllers
                 _logger.LogInformation("IAM: {Caller} revoked session {Session}.", callerId, sessionId);
                 return Ok(new { revoked = true });
             }
-            catch (SqlException ex)
+            catch (PostgresException ex)
             {
                 return HandleSql(ex, "session revoke");
             }
@@ -467,7 +467,7 @@ namespace PoultryFarmAPIWeb.Controllers
                 _logger.LogWarning("IAM: {Caller} signed {Target} out of every device.", callerId, targetId);
                 return Ok(new { revoked = true });
             }
-            catch (SqlException ex)
+            catch (PostgresException ex)
             {
                 return HandleSql(ex, "sign out everywhere");
             }
@@ -485,7 +485,7 @@ namespace PoultryFarmAPIWeb.Controllers
                 if (!await MayManageAccess(callerId, farmId)) return Forbid();
                 return Ok(await _service.GetPolicyAsync(callerId));
             }
-            catch (SqlException ex)
+            catch (PostgresException ex)
             {
                 return HandleSql(ex, "policy");
             }
@@ -505,7 +505,7 @@ namespace PoultryFarmAPIWeb.Controllers
                 _logger.LogInformation("IAM: {Caller} updated the security policy.", callerId);
                 return Ok(new { saved = true });
             }
-            catch (SqlException ex)
+            catch (PostgresException ex)
             {
                 return HandleSql(ex, "policy save");
             }
@@ -527,7 +527,7 @@ namespace PoultryFarmAPIWeb.Controllers
                 if (!await MayManageAccess(callerId, farmId)) return Forbid();
                 return Ok(await _service.GetAccessAuditAsync(callerId, subjectId, days));
             }
-            catch (SqlException ex)
+            catch (PostgresException ex)
             {
                 return HandleSql(ex, "access audit");
             }
@@ -546,7 +546,7 @@ namespace PoultryFarmAPIWeb.Controllers
                 if (!await MayManageAccess(callerId, farmId)) return Forbid();
                 return Ok(await _service.GetAccessReviewAsync(callerId));
             }
-            catch (SqlException ex)
+            catch (PostgresException ex)
             {
                 return HandleSql(ex, "access review");
             }
@@ -570,7 +570,7 @@ namespace PoultryFarmAPIWeb.Controllers
                     "IAM: {Caller} reviewed {Target} as {Decision}.", callerId, request.UserId, request.Decision);
                 return Ok(new { recorded = true });
             }
-            catch (SqlException ex)
+            catch (PostgresException ex)
             {
                 return HandleSql(ex, "access review");
             }
@@ -589,9 +589,12 @@ namespace PoultryFarmAPIWeb.Controllers
         // being edited, a role still assigned to someone. Those are the admin's
         // problem to fix, so the message goes back as a 400 rather than being
         // flattened into a 500 alongside genuine schema failures.
-        private ActionResult HandleSql(SqlException ex, string what)
+        private ActionResult HandleSql(PostgresException ex, string what)
         {
-            if (ex.Class == 16)
+            // T-SQL raised these with RAISERROR severity 16; the converted
+            // functions use RAISE EXCEPTION, which PostgreSQL reports as
+            // SQLSTATE P0001 (raise_exception). Anything else is a real fault.
+            if (ex.SqlState == "P0001")
             {
                 _logger.LogInformation("IAM {What} rejected: {Message}", what, ex.Message);
                 return BadRequest(new { message = ex.Message });
@@ -602,13 +605,13 @@ namespace PoultryFarmAPIWeb.Controllers
         // A farm that has not had 199 applied yet should say so plainly rather
         // than surfacing a raw SQL error — this API is called on every page load
         // once the frontend shim is wired in.
-        private ActionResult MissingSchema(SqlException ex, string what)
+        private ActionResult MissingSchema(PostgresException ex, string what)
         {
-            _logger.LogError(ex, "IAM {What} query failed (SQL {Number})", what, ex.Number);
+            _logger.LogError(ex, "IAM {What} query failed (SQL {SqlState})", what, ex.SqlState);
             return StatusCode(500, new
             {
                 message = $"IAM {what} unavailable. Apply Migrations/199_IamFoundation.sql.",
-                sqlNumber = ex.Number,
+                sqlState = ex.SqlState,
                 sqlMessage = ex.Message,
             });
         }

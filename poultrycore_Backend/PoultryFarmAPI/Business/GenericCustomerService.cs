@@ -1,5 +1,5 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -15,8 +15,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<GenericCustomerModel>> GetAllAsync(string farmId)
         {
             var list = new List<GenericCustomerModel>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericCustomer_GetAll", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericcustomer_getall(p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
             await conn.OpenAsync();
@@ -27,8 +27,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<GenericCustomerModel?> GetByIdAsync(int id, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericCustomer_GetById", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericcustomer_getbyid(p_genericcustomerid => @GenericCustomerId::int, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@GenericCustomerId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
@@ -39,8 +39,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<int> InsertAsync(GenericCustomerModel m)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericCustomer_Insert", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericcustomer_insert(p_farmid => @FarmId::text, p_customername => @CustomerName::text, p_customertype => @CustomerType::text, p_phonenumber => @PhoneNumber::text, p_email => @Email::text, p_location => @Location::text, p_address => @Address::text, p_creditlimit => @CreditLimit::numeric, p_paymenttermsdays => @PaymentTermsDays::int, p_openingbalance => @OpeningBalance::numeric, p_assignedstaffid => @AssignedStaffId::int, p_isactive => @IsActive::boolean, p_notes => @Notes::text, p_createdby => @CreatedBy::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@CustomerName", m.CustomerName);
             cmd.Parameters.AddWithValue("@CustomerType", m.CustomerType);
@@ -62,8 +62,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task UpdateAsync(GenericCustomerModel m)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericCustomer_Update", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericcustomer_update(p_genericcustomerid => @GenericCustomerId::int, p_farmid => @FarmId::text, p_customername => @CustomerName::text, p_customertype => @CustomerType::text, p_phonenumber => @PhoneNumber::text, p_email => @Email::text, p_location => @Location::text, p_address => @Address::text, p_creditlimit => @CreditLimit::numeric, p_paymenttermsdays => @PaymentTermsDays::int, p_assignedstaffid => @AssignedStaffId::int, p_isactive => @IsActive::boolean, p_notes => @Notes::text)", conn);
             cmd.Parameters.AddWithValue("@GenericCustomerId", m.GenericCustomerId);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@CustomerName", m.CustomerName);
@@ -84,8 +84,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task DeleteAsync(int id, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericCustomer_Delete", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericcustomer_delete(p_genericcustomerid => @GenericCustomerId::int, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@GenericCustomerId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
@@ -96,8 +96,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<GenericCustomerOwingRowModel>> GetOwingMoneyAsync(string farmId)
         {
             var list = new List<GenericCustomerOwingRowModel>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericCustomer_GetOwingMoney", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericcustomer_getowingmoney(p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
             await conn.OpenAsync();
@@ -125,8 +125,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<GenericCustomerLedgerEntryModel>> GetLedgerAsync(int customerId, string farmId)
         {
             var list = new List<GenericCustomerLedgerEntryModel>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericCustomerLedger_GetForCustomer", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericcustomerledger_getforcustomer(p_genericcustomerid => @GenericCustomerId::int, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@GenericCustomerId", customerId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
@@ -160,8 +160,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<GenericCustomerPaymentModel>> GetPaymentsAsync(string farmId, string? status)
         {
             var list = new List<GenericCustomerPaymentModel>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericCustomerPayment_GetAll", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericcustomerpayment_getall(p_farmid => @FarmId::text, p_status => @Status::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@Status", (object?)status ?? DBNull.Value);
 
@@ -173,8 +173,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<GenericCustomerPaymentModel?> GetPaymentByIdAsync(int id, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericCustomerPayment_GetById", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericcustomerpayment_getbyid(p_genericcustomerpaymentid => @GenericCustomerPaymentId::int, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@GenericCustomerPaymentId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
@@ -185,8 +185,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<int> InsertPaymentAsync(GenericCustomerPaymentModel m)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericCustomerPayment_Insert", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericcustomerpayment_insert(p_farmid => @FarmId::text, p_genericcustomerid => @GenericCustomerId::int, p_amount => @Amount::numeric, p_paymentmethod => @PaymentMethod::text, p_genericcashaccountid => @GenericCashAccountId::int, p_receivedbystaffid => @ReceivedByStaffId::int, p_linkedsaleid => @LinkedSaleId::int, p_paymentdate => @PaymentDate::timestamp, p_notes => @Notes::text, p_createdby => @CreatedBy::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@GenericCustomerId", m.GenericCustomerId);
             cmd.Parameters.AddWithValue("@Amount", m.Amount);
@@ -205,8 +205,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task ApprovePaymentAsync(int id, string farmId, string? approvedBy)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericCustomerPayment_Approve", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericcustomerpayment_approve(p_genericcustomerpaymentid => @GenericCustomerPaymentId::int, p_farmid => @FarmId::text, p_approvedby => @ApprovedBy::text)", conn);
             cmd.Parameters.AddWithValue("@GenericCustomerPaymentId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@ApprovedBy", (object?)approvedBy ?? DBNull.Value);
@@ -217,8 +217,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task CancelPaymentAsync(int id, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericCustomerPayment_Cancel", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericcustomerpayment_cancel(p_genericcustomerpaymentid => @GenericCustomerPaymentId::int, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@GenericCustomerPaymentId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
@@ -229,7 +229,7 @@ namespace PoultryFarmAPIWeb.Business
         // ====================================================================
         // Helpers
         // ====================================================================
-        private static GenericCustomerModel ReadCustomer(SqlDataReader r) => new()
+        private static GenericCustomerModel ReadCustomer(NpgsqlDataReader r) => new()
         {
             GenericCustomerId = r.GetInt32(r.GetOrdinal("GenericCustomerId")),
             FarmId            = r.GetString(r.GetOrdinal("FarmId")),
@@ -251,7 +251,7 @@ namespace PoultryFarmAPIWeb.Business
             UpdatedAt         = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
         };
 
-        private static GenericCustomerPaymentModel ReadPayment(SqlDataReader r) => new()
+        private static GenericCustomerPaymentModel ReadPayment(NpgsqlDataReader r) => new()
         {
             GenericCustomerPaymentId = r.GetInt32(r.GetOrdinal("GenericCustomerPaymentId")),
             FarmId                   = r.GetString(r.GetOrdinal("FarmId")),

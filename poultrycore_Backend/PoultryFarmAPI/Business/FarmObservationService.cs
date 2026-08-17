@@ -1,5 +1,5 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -17,7 +17,7 @@ namespace PoultryFarmAPIWeb.Business
             _connectionString = connectionString;
         }
 
-        private static FarmObservationModel Read(SqlDataReader r) => new()
+        private static FarmObservationModel Read(NpgsqlDataReader r) => new()
         {
             Id = r.GetInt32(r.GetOrdinal("Id")),
             FarmId = r.GetString(r.GetOrdinal("FarmId")),
@@ -30,8 +30,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<FarmObservationModel?> GetByWeek(string farmId, DateTime weekStartDate)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spFarmObservation_GetByWeek", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spfarmobservation_getbyweek(p_farmid => @FarmId::text, p_weekstartdate => @WeekStartDate::date)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@WeekStartDate", weekStartDate.Date);
 
@@ -43,8 +43,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<FarmObservationModel>> GetAll(string farmId)
         {
             var list = new List<FarmObservationModel>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spFarmObservation_GetAll", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spfarmobservation_getall(p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
             await conn.OpenAsync();
@@ -55,8 +55,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<FarmObservationModel?> Upsert(FarmObservationModel model)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spFarmObservation_Upsert", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spfarmobservation_upsert(p_farmid => @FarmId::text, p_userid => @UserId::text, p_weekstartdate => @WeekStartDate::date, p_notes => @Notes::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
             cmd.Parameters.AddWithValue("@UserId", (object?)model.UserId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@WeekStartDate", model.WeekStartDate.Date);

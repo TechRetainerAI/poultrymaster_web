@@ -1,11 +1,11 @@
 // Poultry Staff + Attendance + Payroll services (port of the Water W6 module).
-// Same SqlConnection + SP pattern as PoultryCashServices.cs. Payroll item CRUD
+// Same NpgsqlConnection + SP pattern as PoultryCashServices.cs. Payroll item CRUD
 // goes through spPoultryPayrollItem_Upsert so adding/changing a line rolls run
 // totals atomically. The approve/mark-paid/reverse SPs handle the linked expense
 // (dbo.Expense) and cash side-effects inside SQL Server.
 
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -30,8 +30,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<PoultryStaffModel>> GetAllAsync(string farmId, string? role)
         {
             var list = new List<PoultryStaffModel>();
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryStaff_GetAll", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrystaff_getall(p_farmid => @FarmId::text, p_role => @Role::text)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@Role", (object?)role ?? DBNull.Value);
             await c.OpenAsync();
@@ -42,8 +42,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<PoultryStaffModel?> GetByIdAsync(int id, string farmId)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryStaff_GetById", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrystaff_getbyid(p_poultrystaffid => @PoultryStaffId::int, p_farmid => @FarmId::text)", c);
             cmd.Parameters.AddWithValue("@PoultryStaffId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await c.OpenAsync();
@@ -53,8 +53,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<int> InsertAsync(PoultryStaffModel m)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryStaff_Insert", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrystaff_insert(p_farmid => @FarmId::text, p_firstname => @FirstName::text, p_lastname => @LastName::text, p_phonenumber => @PhoneNumber::text, p_email => @Email::text, p_role => @Role::text, p_salarytype => @SalaryType::text, p_basepay => @BasePay::numeric, p_commissionrate => @CommissionRate::numeric, p_isactive => @IsActive::boolean, p_notes => @Notes::text)", c);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@FirstName", m.FirstName);
             cmd.Parameters.AddWithValue("@LastName",  m.LastName);
@@ -72,8 +72,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task UpdateAsync(PoultryStaffModel m)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryStaff_Update", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrystaff_update(p_poultrystaffid => @PoultryStaffId::int, p_farmid => @FarmId::text, p_firstname => @FirstName::text, p_lastname => @LastName::text, p_phonenumber => @PhoneNumber::text, p_email => @Email::text, p_role => @Role::text, p_salarytype => @SalaryType::text, p_basepay => @BasePay::numeric, p_commissionrate => @CommissionRate::numeric, p_isactive => @IsActive::boolean, p_notes => @Notes::text)", c);
             cmd.Parameters.AddWithValue("@PoultryStaffId", m.PoultryStaffId);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@FirstName", m.FirstName);
@@ -92,15 +92,15 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task DeleteAsync(int id, string farmId)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryStaff_Delete", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrystaff_delete(p_poultrystaffid => @PoultryStaffId::int, p_farmid => @FarmId::text)", c);
             cmd.Parameters.AddWithValue("@PoultryStaffId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await c.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
         }
 
-        private static PoultryStaffModel Read(SqlDataReader r) => new()
+        private static PoultryStaffModel Read(NpgsqlDataReader r) => new()
         {
             PoultryStaffId = r.GetInt32(r.GetOrdinal("PoultryStaffId")),
             FarmId         = r.GetString(r.GetOrdinal("FarmId")),
@@ -138,8 +138,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<PoultryStaffAttendanceModel>> GetAllAsync(string farmId, int? staffId, DateTime? fromDate, DateTime? toDate)
         {
             var list = new List<PoultryStaffAttendanceModel>();
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryStaffAttendance_GetAll", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrystaffattendance_getall(p_farmid => @FarmId::text, p_poultrystaffid => @PoultryStaffId::int, p_fromdate => @FromDate::date, p_todate => @ToDate::date)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@PoultryStaffId", (object?)staffId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@FromDate",       (object?)fromDate ?? DBNull.Value);
@@ -152,8 +152,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<PoultryStaffAttendanceModel?> UpsertAsync(string farmId, PoultryStaffAttendanceUpsertRequest req, string? createdBy)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryStaffAttendance_Upsert", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrystaffattendance_upsert(p_farmid => @FarmId::text, p_poultrystaffid => @PoultryStaffId::int, p_attendancedate => @AttendanceDate::date, p_shift => @Shift::text, p_clockin => @ClockIn::timestamp, p_clockout => @ClockOut::timestamp, p_status => @Status::text, p_notes => @Notes::text, p_createdby => @CreatedBy::text)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@PoultryStaffId", req.PoultryStaffId);
             cmd.Parameters.AddWithValue("@AttendanceDate", req.AttendanceDate.Date);
@@ -170,15 +170,15 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task DeleteAsync(int id, string farmId)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryStaffAttendance_Delete", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrystaffattendance_delete(p_poultrystaffattendanceid => @PoultryStaffAttendanceId::int, p_farmid => @FarmId::text)", c);
             cmd.Parameters.AddWithValue("@PoultryStaffAttendanceId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await c.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
         }
 
-        private static PoultryStaffAttendanceModel Read(SqlDataReader r)
+        private static PoultryStaffAttendanceModel Read(NpgsqlDataReader r)
         {
             var m = new PoultryStaffAttendanceModel
             {
@@ -232,8 +232,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<PoultryPayrollRunModel>> GetRunsAsync(string farmId, string? status)
         {
             var list = new List<PoultryPayrollRunModel>();
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryPayrollRun_GetAll", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrypayrollrun_getall(p_farmid => @FarmId::text, p_status => @Status::text)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@Status", (object?)status ?? DBNull.Value);
             await c.OpenAsync();
@@ -244,8 +244,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<PoultryPayrollRunModel?> GetRunAsync(int id, string farmId)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryPayrollRun_GetById", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrypayrollrun_getbyid_rs1(p_poultrypayrollrunid => @PoultryPayrollRunId::int, p_farmid => @FarmId::text); SELECT * FROM sppoultrypayrollrun_getbyid_rs2(p_poultrypayrollrunid => @PoultryPayrollRunId::int, p_farmid => @FarmId::text)", c);
             cmd.Parameters.AddWithValue("@PoultryPayrollRunId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await c.OpenAsync();
@@ -263,8 +263,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<int> CreateRunAsync(PoultryPayrollRunCreateRequest req, string? createdBy)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryPayrollRun_Insert", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrypayrollrun_insert(p_farmid => @FarmId::text, p_periodstart => @PeriodStart::date, p_periodend => @PeriodEnd::date, p_paydate => @PayDate::date, p_poultrycashaccountid => @PoultryCashAccountId::int, p_notes => @Notes::text, p_createdby => @CreatedBy::text)", c);
             cmd.Parameters.AddWithValue("@FarmId", req.FarmId);
             cmd.Parameters.AddWithValue("@PeriodStart", req.PeriodStart.Date);
             cmd.Parameters.AddWithValue("@PeriodEnd",   req.PeriodEnd.Date);
@@ -278,8 +278,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<PoultryPayrollItemModel?> UpsertItemAsync(int runId, string farmId, PoultryPayrollItemUpsertRequest req)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryPayrollItem_Upsert", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrypayrollitem_upsert(p_poultrypayrollrunid => @PoultryPayrollRunId::int, p_farmid => @FarmId::text, p_poultrystaffid => @PoultryStaffId::int, p_basicpay => @BasicPay::numeric, p_dailywage => @DailyWage::numeric, p_commission => @Commission::numeric, p_bonus => @Bonus::numeric, p_deductions => @Deductions::numeric, p_paymentmethod => @PaymentMethod::text, p_notes => @Notes::text)", c);
             cmd.Parameters.AddWithValue("@PoultryPayrollRunId", runId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@PoultryStaffId", req.PoultryStaffId);
@@ -297,8 +297,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task DeleteItemAsync(int itemId, string farmId)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryPayrollItem_Delete", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrypayrollitem_delete(p_poultrypayrollitemid => @PoultryPayrollItemId::int, p_farmid => @FarmId::text)", c);
             cmd.Parameters.AddWithValue("@PoultryPayrollItemId", itemId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await c.OpenAsync();
@@ -307,8 +307,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task ApproveAsync(int runId, string farmId, string? approvedBy)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryPayrollRun_Approve", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrypayrollrun_approve(p_poultrypayrollrunid => @PoultryPayrollRunId::int, p_farmid => @FarmId::text, p_approvedby => @ApprovedBy::text)", c);
             cmd.Parameters.AddWithValue("@PoultryPayrollRunId", runId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@ApprovedBy", (object?)approvedBy ?? DBNull.Value);
@@ -318,8 +318,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task MarkPaidAsync(int runId, string farmId, string? paidBy, DateTime? payDate)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryPayrollRun_MarkPaid", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrypayrollrun_markpaid(p_poultrypayrollrunid => @PoultryPayrollRunId::int, p_farmid => @FarmId::text, p_paidby => @PaidBy::text, p_paydate => @PayDate::date)", c);
             cmd.Parameters.AddWithValue("@PoultryPayrollRunId", runId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@PaidBy",  (object?)paidBy        ?? DBNull.Value);
@@ -330,8 +330,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task CancelAsync(int runId, string farmId, string? cancelledBy, string? reason)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryPayrollRun_Cancel", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrypayrollrun_cancel(p_poultrypayrollrunid => @PoultryPayrollRunId::int, p_farmid => @FarmId::text, p_cancelledby => @CancelledBy::text, p_reason => @Reason::text)", c);
             cmd.Parameters.AddWithValue("@PoultryPayrollRunId", runId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@CancelledBy", (object?)cancelledBy ?? DBNull.Value);
@@ -342,8 +342,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task UnapproveAsync(int runId, string farmId, string? reopenedBy, string? reason)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryPayrollRun_Unapprove", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrypayrollrun_unapprove(p_poultrypayrollrunid => @PoultryPayrollRunId::int, p_farmid => @FarmId::text, p_reopenedby => @ReopenedBy::text, p_reason => @Reason::text)", c);
             cmd.Parameters.AddWithValue("@PoultryPayrollRunId", runId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@ReopenedBy", (object?)reopenedBy ?? DBNull.Value);
@@ -354,8 +354,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task DeleteRunAsync(int runId, string farmId, string? deletedBy)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryPayrollRun_Delete", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrypayrollrun_delete(p_poultrypayrollrunid => @PoultryPayrollRunId::int, p_farmid => @FarmId::text, p_deletedby => @DeletedBy::text)", c);
             cmd.Parameters.AddWithValue("@PoultryPayrollRunId", runId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@DeletedBy", (object?)deletedBy ?? DBNull.Value);
@@ -365,8 +365,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<PoultryPayrollRunDetailsModel?> GetDetailsWithYtdAsync(int runId, string farmId)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryPayrollRun_GetDetailsWithYtd", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrypayrollrun_getdetailswithytd_rs1(p_poultrypayrollrunid => @PoultryPayrollRunId::int, p_farmid => @FarmId::text); SELECT * FROM sppoultrypayrollrun_getdetailswithytd_rs2(p_poultrypayrollrunid => @PoultryPayrollRunId::int, p_farmid => @FarmId::text); SELECT * FROM sppoultrypayrollrun_getdetailswithytd_rs3(p_poultrypayrollrunid => @PoultryPayrollRunId::int, p_farmid => @FarmId::text); SELECT * FROM sppoultrypayrollrun_getdetailswithytd_rs4(p_poultrypayrollrunid => @PoultryPayrollRunId::int, p_farmid => @FarmId::text); SELECT * FROM sppoultrypayrollrun_getdetailswithytd_rs5(p_poultrypayrollrunid => @PoultryPayrollRunId::int, p_farmid => @FarmId::text)", c);
             cmd.Parameters.AddWithValue("@PoultryPayrollRunId", runId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await c.OpenAsync();
@@ -435,7 +435,7 @@ namespace PoultryFarmAPIWeb.Business
         }
 
         // ----- Readers
-        private static bool HasCol(SqlDataReader r, string name)
+        private static bool HasCol(NpgsqlDataReader r, string name)
         {
             for (int i = 0; i < r.FieldCount; i++)
                 if (string.Equals(r.GetName(i), name, StringComparison.OrdinalIgnoreCase))
@@ -443,7 +443,7 @@ namespace PoultryFarmAPIWeb.Business
             return false;
         }
 
-        private static PoultryPayrollRunModel ReadRun(SqlDataReader r) => new()
+        private static PoultryPayrollRunModel ReadRun(NpgsqlDataReader r) => new()
         {
             PoultryPayrollRunId  = r.GetInt32(r.GetOrdinal("PoultryPayrollRunId")),
             FarmId               = r.GetString(r.GetOrdinal("FarmId")),
@@ -471,7 +471,7 @@ namespace PoultryFarmAPIWeb.Business
             UpdatedAt            = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
         };
 
-        private static PoultryPayrollItemModel ReadItem(SqlDataReader r)
+        private static PoultryPayrollItemModel ReadItem(NpgsqlDataReader r)
         {
             var m = new PoultryPayrollItemModel
             {

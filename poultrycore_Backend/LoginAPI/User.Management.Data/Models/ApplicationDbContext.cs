@@ -16,6 +16,36 @@ namespace User.Management.Data.Models
             SeedRoles(builder);
 
             builder.ApplyConfiguration(new ApplicationUserEntityConfiguration());
+
+            // The migrated PostgreSQL schema uses unquoted (therefore lowercase)
+            // identifiers: aspnetusers, normalizedusername, and so on. EF always
+            // quotes the names it is given, so anything left in CamelCase would
+            // produce relation "AspNetUsers" does not exist. IdentityDbContext
+            // pins its table names with ToTable("AspNetUsers"), which a naming
+            // convention will not override — hence this explicit pass, applied
+            // last so it wins over both Identity and our own configuration.
+            foreach (var entity in builder.Model.GetEntityTypes())
+            {
+                var table = entity.GetTableName();
+                if (table is not null)
+                    entity.SetTableName(table.ToLowerInvariant());
+
+                foreach (var property in entity.GetProperties())
+                {
+                    var column = property.GetColumnName();
+                    if (column is not null)
+                        property.SetColumnName(column.ToLowerInvariant());
+                }
+
+                foreach (var key in entity.GetKeys())
+                    key.SetName(key.GetName()?.ToLowerInvariant());
+
+                foreach (var fk in entity.GetForeignKeys())
+                    fk.SetConstraintName(fk.GetConstraintName()?.ToLowerInvariant());
+
+                foreach (var index in entity.GetIndexes())
+                    index.SetDatabaseName(index.GetDatabaseName()?.ToLowerInvariant());
+            }
         }
 
         private static void SeedRoles(ModelBuilder builder)
@@ -38,8 +68,9 @@ namespace User.Management.Data.Models
                 builder.Property(x => x.PhoneNumber).HasMaxLength(255);
                 builder.Property(x => x.CustomerId).HasMaxLength(255);
                 builder.Property(x => x.AdminTitle).HasMaxLength(100);
-                builder.Property(x => x.IsSubscriber).HasColumnType("BIT");
-                builder.Property(x => x.IsAdmin).HasColumnType("BIT");
+                // bool maps to PostgreSQL boolean natively (was HasColumnType("BIT") on SQL Server)
+                builder.Property(x => x.IsSubscriber);
+                builder.Property(x => x.IsAdmin);
             }
         }
     }

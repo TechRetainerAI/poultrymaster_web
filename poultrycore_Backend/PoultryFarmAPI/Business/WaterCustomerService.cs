@@ -1,5 +1,5 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -15,8 +15,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<int> Insert(WaterCustomerModel m)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spWaterCustomer_Insert", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatercustomer_insert(p_farmid => @FarmId::text, p_name => @Name::text, p_contactphone => @ContactPhone::text, p_contactemail => @ContactEmail::text, p_address => @Address::text, p_city => @City::text, p_notes => @Notes::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@Name", m.Name);
             cmd.Parameters.AddWithValue("@ContactPhone", (object?)m.ContactPhone ?? DBNull.Value);
@@ -31,8 +31,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task Update(WaterCustomerModel m)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spWaterCustomer_Update", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatercustomer_update(p_watercustomerid => @WaterCustomerId::int, p_farmid => @FarmId::text, p_name => @Name::text, p_contactphone => @ContactPhone::text, p_contactemail => @ContactEmail::text, p_address => @Address::text, p_city => @City::text, p_notes => @Notes::text)", conn);
             cmd.Parameters.AddWithValue("@WaterCustomerId", m.WaterCustomerId);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@Name", m.Name);
@@ -48,8 +48,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<WaterCustomerModel?> GetById(int id, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spWaterCustomer_GetById", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatercustomer_getbyid(p_watercustomerid => @WaterCustomerId::int, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@WaterCustomerId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
@@ -62,8 +62,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<WaterCustomerModel>> GetAll(string farmId)
         {
             var list = new List<WaterCustomerModel>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spWaterCustomer_GetAll", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatercustomer_getall(p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
             await conn.OpenAsync();
@@ -74,8 +74,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task Delete(int id, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spWaterCustomer_Delete", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatercustomer_delete(p_watercustomerid => @WaterCustomerId::int, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@WaterCustomerId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await conn.OpenAsync();
@@ -86,8 +86,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<WaterDefaultCustomerResult>> CreateDefaultsAsync(string farmId)
         {
             var list = new List<WaterDefaultCustomerResult>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spWaterCustomer_CreateDefaults", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatercustomer_createdefaults(p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await conn.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();
@@ -106,8 +106,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<WaterCustomerModel?> GetDefaultAsync(string farmId, string defaultCustomerType)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spWaterCustomer_GetDefault", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatercustomer_getdefault(p_farmid => @FarmId::text, p_defaultcustomertype => @DefaultCustomerType::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@DefaultCustomerType", defaultCustomerType);
             await conn.OpenAsync();
@@ -126,7 +126,7 @@ namespace PoultryFarmAPIWeb.Business
             };
         }
 
-        private static WaterCustomerModel Read(SqlDataReader r, bool includeOutstanding) => new()
+        private static WaterCustomerModel Read(NpgsqlDataReader r, bool includeOutstanding) => new()
         {
             WaterCustomerId    = r.GetInt32(r.GetOrdinal("WaterCustomerId")),
             FarmId             = r.GetString(r.GetOrdinal("FarmId")),
@@ -148,7 +148,7 @@ namespace PoultryFarmAPIWeb.Business
             IsActive            = !HasColumn(r, "IsActive") || r.GetBoolean(r.GetOrdinal("IsActive")),
         };
 
-        private static bool HasColumn(SqlDataReader r, string name)
+        private static bool HasColumn(NpgsqlDataReader r, string name)
         {
             for (int i = 0; i < r.FieldCount; i++)
                 if (r.GetName(i).Equals(name, StringComparison.OrdinalIgnoreCase)) return true;

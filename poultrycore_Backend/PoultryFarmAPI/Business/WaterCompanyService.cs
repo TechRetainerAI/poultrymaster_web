@@ -1,5 +1,5 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -18,8 +18,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<WaterCompanyProfileModel?> GetProfileAsync(string farmId)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterCompany_GetProfile", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatercompany_getprofile(p_farmid => @FarmId::text)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await c.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();
@@ -28,8 +28,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<WaterCompanyProfileModel?> SetupAsync(WaterCompanySetupRequest req)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterCompany_Setup", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatercompany_setup_rs1(p_farmid => @FarmId::text, p_brandname => @BrandName::text, p_businesstype => @BusinessType::text, p_productionsiteaddress => @ProductionSiteAddress::text, p_mainlocation => @MainLocation::text, p_watersourcetype => @WaterSourceType::text, p_defaultcurrency => @DefaultCurrency::text, p_defaultbagsachetcount => @DefaultBagSachetCount::int, p_ownername => @OwnerName::text, p_phonenumber => @PhoneNumber::text, p_notes => @Notes::text)", c);
             cmd.Parameters.AddWithValue("@FarmId", req.FarmId);
             cmd.Parameters.AddWithValue("@BrandName",             (object?)req.BrandName             ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@BusinessType",          (object?)req.BusinessType          ?? (object)"Sachet");
@@ -58,7 +58,7 @@ namespace PoultryFarmAPIWeb.Business
         // Advances the reader past intermediate result sets (verification
         // counts) until it finds one with a WaterCompanyProfileId column, or
         // exhausts. Safe no-op when the SP only returns one result set.
-        private static async Task SkipToProfileResultSetAsync(Microsoft.Data.SqlClient.SqlDataReader r)
+        private static async Task SkipToProfileResultSetAsync(NpgsqlDataReader r)
         {
             while (true)
             {
@@ -78,8 +78,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<WaterCompanyProfileModel?> UpdateProfileAsync(string farmId, WaterCompanyUpdateRequest req)
         {
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spWaterCompany_UpdateProfile", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwatercompany_updateprofile(p_farmid => @FarmId::text, p_brandname => @BrandName::text, p_businesstype => @BusinessType::text, p_productionsiteaddress => @ProductionSiteAddress::text, p_mainlocation => @MainLocation::text, p_watersourcetype => @WaterSourceType::text, p_defaultcurrency => @DefaultCurrency::text, p_defaultbagsachetcount => @DefaultBagSachetCount::int, p_ownername => @OwnerName::text, p_phonenumber => @PhoneNumber::text, p_notes => @Notes::text)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@BrandName",             (object?)req.BrandName             ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@BusinessType",          (object?)req.BusinessType          ?? DBNull.Value);
@@ -96,7 +96,7 @@ namespace PoultryFarmAPIWeb.Business
             return await r.ReadAsync() ? Read(r) : null;
         }
 
-        private static WaterCompanyProfileModel Read(SqlDataReader r) => new()
+        private static WaterCompanyProfileModel Read(NpgsqlDataReader r) => new()
         {
             WaterCompanyProfileId = r.GetInt32(r.GetOrdinal("WaterCompanyProfileId")),
             FarmId                = r.GetString(r.GetOrdinal("FarmId")),

@@ -3,7 +3,7 @@
 // Name/Type/OwnerUserId. We treat the currency columns as Farm-API-owned
 // because the rest of the Water app is what reads them.
 
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using System.Data;
 using PoultryFarmAPIWeb.Models;
 
@@ -28,8 +28,8 @@ namespace PoultryFarmAPIWeb.Business
             // owned by the Login API), and a raw inline SELECT is not covered by
             // ownership chaining — it 500s with "SELECT permission denied on Farms"
             // wherever the login lacks a direct grant (see migration 089).
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spCompany_GetCurrency", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spcompany_getcurrency(p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await conn.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();
@@ -42,8 +42,8 @@ namespace PoultryFarmAPIWeb.Business
             // The SP both updates and returns the row, so we read its result set
             // here instead of a second round-trip through GetAsync — avoiding the
             // inline Farms SELECT entirely.
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spCompany_UpdateCurrency", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spcompany_updatecurrency(p_farmid => @FarmId::text, p_currencycode => @CurrencyCode::text, p_currencysymbol => @CurrencySymbol::text, p_showcurrencysymbol => @ShowCurrencySymbol::boolean)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@CurrencyCode",       currencyCode);
             cmd.Parameters.AddWithValue("@CurrencySymbol",     currencySymbol);
@@ -53,7 +53,7 @@ namespace PoultryFarmAPIWeb.Business
             return await ReadSettingsAsync(r);
         }
 
-        private static async Task<WaterFarmSettingsModel?> ReadSettingsAsync(SqlDataReader r)
+        private static async Task<WaterFarmSettingsModel?> ReadSettingsAsync(NpgsqlDataReader r)
         {
             if (!await r.ReadAsync()) return null;
             return new WaterFarmSettingsModel

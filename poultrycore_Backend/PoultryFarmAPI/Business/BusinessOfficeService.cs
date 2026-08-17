@@ -1,5 +1,6 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
+using NpgsqlTypes;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -28,13 +29,13 @@ namespace PoultryFarmAPIWeb.Business
         {
             var model = new CompanySnapshotModel { FarmId = farmId, CompanyType = companyType };
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spBusinessOffice_CompanySnapshot", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spbusinessoffice_companysnapshot(p_farmid => @FarmId::text, p_companytype => @CompanyType::text, p_today => @Today::date)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@CompanyType", companyType);
             // Null hands the SP the server's UTC date; the client normally sends
             // its own local one so "today" matches the person reading the card.
-            cmd.Parameters.Add("@Today", SqlDbType.Date).Value = today.HasValue ? today.Value.Date : DBNull.Value;
+            cmd.Parameters.Add("@Today", NpgsqlDbType.Date).Value = today.HasValue ? today.Value.Date : DBNull.Value;
 
             await conn.OpenAsync();
             using var reader = await cmd.ExecuteReaderAsync();
@@ -49,7 +50,7 @@ namespace PoultryFarmAPIWeb.Business
 
         // NULL survives as null all the way to the card, where it renders as a
         // dash. Collapsing it to 0 here would claim a measurement we never took.
-        private static decimal? Read(SqlDataReader reader, string column)
+        private static decimal? Read(NpgsqlDataReader reader, string column)
         {
             var ordinal = reader.GetOrdinal(column);
             return reader.IsDBNull(ordinal) ? null : reader.GetDecimal(ordinal);

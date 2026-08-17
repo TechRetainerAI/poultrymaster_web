@@ -1,4 +1,5 @@
-using Microsoft.Data.SqlClient;
+using Npgsql;
+using NpgsqlTypes;
 using PoultryFarmAPIWeb.Models;
 using System.Data;
 
@@ -63,7 +64,7 @@ namespace PoultryFarmAPIWeb.Business
         /// Read a column that a newer migration added, tolerating a database that
         /// has not had it applied yet.
         /// </summary>
-        private static int? ReadOptionalInt32(SqlDataReader reader, string columnName)
+        private static int? ReadOptionalInt32(NpgsqlDataReader reader, string columnName)
         {
             for (var i = 0; i < reader.FieldCount; i++)
             {
@@ -73,7 +74,7 @@ namespace PoultryFarmAPIWeb.Business
             return null;
         }
 
-        private static string? ReadOptionalString(SqlDataReader reader, string columnName)
+        private static string? ReadOptionalString(NpgsqlDataReader reader, string columnName)
         {
             for (var i = 0; i < reader.FieldCount; i++)
             {
@@ -90,8 +91,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             var results = new List<IamPermissionModel>();
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("dbo.spIam_GetCatalog", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spiam_getcatalog()", conn);
             await conn.OpenAsync();
             using var reader = await cmd.ExecuteReaderAsync();
 
@@ -121,8 +122,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             var model = new IamEffectivePermissionsModel { UserId = userId, FarmId = farmId };
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("dbo.spIam_GetEffectivePermissions", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spiam_geteffectivepermissions(p_userid => @UserId::text, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@UserId", userId);
             cmd.Parameters.AddWithValue("@FarmId", (object?)farmId ?? DBNull.Value);
 
@@ -146,8 +147,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             var results = new List<IamRoleModel>();
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("dbo.spIam_GetRoles", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spiam_getroles(p_owneruserid => @OwnerUserId::text)", conn);
             cmd.Parameters.AddWithValue("@OwnerUserId", (object?)ownerUserId ?? DBNull.Value);
 
             await conn.OpenAsync();
@@ -182,8 +183,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             var keys = new List<string>();
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("dbo.spIam_GetRolePermissions", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spiam_getrolepermissions(p_roleid => @RoleId::int)", conn);
             cmd.Parameters.AddWithValue("@RoleId", roleId);
 
             await conn.OpenAsync();
@@ -197,8 +198,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             var results = new List<IamUserRoleModel>();
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("dbo.spIam_GetUserRoles", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spiam_getuserroles(p_userid => @UserId::text, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@UserId", userId);
             cmd.Parameters.AddWithValue("@FarmId", (object?)farmId ?? DBNull.Value);
 
@@ -265,11 +266,11 @@ namespace PoultryFarmAPIWeb.Business
             string? module = null;
             try
             {
-                using var conn = new SqlConnection(_connectionString);
+                using var conn = new NpgsqlConnection(_connectionString);
                 // Farms.Id is the real primary key; FarmId is vestigial but still
                 // carried on some rows, so both are matched (see CLAUDE.md).
-                using var cmd = new SqlCommand(
-                    "SELECT TOP 1 [Type] FROM dbo.Farms WHERE Id = @FarmId OR FarmId = @FarmId", conn);
+                using var cmd = new NpgsqlCommand(
+                    "SELECT f.type FROM farms f WHERE f.id = @FarmId OR f.farmid = @FarmId LIMIT 1", conn);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
 
                 await conn.OpenAsync();
@@ -282,7 +283,7 @@ namespace PoultryFarmAPIWeb.Business
                     _ => null,
                 };
             }
-            catch (SqlException)
+            catch (PostgresException)
             {
                 // Fail soft: an unresolvable module produces an unmapped route,
                 // which the enforcement filter reports rather than denying unless
@@ -303,8 +304,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<int> SaveRoleAsync(IamRoleSaveRequest request, string callerUserId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("dbo.spIam_Role_Save", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spiam_role_save(p_roleid => @RoleId::int, p_calleruserid => @CallerUserId::text, p_name => @Name::text, p_description => @Description::text, p_companytype => @CompanyType::text, p_copyfromroleid => @CopyFromRoleId::int)", conn);
             cmd.Parameters.AddWithValue("@RoleId", (object?)request.RoleId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@CallerUserId", callerUserId);
             cmd.Parameters.AddWithValue("@Name", request.Name ?? string.Empty);
@@ -319,8 +320,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task DeleteRoleAsync(int roleId, string callerUserId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("dbo.spIam_Role_Delete", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spiam_role_delete(p_roleid => @RoleId::int, p_calleruserid => @CallerUserId::text)", conn);
             cmd.Parameters.AddWithValue("@RoleId", roleId);
             cmd.Parameters.AddWithValue("@CallerUserId", callerUserId);
 
@@ -335,11 +336,11 @@ namespace PoultryFarmAPIWeb.Business
                 .Select(k => k.Trim())
                 .Distinct(StringComparer.OrdinalIgnoreCase));
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("dbo.spIam_RolePermissions_Set", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spiam_rolepermissions_set(p_roleid => @RoleId::int, p_calleruserid => @CallerUserId::text, p_permissionkeys => @PermissionKeys::text)", conn);
             cmd.Parameters.AddWithValue("@RoleId", roleId);
             cmd.Parameters.AddWithValue("@CallerUserId", callerUserId);
-            cmd.Parameters.Add("@PermissionKeys", SqlDbType.NVarChar, -1).Value = csv;
+            cmd.Parameters.Add("@PermissionKeys", NpgsqlDbType.Text, -1).Value = csv;
 
             await conn.OpenAsync();
             var result = await cmd.ExecuteScalarAsync();
@@ -348,8 +349,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task AssignUserRoleAsync(IamAssignRoleRequest request, string assignedBy)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("dbo.spIam_UserRole_Assign", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spiam_userrole_assign(p_userid => @UserId::text, p_roleid => @RoleId::int, p_farmid => @FarmId::text, p_assignedby => @AssignedBy::text, p_expiresat => @ExpiresAt::timestamp)", conn);
             cmd.Parameters.AddWithValue("@UserId", request.UserId);
             cmd.Parameters.AddWithValue("@RoleId", request.RoleId);
             cmd.Parameters.AddWithValue("@FarmId", DbNullable(request.FarmId));
@@ -362,8 +363,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task RevokeUserRoleAsync(int id)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("dbo.spIam_UserRole_Revoke", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spiam_userrole_revoke(p_id => @Id::int)", conn);
             cmd.Parameters.AddWithValue("@Id", id);
 
             await conn.OpenAsync();
@@ -372,8 +373,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task SetUserPermissionAsync(IamOverrideRequest request, string grantedBy)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("dbo.spIam_UserPermission_Set", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spiam_userpermission_set(p_userid => @UserId::text, p_farmid => @FarmId::text, p_permissionkey => @PermissionKey::text, p_effect => @Effect::text, p_reason => @Reason::text, p_grantedby => @GrantedBy::text, p_expiresat => @ExpiresAt::timestamp)", conn);
             cmd.Parameters.AddWithValue("@UserId", request.UserId);
             cmd.Parameters.AddWithValue("@FarmId", DbNullable(request.FarmId));
             cmd.Parameters.AddWithValue("@PermissionKey", request.PermissionKey ?? string.Empty);
@@ -388,8 +389,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task ClearUserPermissionAsync(int id)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("dbo.spIam_UserPermission_Clear", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spiam_userpermission_clear(p_id => @Id::int)", conn);
             cmd.Parameters.AddWithValue("@Id", id);
 
             await conn.OpenAsync();
@@ -400,8 +401,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task TouchSessionAsync(string sessionId, string userId, string? farmId, string? ip, string? userAgent, string? device)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("dbo.spIam_Session_Touch", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spiam_session_touch(p_sessionid => @SessionId::text, p_userid => @UserId::text, p_farmid => @FarmId::text, p_ipaddress => @IpAddress::text, p_useragent => @UserAgent::text, p_device => @Device::text)", conn);
             cmd.Parameters.AddWithValue("@SessionId", sessionId);
             cmd.Parameters.AddWithValue("@UserId", userId);
             cmd.Parameters.AddWithValue("@FarmId", DbNullable(farmId));
@@ -417,8 +418,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             var results = new List<IamSessionModel>();
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("dbo.spIam_Sessions_Get", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spiam_sessions_get(p_userid => @UserId::text, p_includerevoked => @IncludeRevoked::boolean)", conn);
             cmd.Parameters.AddWithValue("@UserId", userId);
             cmd.Parameters.AddWithValue("@IncludeRevoked", includeRevoked);
 
@@ -449,8 +450,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task RevokeSessionAsync(string sessionId, string? revokedBy)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("dbo.spIam_Session_Revoke", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spiam_session_revoke(p_sessionid => @SessionId::text, p_revokedby => @RevokedBy::text)", conn);
             cmd.Parameters.AddWithValue("@SessionId", sessionId);
             cmd.Parameters.AddWithValue("@RevokedBy", DbNullable(revokedBy));
 
@@ -460,8 +461,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task RevokeAllSessionsAsync(string userId, string? revokedBy)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("dbo.spIam_RevokeAllSessions", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spiam_revokeallsessions(p_userid => @UserId::text, p_revokedby => @RevokedBy::text)", conn);
             cmd.Parameters.AddWithValue("@UserId", userId);
             cmd.Parameters.AddWithValue("@RevokedBy", DbNullable(revokedBy));
 
@@ -475,15 +476,15 @@ namespace PoultryFarmAPIWeb.Business
 
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("dbo.spIam_GetTokensValidFrom", conn) { CommandType = CommandType.StoredProcedure };
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spiam_gettokensvalidfrom(p_userid => @UserId::text)", conn);
                 cmd.Parameters.AddWithValue("@UserId", userId);
 
                 await conn.OpenAsync();
                 var result = await cmd.ExecuteScalarAsync();
                 return result is null or DBNull ? null : Convert.ToDateTime(result);
             }
-            catch (SqlException)
+            catch (PostgresException)
             {
                 // Migration 203 not applied. Treat as "never revoked" rather than
                 // failing shut, which would sign everyone out.
@@ -493,8 +494,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<IamPolicyModel?> GetPolicyAsync(string callerUserId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("dbo.spIam_Policy_Get", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spiam_policy_get(p_calleruserid => @CallerUserId::text)", conn);
             cmd.Parameters.AddWithValue("@CallerUserId", callerUserId);
 
             await conn.OpenAsync();
@@ -521,8 +522,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task SetPolicyAsync(string callerUserId, IamPolicyModel p)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("dbo.spIam_Policy_Set", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spiam_policy_set(p_calleruserid => @CallerUserId::text, p_passwordminlength => @PasswordMinLength::int, p_passwordrequireupper => @PasswordRequireUpper::boolean, p_passwordrequiredigit => @PasswordRequireDigit::boolean, p_passwordrequiresymbol => @PasswordRequireSymbol::boolean, p_passwordexpirydays => @PasswordExpiryDays::int, p_sessionidleminutes => @SessionIdleMinutes::int, p_sessionmaxhours => @SessionMaxHours::int, p_requiremfaforadmins => @RequireMfaForAdmins::boolean, p_dormantafterdays => @DormantAfterDays::int, p_accessreviewdays => @AccessReviewDays::int)", conn);
             cmd.Parameters.AddWithValue("@CallerUserId", callerUserId);
             cmd.Parameters.AddWithValue("@PasswordMinLength", p.PasswordMinLength);
             cmd.Parameters.AddWithValue("@PasswordRequireUpper", p.PasswordRequireUpper);
@@ -543,8 +544,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             var results = new List<IamAccessAuditModel>();
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("dbo.spIam_GetAccessAudit", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spiam_getaccessaudit(p_calleruserid => @CallerUserId::text, p_subjectid => @SubjectId::text, p_days => @Days::int)", conn);
             cmd.Parameters.AddWithValue("@CallerUserId", callerUserId);
             cmd.Parameters.AddWithValue("@SubjectId", DbNullable(subjectId));
             cmd.Parameters.AddWithValue("@Days", days);
@@ -576,8 +577,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             var results = new List<IamAccessReviewRow>();
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("dbo.spIam_GetAccessReview", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spiam_getaccessreview(p_calleruserid => @CallerUserId::text)", conn);
             cmd.Parameters.AddWithValue("@CallerUserId", callerUserId);
 
             await conn.OpenAsync();
@@ -610,8 +611,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task RecordAccessReviewAsync(IamAccessReviewRequest request, string? reviewedBy)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("dbo.spIam_AccessReview_Record", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spiam_accessreview_record(p_userid => @UserId::text, p_farmid => @FarmId::text, p_decision => @Decision::text, p_note => @Note::text, p_reviewedby => @ReviewedBy::text)", conn);
             cmd.Parameters.AddWithValue("@UserId", request.UserId);
             cmd.Parameters.AddWithValue("@FarmId", DbNullable(request.FarmId));
             cmd.Parameters.AddWithValue("@Decision", request.Decision ?? string.Empty);
@@ -626,8 +627,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             var results = new List<IamOverrideModel>();
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("dbo.spIam_GetUserOverrides", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spiam_getuseroverrides(p_userid => @UserId::text, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@UserId", userId);
             cmd.Parameters.AddWithValue("@FarmId", DbNullable(farmId));
 

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using System.Threading.Tasks;
 using User.Management.Data.Models;
 
@@ -18,8 +18,11 @@ namespace User.Management.Data
 
         public async Task<CompanyResponse> CreateAsync(string farmId, CreateCompanyRequest req, string ownerUserId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spCompany_Create", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                @"SELECT * FROM spcompany_create(p_farmid => @FarmId::text, p_name => @Name::text, p_type => @Type::text,
+                                                 p_owneruserid => @OwnerUserId::text, p_email => @Email::text,
+                                                 p_phonenumber => @PhoneNumber::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@Name", req.Name);
             cmd.Parameters.AddWithValue("@Type", req.Type);
@@ -49,8 +52,9 @@ namespace User.Management.Data
         public async Task<List<CompanyResponse>> GetByUserIdAsync(string userId)
         {
             var list = new List<CompanyResponse>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spCompany_GetByUserId", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM spcompany_getbyuserid(p_userid => @UserId::text)", conn);
             cmd.Parameters.AddWithValue("@UserId", userId);
 
             await conn.OpenAsync();
@@ -61,8 +65,9 @@ namespace User.Management.Data
 
         public async Task<CompanyResponse?> GetByIdAsync(string farmId, string userId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spCompany_GetById", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM spcompany_getbyid(p_farmid => @FarmId::text, p_userid => @UserId::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@UserId", userId);
 
@@ -74,8 +79,9 @@ namespace User.Management.Data
 
         public async Task<bool> IsMemberAsync(string userId, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spUserFarm_IsMember", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM spuserfarm_ismember(p_userid => @UserId::text, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@UserId", userId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
@@ -91,10 +97,11 @@ namespace User.Management.Data
             // member resolves to no company at login and lands on the Poultry
             // default dashboard instead of their company's (Water/Generic). No SP
             // exists for a plain membership insert, so this is inline + guarded.
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand(
-                @"IF NOT EXISTS (SELECT 1 FROM dbo.UserFarms WHERE UserId = @UserId AND FarmId = @FarmId)
-                      INSERT INTO dbo.UserFarms (UserId, FarmId, Role) VALUES (@UserId, @FarmId, @Role);",
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                @"INSERT INTO userfarms (userid, farmid, role)
+                  SELECT @UserId, @FarmId, @Role
+                  WHERE NOT EXISTS (SELECT 1 FROM userfarms WHERE userid = @UserId AND farmid = @FarmId);",
                 conn);
             cmd.Parameters.AddWithValue("@UserId", userId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
@@ -109,9 +116,9 @@ namespace User.Management.Data
             // Revoke a user's access to a company (Doc 3 §6-7). Inline + guarded —
             // there is no dedicated SP for a plain membership delete, matching the
             // inline INSERT in AddMemberAsync.
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand(
-                @"DELETE FROM dbo.UserFarms WHERE UserId = @UserId AND FarmId = @FarmId;",
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                @"DELETE FROM userfarms WHERE userid = @UserId AND farmid = @FarmId;",
                 conn);
             cmd.Parameters.AddWithValue("@UserId", userId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
@@ -125,9 +132,9 @@ namespace User.Management.Data
             // User ids granted access to a company via UserFarms — powers the
             // access-based company employee list (Doc 3 §7).
             var ids = new List<string>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand(
-                @"SELECT UserId FROM dbo.UserFarms WHERE FarmId = @FarmId;",
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                @"SELECT userid FROM userfarms WHERE farmid = @FarmId;",
                 conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
@@ -143,8 +150,10 @@ namespace User.Management.Data
 
         public async Task UpdateAsync(string farmId, CreateCompanyRequest req)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spCompany_Update", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                @"SELECT * FROM spcompany_update(p_farmid => @FarmId::text, p_name => @Name::text,
+                                                 p_email => @Email::text, p_phonenumber => @PhoneNumber::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@Name", req.Name);
             cmd.Parameters.AddWithValue("@Email", (object?)req.Email ?? DBNull.Value);
@@ -157,8 +166,9 @@ namespace User.Management.Data
         // Soft-delete (owner-only). Returns true if the company was deleted.
         public async Task<bool> DeleteAsync(string farmId, string userId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spCompany_Delete", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM spcompany_delete(p_farmid => @FarmId::text, p_userid => @UserId::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@UserId", userId);
 
@@ -167,7 +177,7 @@ namespace User.Management.Data
             return result != null && result != DBNull.Value && Convert.ToInt32(result) == 1;
         }
 
-        private static CompanyResponse Map(SqlDataReader r) => new()
+        private static CompanyResponse Map(NpgsqlDataReader r) => new()
         {
             FarmId      = r["FarmId"].ToString() ?? string.Empty,
             Name        = r["Name"].ToString() ?? string.Empty,

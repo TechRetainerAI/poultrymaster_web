@@ -1,5 +1,5 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -14,7 +14,7 @@ namespace PoultryFarmAPIWeb.Business
             _connectionString = connectionString;
         }
 
-        private static bool HasColumn(SqlDataReader reader, string name)
+        private static bool HasColumn(NpgsqlDataReader reader, string name)
         {
             for (int i = 0; i < reader.FieldCount; i++)
             {
@@ -24,7 +24,7 @@ namespace PoultryFarmAPIWeb.Business
             return false;
         }
 
-        private MainFlockBatchModel MapFromReader(SqlDataReader reader)
+        private MainFlockBatchModel MapFromReader(NpgsqlDataReader reader)
         {
             var model = new MainFlockBatchModel
             {
@@ -104,10 +104,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spMainFlockBatch_Insert", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
-
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spmainflockbatch_insert(p_userid => @UserId::text, p_farmid => @FarmId::text, p_batchcode => @BatchCode::text, p_batchname => @BatchName::text, p_breed => @Breed::text, p_numberofbirds => @NumberOfBirds::int, p_startdate => @StartDate::timestamp, p_status => @Status::text, p_costperchick => @CostPerChick::numeric, p_totalcost => @TotalCost::numeric, p_amountpaid => @AmountPaid::numeric, p_suppliertype => @SupplierType::text, p_supplierid => @SupplierId::int, p_notes => @Notes::text, p_dollarconversionrate => @DollarConversionRate::numeric, p_orderplacementdate => @OrderPlacementDate::date, p_estimatedarrivaldate => @EstimatedArrivalDate::date)", conn);
                 cmd.Parameters.AddWithValue("@UserId", model.UserId);
                 cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
                 cmd.Parameters.AddWithValue("@BatchCode", model.BatchCode);
@@ -131,9 +129,9 @@ namespace PoultryFarmAPIWeb.Business
                 // ExecuteScalarAsync returns the identity value (BatchId) from the stored procedure.
                 return Convert.ToInt32(result);
             }
-            catch (SqlException)
+            catch (PostgresException)
             {
-                // Let SqlException propagate so GlobalExceptionMiddleware surfaces the
+                // Let PostgresException propagate so GlobalExceptionMiddleware surfaces the
                 // real SQL number/message (e.g. "too many arguments", "Invalid column")
                 // instead of collapsing it into an opaque wrapper.
                 throw;
@@ -148,10 +146,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spMainFlockBatch_Update", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
-
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spmainflockbatch_update(p_batchid => @BatchId::int, p_userid => @UserId::text, p_farmid => @FarmId::text, p_batchcode => @BatchCode::text, p_batchname => @BatchName::text, p_breed => @Breed::text, p_numberofbirds => @NumberOfBirds::int, p_startdate => @StartDate::timestamp, p_status => @Status::text, p_costperchick => @CostPerChick::numeric, p_totalcost => @TotalCost::numeric, p_amountpaid => @AmountPaid::numeric, p_suppliertype => @SupplierType::text, p_supplierid => @SupplierId::int, p_notes => @Notes::text, p_dollarconversionrate => @DollarConversionRate::numeric, p_orderplacementdate => @OrderPlacementDate::date, p_estimatedarrivaldate => @EstimatedArrivalDate::date)", conn);
                 cmd.Parameters.AddWithValue("@BatchId", model.BatchId);
                 cmd.Parameters.AddWithValue("@UserId", model.UserId);
                 cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
@@ -174,7 +170,7 @@ namespace PoultryFarmAPIWeb.Business
                 await conn.OpenAsync();
                 await cmd.ExecuteNonQueryAsync();
             }
-            catch (SqlException)
+            catch (PostgresException)
             {
                 throw;
             }
@@ -188,10 +184,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spMainFlockBatch_GetById", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
-
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spmainflockbatch_getbyid(p_batchid => @BatchId::int, p_userid => @UserId::text, p_farmid => @FarmId::text)", conn);
                 cmd.Parameters.AddWithValue("@BatchId", batchId);
                 cmd.Parameters.AddWithValue("@UserId", userId);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
@@ -215,10 +209,8 @@ namespace PoultryFarmAPIWeb.Business
             try
             {
                 var list = new List<MainFlockBatchModel>();
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spMainFlockBatch_GetAll", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
-
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spmainflockbatch_getall(p_userid => @UserId::text, p_farmid => @FarmId::text)", conn);
                 cmd.Parameters.AddWithValue("@UserId", userId);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
 
@@ -240,10 +232,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spMainFlockBatch_Delete", conn);
-                cmd.CommandType = CommandType.StoredProcedure;
-
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spmainflockbatch_delete(p_batchid => @BatchId::int, p_userid => @UserId::text, p_farmid => @FarmId::text)", conn);
                 cmd.Parameters.AddWithValue("@BatchId", batchId);
                 cmd.Parameters.AddWithValue("@UserId", userId);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
@@ -259,10 +249,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<decimal> PayBalance(int batchId, string farmId, decimal amount, string? paymentMethod, DateTime? paymentDate, string? createdBy)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spMainFlockBatch_PayBalance", conn);
-            cmd.CommandType = CommandType.StoredProcedure;
-
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spmainflockbatch_paybalance(p_batchid => @BatchId::int, p_farmid => @FarmId::text, p_amount => @Amount::numeric, p_paymentmethod => @PaymentMethod::text, p_paymentdate => @PaymentDate::timestamp, p_createdby => @CreatedBy::text)", conn);
             cmd.Parameters.AddWithValue("@BatchId", batchId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@Amount", amount);

@@ -1,5 +1,5 @@
 
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 using static PoultryFarmAPIWeb.Business.PoultryReportHelpers;
 
@@ -53,7 +53,7 @@ namespace PoultryFarmAPIWeb.Business
             return d;
         }
 
-        private static SqlParameter PFlock(PoultryReportFilterDto f) =>
+        private static NpgsqlParameter PFlock(PoultryReportFilterDto f) =>
             new("@FlockId", (object?)f.FlockId ?? DBNull.Value);
 
         // =====================================================================
@@ -65,8 +65,8 @@ namespace PoultryFarmAPIWeb.Business
             var (start, end) = ResolveRange(f);
             var resp = NewResponse<PoultryFarmSummaryReportSummary, PoultryFarmSummaryReportRow>("Poultry Farm Summary", f, start, end);
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = Proc(conn, "spPoultryReport_FarmSummary");
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_farmsummary_rs1(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_includeclosedflocks => @IncludeClosedFlocks::boolean, p_flockid => @FlockId::int); SELECT * FROM sppoultryreport_farmsummary_rs2(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_includeclosedflocks => @IncludeClosedFlocks::boolean, p_flockid => @FlockId::int)", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
@@ -134,8 +134,8 @@ namespace PoultryFarmAPIWeb.Business
             var (start, end) = ResolveRange(f);
             var resp = NewResponse<PoultryDailyEggProductionReportSummary, PoultryDailyEggProductionReportRow>("Poultry Daily Egg Production", f, start, end);
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = Proc(conn, "spPoultryReport_DailyEggProduction");
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_dailyeggproduction(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_flockid => @FlockId::int)", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
@@ -197,8 +197,8 @@ namespace PoultryFarmAPIWeb.Business
             var (start, end) = ResolveRange(f);
             var resp = NewResponse<PoultryFlockProductionSummaryReportSummary, PoultryFlockProductionSummaryReportRow>("Poultry Flock Production Summary", f, start, end);
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = Proc(conn, "spPoultryReport_FlockProductionSummary");
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_flockproductionsummary(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_includeclosedflocks => @IncludeClosedFlocks::boolean, p_flockid => @FlockId::int)", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
@@ -255,8 +255,8 @@ namespace PoultryFarmAPIWeb.Business
             var (start, end) = ResolveRange(f);
             var resp = NewResponse<PoultryHenDayProductionReportSummary, PoultryHenDayProductionReportRow>("Poultry Hen-Day Production", f, start, end);
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = Proc(conn, "spPoultryReport_HenDayProduction");
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_hendayproduction(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_flockid => @FlockId::int)", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
@@ -305,8 +305,8 @@ namespace PoultryFarmAPIWeb.Business
             var (start, end) = ResolveRange(f);
             var resp = NewResponse<PoultryMortalityReportSummary, PoultryMortalityReportRow>("Poultry Mortality", f, start, end);
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = Proc(conn, "spPoultryReport_Mortality");
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_mortality(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_flockid => @FlockId::int)", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
@@ -366,8 +366,8 @@ namespace PoultryFarmAPIWeb.Business
             var (start, end) = ResolveRange(f);
             var resp = NewResponse<PoultryBirdsOnHandReportSummary, PoultryBirdsOnHandReportRow>("Poultry Birds on Hand", f, start, end);
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = Proc(conn, "spPoultryReport_BirdsOnHand");
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_birdsonhand(p_farmid => @FarmId::text, p_enddate => @EndDate::date, p_includeclosedflocks => @IncludeClosedFlocks::boolean, p_flockid => @FlockId::int)", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@EndDate", end);
             cmd.Parameters.Add(PFlock(f));
@@ -421,8 +421,8 @@ namespace PoultryFarmAPIWeb.Business
             var (start, end) = ResolveRange(f);
             var resp = NewResponse<PoultryFeedUsageReportSummary, PoultryFeedUsageReportRow>("Poultry Feed Usage", f, start, end);
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = Proc(conn, "spPoultryReport_FeedUsage");
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_feedusage(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_flockid => @FlockId::int)", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
@@ -476,8 +476,8 @@ namespace PoultryFarmAPIWeb.Business
             var (start, end) = ResolveRange(f);
             var resp = NewResponse<PoultryFeedInventoryBalanceReportSummary, PoultryFeedInventoryBalanceReportRow>("Poultry Feed Inventory Balance", f, start, end);
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = Proc(conn, "spPoultryReport_FeedInventoryBalance");
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_feedinventorybalance_rs1(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date); SELECT * FROM sppoultryreport_feedinventorybalance_rs2(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date)", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
@@ -532,8 +532,8 @@ namespace PoultryFarmAPIWeb.Business
             var (start, end) = ResolveRange(f);
             var resp = NewResponse<PoultryFeedCostPerEggReportSummary, PoultryFeedCostPerEggReportRow>("Poultry Feed Cost Per Egg", f, start, end);
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = Proc(conn, "spPoultryReport_FeedCostPerEgg");
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_feedcostperegg(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_includeclosedflocks => @IncludeClosedFlocks::boolean, p_flockid => @FlockId::int)", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
@@ -589,8 +589,8 @@ namespace PoultryFarmAPIWeb.Business
             var (start, end) = ResolveRange(f);
             var resp = NewResponse<PoultryEggStockBalanceReportSummary, PoultryEggStockBalanceReportRow>("Poultry Egg Stock Balance", f, start, end);
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = Proc(conn, "spPoultryReport_EggStockBalance");
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_eggstockbalance(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date)", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
@@ -649,8 +649,8 @@ namespace PoultryFarmAPIWeb.Business
             var (start, end) = ResolveRange(f);
             var resp = NewResponse<PoultryEggSalesReportSummary, PoultryEggSalesReportRow>("Poultry Egg Sales", f, start, end);
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = Proc(conn, "spPoultryReport_EggSales");
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_eggsales_rs1(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_customername => @CustomerName::text, p_flockid => @FlockId::int); SELECT * FROM sppoultryreport_eggsales_rs2(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_customername => @CustomerName::text, p_flockid => @FlockId::int)", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
@@ -724,8 +724,8 @@ namespace PoultryFarmAPIWeb.Business
             var (start, end) = ResolveRange(f);
             var resp = NewResponse<PoultryCustomerBalanceReportSummary, PoultryCustomerBalanceReportRow>("Poultry Customer Balance", f, start, end);
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = Proc(conn, "spPoultryReport_CustomerBalance");
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_customerbalance(p_farmid => @FarmId::text, p_enddate => @EndDate::date, p_customername => @CustomerName::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@EndDate", end);
             cmd.Parameters.AddWithValue("@CustomerName", (object?)f.CustomerName ?? DBNull.Value);
@@ -771,8 +771,8 @@ namespace PoultryFarmAPIWeb.Business
             var (start, end) = ResolveRange(f);
             var resp = NewResponse<PoultryExpenseSummaryReportSummary, PoultryExpenseSummaryReportRow>("Poultry Expense Summary", f, start, end);
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = Proc(conn, "spPoultryReport_ExpenseSummary");
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_expensesummary(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_supplier => @Supplier::text, p_flockid => @FlockId::int)", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
@@ -825,8 +825,8 @@ namespace PoultryFarmAPIWeb.Business
             var (start, end) = ResolveRange(f);
             var resp = NewResponse<PoultryCashMovementReportSummary, PoultryCashMovementReportRow>("Poultry Cash Movement", f, start, end);
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = Proc(conn, "spPoultryReport_CashMovement");
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_cashmovement_rs1(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date); SELECT * FROM sppoultryreport_cashmovement_rs2(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date)", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
@@ -883,8 +883,8 @@ namespace PoultryFarmAPIWeb.Business
             var (start, end) = ResolveRange(f);
             var resp = NewResponse<PoultryProfitLossByFlockReportSummary, PoultryProfitLossByFlockReportRow>("Poultry Profit & Loss by Flock", f, start, end);
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = Proc(conn, "spPoultryReport_ProfitLossByFlock");
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_profitlossbyflock(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_includeclosedflocks => @IncludeClosedFlocks::boolean, p_flockid => @FlockId::int)", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
@@ -962,8 +962,8 @@ namespace PoultryFarmAPIWeb.Business
             decimal eggRev = 0, birdRev = 0, otherRev = 0, totalRev = 0;
             decimal feed = 0, med = 0, labor = 0, otherExp = 0, totalExp = 0;
 
-            using (var conn = new SqlConnection(_connectionString))
-            using (var cmd = Proc(conn, "spPoultryReport_ProfitLoss"))
+            using (var conn = new NpgsqlConnection(_connectionString))
+            using (var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_profitloss(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date)", conn))
             {
                 cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
                 cmd.Parameters.AddWithValue("@StartDate", start);
@@ -1038,8 +1038,8 @@ namespace PoultryFarmAPIWeb.Business
             var (start, end) = ResolveRange(f);
             var resp = NewResponse<PoultryCostPerEggReportSummary, PoultryCostPerEggReportRow>("Poultry Cost Per Egg", f, start, end);
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = Proc(conn, "spPoultryReport_CostPerEgg");
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_costperegg(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_includeclosedflocks => @IncludeClosedFlocks::boolean, p_flockid => @FlockId::int)", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
@@ -1099,8 +1099,8 @@ namespace PoultryFarmAPIWeb.Business
             var (start, end) = ResolveRange(f);
             var resp = NewResponse<PoultryVaccinationScheduleReportSummary, PoultryVaccinationScheduleReportRow>("Poultry Vaccination Schedule", f, start, end);
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = Proc(conn, "spPoultryReport_VaccinationSchedule");
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_vaccinationschedule(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_flockid => @FlockId::int)", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
@@ -1147,8 +1147,8 @@ namespace PoultryFarmAPIWeb.Business
             var (start, end) = ResolveRange(f);
             var resp = NewResponse<PoultryMedicineUsageReportSummary, PoultryMedicineUsageReportRow>("Poultry Medicine Usage", f, start, end);
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = Proc(conn, "spPoultryReport_MedicineUsage");
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_medicineusage(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_flockid => @FlockId::int)", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
@@ -1200,8 +1200,8 @@ namespace PoultryFarmAPIWeb.Business
             var (start, end) = ResolveRange(f);
             var resp = NewResponse<PoultryMissingDailyRecordsReportSummary, PoultryMissingDailyRecordsReportRow>("Poultry Missing Daily Records", f, start, end);
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = Proc(conn, "spPoultryReport_MissingDailyRecords");
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_missingdailyrecords_rs1(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_flockid => @FlockId::int); SELECT * FROM sppoultryreport_missingdailyrecords_rs2(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_flockid => @FlockId::int)", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
@@ -1257,8 +1257,8 @@ namespace PoultryFarmAPIWeb.Business
             var (start, end) = ResolveRange(f);
             var resp = NewResponse<PoultryEndOfFlockReportSummary, PoultryEndOfFlockReportRow>("Poultry End-of-Flock", f, start, end);
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = Proc(conn, "spPoultryReport_EndOfFlock");
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_endofflock(p_farmid => @FarmId::text, p_enddate => @EndDate::date, p_includeactiveflocks => @IncludeActiveFlocks::boolean, p_flockid => @FlockId::int)", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@EndDate", end);
             cmd.Parameters.Add(PFlock(f));
