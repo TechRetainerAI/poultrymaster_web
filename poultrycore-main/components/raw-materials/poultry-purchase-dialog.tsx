@@ -79,6 +79,11 @@ export function PoultryPurchaseDialog({
   // Same idea for the purchase unit cost: when ON, type the unit cost and we
   // back-solve the total (total = unitCost × quantity) so it persists.
   const [manualPurchaseCost, setManualPurchaseCost] = useState(false)
+  // "Amount paid" drives the linked expense (it is the cash that actually left),
+  // so leaving it at 0 silently books a cash purchase as credit. Track whether
+  // the user has set it themselves; until they do, it follows the total on a
+  // non-Credit purchase.
+  const [amountPaidTouched, setAmountPaidTouched] = useState(false)
   const [saving, setSaving] = useState(false)
   const savingRef = useRef(false) // synchronous re-entry guard against double/triple submits
 
@@ -90,6 +95,8 @@ export function PoultryPurchaseDialog({
   useEffect(() => {
     if (!open) return
     setManualProdCost(false); setManualPurchaseCost(false)
+    // An existing purchase already carries a deliberate figure; a new one does not.
+    setAmountPaidTouched(Boolean(editing))
     if (editing) {
       setF({
         poultryRawMaterialItemId: editing.poultryRawMaterialItemId,
@@ -159,6 +166,16 @@ export function PoultryPurchaseDialog({
 
   const qty = f.quantity || 0
   const total = f.totalPurchaseCost || 0
+
+  // Keep an untouched "Amount paid" equal to the total, so a straight cash buy
+  // posts its expense without the user having to retype the figure. Credit is
+  // the explicit "nothing paid yet" case and stays at 0.
+  useEffect(() => {
+    if (!open || amountPaidTouched) return
+    const paid = f.paymentMethod === "Credit" ? 0 : Number(total.toFixed(2))
+    if (paid !== f.amountPaid) setF((prev) => ({ ...prev, amountPaid: paid }))
+  }, [open, amountPaidTouched, total, f.paymentMethod, f.amountPaid])
+
   const unitCost = qty > 0 ? total / qty : 0
   const perPurchase = f.productionUnitsPerPurchaseUnit || 0
   const prodQty = qty * perPurchase
@@ -255,7 +272,7 @@ export function PoultryPurchaseDialog({
         </FormSection>
 
         <FormSection title="Payment" color="amber">
-          <FormField label="Amount paid"><NumberInput min={0} step="0.01" value={f.amountPaid} onChange={(e) => setF({ ...f, amountPaid: Number(e.target.value) || 0 })} /></FormField>
+          <FormField label="Amount paid"><NumberInput min={0} step="0.01" value={f.amountPaid} onChange={(e) => { setAmountPaidTouched(true); setF({ ...f, amountPaid: Number(e.target.value) || 0 }) }} /></FormField>
           <FormField label="Pay from cash account">
             <Select value={f.poultryCashAccountId ? String(f.poultryCashAccountId) : "none"} onValueChange={(v) => setF({ ...f, poultryCashAccountId: v === "none" ? 0 : Number(v) })}>
               <SelectTrigger><SelectValue placeholder="None (no cash movement)" /></SelectTrigger>

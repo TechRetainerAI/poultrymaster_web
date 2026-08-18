@@ -37,7 +37,7 @@ import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poul
 import { RecalculateStockButton } from "@/components/poultry/recalculate-stock-button"
 import { PoultryPurchaseDialog } from "@/components/raw-materials/poultry-purchase-dialog"
 
-const CATEGORIES = ["FeedIngredient", "FinishedFeed", "Packaging", "Medication", "Vaccine", "Bedding", "Disinfectant", "SparePart", "Fuel", "Other"]
+const CATEGORIES = ["FeedIngredient", "FinishedFeed", "Packaging", "Medication", "Vaccine", "Bedding", "Disinfectant", "Equipment", "SparePart", "Fuel", "Other"]
 // Readable labels for the camel-case category codes stored in the DB.
 const CATEGORY_LABELS: Record<string, string> = {
   FeedIngredient: "Feed Ingredient",
