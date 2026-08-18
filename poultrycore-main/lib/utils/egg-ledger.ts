@@ -38,6 +38,25 @@ export interface EggInventoryAdjustmentLedgerInput {
   description?: string | null
 }
 
+/**
+ * Non-production, non-sale movements posted to the poultry stock ledger for the
+ * egg product — driver load-outs, deliveries, restocks and the Set stock /
+ * Reconcile corrections made from /poultry-inventory.
+ *
+ * The Egg Tracker used to ignore these entirely, so a 2,000-egg driver load-out
+ * never reduced "Eggs on hand" and this page disagreed with the inventory's
+ * "In stock". Production and Sale rows are deliberately NOT taken from here:
+ * they are already derived from the production records and the sales list, and
+ * pulling them in as well would double-count them.
+ */
+export interface EggStockMoveLedgerInput {
+  poultryStockTransactionId: number
+  createdDate: string
+  txnType: string
+  quantity: number
+  note?: string | null
+}
+
 function formatEggAdjustmentType(t: string): string {
   switch (t) {
     case "OpeningBalance":
@@ -70,12 +89,13 @@ const EGG_LOSS_LINES: {
   { key: "lostEggs", type: "Lost eggs", note: "lost", order: 4 },
 ]
 
-/** Running egg inventory: production (in) − broken/meaty/soft/lost (out) − egg sales (out) ± adjustments. Chronological balance on each row. */
+/** Running egg inventory: production (in) − broken/meaty/soft/lost (out) − egg sales (out) ± adjustments ± stock-ledger moves. Chronological balance on each row. */
 export function buildEggStockLedger(
   productions: EggProduction[],
   sales: Sale[],
   flocks: Flock[] = [],
-  adjustments: EggInventoryAdjustmentLedgerInput[] = []
+  adjustments: EggInventoryAdjustmentLedgerInput[] = [],
+  stockMoves: EggStockMoveLedgerInput[] = []
 ): { rows: EggLedgerRow[]; currentEggsAtHand: number; lastUpdatedIso: string } {
   const lines: LineInput[] = []
 
@@ -143,6 +163,23 @@ export function buildEggStockLedger(
       in: d > 0 ? d : 0,
       out: d < 0 ? -d : 0,
       order: 6,
+    })
+  }
+
+  for (const m of stockMoves) {
+    const type = m.txnType?.trim()
+    if (!type || type === "Production" || type === "Sale") continue
+    const qty = Math.round(Number(m.quantity) || 0)
+    if (qty === 0) continue
+    const note = (m.note || "").trim()
+    lines.push({
+      sortKey: `stockmove_${m.poultryStockTransactionId}`,
+      date: m.createdDate,
+      type,
+      description: note || type,
+      in: qty > 0 ? qty : 0,
+      out: qty < 0 ? -qty : 0,
+      order: 7,
     })
   }
 
