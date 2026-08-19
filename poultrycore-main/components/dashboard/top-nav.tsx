@@ -290,10 +290,13 @@ export function TopNavigation() {
             title="Operations"
             blurb="Production, flock purchases, deliveries, stock and health."
             groups={nav.operations}
-            /* 4 groups over 2 columns = a 2x2 block. 38rem because the labels
-               here are long ("Flock Purchases (Batches)", "Raw Materials &
-               Supplies"). */
-            columns={2} widthRem={38} layout="grid" accent="orange"
+            /* 4 groups over 2 columns = a 2x2 block. 32rem is the floor for that
+               layout, and it's those two long labels that set it: "Flock Purchases
+               (Batches)" is 184px in Geist-Medium (the active row's weight) and
+               "Raw Materials & Supplies" 177px, so a column needs 224px, and two
+               of those plus the 16px grid gap and 32px of padding comes to 496px.
+               Shorten both and this drops to about 25.5rem. */
+            columns={2} widthRem={32} layout="grid" accent="orange"
           />
 
           <NavMegaMenu
@@ -301,15 +304,25 @@ export function TopNavigation() {
             title="Sales & Money"
             blurb="Orders, collections, expenses, cash and payroll."
             groups={nav.salesMoney}
-            columns={2} widthRem={34} layout="grid" accent="orange"
+            /* 21rem rather than 34, keeping the two columns side by side. This is
+               the floor for that layout: "Cash Account" is the longest label at
+               96px in Geist-Medium (the active row's weight), so a column needs
+               136px, and two of those plus the 16px grid gap and 32px of padding
+               comes to 320px. The extra rem is slack for font rendering. */
+            columns={2} widthRem={21} layout="grid" accent="orange"
           />
 
           <NavMegaMenu
             label="Analytics" icon={BarChart3}
             title="Analytics"
-            blurb="Day-to-day trackers for eggs, feed, medication and birds."
+            blurb="Day-to-day tracker"
             groups={nav.analytics}
-            columns={1} widthRem={22} layout="grid" accent="orange"
+            /* 13.5rem, against 22 for the other single-column menus. "Medication
+               tracker" is the longest label and sets the floor: 136px in
+               Geist-Medium (the active row's weight) plus 72px of icon, gap and
+               padding = 208px exactly, so this leaves 8px of slack. Tighter and
+               the row's truncate starts eating the label. */
+            columns={1} widthRem={13.5} layout="grid" accent="orange"
           />
 
           {/* Sourced from lib/reports/poultry-reports-config.ts — the single
@@ -334,9 +347,12 @@ export function TopNavigation() {
             title="Setup"
             blurb="Houses, flocks, products, delivery, customers and your team."
             groups={nav.setup}
-            /* 6 groups over 2 columns = a 3x2 block. 38rem rather than the water
-               rail's 36 because "Flock Groups (Pens / Flocks)" lives here now. */
-            columns={2} widthRem={38} layout="grid" accent="orange"
+            /* 6 groups over 2 columns = a 3x2 block. 26.5rem is the floor for that
+               layout: "Users & Permissions" is the longest label at 143px in
+               Geist-Medium (the active row's weight), so a column needs 183px, and
+               two of those plus the 16px grid gap and 32px of padding comes to
+               414px. */
+            columns={2} widthRem={26.5} layout="grid" accent="orange"
           />
 
           <div className="ml-auto flex items-center gap-1">
@@ -345,9 +361,13 @@ export function TopNavigation() {
             <NavMegaMenu
               label="System" icon={User}
               title="System"
-              blurb="Alerts, activity, help and terms."
+              blurb="Alerts, activity, help, terms."
               groups={nav.system}
-              columns={1} widthRem={22} layout="grid" accent="orange"
+              /* 13.5rem rather than 22. "Terms & Conditions" is the longest label
+                 at 138px in Geist-Medium (the active row's weight) plus 72px of
+                 icon, gap and padding = 210px. The Alerts row also carries a count
+                 badge, but at 44px of text it stays well clear. */
+              columns={1} widthRem={13.5} layout="grid" accent="orange"
             />
           </div>
         </div>

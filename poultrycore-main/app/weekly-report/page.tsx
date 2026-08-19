@@ -80,6 +80,55 @@ function deriveMonthOptions(records: { date: string }[], sales: { saleDate: stri
 const isEggSale = (product: string | null | undefined) =>
   (product ?? "").toLowerCase().includes("egg")
 
+/**
+ * Amount still owed on a sale. Mirrors `saleOwed` on the Sales page: `amountPaid`
+ * (migration 145) is the source of truth, and the binary `paid` flag is only a
+ * fallback for rows an older backend never populated.
+ */
+function saleOwed(s: Sale): number {
+  const total = Number(s.totalAmount) || 0
+  const paidAmt = s.amountPaid != null ? Number(s.amountPaid) : s.paid === false ? 0 : total
+  return Math.max(0, total - paidAmt)
+}
+
+/**
+ * Saleable eggs from one production record: the picks less every non-saleable
+ * category, floored at 0 so an over-recorded loss can't post negative stock.
+ * This is the definition migration 198 made canonical across the backend — keep
+ * it in step with `EGG_LOSS_LINES` in lib/utils/egg-ledger.ts.
+ */
+function saleableEggsOf(r: ProductionRecord): number {
+  const collected = Number(r.totalProduction) || 0
+  const losses =
+    (Number(r.brokenEggs) || 0) +
+    (Number(r.meatyEggs) || 0) +
+    (Number(r.softEggs) || 0) +
+    (Number(r.lostEggs) || 0)
+  return Math.max(0, collected - losses)
+}
+
+/**
+ * Crates as "12" or "12 + 7" (crates plus loose eggs). Every crate figure is
+ * derived from an egg count this way, so per-row crates never silently lose the
+ * remainder and stop adding up to the total.
+ */
+function formatCrates(eggs: number): string {
+  const n = Math.max(0, eggs)
+  const crates = Math.floor(n / EGGS_PER_CRATE)
+  const loose = n % EGGS_PER_CRATE
+  return loose ? `${crates.toLocaleString()} + ${loose}` : crates.toLocaleString()
+}
+
+/** "2026-05-12" → local Date (midnight). Null when the key isn't a real date. */
+function parseDateKey(key: string): Date | null {
+  const [y, m, d] = key.split("-").map(Number)
+  if (!y || !m || !d) return null
+  return new Date(y, m - 1, d)
+}
+
+/** Beyond this many days the daily grid drops its per-day columns. */
+const MAX_DAY_COLUMNS = 31
+
 export default function WeeklyReportPage() {
   const router = useRouter()
   const [flocks, setFlocks] = useState<Flock[]>([])
@@ -223,40 +272,56 @@ export default function WeeklyReportPage() {
   )
 
   // Apply filters to records / sales / expenses.
+  // The flock/room test is split out from the date test because the stock
+  // figures below need the same scope over *all* history, not just this period.
+  const inFlockScope = useCallback(
+    (flockId: number | null | undefined) => {
+      if (flockFilter !== "ALL" && String(flockId) !== flockFilter) return false
+      if (houseFilter !== "ALL") {
+        const f = flocks.find((x) => x.flockId === flockId)
+        if (!f || String(f.houseId ?? "") !== houseFilter) return false
+      }
+      return true
+    },
+    [flockFilter, houseFilter, flocks],
+  )
+
   const filteredRecords = useMemo(() => {
     return records.filter((r) => {
       const k = toLocalDateKey(r.date)
       if (k < range.from || k > range.to) return false
-      if (flockFilter !== "ALL" && String(r.flockId) !== flockFilter) return false
-      if (houseFilter !== "ALL") {
-        const f = flocks.find((x) => x.flockId === r.flockId)
-        if (!f || String(f.houseId ?? "") !== houseFilter) return false
-      }
-      return true
+      return inFlockScope(r.flockId)
     })
-  }, [records, range.from, range.to, flockFilter, houseFilter, flocks])
+  }, [records, range.from, range.to, inFlockScope])
 
   const filteredSales = useMemo(() => {
     return sales.filter((s) => {
       const k = toLocalDateKey(s.saleDate)
       if (k < range.from || k > range.to) return false
-      if (flockFilter !== "ALL" && String(s.flockId) !== flockFilter) return false
-      if (houseFilter !== "ALL") {
-        const f = flocks.find((x) => x.flockId === s.flockId)
-        if (!f || String(f.houseId ?? "") !== houseFilter) return false
-      }
-      return true
+      return inFlockScope(s.flockId)
     })
-  }, [sales, range.from, range.to, flockFilter, houseFilter, flocks])
+  }, [sales, range.from, range.to, inFlockScope])
+
+  /** Flocks housed in the selected room — null when no room filter is active. */
+  const houseFlockIds = useMemo(() => {
+    if (houseFilter === "ALL") return null
+    return new Set(
+      flocks.filter((f) => String(f.houseId ?? "") === houseFilter).map((f) => f.flockId),
+    )
+  }, [houseFilter, flocks])
 
   const filteredExpenses = useMemo(() => {
     return expenses.filter((e) => {
       const k = toLocalDateKey(e.expenseDate)
       if (k < range.from || k > range.to) return false
       if (flockFilter !== "ALL" && String(e.flockId) !== flockFilter) return false
+      // Room filter: keep only expenses attributed to a flock in that room, so
+      // the Balance below compares like with like. Farm-wide expenses (no flock)
+      // drop out for the same reason sales without a flock do.
+      if (houseFlockIds && (e.flockId == null || !houseFlockIds.has(Number(e.flockId)))) return false
       return true
     })
-  }, [expenses, range.from, range.to, flockFilter])
+  }, [expenses, range.from, range.to, flockFilter, houseFlockIds])
 
   // ---- Summary metrics (#16) ----
   const totalEggsCollected = useMemo(
@@ -268,54 +333,156 @@ export default function WeeklyReportPage() {
     () => eggSales.reduce((s, x) => s + (Number(x.quantity) || 0), 0),
     [eggSales],
   )
-  const totalRevenue = useMemo(
+  /** Egg-only revenue, kept separate so the Sales Summary can break it out. */
+  const eggRevenue = useMemo(
     () => eggSales.reduce((s, x) => s + (Number(x.totalAmount) || 0), 0),
     [eggSales],
   )
+  /** Income for the Financial Summary = every sale in the period, not just eggs. */
+  const totalRevenue = useMemo(
+    () => filteredSales.reduce((s, x) => s + (Number(x.totalAmount) || 0), 0),
+    [filteredSales],
+  )
+  const otherRevenue = totalRevenue - eggRevenue
   const totalExpenses = useMemo(
     () => filteredExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0),
     [filteredExpenses],
   )
-  const remainingEggs = Math.max(0, totalEggsCollected - totalEggsSold)
   const netBalance = totalRevenue - totalExpenses
 
+  // ---- Egg stock (#9) ----
+  // Saleable eggs collected in the period. Losses are deducted because an egg is
+  // only on hand if it isn't broken, meaty, soft-shelled or lost — same rule as
+  // migration 198 / spPoultryReport_EggStockBalance and lib/utils/egg-ledger.ts.
+  const periodSaleableEggs = useMemo(
+    () => filteredRecords.reduce((s, r) => s + saleableEggsOf(r), 0),
+    [filteredRecords],
+  )
+  /**
+   * Saleable minus sold *within the period only*. Goes negative when the period's
+   * sales drew on stock collected earlier, which is real information — hence no
+   * clamp at zero.
+   */
+  const periodUnsoldEggs = periodSaleableEggs - totalEggsSold
+  /**
+   * Actual eggs on hand as at the end of the period: every saleable egg ever
+   * collected, less every egg ever sold, up to `range.to`. The old figure was
+   * period-scoped collected − sold, which silently ignored losses and treated
+   * carried-over stock as if it had never existed.
+   */
+  const eggsInStock = useMemo(() => {
+    let collected = 0
+    for (const r of records) {
+      if (toLocalDateKey(r.date) > range.to) continue
+      if (!inFlockScope(r.flockId)) continue
+      collected += saleableEggsOf(r)
+    }
+    let sold = 0
+    for (const s of sales) {
+      if (!isEggSale(s.product)) continue
+      if (toLocalDateKey(s.saleDate) > range.to) continue
+      if (!inFlockScope(s.flockId)) continue
+      sold += Number(s.quantity) || 0
+    }
+    return collected - sold
+  }, [records, sales, range.to, inFlockScope])
+
   // ---- Daily egg collection grid (#6 + #7) ----
-  // Build a key map: flockId → 7-day array of eggs.
-  const dailyByFlock = useMemo(() => {
-    const map = new Map<number, number[]>()
+  // Columns are real calendar days, not weekday buckets — otherwise a month or
+  // an all-time range would stack four-plus Mondays into a single "Mon" cell.
+  const spanBounds = useMemo(() => {
+    if (mode !== "all") return { from: range.from, to: range.to }
+    // "All time" has sentinel bounds; use the span the data actually covers.
+    const keys = filteredRecords.map((r) => toLocalDateKey(r.date)).filter(Boolean).sort()
+    if (keys.length === 0) return null
+    return { from: keys[0], to: keys[keys.length - 1] }
+  }, [mode, range.from, range.to, filteredRecords])
+
+  const dayColumns = useMemo(() => {
+    if (!spanBounds) return []
+    const from = parseDateKey(spanBounds.from)
+    const to = parseDateKey(spanBounds.to)
+    if (!from || !to || to < from) return []
+    const days = Math.round((to.getTime() - from.getTime()) / 86_400_000) + 1
+    if (days > MAX_DAY_COLUMNS) return []
+    return Array.from({ length: days }, (_, i) => {
+      const d = addDays(from, i)
+      return {
+        key: toLocalDateKey(d.toISOString()),
+        // A single week reads best as Mon–Sun; longer spans need the date.
+        label: days <= 7 ? WEEKDAYS[(d.getDay() + 6) % 7] : `${d.getDate()}/${d.getMonth() + 1}`,
+      }
+    })
+  }, [spanBounds])
+
+  /**
+   * One row per flock that has production in range — including flocks that no
+   * longer count toward bird totals, and an "Unassigned" row for records with no
+   * flock. Anything less and these rows wouldn't add up to Total Eggs Collected.
+   */
+  const dailyRows = useMemo(() => {
+    const colIndex = new Map(dayColumns.map((c, i) => [c.key, i]))
+    const rows = new Map<string, { key: string; name: string; house?: string; days: number[]; total: number }>()
+    const ensure = (key: string, name: string, house?: string) => {
+      let row = rows.get(key)
+      if (!row) {
+        row = { key, name, house, days: dayColumns.map(() => 0), total: 0 }
+        rows.set(key, row)
+      }
+      return row
+    }
+    const houseNameOf = (f: Flock | undefined) =>
+      houses.find((h) => h.houseId === f?.houseId)?.name
+
+    // Seed the flocks the filters select so an empty flock still shows a row.
     const visibleFlocks =
       flockFilter !== "ALL"
         ? flocks.filter((f) => String(f.flockId) === flockFilter)
         : eligibleFlocks
-    for (const f of visibleFlocks) map.set(f.flockId, [0, 0, 0, 0, 0, 0, 0])
+    for (const f of visibleFlocks) {
+      ensure(String(f.flockId), f.name || `Flock #${f.flockId}`, houseNameOf(f))
+    }
 
     for (const r of filteredRecords) {
-      if (r.flockId == null) continue
-      if (!map.has(r.flockId)) continue
-      const d = new Date(r.date)
-      const idx = (d.getDay() + 6) % 7 // Mon=0
-      const arr = map.get(r.flockId)!
-      arr[idx] += Number(r.totalProduction) || 0
+      const eggs = Number(r.totalProduction) || 0
+      const flock = r.flockId != null ? flocks.find((f) => f.flockId === r.flockId) : undefined
+      const key = r.flockId != null ? String(r.flockId) : "unassigned"
+      const name =
+        flock?.name || (r.flockId != null ? `Flock #${r.flockId}` : "Unassigned")
+      const row = ensure(key, name, houseNameOf(flock))
+      row.total += eggs
+      const i = colIndex.get(toLocalDateKey(r.date))
+      if (i != null) row.days[i] += eggs
     }
-    return map
-  }, [filteredRecords, flocks, eligibleFlocks, flockFilter])
+    return Array.from(rows.values())
+  }, [filteredRecords, flocks, houses, eligibleFlocks, flockFilter, dayColumns])
+
+  const dailyDayTotals = useMemo(
+    () => dayColumns.map((_, i) => dailyRows.reduce((s, r) => s + r.days[i], 0)),
+    [dailyRows, dayColumns],
+  )
 
   // ---- Room production summary (#10) ----
   const roomSummary = useMemo(() => {
-    const houseMap = new Map<number, { name: string; eggs: number; sold: number }>()
+    type RoomRow = { name: string; eggs: number; losses: number; saleable: number; sold: number }
+    const blank = (name: string): RoomRow => ({ name, eggs: 0, losses: 0, saleable: 0, sold: 0 })
+    const houseMap = new Map<number, RoomRow>()
     // Seed every house so empty ones still appear.
-    for (const h of houses) houseMap.set(h.houseId, { name: h.name, eggs: 0, sold: 0 })
+    for (const h of houses) houseMap.set(h.houseId, blank(h.name))
     // No house? Still show as "Unassigned".
-    const unassigned = { name: "Unassigned", eggs: 0, sold: 0 }
+    const unassigned = blank("Unassigned")
     const flockToHouse = new Map<number, number | null>()
     for (const f of flocks) flockToHouse.set(f.flockId, f.houseId ?? null)
 
     for (const r of filteredRecords) {
       const eggs = Number(r.totalProduction) || 0
       if (eggs <= 0 || r.flockId == null) continue
+      const saleable = saleableEggsOf(r)
       const hid = flockToHouse.get(r.flockId)
-      if (hid != null && houseMap.has(hid)) houseMap.get(hid)!.eggs += eggs
-      else unassigned.eggs += eggs
+      const row = hid != null && houseMap.has(hid) ? houseMap.get(hid)! : unassigned
+      row.eggs += eggs
+      row.saleable += saleable
+      row.losses += eggs - saleable
     }
     for (const s of filteredSales) {
       if (!isEggSale(s.product)) continue
@@ -328,17 +495,26 @@ export default function WeeklyReportPage() {
     const rows = Array.from(houseMap.values()).filter((r) => r.eggs > 0 || r.sold > 0)
     if (unassigned.eggs > 0 || unassigned.sold > 0) rows.push(unassigned)
     return rows
-      .map((r) => ({
-        ...r,
-        crates: Math.floor(r.eggs / EGGS_PER_CRATE),
-        remaining: Math.max(0, r.eggs - r.sold),
-      }))
+      // Unsold is period-scoped and may be negative when the room's sales drew
+      // on stock collected before the period started.
+      .map((r) => ({ ...r, unsold: r.saleable - r.sold }))
       .sort((a, b) => b.eggs - a.eggs)
   }, [houses, flocks, filteredRecords, filteredSales])
 
-  // ---- Weekly sales summary (#11) ----
-  const totalCratesSold = Math.floor(totalEggsSold / EGGS_PER_CRATE)
-  const totalCratesCollected = Math.floor(totalEggsCollected / EGGS_PER_CRATE)
+  const roomTotals = useMemo(
+    () =>
+      roomSummary.reduce(
+        (acc, r) => ({
+          eggs: acc.eggs + r.eggs,
+          losses: acc.losses + r.losses,
+          saleable: acc.saleable + r.saleable,
+          sold: acc.sold + r.sold,
+          unsold: acc.unsold + r.unsold,
+        }),
+        { eggs: 0, losses: 0, saleable: 0, sold: 0, unsold: 0 },
+      ),
+    [roomSummary],
+  )
 
   // ---- Expenditure list (#12) ----
   const expenseRows = useMemo(
@@ -351,24 +527,26 @@ export default function WeeklyReportPage() {
 
   // ---- Egg sales by size (#8) ----
   const salesBySize = useMemo(() => {
-    const m = new Map<string, { trays: number; revenue: number; totalUnitPrice: number; saleCount: number }>()
+    const m = new Map<string, { eggs: number; crates: number; revenue: number }>()
     for (const s of eggSales) {
       const key = (s.size && s.size.trim()) || "Unspecified"
-      const trays = Number(s.quantity) || 0 // "trays" === Sale.quantity (caller-counted units)
-      const revenue = Number(s.totalAmount) || 0
-      const unit = Number(s.unitPrice) || 0
-      const cur = m.get(key) ?? { trays: 0, revenue: 0, totalUnitPrice: 0, saleCount: 0 }
-      cur.trays += trays
-      cur.revenue += revenue
-      cur.totalUnitPrice += unit
-      cur.saleCount += 1
+      // Sale.quantity is egg pieces (crates × 30 + loose); UnitPrice is per crate,
+      // and the sale's own total is crates × unit price — so crates, not pieces,
+      // is what the price column can be compared against.
+      const eggs = Number(s.quantity) || 0
+      const cur = m.get(key) ?? { eggs: 0, crates: 0, revenue: 0 }
+      cur.eggs += eggs
+      cur.crates += Math.floor(eggs / EGGS_PER_CRATE)
+      cur.revenue += Number(s.totalAmount) || 0
       m.set(key, cur)
     }
     return Array.from(m.entries())
       .map(([size, v]) => ({
         size,
-        trays: v.trays,
-        avgPrice: v.saleCount ? v.totalUnitPrice / v.saleCount : 0,
+        eggs: v.eggs,
+        crates: v.crates,
+        // Volume-weighted: a 1-crate sale shouldn't move this as much as a 100-crate one.
+        avgPrice: v.crates ? v.revenue / v.crates : 0,
         revenue: v.revenue,
       }))
       .sort((a, b) => b.revenue - a.revenue)
@@ -390,9 +568,10 @@ export default function WeeklyReportPage() {
   const debtors = useMemo(() => {
     const m = new Map<string, number>()
     for (const s of filteredSales) {
-      if (s.paid) continue
+      const owed = saleOwed(s)
+      if (owed <= 0) continue
       const name = (s.customerName || "Unknown").trim() || "Unknown"
-      m.set(name, (m.get(name) ?? 0) + (Number(s.totalAmount) || 0))
+      m.set(name, (m.get(name) ?? 0) + owed)
     }
     return Array.from(m.entries())
       .map(([customer, amount]) => ({ customer, amount }))
@@ -599,7 +778,12 @@ export default function WeeklyReportPage() {
                   <SummaryCard label="Total Eggs Sold" value={totalEggsSold.toLocaleString()} accent="sky" />
                   <SummaryCard label="Total Revenue" value={totalRevenue.toLocaleString(undefined, { style: "currency", currency: "GHS", maximumFractionDigits: 0 })} accent="violet" />
                   <SummaryCard label="Total Expenses" value={totalExpenses.toLocaleString(undefined, { style: "currency", currency: "GHS", maximumFractionDigits: 0 })} accent="amber" />
-                  <SummaryCard label="Remaining Eggs" value={remainingEggs.toLocaleString()} accent="slate" />
+                  <SummaryCard
+                    label="Eggs in Stock"
+                    value={eggsInStock.toLocaleString()}
+                    accent={eggsInStock >= 0 ? "slate" : "rose"}
+                    hint={`Saleable eggs on hand as at ${range.to === ALL_TIME_TO ? "today" : range.to}. Excludes egg-tracker adjustments.`}
+                  />
                   <SummaryCard
                     label="Net Balance"
                     value={netBalance.toLocaleString(undefined, { style: "currency", currency: "GHS", maximumFractionDigits: 0 })}
@@ -612,51 +796,65 @@ export default function WeeklyReportPage() {
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">Daily Egg Collection</CardTitle>
                     <CardDescription>
-                      Eggs collected per flock (Mon–Sun). Time-of-day rollup uses 9 AM, 12 PM and 4 PM fields already on each record.
+                      Eggs collected per flock, one column per day in the selected period. Crates show as
+                      whole crates of {EGGS_PER_CRATE} plus any loose eggs.
+                      {dayColumns.length === 0 && filteredRecords.length > 0 && (
+                        <> The period is longer than {MAX_DAY_COLUMNS} days, so only period totals are shown.</>
+                      )}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="overflow-x-auto">
-                    <Table className="w-full min-w-[820px]">
+                    {/* A month's worth of day columns needs more room than a week's. */}
+                    <Table className="w-full" style={{ minWidth: 320 + dayColumns.length * 56 }}>
                       <TableHeader>
                         <TableRow>
                           <TableHead>Room / Flock</TableHead>
-                          {WEEKDAYS.map((d) => (
-                            <TableHead key={d} className="text-right">{d}</TableHead>
+                          {dayColumns.map((c) => (
+                            <TableHead key={c.key} className="text-right">{c.label}</TableHead>
                           ))}
                           <TableHead className="text-right">Total</TableHead>
                           <TableHead className="text-right">Crates</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {dailyByFlock.size === 0 ? (
+                        {dailyRows.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={WEEKDAYS.length + 3} className="text-center text-slate-500 py-8">
+                            <TableCell colSpan={dayColumns.length + 3} className="text-center text-slate-500 py-8">
                               No flocks match the current filters.
                             </TableCell>
                           </TableRow>
                         ) : (
-                          Array.from(dailyByFlock.entries()).map(([fid, days]) => {
-                            const flock = flocks.find((f) => f.flockId === fid)
-                            const flockName = flock?.name ?? `Flock #${fid}`
-                            const house = houses.find((h) => h.houseId === flock?.houseId)?.name
-                            const total = days.reduce((s, x) => s + x, 0)
-                            const crates = Math.floor(total / EGGS_PER_CRATE)
-                            return (
-                              <TableRow key={fid}>
+                          <>
+                            {dailyRows.map((row) => (
+                              <TableRow key={row.key}>
                                 <TableCell className="font-medium">
-                                  <div>{flockName}</div>
-                                  {house && <div className="text-xs text-slate-500">{house}</div>}
+                                  <div>{row.name}</div>
+                                  {row.house && <div className="text-xs text-slate-500">{row.house}</div>}
                                 </TableCell>
-                                {days.map((n, i) => (
+                                {row.days.map((n, i) => (
                                   <TableCell key={i} className="text-right tabular-nums">
                                     {n ? n.toLocaleString() : "—"}
                                   </TableCell>
                                 ))}
-                                <TableCell className="text-right tabular-nums font-semibold">{total.toLocaleString()}</TableCell>
-                                <TableCell className="text-right tabular-nums text-slate-600">{crates.toLocaleString()}</TableCell>
+                                <TableCell className="text-right tabular-nums font-semibold">{row.total.toLocaleString()}</TableCell>
+                                <TableCell className="text-right tabular-nums text-slate-600">
+                                  {formatCrates(row.total)}
+                                </TableCell>
                               </TableRow>
-                            )
-                          })
+                            ))}
+                            <TableRow className="bg-slate-50">
+                              <TableCell className="font-semibold">All flocks</TableCell>
+                              {dailyDayTotals.map((n, i) => (
+                                <TableCell key={i} className="text-right tabular-nums font-semibold">
+                                  {n ? n.toLocaleString() : "—"}
+                                </TableCell>
+                              ))}
+                              <TableCell className="text-right tabular-nums font-bold">{totalEggsCollected.toLocaleString()}</TableCell>
+                              <TableCell className="text-right tabular-nums font-semibold text-slate-600">
+                                {formatCrates(totalEggsCollected)}
+                              </TableCell>
+                            </TableRow>
+                          </>
                         )}
                       </TableBody>
                     </Table>
@@ -667,34 +865,67 @@ export default function WeeklyReportPage() {
                 <Card className="bg-white">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">Room Production Summary</CardTitle>
-                    <CardDescription>Eggs collected, crates and remaining eggs per room. Remaining = collected − sold.</CardDescription>
+                    <CardDescription>
+                      Per room, for the selected period only. Saleable = collected − broken, meaty, soft and lost eggs.
+                      Unsold = saleable − sold, and goes negative when a room&rsquo;s sales drew on stock collected
+                      before this period.
+                    </CardDescription>
                   </CardHeader>
                   <CardContent className="overflow-x-auto">
-                    <Table className="w-full min-w-[560px]">
+                    <Table className="w-full min-w-[720px]">
                       <TableHeader>
                         <TableRow>
                           <TableHead>Room</TableHead>
                           <TableHead className="text-right">Eggs Collected</TableHead>
-                          <TableHead className="text-right">Crates</TableHead>
-                          <TableHead className="text-right">Remaining Eggs</TableHead>
+                          <TableHead className="text-right">Crates (+ loose)</TableHead>
+                          <TableHead className="text-right">Losses</TableHead>
+                          <TableHead className="text-right">Saleable</TableHead>
+                          <TableHead className="text-right">Sold</TableHead>
+                          <TableHead className="text-right">Unsold</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {roomSummary.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={4} className="text-center text-slate-500 py-8">
+                            <TableCell colSpan={7} className="text-center text-slate-500 py-8">
                               No room data for this period.
                             </TableCell>
                           </TableRow>
                         ) : (
-                          roomSummary.map((r) => (
-                            <TableRow key={r.name}>
-                              <TableCell className="font-medium">{r.name}</TableCell>
-                              <TableCell className="text-right tabular-nums">{r.eggs.toLocaleString()}</TableCell>
-                              <TableCell className="text-right tabular-nums">{r.crates.toLocaleString()}</TableCell>
-                              <TableCell className="text-right tabular-nums">{r.remaining.toLocaleString()}</TableCell>
+                          <>
+                            {roomSummary.map((r) => (
+                              <TableRow key={r.name}>
+                                <TableCell className="font-medium">{r.name}</TableCell>
+                                <TableCell className="text-right tabular-nums">{r.eggs.toLocaleString()}</TableCell>
+                                <TableCell className="text-right tabular-nums text-slate-600">{formatCrates(r.eggs)}</TableCell>
+                                <TableCell className="text-right tabular-nums text-rose-700">
+                                  {r.losses ? r.losses.toLocaleString() : "—"}
+                                </TableCell>
+                                <TableCell className="text-right tabular-nums">{r.saleable.toLocaleString()}</TableCell>
+                                <TableCell className="text-right tabular-nums">{r.sold.toLocaleString()}</TableCell>
+                                <TableCell className={cn("text-right tabular-nums font-medium", r.unsold < 0 && "text-rose-700")}>
+                                  {r.unsold.toLocaleString()}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                            <TableRow className="bg-slate-50">
+                              <TableCell className="font-semibold">All rooms</TableCell>
+                              <TableCell className="text-right tabular-nums font-bold">{roomTotals.eggs.toLocaleString()}</TableCell>
+                              {/* Derived from the egg total, not from summing the rows' crate figures,
+                                  so the loose eggs each room carries can't round away. */}
+                              <TableCell className="text-right tabular-nums font-semibold text-slate-600">
+                                {formatCrates(roomTotals.eggs)}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums font-semibold text-rose-700">
+                                {roomTotals.losses ? roomTotals.losses.toLocaleString() : "—"}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums font-semibold">{roomTotals.saleable.toLocaleString()}</TableCell>
+                              <TableCell className="text-right tabular-nums font-semibold">{roomTotals.sold.toLocaleString()}</TableCell>
+                              <TableCell className={cn("text-right tabular-nums font-bold", roomTotals.unsold < 0 && "text-rose-700")}>
+                                {roomTotals.unsold.toLocaleString()}
+                              </TableCell>
                             </TableRow>
-                          ))
+                          </>
                         )}
                       </TableBody>
                     </Table>
@@ -706,18 +937,40 @@ export default function WeeklyReportPage() {
                   <Card className="bg-white">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-base">Sales Summary</CardTitle>
-                      <CardDescription>Egg sales only (other product sales are excluded).</CardDescription>
+                      <CardDescription>
+                        Egg volumes for the period, with revenue split into egg and non-egg sales. Crates read as
+                        whole crates of {EGGS_PER_CRATE} plus loose eggs.
+                      </CardDescription>
                     </CardHeader>
                     <CardContent>
                       <dl className="grid grid-cols-2 gap-y-3 text-sm">
                         <dt className="text-slate-600">Total eggs sold</dt>
                         <dd className="text-right font-semibold tabular-nums">{totalEggsSold.toLocaleString()}</dd>
                         <dt className="text-slate-600">Total crates sold</dt>
-                        <dd className="text-right font-semibold tabular-nums">{totalCratesSold.toLocaleString()}</dd>
+                        <dd className="text-right font-semibold tabular-nums">{formatCrates(totalEggsSold)}</dd>
                         <dt className="text-slate-600">Crates collected</dt>
-                        <dd className="text-right font-semibold tabular-nums">{totalCratesCollected.toLocaleString()}</dd>
-                        <dt className="text-slate-600">Total revenue</dt>
-                        <dd className="text-right font-bold text-emerald-700 tabular-nums">
+                        <dd className="text-right font-semibold tabular-nums">{formatCrates(totalEggsCollected)}</dd>
+                        <dt className="text-slate-600">Saleable eggs collected</dt>
+                        <dd className="text-right font-semibold tabular-nums">{periodSaleableEggs.toLocaleString()}</dd>
+                        <dt className="text-slate-600">
+                          Unsold this period
+                          {periodUnsoldEggs < 0 && (
+                            <span className="block text-xs text-slate-400">sold more than collected — drawn from earlier stock</span>
+                          )}
+                        </dt>
+                        <dd className={cn("text-right font-semibold tabular-nums", periodUnsoldEggs < 0 && "text-rose-700")}>
+                          {periodUnsoldEggs.toLocaleString()}
+                        </dd>
+                        <dt className="text-slate-600">Egg sales revenue</dt>
+                        <dd className="text-right font-semibold tabular-nums">
+                          {eggRevenue.toLocaleString(undefined, { style: "currency", currency: "GHS", maximumFractionDigits: 0 })}
+                        </dd>
+                        <dt className="text-slate-600">Other sales revenue</dt>
+                        <dd className="text-right font-semibold tabular-nums">
+                          {otherRevenue.toLocaleString(undefined, { style: "currency", currency: "GHS", maximumFractionDigits: 0 })}
+                        </dd>
+                        <dt className="text-slate-900 font-semibold pt-2 border-t">Total revenue</dt>
+                        <dd className="text-right font-bold text-emerald-700 tabular-nums pt-2 border-t">
                           {totalRevenue.toLocaleString(undefined, { style: "currency", currency: "GHS", maximumFractionDigits: 0 })}
                         </dd>
                       </dl>
@@ -727,11 +980,11 @@ export default function WeeklyReportPage() {
                   <Card className="bg-white">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-base">Financial Summary</CardTitle>
-                      <CardDescription>Balance = Income − Expenditure.</CardDescription>
+                      <CardDescription>Balance = Income − Expenditure. Income covers every sale in the period, not just eggs.</CardDescription>
                     </CardHeader>
                     <CardContent>
                       <dl className="grid grid-cols-2 gap-y-3 text-sm">
-                        <dt className="text-slate-600">Income (egg sales)</dt>
+                        <dt className="text-slate-600">Income (all sales)</dt>
                         <dd className="text-right font-semibold text-emerald-700 tabular-nums">
                           {totalRevenue.toLocaleString(undefined, { style: "currency", currency: "GHS", maximumFractionDigits: 0 })}
                         </dd>
@@ -811,7 +1064,8 @@ export default function WeeklyReportPage() {
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">Debtors</CardTitle>
                     <CardDescription>
-                      Customers with unpaid sales in the selected period. Mark a sale as paid on the Sales page to clear.
+                      Customers with an outstanding balance on sales in the selected period. Partial payments are
+                      netted off, so a part-paid sale shows only the remainder. Record payments on the Sales page to clear.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="overflow-x-auto">
@@ -858,22 +1112,24 @@ export default function WeeklyReportPage() {
                     <CardTitle className="text-base">Egg Sales by Size</CardTitle>
                     <CardDescription>
                       Grouped by the Sale.size field (added by migration 018). Sales without a size appear as &ldquo;Unspecified&rdquo;.
+                      Egg sales are priced per crate of {EGGS_PER_CRATE}, so the average price is revenue ÷ crates.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="overflow-x-auto">
-                    <Table className="w-full min-w-[520px]">
+                    <Table className="w-full min-w-[560px]">
                       <TableHeader>
                         <TableRow>
                           <TableHead>Size</TableHead>
-                          <TableHead className="text-right">Trays</TableHead>
-                          <TableHead className="text-right">Avg Price / Tray</TableHead>
+                          <TableHead className="text-right">Crates</TableHead>
+                          <TableHead className="text-right">Eggs</TableHead>
+                          <TableHead className="text-right">Avg Price / Crate</TableHead>
                           <TableHead className="text-right">Total</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {salesBySize.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={4} className="text-center text-slate-500 py-8">
+                            <TableCell colSpan={5} className="text-center text-slate-500 py-8">
                               No egg sales in this period.
                             </TableCell>
                           </TableRow>
@@ -882,7 +1138,8 @@ export default function WeeklyReportPage() {
                             {salesBySize.map((s) => (
                               <TableRow key={s.size}>
                                 <TableCell className="font-medium">{s.size}</TableCell>
-                                <TableCell className="text-right tabular-nums">{s.trays.toLocaleString()}</TableCell>
+                                <TableCell className="text-right tabular-nums">{s.crates.toLocaleString()}</TableCell>
+                                <TableCell className="text-right tabular-nums text-slate-600">{s.eggs.toLocaleString()}</TableCell>
                                 <TableCell className="text-right tabular-nums text-slate-600">
                                   {s.avgPrice.toLocaleString(undefined, { style: "currency", currency: "GHS", maximumFractionDigits: 2 })}
                                 </TableCell>
@@ -894,7 +1151,10 @@ export default function WeeklyReportPage() {
                             <TableRow className="bg-slate-50">
                               <TableCell className="font-semibold">Total</TableCell>
                               <TableCell className="text-right font-semibold tabular-nums">
-                                {salesBySize.reduce((s, x) => s + x.trays, 0).toLocaleString()}
+                                {salesBySize.reduce((s, x) => s + x.crates, 0).toLocaleString()}
+                              </TableCell>
+                              <TableCell className="text-right font-semibold tabular-nums text-slate-600">
+                                {salesBySize.reduce((s, x) => s + x.eggs, 0).toLocaleString()}
                               </TableCell>
                               <TableCell />
                               <TableCell className="text-right font-bold text-emerald-800 tabular-nums">
@@ -913,7 +1173,9 @@ export default function WeeklyReportPage() {
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">Egg Loss Tracking</CardTitle>
                     <CardDescription>
-                      Totals across production records in the selected period. New loss fields (Meaty / Soft / Lost) require entries logged via the production-record form to populate.
+                      Totals across production records in the selected period. All four categories are deducted from
+                      collected eggs to give the saleable figure used by Eggs in Stock. New loss fields
+                      (Meaty / Soft / Lost) require entries logged via the production-record form to populate.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -994,10 +1256,13 @@ function SummaryCard({
   label,
   value,
   accent,
+  hint,
 }: {
   label: string
   value: string
   accent: "emerald" | "sky" | "violet" | "amber" | "slate" | "rose"
+  /** Optional one-liner for figures whose basis isn't obvious from the label. */
+  hint?: string
 }) {
   const colors: Record<string, string> = {
     emerald: "text-emerald-700",
@@ -1011,6 +1276,7 @@ function SummaryCard({
     <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
       <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">{label}</div>
       <div className={cn("text-xl sm:text-2xl font-bold tabular-nums mt-1", colors[accent])}>{value}</div>
+      {hint && <div className="text-[11px] leading-tight text-slate-400 mt-1">{hint}</div>}
     </div>
   )
 }
