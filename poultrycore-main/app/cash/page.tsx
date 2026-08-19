@@ -564,7 +564,7 @@ export default function CashPage() {
                   </div>
                 </div>
                 <p className="text-xs text-slate-500 mt-2">
-                  Computed: Opening Balance + Paid Sales + Other Income − Expenses
+                  Computed: Opening Balance + Payments Received on Sales + Other Income − Expenses
                 </p>
               </CardContent>
             </Card>

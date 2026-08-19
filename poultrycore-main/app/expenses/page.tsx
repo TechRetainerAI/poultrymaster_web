@@ -926,8 +926,8 @@ export default function ExpensesPage() {
                               <div className="flex items-start justify-between gap-3 cursor-pointer">
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-2">
-                                    <span className="font-semibold text-slate-900">{formatDateShort(expense.expenseDate)}</span>
-                                    <Badge className={getCategoryColor(expense.category)}>{expense.category}</Badge>
+                                    <span className="font-semibold text-slate-900 shrink-0">{formatDateShort(expense.expenseDate)}</span>
+                                    <Badge className={cn("whitespace-normal break-words shrink min-w-0 text-left", getCategoryColor(expense.category))}>{expense.category}</Badge>
                                   </div>
                                   <div className="mt-1 flex items-baseline gap-3">
                                     <span className="text-lg font-bold text-red-600">{formatCurrency(expense.amount)}</span>
@@ -989,13 +989,17 @@ export default function ExpensesPage() {
                         </Button>
                       </div>
                     )}
-                  <Table className="table-fixed w-full min-w-[800px]">
+                  {/* Fixed columns total 720px; Description is the one auto column
+                      and absorbs whatever is left, so the widths can never add up
+                      to more than the table and squeeze cells into each other.
+                      Below the min width the wrapper scrolls instead. */}
+                  <Table className="table-fixed w-full min-w-[900px]">
                     <TableHeader>
                       <TableRow>
                         <SortableHeader label="Date" sortKey="expenseDate" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("w-[100px]", isMobile && "sticky-col-date bg-slate-50")} />
-                        <SortableHeader label="Description" sortKey="description" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[32%] min-w-0" />
-                        <SortableHeader label="Category" sortKey="category" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[120px]" />
-                        <SortableHeader label="Amount" sortKey="amount" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[110px] text-right whitespace-nowrap" />
+                        <SortableHeader label="Description" sortKey="description" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-auto min-w-0" />
+                        <SortableHeader label="Category" sortKey="category" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[150px]" />
+                        <SortableHeader label="Amount" sortKey="amount" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[130px] text-right whitespace-nowrap" />
                         <SortableHeader label="Payment Method" sortKey="paymentMethod" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[130px]" />
                         <SortableHeader label="Paid To" sortKey="paidTo" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[110px] min-w-0" />
                         <TableHead className={cn("text-right w-[100px] min-w-[100px] whitespace-nowrap", isMobile && "sticky-col-actions bg-slate-50")}>Actions</TableHead>
@@ -1008,10 +1012,14 @@ export default function ExpensesPage() {
                         return (
                         <TableRow key={`${expense.expenseId || 'tmp'}-${idx}`}>
                           <TableCell className={cn("font-medium bg-white", isMobile && "sticky-col-date")}>{isMobile ? formatDateShort(expense.expenseDate) : formatDate(expense.expenseDate)}</TableCell>
-                          <TableCell className="min-w-0 align-top">
+                          {/* overflow-hidden clips anything that still escapes, and
+                              wrap-anywhere lets a long unbroken run break mid-word —
+                              break-words alone leaves the intrinsic min-width intact,
+                              which is what let long text reach into Category. */}
+                          <TableCell className="min-w-0 align-top overflow-hidden">
                             <div className="min-w-0">
                               <div className="font-medium flex items-start gap-2 min-w-0">
-                                <span className="min-w-0 break-words">{stripReceiptSuffixFromDescription(expense.description || "")}</span>
+                                <span className="min-w-0 wrap-anywhere">{stripReceiptSuffixFromDescription(expense.description || "")}</span>
                                 {rowReceiptUrl && rowReceiptPath && (
                                   <a
                                     href={rowReceiptUrl}
@@ -1027,10 +1035,13 @@ export default function ExpensesPage() {
                               {expense.notes && <div className="text-sm text-slate-500">{expense.notes}</div>}
                             </div>
                           </TableCell>
-                          <TableCell className="align-top"><Badge className={getCategoryColor(expense.category)}>{expense.category}</Badge></TableCell>
+                          {/* Badge is nowrap/shrink-0 by default, so a long category
+                              ("Raw Materials / Inventory Purchase") renders past this
+                              fixed-width cell and over the Amount column. Let it wrap. */}
+                          <TableCell className="align-top min-w-0"><Badge className={cn("whitespace-normal break-words shrink max-w-full text-left", getCategoryColor(expense.category))}>{expense.category}</Badge></TableCell>
                           <TableCell className="text-right font-medium whitespace-nowrap align-top">{formatCurrency(expense.amount)}</TableCell>
                           <TableCell className="align-top"><Badge variant="outline">{expense.paymentMethod || "N/A"}</Badge></TableCell>
-                          <TableCell className="text-slate-600 min-w-0 break-words align-top">{expense.paidTo || "N/A"}</TableCell>
+                          <TableCell className="text-slate-600 min-w-0 wrap-anywhere align-top overflow-hidden">{expense.paidTo || "N/A"}</TableCell>
                           <TableCell className={cn("text-right whitespace-nowrap bg-white", isMobile && "sticky-col-actions")}>
                             <div className="flex items-center justify-end gap-2 min-w-[80px]">
                               {(() => {
