@@ -1,7 +1,8 @@
 using PoultryFarmAPIWeb.Models;
 using System.Data;
 using System.Text.Json;
-using Microsoft.Data.SqlClient;
+using Npgsql;
+using NpgsqlTypes;
 
 namespace PoultryFarmAPIWeb.Business
 {
@@ -78,7 +79,7 @@ namespace PoultryFarmAPIWeb.Business
                 })
             }));
 
-        private static void AddHeaderParams(SqlCommand cmd, ProductionBatchRecordModel m)
+        private static void AddHeaderParams(NpgsqlCommand cmd, ProductionBatchRecordModel m)
         {
             cmd.Parameters.AddWithValue("@BatchSelectionType", m.BatchSelectionType);
             cmd.Parameters.AddWithValue("@SelectedBirdBatchId", (object?)m.SelectedBirdBatchId ?? DBNull.Value);
@@ -121,14 +122,14 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<int> Insert(ProductionBatchRecordModel model)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spProductionBatchRecord_Insert", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT spproductionbatchrecord_insert(p_farmid => @FarmId::text, p_userid => @UserId::text, p_createdby => @CreatedBy::text, p_batchselectiontype => @BatchSelectionType::text, p_selectedbirdbatchid => @SelectedBirdBatchId::int, p_batchname => @BatchName::text, p_productiondate => @ProductionDate::date, p_ageinweeks => @AgeInWeeks::int, p_ageindays => @AgeInDays::int, p_agedisplay => @AgeDisplay::text, p_firstpickcrates => @FirstPickCrates::int, p_firstpicklooseeggs => @FirstPickLooseEggs::int, p_firstpicktotal => @FirstPickTotal::int, p_secondpickcrates => @SecondPickCrates::int, p_secondpicklooseeggs => @SecondPickLooseEggs::int, p_secondpicktotal => @SecondPickTotal::int, p_thirdpickcrates => @ThirdPickCrates::int, p_thirdpicklooseeggs => @ThirdPickLooseEggs::int, p_thirdpicktotal => @ThirdPickTotal::int, p_fourthpickcrates => @FourthPickCrates::int, p_fourthpicklooseeggs => @FourthPickLooseEggs::int, p_fourthpicktotal => @FourthPickTotal::int, p_brokeneggs => @BrokenEggs::int, p_meatyeggs => @MeatyEggs::int, p_softeggs => @SoftEggs::int, p_losteggs => @LostEggs::int, p_totaleggs => @TotalEggs::int, p_feedkg => @FeedKg::numeric, p_deaths => @Deaths::int, p_birdsleft => @BirdsLeft::int, p_egggrade => @EggGrade::text, p_feedtype => @FeedType::text, p_medication => @Medication::text, p_totalfeedcost => @TotalFeedCost::numeric, p_totalmedicationcost => @TotalMedicationCost::numeric, p_totalcostofproduction => @TotalCostOfProduction::numeric, p_status => @Status::text, p_notes => @Notes::text, p_includedflocksjson => @IncludedFlocksJson::text, p_feedsjson => @FeedsJson::text, p_medicationsjson => @MedicationsJson::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
             cmd.Parameters.AddWithValue("@UserId", (object?)model.UserId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@CreatedBy", (object?)model.CreatedBy ?? DBNull.Value);
             AddHeaderParams(cmd, model);
             cmd.Parameters.AddWithValue("@Status", string.IsNullOrWhiteSpace(model.Status) ? "PendingAllocation" : model.Status);
-            var newIdParam = new SqlParameter("@NewId", SqlDbType.Int) { Direction = ParameterDirection.Output };
+            var newIdParam = new NpgsqlParameter("@NewId", NpgsqlDbType.Integer) { Direction = ParameterDirection.Output };
             cmd.Parameters.Add(newIdParam);
 
             await conn.OpenAsync();
@@ -138,8 +139,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task Update(ProductionBatchRecordModel model)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spProductionBatchRecord_Update", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spproductionbatchrecord_update(p_id => @Id::int, p_updatedby => @UpdatedBy::text, p_status => @Status::text, p_batchselectiontype => @BatchSelectionType::text, p_selectedbirdbatchid => @SelectedBirdBatchId::int, p_batchname => @BatchName::text, p_productiondate => @ProductionDate::date, p_ageinweeks => @AgeInWeeks::int, p_ageindays => @AgeInDays::int, p_agedisplay => @AgeDisplay::text, p_firstpickcrates => @FirstPickCrates::int, p_firstpicklooseeggs => @FirstPickLooseEggs::int, p_firstpicktotal => @FirstPickTotal::int, p_secondpickcrates => @SecondPickCrates::int, p_secondpicklooseeggs => @SecondPickLooseEggs::int, p_secondpicktotal => @SecondPickTotal::int, p_thirdpickcrates => @ThirdPickCrates::int, p_thirdpicklooseeggs => @ThirdPickLooseEggs::int, p_thirdpicktotal => @ThirdPickTotal::int, p_fourthpickcrates => @FourthPickCrates::int, p_fourthpicklooseeggs => @FourthPickLooseEggs::int, p_fourthpicktotal => @FourthPickTotal::int, p_brokeneggs => @BrokenEggs::int, p_meatyeggs => @MeatyEggs::int, p_softeggs => @SoftEggs::int, p_losteggs => @LostEggs::int, p_totaleggs => @TotalEggs::int, p_feedkg => @FeedKg::numeric, p_deaths => @Deaths::int, p_birdsleft => @BirdsLeft::int, p_egggrade => @EggGrade::text, p_feedtype => @FeedType::text, p_medication => @Medication::text, p_totalfeedcost => @TotalFeedCost::numeric, p_totalmedicationcost => @TotalMedicationCost::numeric, p_totalcostofproduction => @TotalCostOfProduction::numeric, p_notes => @Notes::text, p_includedflocksjson => @IncludedFlocksJson::text, p_feedsjson => @FeedsJson::text, p_medicationsjson => @MedicationsJson::text)", conn);
             cmd.Parameters.AddWithValue("@Id", model.Id);
             cmd.Parameters.AddWithValue("@UpdatedBy", (object?)model.UpdatedBy ?? DBNull.Value);
             AddHeaderParams(cmd, model);
@@ -151,8 +152,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<ProductionBatchRecordModel?> GetById(int id, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spProductionBatchRecord_GetById", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spproductionbatchrecord_getbyid(p_id => @Id::int, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@Id", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await conn.OpenAsync();
@@ -165,8 +166,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<ProductionBatchRecordModel>> GetAll(string userId, string farmId)
         {
             var list = new List<ProductionBatchRecordModel>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spProductionBatchRecord_GetAll", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spproductionbatchrecord_getall(p_userid => @UserId::text, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@UserId", userId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await conn.OpenAsync();
@@ -178,8 +179,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task Delete(int id, string userId, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spProductionBatchRecord_Delete", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spproductionbatchrecord_delete(p_id => @Id::int, p_userid => @UserId::text, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@Id", id);
             cmd.Parameters.AddWithValue("@UserId", userId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
@@ -189,8 +190,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task SetStatus(int id, string farmId, string status, string? updatedBy)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spProductionBatchRecord_SetStatus", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spproductionbatchrecord_setstatus(p_id => @Id::int, p_farmid => @FarmId::text, p_status => @Status::text, p_updatedby => @UpdatedBy::text)", conn);
             cmd.Parameters.AddWithValue("@Id", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@Status", status);
@@ -201,8 +202,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task SaveAllocation(int id, string farmId, string? updatedBy, string? status, List<ProductionBatchAllocationModel> allocations)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spProductionBatchRecord_SaveAllocation", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spproductionbatchrecord_saveallocation(p_id => @Id::int, p_farmid => @FarmId::text, p_updatedby => @UpdatedBy::text, p_allocationsjson => @AllocationsJson::text, p_status => @Status::text)", conn);
             cmd.Parameters.AddWithValue("@Id", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@UpdatedBy", (object?)updatedBy ?? DBNull.Value);
@@ -214,8 +215,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task Post(int id, string farmId, string postedBy)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spProductionBatchRecord_Post", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spproductionbatchrecord_post(p_id => @Id::int, p_farmid => @FarmId::text, p_postedby => @PostedBy::text)", conn);
             cmd.Parameters.AddWithValue("@Id", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@PostedBy", postedBy);
@@ -225,8 +226,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task Reverse(int id, string farmId, string reversedBy)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spProductionBatchRecord_Reverse", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spproductionbatchrecord_reverse(p_id => @Id::int, p_farmid => @FarmId::text, p_reversedby => @ReversedBy::text)", conn);
             cmd.Parameters.AddWithValue("@Id", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@ReversedBy", reversedBy);
@@ -236,8 +237,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task DeleteAllocation(int id, string farmId, string updatedBy)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spProductionBatchRecord_DeleteAllocation", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spproductionbatchrecord_deleteallocation(p_id => @Id::int, p_farmid => @FarmId::text, p_updatedby => @UpdatedBy::text)", conn);
             cmd.Parameters.AddWithValue("@Id", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@UpdatedBy", updatedBy);
@@ -247,7 +248,7 @@ namespace PoultryFarmAPIWeb.Business
 
         // ---- Reading helpers ----
 
-        private static ProductionBatchRecordModel MapHeader(SqlDataReader reader, bool includeAllocations)
+        private static ProductionBatchRecordModel MapHeader(NpgsqlDataReader reader, bool includeAllocations)
         {
             var m = new ProductionBatchRecordModel
             {
@@ -312,7 +313,7 @@ namespace PoultryFarmAPIWeb.Business
             catch { return default; }
         }
 
-        private static int? GetInt(SqlDataReader reader, string columnName)
+        private static int? GetInt(NpgsqlDataReader reader, string columnName)
         {
             for (var i = 0; i < reader.FieldCount; i++)
                 if (string.Equals(reader.GetName(i), columnName, StringComparison.OrdinalIgnoreCase))
@@ -320,7 +321,7 @@ namespace PoultryFarmAPIWeb.Business
             return null;
         }
 
-        private static decimal? GetDecimal(SqlDataReader reader, string columnName)
+        private static decimal? GetDecimal(NpgsqlDataReader reader, string columnName)
         {
             for (var i = 0; i < reader.FieldCount; i++)
                 if (string.Equals(reader.GetName(i), columnName, StringComparison.OrdinalIgnoreCase))

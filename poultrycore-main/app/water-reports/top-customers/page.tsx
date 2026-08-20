@@ -8,6 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { ReportShell, SumTile } from "@/components/reports/report-shell"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { getWaterTopCustomers, type WaterTopCustomerRow } from "@/lib/api/water"
 import { useFmt } from "@/lib/currency"
 import { defaultReportRange } from "@/lib/date-ranges"
@@ -25,6 +27,7 @@ export default function TopCustomersReportPage() {
   const [toDate, setToDate] = useState(DEFAULT_RANGE.to)
   const [topN, setTopN] = useState(10)
   const [rows, setRows] = useState<WaterTopCustomerRow[]>([])
+  const pg = usePagination(rows)
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -106,7 +109,7 @@ export default function TopCustomersReportPage() {
           <TableBody>
             {rows.length === 0 ? (
               <TableRow><TableCell colSpan={6} className="text-slate-500 text-center p-4">No customer sales in this period.</TableCell></TableRow>
-            ) : rows.map((r) => (
+            ) : pg.pageItems.map((r) => (
               <TableRow key={r.waterCustomerId}>
                 <TableCell className="font-medium">{r.customerName}</TableCell>
                 <TableCell>{r.phoneNumber ?? "—"}</TableCell>
@@ -119,6 +122,7 @@ export default function TopCustomersReportPage() {
           </TableBody>
         </Table>
       </div>
+      <DataPagination {...pg.paginationProps} />
     </ReportShell>
   )
 }

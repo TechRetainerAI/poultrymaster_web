@@ -14,6 +14,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { Plus, Pencil, Loader2, Trash2, CheckCircle2, Undo2 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
@@ -32,6 +34,7 @@ export default function PoultryLossRecordsPage() {
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const gh = useFmt()
   const [rows, setRows] = useState<PoultryLossRecord[]>([])
+  const pg = usePagination(rows)
   const [products, setProducts] = useState<PoultryProduct[]>([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
@@ -88,7 +91,7 @@ export default function PoultryLossRecordsPage() {
                 <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Type</TableHead><TableHead>Product</TableHead><TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Value</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                 <TableBody>
                   {rows.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-6">No loss records yet.</TableCell></TableRow>
-                    : rows.map((l) => (
+                    : pg.pageItems.map((l) => (
                       <TableRow key={l.poultryLossRecordId}>
                         <TableCell>{(l.lossDate || "").split("T")[0]}</TableCell>
                         <TableCell>{l.lossType}</TableCell>
@@ -108,6 +111,7 @@ export default function PoultryLossRecordsPage() {
                 </TableBody>
               </Table></div>
             )}
+            <DataPagination {...pg.paginationProps} />
           </CardContent></Card>
         </main>
       </div>

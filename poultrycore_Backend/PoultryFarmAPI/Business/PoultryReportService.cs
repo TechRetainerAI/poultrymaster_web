@@ -1,5 +1,5 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 
 namespace PoultryFarmAPIWeb.Business
 {
@@ -19,8 +19,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<Dictionary<string, object?>> GetClosingReportAsync(string farmId, DateTime fromDate, DateTime toDate)
         {
             var result = new Dictionary<string, object?>();
-            using var c = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryClosingReport_Get", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryclosingreport_get(p_farmid => @FarmId::text, p_fromdate => @FromDate::date, p_todate => @ToDate::date)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@FromDate", fromDate.Date);
             cmd.Parameters.AddWithValue("@ToDate", toDate.Date);

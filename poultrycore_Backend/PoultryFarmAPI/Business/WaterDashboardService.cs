@@ -1,5 +1,5 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -15,8 +15,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<WaterDashboardSummaryModel> GetSummary(string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spWaterDashboard_Summary", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwaterdashboard_summary(p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
             await conn.OpenAsync();

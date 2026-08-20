@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 
@@ -8,8 +8,8 @@ namespace User.Management.Service.Services
 {
     /// <summary>
     /// Mirrors PoultryFarmAPI.Business.AuditLogService.InsertAsync — same table,
-    /// same columns, same dynamic table-name resolution (case-sensitive collations
-    /// may have dbo.Auditlogs instead of dbo.AuditLogs; both are valid).
+    /// same columns, same dynamic table-name resolution (resolved against
+    /// pg_catalog so a differently-cased public.auditlogs is still found).
     ///
     /// Constructed with a connection string at startup. We deliberately don't
     /// share AuditLogModel with the Farm API project (separate solutions; no
@@ -55,7 +55,7 @@ namespace User.Management.Service.Services
             {
                 try
                 {
-                    using var conn = new SqlConnection(_connectionString);
+                    using var conn = new NpgsqlConnection(_connectionString);
                     await conn.OpenAsync();
                     var table = await ResolveAuditLogsQualifiedNameAsync(conn);
 
@@ -63,10 +63,10 @@ namespace User.Management.Service.Services
                     // than the original migration). The DB default on Timestamp /
                     // Status would cover null, but we set them explicitly so the
                     // payload is identical to AuditLogService.InsertAsync.
-                    using var cmd = new SqlCommand($@"
+                    using var cmd = new NpgsqlCommand($@"
                         INSERT INTO {table}
-                            (UserId, UserName, FarmId, Action, Resource, ResourceId,
-                             Details, Data, IpAddress, UserAgent, Timestamp, Status)
+                            (userid, username, farmid, action, resource, resourceid,
+                             details, data, ipaddress, useragent, timestamp, status)
                         VALUES
                             (@UserId, @UserName, @FarmId, @Action, @Resource, @ResourceId,
                              @Details, @Data, @IpAddress, @UserAgent, @Timestamp, @Status);", conn);
@@ -99,7 +99,7 @@ namespace User.Management.Service.Services
             return Task.CompletedTask;
         }
 
-        private static async Task<string> ResolveAuditLogsQualifiedNameAsync(SqlConnection conn)
+        private static async Task<string> ResolveAuditLogsQualifiedNameAsync(NpgsqlConnection conn)
         {
             if (conn.State != ConnectionState.Open)
                 await conn.OpenAsync();
@@ -108,17 +108,20 @@ namespace User.Management.Service.Services
             if (_auditTableByDb.TryGetValue(cacheKey, out var cached))
                 return cached;
 
-            using var resolveCmd = new SqlCommand(@"
-                SELECT TOP (1) QUOTENAME(SCHEMA_NAME(t.schema_id)) + N'.' + QUOTENAME(t.name)
-                FROM sys.tables AS t
-                WHERE t.schema_id = SCHEMA_ID(N'dbo')
-                  AND t.name COLLATE Latin1_General_CI_AI = N'auditlogs';", conn);
+            using var resolveCmd = new NpgsqlCommand(@"
+                SELECT quote_ident(n.nspname) || '.' || quote_ident(c.relname)
+                FROM pg_catalog.pg_class AS c
+                JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+                WHERE n.nspname = 'public'
+                  AND c.relkind IN ('r', 'p')
+                  AND lower(c.relname) = 'auditlogs'
+                LIMIT 1;", conn);
 
             var result = await resolveCmd.ExecuteScalarAsync();
             if (result is not string q || string.IsNullOrWhiteSpace(q))
             {
                 throw new InvalidOperationException(
-                    "No audit log table found in dbo. Apply PoultryFarmAPI Migrations/007_AddAuditLogsFarmId.sql first.");
+                    "No audit log table found in schema public. Apply PoultryFarmAPI Migrations/007_AddAuditLogsFarmId.sql first.");
             }
             _auditTableByDb[cacheKey] = q;
             return q;

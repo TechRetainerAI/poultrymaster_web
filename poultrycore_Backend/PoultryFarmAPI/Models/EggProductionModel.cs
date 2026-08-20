@@ -21,6 +21,14 @@ namespace PoultryFarmAPIWeb.Models
         public int Production4thPick { get; set; }
         public int TotalProduction { get; set; }
         public int? BrokenEggs { get; set; }
+
+        // Non-saleable categories. Same columns as ProductionRecords; surfaced here
+        // (migration 198) so the Egg Tracker can deduct them from eggs on hand -
+        // an egg is saleable only if it is not broken, meaty, soft-shelled or lost.
+        public int? MeatyEggs { get; set; }
+        public int? SoftEggs { get; set; }
+        public int? LostEggs { get; set; }
+
         public string? Notes { get; set; }
 
         /// <summary>Egg size / sort (e.g. Small, Medium, Large). Same column as ProductionRecords.EggGrade.</summary>

@@ -2,7 +2,7 @@ using PoultryFarmAPIWeb.Models;
 using System.Collections.Concurrent;
 using System.Data;
 using System.Text.Json;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 
 namespace PoultryFarmAPIWeb.Business
 {
@@ -30,18 +30,18 @@ namespace PoultryFarmAPIWeb.Business
             _connectionString = connectionString;
         }
 
-        private static async Task<bool> ProcedureHasEggGradeParameterAsync(SqlConnection conn, string procedureName)
+        private static async Task<bool> ProcedureHasEggGradeParameterAsync(NpgsqlConnection conn, string procedureName)
         {
             if (SpHasEggGradeParamCache.TryGetValue(procedureName, out var cached))
                 return cached;
 
-            await using var probe = new SqlCommand(
+            await using var probe = new NpgsqlCommand(
                 @"SELECT 1
-                  FROM sys.parameters p
-                  INNER JOIN sys.procedures pr ON p.object_id = pr.object_id
-                  WHERE SCHEMA_NAME(pr.schema_id) = N'dbo'
-                    AND pr.name = @procName
-                    AND (p.name = N'EggGrade' OR p.name = N'@EggGrade')",
+                  FROM pg_proc p
+                  INNER JOIN pg_namespace n ON n.oid = p.pronamespace
+                  WHERE n.nspname = 'public'
+                    AND p.proname = lower(@procName)
+                    AND ('p_egggrade' = ANY(p.proargnames))",
                 conn);
             probe.Parameters.AddWithValue("@procName", procedureName);
             var scalar = await probe.ExecuteScalarAsync();
@@ -53,15 +53,18 @@ namespace PoultryFarmAPIWeb.Business
         // The 4th egg pick (migration 152) is persisted by a dedicated lightweight
         // proc so the large Insert/Update procs stay untouched. Tolerant of the
         // migration not being applied yet (the call becomes a no-op).
-        private static async Task<bool> ProcedureExistsAsync(SqlConnection conn, string procedureName)
+        private static async Task<bool> ProcedureExistsAsync(NpgsqlConnection conn, string procedureName, NpgsqlTransaction? tx = null)
         {
             if (SpHasFourthPickParamCache.TryGetValue(procedureName, out var cached))
                 return cached;
 
-            await using var probe = new SqlCommand(
-                @"SELECT 1 FROM sys.procedures
-                  WHERE SCHEMA_NAME(schema_id) = N'dbo' AND name = @procName",
-                conn);
+            await using var probe = new NpgsqlCommand(
+                @"SELECT 1
+                  FROM pg_proc p
+                  INNER JOIN pg_namespace n ON n.oid = p.pronamespace
+                  WHERE n.nspname = 'public'
+                    AND p.proname = lower(@procName)",
+                conn, tx);
             probe.Parameters.AddWithValue("@procName", procedureName);
             var scalar = await probe.ExecuteScalarAsync();
             var has = scalar != null && scalar != DBNull.Value;
@@ -69,28 +72,28 @@ namespace PoultryFarmAPIWeb.Business
             return has;
         }
 
-        private static async Task SetFourthPickAsync(SqlConnection conn, string farmId, int recordId, int fourthPick)
+        private static async Task SetFourthPickAsync(NpgsqlConnection conn, string farmId, int recordId, int fourthPick, NpgsqlTransaction? tx = null)
         {
-            if (!await ProcedureExistsAsync(conn, "spProductionRecord_SetFourthPick")) return;
-            await using var cmd = new SqlCommand("spProductionRecord_SetFourthPick", conn) { CommandType = CommandType.StoredProcedure };
+            if (!await ProcedureExistsAsync(conn, "spProductionRecord_SetFourthPick", tx)) return;
+            await using var cmd = new NpgsqlCommand("SELECT * FROM spproductionrecord_setfourthpick(p_recordid => @RecordId::int, p_farmid => @FarmId::text, p_production4thpick => @Production4thPick::int)", conn, tx);
             cmd.Parameters.AddWithValue("@RecordId", recordId);
             cmd.Parameters.AddWithValue("@FarmId", (object?)farmId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Production4thPick", fourthPick);
             await cmd.ExecuteNonQueryAsync();
         }
 
-        private static async Task<bool> ProcedureHasEggLossParamsAsync(SqlConnection conn, string procedureName)
+        private static async Task<bool> ProcedureHasEggLossParamsAsync(NpgsqlConnection conn, string procedureName)
         {
             if (SpHasEggLossParamsCache.TryGetValue(procedureName, out var cached))
                 return cached;
 
-            await using var probe = new SqlCommand(
+            await using var probe = new NpgsqlCommand(
                 @"SELECT 1
-                  FROM sys.parameters p
-                  INNER JOIN sys.procedures pr ON p.object_id = pr.object_id
-                  WHERE SCHEMA_NAME(pr.schema_id) = N'dbo'
-                    AND pr.name = @procName
-                    AND (p.name = N'MeatyEggs' OR p.name = N'@MeatyEggs')",
+                  FROM pg_proc p
+                  INNER JOIN pg_namespace n ON n.oid = p.pronamespace
+                  WHERE n.nspname = 'public'
+                    AND p.proname = lower(@procName)
+                    AND ('p_meatyeggs' = ANY(p.proargnames))",
                 conn);
             probe.Parameters.AddWithValue("@procName", procedureName);
             var scalar = await probe.ExecuteScalarAsync();
@@ -99,7 +102,7 @@ namespace PoultryFarmAPIWeb.Business
             return has;
         }
 
-        private static int? GetNullableIntIfPresent(SqlDataReader reader, string columnName)
+        private static int? GetNullableIntIfPresent(NpgsqlDataReader reader, string columnName)
         {
             for (var i = 0; i < reader.FieldCount; i++)
             {
@@ -109,7 +112,7 @@ namespace PoultryFarmAPIWeb.Business
             return null;
         }
 
-        private static decimal? GetNullableDecimalIfPresent(SqlDataReader reader, string columnName)
+        private static decimal? GetNullableDecimalIfPresent(NpgsqlDataReader reader, string columnName)
         {
             for (var i = 0; i < reader.FieldCount; i++)
             {
@@ -120,18 +123,18 @@ namespace PoultryFarmAPIWeb.Business
         }
 
         /// <summary>Doc §4a-4c feed/medication costing params (migration 137). Probing @SpecificFeedUsedId suffices.</summary>
-        private static async Task<bool> ProcedureHasCostingParamsAsync(SqlConnection conn, string procedureName)
+        private static async Task<bool> ProcedureHasCostingParamsAsync(NpgsqlConnection conn, string procedureName)
         {
             if (SpHasCostingParamsCache.TryGetValue(procedureName, out var cached))
                 return cached;
 
-            await using var probe = new SqlCommand(
+            await using var probe = new NpgsqlCommand(
                 @"SELECT 1
-                  FROM sys.parameters p
-                  INNER JOIN sys.procedures pr ON p.object_id = pr.object_id
-                  WHERE SCHEMA_NAME(pr.schema_id) = N'dbo'
-                    AND pr.name = @procName
-                    AND (p.name = N'SpecificFeedUsedId' OR p.name = N'@SpecificFeedUsedId')",
+                  FROM pg_proc p
+                  INNER JOIN pg_namespace n ON n.oid = p.pronamespace
+                  WHERE n.nspname = 'public'
+                    AND p.proname = lower(@procName)
+                    AND ('p_specificfeedusedid' = ANY(p.proargnames))",
                 conn);
             probe.Parameters.AddWithValue("@procName", procedureName);
             var scalar = await probe.ExecuteScalarAsync();
@@ -141,18 +144,18 @@ namespace PoultryFarmAPIWeb.Business
         }
 
         /// <summary>Migration 147 multi-medication param. Probing @MedicationsJson suffices.</summary>
-        private static async Task<bool> ProcedureHasMedicationsJsonParamAsync(SqlConnection conn, string procedureName)
+        private static async Task<bool> ProcedureHasMedicationsJsonParamAsync(NpgsqlConnection conn, string procedureName)
         {
             if (SpHasMedicationsJsonParamCache.TryGetValue(procedureName, out var cached))
                 return cached;
 
-            await using var probe = new SqlCommand(
+            await using var probe = new NpgsqlCommand(
                 @"SELECT 1
-                  FROM sys.parameters p
-                  INNER JOIN sys.procedures pr ON p.object_id = pr.object_id
-                  WHERE SCHEMA_NAME(pr.schema_id) = N'dbo'
-                    AND pr.name = @procName
-                    AND (p.name = N'MedicationsJson' OR p.name = N'@MedicationsJson')",
+                  FROM pg_proc p
+                  INNER JOIN pg_namespace n ON n.oid = p.pronamespace
+                  WHERE n.nspname = 'public'
+                    AND p.proname = lower(@procName)
+                    AND ('p_medicationsjson' = ANY(p.proargnames))",
                 conn);
             probe.Parameters.AddWithValue("@procName", procedureName);
             var scalar = await probe.ExecuteScalarAsync();
@@ -162,18 +165,18 @@ namespace PoultryFarmAPIWeb.Business
         }
 
         /// <summary>Migration 148 multi-feed param. Probing @FeedsJson suffices.</summary>
-        private static async Task<bool> ProcedureHasFeedsJsonParamAsync(SqlConnection conn, string procedureName)
+        private static async Task<bool> ProcedureHasFeedsJsonParamAsync(NpgsqlConnection conn, string procedureName)
         {
             if (SpHasFeedsJsonParamCache.TryGetValue(procedureName, out var cached))
                 return cached;
 
-            await using var probe = new SqlCommand(
+            await using var probe = new NpgsqlCommand(
                 @"SELECT 1
-                  FROM sys.parameters p
-                  INNER JOIN sys.procedures pr ON p.object_id = pr.object_id
-                  WHERE SCHEMA_NAME(pr.schema_id) = N'dbo'
-                    AND pr.name = @procName
-                    AND (p.name = N'FeedsJson' OR p.name = N'@FeedsJson')",
+                  FROM pg_proc p
+                  INNER JOIN pg_namespace n ON n.oid = p.pronamespace
+                  WHERE n.nspname = 'public'
+                    AND p.proname = lower(@procName)
+                    AND ('p_feedsjson' = ANY(p.proargnames))",
                 conn);
             probe.Parameters.AddWithValue("@procName", procedureName);
             var scalar = await probe.ExecuteScalarAsync();
@@ -213,7 +216,7 @@ namespace PoultryFarmAPIWeb.Business
         }
 
         /// <summary>Adds the feed/medication costing SP params from the model (used by Insert + Update).</summary>
-        private static void AddCostingParameters(SqlCommand cmd, ProductionRecordModel model)
+        private static void AddCostingParameters(NpgsqlCommand cmd, ProductionRecordModel model)
         {
             cmd.Parameters.AddWithValue("@SpecificFeedUsedId", (object?)model.SpecificFeedUsedId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@SpecificFeedUsedName", (object?)model.SpecificFeedUsedName ?? DBNull.Value);
@@ -228,7 +231,7 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@TotalCostOfProduction", (object?)model.TotalCostOfProduction ?? DBNull.Value);
         }
 
-        private static void MapCostingFields(SqlDataReader reader, ProductionRecordModel m)
+        private static void MapCostingFields(NpgsqlDataReader reader, ProductionRecordModel m)
         {
             m.SpecificFeedUsedId = GetNullableIntIfPresent(reader, "SpecificFeedUsedId");
             m.SpecificFeedUsedName = reader.GetNullableStringIfPresent("SpecificFeedUsedName");
@@ -279,11 +282,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spProductionRecord_Insert", conn)
-                {
-                    CommandType = CommandType.StoredProcedure
-                };
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("spProductionRecord_Insert", conn);
 
                 cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
                 cmd.Parameters.AddWithValue("@CreatedBy", model.CreatedBy);
@@ -305,13 +305,6 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.AddWithValue("@Notes", (object?)model.Notes ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@EggCount", model.EggCount > 0 ? model.EggCount : model.TotalProduction);
 
-                // Output parameter to get the newly inserted Id
-                var newIdParam = new SqlParameter("@NewId", SqlDbType.Int)
-                {
-                    Direction = ParameterDirection.Output
-                };
-                cmd.Parameters.Add(newIdParam);
-
                 await conn.OpenAsync();
                 if (await ProcedureHasEggGradeParameterAsync(conn, "spProductionRecord_Insert"))
                     cmd.Parameters.AddWithValue("@EggGrade", (object?)model.EggGrade ?? DBNull.Value);
@@ -328,12 +321,22 @@ namespace PoultryFarmAPIWeb.Business
                 if (await ProcedureHasFeedsJsonParamAsync(conn, "spProductionRecord_Insert"))
                     cmd.Parameters.AddWithValue("@FeedsJson", BuildFeedsJsonParam(model));
 
-                await cmd.ExecuteNonQueryAsync();
+                // Built after the conditional adds so the call text matches the
+                // parameters actually present. The PG function returns the new id
+                // directly (the T-SQL used an @NewId OUTPUT parameter).
+                cmd.CommandText = await PgCallText.ForAsync("spProductionRecord_Insert", cmd);
 
-                // Get the new Id
-                int newId = (int)newIdParam.Value;
+                // The record and its 4th pick commit together. Without this the
+                // insert auto-committed on its own, so a failure in the follow-up
+                // write still surfaced as "failed to insert" while leaving the
+                // record saved — an error message the database disagreed with.
+                await using var tx = await conn.BeginTransactionAsync();
+                cmd.Transaction = tx;
+
+                int newId = Convert.ToInt32(await cmd.ExecuteScalarAsync());
                 // Persist the 4th egg pick + recompute the total (migration 152).
-                await SetFourthPickAsync(conn, model.FarmId, newId, model.Production4thPick);
+                await SetFourthPickAsync(conn, model.FarmId, newId, model.Production4thPick, tx);
+                await tx.CommitAsync();
                 return newId;
             }
             catch (Exception ex)
@@ -347,11 +350,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spProductionRecord_Update", conn)
-                {
-                    CommandType = CommandType.StoredProcedure
-                };
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("spProductionRecord_Update", conn);
 
                 cmd.Parameters.AddWithValue("@RecordId", model.Id);
                 cmd.Parameters.AddWithValue("@UpdatedBy", model.UpdatedBy);
@@ -388,9 +388,16 @@ namespace PoultryFarmAPIWeb.Business
                 if (await ProcedureHasFeedsJsonParamAsync(conn, "spProductionRecord_Update"))
                     cmd.Parameters.AddWithValue("@FeedsJson", BuildFeedsJsonParam(model));
 
+                cmd.CommandText = await PgCallText.ForAsync("spProductionRecord_Update", cmd);
+
+                // All-or-nothing, for the same reason as Insert above.
+                await using var tx = await conn.BeginTransactionAsync();
+                cmd.Transaction = tx;
+
                 await cmd.ExecuteNonQueryAsync();
                 // Persist the 4th egg pick + recompute the total (migration 152).
-                await SetFourthPickAsync(conn, model.FarmId, model.Id, model.Production4thPick);
+                await SetFourthPickAsync(conn, model.FarmId, model.Id, model.Production4thPick, tx);
+                await tx.CommitAsync();
             }
             catch (Exception ex)
             {
@@ -403,11 +410,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spProductionRecord_GetById", conn)
-                {
-                    CommandType = CommandType.StoredProcedure
-                };
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spproductionrecord_getbyid(p_recordid => @RecordId::int, p_userid => @UserId::text, p_farmid => @FarmId::text)", conn);
 
                 cmd.Parameters.AddWithValue("@RecordId", recordId);
                 cmd.Parameters.AddWithValue("@UserId", userId);
@@ -467,11 +471,8 @@ namespace PoultryFarmAPIWeb.Business
             var records = new List<ProductionRecordModel>();
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spProductionRecord_GetAll", conn)
-                {
-                    CommandType = CommandType.StoredProcedure
-                };
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spproductionrecord_getall(p_userid => @UserId::text, p_farmid => @FarmId::text)", conn);
 
                 cmd.Parameters.AddWithValue("@UserId", userId);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
@@ -529,11 +530,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spProductionRecord_Delete", conn)
-                {
-                    CommandType = CommandType.StoredProcedure
-                };
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spproductionrecord_delete(p_recordid => @RecordId::int, p_userid => @UserId::text, p_farmid => @FarmId::text)", conn);
 
                 cmd.Parameters.AddWithValue("@RecordId", recordId);
                 cmd.Parameters.AddWithValue("@UserId", userId);
@@ -550,16 +548,16 @@ namespace PoultryFarmAPIWeb.Business
         }
     }
 
-    public static class SqlDataReaderExtensions
+    public static class NpgsqlDataReaderExtensions
     {
-        public static string? GetNullableString(this SqlDataReader reader, string columnName)
+        public static string? GetNullableString(this NpgsqlDataReader reader, string columnName)
         {
             int ordinal = reader.GetOrdinal(columnName);
             return reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
         }
 
         /// <summary>Returns null if the column is not in the result set (older stored procedures before EggGrade).</summary>
-        public static string? GetNullableStringIfPresent(this SqlDataReader reader, string columnName)
+        public static string? GetNullableStringIfPresent(this NpgsqlDataReader reader, string columnName)
         {
             for (var i = 0; i < reader.FieldCount; i++)
             {
@@ -569,13 +567,13 @@ namespace PoultryFarmAPIWeb.Business
             return null;
         }
 
-        public static DateTime? GetNullableDateTime(this SqlDataReader reader, string columnName)
+        public static DateTime? GetNullableDateTime(this NpgsqlDataReader reader, string columnName)
         {
             int ordinal = reader.GetOrdinal(columnName);
             return reader.IsDBNull(ordinal) ? (DateTime?)null : reader.GetDateTime(ordinal);
         }
 
-        public static DateTime? GetNullableDateTimeIfPresent(this SqlDataReader reader, string columnName)
+        public static DateTime? GetNullableDateTimeIfPresent(this NpgsqlDataReader reader, string columnName)
         {
             for (var i = 0; i < reader.FieldCount; i++)
             {

@@ -15,6 +15,8 @@ import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
 import { FieldCard } from "@/components/ui/field-card"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { Plus, Pencil, Loader2, Trash2, ListChecks } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
@@ -37,6 +39,7 @@ export default function PoultryProductsPage() {
   const gh = useFmt()
 
   const [products, setProducts] = useState<PoultryProduct[]>([])
+  const pg = usePagination(products)
   const [rawItems, setRawItems] = useState<PoultryRawMaterialItem[]>([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
@@ -144,7 +147,7 @@ export default function PoultryProductsPage() {
                 </TableRow></TableHeader>
                 <TableBody>
                   {products.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-6">No products yet.</TableCell></TableRow>
-                    : products.map((p) => (
+                    : pg.pageItems.map((p) => (
                       <TableRow key={p.poultryProductId}>
                         <TableCell className="font-medium">{p.name}</TableCell>
                         <TableCell>{p.productType}</TableCell>
@@ -164,6 +167,7 @@ export default function PoultryProductsPage() {
                     ))}
                 </TableBody>
               </Table></div>
+              <DataPagination {...pg.paginationProps} />
               {/* Mobile cards */}
               <div className="md:hidden space-y-2">
                 {products.length === 0 ? <div className="text-center text-slate-500 py-6">No products yet.</div>

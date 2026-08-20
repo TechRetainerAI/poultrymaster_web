@@ -6,6 +6,7 @@ import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
 import { usePermissions } from "@/hooks/use-permissions"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
+import { filterWaterNavItems } from "@/lib/utils/water-nav-access"
 import { useAuthStore } from "@/lib/store/auth-store"
 import {
   Home,
@@ -107,21 +108,27 @@ export function MobileBottomNav() {
   // the desktop top-nav so the company-type identity is consistent.
   const config = (() => {
     if (activeFarmType === "Water") {
+      // Staff Page Access gate, same route -> flag map the sidebar and top nav
+      // use (lib/utils/water-nav-access) so all three surfaces agree.
+      const gateWater = (items: NavItem[]) =>
+        filterWaterNavItems(items, permissions.featureAccess, permissions.isAdmin)
+
       return {
         bg: "bg-sky-600",
         borderTop: "border-sky-700",
         palette: { inactive: "text-sky-100/90 hover:text-white", activeText: "text-white" },
         activeBg: "bg-sky-100 text-sky-800",
-        mainTabs: [
+        mainTabs: gateWater([
           { href: "/water-dashboard",          label: "Home",       icon: Droplets },
           { href: "/water-production-batches", label: "Production", icon: Factory },
           { href: "/water-driver-returns",     label: "Deliveries", icon: Truck },
           { href: "/water-sales",              label: "Sales",      icon: ShoppingCart },
-        ] as NavItem[],
+        ] as NavItem[]),
         // Order mirrors the sidebar reorg (Quick Links → Delivery → Production
-        // → Inventory → Sales & Money → People → Reports → Admin/Setup) so the
-        // mental model is the same between desktop and mobile.
-        moreItems: [
+        // → Inventory → Sales & Money → Finance → People → Reports →
+        // Admin/Setup) so the mental model is the same between desktop and
+        // mobile.
+        moreItems: gateWater([
           // Quick Links shortcuts (the most-used daily flows)
           { href: "/water-daily-closing", label: "Daily Closing",     icon: FileText },
           { href: "/water-driver-returns", label: "Deliveries",       icon: Truck },
@@ -141,17 +148,19 @@ export function MobileBottomNav() {
           { href: "/water-raw-materials", label: "Raw materials & supplies", icon: Box },
           { href: "/water-loss-records",  label: "Damages & loss",    icon: AlertTriangle },
           // Sales & Money
-          { href: "/water-customers",     label: "Customers",         icon: Users },
           { href: "/water-payments",      label: "Payments",          icon: CreditCard },
           { href: "/water-expenses",      label: "Expenses",          icon: Receipt },
           { href: "/water-cash-accounts", label: "Cash accounts",     icon: Wallet },
+          // Finance — Customers and Suppliers sit together here, matching the
+          // sidebar's Finance group and the top nav's Setup > Finance column.
+          { href: "/water-customers",     label: "Customers",         icon: Users },
+          { href: "/water-suppliers",     label: "Suppliers",         icon: Truck },
           // People
           { href: "/water-staff",         label: "Staff",             icon: Users2 },
           { href: "/water-payroll",       label: "Payroll",           icon: Banknote },
           // Reports + Admin
           { href: "/water-reports",       label: "Reports",           icon: BarChart3 },
           { href: "/water-driver-report", label: "Driver report",     icon: BarChart3 },
-          { href: "/water-suppliers",     label: "Suppliers",         icon: Truck },
           // Match desktop sidebar (components/dashboard/sidebar.tsx waterAdminItems):
           // "Setup" → /water-setup, "Company Setup" → /water-company-setup. The
           // earlier mobile rail collapsed both into a single "Setup" entry that
@@ -164,7 +173,7 @@ export function MobileBottomNav() {
             ? [{ href: "/audit-logs", label: "Activity Log", icon: Activity }] : []),
           ...(permissions.isAdmin || permissions.featureAccess.canSeeEmployees
             ? [{ href: "/employees", label: "Employees", icon: UserCog }] : []),
-        ] as NavItem[],
+        ] as NavItem[]),
       }
     }
 
@@ -222,9 +231,8 @@ export function MobileBottomNav() {
     // targeted destinations. Key fix: "Inventory" → the new /poultry-inventory;
     // the legacy page is listed separately as "Other Inventory" → /inventory.
     const poultryMore: NavItem[] = [
-      // Farm
+      // Farm — Houses and Flock Groups moved to the Setup block at the end.
       { href: "/flock-batch",            label: "Flock Purchases",        icon: Boxes },
-      { href: "/houses",                 label: "Houses",                 icon: Home },
       // Production
       { href: "/egg-production",         label: "Egg sorting",            icon: Egg },
       { href: "/feed-usage",             label: "Feed Usage",             icon: Package },
@@ -255,9 +263,16 @@ export function MobileBottomNav() {
       { href: "/poultry-cash-accounts",  label: "Cash Account",           icon: Wallet },
       { href: "/poultry-payments",       label: "Payments received",      icon: CreditCard },
       { href: "/expenses",               label: "Expenses",               icon: DollarSign },
+      { href: "/billing",                label: "Billing",                icon: CreditCard },
+      // Finance — Customers and Suppliers sit together here, matching the
+      // sidebar's Finance group and the top nav's Setup > Finance column.
       { href: "/customers",              label: "Customers",              icon: Users },
       { href: "/suppliers",              label: "Suppliers",              icon: Truck },
-      { href: "/billing",                label: "Billing",                icon: CreditCard },
+      // Setup — the farm master data behind the daily flows (top nav:
+      // Setup > Farm). Flock Groups is NOT repeated here: it's a main tab, and
+      // anything listed in moreItems also lights up the "More" button, so the
+      // bar would show two active tabs on /flocks.
+      { href: "/houses",                 label: "Houses",                 icon: Home },
       // Reports / Help / Account
       { href: "/reports",                label: "Reports",                icon: BarChart3 },
       { href: "/resources",              label: "Resources",              icon: BookOpen },

@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -10,8 +10,11 @@ namespace PoultryFarmAPIWeb.Business
         private readonly string _connectionString;
 
         /// <summary>
-        /// Case-sensitive SQL Server databases may store the table as dbo.Auditlogs while code used dbo.AuditLogs.
-        /// Resolved name comes from sys.tables (CI_AI match) and is quoted — safe to embed.
+        /// PostgreSQL identifiers are case-sensitive, so a legacy database may hold the table as
+        /// "Auditlogs" / "AuditLogs" while this code wants auditlogs.
+        /// Resolved name comes from the pg_class catalog (case-insensitive match, schema public), so the
+        /// value embedded in the SQL below can only ever be a real table name read back from the catalog —
+        /// never caller input — which is what keeps the string interpolation injection-safe.
         /// </summary>
         private static readonly ConcurrentDictionary<string, string> _auditTableByDb = new();
 
@@ -20,13 +23,13 @@ namespace PoultryFarmAPIWeb.Business
             _connectionString = connectionString;
         }
 
-        private static string CellString(SqlDataReader reader, int ordinal) =>
+        private static string CellString(NpgsqlDataReader reader, int ordinal) =>
             reader.IsDBNull(ordinal) ? string.Empty : reader.GetValue(ordinal)?.ToString() ?? string.Empty;
 
-        private static string? CellStringNullable(SqlDataReader reader, int ordinal) =>
+        private static string? CellStringNullable(NpgsqlDataReader reader, int ordinal) =>
             reader.IsDBNull(ordinal) ? null : reader.GetValue(ordinal)?.ToString();
 
-        private static DateTime CellDateTime(SqlDataReader reader, int ordinal)
+        private static DateTime CellDateTime(NpgsqlDataReader reader, int ordinal)
         {
             if (reader.IsDBNull(ordinal))
                 return default;
@@ -39,7 +42,7 @@ namespace PoultryFarmAPIWeb.Business
                 : default;
         }
 
-        private async Task<string> ResolveAuditLogsQualifiedNameAsync(SqlConnection conn)
+        private async Task<string> ResolveAuditLogsTableNameAsync(NpgsqlConnection conn)
         {
             if (conn.State != ConnectionState.Open)
                 await conn.OpenAsync();
@@ -48,18 +51,23 @@ namespace PoultryFarmAPIWeb.Business
             if (_auditTableByDb.TryGetValue(cacheKey, out var cached))
                 return cached;
 
-            using (var resolveCmd = new SqlCommand(@"
-                SELECT TOP (1) QUOTENAME(SCHEMA_NAME(t.schema_id)) + N'.' + QUOTENAME(t.name)
-                FROM sys.tables AS t
-                WHERE t.schema_id = SCHEMA_ID(N'dbo')
-                  AND t.name COLLATE Latin1_General_CI_AI = N'auditlogs';", conn))
+            using (var resolveCmd = new NpgsqlCommand(@"
+                SELECT c.relname::text
+                FROM pg_class c
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = 'public'
+                  AND c.relkind IN ('r','p')
+                  AND lower(c.relname) = lower(@Name)
+                LIMIT 1;", conn))
             {
+                resolveCmd.Parameters.AddWithValue("@Name", "auditlogs");
+
                 var result = await resolveCmd.ExecuteScalarAsync();
                 if (result is not string q || string.IsNullOrWhiteSpace(q))
                 {
                     throw new InvalidOperationException(
-                        "No audit log table found in dbo. Run Migrations/007_AddAuditLogsFarmId.sql or database/create-audit-logs-table.sql. " +
-                        "On case-sensitive databases, run Migrations/008_RenameLegacyAuditlogsToAuditLogs.sql if the table is dbo.Auditlogs only.");
+                        "No audit log table found in schema public. Run Migrations/007_AddAuditLogsFarmId.sql or database/create-audit-logs-table.sql. " +
+                        "If the table exists under a different letter case, rename it to lowercase auditlogs.");
                 }
 
                 _auditTableByDb[cacheKey] = q;
@@ -67,7 +75,7 @@ namespace PoultryFarmAPIWeb.Business
             }
         }
 
-        private static AuditLogModel MapRow(SqlDataReader reader) =>
+        private static AuditLogModel MapRow(NpgsqlDataReader reader) =>
             new AuditLogModel
             {
                 Id = reader[0]?.ToString() ?? string.Empty,
@@ -89,22 +97,22 @@ namespace PoultryFarmAPIWeb.Business
         {
             var results = new List<AuditLogModel>();
 
-            using var conn = new SqlConnection(_connectionString);
+            using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
 
-            var table = await ResolveAuditLogsQualifiedNameAsync(conn);
+            var table = await ResolveAuditLogsTableNameAsync(conn);
 
-            // FarmId: Migrations/007_AddAuditLogsFarmId.sql. Table name: resolve for case-sensitive collations.
-            using var cmd = new SqlCommand($@"
-                SELECT Id, UserId, UserName, FarmId, Action, Resource, ResourceId, Details, IpAddress, UserAgent, Timestamp, Status, Data
+            // FarmId: Migrations/007_AddAuditLogsFarmId.sql. Table name: resolved from the catalog above.
+            using var cmd = new NpgsqlCommand($@"
+                SELECT id, userid, username, farmid, action, resource, resourceid, details, ipaddress, useragent, timestamp, status, data
                 FROM {table}
-                WHERE (@UserId IS NULL OR UserId = @UserId)
-                  AND (@FarmId IS NULL OR FarmId = @FarmId)
-                  AND (@Status IS NULL OR Status = @Status)
-                  AND (@StartDate IS NULL OR Timestamp >= @StartDate)
-                  AND (@EndDate IS NULL OR Timestamp <= @EndDate)
-                ORDER BY Timestamp DESC
-                OFFSET (@Offset) ROWS FETCH NEXT (@PageSize) ROWS ONLY;", conn);
+                WHERE (@UserId::text IS NULL OR userid = @UserId::text)
+                  AND (@FarmId::text IS NULL OR farmid = @FarmId::text)
+                  AND (@Status::text IS NULL OR status = @Status::text)
+                  AND (@StartDate::timestamp IS NULL OR timestamp >= @StartDate::timestamp)
+                  AND (@EndDate::timestamp IS NULL OR timestamp <= @EndDate::timestamp)
+                ORDER BY timestamp DESC
+                OFFSET @Offset::int LIMIT @PageSize::int;", conn);
 
             cmd.Parameters.AddWithValue("@UserId", (object?)userId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@FarmId", (object?)farmId ?? DBNull.Value);
@@ -129,14 +137,15 @@ namespace PoultryFarmAPIWeb.Business
             var cap = Math.Clamp(take, 1, 2000);
             var results = new List<AuditLogModel>();
 
-            using var conn = new SqlConnection(_connectionString);
+            using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
-            var table = await ResolveAuditLogsQualifiedNameAsync(conn);
+            var table = await ResolveAuditLogsTableNameAsync(conn);
 
-            using var cmd = new SqlCommand($@"
-                SELECT TOP (@Take) Id, UserId, UserName, FarmId, Action, Resource, ResourceId, Details, IpAddress, UserAgent, Timestamp, Status, Data
+            using var cmd = new NpgsqlCommand($@"
+                SELECT id, userid, username, farmid, action, resource, resourceid, details, ipaddress, useragent, timestamp, status, data
                 FROM {table}
-                ORDER BY Timestamp DESC;", conn);
+                ORDER BY timestamp DESC
+                LIMIT @Take::int;", conn);
             cmd.Parameters.AddWithValue("@Take", cap);
 
             using var reader = await cmd.ExecuteReaderAsync();
@@ -148,13 +157,15 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<AuditLogModel?> GetByIdAsync(string id)
         {
-            using var conn = new SqlConnection(_connectionString);
+            using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
-            var table = await ResolveAuditLogsQualifiedNameAsync(conn);
-            using var cmd = new SqlCommand($@"
-                SELECT Id, UserId, UserName, FarmId, Action, Resource, ResourceId, Details, IpAddress, UserAgent, Timestamp, Status, Data
+            var table = await ResolveAuditLogsTableNameAsync(conn);
+            // lower(...) on both sides reproduces SQL Server's case-insensitive match on the GUID text
+            // (SQL Server rendered uniqueidentifier uppercase; PostgreSQL renders uuid lowercase).
+            using var cmd = new NpgsqlCommand($@"
+                SELECT id, userid, username, farmid, action, resource, resourceid, details, ipaddress, useragent, timestamp, status, data
                 FROM {table}
-                WHERE CAST(Id AS NVARCHAR(128)) = @Id;", conn);
+                WHERE lower(id::text) = lower(@Id);", conn);
             cmd.Parameters.AddWithValue("@Id", id);
             using var reader = await cmd.ExecuteReaderAsync();
             if (await reader.ReadAsync())
@@ -164,15 +175,14 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<string> InsertAsync(AuditLogModel log)
         {
-            using var conn = new SqlConnection(_connectionString);
+            using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
-            var table = await ResolveAuditLogsQualifiedNameAsync(conn);
-            using var cmd = new SqlCommand($@"
-                DECLARE @Inserted TABLE (Id NVARCHAR(128));
-                INSERT INTO {table} (UserId, UserName, FarmId, Action, Resource, ResourceId, Details, Data, IpAddress, UserAgent, Timestamp, Status)
-                OUTPUT CAST(inserted.Id AS NVARCHAR(128)) INTO @Inserted(Id)
-                VALUES (@UserId, @UserName, @FarmId, @Action, @Resource, @ResourceId, @Details, @Data, @IpAddress, @UserAgent, @Timestamp, @Status);
-                SELECT TOP (1) Id FROM @Inserted;", conn);
+            var table = await ResolveAuditLogsTableNameAsync(conn);
+            // PostgreSQL has no table variables: RETURNING hands the generated id straight back to ExecuteScalar.
+            using var cmd = new NpgsqlCommand($@"
+                INSERT INTO {table} (userid, username, farmid, action, resource, resourceid, details, data, ipaddress, useragent, timestamp, status)
+                VALUES (@UserId::text, @UserName, @FarmId::text, @Action, @Resource, @ResourceId, @Details, @Data, @IpAddress, @UserAgent, @Timestamp, @Status::text)
+                RETURNING id::text;", conn);
 
             cmd.Parameters.AddWithValue("@UserId", log.UserId);
             cmd.Parameters.AddWithValue("@UserName", (object?)log.UserName ?? DBNull.Value);
@@ -193,11 +203,11 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<(string Database, int RowCount)> GetDebugInfoAsync()
         {
-            using var conn = new SqlConnection(_connectionString);
+            using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
             var dbName = conn.Database;
-            var table = await ResolveAuditLogsQualifiedNameAsync(conn);
-            using var cmd = new SqlCommand($"SELECT COUNT(1) FROM {table}", conn);
+            var table = await ResolveAuditLogsTableNameAsync(conn);
+            using var cmd = new NpgsqlCommand($"SELECT COUNT(1)::int FROM {table}", conn);
             int count = 0;
             try { count = Convert.ToInt32(await cmd.ExecuteScalarAsync()); }
             catch { count = -1; }

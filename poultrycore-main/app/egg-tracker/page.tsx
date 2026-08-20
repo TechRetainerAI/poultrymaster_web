@@ -27,6 +27,11 @@ import {
   deleteEggInventoryAdjustment,
   type EggInventoryAdjustment,
 } from "@/lib/api/egg-inventory-adjustment"
+import {
+  listPoultryProducts,
+  listPoultryStockTransactions,
+  type PoultryStockTransaction,
+} from "@/lib/api/poultry-inventory"
 import { getUserContext } from "@/lib/utils/user-context"
 import { useToast } from "@/hooks/use-toast"
 import { toastFormGuide } from "@/lib/utils/validation-toast"
@@ -53,6 +58,7 @@ export default function EggTrackerPage() {
   const [flocks, setFlocks] = useState<Flock[]>([])
   const [sales, setSales] = useState<Sale[]>([])
   const [eggAdjustments, setEggAdjustments] = useState<EggInventoryAdjustment[]>([])
+  const [eggStockMoves, setEggStockMoves] = useState<PoultryStockTransaction[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [refreshing, setRefreshing] = useState(false)
@@ -96,11 +102,21 @@ export default function EggTrackerPage() {
       setRefreshing(false)
       return
     }
-    const [eggRes, flocksRes, salesRes, adjRes] = await Promise.all([
+    const [eggRes, flocksRes, salesRes, adjRes, productsRes, stockRes] = await Promise.all([
       getEggProductions(userId, farmId),
       getFlocks(userId, farmId),
       getSales(userId, farmId),
       getEggInventoryAdjustments(farmId),
+      // These two throw on failure (unlike the wrappers above, which return a
+      // result object), so keep them from rejecting the whole load.
+      listPoultryProducts().catch((e) => {
+        console.warn("[egg-tracker] Products:", e)
+        return [] as Awaited<ReturnType<typeof listPoultryProducts>>
+      }),
+      listPoultryStockTransactions().catch((e) => {
+        console.warn("[egg-tracker] Stock moves:", e)
+        return [] as Awaited<ReturnType<typeof listPoultryStockTransactions>>
+      }),
     ])
     if (eggRes.success && eggRes.data) {
       setEggProductions(eggRes.data)
@@ -120,6 +136,15 @@ export default function EggTrackerPage() {
         console.warn("[egg-tracker] Adjustments:", adjRes.message)
       }
     }
+    // Stock-ledger moves for the egg product (driver load-outs, deliveries, Set
+    // stock / Reconcile corrections). Without these the balance below drifts from
+    // /poultry-inventory's "In stock", which is the same ledger.
+    const eggProductIds = new Set(
+      productsRes
+        .filter((p) => p.isRawEggProduct || p.name === "Eggs" || p.name === "Chicken Eggs")
+        .map((p) => p.poultryProductId)
+    )
+    setEggStockMoves(stockRes.filter((t) => eggProductIds.has(t.poultryProductId)))
     setLoading(false)
     setRefreshing(false)
   }, [])
@@ -145,9 +170,21 @@ export default function EggTrackerPage() {
     [eggAdjustments]
   )
 
+  const stockMoveLedgerInput = useMemo(
+    () =>
+      eggStockMoves.map((t) => ({
+        poultryStockTransactionId: t.poultryStockTransactionId,
+        createdDate: t.createdDate,
+        txnType: t.txnType,
+        quantity: t.quantity,
+        note: t.note,
+      })),
+    [eggStockMoves]
+  )
+
   const eggStockLedger = useMemo(
-    () => buildEggStockLedger(eggProductions, sales, flocks, adjustmentLedgerInput),
-    [eggProductions, sales, flocks, adjustmentLedgerInput]
+    () => buildEggStockLedger(eggProductions, sales, flocks, adjustmentLedgerInput, stockMoveLedgerInput),
+    [eggProductions, sales, flocks, adjustmentLedgerInput, stockMoveLedgerInput]
   )
   const { rows: eggLedgerAllRows, currentEggsAtHand, lastUpdatedIso } = eggStockLedger
 

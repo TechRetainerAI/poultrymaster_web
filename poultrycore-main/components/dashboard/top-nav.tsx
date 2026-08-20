@@ -47,6 +47,11 @@ function NavDropdown({ group, accent = "sky" }: { group: NavGroup; accent?: NavA
 
   const isGroupActive = group.items.some((item) => navPathActive(pathname, item.href))
 
+  // After the hooks — bailing earlier would break the hook order. A group whose
+  // rows were all permission-filtered would otherwise show as a trigger that
+  // opens an empty panel.
+  if (group.items.length === 0) return null
+
   return (
     <div
       ref={pop.triggerRef}
@@ -178,10 +183,11 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
         <NavMegaMenu
           label="Setup" icon={Settings}
           title="Setup"
-          blurb="Company configuration, products, fleet, customers and your team."
+          blurb="Company configuration, products, delivery, customers and your team."
           groups={nav.setup}
-          /* 4 groups over 2 columns = a 2x2 block. Denser than one wide row,
-             and it keeps the panel the same width as Sales & Money. */
+          /* 5 groups over 2 columns = a 3x2 block with the last cell empty.
+             Denser than one wide row, and it keeps the panel the same width as
+             Sales & Money. */
           columns={2} widthRem={36} layout="grid"
         />
 
@@ -282,12 +288,15 @@ export function TopNavigation() {
           <NavMegaMenu
             label="Operations" icon={Factory}
             title="Operations"
-            blurb="Production, flocks, deliveries, stock and health."
+            blurb="Production, flock purchases, deliveries, stock and health."
             groups={nav.operations}
-            /* 4 groups over 2 columns = a 2x2 block, same as Setup. Slightly
-               wider than Setup's 36rem because the labels here are longer
-               ("Flock Groups (Pens / Flocks)", "Raw Materials & Supplies"). */
-            columns={2} widthRem={38} layout="grid" accent="orange"
+            /* 4 groups over 2 columns = a 2x2 block. 32rem is the floor for that
+               layout, and it's those two long labels that set it: "Flock Purchases
+               (Batches)" is 184px in Geist-Medium (the active row's weight) and
+               "Raw Materials & Supplies" 177px, so a column needs 224px, and two
+               of those plus the 16px grid gap and 32px of padding comes to 496px.
+               Shorten both and this drops to about 25.5rem. */
+            columns={2} widthRem={32} layout="grid" accent="orange"
           />
 
           <NavMegaMenu
@@ -295,15 +304,25 @@ export function TopNavigation() {
             title="Sales & Money"
             blurb="Orders, collections, expenses, cash and payroll."
             groups={nav.salesMoney}
-            columns={2} widthRem={34} layout="grid" accent="orange"
+            /* 21rem rather than 34, keeping the two columns side by side. This is
+               the floor for that layout: "Cash Account" is the longest label at
+               96px in Geist-Medium (the active row's weight), so a column needs
+               136px, and two of those plus the 16px grid gap and 32px of padding
+               comes to 320px. The extra rem is slack for font rendering. */
+            columns={2} widthRem={21} layout="grid" accent="orange"
           />
 
           <NavMegaMenu
             label="Analytics" icon={BarChart3}
             title="Analytics"
-            blurb="Day-to-day trackers for eggs, feed, medication and birds."
+            blurb="Day-to-day tracker"
             groups={nav.analytics}
-            columns={1} widthRem={22} layout="grid" accent="orange"
+            /* 13.5rem, against 22 for the other single-column menus. "Medication
+               tracker" is the longest label and sets the floor: 136px in
+               Geist-Medium (the active row's weight) plus 72px of icon, gap and
+               padding = 208px exactly, so this leaves 8px of slack. Tighter and
+               the row's truncate starts eating the label. */
+            columns={1} widthRem={13.5} layout="grid" accent="orange"
           />
 
           {/* Sourced from lib/reports/poultry-reports-config.ts — the single
@@ -313,10 +332,12 @@ export function TopNavigation() {
             <NavMegaMenu
               label="Reports" icon={BarChart3}
               title="Reports"
-              blurb="Production, birds & mortality, feed, inventory, sales and profitability."
+              blurb="Money, production, feed, birds, health and dashboards."
               viewAll={{ href: "/poultry/reports", label: "View all reports →" }}
               triggerActiveHrefs={["/reports", "/poultry/reports"]}
               groups={POULTRY_REPORT_NAV_GROUPS}
+              /* Four groups of 8/6/9/6 over four columns — one group per
+                 column, with Overview & Dashboards last. */
               columns={4} widthRem={56} accent="orange"
             />
           )}
@@ -324,10 +345,14 @@ export function TopNavigation() {
           <NavMegaMenu
             label="Setup" icon={Settings}
             title="Setup"
-            blurb="Farm settings, products, fleet, customers and your team."
+            blurb="Houses, flocks, products, delivery, customers and your team."
             groups={nav.setup}
-            /* 2x2 block — see the water rail for why. */
-            columns={2} widthRem={36} layout="grid" accent="orange"
+            /* 6 groups over 2 columns = a 3x2 block. 26.5rem is the floor for that
+               layout: "Users & Permissions" is the longest label at 143px in
+               Geist-Medium (the active row's weight), so a column needs 183px, and
+               two of those plus the 16px grid gap and 32px of padding comes to
+               414px. */
+            columns={2} widthRem={26.5} layout="grid" accent="orange"
           />
 
           <div className="ml-auto flex items-center gap-1">
@@ -336,9 +361,13 @@ export function TopNavigation() {
             <NavMegaMenu
               label="System" icon={User}
               title="System"
-              blurb="Alerts, activity, help and terms."
+              blurb="Alerts, activity, help, terms."
               groups={nav.system}
-              columns={1} widthRem={22} layout="grid" accent="orange"
+              /* 13.5rem rather than 22. "Terms & Conditions" is the longest label
+                 at 138px in Geist-Medium (the active row's weight) plus 72px of
+                 icon, gap and padding = 210px. The Alerts row also carries a count
+                 badge, but at 44px of text it stays well clear. */
+              columns={1} widthRem={13.5} layout="grid" accent="orange"
             />
           </div>
         </div>

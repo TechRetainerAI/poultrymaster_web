@@ -1,5 +1,5 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -20,8 +20,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<List<AnnouncementModel>> ListForUserAsync(string userId, string? orgOwnerUserId, bool isAdmin, string? farmId)
         {
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spAnnouncement_ListForUser", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spannouncement_listforuser(p_userid => @UserId::text, p_orgowneruserid => @OrgOwnerUserId::text, p_isadmin => @IsAdmin::boolean, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@UserId", (object?)userId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@OrgOwnerUserId", (object?)orgOwnerUserId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@IsAdmin", isAdmin);
@@ -31,16 +31,16 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<List<AnnouncementModel>> ListManageAsync(string orgOwnerUserId)
         {
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spAnnouncement_ListManage", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spannouncement_listmanage(p_orgowneruserid => @OrgOwnerUserId::text)", conn);
             cmd.Parameters.AddWithValue("@OrgOwnerUserId", (object?)orgOwnerUserId ?? DBNull.Value);
             return await ReadList(cmd, conn);
         }
 
         public async Task<int> CreateAsync(CreateAnnouncementRequest r)
         {
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spAnnouncement_Create", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spannouncement_create(p_orgowneruserid => @OrgOwnerUserId::text, p_title => @Title::text, p_message => @Message::text, p_type => @Type::text, p_priority => @Priority::int, p_audiencerole => @AudienceRole::text, p_targetfarmid => @TargetFarmId::text, p_startdate => @StartDate::timestamp, p_enddate => @EndDate::timestamp, p_isdismissible => @IsDismissible::boolean, p_requiresack => @RequiresAck::boolean, p_actionlabel => @ActionLabel::text, p_actionurl => @ActionUrl::text, p_createdby => @CreatedBy::text)", conn);
             cmd.Parameters.AddWithValue("@OrgOwnerUserId", (object?)r.OrgOwnerUserId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Title", r.Title);
             cmd.Parameters.AddWithValue("@Message", (object?)r.Message ?? string.Empty);
@@ -61,8 +61,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task SetReceiptAsync(int announcementId, string userId, string action)
         {
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spAnnouncement_SetReceipt", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spannouncement_setreceipt(p_announcementid => @AnnouncementId::int, p_userid => @UserId::text, p_action => @Action::text)", conn);
             cmd.Parameters.AddWithValue("@AnnouncementId", announcementId);
             cmd.Parameters.AddWithValue("@UserId", (object?)userId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Action", action);
@@ -72,15 +72,15 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task DeleteAsync(int announcementId, string orgOwnerUserId)
         {
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spAnnouncement_Delete", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spannouncement_delete(p_announcementid => @AnnouncementId::int, p_orgowneruserid => @OrgOwnerUserId::text)", conn);
             cmd.Parameters.AddWithValue("@AnnouncementId", announcementId);
             cmd.Parameters.AddWithValue("@OrgOwnerUserId", (object?)orgOwnerUserId ?? DBNull.Value);
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
         }
 
-        private static async Task<List<AnnouncementModel>> ReadList(SqlCommand cmd, SqlConnection conn)
+        private static async Task<List<AnnouncementModel>> ReadList(NpgsqlCommand cmd, NpgsqlConnection conn)
         {
             await conn.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();

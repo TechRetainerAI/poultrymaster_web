@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
@@ -81,6 +82,10 @@ export default function WaterStaffPage() {
     }),
     [staff, search, dateFrom, dateTo],
   )
+
+  // Client-side paging: the whole list is already in memory, so this is a
+  // slice. Feed the SAME slice to the cards and the desktop table.
+  const pg = usePagination(visibleStaff)
 
   const [open, setOpen] = useState(false)
   const [editId, setEditId] = useState<number | null>(null)
@@ -228,7 +233,8 @@ export default function WaterStaffPage() {
                 <div className="p-8 text-center text-slate-500">No staff yet.</div>
               ) : (
                 <MobileCardList
-                  items={visibleStaff}
+                  items={pg.pageItems}
+                  pagination={pg.paginationProps}
                   getKey={(s) => s.waterStaffId}
                   primary={(s) => `${s.firstName} ${s.lastName}`}
                   secondary={(s) => (
@@ -265,7 +271,7 @@ export default function WaterStaffPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {visibleStaff.map((s) => (
+                        {pg.pageItems.map((s) => (
                           <TableRow key={s.waterStaffId}>
                             <TableCell className="font-medium">{s.firstName} {s.lastName}</TableCell>
                             <TableCell><Badge variant="outline">{s.role}</Badge></TableCell>

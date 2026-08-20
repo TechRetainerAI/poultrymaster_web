@@ -1,5 +1,5 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -15,8 +15,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<GenericStockMovementModel>> GetMovementsForProductAsync(int productId, string farmId)
         {
             var list = new List<GenericStockMovementModel>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericStockMovement_GetAllForProduct", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericstockmovement_getallforproduct(p_genericproductid => @GenericProductId::int, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@GenericProductId", productId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
@@ -29,8 +29,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<GenericStockMovementModel>> GetMovementsForFarmAsync(string farmId, DateTime? fromDate, DateTime? toDate)
         {
             var list = new List<GenericStockMovementModel>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericStockMovement_GetByFarm", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericstockmovement_getbyfarm(p_farmid => @FarmId::text, p_fromdate => @FromDate::timestamp, p_todate => @ToDate::timestamp)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@FromDate", (object?)fromDate ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@ToDate",   (object?)toDate   ?? DBNull.Value);
@@ -47,8 +47,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<GenericStockAdjustmentModel>> GetAdjustmentsAsync(string farmId, string? status)
         {
             var list = new List<GenericStockAdjustmentModel>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericStockAdjustment_GetAll", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericstockadjustment_getall(p_farmid => @FarmId::text, p_status => @Status::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@Status", (object?)status ?? DBNull.Value);
 
@@ -60,8 +60,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<GenericStockAdjustmentModel?> GetAdjustmentByIdAsync(int id, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericStockAdjustment_GetById", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericstockadjustment_getbyid(p_genericstockadjustmentid => @GenericStockAdjustmentId::int, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@GenericStockAdjustmentId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
@@ -72,8 +72,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<int> InsertAdjustmentAsync(GenericStockAdjustmentModel m)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericStockAdjustment_Insert", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericstockadjustment_insert(p_farmid => @FarmId::text, p_genericproductid => @GenericProductId::int, p_adjustmenttype => @AdjustmentType::text, p_quantity => @Quantity::numeric, p_reason => @Reason::text, p_adjustmentdate => @AdjustmentDate::timestamp, p_notes => @Notes::text, p_requestedby => @RequestedBy::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@GenericProductId", m.GenericProductId);
             cmd.Parameters.AddWithValue("@AdjustmentType", m.AdjustmentType);
@@ -90,8 +90,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task SubmitAdjustmentAsync(int id, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericStockAdjustment_Submit", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericstockadjustment_submit(p_genericstockadjustmentid => @GenericStockAdjustmentId::int, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@GenericStockAdjustmentId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
@@ -101,8 +101,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task ApproveAdjustmentAsync(int id, string farmId, string? approvedBy)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericStockAdjustment_Approve", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericstockadjustment_approve(p_genericstockadjustmentid => @GenericStockAdjustmentId::int, p_farmid => @FarmId::text, p_approvedby => @ApprovedBy::text)", conn);
             cmd.Parameters.AddWithValue("@GenericStockAdjustmentId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@ApprovedBy", (object?)approvedBy ?? DBNull.Value);
@@ -113,8 +113,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task RejectAdjustmentAsync(int id, string farmId, string rejectionReason, string? approvedBy)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericStockAdjustment_Reject", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericstockadjustment_reject(p_genericstockadjustmentid => @GenericStockAdjustmentId::int, p_farmid => @FarmId::text, p_rejectionreason => @RejectionReason::text, p_approvedby => @ApprovedBy::text)", conn);
             cmd.Parameters.AddWithValue("@GenericStockAdjustmentId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@RejectionReason", rejectionReason);
@@ -127,7 +127,7 @@ namespace PoultryFarmAPIWeb.Business
         // ====================================================================
         // Helpers
         // ====================================================================
-        private static GenericStockMovementModel ReadMovement(SqlDataReader r) => new()
+        private static GenericStockMovementModel ReadMovement(NpgsqlDataReader r) => new()
         {
             GenericStockMovementId = r.GetInt32(r.GetOrdinal("GenericStockMovementId")),
             FarmId                 = r.GetString(r.GetOrdinal("FarmId")),
@@ -150,7 +150,7 @@ namespace PoultryFarmAPIWeb.Business
             CreatedAt              = r.GetDateTime(r.GetOrdinal("CreatedAt")),
         };
 
-        private static GenericStockAdjustmentModel ReadAdjustment(SqlDataReader r) => new()
+        private static GenericStockAdjustmentModel ReadAdjustment(NpgsqlDataReader r) => new()
         {
             GenericStockAdjustmentId = r.GetInt32(r.GetOrdinal("GenericStockAdjustmentId")),
             FarmId                   = r.GetString(r.GetOrdinal("FarmId")),
@@ -171,7 +171,7 @@ namespace PoultryFarmAPIWeb.Business
             UpdatedAt                = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
         };
 
-        private static bool HasColumn(SqlDataReader r, string name)
+        private static bool HasColumn(NpgsqlDataReader r, string name)
         {
             for (int i = 0; i < r.FieldCount; i++)
                 if (r.GetName(i).Equals(name, StringComparison.OrdinalIgnoreCase)) return true;

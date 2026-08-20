@@ -14,6 +14,10 @@ using System.Text;
 using System.Collections.Generic;
 
 
+// PostgreSQL: table columns are `timestamp without time zone`. Without this
+// switch Npgsql 6+ refuses DateTime values whose Kind is Utc for those columns.
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.WebHost.ConfigureKestrel(options =>
@@ -90,6 +94,10 @@ builder.Services.AddScoped<IHealthRecordService>(sp => new HealthRecordService(c
 
 // Audit logs service
 builder.Services.AddScoped<IAuditLogService>(sp => new AuditLogService(connectionString));
+
+// Identity & Access Management — migration 199. Read-only in phase 0; also the
+// service RequirePermissionAttribute resolves once enforcement lands (phase 3).
+builder.Services.AddScoped<IIamService>(sp => new IamService(connectionString));
 
 // Weekly observations (notes per farm + week) — migration 018
 builder.Services.AddScoped<IFarmObservationService>(sp => new FarmObservationService(connectionString));
@@ -283,8 +291,14 @@ builder.Services.AddScoped<PoultryFarmAPIWeb.Business.IEmailService, PoultryFarm
 // 2) Add controllers with audit logging
 builder.Services.AddControllers(options =>
 {
+    // IAM enforcement runs BEFORE auditing so a denied request is not recorded
+    // as an attempted change. Shadow mode by default (Iam:Enforced = false):
+    // it logs what it would have blocked and lets everything through. See
+    // Filters/IamEnforcementFilter.cs before switching it on.
+    options.Filters.AddService<PoultryFarmAPIWeb.Filters.IamEnforcementFilter>();
     options.Filters.AddService<AuditLogActionFilter>();
 });
+builder.Services.AddScoped<PoultryFarmAPIWeb.Filters.IamEnforcementFilter>();
 builder.Services.AddScoped<AuditLogActionFilter>();
 builder.Services.AddSignalR();
 

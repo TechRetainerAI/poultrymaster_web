@@ -27,8 +27,9 @@ import {
   DEFAULT_ADMIN_PERMISSIONS,
   ADMIN_PERMISSION_OPTIONS,
   DEFAULT_STAFF_FEATURE_PERMISSIONS,
-  STAFF_FEATURE_PERMISSION_OPTIONS,
+  staffPermissionOptionsForCompanyType,
 } from "@/lib/employees/permissions"
+import { useAuthStore } from "@/lib/store/auth-store"
 
 const blankForm = () => ({
   userName: "", email: "", password: "", confirmPassword: "", firstName: "", lastName: "", phoneNumber: "",
@@ -54,6 +55,15 @@ export function AddEmployeeDialog({
   const [boCompanies, setBoCompanies] = useState<Company[]>([])
   const [boFarmId, setBoFarmId] = useState("")
   const [createForm, setCreateForm] = useState(blankForm())
+  // Only the toggles that apply to the company this employee is being created
+  // in. In Business Office mode that's whichever company is picked in the
+  // selector above — the same rule Manage access uses, just with the one company
+  // they're starting with. The form still carries every key.
+  const activeFarmType = useAuthStore((s) => s.activeFarmType)
+  const newEmployeeFarmType = boMode
+    ? boCompanies.find((c) => c.farmId === boFarmId)?.type
+    : activeFarmType
+  const staffOptions = staffPermissionOptionsForCompanyType(newEmployeeFarmType)
 
   // Reset the form each time the dialog opens; load companies in office mode.
   useEffect(() => {
@@ -271,9 +281,12 @@ export function AddEmployeeDialog({
 
               {showStaffPermissions && (
                 <div className="rounded-lg border border-slate-200 divide-y">
-                  {STAFF_FEATURE_PERMISSION_OPTIONS.map((perm) => (
+                  {staffOptions.map((perm) => (
                     <div key={perm.key} className="flex items-center justify-between gap-3 px-3 py-2">
-                      <p className="text-sm text-slate-800">{perm.label}</p>
+                      <div className="min-w-0">
+                        <p className="text-sm text-slate-800">{perm.label}</p>
+                        {perm.hint && <p className="text-xs text-slate-500">{perm.hint}</p>}
+                      </div>
                       <Switch
                         checked={createForm.featurePermissions[perm.key]}
                         onCheckedChange={(checked) =>

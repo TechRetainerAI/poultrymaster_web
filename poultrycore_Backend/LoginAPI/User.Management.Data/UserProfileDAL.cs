@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using System.Threading.Tasks;
 using User.Management.Data.Models;
 
@@ -20,11 +20,18 @@ namespace User.Management.Data
         {
             try
             {
-                using (SqlConnection connection = new SqlConnection(_connectionString))
-                using (SqlCommand cmd = connection.CreateCommand())
+                using (NpgsqlConnection connection = new NpgsqlConnection(_connectionString))
+                using (NpgsqlCommand cmd = connection.CreateCommand())
                 {
-                    cmd.CommandType = CommandType.StoredProcedure;
-                    cmd.CommandText = "sp_CreateUser";
+                    cmd.CommandText = @"SELECT * FROM sp_createuser(
+                        p_id => @Id::text, p_username => @UserName::text, p_normalizedusername => @NormalizedUserName::text,
+                        p_email => @Email::text, p_normalizedemail => @NormalizedEmail::text, p_passwordhash => @PasswordHash::text,
+                        p_firstname => @FirstName::text, p_lastname => @LastName::text, p_phonenumber => @PhoneNumber::text,
+                        p_farmid => @FarmId::text, p_farmname => @FarmName::text, p_isstaff => @IsStaff::boolean,
+                        p_issubscriber => @IsSubscriber::boolean, p_emailconfirmed => @EmailConfirmed::boolean,
+                        p_phonenumberconfirmed => @PhoneNumberConfirmed::boolean, p_twofactorenabled => @TwoFactorEnabled::boolean,
+                        p_securitystamp => @SecurityStamp::text, p_concurrencystamp => @ConcurrencyStamp::text,
+                        p_lockoutenabled => @LockoutEnabled::boolean, p_accessfailedcount => @AccessFailedCount::int)";
 
                     cmd.Parameters.AddWithValue("@Id", user.Id);
                     cmd.Parameters.AddWithValue("@UserName", user.UserName);
@@ -65,15 +72,16 @@ namespace User.Management.Data
         {
             try
             {
-                using (SqlConnection connection = new SqlConnection(_connectionString))
-                using (SqlCommand cmd = connection.CreateCommand())
+                using (NpgsqlConnection connection = new NpgsqlConnection(_connectionString))
+                using (NpgsqlCommand cmd = connection.CreateCommand())
                 {
-                    cmd.CommandType = CommandType.StoredProcedure;
-                    cmd.CommandText = "sp_DeleteUserById";
+                    cmd.CommandText = "SELECT * FROM sp_deleteuserbyid(p_userid => @UserId::text)";
                     cmd.Parameters.AddWithValue("@UserId", userId);
 
                     await connection.OpenAsync();
-                    return await cmd.ExecuteNonQueryAsync() > 0;
+                    // The call is a SELECT, so Npgsql reports -1 rows affected;
+                    // the function returns the real count instead.
+                    return Convert.ToInt32(await cmd.ExecuteScalarAsync()) > 0;
                 }
             }
             catch (Exception ex)
@@ -87,15 +95,14 @@ namespace User.Management.Data
         {
             try
             {
-                using (SqlConnection connection = new SqlConnection(_connectionString))
-                using (SqlCommand cmd = connection.CreateCommand())
+                using (NpgsqlConnection connection = new NpgsqlConnection(_connectionString))
+                using (NpgsqlCommand cmd = connection.CreateCommand())
                 {
-                    cmd.CommandType = CommandType.StoredProcedure;
-                    cmd.CommandText = "sp_GetUserById";
+                    cmd.CommandText = "SELECT * FROM sp_getuserbyid(p_userid => @UserId::text)";
                     cmd.Parameters.AddWithValue("@UserId", userId);
 
                     await connection.OpenAsync();
-                    using (SqlDataReader reader = await cmd.ExecuteReaderAsync())
+                    using (NpgsqlDataReader reader = await cmd.ExecuteReaderAsync())
                     {
                         if (await reader.ReadAsync())
                         {
@@ -115,15 +122,14 @@ namespace User.Management.Data
         {
             try
             {
-                using (SqlConnection connection = new SqlConnection(_connectionString))
-                using (SqlCommand cmd = connection.CreateCommand())
+                using (NpgsqlConnection connection = new NpgsqlConnection(_connectionString))
+                using (NpgsqlCommand cmd = connection.CreateCommand())
                 {
-                    cmd.CommandType = CommandType.StoredProcedure;
-                    cmd.CommandText = "sp_GetUserByName";
+                    cmd.CommandText = "SELECT * FROM sp_getuserbyname(p_normalizedusername => @NormalizedUserName::text)";
                     cmd.Parameters.AddWithValue("@NormalizedUserName", normalizedUserName);
 
                     await connection.OpenAsync();
-                    using (SqlDataReader reader = await cmd.ExecuteReaderAsync())
+                    using (NpgsqlDataReader reader = await cmd.ExecuteReaderAsync())
                     {
                         if (await reader.ReadAsync())
                         {
@@ -143,11 +149,13 @@ namespace User.Management.Data
         {
             try
             {
-                using (SqlConnection connection = new SqlConnection(_connectionString))
-                using (SqlCommand cmd = connection.CreateCommand())
+                using (NpgsqlConnection connection = new NpgsqlConnection(_connectionString))
+                using (NpgsqlCommand cmd = connection.CreateCommand())
                 {
-                    cmd.CommandType = CommandType.StoredProcedure;
-                    cmd.CommandText = "sp_UpdateUser";
+                    cmd.CommandText = @"SELECT * FROM sp_updateuser(
+                        p_id => @Id::text, p_username => @UserName::text, p_normalizedusername => @NormalizedUserName::text,
+                        p_email => @Email::text, p_passwordhash => @PasswordHash::text, p_firstname => @FirstName::text,
+                        p_lastname => @LastName::text, p_phonenumber => @PhoneNumber::text, p_issubscriber => @IsSubscriber::boolean)";
 
                     cmd.Parameters.AddWithValue("@Id", user.Id);
                     cmd.Parameters.AddWithValue("@UserName", user.UserName);
@@ -160,7 +168,9 @@ namespace User.Management.Data
                     cmd.Parameters.AddWithValue("@IsSubscriber", user.IsSubscriber);
 
                     await connection.OpenAsync();
-                    var result = await cmd.ExecuteNonQueryAsync();
+                    // The call is a SELECT, so Npgsql reports -1 rows affected;
+                    // the function returns the real count instead.
+                    var result = Convert.ToInt32(await cmd.ExecuteScalarAsync());
                     return result > 0 ? user : null;
                 }
             }
@@ -172,7 +182,7 @@ namespace User.Management.Data
         }
 
 
-        private static bool ReaderHasColumn(SqlDataReader reader, string columnName)
+        private static bool ReaderHasColumn(NpgsqlDataReader reader, string columnName)
         {
             for (var i = 0; i < reader.FieldCount; i++)
             {
@@ -182,7 +192,7 @@ namespace User.Management.Data
             return false;
         }
 
-        private static string? ReadOptionalString(SqlDataReader reader, string columnName)
+        private static string? ReadOptionalString(NpgsqlDataReader reader, string columnName)
         {
             try
             {
@@ -196,7 +206,7 @@ namespace User.Management.Data
             }
         }
 
-        private static bool ReadOptionalBool(SqlDataReader reader, string columnName, bool defaultValue = false)
+        private static bool ReadOptionalBool(NpgsqlDataReader reader, string columnName, bool defaultValue = false)
         {
             try
             {
@@ -211,7 +221,7 @@ namespace User.Management.Data
             }
         }
 
-        private ApplicationUser MapReaderToUser(SqlDataReader reader)
+        private ApplicationUser MapReaderToUser(NpgsqlDataReader reader)
         {
             return new ApplicationUser
             {

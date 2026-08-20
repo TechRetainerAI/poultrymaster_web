@@ -33,6 +33,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from "@/components/ui/pagination"
 import { Badge } from "@/components/ui/badge"
 import { formatCurrency as fmtCurrency } from "@/lib/utils/currency"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -85,7 +86,7 @@ export default function ExpensesPage() {
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<SortDirection>(null)
   const [currentPage, setCurrentPage] = useState(1)
-  const pageSize = 10
+  const [itemsPerPage, setItemsPerPage] = useState(10)
   const handleSort = (key: string) => { const r = toggleSort(key, sortKey, sortDir); setSortKey(r.key); setSortDir(r.direction) }
 
   // Create dialog state
@@ -413,9 +414,45 @@ export default function ExpensesPage() {
     if (key === "description") return stripReceiptSuffixFromDescription(item.description || "")
     return (item as any)[key]
   })
-  const totalPages = Math.max(1, Math.ceil(sortedExpenses.length / pageSize))
+  // Pagination logic
+  const totalPages = Math.max(1, Math.ceil(sortedExpenses.length / itemsPerPage))
   const safePage = Math.min(currentPage, totalPages)
-  const paginatedExpenses = sortedExpenses.slice((safePage - 1) * pageSize, safePage * pageSize)
+  const startIndex = (safePage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const paginatedExpenses = sortedExpenses.slice(startIndex, endIndex)
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, fromDate, toDate, selectedFlock, selectedMonth, selectedCategory])
+
+  const handlePageChange = (page: number) => setCurrentPage(page)
+  const handlePreviousPage = () => { if (safePage > 1) setCurrentPage(safePage - 1) }
+  const handleNextPage = () => { if (safePage < totalPages) setCurrentPage(safePage + 1) }
+
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = []
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i)
+    } else {
+      if (safePage <= 3) {
+        for (let i = 1; i <= 4; i++) pages.push(i)
+        pages.push("ellipsis")
+        pages.push(totalPages)
+      } else if (safePage >= totalPages - 2) {
+        pages.push(1)
+        pages.push("ellipsis")
+        for (let i = totalPages - 3; i <= totalPages; i++) pages.push(i)
+      } else {
+        pages.push(1)
+        pages.push("ellipsis")
+        for (let i = safePage - 1; i <= safePage + 1; i++) pages.push(i)
+        pages.push("ellipsis")
+        pages.push(totalPages)
+      }
+    }
+    return pages
+  }
 
   useEffect(() => {
     setCurrentPage(1)
@@ -889,8 +926,8 @@ export default function ExpensesPage() {
                               <div className="flex items-start justify-between gap-3 cursor-pointer">
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-2">
-                                    <span className="font-semibold text-slate-900">{formatDateShort(expense.expenseDate)}</span>
-                                    <Badge className={getCategoryColor(expense.category)}>{expense.category}</Badge>
+                                    <span className="font-semibold text-slate-900 shrink-0">{formatDateShort(expense.expenseDate)}</span>
+                                    <Badge className={cn("whitespace-normal break-words shrink min-w-0 text-left", getCategoryColor(expense.category))}>{expense.category}</Badge>
                                   </div>
                                   <div className="mt-1 flex items-baseline gap-3">
                                     <span className="text-lg font-bold text-red-600">{formatCurrency(expense.amount)}</span>
@@ -952,13 +989,17 @@ export default function ExpensesPage() {
                         </Button>
                       </div>
                     )}
-                  <Table className="table-fixed w-full min-w-[800px]">
+                  {/* Fixed columns total 720px; Description is the one auto column
+                      and absorbs whatever is left, so the widths can never add up
+                      to more than the table and squeeze cells into each other.
+                      Below the min width the wrapper scrolls instead. */}
+                  <Table className="table-fixed w-full min-w-[900px]">
                     <TableHeader>
                       <TableRow>
                         <SortableHeader label="Date" sortKey="expenseDate" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("w-[100px]", isMobile && "sticky-col-date bg-slate-50")} />
-                        <SortableHeader label="Description" sortKey="description" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[32%] min-w-0" />
-                        <SortableHeader label="Category" sortKey="category" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[120px]" />
-                        <SortableHeader label="Amount" sortKey="amount" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[110px] text-right whitespace-nowrap" />
+                        <SortableHeader label="Description" sortKey="description" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-auto min-w-0" />
+                        <SortableHeader label="Category" sortKey="category" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[150px]" />
+                        <SortableHeader label="Amount" sortKey="amount" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[130px] text-right whitespace-nowrap" />
                         <SortableHeader label="Payment Method" sortKey="paymentMethod" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[130px]" />
                         <SortableHeader label="Paid To" sortKey="paidTo" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[110px] min-w-0" />
                         <TableHead className={cn("text-right w-[100px] min-w-[100px] whitespace-nowrap", isMobile && "sticky-col-actions bg-slate-50")}>Actions</TableHead>
@@ -971,10 +1012,14 @@ export default function ExpensesPage() {
                         return (
                         <TableRow key={`${expense.expenseId || 'tmp'}-${idx}`}>
                           <TableCell className={cn("font-medium bg-white", isMobile && "sticky-col-date")}>{isMobile ? formatDateShort(expense.expenseDate) : formatDate(expense.expenseDate)}</TableCell>
-                          <TableCell className="min-w-0 align-top">
+                          {/* overflow-hidden clips anything that still escapes, and
+                              wrap-anywhere lets a long unbroken run break mid-word —
+                              break-words alone leaves the intrinsic min-width intact,
+                              which is what let long text reach into Category. */}
+                          <TableCell className="min-w-0 align-top overflow-hidden">
                             <div className="min-w-0">
                               <div className="font-medium flex items-start gap-2 min-w-0">
-                                <span className="min-w-0 break-words">{stripReceiptSuffixFromDescription(expense.description || "")}</span>
+                                <span className="min-w-0 wrap-anywhere">{stripReceiptSuffixFromDescription(expense.description || "")}</span>
                                 {rowReceiptUrl && rowReceiptPath && (
                                   <a
                                     href={rowReceiptUrl}
@@ -990,10 +1035,13 @@ export default function ExpensesPage() {
                               {expense.notes && <div className="text-sm text-slate-500">{expense.notes}</div>}
                             </div>
                           </TableCell>
-                          <TableCell className="align-top"><Badge className={getCategoryColor(expense.category)}>{expense.category}</Badge></TableCell>
+                          {/* Badge is nowrap/shrink-0 by default, so a long category
+                              ("Raw Materials / Inventory Purchase") renders past this
+                              fixed-width cell and over the Amount column. Let it wrap. */}
+                          <TableCell className="align-top min-w-0"><Badge className={cn("whitespace-normal break-words shrink max-w-full text-left", getCategoryColor(expense.category))}>{expense.category}</Badge></TableCell>
                           <TableCell className="text-right font-medium whitespace-nowrap align-top">{formatCurrency(expense.amount)}</TableCell>
                           <TableCell className="align-top"><Badge variant="outline">{expense.paymentMethod || "N/A"}</Badge></TableCell>
-                          <TableCell className="text-slate-600 min-w-0 break-words align-top">{expense.paidTo || "N/A"}</TableCell>
+                          <TableCell className="text-slate-600 min-w-0 wrap-anywhere align-top overflow-hidden">{expense.paidTo || "N/A"}</TableCell>
                           <TableCell className={cn("text-right whitespace-nowrap bg-white", isMobile && "sticky-col-actions")}>
                             <div className="flex items-center justify-end gap-2 min-w-[80px]">
                               {(() => {
@@ -1021,32 +1069,44 @@ export default function ExpensesPage() {
                   </Table>
                   </div>
                   )}
+                {/* Pagination */}
                 {!loading && filteredExpenses.length > 0 && (
-                  <div className="flex items-center justify-between gap-2 px-4 py-3 border-t bg-slate-50">
-                    <p className="text-xs text-slate-600">
-                      Showing {(safePage - 1) * pageSize + 1}-{Math.min(safePage * pageSize, sortedExpenses.length)} of {sortedExpenses.length}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={safePage <= 1}
-                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                      >
-                        Previous
-                      </Button>
-                      <span className="text-xs text-slate-600">
-                        Page {safePage} of {totalPages}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 border-t bg-slate-50">
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm text-slate-600">
+                        Showing {startIndex + 1} to {Math.min(endIndex, sortedExpenses.length)} of {sortedExpenses.length} records
                       </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={safePage >= totalPages}
-                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                      >
-                        Next
-                      </Button>
+                      <Select value={String(itemsPerPage)} onValueChange={(v) => { setItemsPerPage(Number(v)); setCurrentPage(1) }}>
+                        <SelectTrigger className="w-[100px] h-8"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="5">5 / page</SelectItem>
+                          <SelectItem value="10">10 / page</SelectItem>
+                          <SelectItem value="15">15 / page</SelectItem>
+                          <SelectItem value="25">25 / page</SelectItem>
+                          <SelectItem value="50">50 / page</SelectItem>
+                          <SelectItem value="100">100 / page</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
+                    <Pagination>
+                      <PaginationContent>
+                        <PaginationItem>
+                          <PaginationPrevious onClick={handlePreviousPage} className={safePage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"} />
+                        </PaginationItem>
+                        {getPageNumbers().map((page, index) => (
+                          <PaginationItem key={index}>
+                            {page === "ellipsis" ? (
+                              <PaginationEllipsis />
+                            ) : (
+                              <PaginationLink onClick={() => handlePageChange(page as number)} isActive={safePage === page} className="cursor-pointer">{page}</PaginationLink>
+                            )}
+                          </PaginationItem>
+                        ))}
+                        <PaginationItem>
+                          <PaginationNext onClick={handleNextPage} className={safePage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"} />
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
                   </div>
                 )}
                 </CardContent>

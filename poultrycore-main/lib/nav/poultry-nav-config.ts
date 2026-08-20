@@ -81,9 +81,9 @@ export function buildPoultryNavConfig(
       },
       // Group ORDER is load-bearing in the 2x2 grid: each row is as tall as its
       // tallest group, so pairing the two long groups (Production 5, Inventory
-      // 7) in row 1 and the two short ones (Farm 3, Delivery 2) in row 2 makes
-      // the panel 10 rows instead of 12 — enough to clear max-h-[70vh] without
-      // scrolling. Reordering these will bring the scrollbar back.
+      // 7) in row 1 and the two short ones (Delivery 2, Farm 1) in row 2 keeps
+      // the panel clear of max-h-[70vh] without scrolling. Reordering these will
+      // bring the scrollbar back.
       {
         key: "inventory-health",
         label: "Inventory & Health",
@@ -98,23 +98,24 @@ export function buildPoultryNavConfig(
         ],
       },
       {
-        key: "farm",
-        label: "Farm",
-        items: [
-          { id: "flock-batch", title: "Flock Purchases (Batches)",   icon: Boxes,     href: "/flock-batch" },
-          { id: "flocks",      title: "Flock Groups (Pens / Flocks)", icon: Bird,      href: "/flocks" },
-          { id: "houses",      title: "Houses",                       icon: Building2, href: "/houses" },
-        ],
-      },
-      {
         key: "delivery",
         label: "Delivery",
         items: [
-          // Drivers, Vehicles and Routes are fleet records you maintain — they
-          // live in Setup > Fleet. What's left here is the daily run and its
+          // Drivers, Vehicles and Routes are records you maintain — they live
+          // in Setup > Delivery. What's left here is the daily run and its
           // reconciliation.
           { id: "deliveries",    title: "Deliveries",    icon: Truck,     href: "/poultry-driver-returns" },
           { id: "driver-report", title: "Driver report", icon: BarChart3, href: "/poultry-driver-report" },
+        ],
+      },
+      {
+        key: "farm",
+        label: "Farm",
+        items: [
+          // Houses and Flock Groups are master data you maintain, not a daily
+          // activity — they live in Setup > Farm. What's left here is the
+          // purchase transaction that brings birds onto the farm.
+          { id: "flock-batch", title: "Flock Purchases (Batches)", icon: Boxes, href: "/flock-batch" },
         ],
       },
     ],
@@ -125,7 +126,7 @@ export function buildPoultryNavConfig(
         label: "Sales",
         items: [
           { id: "sales",    title: "Sales",             icon: ShoppingCart, href: "/sales",            visible: money("/sales") },
-          { id: "payments", title: "Payments received", icon: Wallet,       href: "/poultry-payments", visible: money("/poultry-payments") },
+          { id: "payments", title: "Payments",          icon: Wallet,       href: "/poultry-payments", visible: money("/poultry-payments") },
           { id: "billing",  title: "Billing",           icon: CreditCard,   href: "/billing",          visible: money("/billing") },
         ],
       },
@@ -152,8 +153,8 @@ export function buildPoultryNavConfig(
           { id: "egg-tracker",        title: "Egg tracker",        icon: BarChart3, href: "/egg-tracker" },
           { id: "feed-tracker",       title: "Feed tracker",       icon: Wheat,     href: "/feed-tracker" },
           { id: "medication-tracker", title: "Medication tracker", icon: Pill,      href: "/medication-tracker" },
-          { id: "birds-left",         title: "Birds left tracker", icon: Bird,      href: "/birds-left-tracker" },
-          { id: "weekly-report",      title: "Analytical Report",  icon: FileText,  href: "/weekly-report" },
+          { id: "birds-left",         title: "Birds tracker",      icon: Bird,      href: "/birds-left-tracker" },
+          { id: "weekly-report",      title: "Report",             icon: FileText,  href: "/weekly-report" },
         ],
       },
     ],
@@ -164,12 +165,33 @@ export function buildPoultryNavConfig(
         label: "Company",
         items: [
           { id: "settings",   title: "Settings",  icon: Settings,  href: "/settings",  visible: featureAccess.canViewSettings },
-          // Customers and Suppliers are master data maintained here, not part of
-          // the day's selling flow — same call as the water rail.
-          { id: "customers",  title: "Customers", icon: Users,     href: "/customers", visible: money("/customers") },
-          { id: "suppliers",  title: "Suppliers", icon: Truck,     href: "/suppliers", visible: money("/suppliers") },
           // Ungated, so this column (and the Setup trigger) always renders.
           { id: "companies",  title: "Companies", icon: Building2, href: "/companies" },
+        ],
+      },
+      {
+        // Customers and Suppliers are master data maintained here, not part of
+        // the day's selling flow — but they're the two trading parties every
+        // receivable and payable hangs off, so they get their own Finance
+        // column rather than sitting under Company. Both rows are money()-gated,
+        // so this whole column drops out for a user without financial access;
+        // that's safe because Company above is ungated.
+        key: "finance",
+        label: "Finance",
+        items: [
+          { id: "customers", title: "Customers", icon: Users, href: "/customers", visible: money("/customers") },
+          { id: "suppliers", title: "Suppliers", icon: Truck, href: "/suppliers", visible: money("/suppliers") },
+        ],
+      },
+      // Group ORDER is load-bearing: the panel is a 2-column grid filled row by
+      // row, so this reads Company | Finance, Delivery | Production, Farm | People.
+      {
+        key: "delivery-setup",
+        label: "Delivery",
+        items: [
+          { id: "drivers",  title: "Drivers",  icon: Users2, href: "/poultry-drivers" },
+          { id: "vehicles", title: "Vehicles", icon: Truck,  href: "/poultry-vehicles" },
+          { id: "routes",   title: "Routes",   icon: Truck,  href: "/poultry-routes" },
         ],
       },
       {
@@ -186,12 +208,11 @@ export function buildPoultryNavConfig(
         ],
       },
       {
-        key: "fleet",
-        label: "Fleet",
+        key: "farm",
+        label: "Farm",
         items: [
-          { id: "drivers",  title: "Drivers",  icon: Users2, href: "/poultry-drivers" },
-          { id: "vehicles", title: "Vehicles", icon: Truck,  href: "/poultry-vehicles" },
-          { id: "routes",   title: "Routes",   icon: Truck,  href: "/poultry-routes" },
+          { id: "houses", title: "Houses",       icon: Building2, href: "/houses" },
+          { id: "flocks", title: "Flock Groups", icon: Bird,      href: "/flocks" },
         ],
       },
       {

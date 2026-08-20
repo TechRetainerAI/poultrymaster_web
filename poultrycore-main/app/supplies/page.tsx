@@ -34,6 +34,8 @@ import {
   MobileFilterSheetHeader,
 } from "@/components/dashboard/mobile-filters"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { formatDateShort, cn } from "@/lib/utils"
 import { toastFormGuide } from "@/lib/utils/validation-toast"
 
@@ -184,6 +186,7 @@ export default function SuppliesPage() {
 
     return list
   }, [supplies, search, selectedType, sortField, sortDirection])
+  const pg = usePagination(filteredItems)
 
   const handleCreate = async () => {
     const { userId, farmId } = getUserContext()
@@ -793,7 +796,7 @@ export default function SuppliesPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredItems.map((item) => (
+                      {pg.pageItems.map((item) => (
                         <TableRow key={item.id}>
                           <TableCell className={cn("font-medium bg-white", isMobile && "sticky-col-date")}>{item.name}</TableCell>
                           <TableCell>
@@ -819,6 +822,7 @@ export default function SuppliesPage() {
                   </Table>
                   </div>
                   )}
+                  <DataPagination {...pg.paginationProps} />
                 </CardContent>
               </Card>
             )}

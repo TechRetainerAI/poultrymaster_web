@@ -1,5 +1,5 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -20,7 +20,7 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<PoultryDeliveryModel>> GetAllAsync(string farmId, string? status, DateTime? fromDate, DateTime? toDate)
         {
             var list = new List<PoultryDeliveryModel>();
-            using var c = new SqlConnection(_cs); using var cmd = new SqlCommand("spPoultryDelivery_GetAll", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs); using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrydelivery_getall(p_farmid => @FarmId::text, p_status => @Status::text, p_fromdate => @FromDate::date, p_todate => @ToDate::date)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@Status", (object?)status ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@FromDate", (object?)fromDate ?? DBNull.Value);
@@ -42,7 +42,7 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<int> LoadAsync(PoultryDeliveryLoadRequest m)
         {
-            using var c = new SqlConnection(_cs); using var cmd = new SqlCommand("spPoultryDelivery_Load", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs); using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrydelivery_load(p_farmid => @FarmId::text, p_deliverydate => @DeliveryDate::timestamp, p_drivername => @DriverName::text, p_vehiclename => @VehicleName::text, p_route => @Route::text, p_poultryproductid => @PoultryProductId::int, p_quantityloaded => @QuantityLoaded::numeric, p_unit => @Unit::text, p_unitprice => @UnitPrice::numeric, p_notes => @Notes::text, p_createdby => @CreatedBy::text)", c);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@DeliveryDate", (object?)m.DeliveryDate ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@DriverName", (object?)m.DriverName ?? DBNull.Value);
@@ -59,7 +59,7 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task ReconcileAsync(int id, PoultryDeliveryReconcileRequest m)
         {
-            using var c = new SqlConnection(_cs); using var cmd = new SqlCommand("spPoultryDelivery_Reconcile", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs); using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrydelivery_reconcile(p_poultrydeliveryid => @PoultryDeliveryId::int, p_farmid => @FarmId::text, p_quantitysold => @QuantitySold::numeric, p_quantityreturned => @QuantityReturned::numeric, p_quantitybroken => @QuantityBroken::numeric, p_quantityshort => @QuantityShort::numeric, p_cashcollected => @CashCollected::numeric, p_creditsales => @CreditSales::numeric, p_deliveryexpenses => @DeliveryExpenses::numeric, p_paymentmethod => @PaymentMethod::text, p_reconciledby => @ReconciledBy::text)", c);
             cmd.Parameters.AddWithValue("@PoultryDeliveryId", id);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@QuantitySold", m.QuantitySold);
@@ -76,14 +76,14 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task ReverseAsync(int id, string farmId)
         {
-            using var c = new SqlConnection(_cs); using var cmd = new SqlCommand("spPoultryDelivery_Reverse", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs); using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrydelivery_reverse(p_poultrydeliveryid => @PoultryDeliveryId::int, p_farmid => @FarmId::text)", c);
             cmd.Parameters.AddWithValue("@PoultryDeliveryId", id); cmd.Parameters.AddWithValue("@FarmId", farmId);
             await c.OpenAsync(); await cmd.ExecuteNonQueryAsync();
         }
 
         public async Task CancelAsync(int id, string farmId)
         {
-            using var c = new SqlConnection(_cs); using var cmd = new SqlCommand("spPoultryDelivery_Cancel", c) { CommandType = CommandType.StoredProcedure };
+            using var c = new NpgsqlConnection(_cs); using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrydelivery_cancel(p_poultrydeliveryid => @PoultryDeliveryId::int, p_farmid => @FarmId::text)", c);
             cmd.Parameters.AddWithValue("@PoultryDeliveryId", id); cmd.Parameters.AddWithValue("@FarmId", farmId);
             await c.OpenAsync(); await cmd.ExecuteNonQueryAsync();
         }

@@ -145,10 +145,11 @@ export function NavMegaMenu({
             {visibleGroups.map((g) => (
               <div key={g.key} className={cn("min-w-0 break-inside-avoid", showGroupLabels && "mb-4")}>
                 {showGroupLabels && (
-                  // A rule rather than a coloured dot: the dots were seven
-                  // arbitrary hues that encoded nothing, and on a tinted panel
-                  // some of them (amber on orange-50) all but vanished.
-                  <div className={cn("mb-2 pb-1.5 border-b", a.groupRule)}>
+                  // No rule and no coloured dot — the uppercase tracked label
+                  // separates the columns on its own. (The dots before it were
+                  // seven arbitrary hues that encoded nothing, and on a tinted
+                  // panel some of them all but vanished.)
+                  <div className="mb-2">
                     <h3 className={cn("text-[11px] font-semibold uppercase tracking-wider", a.groupLabel)}>{g.label}</h3>
                   </div>
                 )}

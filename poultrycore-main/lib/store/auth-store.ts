@@ -37,6 +37,16 @@ interface AuthState {
   clearActiveCompany: () => void
 }
 
+/**
+ * Fired whenever the active company changes (including being cleared).
+ *
+ * IAM permissions are granted per company, so anything holding a resolved
+ * permission set has to drop it and re-read on this event — see
+ * hooks/use-permissions.ts. A plain window event rather than a store
+ * subscription because the consumers are outside React's tree in places.
+ */
+export const COMPANY_CHANGED_EVENT = 'iam:company-changed'
+
 function syncCompanyToLocalStorage(farmId: string | null, name: string | null, type: CompanyType | null) {
   if (typeof window === 'undefined') return
   if (farmId) localStorage.setItem('farmId', farmId)
@@ -45,6 +55,7 @@ function syncCompanyToLocalStorage(farmId: string | null, name: string | null, t
   else localStorage.removeItem('farmName')
   if (type) localStorage.setItem('farmType', type)
   else localStorage.removeItem('farmType')
+  window.dispatchEvent(new Event(COMPANY_CHANGED_EVENT))
 }
 
 export const useAuthStore = create<AuthState>()(

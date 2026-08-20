@@ -31,6 +31,8 @@ import { formatDateShort, cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { toastFormGuide } from "@/lib/utils/validation-toast"
 import { SortableHeader, type SortDirection, sortData } from "@/components/ui/sortable-header"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 
 const ADJUSTMENT_TYPES = [
   { value: "OpeningBalance", label: "Opening Balance" },
@@ -408,6 +410,7 @@ export default function CashPage() {
       }),
     [filteredTransactions, sortKey, sortDirection]
   )
+  const pg = usePagination(sortedTransactions)
 
   const handleSort = (key: string) => {
     if (sortKey !== key) {
@@ -561,7 +564,7 @@ export default function CashPage() {
                   </div>
                 </div>
                 <p className="text-xs text-slate-500 mt-2">
-                  Computed: Opening Balance + Paid Sales + Other Income − Expenses
+                  Computed: Opening Balance + Payments Received on Sales + Other Income − Expenses
                 </p>
               </CardContent>
             </Card>
@@ -688,7 +691,7 @@ export default function CashPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {sortedTransactions.map((t, i) => (
+                      {pg.pageItems.map((t, i) => (
                         <TableRow key={i}>
                           <TableCell className={cn("font-medium bg-white whitespace-nowrap", isMobile && "sticky-col-date")}>
                             {t.date ? (isMobile ? formatDateShort(t.date) : new Date(t.date).toLocaleDateString()) : "-"}
@@ -724,6 +727,7 @@ export default function CashPage() {
                     </TableBody>
                   </Table>
                   </div>
+                  <DataPagination {...pg.paginationProps} />
                   </>
                 )}
                 <div className="flex justify-center mt-4">

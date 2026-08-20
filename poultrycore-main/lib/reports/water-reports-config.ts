@@ -38,13 +38,15 @@ export const WATER_REPORT_GROUPS: WaterReportGroup[] = [
     key: "financial",
     label: "Financial",
     color: "bg-emerald-600",
+    // Closing Report leads, then Profit & Loss — same order as the poultry
+    // "Sales, Money & Profit" column, so the two rails read alike.
     reports: [
-      { slug: "daily-summary",     title: "Daily Business Summary", description: "Full daily snapshot — sales, payments, expenses, production, losses, cash.",       icon: BarChart3,    status: "ready" },
+      { slug: "closing-report",    title: "Closing Report",         description: "Daily closings (including reopened + superseded).",                               icon: FileText,     status: "ready" },
       { slug: "profit-loss",       title: "Profit & Loss",          description: "Revenue, costs, expenses, losses, gross & net profit by period.",                 icon: TrendingDown, status: "ready" },
+      { slug: "daily-summary",     title: "Daily Business Summary", description: "Full daily snapshot — sales, payments, expenses, production, losses, cash.",       icon: BarChart3,    status: "ready" },
       { slug: "cash-flow",         title: "Cash Flow",              description: "Inflows + outflows, opening / closing cash.",                                     icon: Wallet,       status: "ready" },
       { slug: "expense-report",    title: "Expense Report",         description: "Expenses grouped by category, source, payment method.",                           icon: Receipt,      status: "ready" },
       { slug: "supplier-activity", title: "Supplier Activity",      description: "Per-supplier purchases, expenses paid, outstanding balance, last activity.",      icon: Receipt,      status: "ready" },
-      { slug: "closing-report",    title: "Closing Report",         description: "Daily closings (including reopened + superseded).",                               icon: FileText,     status: "ready" },
     ],
   },
   {
