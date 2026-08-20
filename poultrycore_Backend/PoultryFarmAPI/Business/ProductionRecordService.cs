@@ -53,15 +53,18 @@ namespace PoultryFarmAPIWeb.Business
         // The 4th egg pick (migration 152) is persisted by a dedicated lightweight
         // proc so the large Insert/Update procs stay untouched. Tolerant of the
         // migration not being applied yet (the call becomes a no-op).
-        private static async Task<bool> ProcedureExistsAsync(NpgsqlConnection conn, string procedureName)
+        private static async Task<bool> ProcedureExistsAsync(NpgsqlConnection conn, string procedureName, NpgsqlTransaction? tx = null)
         {
             if (SpHasFourthPickParamCache.TryGetValue(procedureName, out var cached))
                 return cached;
 
             await using var probe = new NpgsqlCommand(
-                @"SELECT 1 FROM sys.procedures
-                  WHERE SCHEMA_NAME(schema_id) = N'dbo' AND name = @procName",
-                conn);
+                @"SELECT 1
+                  FROM pg_proc p
+                  INNER JOIN pg_namespace n ON n.oid = p.pronamespace
+                  WHERE n.nspname = 'public'
+                    AND p.proname = lower(@procName)",
+                conn, tx);
             probe.Parameters.AddWithValue("@procName", procedureName);
             var scalar = await probe.ExecuteScalarAsync();
             var has = scalar != null && scalar != DBNull.Value;
@@ -69,10 +72,10 @@ namespace PoultryFarmAPIWeb.Business
             return has;
         }
 
-        private static async Task SetFourthPickAsync(NpgsqlConnection conn, string farmId, int recordId, int fourthPick)
+        private static async Task SetFourthPickAsync(NpgsqlConnection conn, string farmId, int recordId, int fourthPick, NpgsqlTransaction? tx = null)
         {
-            if (!await ProcedureExistsAsync(conn, "spProductionRecord_SetFourthPick")) return;
-            await using var cmd = new NpgsqlCommand("SELECT * FROM spproductionrecord_setfourthpick(p_recordid => @RecordId::int, p_farmid => @FarmId::text, p_production4thpick => @Production4thPick::int)", conn);
+            if (!await ProcedureExistsAsync(conn, "spProductionRecord_SetFourthPick", tx)) return;
+            await using var cmd = new NpgsqlCommand("SELECT * FROM spproductionrecord_setfourthpick(p_recordid => @RecordId::int, p_farmid => @FarmId::text, p_production4thpick => @Production4thPick::int)", conn, tx);
             cmd.Parameters.AddWithValue("@RecordId", recordId);
             cmd.Parameters.AddWithValue("@FarmId", (object?)farmId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@Production4thPick", fourthPick);
@@ -323,9 +326,17 @@ namespace PoultryFarmAPIWeb.Business
                 // directly (the T-SQL used an @NewId OUTPUT parameter).
                 cmd.CommandText = await PgCallText.ForAsync("spProductionRecord_Insert", cmd);
 
+                // The record and its 4th pick commit together. Without this the
+                // insert auto-committed on its own, so a failure in the follow-up
+                // write still surfaced as "failed to insert" while leaving the
+                // record saved — an error message the database disagreed with.
+                await using var tx = await conn.BeginTransactionAsync();
+                cmd.Transaction = tx;
+
                 int newId = Convert.ToInt32(await cmd.ExecuteScalarAsync());
                 // Persist the 4th egg pick + recompute the total (migration 152).
-                await SetFourthPickAsync(conn, model.FarmId, newId, model.Production4thPick);
+                await SetFourthPickAsync(conn, model.FarmId, newId, model.Production4thPick, tx);
+                await tx.CommitAsync();
                 return newId;
             }
             catch (Exception ex)
@@ -378,9 +389,15 @@ namespace PoultryFarmAPIWeb.Business
                     cmd.Parameters.AddWithValue("@FeedsJson", BuildFeedsJsonParam(model));
 
                 cmd.CommandText = await PgCallText.ForAsync("spProductionRecord_Update", cmd);
+
+                // All-or-nothing, for the same reason as Insert above.
+                await using var tx = await conn.BeginTransactionAsync();
+                cmd.Transaction = tx;
+
                 await cmd.ExecuteNonQueryAsync();
                 // Persist the 4th egg pick + recompute the total (migration 152).
-                await SetFourthPickAsync(conn, model.FarmId, model.Id, model.Production4thPick);
+                await SetFourthPickAsync(conn, model.FarmId, model.Id, model.Production4thPick, tx);
+                await tx.CommitAsync();
             }
             catch (Exception ex)
             {

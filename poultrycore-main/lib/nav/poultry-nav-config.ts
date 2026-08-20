@@ -126,7 +126,7 @@ export function buildPoultryNavConfig(
         label: "Sales",
         items: [
           { id: "sales",    title: "Sales",             icon: ShoppingCart, href: "/sales",            visible: money("/sales") },
-          { id: "payments", title: "Payments received", icon: Wallet,       href: "/poultry-payments", visible: money("/poultry-payments") },
+          { id: "payments", title: "Payments",          icon: Wallet,       href: "/poultry-payments", visible: money("/poultry-payments") },
           { id: "billing",  title: "Billing",           icon: CreditCard,   href: "/billing",          visible: money("/billing") },
         ],
       },
@@ -153,8 +153,8 @@ export function buildPoultryNavConfig(
           { id: "egg-tracker",        title: "Egg tracker",        icon: BarChart3, href: "/egg-tracker" },
           { id: "feed-tracker",       title: "Feed tracker",       icon: Wheat,     href: "/feed-tracker" },
           { id: "medication-tracker", title: "Medication tracker", icon: Pill,      href: "/medication-tracker" },
-          { id: "birds-left",         title: "Birds left tracker", icon: Bird,      href: "/birds-left-tracker" },
-          { id: "weekly-report",      title: "Analytical Report",  icon: FileText,  href: "/weekly-report" },
+          { id: "birds-left",         title: "Birds tracker",      icon: Bird,      href: "/birds-left-tracker" },
+          { id: "weekly-report",      title: "Report",             icon: FileText,  href: "/weekly-report" },
         ],
       },
     ],
@@ -183,12 +183,15 @@ export function buildPoultryNavConfig(
           { id: "suppliers", title: "Suppliers", icon: Truck, href: "/suppliers", visible: money("/suppliers") },
         ],
       },
+      // Group ORDER is load-bearing: the panel is a 2-column grid filled row by
+      // row, so this reads Company | Finance, Delivery | Production, Farm | People.
       {
-        key: "farm",
-        label: "Farm",
+        key: "delivery-setup",
+        label: "Delivery",
         items: [
-          { id: "houses", title: "Houses",                        icon: Building2, href: "/houses" },
-          { id: "flocks", title: "Flock Groups (Pens / Flocks)",  icon: Bird,      href: "/flocks" },
+          { id: "drivers",  title: "Drivers",  icon: Users2, href: "/poultry-drivers" },
+          { id: "vehicles", title: "Vehicles", icon: Truck,  href: "/poultry-vehicles" },
+          { id: "routes",   title: "Routes",   icon: Truck,  href: "/poultry-routes" },
         ],
       },
       {
@@ -205,12 +208,11 @@ export function buildPoultryNavConfig(
         ],
       },
       {
-        key: "delivery-setup",
-        label: "Delivery",
+        key: "farm",
+        label: "Farm",
         items: [
-          { id: "drivers",  title: "Drivers",  icon: Users2, href: "/poultry-drivers" },
-          { id: "vehicles", title: "Vehicles", icon: Truck,  href: "/poultry-vehicles" },
-          { id: "routes",   title: "Routes",   icon: Truck,  href: "/poultry-routes" },
+          { id: "houses", title: "Houses",       icon: Building2, href: "/houses" },
+          { id: "flocks", title: "Flock Groups", icon: Bird,      href: "/flocks" },
         ],
       },
       {
