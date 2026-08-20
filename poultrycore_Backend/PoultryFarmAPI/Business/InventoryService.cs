@@ -23,11 +23,12 @@ namespace PoultryFarmAPIWeb.Business
         {
             if (SpHasInventoryFieldsCache.TryGetValue(procedureName, out var cached)) return cached;
             await using var probe = new NpgsqlCommand(
-                @"SELECT 1 FROM sys.parameters p
-                  INNER JOIN sys.procedures pr ON p.object_id = pr.object_id
-                  WHERE SCHEMA_NAME(pr.schema_id) = N'dbo'
-                    AND pr.name = @procName
-                    AND (p.name = N'Cost' OR p.name = N'@Cost')",
+                @"SELECT 1
+                  FROM pg_proc p
+                  INNER JOIN pg_namespace n ON n.oid = p.pronamespace
+                  WHERE n.nspname = 'public'
+                    AND p.proname = lower(@procName)
+                    AND ('p_cost' = ANY(p.proargnames))",
                 conn);
             probe.Parameters.AddWithValue("@procName", procedureName);
             var scalar = await probe.ExecuteScalarAsync();
