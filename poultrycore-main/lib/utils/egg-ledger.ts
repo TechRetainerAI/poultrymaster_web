@@ -38,6 +38,25 @@ export interface EggInventoryAdjustmentLedgerInput {
   description?: string | null
 }
 
+/**
+ * Non-production, non-sale movements posted to the poultry stock ledger for the
+ * egg product — driver load-outs, deliveries, restocks and the Set stock /
+ * Reconcile corrections made from /poultry-inventory.
+ *
+ * The Egg Tracker used to ignore these entirely, so a 2,000-egg driver load-out
+ * never reduced "Eggs on hand" and this page disagreed with the inventory's
+ * "In stock". Production and Sale rows are deliberately NOT taken from here:
+ * they are already derived from the production records and the sales list, and
+ * pulling them in as well would double-count them.
+ */
+export interface EggStockMoveLedgerInput {
+  poultryStockTransactionId: number
+  createdDate: string
+  txnType: string
+  quantity: number
+  note?: string | null
+}
+
 function formatEggAdjustmentType(t: string): string {
   switch (t) {
     case "OpeningBalance":
@@ -51,18 +70,37 @@ function formatEggAdjustmentType(t: string): string {
   }
 }
 
-/** Running egg inventory: production (in) − broken (out) − egg sales (out) ± adjustments. Chronological balance on each row. */
+/**
+ * The non-saleable categories deducted from collected eggs, in ledger order.
+ * An egg is on hand only if it is not broken, meaty, soft-shelled or lost — the
+ * same rule as spPoultryReport_EggStockBalance and the weekly report's "Egg
+ * loss" figure. Each is its own ledger line so the deduction is visible and the
+ * page's type filter can isolate it.
+ */
+const EGG_LOSS_LINES: {
+  key: "brokenEggs" | "meatyEggs" | "softEggs" | "lostEggs"
+  type: string
+  note: string
+  order: number
+}[] = [
+  { key: "brokenEggs", type: "Broken eggs", note: "non-saleable", order: 1 },
+  { key: "meatyEggs", type: "Meaty eggs", note: "non-saleable", order: 2 },
+  { key: "softEggs", type: "Soft eggs", note: "non-saleable", order: 3 },
+  { key: "lostEggs", type: "Lost eggs", note: "lost", order: 4 },
+]
+
+/** Running egg inventory: production (in) − broken/meaty/soft/lost (out) − egg sales (out) ± adjustments ± stock-ledger moves. Chronological balance on each row. */
 export function buildEggStockLedger(
   productions: EggProduction[],
   sales: Sale[],
   flocks: Flock[] = [],
-  adjustments: EggInventoryAdjustmentLedgerInput[] = []
+  adjustments: EggInventoryAdjustmentLedgerInput[] = [],
+  stockMoves: EggStockMoveLedgerInput[] = []
 ): { rows: EggLedgerRow[]; currentEggsAtHand: number; lastUpdatedIso: string } {
   const lines: LineInput[] = []
 
   for (const p of productions) {
     const inCount = Math.max(0, Number(p.totalProduction) || 0)
-    const broken = Math.max(0, Number(p.brokenEggs) || 0)
     const flock = resolveEggProductionFlockName(p, flocks)
     const date = p.productionDate
     const grade = p.eggGrade?.trim()
@@ -78,15 +116,17 @@ export function buildEggStockLedger(
       order: 0,
     })
 
-    if (broken > 0) {
+    for (const loss of EGG_LOSS_LINES) {
+      const qty = Math.max(0, Number(p[loss.key]) || 0)
+      if (qty <= 0) continue
       lines.push({
-        sortKey: `broken_${p.productionId}`,
+        sortKey: `${loss.key}_${p.productionId}`,
         date,
-        type: "Broken eggs",
-        description: `${flock} — non-saleable`,
+        type: loss.type,
+        description: `${flock} — ${loss.note}`,
         in: 0,
-        out: broken,
-        order: 1,
+        out: qty,
+        order: loss.order,
       })
     }
   }
@@ -103,7 +143,7 @@ export function buildEggStockLedger(
       description: who ? `${who} — ${s.product}` : (s.product || "Egg sale"),
       in: 0,
       out: qty,
-      order: 2,
+      order: 5,
     })
   }
 
@@ -122,7 +162,24 @@ export function buildEggStockLedger(
       description: `${typeLabel}: ${desc}`,
       in: d > 0 ? d : 0,
       out: d < 0 ? -d : 0,
-      order: 3,
+      order: 6,
+    })
+  }
+
+  for (const m of stockMoves) {
+    const type = m.txnType?.trim()
+    if (!type || type === "Production" || type === "Sale") continue
+    const qty = Math.round(Number(m.quantity) || 0)
+    if (qty === 0) continue
+    const note = (m.note || "").trim()
+    lines.push({
+      sortKey: `stockmove_${m.poultryStockTransactionId}`,
+      date: m.createdDate,
+      type,
+      description: note || type,
+      in: qty > 0 ? qty : 0,
+      out: qty < 0 ? -qty : 0,
+      order: 7,
     })
   }
 

@@ -8,18 +8,25 @@
 // Extracted from the page so Business Setup can render it inline in a tab.
 import { useEffect, useMemo, useState } from "react"
 import { AddEmployeeDialog } from "@/components/employees/add-employee-dialog"
+import { EditEmployeeDialog } from "@/components/employees/edit-employee-dialog"
+import { EmployeeAccessFields } from "@/components/employees/employee-access-fields"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Loader2, Search, ShieldCheck, UserPlus, Building2, Check } from "lucide-react"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { Loader2, Search, ShieldCheck, UserPlus, Building2, Check, Pencil, Trash2, Save } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import {
-  getOrganizationEmployees, assignCompanyAccess, removeCompanyAccess,
-  type OrgEmployee,
+  getOrganizationEmployees, assignCompanyAccess, removeCompanyAccess, deleteEmployee,
+  updateEmployee, type OrgEmployee, type UpdateEmployeeData,
 } from "@/lib/api/admin"
 import { getMyCompanies, type Company } from "@/lib/api/companies"
+import {
+  blankPermissionSnapshot, cacheEmployeePermissions, resolveEmployeePermissions,
+  type EmployeePermissionSnapshot,
+} from "@/lib/employees/permissions-io"
 
 const TYPE_BADGE: Record<string, string> = {
   Poultry: "bg-amber-100 text-amber-700", Water: "bg-blue-100 text-blue-700", Generic: "bg-slate-100 text-slate-700",
@@ -34,6 +41,60 @@ export function UsersPermissionsPanel({ showHeading = true }: { showHeading?: bo
   const [managed, setManaged] = useState<OrgEmployee | null>(null)
   const [busyFarm, setBusyFarm] = useState<string | null>(null)
   const [addOpen, setAddOpen] = useState(false)
+  // Same edit dialog the /employees page uses — profile, admin access and staff
+  // page permissions, opened in place rather than sending the admin elsewhere.
+  const [editOpen, setEditOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<OrgEmployee | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  // Admin Access + Staff Page Access, same controls as the Edit dialog. Company
+  // toggles above them apply immediately; these are a form, so they need a save.
+  const [perms, setPerms] = useState<EmployeePermissionSnapshot>(blankPermissionSnapshot())
+  const [permsSaving, setPermsSaving] = useState(false)
+
+  // Seed straight from the row rather than re-fetching. GET /Admin/employees/{id}
+  // filters by the FarmId claim (the ACTIVE company), but this list is org-wide,
+  // so it 404s for anyone outside the company you're currently in. The org
+  // endpoint already returns isAdmin, adminTitle, permissions and
+  // featurePermissions, so there is nothing extra to fetch.
+  // Keyed on the id, NOT the object: toggling company access replaces `managed`
+  // with a new object, and depending on that would discard permission edits the
+  // user hadn't saved yet.
+  const managedId = managed?.id ?? null
+  useEffect(() => {
+    if (!managed) { setPerms(blankPermissionSnapshot()); return }
+    setPerms(resolveEmployeePermissions(managed, managed.id))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [managedId])
+
+  async function savePermissions() {
+    if (!managed) return
+    setPermsSaving(true)
+    try {
+      // PUT /Admin/employees/{id} is a full-record update and is NOT farm-scoped,
+      // so it works for any employee in the org. The profile fields have to ride
+      // along unchanged or the API would blank them — they all come off the row.
+      const payload: UpdateEmployeeData = {
+        id: managed.id,
+        firstName: managed.firstName,
+        lastName: managed.lastName,
+        phoneNumber: managed.phoneNumber,
+        email: managed.email,
+        isAdmin: perms.isAdmin,
+        adminTitle: perms.isAdmin ? perms.adminTitle.trim() : "",
+        adminPermissions: perms.isAdmin ? perms.adminPermissions : undefined,
+        featurePermissions: perms.featurePermissions,
+      }
+      const res = await updateEmployee(managed.id, payload)
+      if (res.success) {
+        cacheEmployeePermissions(managed.id, { ...perms, adminTitle: perms.isAdmin ? perms.adminTitle.trim() : "" })
+        toast({ title: "Access updated", description: "Permissions saved." })
+        await load()
+      } else {
+        toast({ title: "Could not save", description: res.message || "Update failed.", variant: "destructive" })
+      }
+    } finally { setPermsSaving(false) }
+  }
 
   async function load() {
     setLoading(true)
@@ -73,6 +134,29 @@ export function UsersPermissionsPanel({ showHeading = true }: { showHeading?: bo
       setManaged((m) => (m && m.id === emp.id ? updated : m))
       toast({ title: hasAccess ? "Access revoked" : "Access granted", description: company.name })
     } finally { setBusyFarm(null) }
+  }
+
+  // The row behind the Edit dialog. Looked up once so the dialog's seed record
+  // and its company-type list can't drift apart.
+  const editingEmployee = useMemo(
+    () => employees.find((e) => e.id === editingId) ?? null,
+    [employees, editingId],
+  )
+
+  function displayName(e: OrgEmployee) {
+    return [e.firstName, e.lastName].filter(Boolean).join(" ") || e.userName || e.email || "this employee"
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    try {
+      const res = await deleteEmployee(deleteTarget.id)
+      if (!res.success) { toast({ title: "Delete failed", description: res.message, variant: "destructive" }); return }
+      setEmployees((list) => list.filter((x) => x.id !== deleteTarget.id))
+      toast({ title: "Employee deleted", description: `${displayName(deleteTarget)} has been removed.` })
+      setDeleteTarget(null)
+    } finally { setDeleting(false) }
   }
 
   return (
@@ -133,7 +217,20 @@ export function UsersPermissionsPanel({ showHeading = true }: { showHeading?: bo
                     </div>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Button variant="outline" size="sm" onClick={() => setManaged(e)}><Building2 className="h-4 w-4 mr-1.5" /> Manage access</Button>
+                    <div className="flex items-center justify-end gap-2">
+                      <Button variant="outline" size="sm" onClick={() => { setEditingId(e.id); setEditOpen(true) }}>
+                        <Pencil className="h-4 w-4 mr-1.5" /> Edit
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setManaged(e)}><Building2 className="h-4 w-4 mr-1.5" /> Manage access</Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                        onClick={() => setDeleteTarget(e)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1.5" /> Delete
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -143,11 +240,12 @@ export function UsersPermissionsPanel({ showHeading = true }: { showHeading?: bo
       )}
 
       <Dialog open={!!managed} onOpenChange={(o) => !o && setManaged(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Company access — {managed ? ([managed.firstName, managed.lastName].filter(Boolean).join(" ") || managed.userName) : ""}</DialogTitle>
+            <DialogTitle>Manage access — {managed ? ([managed.firstName, managed.lastName].filter(Boolean).join(" ") || managed.userName) : ""}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-1 max-h-96 overflow-auto">
+          <h3 className="text-sm font-semibold text-slate-800">Company access</h3>
+          <div className="space-y-1">
             {companies.length === 0 ? <p className="text-sm text-slate-500 py-4">No companies in this organization yet.</p> :
               companies.map((c) => {
                 const has = managed ? accessSet(managed).has(c.farmId) : false
@@ -168,10 +266,61 @@ export function UsersPermissionsPanel({ showHeading = true }: { showHeading?: bo
               })}
           </div>
           <p className="text-xs text-slate-400">Toggling access adds or removes this employee from the company. Changes apply immediately.</p>
+
+          {/* Driven by the company toggles directly above: an employee who is
+              only in water companies gets only the water switches, only poultry
+              gets only the poultry ones, and someone in both sees both. Reading
+              off `managed` rather than the active company means the list also
+              updates the moment you grant or revoke access up there. */}
+          <EmployeeAccessFields
+            value={perms}
+            onChange={setPerms}
+            disabled={permsSaving}
+            companyTypes={(managed?.companies ?? []).map((c) => c.type)}
+          />
+          <div className="flex justify-end">
+            <Button onClick={savePermissions} disabled={permsSaving}>
+              {permsSaving
+                ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving…</>
+                : <><Save className="h-4 w-4 mr-2" /> Save permissions</>}
+            </Button>
+          </div>
+          <p className="text-xs text-slate-400">
+            Admin and staff permissions are a form — they apply when you press Save, unlike the company toggles above.
+          </p>
         </DialogContent>
       </Dialog>
 
       <AddEmployeeDialog open={addOpen} onOpenChange={setAddOpen} boMode onCreated={load} />
+
+      {/* `employee` is passed so the dialog seeds from this org-wide row instead
+          of the farm-scoped GET, which 404s for anyone outside the active company. */}
+      <EditEmployeeDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        employeeId={editingId}
+        employee={editingEmployee}
+        companyTypes={(editingEmployee?.companies ?? []).map((c) => c.type)}
+        onSaved={load}
+      />
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o && !deleting) setDeleteTarget(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete employee</AlertDialogTitle>
+            <AlertDialogDescription>
+              Delete {deleteTarget ? displayName(deleteTarget) : "this employee"}? They lose access to every company in
+              the organization and can no longer sign in. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); confirmDelete() }} disabled={deleting} className="bg-red-600 hover:bg-red-700 focus:ring-red-600">
+              {deleting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Deleting…</> : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

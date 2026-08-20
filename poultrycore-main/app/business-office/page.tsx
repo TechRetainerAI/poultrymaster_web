@@ -16,9 +16,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Textarea } from "@/components/ui/textarea"
 import {
   Building2, Bird, Droplets, ShoppingBag, Plus, Loader2, Users, ArrowRight, Check,
-  ListTodo, HelpCircle, X, Megaphone, Activity, ChevronRight, Trash2, AlertTriangle, Info,
-  ShieldAlert, Wrench, CreditCard, Sparkles, Briefcase,
+  HelpCircle, X, Megaphone, ChevronRight, Trash2, AlertTriangle, Info,
+  ShieldAlert, Wrench, CreditCard, Sparkles, Briefcase, Coins,
 } from "lucide-react"
+
+// Page-local preference so it doesn't disturb the global vc.view.* prefs other
+// pages share. Absent (first visit) reads as off.
+const SHOW_CURRENCY_KEY = "vc.businessOffice.showCurrency"
 
 function typeStrip(t: string) {
   if (t === "Water") return "bg-sky-400"
@@ -41,7 +45,8 @@ import {
   getCompanySnapshot, cardMetricsForType, snapshotValue,
   type CompanySnapshot, type MetricFormat,
 } from "@/lib/api/business-office"
-import { useFmtShort } from "@/lib/currency"
+import { useFmtShort, orgCurrencySymbol } from "@/lib/currency"
+import { getOrganizationProfile } from "@/lib/api/admin"
 
 function typeIcon(type: string) {
   if (type === "Water") return Droplets
@@ -85,6 +90,33 @@ export default function BusinessOfficePage() {
   // still loading (or its fetch failed) and shows a dash, exactly as before.
   const [snapshots, setSnapshots] = useState<Record<string, CompanySnapshot>>({})
   const fmtMoneyShort = useFmtShort()
+  // Money on the company cards is bare numbers by default. The old behaviour
+  // leaked the per-company farm setting (a hardcoded "GHC") into a screen that
+  // spans every company, which is wrong twice over — no company is open here,
+  // and the symbol wasn't the one the org actually picked. "Show currency"
+  // opts in, using the Organization Profile default currency.
+  // The choice sticks across visits (page-local key, like the Business Setup
+  // view preference). Off remains the default — read after mount rather than in
+  // the initializer so the server render and the first client render agree.
+  const [showCurrency, setShowCurrency] = useState(false)
+  useEffect(() => {
+    try { if (window.localStorage.getItem(SHOW_CURRENCY_KEY) === "1") setShowCurrency(true) } catch { /* ignore */ }
+  }, [])
+  const toggleCurrency = () => setShowCurrency((v) => {
+    const next = !v
+    try { window.localStorage.setItem(SHOW_CURRENCY_KEY, next ? "1" : "0") } catch { /* ignore */ }
+    return next
+  })
+
+  const [orgCurrency, setOrgCurrency] = useState("")
+  useEffect(() => {
+    let cancelled = false
+    getOrganizationProfile()
+      .then((res) => { if (!cancelled && res.success) setOrgCurrency(res.data?.businessOfficeCurrency || "") })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+  const orgSymbol = orgCurrencySymbol(orgCurrency)
   const [openingId, setOpeningId] = useState<string | null>(null)
   const [q, setQ] = useState("")
   const [typeFilter, setTypeFilter] = useState<string>("all")
@@ -137,7 +169,13 @@ export default function BusinessOfficePage() {
     // Null is "no number yet" — the dash the tiles have always shown. Zero is a
     // real measurement and prints as 0.
     if (value === null || !Number.isFinite(value)) return "—"
-    if (format === "money") return fmtMoneyShort(value)
+    // showSymbol: false always — the farm-settings symbol doesn't apply in the
+    // Business Office. The org symbol is prefixed here instead, and only once
+    // the user has asked for it.
+    if (format === "money") {
+      const n = fmtMoneyShort(value, { showSymbol: false })
+      return showCurrency ? `${orgSymbol} ${n}` : n
+    }
     if (format === "kg") return `${Math.round(value).toLocaleString()} kg`
     return Math.round(value).toLocaleString()
   }
@@ -197,6 +235,8 @@ export default function BusinessOfficePage() {
       const to = (form.email.trim() || userEmail || "").trim()
       if (to) { try { await sendCompanyWelcomeEmail({ email: to, companyName: form.name, companyType: form.type }) } catch {} }
       setOpen(false); setForm({ name: "", type: "Water", email: "", phoneNumber: "" }); await load()
+      // The shell's sidebar keeps its own copy of the company list — tell it to reload.
+      window.dispatchEvent(new CustomEvent("bo:companies-changed"))
     } catch (e: any) { toast({ title: "Create failed", description: e?.message, variant: "destructive" }) }
     finally { setSaving(false) }
   }
@@ -266,6 +306,18 @@ export default function BusinessOfficePage() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
             <h2 className="text-lg font-semibold text-slate-900">Your companies</h2>
             <div className="flex gap-2">
+              {/* Off by default: the cards show plain numbers until asked. The
+                  choice is remembered (SHOW_CURRENCY_KEY). */}
+              <Button
+                variant="outline"
+                onClick={toggleCurrency}
+                aria-pressed={showCurrency}
+                title={showCurrency ? "Hide the currency symbol on the cards" : `Show amounts in ${orgSymbol} (Organization Profile default)`}
+                className="shrink-0"
+              >
+                <Coins className="h-4 w-4 mr-1.5" />
+                {showCurrency ? "Hide currency" : "Show currency"}
+              </Button>
               <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search companies…" className="w-full sm:w-56" />
               <Select value={typeFilter} onValueChange={setTypeFilter}>
                 <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
@@ -328,21 +380,7 @@ export default function BusinessOfficePage() {
           )}
         </section>
 
-        {/* My Tasks + Recent activity */}
-        <div className="grid lg:grid-cols-2 gap-4">
-          <section id="tasks">
-            <Card><CardContent className="p-5">
-              <div className="flex items-center gap-2 mb-3"><ListTodo className="h-5 w-5 text-slate-500" /> <h3 className="font-semibold">My Tasks</h3></div>
-              <div className="text-center py-8 text-slate-400"><Check className="h-8 w-8 mx-auto mb-2 text-emerald-400" /> You&apos;re all caught up.</div>
-            </CardContent></Card>
-          </section>
-          <section>
-            <Card><CardContent className="p-5">
-              <div className="flex items-center gap-2 mb-3"><Activity className="h-5 w-5 text-slate-500" /> <h3 className="font-semibold">Recent activity</h3></div>
-              <div className="text-center py-8 text-slate-400">Activity from your companies will appear here.</div>
-            </CardContent></Card>
-          </section>
-        </div>
+        {/* My Tasks + Recent activity removed — both were empty placeholders. */}
 
         {/* Quick actions */}
         <section>

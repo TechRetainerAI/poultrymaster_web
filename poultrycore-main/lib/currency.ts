@@ -86,6 +86,34 @@ export const useFarmSettingsStore = create<FarmSettingsState>()(
 )
 
 // ---------------------------------------------------------------------------
+// Organization-level currency — the "Default currency" on Organization Profile.
+//
+// Distinct from the per-company farm settings above: those are stored on the
+// Farms row and only mean anything once a company is open. The Business Office
+// is deliberately company-neutral, so anything it prints uses THIS instead.
+// A fixed two-option list (not free text) so the stored value is always a code
+// we can map to a symbol.
+// ---------------------------------------------------------------------------
+
+export const ORG_CURRENCIES = [
+  { code: "GHS", symbol: "GH₵", label: "Ghana Cedi" },
+  { code: "USD", symbol: "$", label: "US Dollar" },
+] as const
+
+export type OrgCurrencyCode = (typeof ORG_CURRENCIES)[number]["code"]
+
+/**
+ * orgCurrencySymbol("GHS") → "GH₵". Anything not in the list (an empty field,
+ * or a legacy free-text value like "GHC" or "NGN" typed before this became a
+ * dropdown) falls back to the stored text itself, so nothing renders blank.
+ */
+export function orgCurrencySymbol(code?: string | null): string {
+  const c = (code || "").trim().toUpperCase()
+  if (!c) return ORG_CURRENCIES[0].symbol
+  return ORG_CURRENCIES.find((x) => x.code === c)?.symbol || c
+}
+
+// ---------------------------------------------------------------------------
 // Vanilla helpers — usable outside React (e.g. PDF generation later).
 // ---------------------------------------------------------------------------
 

@@ -1,5 +1,5 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -15,8 +15,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<GenericServiceCategoryModel>> GetCategoriesAsync(string farmId)
         {
             var list = new List<GenericServiceCategoryModel>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericServiceCategory_GetAll", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericservicecategory_getall(p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
             await conn.OpenAsync();
@@ -27,8 +27,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<int> InsertCategoryAsync(GenericServiceCategoryModel m)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericServiceCategory_Insert", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericservicecategory_insert(p_farmid => @FarmId::text, p_name => @Name::text, p_description => @Description::text, p_isactive => @IsActive::boolean)", conn);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@Name", m.Name);
             cmd.Parameters.AddWithValue("@Description", (object?)m.Description ?? DBNull.Value);
@@ -40,8 +40,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task UpdateCategoryAsync(GenericServiceCategoryModel m)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericServiceCategory_Update", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericservicecategory_update(p_genericservicecategoryid => @GenericServiceCategoryId::int, p_farmid => @FarmId::text, p_name => @Name::text, p_description => @Description::text, p_isactive => @IsActive::boolean)", conn);
             cmd.Parameters.AddWithValue("@GenericServiceCategoryId", m.GenericServiceCategoryId);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@Name", m.Name);
@@ -54,8 +54,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task DeleteCategoryAsync(int id, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericServiceCategory_Delete", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericservicecategory_delete(p_genericservicecategoryid => @GenericServiceCategoryId::int, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@GenericServiceCategoryId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
@@ -69,8 +69,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<GenericServiceModel>> GetAllAsync(string farmId)
         {
             var list = new List<GenericServiceModel>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericService_GetAll", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericservice_getall(p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
             await conn.OpenAsync();
@@ -81,8 +81,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<GenericServiceModel?> GetByIdAsync(int id, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericService_GetById", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericservice_getbyid(p_genericserviceid => @GenericServiceId::int, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@GenericServiceId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
@@ -93,8 +93,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<int> InsertAsync(GenericServiceModel m)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericService_Insert", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericservice_insert(p_farmid => @FarmId::text, p_genericservicecategoryid => @GenericServiceCategoryId::int, p_servicename => @ServiceName::text, p_defaultprice => @DefaultPrice::numeric, p_estimatedcost => @EstimatedCost::numeric, p_durationminutes => @DurationMinutes::int, p_assignedstaffid => @AssignedStaffId::int, p_isactive => @IsActive::boolean, p_notes => @Notes::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@GenericServiceCategoryId", (object?)m.GenericServiceCategoryId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@ServiceName", m.ServiceName);
@@ -111,8 +111,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task UpdateAsync(GenericServiceModel m)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericService_Update", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericservice_update(p_genericserviceid => @GenericServiceId::int, p_farmid => @FarmId::text, p_genericservicecategoryid => @GenericServiceCategoryId::int, p_servicename => @ServiceName::text, p_defaultprice => @DefaultPrice::numeric, p_estimatedcost => @EstimatedCost::numeric, p_durationminutes => @DurationMinutes::int, p_assignedstaffid => @AssignedStaffId::int, p_isactive => @IsActive::boolean, p_notes => @Notes::text)", conn);
             cmd.Parameters.AddWithValue("@GenericServiceId", m.GenericServiceId);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@GenericServiceCategoryId", (object?)m.GenericServiceCategoryId ?? DBNull.Value);
@@ -130,8 +130,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task DeleteAsync(int id, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericService_Delete", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericservice_delete(p_genericserviceid => @GenericServiceId::int, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@GenericServiceId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
@@ -142,7 +142,7 @@ namespace PoultryFarmAPIWeb.Business
         // ====================================================================
         // Helpers
         // ====================================================================
-        private static GenericServiceCategoryModel ReadCategory(SqlDataReader r) => new()
+        private static GenericServiceCategoryModel ReadCategory(NpgsqlDataReader r) => new()
         {
             GenericServiceCategoryId = r.GetInt32(r.GetOrdinal("GenericServiceCategoryId")),
             FarmId                   = r.GetString(r.GetOrdinal("FarmId")),
@@ -154,7 +154,7 @@ namespace PoultryFarmAPIWeb.Business
             UpdatedAt                = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
         };
 
-        private static GenericServiceModel ReadService(SqlDataReader r) => new()
+        private static GenericServiceModel ReadService(NpgsqlDataReader r) => new()
         {
             GenericServiceId         = r.GetInt32(r.GetOrdinal("GenericServiceId")),
             FarmId                   = r.GetString(r.GetOrdinal("FarmId")),

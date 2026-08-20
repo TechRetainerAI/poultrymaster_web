@@ -1,5 +1,5 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -16,8 +16,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             var dash = new GenericDashboardModel();
 
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericReport_Dashboard", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericreport_dashboard_rs1(p_farmid => @FarmId::text, p_asof => @AsOf::timestamp); SELECT * FROM spgenericreport_dashboard_rs2(p_farmid => @FarmId::text, p_asof => @AsOf::timestamp); SELECT * FROM spgenericreport_dashboard_rs3(p_farmid => @FarmId::text, p_asof => @AsOf::timestamp); SELECT * FROM spgenericreport_dashboard_rs4(p_farmid => @FarmId::text, p_asof => @AsOf::timestamp)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@AsOf", (object?)asOf ?? DBNull.Value);
 
@@ -95,8 +95,8 @@ namespace PoultryFarmAPIWeb.Business
         // ====================================================================
         public async Task<GenericPeriodPnLModel> GetPeriodPnLAsync(string farmId, DateTime fromDate, DateTime toDate)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericReport_PeriodPnL", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericreport_periodpnl(p_farmid => @FarmId::text, p_fromdate => @FromDate::date, p_todate => @ToDate::date)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@FromDate", fromDate);
             cmd.Parameters.AddWithValue("@ToDate", toDate);
@@ -126,8 +126,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<GenericSalesByProductRow>> GetSalesByProductAsync(string farmId, DateTime fromDate, DateTime toDate)
         {
             var list = new List<GenericSalesByProductRow>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericReport_SalesByProduct", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericreport_salesbyproduct(p_farmid => @FarmId::text, p_fromdate => @FromDate::date, p_todate => @ToDate::date)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@FromDate", fromDate);
             cmd.Parameters.AddWithValue("@ToDate", toDate);
@@ -156,8 +156,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<GenericSalesByCustomerRow>> GetSalesByCustomerAsync(string farmId, DateTime fromDate, DateTime toDate)
         {
             var list = new List<GenericSalesByCustomerRow>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericReport_SalesByCustomer", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericreport_salesbycustomer(p_farmid => @FarmId::text, p_fromdate => @FromDate::date, p_todate => @ToDate::date)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@FromDate", fromDate);
             cmd.Parameters.AddWithValue("@ToDate", toDate);
@@ -186,8 +186,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<GenericExpenseByCategoryRow>> GetExpensesByCategoryAsync(string farmId, DateTime fromDate, DateTime toDate)
         {
             var list = new List<GenericExpenseByCategoryRow>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericReport_ExpensesByCategory", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericreport_expensesbycategory(p_farmid => @FarmId::text, p_fromdate => @FromDate::date, p_todate => @ToDate::date)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@FromDate", fromDate);
             cmd.Parameters.AddWithValue("@ToDate", toDate);
@@ -213,8 +213,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<GenericInventoryValueReport> GetInventoryValueAsync(string farmId)
         {
             var report = new GenericInventoryValueReport();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericReport_InventoryValue", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericreport_inventoryvalue_rs1(p_farmid => @FarmId::text); SELECT * FROM spgenericreport_inventoryvalue_rs2(p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
             await conn.OpenAsync();
@@ -249,8 +249,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<GenericCashSummaryReport> GetCashSummaryAsync(string farmId, DateTime fromDate, DateTime toDate)
         {
             var report = new GenericCashSummaryReport();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericReport_CashSummary", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericreport_cashsummary_rs1(p_farmid => @FarmId::text, p_fromdate => @FromDate::date, p_todate => @ToDate::date); SELECT * FROM spgenericreport_cashsummary_rs2(p_farmid => @FarmId::text, p_fromdate => @FromDate::date, p_todate => @ToDate::date)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@FromDate", fromDate);
             cmd.Parameters.AddWithValue("@ToDate", toDate);

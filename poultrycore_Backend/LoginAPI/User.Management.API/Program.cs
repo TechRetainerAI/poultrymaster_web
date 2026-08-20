@@ -16,6 +16,10 @@ using User.Management.Service.Models;
 using User.Management.Service.Services;
 using SubscriptionService = User.Management.Service.Services.SubscriptionService;
 
+// PostgreSQL: table columns are `timestamp without time zone`. Without this
+// switch Npgsql 6+ refuses DateTime values whose Kind is Utc for those columns.
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Optional appsettings.Local.json — gitignored overlay for local-dev secrets
@@ -37,11 +41,14 @@ if (string.IsNullOrWhiteSpace(connectionString))
 }
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(connectionString, sql =>
+    options.UseNpgsql(connectionString, sql =>
         sql.EnableRetryOnFailure(
             maxRetryCount: 5,
             maxRetryDelay: TimeSpan.FromSeconds(30),
-            errorNumbersToAdd: new List<int>())));
+            errorCodesToAdd: null)));
+// Lowercase identifier mapping is done explicitly in
+// ApplicationDbContext.OnModelCreating — a naming convention cannot override the
+// table names IdentityDbContext pins with ToTable().
 
 //configure stripe
 StripeConfiguration.ApiKey = builder.Configuration.GetValue<string>("StripeSettings:PrivateKey");

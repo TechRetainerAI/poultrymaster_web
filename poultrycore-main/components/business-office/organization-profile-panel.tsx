@@ -8,6 +8,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ORG_CURRENCIES } from "@/lib/currency"
 import { Loader2, Copy, Check } from "lucide-react"
 import { setOrganizationCode as apiSetOrgCode, getOrganizationProfile, updateOrganizationProfile } from "@/lib/api/admin"
 import { useToast } from "@/hooks/use-toast"
@@ -144,7 +146,25 @@ export function OrganizationProfilePanel({ showHeading = true }: { showHeading?:
             <div className="space-y-1"><Label>Owner last name</Label><Input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} /></div>
             <div className="space-y-1"><Label>Email</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
             <div className="space-y-1"><Label>Phone</Label><Input value={form.phoneNumber} onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })} /></div>
-            <div className="space-y-1"><Label>Default currency</Label><Input value={form.businessOfficeCurrency} onChange={(e) => setForm({ ...form, businessOfficeCurrency: e.target.value })} placeholder="e.g. GHS" /></div>
+            {/* Was a free-text box, which let any string through and left the
+                Business Office with no reliable symbol to print. Now a fixed
+                list — the stored value is always a code (GHS / USD). A legacy
+                value outside the list shows the placeholder until re-picked. */}
+            <div className="space-y-1">
+              <Label>Default currency</Label>
+              <Select
+                value={ORG_CURRENCIES.some((c) => c.code === form.businessOfficeCurrency) ? form.businessOfficeCurrency : ""}
+                onValueChange={(v) => setForm({ ...form, businessOfficeCurrency: v })}
+              >
+                <SelectTrigger><SelectValue placeholder="Select currency" /></SelectTrigger>
+                <SelectContent>
+                  {ORG_CURRENCIES.map((c) => (
+                    <SelectItem key={c.code} value={c.code}>{c.symbol} — {c.label} ({c.code})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-slate-500">Used where no single company is in view — e.g. the Business Office company cards.</p>
+            </div>
             <div className="space-y-1"><Label>Country</Label><Input value={form.businessOfficeCountry} onChange={(e) => setForm({ ...form, businessOfficeCountry: e.target.value })} placeholder="e.g. Ghana" /></div>
           </div>
           <div className="flex justify-end"><Button onClick={save} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save changes"}</Button></div>

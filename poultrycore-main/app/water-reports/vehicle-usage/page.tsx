@@ -5,6 +5,8 @@
 import { useEffect, useMemo, useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ReportShell, SumTile } from "@/components/reports/report-shell"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { listWaterVehicleLoadings, listWaterDriverReturns, listWaterVehicles } from "@/lib/api/water"
 import { useFmt } from "@/lib/currency"
 import { defaultReportRange } from "@/lib/date-ranges"
@@ -30,6 +32,7 @@ export default function VehicleUsageReportPage() {
   const [fromDate, setFromDate] = useState(DEFAULT_RANGE.from)
   const [toDate, setToDate] = useState(DEFAULT_RANGE.to)
   const [rows, setRows] = useState<Row[]>([])
+  const pg = usePagination(rows)
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -130,7 +133,7 @@ export default function VehicleUsageReportPage() {
           <TableBody>
             {rows.length === 0 ? (
               <TableRow><TableCell colSpan={7} className="text-slate-500 text-center p-4">No vehicle activity in this period.</TableCell></TableRow>
-            ) : rows.map((r) => (
+            ) : pg.pageItems.map((r) => (
               <TableRow key={r.vehicleId}>
                 <TableCell className="font-medium">{r.vehicleName}</TableCell>
                 <TableCell>{r.vehicleType}</TableCell>
@@ -144,6 +147,7 @@ export default function VehicleUsageReportPage() {
           </TableBody>
         </Table>
       </div>
+      <DataPagination {...pg.paginationProps} />
     </ReportShell>
   )
 }

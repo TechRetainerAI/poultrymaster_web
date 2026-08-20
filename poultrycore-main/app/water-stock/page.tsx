@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { Badge } from "@/components/ui/badge"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
@@ -72,6 +73,11 @@ export default function WaterStockPage() {
     if (k === "unitCost") return t.unitCost ?? 0
     return (t as any)[k]
   }), [visibleTxns, sort])
+
+  // Client-side paging: the whole list is already in memory, so this is a
+  // slice. Feed the SAME slice to the cards and the desktop table.
+  const pg = usePagination(sortedTxns)
+
   const onSort = (k: string) => setSort((s) => toggleSort(k, s.key, s.direction))
 
   const [open, setOpen] = useState(false)
@@ -182,7 +188,8 @@ export default function WaterStockPage() {
                 <div className="p-8 text-center text-slate-500">No stock movement recorded yet.</div>
               ) : (
                 <MobileCardList
-                  items={sortedTxns}
+                  items={pg.pageItems}
+                  pagination={pg.paginationProps}
                   getKey={(t) => t.stockTxnId}
                   primary={(t) => t.productName}
                   secondary={(t) => (
@@ -230,7 +237,7 @@ export default function WaterStockPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {sortedTxns.map((t) => (
+                        {pg.pageItems.map((t) => (
                           <TableRow key={t.stockTxnId}>
                             <TableCell>{new Date(t.createdDate).toLocaleString()}</TableCell>
                             <TableCell>{t.productName}</TableCell>

@@ -959,7 +959,7 @@ export default function BatchProductionRecordsPage() {
             )}
 
             {/* Pagination */}
-            {!loading && filtered.length > 0 && totalPages > 1 && (
+            {!loading && filtered.length > 0 && (
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-2">
                 <div className="flex items-center gap-4">
                   <span className="text-sm text-slate-600">

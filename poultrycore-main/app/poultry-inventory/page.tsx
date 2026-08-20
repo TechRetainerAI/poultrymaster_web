@@ -17,6 +17,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -118,6 +119,18 @@ export default function PoultryInventoryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFarmType])
 
+  // Egg stock is counted in individual eggs everywhere (production records count
+  // eggs; the sales form converts crates × 30 + loose into pieces before saving).
+  // Crates are still how the farm thinks, so show the equivalent beside the count
+  // — same 30/crate the Egg Stock Balance report uses.
+  const EGGS_PER_CRATE = 30
+  const crateEquivalent = (eggs: number): string | null => {
+    if (eggs < EGGS_PER_CRATE) return null
+    const crates = Math.floor(eggs / EGGS_PER_CRATE)
+    const loose = eggs % EGGS_PER_CRATE
+    return `${crates.toLocaleString()} crate${crates === 1 ? "" : "s"}${loose ? ` + ${loose}` : ""}`
+  }
+
   // Status helpers.
   const productStatus = (p: PoultryProduct): { label: string; tone: Tone } => {
     if (!p.isActive) return { label: "Inactive", tone: "inactive" }
@@ -176,6 +189,11 @@ export default function PoultryInventoryPage() {
       .sort((a, b) => a.itemName.localeCompare(b.itemName)),
     [items, q, category, status, dateFrom, dateTo]
   )
+
+  // Client-side paging — one pager per tab, each fed the same slice its cards
+  // and its desktop table render.
+  const pgProducts = usePagination(filteredProducts)
+  const pgRaw = usePagination(filteredRaw)
 
   const counts = useMemo(() => {
     let low = 0, out = 0
@@ -326,7 +344,7 @@ export default function PoultryInventoryPage() {
               <Card>
                 <CardContent className="p-0">
                   <div className="flex flex-col gap-2 p-3 border-b bg-slate-50 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0 text-sm text-slate-600">Eggs, birds and packaged products. Stock = SUM(PoultryStockTransactions).</div>
+                    <div className="min-w-0 text-sm text-slate-600">Eggs and packaged products: stock = SUM(PoultryStockTransactions), the same ledger the Egg Tracker balances. Birds: birds left in your flocks.</div>
                     <Button asChild size="sm" variant="outline" className="w-full shrink-0 sm:w-auto">
                       <Link href="/poultry-products"><ExternalLink className="h-4 w-4 mr-1" /> Manage products</Link>
                     </Button>
@@ -337,7 +355,8 @@ export default function PoultryInventoryPage() {
                     <div className="p-8 text-center text-slate-500">{q || category !== "ALL" || status !== "ALL" || dateFrom || dateTo ? "No products match your filters." : "No products yet."}</div>
                   ) : (
                     <MobileCardList
-                      items={filteredProducts}
+                      items={pgProducts.pageItems}
+                      pagination={pgProducts.paginationProps}
                       defaultOpen
                       getKey={(p) => p.poultryProductId}
                       primary={(p) => p.name}
@@ -353,7 +372,12 @@ export default function PoultryInventoryPage() {
                           { label: "Size", value: p.size ?? "—" },
                           { label: "Unit", value: p.unit ?? "—" },
                           { label: "Unit price", value: gh(p.unitPrice) },
-                          { label: "In stock", value: (p.stockOnHand ?? 0).toLocaleString() },
+                          {
+                            label: "In stock",
+                            value: p.isRawEggProduct && crateEquivalent(p.stockOnHand ?? 0)
+                              ? `${(p.stockOnHand ?? 0).toLocaleString()} (${crateEquivalent(p.stockOnHand ?? 0)})`
+                              : (p.stockOnHand ?? 0).toLocaleString(),
+                          },
                           { label: "Details", value: <DetailLink href={l.href} label={l.label} /> },
                         ]
                       }}
@@ -374,7 +398,7 @@ export default function PoultryInventoryPage() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {filteredProducts.map((p) => {
+                              {pgProducts.pageItems.map((p) => {
                                 const st = productStatus(p)
                                 const l = productLink(p)
                                 return (
@@ -385,7 +409,12 @@ export default function PoultryInventoryPage() {
                                     <TableCell>{p.size ?? "—"}</TableCell>
                                     <TableCell>{p.unit ?? "—"}</TableCell>
                                     <TableCell className="text-right tabular-nums">{gh(p.unitPrice)}</TableCell>
-                                    <TableCell className="text-right tabular-nums font-semibold">{(p.stockOnHand ?? 0).toLocaleString()}</TableCell>
+                                    <TableCell className="text-right tabular-nums font-semibold">
+                                      {(p.stockOnHand ?? 0).toLocaleString()}
+                                      {p.isRawEggProduct && crateEquivalent(p.stockOnHand ?? 0) && (
+                                        <div className="text-xs font-normal text-slate-500">{crateEquivalent(p.stockOnHand ?? 0)}</div>
+                                      )}
+                                    </TableCell>
                                     <TableCell><ToneBadge tone={st.tone} label={st.label} /></TableCell>
                                     <TableCell><DetailLink href={l.href} label={l.label} /></TableCell>
                                   </TableRow>
@@ -416,7 +445,8 @@ export default function PoultryInventoryPage() {
                     <div className="p-8 text-center text-slate-500">{q || category !== "ALL" || status !== "ALL" || dateFrom || dateTo ? "No raw materials match your filters." : "No raw materials yet."}</div>
                   ) : (
                     <MobileCardList
-                      items={filteredRaw}
+                      items={pgRaw.pageItems}
+                      pagination={pgRaw.paginationProps}
                       defaultOpen
                       getKey={(r) => r.poultryRawMaterialItemId}
                       primary={(r) => r.itemName}
@@ -449,7 +479,7 @@ export default function PoultryInventoryPage() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {filteredRaw.map((r) => {
+                              {pgRaw.pageItems.map((r) => {
                                 const st = rawStatus(r)
                                 const l = rawLink(r)
                                 return (

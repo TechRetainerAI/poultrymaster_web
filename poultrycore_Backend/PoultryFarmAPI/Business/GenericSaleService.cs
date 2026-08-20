@@ -1,5 +1,6 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
+using NpgsqlTypes;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -15,8 +16,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<GenericSaleModel>> GetAllAsync(string farmId, string? status)
         {
             var list = new List<GenericSaleModel>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericSale_GetAll", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericsale_getall(p_farmid => @FarmId::text, p_status => @Status::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@Status", (object?)status ?? DBNull.Value);
 
@@ -28,8 +29,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<GenericSaleModel?> GetByIdAsync(int id, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericSale_GetById", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericsale_getbyid_rs1(p_genericsaleid => @GenericSaleId::int, p_farmid => @FarmId::text); SELECT * FROM spgenericsale_getbyid_rs2(p_genericsaleid => @GenericSaleId::int, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@GenericSaleId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
@@ -53,8 +54,8 @@ namespace PoultryFarmAPIWeb.Business
         // ====================================================================
         public async Task<int> InsertAsync(string farmId, GenericSaleCreateRequest req, string? createdBy)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericSale_Insert", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericsale_insert(p_farmid => @FarmId::text, p_saledate => @SaleDate::timestamp, p_genericcustomerid => @GenericCustomerId::int, p_branchid => @BranchId::int, p_salestype => @SalesType::text, p_saleschannel => @SalesChannel::text, p_salespersonstaffid => @SalespersonStaffId::int, p_headerdiscountamount => @HeaderDiscountAmount::numeric, p_taxamount => @TaxAmount::numeric, p_amountpaid => @AmountPaid::numeric, p_paymentmethod => @PaymentMethod::text, p_genericcashaccountid => @GenericCashAccountId::int, p_receiptnumber => @ReceiptNumber::text, p_notes => @Notes::text, p_createdby => @CreatedBy::text, p_items => @Items::jsonb)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@SaleDate", (object?)req.SaleDate ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@GenericCustomerId", (object?)req.GenericCustomerId ?? DBNull.Value);
@@ -71,55 +72,39 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Notes", (object?)req.Notes ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@CreatedBy", (object?)createdBy ?? DBNull.Value);
 
-            // Items as a TVP
-            var tvp = new SqlParameter("@Items", SqlDbType.Structured)
+            // Items: the SQL Server TVP (dbo.GenericSaleItemTvp) became a jsonb
+            // array read with jsonb_to_recordset, so keys must be lowercase.
+            cmd.Parameters.Add(new NpgsqlParameter("@Items", NpgsqlTypes.NpgsqlDbType.Jsonb)
             {
-                TypeName = "dbo.GenericSaleItemTvp",
-                Value = BuildItemsTable(req.Items),
-            };
-            cmd.Parameters.Add(tvp);
+                Value = BuildItemsJson(req.Items),
+            });
 
             await conn.OpenAsync();
             return Convert.ToInt32(await cmd.ExecuteScalarAsync());
         }
 
-        private static DataTable BuildItemsTable(IEnumerable<GenericSaleItemModel> items)
-        {
-            var table = new DataTable();
-            table.Columns.Add("ItemType",         typeof(string));
-            table.Columns.Add("GenericProductId", typeof(int));
-            table.Columns.Add("GenericServiceId", typeof(int));
-            table.Columns.Add("Description",      typeof(string));
-            table.Columns.Add("Quantity",         typeof(decimal));
-            table.Columns.Add("UnitPrice",        typeof(decimal));
-            table.Columns.Add("DiscountAmount",   typeof(decimal));
-            table.Columns.Add("CostAmount",       typeof(decimal));
-            table.Columns.Add("Notes",            typeof(string));
-
-            foreach (var i in items)
+        // Keys must match the jsonb_to_recordset column list in spgenericsale_insert.
+        private static string BuildItemsJson(IEnumerable<GenericSaleItemModel> items)
+            => System.Text.Json.JsonSerializer.Serialize(items.Select(i => new
             {
-                table.Rows.Add(
-                    i.ItemType,
-                    (object?)i.GenericProductId ?? DBNull.Value,
-                    (object?)i.GenericServiceId ?? DBNull.Value,
-                    (object?)i.Description ?? DBNull.Value,
-                    i.Quantity,
-                    i.UnitPrice,
-                    i.DiscountAmount,
-                    (object?)i.CostAmount ?? DBNull.Value,
-                    (object?)i.Notes ?? DBNull.Value
-                );
-            }
-            return table;
-        }
+                itemtype         = i.ItemType,
+                genericproductid = i.GenericProductId,
+                genericserviceid = i.GenericServiceId,
+                description      = i.Description,
+                quantity         = i.Quantity,
+                unitprice        = i.UnitPrice,
+                discountamount   = i.DiscountAmount,
+                costamount       = i.CostAmount,
+                notes            = i.Notes,
+            }));
 
         // ====================================================================
         // Workflow
         // ====================================================================
         public async Task ApproveAsync(int id, string farmId, string? approvedBy)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericSale_Approve", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericsale_approve(p_genericsaleid => @GenericSaleId::int, p_farmid => @FarmId::text, p_approvedby => @ApprovedBy::text)", conn);
             cmd.Parameters.AddWithValue("@GenericSaleId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@ApprovedBy", (object?)approvedBy ?? DBNull.Value);
@@ -130,8 +115,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task CancelAsync(int id, string farmId, string? cancelledBy, string? reason)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericSale_Cancel", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericsale_cancel(p_genericsaleid => @GenericSaleId::int, p_farmid => @FarmId::text, p_cancelledby => @CancelledBy::text, p_reason => @Reason::text)", conn);
             cmd.Parameters.AddWithValue("@GenericSaleId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@CancelledBy", (object?)cancelledBy ?? DBNull.Value);
@@ -143,8 +128,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task RefundAsync(int id, string farmId, string? refundedBy, string? reason)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericSale_Refund", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericsale_refund(p_genericsaleid => @GenericSaleId::int, p_farmid => @FarmId::text, p_refundedby => @RefundedBy::text, p_reason => @Reason::text)", conn);
             cmd.Parameters.AddWithValue("@GenericSaleId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@RefundedBy", (object?)refundedBy ?? DBNull.Value);
@@ -157,7 +142,7 @@ namespace PoultryFarmAPIWeb.Business
         // ====================================================================
         // Helpers
         // ====================================================================
-        private static GenericSaleModel ReadSaleHeader(SqlDataReader r) => new()
+        private static GenericSaleModel ReadSaleHeader(NpgsqlDataReader r) => new()
         {
             GenericSaleId         = r.GetInt32(r.GetOrdinal("GenericSaleId")),
             FarmId                = r.GetString(r.GetOrdinal("FarmId")),
@@ -190,7 +175,7 @@ namespace PoultryFarmAPIWeb.Business
             UpdatedAt             = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
         };
 
-        private static GenericSaleItemModel ReadSaleItem(SqlDataReader r) => new()
+        private static GenericSaleItemModel ReadSaleItem(NpgsqlDataReader r) => new()
         {
             GenericSaleItemId = r.GetInt32(r.GetOrdinal("GenericSaleItemId")),
             GenericSaleId     = r.GetInt32(r.GetOrdinal("GenericSaleId")),

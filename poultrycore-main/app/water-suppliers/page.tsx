@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
@@ -58,6 +59,10 @@ export default function WaterSuppliersPage() {
     }),
     [suppliers, search],
   )
+
+  // Client-side paging: the whole list is already in memory, so this is a
+  // slice. Feed the SAME slice to the cards and the desktop table.
+  const pg = usePagination(visible)
 
   const [open, setOpen] = useState(false)
   const [editId, setEditId] = useState<number | null>(null)
@@ -147,7 +152,8 @@ export default function WaterSuppliersPage() {
                 </div>
               ) : (
                 <MobileCardList
-                  items={visible}
+                  items={pg.pageItems}
+                  pagination={pg.paginationProps}
                   getKey={(s) => s.waterSupplierId}
                   primary={(s) => s.supplierName}
                   secondary={(s) => (
@@ -189,7 +195,7 @@ export default function WaterSuppliersPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {visible.map((s) => (
+                        {pg.pageItems.map((s) => (
                           <TableRow key={s.waterSupplierId}>
                             <TableCell className="font-medium">{s.supplierName}</TableCell>
                             <TableCell>{s.supplierType ?? "—"}</TableCell>

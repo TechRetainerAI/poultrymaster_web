@@ -1,5 +1,5 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -44,7 +44,7 @@ namespace PoultryFarmAPIWeb.Business
         private readonly string _cs;
         public PoultryRawMaterialItemService(string cs) => _cs = cs;
 
-        private static PoultryRawMaterialItemModel Map(SqlDataReader r) => new()
+        private static PoultryRawMaterialItemModel Map(NpgsqlDataReader r) => new()
         {
             PoultryRawMaterialItemId = r.GetInt32(r.GetOrdinal("PoultryRawMaterialItemId")),
             FarmId = r.GetString(r.GetOrdinal("FarmId")),
@@ -62,7 +62,7 @@ namespace PoultryFarmAPIWeb.Business
             UpdatedAt = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
         };
 
-        private static bool HasColumn(SqlDataReader r, string name)
+        private static bool HasColumn(NpgsqlDataReader r, string name)
         {
             for (int i = 0; i < r.FieldCount; i++)
                 if (string.Equals(r.GetName(i), name, StringComparison.OrdinalIgnoreCase)) return true;
@@ -72,8 +72,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<PoultryRawMaterialItemModel>> GetAllAsync(string farmId)
         {
             var list = new List<PoultryRawMaterialItemModel>();
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryRawMaterialItem_GetAll", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryrawmaterialitem_getall(p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await conn.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();
@@ -89,8 +89,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<int> InsertAsync(PoultryRawMaterialItemModel m)
         {
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryRawMaterialItem_Insert", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryrawmaterialitem_insert(p_farmid => @FarmId::text, p_itemname => @ItemName::text, p_category => @Category::text, p_unitofmeasure => @UnitOfMeasure::text, p_minimumstockalert => @MinimumStockAlert::numeric, p_notes => @Notes::text, p_usagemethod => @UsageMethod::text, p_purchaseunitofmeasure => @PurchaseUnitOfMeasure::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@ItemName", m.ItemName);
             cmd.Parameters.AddWithValue("@Category", m.Category);
@@ -105,8 +105,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task UpdateAsync(PoultryRawMaterialItemModel m)
         {
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryRawMaterialItem_Update", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryrawmaterialitem_update(p_poultryrawmaterialitemid => @PoultryRawMaterialItemId::int, p_farmid => @FarmId::text, p_itemname => @ItemName::text, p_category => @Category::text, p_unitofmeasure => @UnitOfMeasure::text, p_minimumstockalert => @MinimumStockAlert::numeric, p_isactive => @IsActive::boolean, p_notes => @Notes::text, p_usagemethod => @UsageMethod::text, p_purchaseunitofmeasure => @PurchaseUnitOfMeasure::text)", conn);
             cmd.Parameters.AddWithValue("@PoultryRawMaterialItemId", m.PoultryRawMaterialItemId);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@ItemName", m.ItemName);
@@ -123,8 +123,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task DeleteAsync(int id, string farmId)
         {
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryRawMaterialItem_Delete", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryrawmaterialitem_delete(p_poultryrawmaterialitemid => @PoultryRawMaterialItemId::int, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@PoultryRawMaterialItemId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await conn.OpenAsync();
@@ -135,8 +135,8 @@ namespace PoultryFarmAPIWeb.Business
         // Returns the item's resulting CurrentQuantity.
         public async Task<decimal> AdjustAsync(int itemId, PoultryRawMaterialAdjustRequest req)
         {
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryRawMaterialItem_Adjust", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryrawmaterialitem_adjust(p_farmid => @FarmId::text, p_poultryrawmaterialitemid => @PoultryRawMaterialItemId::int, p_quantity => @Quantity::numeric, p_unitcost => @UnitCost::numeric, p_movementtype => @MovementType::text, p_note => @Note::text, p_createdby => @CreatedBy::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", req.FarmId);
             cmd.Parameters.AddWithValue("@PoultryRawMaterialItemId", itemId);
             cmd.Parameters.AddWithValue("@Quantity", req.Quantity);
@@ -155,8 +155,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<PoultryRawMaterialAdjustmentModel>> GetAdjustmentsAsync(string farmId, DateTime? fromDate, DateTime? toDate)
         {
             var list = new List<PoultryRawMaterialAdjustmentModel>();
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryRawMaterialAdjustment_GetAll", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryrawmaterialadjustment_getall(p_farmid => @FarmId::text, p_fromdate => @FromDate::timestamp, p_todate => @ToDate::timestamp)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@FromDate", (object?)fromDate ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@ToDate", (object?)toDate ?? DBNull.Value);
@@ -189,8 +189,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<PoultryRawMaterialRecalcRow>> RecalculateStockAsync(string farmId, int? itemId)
         {
             var list = new List<PoultryRawMaterialRecalcRow>();
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryRawMaterialItem_RecalculateStock", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryrawmaterialitem_recalculatestock(p_farmid => @FarmId::text, p_poultryrawmaterialitemid => @PoultryRawMaterialItemId::int)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@PoultryRawMaterialItemId", (object?)itemId ?? DBNull.Value);
             await conn.OpenAsync();
@@ -220,20 +220,20 @@ namespace PoultryFarmAPIWeb.Business
         private readonly string _cs;
         public PoultryRawMaterialPurchaseService(string cs) => _cs = cs;
 
-        private static decimal? GetNullableDecimal(SqlDataReader r, string col)
+        private static decimal? GetNullableDecimal(NpgsqlDataReader r, string col)
         {
             int i = r.GetOrdinal(col);
             return r.IsDBNull(i) ? (decimal?)null : r.GetDecimal(i);
         }
 
-        private static bool HasColumn(SqlDataReader r, string name)
+        private static bool HasColumn(NpgsqlDataReader r, string name)
         {
             for (int i = 0; i < r.FieldCount; i++)
                 if (string.Equals(r.GetName(i), name, StringComparison.OrdinalIgnoreCase)) return true;
             return false;
         }
 
-        private static PoultryRawMaterialPurchaseModel Map(SqlDataReader r) => new()
+        private static PoultryRawMaterialPurchaseModel Map(NpgsqlDataReader r) => new()
         {
             PoultryRawMaterialPurchaseId = r.GetInt32(r.GetOrdinal("PoultryRawMaterialPurchaseId")),
             FarmId = r.GetString(r.GetOrdinal("FarmId")),
@@ -271,8 +271,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<PoultryRawMaterialPurchaseModel>> GetAllAsync(string farmId, DateTime? fromDate, DateTime? toDate)
         {
             var list = new List<PoultryRawMaterialPurchaseModel>();
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryRawMaterialPurchase_GetAll", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryrawmaterialpurchase_getall(p_farmid => @FarmId::text, p_fromdate => @FromDate::date, p_todate => @ToDate::date)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@FromDate", (object?)fromDate ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@ToDate", (object?)toDate ?? DBNull.Value);
@@ -284,8 +284,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<int> InsertAsync(PoultryRawMaterialPurchaseModel m)
         {
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryRawMaterialPurchase_Insert", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryrawmaterialpurchase_insert(p_farmid => @FarmId::text, p_poultryrawmaterialitemid => @PoultryRawMaterialItemId::int, p_suppliername => @SupplierName::text, p_supplierid => @SupplierId::int, p_purchasedate => @PurchaseDate::timestamp, p_quantity => @Quantity::numeric, p_unitcost => @UnitCost::numeric, p_totalcost => @TotalCost::numeric, p_productionunit => @ProductionUnit::text, p_productionunitsperpurchaseunit => @ProductionUnitsPerPurchaseUnit::numeric, p_paymentmethod => @PaymentMethod::text, p_amountpaid => @AmountPaid::numeric, p_receipturl => @ReceiptUrl::text, p_notes => @Notes::text, p_createdby => @CreatedBy::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@PoultryRawMaterialItemId", m.PoultryRawMaterialItemId);
             cmd.Parameters.AddWithValue("@SupplierName", (object?)m.SupplierName ?? DBNull.Value);
@@ -313,8 +313,8 @@ namespace PoultryFarmAPIWeb.Business
         // just say whether to (re)set the account.
         private async Task SyncCashAsync(string farmId, int purchaseId, int? cashAccountId, bool setAccount, string? createdBy)
         {
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryRawMaterialPurchaseCash_Sync", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryrawmaterialpurchasecash_sync(p_farmid => @FarmId::text, p_poultryrawmaterialpurchaseid => @PoultryRawMaterialPurchaseId::int, p_poultrycashaccountid => @PoultryCashAccountId::int, p_setaccount => @SetAccount::boolean, p_createdby => @CreatedBy::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@PoultryRawMaterialPurchaseId", purchaseId);
             cmd.Parameters.AddWithValue("@PoultryCashAccountId", (object?)cashAccountId ?? DBNull.Value);
@@ -331,8 +331,8 @@ namespace PoultryFarmAPIWeb.Business
         // reverse the batch instead.
         private async Task GuardNotFeedProductionLotAsync(int id, string farmId)
         {
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand(
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
                 "SELECT SourceFeedProductionBatchId FROM dbo.PoultryRawMaterialPurchases WHERE PoultryRawMaterialPurchaseId = @Id AND FarmId = @FarmId", conn);
             cmd.Parameters.AddWithValue("@Id", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
@@ -346,8 +346,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task UpdateAsync(PoultryRawMaterialPurchaseModel m)
         {
             await GuardNotFeedProductionLotAsync(m.PoultryRawMaterialPurchaseId, m.FarmId);
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryRawMaterialPurchase_Update", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryrawmaterialpurchase_update(p_poultryrawmaterialpurchaseid => @PoultryRawMaterialPurchaseId::int, p_farmid => @FarmId::text, p_suppliername => @SupplierName::text, p_supplierid => @SupplierId::int, p_purchasedate => @PurchaseDate::timestamp, p_quantity => @Quantity::numeric, p_unitcost => @UnitCost::numeric, p_totalcost => @TotalCost::numeric, p_productionunit => @ProductionUnit::text, p_productionunitsperpurchaseunit => @ProductionUnitsPerPurchaseUnit::numeric, p_paymentmethod => @PaymentMethod::text, p_amountpaid => @AmountPaid::numeric, p_receipturl => @ReceiptUrl::text, p_notes => @Notes::text)", conn);
             cmd.Parameters.AddWithValue("@PoultryRawMaterialPurchaseId", m.PoultryRawMaterialPurchaseId);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@SupplierName", (object?)m.SupplierName ?? DBNull.Value);
@@ -371,8 +371,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task DeleteAsync(int id, string farmId)
         {
             await GuardNotFeedProductionLotAsync(id, farmId);
-            using (var conn = new SqlConnection(_cs))
-            using (var cmd = new SqlCommand("spPoultryRawMaterialPurchase_Delete", conn) { CommandType = CommandType.StoredProcedure })
+            using (var conn = new NpgsqlConnection(_cs))
+            using (var cmd = new NpgsqlCommand("SELECT * FROM sppoultryrawmaterialpurchase_delete(p_poultryrawmaterialpurchaseid => @PoultryRawMaterialPurchaseId::int, p_farmid => @FarmId::text)", conn))
             {
                 cmd.Parameters.AddWithValue("@PoultryRawMaterialPurchaseId", id);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
@@ -387,8 +387,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             await GuardNotFeedProductionLotAsync(id, farmId);
             decimal balance;
-            using (var conn = new SqlConnection(_cs))
-            using (var cmd = new SqlCommand("spPoultryRawMaterialPurchase_PayBalance", conn) { CommandType = CommandType.StoredProcedure })
+            using (var conn = new NpgsqlConnection(_cs))
+            using (var cmd = new NpgsqlCommand("SELECT * FROM sppoultryrawmaterialpurchase_paybalance(p_poultryrawmaterialpurchaseid => @PoultryRawMaterialPurchaseId::int, p_farmid => @FarmId::text, p_amount => @Amount::numeric, p_paymentmethod => @PaymentMethod::text, p_paymentdate => @PaymentDate::timestamp, p_createdby => @CreatedBy::text)", conn))
             {
                 cmd.Parameters.AddWithValue("@PoultryRawMaterialPurchaseId", id);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
@@ -414,7 +414,7 @@ namespace PoultryFarmAPIWeb.Business
         private readonly string _cs;
         public PoultryRawMaterialUsageService(string cs) => _cs = cs;
 
-        private static bool HasColumn(SqlDataReader r, string name)
+        private static bool HasColumn(NpgsqlDataReader r, string name)
         {
             for (int i = 0; i < r.FieldCount; i++)
                 if (string.Equals(r.GetName(i), name, StringComparison.OrdinalIgnoreCase)) return true;
@@ -424,8 +424,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<PoultryRawMaterialUsageModel>> GetHistoryAsync(string farmId, int? itemId, DateTime? fromDate, DateTime? toDate)
         {
             var list = new List<PoultryRawMaterialUsageModel>();
-            using var conn = new SqlConnection(_cs);
-            using var cmd = new SqlCommand("spPoultryRawMaterialUsage_GetHistory", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryrawmaterialusage_gethistory(p_farmid => @FarmId::text, p_poultryrawmaterialitemid => @PoultryRawMaterialItemId::int, p_fromdate => @FromDate::date, p_todate => @ToDate::date)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@PoultryRawMaterialItemId", (object?)itemId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@FromDate", (object?)fromDate ?? DBNull.Value);

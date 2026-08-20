@@ -12,8 +12,18 @@ import { Input } from "@/components/ui/input"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { usePermissions } from "@/hooks/use-permissions"
-import { Briefcase, Building2, Bell, ListTodo, HelpCircle, LogOut, Menu, ShieldCheck, Settings, UserCog, Plus } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+import { Briefcase, Building2, Bird, Droplets, ShoppingBag, Bell, HelpCircle, LogOut, Menu, Settings, Plus, Loader2 } from "lucide-react"
 import { BoCompanySelector } from "@/components/dashboard/bo-company-selector"
+import { getMyCompanies, switchCompany, dashboardHomeForType, type Company } from "@/lib/api/companies"
+
+// Same type→icon mapping the header selector and company cards use.
+function typeIcon(type?: string | null) {
+  if (type === "Water") return Droplets
+  if (type === "Poultry") return Bird
+  if (type === "Generic") return ShoppingBag
+  return Building2
+}
 
 type ActiveKey = "home" | "companies" | "employees" | "users" | "settings" | "org" | "help"
 
@@ -25,17 +35,53 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
   const isAdmin = permissions.isAdmin
   const roleLabel = isAdmin ? "Organization Admin" : "Staff"
 
-  // "New company" now lives in the top bar (banner removed). The create dialog
-  // stays on the home page (it owns the company list refresh), so trigger it via
-  // an event when already there, or navigate home with ?new=1 to open it.
+  // "New company" lives as the last row of the sidebar companies list (it was
+  // also duplicated in the top bar; that copy is gone). The create dialog stays
+  // on the home page (it owns the company list refresh), so trigger it via an
+  // event when already there, or navigate home with ?new=1 to open it.
   function goNewCompany() {
     if (pathname === "/business-office") window.dispatchEvent(new CustomEvent("bo:new-company"))
     else router.push("/business-office?new=1")
   }
   const user = useAuthStore((s) => s.user)
   const clearActiveCompany = useAuthStore((s) => s.clearActiveCompany)
+  const setActiveCompany = useAuthStore((s) => s.setActiveCompany)
+  const { toast } = useToast()
   const [drawer, setDrawer] = useState(false)
   const [search, setSearch] = useState("")
+
+  // Companies listed directly in the sidebar, under Business Office. Refreshed
+  // when the home page creates one (it fires bo:companies-changed after create).
+  const [companies, setCompanies] = useState<Company[]>([])
+  const [companiesLoading, setCompaniesLoading] = useState(true)
+  const [openingId, setOpeningId] = useState<string | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    const load = () => {
+      getMyCompanies()
+        .then((list) => { if (!cancelled) setCompanies(list) })
+        .catch(() => {})
+        .finally(() => { if (!cancelled) setCompaniesLoading(false) })
+    }
+    load()
+    window.addEventListener("bo:companies-changed", load)
+    return () => { cancelled = true; window.removeEventListener("bo:companies-changed", load) }
+  }, [])
+
+  // Clicking a company leaves the Business Office and enters Company Mode —
+  // same switch-then-route flow as the header selector and the company cards.
+  async function openCompany(c: Company) {
+    setOpeningId(c.farmId)
+    try {
+      const res = await switchCompany(c.farmId)
+      setActiveCompany(res.farmId ?? c.farmId, res.farmName ?? c.name, c.type, res.accessToken?.token)
+      setDrawer(false)
+      router.push(dashboardHomeForType(c.type))
+    } catch (e: any) {
+      toast({ title: "Could not open company", description: e?.message ?? String(e), variant: "destructive" })
+      setOpeningId(null)
+    }
+  }
 
   // Doc 3 §9: being inside the Business Office IS the company-neutral state, so
   // no company should read as "active/current" here (a stale activeFarmId from a
@@ -66,13 +112,13 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
     // { key: "tasks", href: "/business-office#tasks", label: "My Tasks", icon: ListTodo },
     // { key: "notices", href: "/business-office#notices", label: "Notifications", icon: Bell },
   ]
-  // Business group — one entry. Organization Profile, Users & Permissions and
-  // Companies are tabs inside the Business Setup hub, so they no longer need
-  // their own sidebar rows. (Employees removed here too — James, 2026-07-05.)
+  // Administration group — one entry, and it sits at the BOTTOM of the nav
+  // (below the companies list) since day-to-day work is picking a company, not
+  // setup. Organization Profile, Users & Permissions and Companies are tabs
+  // inside it.
   const business = isAdmin ? [
-    { key: "settings", href: "/business-office/setup", label: "Business Setup", icon: Settings },
+    { key: "settings", href: "/business-office/setup", label: "Administration", icon: Settings },
   ] : []
-  const footer = [{ key: "help", href: "/business-office/help", label: "Help Center", icon: HelpCircle }]
 
   function Group({ title, items }: { title?: string; items: { key: string; href: string; label: string; icon: any }[] }) {
     return (
@@ -94,6 +140,50 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
     )
   }
 
+  // Every company the user can reach, listed right under Business Office, with
+  // "New company" as the last row. Clicking a name switches into that company.
+  function CompaniesGroup() {
+    const rowBase = "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-slate-300 hover:bg-slate-800/60 hover:text-white"
+    return (
+      <div>
+        <div className="space-y-0.5">
+          {companiesLoading ? (
+            <div className="flex items-center gap-2 px-3 py-2.5 text-sm text-slate-500">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+            </div>
+          ) : companies.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-slate-500">No companies yet.</div>
+          ) : companies.map((c) => {
+            const Icon = typeIcon(c.type)
+            const opening = openingId === c.farmId
+            return (
+              <button
+                key={c.farmId}
+                onClick={() => openCompany(c)}
+                disabled={!!openingId}
+                title={`${c.name} · ${c.type}`}
+                className={`${rowBase} text-left disabled:opacity-60`}
+              >
+                <Icon className="h-[18px] w-[18px] shrink-0 text-slate-400" />
+                <span className="truncate">{c.name}</span>
+                {opening && <Loader2 className="h-3.5 w-3.5 ml-auto shrink-0 animate-spin text-slate-400" />}
+              </button>
+            )
+          })}
+          {isAdmin && (
+            <button
+              onClick={() => { setDrawer(false); goNewCompany() }}
+              className={`${rowBase} text-left text-orange-300 hover:text-orange-200`}
+            >
+              <Plus className="h-[18px] w-[18px] shrink-0 text-orange-300" />
+              <span className="truncate">New company</span>
+            </button>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   const SidebarBody = () => (
     <div className="flex h-full flex-col">
       <Link href="/business-office" className="flex items-center gap-2 px-4 h-16 border-b border-slate-800">
@@ -103,11 +193,18 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
           <div className="text-[11px] text-slate-400 leading-tight">Business Office</div>
         </div>
       </Link>
-      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-5 text-sm">
+      {/* flex-col + gap (not space-y) so the Setup group can mt-auto itself to
+          the very bottom of the rail, right above Logout. */}
+      <nav className="flex-1 overflow-y-auto py-3 px-2 flex flex-col gap-5 text-sm">
         {/* Home needs no group header — it's the one item above the groups. */}
         <Group items={main} />
-        {business.length > 0 && <Group title="Business" items={business} />}
-        <Group title="Support" items={footer} />
+        <CompaniesGroup />
+        {/* Administration sits at the bottom of the rail, directly above
+            Logout. No group header — it'd just repeat the row. Help moved to
+            the top bar, beside the account name. */}
+        <div className="mt-auto pt-2">
+          <Group items={business} />
+        </div>
       </nav>
       <div className="border-t border-slate-800 p-2">
         <button onClick={logout} className="flex w-full items-center gap-3 px-3 py-2.5 rounded-md text-slate-300 hover:bg-slate-800 hover:text-white">
@@ -127,9 +224,10 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
         </div>
       )}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Brand-coloured top bar. Carries the welcome message + the org-level
-            actions (Users & Permissions, New company) that used to sit in the
-            page's dark welcome banner (James 2026-07-08). */}
+        {/* Brand-coloured top bar. Carries the welcome message, the company
+            selector, and Help beside the account name. (Users & Permissions
+            lives in Administration → its tab; "New company" is a row in the
+            sidebar companies list.) */}
         <header className="relative z-30 h-16 bg-gradient-to-r from-orange-600 to-amber-500 text-white border-b border-orange-700/30 flex items-center gap-3 px-4 sm:px-6 shrink-0 shadow-sm">
           <button className="lg:hidden h-9 w-9 grid place-items-center rounded-lg border border-white/25 text-white hover:bg-white/10" onClick={() => setDrawer(true)} aria-label="Menu"><Menu className="h-5 w-5" /></button>
           <div className="min-w-0">
@@ -141,21 +239,23 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
           <BoCompanySelector />
 
           <div className="ml-auto flex items-center gap-2">
-            {isAdmin && (
-              <>
-                <Link href="/business-office/setup?tab=users" className="hidden sm:inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-white/30 bg-white/10 text-sm font-medium text-white hover:bg-white/20 transition-colors">
-                  <ShieldCheck className="h-4 w-4" /> <span className="hidden lg:inline">Users &amp; Permissions</span><span className="lg:hidden">Users</span>
-                </Link>
-                <button onClick={goNewCompany} className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg bg-white text-orange-700 text-sm font-semibold hover:bg-orange-50 transition-colors shadow-sm">
-                  <Plus className="h-4 w-4" /> <span className="hidden sm:inline">New company</span>
-                </button>
-              </>
-            )}
             <Link href="/business-office#notices" className="h-9 w-9 grid place-items-center rounded-lg hover:bg-white/15 text-white/90" aria-label="Notifications"><Bell className="h-5 w-5" /></Link>
             <div className="flex items-center gap-2 pl-1">
               <span className="hidden xl:block text-sm text-white/90">{userName || "Account"}</span>
               <span className="h-8 w-8 grid place-items-center rounded-full bg-white/20 text-white text-sm font-semibold ring-1 ring-inset ring-white/30">{(userName || "U").charAt(0).toUpperCase()}</span>
             </div>
+            {/* Help moved out of the sidebar footer to the far top-right — last
+                item in the bar, after the account. Icon-only below sm. */}
+            <Link
+              href="/business-office/help"
+              aria-label="Help"
+              aria-current={active === "help" ? "page" : undefined}
+              className={`inline-flex items-center gap-1.5 h-9 px-2.5 rounded-lg text-sm font-medium transition-colors ${
+                active === "help" ? "bg-white/20 text-white" : "text-white/90 hover:bg-white/15"
+              }`}
+            >
+              <HelpCircle className="h-5 w-5" /> <span className="hidden sm:inline">Help</span>
+            </Link>
           </div>
         </header>
 

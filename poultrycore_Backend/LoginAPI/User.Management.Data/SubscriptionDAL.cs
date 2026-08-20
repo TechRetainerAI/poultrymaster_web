@@ -1,8 +1,8 @@
-﻿
+
 using System;
 using System.Collections.Generic;
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using System.Linq;
 using CsvHelper;
 using CsvHelper.Configuration;
@@ -27,15 +27,17 @@ namespace User.Management.Data
         {
             var result = new List<Plan>();
 
-            using (SqlConnection connection = new SqlConnection(_connectionString))
+            using (NpgsqlConnection connection = new NpgsqlConnection(_connectionString))
             {
                 connection.Open();
-                using (SqlCommand cmd = connection.CreateCommand())
+                using (NpgsqlCommand cmd = connection.CreateCommand())
                 {
-                    cmd.CommandType = CommandType.StoredProcedure;
-                    cmd.CommandText = "GetPlans";                           // Replace with the actual procedure name
+                    // TODO(pg): function getplans does not exist in the PostgreSQL database
+                    // and no T-SQL source for it exists in the migration dump either — this
+                    // is a legacy Stripe-era procedure. This call will fail at runtime.
+                    cmd.CommandText = "SELECT * FROM getplans()";
 
-                    using (SqlDataReader reader = cmd.ExecuteReader())
+                    using (NpgsqlDataReader reader = cmd.ExecuteReader())
                     {
                         while (reader.Read())
                         {
@@ -66,18 +68,20 @@ namespace User.Management.Data
             Subscriber? subscriber = null;
             try
             {
-                using (SqlConnection connection = new SqlConnection(_connectionString))
+                using (NpgsqlConnection connection = new NpgsqlConnection(_connectionString))
                 {
                     connection.Open();
-                    using (SqlCommand cmd = connection.CreateCommand())
+                    using (NpgsqlCommand cmd = connection.CreateCommand())
                     {
-                        cmd.CommandType = CommandType.StoredProcedure;
-                        cmd.CommandText = "GetSubscriberByCustomerId"; // Name of the stored procedure
+                        // TODO(pg): function getsubscriberbycustomerid does not exist in the
+                        // PostgreSQL database and has no T-SQL source in the migration dump
+                        // (legacy Stripe-era procedure). This call will fail at runtime.
+                        cmd.CommandText = "SELECT * FROM getsubscriberbycustomerid(p_customerid => @CustomerId)";
 
                         // Add parameter for CustomerId
                         cmd.Parameters.AddWithValue("@CustomerId", customerId);
 
-                        using (SqlDataReader reader = cmd.ExecuteReader())
+                        using (NpgsqlDataReader reader = cmd.ExecuteReader())
                         {
                             if (reader.Read())
                             {
@@ -126,11 +130,12 @@ namespace User.Management.Data
             // 29 orphan users between this SP being deployed and 053.
             try
             {
-                using (SqlConnection connection = new SqlConnection(_connectionString))
-                using (SqlCommand cmd = connection.CreateCommand())
+                using (NpgsqlConnection connection = new NpgsqlConnection(_connectionString))
+                using (NpgsqlCommand cmd = connection.CreateCommand())
                 {
-                    cmd.CommandType = CommandType.StoredProcedure;
-                    cmd.CommandText = "sp_CreateFarm";
+                    cmd.CommandText = @"SELECT * FROM sp_createfarm(
+                        p_farmid => @FarmId::text, p_name => @Name::text, p_type => @Type::text,
+                        p_email => @Email::text, p_phonenumber => @PhoneNumber::text)";
 
                     cmd.Parameters.AddWithValue("@FarmId", farm.FarmId);
                     cmd.Parameters.AddWithValue("@Name", farm.Name);
@@ -151,12 +156,12 @@ namespace User.Management.Data
                     return true;
                 }
             }
-            catch (SqlException sqlEx)
+            catch (PostgresException sqlEx)
             {
-                // Surface the SQL error number + message so Cloud Run logs
-                // show "Cannot insert NULL into column 'Email'" instead of a
-                // generic 500.
-                Console.WriteLine($"[CreateFarmAsync] SqlException {sqlEx.Number}/{sqlEx.State}: {sqlEx.Message}");
+                // Surface the SQL error code + message so Cloud Run logs
+                // show "null value in column \"email\" violates not-null constraint"
+                // instead of a generic 500.
+                Console.WriteLine($"[CreateFarmAsync] PostgresException {sqlEx.SqlState}: {sqlEx.MessageText}");
                 return false;
             }
             catch (Exception ex)
@@ -171,11 +176,11 @@ namespace User.Management.Data
             var farms = new List<Farm>();
             try
             {
-                using (SqlConnection connection = new SqlConnection(_connectionString))
-                using (SqlCommand cmd = connection.CreateCommand())
+                using (NpgsqlConnection connection = new NpgsqlConnection(_connectionString))
+                using (NpgsqlCommand cmd = connection.CreateCommand())
                 {
                     cmd.CommandType = CommandType.Text;
-                    cmd.CommandText = @"SELECT FarmId, Name, Email, Type, PhoneNumber, CreatedAt FROM [dbo].[Farms]";
+                    cmd.CommandText = @"SELECT farmid, name, email, type, phonenumber, createdat FROM farms";
 
                     await connection.OpenAsync();
                     using (var reader = await cmd.ExecuteReaderAsync())
@@ -207,11 +212,11 @@ namespace User.Management.Data
         {
             try
             {
-                using (SqlConnection connection = new SqlConnection(_connectionString))
-                using (SqlCommand cmd = connection.CreateCommand())
+                using (NpgsqlConnection connection = new NpgsqlConnection(_connectionString))
+                using (NpgsqlCommand cmd = connection.CreateCommand())
                 {
                     cmd.CommandType = CommandType.Text;
-                    cmd.CommandText = @"SELECT COUNT(*) FROM [dbo].[Farms]";
+                    cmd.CommandText = @"SELECT COUNT(*)::int FROM farms";
 
                     await connection.OpenAsync();
                     var scalar = await cmd.ExecuteScalarAsync();

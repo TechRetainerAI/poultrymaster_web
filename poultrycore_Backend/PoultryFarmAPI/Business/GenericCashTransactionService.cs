@@ -1,5 +1,5 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using System.Text.Json;
 using PoultryFarmAPIWeb.Models;
 
@@ -13,8 +13,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<GenericCashTransactionModel>> GetByAccountAsync(int accountId, string farmId, DateTime? fromDate, DateTime? toDate)
         {
             var list = new List<GenericCashTransactionModel>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericCashTransaction_GetByAccount", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericcashtransaction_getbyaccount(p_genericcashaccountid => @GenericCashAccountId::int, p_farmid => @FarmId::text, p_fromdate => @FromDate::timestamp, p_todate => @ToDate::timestamp)", conn);
             cmd.Parameters.AddWithValue("@GenericCashAccountId", accountId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@FromDate", (object?)fromDate ?? DBNull.Value);
@@ -29,8 +29,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<GenericCashTransactionModel>> GetByFarmAsync(string farmId, DateTime? fromDate, DateTime? toDate)
         {
             var list = new List<GenericCashTransactionModel>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericCashTransaction_GetByFarm", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericcashtransaction_getbyfarm(p_farmid => @FarmId::text, p_fromdate => @FromDate::timestamp, p_todate => @ToDate::timestamp)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@FromDate", (object?)fromDate ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@ToDate",   (object?)toDate   ?? DBNull.Value);
@@ -43,8 +43,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<long> InsertAdjustmentAsync(string farmId, GenericCashAdjustmentRequest req, string? createdBy, string? approvedBy)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericCashTransaction_InsertAdjustment", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericcashtransaction_insertadjustment(p_farmid => @FarmId::text, p_genericcashaccountid => @GenericCashAccountId::int, p_amount => @Amount::numeric, p_reason => @Reason::text, p_transactiondate => @TransactionDate::timestamp, p_createdby => @CreatedBy::text, p_approvedby => @ApprovedBy::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@GenericCashAccountId", req.GenericCashAccountId);
             cmd.Parameters.AddWithValue("@Amount", req.Amount);
@@ -62,8 +62,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<long> PostMovementAsync(string farmId, string direction, GenericCashMovementRequest req, string? createdBy, string? approvedBy)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericCashMovement_Post", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericcashmovement_post(p_farmid => @FarmId::text, p_genericcashaccountid => @GenericCashAccountId::int, p_direction => @Direction::text, p_movementtype => @MovementType::text, p_amount => @Amount::numeric, p_description => @Description::text, p_reference => @Reference::text, p_transactiondate => @TransactionDate::timestamp, p_sourceid => @SourceId::int, p_createdby => @CreatedBy::text, p_approvedby => @ApprovedBy::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@GenericCashAccountId", req.GenericCashAccountId);
             cmd.Parameters.AddWithValue("@Direction", direction);
@@ -85,8 +85,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<int> CreateReconciliationAsync(string farmId, GenericCashReconciliationRequest req, string? requestedBy, string? approvedBy)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericCashReconciliation_Create", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericcashreconciliation_create(p_farmid => @FarmId::text, p_genericcashaccountid => @GenericCashAccountId::int, p_actualbalance => @ActualBalance::numeric, p_reconciliationdate => @ReconciliationDate::timestamp, p_reason => @Reason::text, p_notes => @Notes::text, p_requestedby => @RequestedBy::text, p_approvedby => @ApprovedBy::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@GenericCashAccountId", req.GenericCashAccountId);
             cmd.Parameters.AddWithValue("@ActualBalance", req.ActualBalance);
@@ -106,8 +106,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<GenericCashReconciliationModel>> GetReconciliationsByAccountAsync(int accountId, string farmId)
         {
             var list = new List<GenericCashReconciliationModel>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericCashReconciliation_GetByAccount", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericcashreconciliation_getbyaccount(p_genericcashaccountid => @GenericCashAccountId::int, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@GenericCashAccountId", accountId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
@@ -139,8 +139,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task UpsertDefaultAsync(string farmId, string defaultKey, int accountId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericCashAccountDefault_Upsert", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericcashaccountdefault_upsert(p_farmid => @FarmId::text, p_defaultkey => @DefaultKey::text, p_genericcashaccountid => @GenericCashAccountId::int)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@DefaultKey", defaultKey);
             cmd.Parameters.AddWithValue("@GenericCashAccountId", accountId);
@@ -151,8 +151,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<GenericCashAccountDefaultModel>> GetDefaultsAsync(string farmId)
         {
             var list = new List<GenericCashAccountDefaultModel>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericCashAccountDefault_GetAll", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericcashaccountdefault_getall(p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await conn.OpenAsync();
             using var reader = await cmd.ExecuteReaderAsync();
@@ -174,8 +174,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<int> PostAllocationsAsync(string farmId, GenericCashAllocationsRequest req, string? createdBy, string? approvedBy)
         {
             var json = JsonSerializer.Serialize(req.Allocations);
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericCashAllocations_Post", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericcashallocations_post(p_farmid => @FarmId::text, p_sourcetype => @SourceType::text, p_sourceid => @SourceId::int, p_direction => @Direction::text, p_allocationsjson => @AllocationsJson::text, p_transactiondate => @TransactionDate::timestamp, p_createdby => @CreatedBy::text, p_approvedby => @ApprovedBy::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@SourceType", req.SourceType);
             cmd.Parameters.AddWithValue("@SourceId", req.SourceId);
@@ -194,8 +194,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<GenericCashAccountDetailsModel?> GetAccountDetailsAsync(int accountId, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericCashAccount_GetDetails", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericcashaccount_getdetails(p_farmid => @FarmId::text, p_genericcashaccountid => @GenericCashAccountId::int)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@GenericCashAccountId", accountId);
 
@@ -228,8 +228,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<GenericCashLedgerReportRow>> GetLedgerReportAsync(string farmId)
         {
             var list = new List<GenericCashLedgerReportRow>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericCashLedgerReport_Get", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericcashledgerreport_get(p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
             await conn.OpenAsync();
@@ -253,8 +253,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<long> ReverseAsync(long transactionId, string farmId, string? reversedBy, string? reason)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericCashTransaction_Reverse", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericcashtransaction_reverse(p_genericcashtransactionid => @GenericCashTransactionId::bigint, p_farmid => @FarmId::text, p_reversedby => @ReversedBy::text, p_reason => @Reason::text)", conn);
             cmd.Parameters.AddWithValue("@GenericCashTransactionId", transactionId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@ReversedBy", (object?)reversedBy ?? DBNull.Value);
@@ -267,7 +267,7 @@ namespace PoultryFarmAPIWeb.Business
             return 0;
         }
 
-        private static GenericCashTransactionModel ReadTxn(SqlDataReader r)
+        private static GenericCashTransactionModel ReadTxn(NpgsqlDataReader r)
         {
             var m = new GenericCashTransactionModel
             {
@@ -303,7 +303,7 @@ namespace PoultryFarmAPIWeb.Business
             return m;
         }
 
-        private static bool HasColumn(SqlDataReader r, string name)
+        private static bool HasColumn(NpgsqlDataReader r, string name)
         {
             for (int i = 0; i < r.FieldCount; i++)
                 if (string.Equals(r.GetName(i), name, StringComparison.OrdinalIgnoreCase)) return true;

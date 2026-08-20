@@ -1,5 +1,5 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 using System;
 using System.Collections.Concurrent;
@@ -19,15 +19,16 @@ namespace PoultryFarmAPIWeb.Business
             _connectionString = connectionString;
         }
 
-        private static async Task<bool> ProcedureHasInventoryFieldsAsync(SqlConnection conn, string procedureName)
+        private static async Task<bool> ProcedureHasInventoryFieldsAsync(NpgsqlConnection conn, string procedureName)
         {
             if (SpHasInventoryFieldsCache.TryGetValue(procedureName, out var cached)) return cached;
-            await using var probe = new SqlCommand(
-                @"SELECT 1 FROM sys.parameters p
-                  INNER JOIN sys.procedures pr ON p.object_id = pr.object_id
-                  WHERE SCHEMA_NAME(pr.schema_id) = N'dbo'
-                    AND pr.name = @procName
-                    AND (p.name = N'Cost' OR p.name = N'@Cost')",
+            await using var probe = new NpgsqlCommand(
+                @"SELECT 1
+                  FROM pg_proc p
+                  INNER JOIN pg_namespace n ON n.oid = p.pronamespace
+                  WHERE n.nspname = 'public'
+                    AND p.proname = lower(@procName)
+                    AND ('p_cost' = ANY(p.proargnames))",
                 conn);
             probe.Parameters.AddWithValue("@procName", procedureName);
             var scalar = await probe.ExecuteScalarAsync();
@@ -37,25 +38,25 @@ namespace PoultryFarmAPIWeb.Business
         }
 
         /// <summary>Read column by name if present in result set; otherwise return default.</summary>
-        private static int? IndexOfColumn(SqlDataReader reader, string name)
+        private static int? IndexOfColumn(NpgsqlDataReader reader, string name)
         {
             for (var i = 0; i < reader.FieldCount; i++)
                 if (string.Equals(reader.GetName(i), name, StringComparison.OrdinalIgnoreCase)) return i;
             return null;
         }
-        private static decimal? GetNullableDecimalIfPresent(SqlDataReader r, string col)
+        private static decimal? GetNullableDecimalIfPresent(NpgsqlDataReader r, string col)
         {
             var idx = IndexOfColumn(r, col); return idx.HasValue && !r.IsDBNull(idx.Value) ? r.GetDecimal(idx.Value) : (decimal?)null;
         }
-        private static string? GetNullableStringIfPresent(SqlDataReader r, string col)
+        private static string? GetNullableStringIfPresent(NpgsqlDataReader r, string col)
         {
             var idx = IndexOfColumn(r, col); return idx.HasValue && !r.IsDBNull(idx.Value) ? r.GetString(idx.Value) : null;
         }
-        private static DateTime? GetNullableDateTimeIfPresent(SqlDataReader r, string col)
+        private static DateTime? GetNullableDateTimeIfPresent(NpgsqlDataReader r, string col)
         {
             var idx = IndexOfColumn(r, col); return idx.HasValue && !r.IsDBNull(idx.Value) ? r.GetDateTime(idx.Value) : (DateTime?)null;
         }
-        private static void HydrateInventoryExtras(SqlDataReader r, InventoryItemModel m)
+        private static void HydrateInventoryExtras(NpgsqlDataReader r, InventoryItemModel m)
         {
             m.Cost = GetNullableDecimalIfPresent(r, "Cost");
             m.SupplierName = GetNullableStringIfPresent(r, "SupplierName");
@@ -70,11 +71,8 @@ namespace PoultryFarmAPIWeb.Business
             try
             {
                 var list = new List<InventoryItemModel>();
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spInventoryItem_GetAll", conn)
-                {
-                    CommandType = CommandType.StoredProcedure
-                };
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spinventoryitem_getall(p_userid => @UserId::text, p_farmid => @FarmId::text)", conn);
                 cmd.Parameters.AddWithValue("@UserId", (object?)userId ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
                 await conn.OpenAsync();
@@ -109,11 +107,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spInventoryItem_GetById", conn)
-                {
-                    CommandType = CommandType.StoredProcedure
-                };
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spinventoryitem_getbyid(p_itemid => @ItemId::int, p_farmid => @FarmId::text)", conn);
                 cmd.Parameters.AddWithValue("@ItemId", itemId);
                 //cmd.Parameters.AddWithValue("@UserId", userId);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
@@ -149,11 +144,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spInventoryItem_Insert", conn)
-                {
-                    CommandType = CommandType.StoredProcedure
-                };
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spinventoryitem_insert(p_userid => @UserId::text, p_farmid => @FarmId::text, p_itemname => @ItemName::text, p_category => @Category::text, p_quantityinstock => @QuantityInStock::numeric, p_unitofmeasure => @UnitOfMeasure::text, p_reorderlevel => @ReorderLevel::numeric, p_supplierid => @SupplierId::int, p_isactive => @IsActive::boolean, p_cost => @Cost::numeric, p_suppliername => @SupplierName::text, p_purchasedate => @PurchaseDate::timestamp, p_notes => @Notes::text, p_location => @Location::text, p_expirydate => @ExpiryDate::timestamp)", conn);
                 cmd.Parameters.AddWithValue("@UserId", model.UserId);
                 cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
                 cmd.Parameters.AddWithValue("@ItemName", model.ItemName);
@@ -187,11 +179,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spInventoryItem_Update", conn)
-                {
-                    CommandType = CommandType.StoredProcedure
-                };
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spinventoryitem_update(p_userid => @UserId::text, p_farmid => @FarmId::text, p_itemid => @ItemId::int, p_itemname => @ItemName::text, p_category => @Category::text, p_quantityinstock => @QuantityInStock::numeric, p_unitofmeasure => @UnitOfMeasure::text, p_reorderlevel => @ReorderLevel::numeric, p_supplierid => @SupplierId::int, p_isactive => @IsActive::boolean, p_cost => @Cost::numeric, p_suppliername => @SupplierName::text, p_purchasedate => @PurchaseDate::timestamp, p_notes => @Notes::text, p_location => @Location::text, p_expirydate => @ExpiryDate::timestamp)", conn);
                 cmd.Parameters.AddWithValue("@UserId", model.UserId);
                 cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
                 cmd.Parameters.AddWithValue("@ItemId", model.ItemId);
@@ -225,11 +214,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spInventoryItem_Delete", conn)
-                {
-                    CommandType = CommandType.StoredProcedure
-                };
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spinventoryitem_delete(p_itemid => @ItemId::int, p_userid => @UserId::text, p_farmid => @FarmId::text)", conn);
                 cmd.Parameters.AddWithValue("@ItemId", itemId);
                 cmd.Parameters.AddWithValue("@UserId", userId);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
@@ -248,11 +234,8 @@ namespace PoultryFarmAPIWeb.Business
             try
             {
                 var list = new List<InventoryTransactionModel>();
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spInventoryTransaction_GetByItem", conn)
-                {
-                    CommandType = CommandType.StoredProcedure
-                };
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spinventorytransaction_getbyitem(p_itemid => @ItemId::int, p_farmid => @FarmId::text)", conn);
                 cmd.Parameters.AddWithValue("@ItemId", itemId);
                 //cmd.Parameters.AddWithValue("@UserId", userId);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
@@ -284,11 +267,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spInventoryTransaction_Insert", conn)
-                {
-                    CommandType = CommandType.StoredProcedure
-                };
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spinventorytransaction_insert(p_itemid => @ItemId::int, p_farmid => @FarmId::text, p_transactiondate => @TransactionDate::timestamp, p_quantitychange => @QuantityChange::numeric, p_transactiontype => @TransactionType::text, p_remarks => @Remarks::text)", conn);
                 cmd.Parameters.AddWithValue("@ItemId", model.ItemId);
                 cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
                 cmd.Parameters.AddWithValue("@TransactionDate", model.TransactionDate);

@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
@@ -294,6 +295,10 @@ export default function WaterDriverReturnsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [returns, loadings, returnsSearch, returnsDateFrom, returnsDateTo, filterDriver, filterVehicle, filterRoute, filterStatus],
   )
+
+  // Client-side paging: the whole list is already in memory, so this is a
+  // slice. Feed the SAME slice to the cards and the desktop table.
+  const pgReturns = usePagination(visibleReturns)
 
   // ===== Load Vehicle dialog state =====
   const [loadDlg, setLoadDlg] = useState(false)
@@ -1085,7 +1090,8 @@ export default function WaterDriverReturnsPage() {
                     <div className="p-8 text-center text-slate-500">No driver returns recorded yet.</div>
                   ) : (
                     <MobileCardList
-                      items={visibleReturns}
+                      items={pgReturns.pageItems}
+                      pagination={pgReturns.paginationProps}
                       getKey={(r) => r.waterDriverReturnId}
                       primary={(r) => `Delivery #${r.waterVehicleLoadingId} · ${r.vehicleName ?? "Vehicle —"} · ${r.bagsSold} bags sold`}
                       secondary={(r) => (
@@ -1176,7 +1182,7 @@ export default function WaterDriverReturnsPage() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {visibleReturns.map((r) => (
+                              {pgReturns.pageItems.map((r) => (
                             <TableRow key={r.waterDriverReturnId}>
                               <TableCell className="font-medium tabular-nums">#{r.waterVehicleLoadingId}</TableCell>
                               <TableCell>{r.returnDate.split("T")[0]}</TableCell>
@@ -2594,9 +2600,12 @@ function DeliveriesTable({
   // fmtMoney + the showCurrencySymbol toggle), never duplicated into the
   // column header. Force empty so headers stay clean regardless of toggle.
   const cur = ""
+  // Client-side paging for the deliveries (vehicle loadings) list.
+  const pg = usePagination(rows)
   return (
     <MobileCardList
-      items={rows}
+      items={pg.pageItems}
+      pagination={pg.paginationProps}
       getKey={(l) => l.waterVehicleLoadingId}
       primary={(l) => (
         <Link href={`/water-driver-returns/${l.waterVehicleLoadingId}`} className="text-sky-700 hover:underline">
@@ -2671,7 +2680,7 @@ function DeliveriesTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((l) => (
+              {pg.pageItems.map((l) => (
                 <TableRow key={l.waterVehicleLoadingId}>
                   <TableCell>
                     <Link href={`/water-driver-returns/${l.waterVehicleLoadingId}`} className="text-sky-700 hover:underline">

@@ -5,6 +5,8 @@
 import { useEffect, useMemo, useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ReportShell, SumTile } from "@/components/reports/report-shell"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { listWaterCashTransactions, listWaterCashAccounts } from "@/lib/api/water"
 import { useFmt } from "@/lib/currency"
 import { defaultReportRange } from "@/lib/date-ranges"
@@ -19,6 +21,7 @@ export default function CashFlowReportPage() {
   const [fromDate, setFromDate] = useState(DEFAULT_RANGE.from)
   const [toDate, setToDate] = useState(DEFAULT_RANGE.to)
   const [txns, setTxns] = useState<any[]>([])
+  const pg = usePagination(txns)
   const [accounts, setAccounts] = useState<any[]>([])
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -101,7 +104,7 @@ export default function CashFlowReportPage() {
           <TableBody>
             {txns.length === 0 ? (
               <TableRow><TableCell colSpan={6} className="text-slate-500 text-center p-4">No cash transactions in this period.</TableCell></TableRow>
-            ) : txns.map((t: any) => (
+            ) : pg.pageItems.map((t: any) => (
               <TableRow key={t.waterCashTransactionId}>
                 <TableCell className="whitespace-nowrap">{(t.transactionDate ?? "").slice(0, 10)}</TableCell>
                 <TableCell>{accounts.find(a => a.waterCashAccountId === t.waterCashAccountId)?.accountName ?? `#${t.waterCashAccountId}`}</TableCell>
@@ -114,6 +117,7 @@ export default function CashFlowReportPage() {
           </TableBody>
         </Table>
       </div>
+      <DataPagination {...pg.paginationProps} />
     </ReportShell>
   )
 }

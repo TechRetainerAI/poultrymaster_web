@@ -1,5 +1,10 @@
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useMemo } from "react"
 import { refreshFeaturePermissionsFromServer } from "@/lib/api/auth"
+import { getEffectivePermissions, getIamStatus } from "@/lib/api/iam"
+import { resolveEffectivePermissions } from "@/lib/iam/resolve"
+import { COMPANY_CHANGED_EVENT } from "@/lib/store/auth-store"
+import { WATER_STAFF_FEATURE_KEYS } from "@/lib/employees/permissions"
+import type { PermissionKey } from "@/lib/iam/keys"
 
 export interface FeatureAccessPermissions {
   canEnterSales: boolean
@@ -18,6 +23,18 @@ export interface FeatureAccessPermissions {
   canManageFeedProduction: boolean
   /** Feed Production module: see cost figures (unit costs, totals, cost reports). */
   canViewFeedProductionCost: boolean
+  /** Water: Production, Batch Production, Products, Machines, Boreholes. */
+  canViewWaterProduction: boolean
+  /** Water: Driver returns, Drivers, Vehicles, Routes, Driver collection report. */
+  canViewWaterDeliveries: boolean
+  /** Water: Stock movement, Inventory, Raw materials, Damages & loss, Production losses. */
+  canViewWaterInventory: boolean
+  /** Water: the Maintenance register. */
+  canViewWaterMaintenance: boolean
+  /** Water: Payroll runs. */
+  canViewWaterPayroll: boolean
+  /** Water: Setup and Company Setup. */
+  canViewWaterSetup: boolean
 }
 
 export interface UserPermissions {
@@ -31,6 +48,20 @@ export interface UserPermissions {
   roles: string[]
   featureAccess: FeatureAccessPermissions
   isLoading: boolean
+  /**
+   * IAM check (migration 199). `can("poultry.sales.create")`.
+   *
+   * While IAM is additive this answers from the legacy flags mapped onto
+   * catalog keys, unioned with anything IAM grants for the ACTIVE company — so
+   * it is safe to migrate a page from `featureAccess.canEnterSales` to
+   * `can("poultry.sales.create")` today without waiting for roles to be
+   * assigned. See lib/iam/resolve.ts for the rule and when it changes.
+   */
+  can: (key: PermissionKey) => boolean
+  /** Every key held in the active company. Empty when `isSuperuser`. */
+  permissionKeys: Set<PermissionKey>
+  /** Holds everything, including keys added later. Legacy admins qualify. */
+  isSuperuser: boolean
 }
 
 const DEFAULT_FEATURE_ACCESS: FeatureAccessPermissions = {
@@ -46,6 +77,12 @@ const DEFAULT_FEATURE_ACCESS: FeatureAccessPermissions = {
   canViewFeedProduction: true,
   canManageFeedProduction: true,
   canViewFeedProductionCost: true,
+  canViewWaterProduction: true,
+  canViewWaterDeliveries: true,
+  canViewWaterInventory: true,
+  canViewWaterMaintenance: true,
+  canViewWaterPayroll: true,
+  canViewWaterSetup: true,
 }
 
 /** Staff must be deny-by-default; merging with DEFAULT_FEATURE_ACCESS let missing keys stay "on". */
@@ -62,6 +99,12 @@ const STAFF_FEATURE_BASE: FeatureAccessPermissions = {
   canViewFeedProduction: false,
   canManageFeedProduction: false,
   canViewFeedProductionCost: false,
+  canViewWaterProduction: false,
+  canViewWaterDeliveries: false,
+  canViewWaterInventory: false,
+  canViewWaterMaintenance: false,
+  canViewWaterPayroll: false,
+  canViewWaterSetup: false,
 }
 
 function toBoolean(value: unknown): boolean | undefined {
@@ -124,11 +167,47 @@ function normalizeFeatureAccess(raw: Record<string, unknown>): Partial<FeatureAc
   const feedProdCost = toBoolean(raw.canViewFeedProductionCost ?? raw.CanViewFeedProductionCost ?? raw.viewFeedProductionCost ?? raw.ViewFeedProductionCost)
   if (feedProdCost !== undefined) normalized.canViewFeedProductionCost = feedProdCost
 
+  for (const key of WATER_STAFF_FEATURE_KEYS) {
+    const pascal = key.charAt(0).toUpperCase() + key.slice(1)
+    const value = toBoolean(raw[key] ?? raw[pascal])
+    if (value !== undefined) normalized[key] = value
+  }
+
   return normalized
 }
 
+/**
+ * Has anyone ever set a water flag on this record?
+ *
+ * The water flags were added after the water module shipped, so every existing
+ * employee's stored `FeaturePermissions` predates them. Staff are
+ * deny-by-default, which would mean the day this deploys every water staff
+ * member loses Production, Deliveries, Inventory, Maintenance, Payroll and
+ * Setup at once — not because an admin decided that, but because the keys are
+ * absent.
+ *
+ * So: a record with NO water flag at all is grandfathered (all six granted,
+ * which is exactly today's behaviour — the water nav is ungated). The first
+ * time an admin saves the access dialog every water key is written, and from
+ * then on absence means denied like every other flag.
+ */
+function hasAnyWaterFlag(raw: Record<string, unknown>): boolean {
+  return WATER_STAFF_FEATURE_KEYS.some((key) => {
+    const pascal = key.charAt(0).toUpperCase() + key.slice(1)
+    return toBoolean(raw[key] ?? raw[pascal]) !== undefined
+  })
+}
+
+/** The legacy half, before IAM is layered on. Kept separate so state stays plain data. */
+type BasePermissions = Omit<UserPermissions, "can" | "permissionKeys" | "isSuperuser">
+
 export function usePermissions(): UserPermissions {
-  const [permissions, setPermissions] = useState<UserPermissions>({
+  const [iamGrants, setIamGrants] = useState<string[]>([])
+  // Whether the API enforces permissions. Owned by the server (Iam:Enforced) so
+  // the two sides cannot disagree about which era they are in; false until it
+  // says otherwise, which is the permissive direction.
+  const [iamEnforced, setIamEnforced] = useState(false)
+  const [permissions, setPermissions] = useState<BasePermissions>({
     canDelete: false,
     canEdit: false,
     canCreate: false,
@@ -141,7 +220,7 @@ export function usePermissions(): UserPermissions {
     isLoading: true,
   })
 
-  const computeFromStorage = useCallback((): UserPermissions => {
+  const computeFromStorage = useCallback((): BasePermissions => {
     const isStaffStr = localStorage.getItem("isStaff")
     const isStaff = isStaffStr === "true" || isStaffStr === true
     const isSubscriberStr = localStorage.getItem("isSubscriber")
@@ -177,12 +256,16 @@ export function usePermissions(): UserPermissions {
     const isStaffOnly = isStaff && !isAdmin
 
     let storedFeatureAccess: Partial<FeatureAccessPermissions> = {}
+    // See hasAnyWaterFlag: an untouched record is grandfathered into the water
+    // pages rather than locked out of them.
+    let waterFlagsConfigured = false
     const featureAccessRaw = localStorage.getItem("featurePermissions")
     if (featureAccessRaw) {
       try {
         const parsed = JSON.parse(featureAccessRaw)
         if (parsed && typeof parsed === "object") {
           storedFeatureAccess = normalizeFeatureAccess(parsed as Record<string, unknown>)
+          waterFlagsConfigured = hasAnyWaterFlag(parsed as Record<string, unknown>)
         }
       } catch (e) {
         console.error("[v0] Error parsing featurePermissions:", e)
@@ -191,8 +274,13 @@ export function usePermissions(): UserPermissions {
     }
 
     const featureBase = isStaffOnly ? STAFF_FEATURE_BASE : DEFAULT_FEATURE_ACCESS
+    const waterGrandfather: Partial<FeatureAccessPermissions> =
+      isStaffOnly && !waterFlagsConfigured
+        ? (Object.fromEntries(WATER_STAFF_FEATURE_KEYS.map((k) => [k, true])) as Partial<FeatureAccessPermissions>)
+        : {}
     const featureAccess: FeatureAccessPermissions = {
       ...featureBase,
+      ...waterGrandfather,
       ...(isAdmin ? { canSeeEmployees: true } : {}),
       ...storedFeatureAccess,
     }
@@ -236,12 +324,51 @@ export function usePermissions(): UserPermissions {
       if (!cancelled) apply()
     })()
 
+    // IAM grants are scoped to the company you are in, so they have to be
+    // re-read whenever that changes. Without this, someone who is an Accountant
+    // in one company and Data Entry in another keeps the wider set until they
+    // reload the page.
+    const loadIam = async () => {
+      if (!localStorage.getItem("auth_token")) return
+      const farmId = localStorage.getItem("farmId")
+      const [status, res] = await Promise.all([getIamStatus(), getEffectivePermissions(farmId)])
+      if (cancelled) return
+      setIamEnforced(status?.enforced === true)
+      // null means the endpoint is unavailable or migration 199 has not been
+      // applied here — fall back to legacy flags alone rather than to nothing.
+      setIamGrants(res?.grants?.map((g) => g.permissionKey) ?? [])
+    }
+    void loadIam()
+
+    const onCompanyChanged = () => {
+      setIamGrants([])
+      void loadIam()
+    }
+    window.addEventListener(COMPANY_CHANGED_EVENT, onCompanyChanged)
+
     return () => {
       cancelled = true
+      window.removeEventListener(COMPANY_CHANGED_EVENT, onCompanyChanged)
     }
   }, [computeFromStorage])
 
-  return permissions
+  const resolved = useMemo(
+    () =>
+      resolveEffectivePermissions({
+        legacy: permissions.featureAccess,
+        isAdmin: permissions.isAdmin,
+        iamAllow: iamGrants,
+        authoritative: iamEnforced,
+      }),
+    [permissions.featureAccess, permissions.isAdmin, iamGrants, iamEnforced]
+  )
+
+  return {
+    ...permissions,
+    can: resolved.can,
+    permissionKeys: resolved.keys,
+    isSuperuser: resolved.isSuperuser,
+  }
 }
 
 // Helper function to check if user has specific permission

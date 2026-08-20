@@ -6,6 +6,8 @@
 import { useEffect, useMemo, useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ReportShell, SumTile } from "@/components/reports/report-shell"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { getWaterSupplierActivity, type WaterSupplierActivityRow } from "@/lib/api/water"
 import { useFmt } from "@/lib/currency"
 import { defaultReportRange } from "@/lib/date-ranges"
@@ -20,6 +22,7 @@ export default function SupplierActivityReportPage() {
   const [fromDate, setFromDate] = useState(DEFAULT_RANGE.from)
   const [toDate, setToDate]     = useState(DEFAULT_RANGE.to)
   const [rows, setRows] = useState<WaterSupplierActivityRow[]>([])
+  const pg = usePagination(rows)
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -98,7 +101,7 @@ export default function SupplierActivityReportPage() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((r) => (
+          {pg.pageItems.map((r) => (
             <TableRow key={r.waterSupplierId}>
               <TableCell className="font-medium">{r.supplierName}</TableCell>
               <TableCell>{r.supplierType ?? "—"}</TableCell>
@@ -122,6 +125,7 @@ export default function SupplierActivityReportPage() {
           )}
         </TableBody>
       </Table>
+      <DataPagination {...pg.paginationProps} />
     </ReportShell>
   )
 }

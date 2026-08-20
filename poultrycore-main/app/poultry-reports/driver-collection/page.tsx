@@ -8,6 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { ReportShell, SumTile } from "@/components/reports/report-shell"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import {
   getPoultryDriverCollection, listPoultryDrivers,
   type PoultryDriverCollectionReport, type PoultryDriver,
@@ -23,6 +25,9 @@ export default function PoultryDriverCollectionReportPage() {
   const [driverId, setDriverId] = useState<number | undefined>(undefined)
   const [drivers, setDrivers] = useState<PoultryDriver[]>([])
   const [report, setReport] = useState<PoultryDriverCollectionReport>({ detail: [], totals: [] })
+  // One pager per table: per-driver totals, then the delivery detail rows.
+  const pgTotals = usePagination(report.totals)
+  const pgDetail = usePagination(report.detail)
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -120,7 +125,7 @@ export default function PoultryDriverCollectionReportPage() {
           <TableBody>
             {report.totals.length === 0 ? (
               <TableRow><TableCell colSpan={9} className="text-slate-500 text-center p-4">No collections in this period.</TableCell></TableRow>
-            ) : report.totals.map((t, i) => (
+            ) : pgTotals.pageItems.map((t, i) => (
               <TableRow key={t.poultryDriverId ?? `t-${i}`}>
                 <TableCell className="font-medium">{t.driverName ?? "—"}</TableCell>
                 <TableCell className="text-right tabular-nums">{t.deliveryRuns ?? 0}</TableCell>
@@ -136,6 +141,7 @@ export default function PoultryDriverCollectionReportPage() {
           </TableBody>
         </Table>
       </div>
+      <DataPagination {...pgTotals.paginationProps} />
 
       <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-600 mt-4 mb-2">Detail by product</h2>
       <div className="overflow-x-auto">
@@ -155,7 +161,7 @@ export default function PoultryDriverCollectionReportPage() {
           <TableBody>
             {report.detail.length === 0 ? (
               <TableRow><TableCell colSpan={8} className="text-slate-500 text-center p-4">No detail rows.</TableCell></TableRow>
-            ) : report.detail.map((d, i) => (
+            ) : pgDetail.pageItems.map((d, i) => (
               <TableRow key={`${d.poultryDriverReturnId}-${d.productName ?? "x"}-${i}`}>
                 <TableCell className="font-medium">{d.driverName ?? "—"}</TableCell>
                 <TableCell className="whitespace-nowrap">{(d.returnDate ?? "").slice(0, 10)}</TableCell>
@@ -170,6 +176,7 @@ export default function PoultryDriverCollectionReportPage() {
           </TableBody>
         </Table>
       </div>
+      <DataPagination {...pgDetail.paginationProps} />
     </ReportShell>
   )
 }

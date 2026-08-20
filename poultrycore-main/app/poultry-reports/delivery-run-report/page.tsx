@@ -5,6 +5,8 @@
 import { useEffect, useMemo, useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ReportShell, SumTile } from "@/components/reports/report-shell"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { listPoultryVehicleLoadings, listPoultryDriverReturns } from "@/lib/api/poultry-distribution"
 import { useFmt } from "@/lib/currency"
 import { defaultReportRange } from "@/lib/date-ranges"
@@ -15,6 +17,7 @@ export default function PoultryDeliveryRunReportPage() {
   const [fromDate, setFromDate] = useState(DEFAULT_RANGE.from)
   const [toDate, setToDate] = useState(DEFAULT_RANGE.to)
   const [loadings, setLoadings] = useState<any[]>([])
+  const pg = usePagination(loadings)
   const [returns, setReturns] = useState<any[]>([])
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -118,7 +121,7 @@ export default function PoultryDeliveryRunReportPage() {
           <TableBody>
             {loadings.length === 0 ? (
               <TableRow><TableCell colSpan={11} className="text-slate-500 text-center p-4">No runs in this period.</TableCell></TableRow>
-            ) : loadings.map((l: any) => {
+            ) : pg.pageItems.map((l: any) => {
               const r = returns.find((x: any) => x.poultryVehicleLoadingId === l.poultryVehicleLoadingId)
               return (
                 <TableRow key={l.poultryVehicleLoadingId}>
@@ -139,6 +142,7 @@ export default function PoultryDeliveryRunReportPage() {
           </TableBody>
         </Table>
       </div>
+      <DataPagination {...pg.paginationProps} />
     </ReportShell>
   )
 }

@@ -1,5 +1,5 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -18,11 +18,8 @@ namespace PoultryFarmAPIWeb.Business
             try
             {
                 var list = new List<CashAdjustmentModel>();
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spCashAdjustment_GetAll", conn)
-                {
-                    CommandType = CommandType.StoredProcedure
-                };
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spcashadjustment_getall(p_farmid => @FarmId::text)", conn);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
                 await conn.OpenAsync();
                 using var reader = await cmd.ExecuteReaderAsync();
@@ -42,11 +39,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spCashAdjustment_GetById", conn)
-                {
-                    CommandType = CommandType.StoredProcedure
-                };
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spcashadjustment_getbyid(p_adjustmentid => @AdjustmentId::int, p_farmid => @FarmId::text)", conn);
                 cmd.Parameters.AddWithValue("@AdjustmentId", adjustmentId);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
                 await conn.OpenAsync();
@@ -65,11 +59,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spCashAdjustment_Insert", conn)
-                {
-                    CommandType = CommandType.StoredProcedure
-                };
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spcashadjustment_insert(p_userid => @UserId::text, p_farmid => @FarmId::text, p_adjustmentdate => @AdjustmentDate::timestamp, p_adjustmenttype => @AdjustmentType::text, p_amount => @Amount::numeric, p_description => @Description::text)", conn);
                 cmd.Parameters.AddWithValue("@UserId", model.UserId);
                 cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
                 cmd.Parameters.AddWithValue("@AdjustmentDate", model.AdjustmentDate);
@@ -90,11 +81,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spCashAdjustment_Update", conn)
-                {
-                    CommandType = CommandType.StoredProcedure
-                };
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spcashadjustment_update(p_adjustmentid => @AdjustmentId::int, p_farmid => @FarmId::text, p_adjustmentdate => @AdjustmentDate::timestamp, p_adjustmenttype => @AdjustmentType::text, p_amount => @Amount::numeric, p_description => @Description::text)", conn);
                 cmd.Parameters.AddWithValue("@AdjustmentId", model.AdjustmentId);
                 cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
                 cmd.Parameters.AddWithValue("@AdjustmentDate", model.AdjustmentDate);
@@ -114,11 +102,8 @@ namespace PoultryFarmAPIWeb.Business
         {
             try
             {
-                using var conn = new SqlConnection(_connectionString);
-                using var cmd = new SqlCommand("spCashAdjustment_Delete", conn)
-                {
-                    CommandType = CommandType.StoredProcedure
-                };
+                using var conn = new NpgsqlConnection(_connectionString);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spcashadjustment_delete(p_adjustmentid => @AdjustmentId::int, p_farmid => @FarmId::text)", conn);
                 cmd.Parameters.AddWithValue("@AdjustmentId", adjustmentId);
                 cmd.Parameters.AddWithValue("@FarmId", farmId);
                 await conn.OpenAsync();
@@ -130,7 +115,7 @@ namespace PoultryFarmAPIWeb.Business
             }
         }
 
-        private static CashAdjustmentModel ReadModel(SqlDataReader reader)
+        private static CashAdjustmentModel ReadModel(NpgsqlDataReader reader)
         {
             return new CashAdjustmentModel
             {

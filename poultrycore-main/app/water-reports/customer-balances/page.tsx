@@ -5,6 +5,8 @@
 import { useEffect, useMemo, useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ReportShell, SumTile } from "@/components/reports/report-shell"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 import { listWaterCustomers, listWaterSales, listWaterPayments } from "@/lib/api/water"
 import { useFmt } from "@/lib/currency"
 
@@ -21,6 +23,7 @@ type Row = {
 export default function CustomerBalancesReportPage() {
   const fmtMoney = useFmt()
   const [rows, setRows] = useState<Row[]>([])
+  const pg = usePagination(rows)
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -138,7 +141,7 @@ export default function CustomerBalancesReportPage() {
           <TableBody>
             {rows.length === 0 ? (
               <TableRow><TableCell colSpan={6} className="text-slate-500 text-center p-4">No customer activity yet.</TableCell></TableRow>
-            ) : rows.map((r) => (
+            ) : pg.pageItems.map((r) => (
               <TableRow key={r.customerId}>
                 <TableCell className="font-medium">{r.name}</TableCell>
                 <TableCell className="text-right tabular-nums whitespace-nowrap">{fmtMoney(r.totalSales)}</TableCell>
@@ -151,6 +154,7 @@ export default function CustomerBalancesReportPage() {
           </TableBody>
         </Table>
       </div>
+      <DataPagination {...pg.paginationProps} />
     </ReportShell>
   )
 }

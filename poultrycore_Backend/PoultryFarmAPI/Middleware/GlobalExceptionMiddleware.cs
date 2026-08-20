@@ -1,4 +1,4 @@
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using System.Net;
 using System.Text.Json;
 
@@ -8,11 +8,9 @@ namespace PoultryFarmAPIWeb.Middleware
     // returns an HTML stack trace (dev) or empty 500 (prod) which the Next.js
     // proxy then collapses into a generic "Failed to load resource: 500".
     //
-    // The Generic Company endpoints throw SqlException when migrations 028-042
-    // aren't applied (missing SP / missing table / Type column). Surface the
-    // exact SqlException number + message so the caller can see "Invalid column
-    // name 'Type'" or "Could not find stored procedure 'spGenericProduct_GetAll'"
-    // instead of a black-box 500.
+    // Surfaces the exact PostgresException SQLSTATE + message so the caller can
+    // see "function spgenericproduct_getall(...) does not exist" or "column
+    // \"type\" does not exist" instead of a black-box 500.
     public class GlobalExceptionMiddleware
     {
         private readonly RequestDelegate _next;
@@ -30,12 +28,12 @@ namespace PoultryFarmAPIWeb.Middleware
             {
                 await _next(context);
             }
-            catch (SqlException sqlEx)
+            catch (PostgresException pgEx)
             {
-                _logger.LogError(sqlEx,
-                    "SqlException on {Method} {Path}: number={Number} state={State}",
-                    context.Request.Method, context.Request.Path, sqlEx.Number, sqlEx.State);
-                await WriteSqlError(context, sqlEx);
+                _logger.LogError(pgEx,
+                    "PostgresException on {Method} {Path}: sqlstate={SqlState}",
+                    context.Request.Method, context.Request.Path, pgEx.SqlState);
+                await WriteSqlError(context, pgEx);
             }
             catch (Exception ex)
             {
@@ -45,7 +43,7 @@ namespace PoultryFarmAPIWeb.Middleware
             }
         }
 
-        private static async Task WriteSqlError(HttpContext context, SqlException ex)
+        private static async Task WriteSqlError(HttpContext context, PostgresException ex)
         {
             if (context.Response.HasStarted) return;
 
@@ -57,10 +55,10 @@ namespace PoultryFarmAPIWeb.Middleware
             var payload = new
             {
                 success = false,
-                errorType = "SqlException",
-                sqlNumber = ex.Number,
-                sqlState = ex.State,
-                message = ex.Message,
+                errorType = "SqlException",   // kept for frontend compatibility
+                sqlState = ex.SqlState,
+                message = ex.MessageText,
+                detail = ex.Detail,
                 hint,
                 path = context.Request.Path.Value,
             };
@@ -87,22 +85,22 @@ namespace PoultryFarmAPIWeb.Middleware
             await JsonSerializer.SerializeAsync(context.Response.Body, payload);
         }
 
-        // Map common SqlException numbers to migration / permission hints so the
-        // frontend doesn't need to know the SQL internals to act on the error.
-        private static string? HintFor(SqlException ex)
+        // Map common SQLSTATEs to migration / permission hints so the frontend
+        // doesn't need to know the SQL internals to act on the error.
+        private static string? HintFor(PostgresException ex)
         {
-            return ex.Number switch
+            return ex.SqlState switch
             {
-                // Could not find stored procedure
-                2812 => "A stored procedure is missing. Re-run the SQL migrations in poultrycore/PoultryFarmAPI/Migrations (028-042 for Generic Company).",
-                // Invalid object name (table/view missing)
-                208  => "A table or view referenced by this query does not exist. Re-run the matching migration in poultrycore/PoultryFarmAPI/Migrations.",
-                // Invalid column name
-                207  => "A column is missing from a table. The schema is older than the code expects — re-run the latest migration that adds the column.",
-                // EXECUTE permission denied on the object
-                229  => "The DB user has no EXECUTE permission on a stored procedure. Run migration 042 as a DB owner to grant EXECUTE on the new SPs.",
-                // Login failed
-                18456 => "SQL login failed. Check ConnectionStrings__PoultryConn credentials.",
+                // undefined_function — converted function missing
+                "42883" => "A database function is missing. Re-load the converted function from postgres-migration/converted/procedures.",
+                // undefined_table
+                "42P01" => "A table or view referenced by this query does not exist in VisibilityCoreDB.",
+                // undefined_column
+                "42703" => "A column is missing from a table. The Postgres schema is older than the code expects.",
+                // insufficient_privilege
+                "42501" => "The DB user has no permission on the object. Grant it to the poultryapp role.",
+                // invalid_password
+                "28P01" => "Postgres login failed. Check ConnectionStrings__PoultryConn credentials.",
                 _ => null,
             };
         }

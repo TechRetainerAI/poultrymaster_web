@@ -1,5 +1,5 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -16,11 +16,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<EggInventoryAdjustmentModel>> GetAllAsync(string farmId)
         {
             var list = new List<EggInventoryAdjustmentModel>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spEggInventoryAdjustment_GetAll", conn)
-            {
-                CommandType = CommandType.StoredProcedure
-            };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spegginventoryadjustment_getall(p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await conn.OpenAsync();
             using var reader = await cmd.ExecuteReaderAsync();
@@ -33,11 +30,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<EggInventoryAdjustmentModel?> GetByIdAsync(int adjustmentId, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spEggInventoryAdjustment_GetById", conn)
-            {
-                CommandType = CommandType.StoredProcedure
-            };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spegginventoryadjustment_getbyid(p_adjustmentid => @AdjustmentId::int, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@AdjustmentId", adjustmentId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await conn.OpenAsync();
@@ -49,11 +43,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<int> InsertAsync(EggInventoryAdjustmentModel model)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spEggInventoryAdjustment_Insert", conn)
-            {
-                CommandType = CommandType.StoredProcedure
-            };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spegginventoryadjustment_insert(p_userid => @UserId::text, p_farmid => @FarmId::text, p_adjustmentdate => @AdjustmentDate::timestamp, p_adjustmenttype => @AdjustmentType::text, p_eggdelta => @EggDelta::int, p_description => @Description::text)", conn);
             cmd.Parameters.AddWithValue("@UserId", model.UserId);
             cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
             cmd.Parameters.AddWithValue("@AdjustmentDate", model.AdjustmentDate);
@@ -67,11 +58,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task UpdateAsync(EggInventoryAdjustmentModel model)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spEggInventoryAdjustment_Update", conn)
-            {
-                CommandType = CommandType.StoredProcedure
-            };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spegginventoryadjustment_update(p_adjustmentid => @AdjustmentId::int, p_farmid => @FarmId::text, p_adjustmentdate => @AdjustmentDate::timestamp, p_adjustmenttype => @AdjustmentType::text, p_eggdelta => @EggDelta::int, p_description => @Description::text)", conn);
             cmd.Parameters.AddWithValue("@AdjustmentId", model.AdjustmentId);
             cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
             cmd.Parameters.AddWithValue("@AdjustmentDate", model.AdjustmentDate);
@@ -84,18 +72,15 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task DeleteAsync(int adjustmentId, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spEggInventoryAdjustment_Delete", conn)
-            {
-                CommandType = CommandType.StoredProcedure
-            };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spegginventoryadjustment_delete(p_adjustmentid => @AdjustmentId::int, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@AdjustmentId", adjustmentId);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
         }
 
-        private static EggInventoryAdjustmentModel Read(SqlDataReader reader)
+        private static EggInventoryAdjustmentModel Read(NpgsqlDataReader reader)
         {
             return new EggInventoryAdjustmentModel
             {

@@ -1,5 +1,5 @@
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -12,8 +12,8 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<List<GenericExpenseModel>> GetAllAsync(string farmId, string? status, DateTime? fromDate, DateTime? toDate)
         {
             var list = new List<GenericExpenseModel>();
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericExpense_GetAll", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericexpense_getall(p_farmid => @FarmId::text, p_status => @Status::text, p_fromdate => @FromDate::timestamp, p_todate => @ToDate::timestamp)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@Status", (object?)status ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@FromDate", (object?)fromDate ?? DBNull.Value);
@@ -27,8 +27,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<GenericExpenseModel?> GetByIdAsync(int id, string farmId)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericExpense_GetById", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericexpense_getbyid(p_genericexpenseid => @GenericExpenseId::int, p_farmid => @FarmId::text)", conn);
             cmd.Parameters.AddWithValue("@GenericExpenseId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
 
@@ -39,8 +39,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task<int> InsertAsync(GenericExpenseModel m)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericExpense_Insert", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericexpense_insert(p_farmid => @FarmId::text, p_expensedate => @ExpenseDate::timestamp, p_genericexpensecategoryid => @GenericExpenseCategoryId::int, p_genericsupplierid => @GenericSupplierId::int, p_description => @Description::text, p_amount => @Amount::numeric, p_paidto => @PaidTo::text, p_paymentmethod => @PaymentMethod::text, p_genericcashaccountid => @GenericCashAccountId::int, p_receipturl => @ReceiptUrl::text, p_branchid => @BranchId::int, p_staffid => @StaffId::int, p_notes => @Notes::text, p_createdby => @CreatedBy::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@ExpenseDate",
                 m.ExpenseDate == default ? (object)DBNull.Value : m.ExpenseDate);
@@ -63,8 +63,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task ApproveAsync(int id, string farmId, string? approvedBy)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericExpense_Approve", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericexpense_approve(p_genericexpenseid => @GenericExpenseId::int, p_farmid => @FarmId::text, p_approvedby => @ApprovedBy::text)", conn);
             cmd.Parameters.AddWithValue("@GenericExpenseId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@ApprovedBy", (object?)approvedBy ?? DBNull.Value);
@@ -75,8 +75,8 @@ namespace PoultryFarmAPIWeb.Business
 
         public async Task RejectAsync(int id, string farmId, string rejectionReason, string? approvedBy)
         {
-            using var conn = new SqlConnection(_connectionString);
-            using var cmd = new SqlCommand("spGenericExpense_Reject", conn) { CommandType = CommandType.StoredProcedure };
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spgenericexpense_reject(p_genericexpenseid => @GenericExpenseId::int, p_farmid => @FarmId::text, p_rejectionreason => @RejectionReason::text, p_approvedby => @ApprovedBy::text)", conn);
             cmd.Parameters.AddWithValue("@GenericExpenseId", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@RejectionReason", rejectionReason);
@@ -86,7 +86,7 @@ namespace PoultryFarmAPIWeb.Business
             await cmd.ExecuteNonQueryAsync();
         }
 
-        private static GenericExpenseModel ReadExpense(SqlDataReader r) => new()
+        private static GenericExpenseModel ReadExpense(NpgsqlDataReader r) => new()
         {
             GenericExpenseId         = r.GetInt32(r.GetOrdinal("GenericExpenseId")),
             FarmId                   = r.GetString(r.GetOrdinal("FarmId")),

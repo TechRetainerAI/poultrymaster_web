@@ -12,6 +12,14 @@ export interface EggProduction {
   production4thPick: number
   totalProduction: number
   brokenEggs: number
+  /**
+   * Non-saleable categories (migration 198). An egg counts towards stock on hand
+   * only if it is not broken, meaty, soft-shelled or lost — the same rule used by
+   * the Egg Stock Balance report and the weekly report's "Egg loss" figure.
+   */
+  meatyEggs: number
+  softEggs: number
+  lostEggs: number
   notes: string
   /** Sort / size grade (Small, Medium, Large, XLarge, Jumbo, …). */
   eggGrade?: string | null
@@ -67,6 +75,9 @@ function mapEggRow(raw: Record<string, unknown>): EggProduction {
     production4thPick: Number(raw.production4thPick ?? raw.Production4thPick ?? 0),
     totalProduction: Number(raw.totalProduction ?? raw.TotalProduction ?? 0),
     brokenEggs: Number(raw.brokenEggs ?? raw.BrokenEggs ?? 0),
+    meatyEggs: Number(raw.meatyEggs ?? raw.MeatyEggs ?? 0),
+    softEggs: Number(raw.softEggs ?? raw.SoftEggs ?? 0),
+    lostEggs: Number(raw.lostEggs ?? raw.LostEggs ?? 0),
     notes: String(raw.notes ?? raw.Notes ?? ""),
     eggGrade: g != null && String(g).trim() !== "" ? String(g).trim() : null,
   }

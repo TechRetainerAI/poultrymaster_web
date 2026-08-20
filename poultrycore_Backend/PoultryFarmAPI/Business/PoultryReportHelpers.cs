@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -39,59 +39,59 @@ namespace PoultryFarmAPIWeb.Business
         public static decimal? PerCrateFromPerEgg(decimal? perEgg)
             => perEgg == null ? null : Math.Round(perEgg.Value * EggsPerCrate, 4);
 
-        // ---- Safe SqlDataReader accessors (read by column name; tolerate
+        // ---- Safe NpgsqlDataReader accessors (read by column name; tolerate
         //      missing columns so a slightly older DB schema does not crash). --
 
-        private static int? Ordinal(SqlDataReader r, string col)
+        private static int? Ordinal(NpgsqlDataReader r, string col)
         {
             for (var i = 0; i < r.FieldCount; i++)
                 if (string.Equals(r.GetName(i), col, StringComparison.OrdinalIgnoreCase)) return i;
             return null;
         }
 
-        public static string? Str(SqlDataReader r, string col)
+        public static string? Str(NpgsqlDataReader r, string col)
         {
             var i = Ordinal(r, col);
             return i == null || r.IsDBNull(i.Value) ? null : Convert.ToString(r.GetValue(i.Value));
         }
 
-        public static int IntOr(SqlDataReader r, string col, int dflt = 0)
+        public static int IntOr(NpgsqlDataReader r, string col, int dflt = 0)
         {
             var i = Ordinal(r, col);
             return i == null || r.IsDBNull(i.Value) ? dflt : Convert.ToInt32(r.GetValue(i.Value));
         }
 
-        public static int? IntN(SqlDataReader r, string col)
+        public static int? IntN(NpgsqlDataReader r, string col)
         {
             var i = Ordinal(r, col);
             return i == null || r.IsDBNull(i.Value) ? (int?)null : Convert.ToInt32(r.GetValue(i.Value));
         }
 
-        public static long LongOr(SqlDataReader r, string col, long dflt = 0)
+        public static long LongOr(NpgsqlDataReader r, string col, long dflt = 0)
         {
             var i = Ordinal(r, col);
             return i == null || r.IsDBNull(i.Value) ? dflt : Convert.ToInt64(r.GetValue(i.Value));
         }
 
-        public static decimal DecOr(SqlDataReader r, string col, decimal dflt = 0m)
+        public static decimal DecOr(NpgsqlDataReader r, string col, decimal dflt = 0m)
         {
             var i = Ordinal(r, col);
             return i == null || r.IsDBNull(i.Value) ? dflt : Convert.ToDecimal(r.GetValue(i.Value));
         }
 
-        public static decimal? DecN(SqlDataReader r, string col)
+        public static decimal? DecN(NpgsqlDataReader r, string col)
         {
             var i = Ordinal(r, col);
             return i == null || r.IsDBNull(i.Value) ? (decimal?)null : Convert.ToDecimal(r.GetValue(i.Value));
         }
 
-        public static DateTime? DateN(SqlDataReader r, string col)
+        public static DateTime? DateN(NpgsqlDataReader r, string col)
         {
             var i = Ordinal(r, col);
             return i == null || r.IsDBNull(i.Value) ? (DateTime?)null : Convert.ToDateTime(r.GetValue(i.Value));
         }
 
-        public static bool BoolOr(SqlDataReader r, string col, bool dflt = false)
+        public static bool BoolOr(NpgsqlDataReader r, string col, bool dflt = false)
         {
             var i = Ordinal(r, col);
             return i == null || r.IsDBNull(i.Value) ? dflt : Convert.ToBoolean(r.GetValue(i.Value));
@@ -136,7 +136,7 @@ namespace PoultryFarmAPIWeb.Business
         /// Opens the connection and configures a CommandType.StoredProcedure
         /// command — the single ADO.NET shape used by every report read.
         /// </summary>
-        public static SqlCommand Proc(SqlConnection conn, string sp)
-            => new SqlCommand(sp, conn) { CommandType = CommandType.StoredProcedure };
+        public static NpgsqlCommand Proc(NpgsqlConnection conn, string sp)
+            => new NpgsqlCommand(sp, conn);
     }
 }
