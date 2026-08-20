@@ -62,13 +62,19 @@ namespace PoultryFarmAPIWeb.Controllers
                 var dateStr = (s.SaleDate != default ? s.SaleDate : s.CreatedDate).ToString("yyyy-MM-dd");
                 var desc = !string.IsNullOrEmpty(s.SaleDescription) ? s.SaleDescription : $"{s.Product} - {s.CustomerName ?? ""}".Trim();
                 if (string.IsNullOrEmpty(desc)) desc = "Sale";
+                // Cash in is what has actually been collected, not an all-or-nothing read of
+                // the Paid flag — that flag only flips once payments reach the full total
+                // (migration 145), so a part-paid sale used to show zero cash and the whole
+                // amount as owed. Paid sales still use TotalAmount so nothing regresses on
+                // databases where AmountPaid is absent and defaults to 0.
+                var received = s.Paid ? s.TotalAmount : Math.Clamp(s.AmountPaid, 0m, s.TotalAmount);
                 var dto = new CashTransactionDto
                 {
                     Date = dateStr,
                     Type = "Sale",
                     Description = desc,
-                    In = s.Paid ? s.TotalAmount : 0,
-                    Owed = s.Paid ? 0 : s.TotalAmount,
+                    In = received,
+                    Owed = s.TotalAmount - received,
                     Out = 0,
                     Balance = 0,
                     SortKey = (s.SaleDate != default ? s.SaleDate : s.CreatedDate).ToString("yyyy-MM-dd HH:mm:ss") + "_s" + s.SaleId
