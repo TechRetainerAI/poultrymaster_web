@@ -110,12 +110,19 @@ export function buildPoultryNavConfig(
       },
       {
         key: "farm",
-        label: "Farm",
+        // "Purchase", not "Farm": Houses and Flock Groups moved to Setup > Farm,
+        // so all that's left in this group is the purchase transaction itself.
+        label: "Purchase",
         items: [
           // Houses and Flock Groups are master data you maintain, not a daily
           // activity — they live in Setup > Farm. What's left here is the
           // purchase transaction that brings birds onto the farm.
           { id: "flock-batch", title: "Flock Purchases (Batches)", icon: Boxes, href: "/flock-batch" },
+          // Deep link that opens the Raw Materials purchase dialog straight
+          // away (?purchase=1 is handled in app/poultry-raw-materials/page.tsx)
+          // — buying feed/packaging/medication is the other purchase people do
+          // daily, and it was only reachable from inside that page.
+          { id: "record-purchase", title: "Record Purchase", icon: ShoppingCart, href: "/poultry-raw-materials?purchase=1" },
         ],
       },
     ],

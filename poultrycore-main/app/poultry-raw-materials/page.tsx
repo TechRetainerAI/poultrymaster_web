@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
-import { useRouter } from "next/navigation"
+import { Suspense, useEffect, useMemo, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
@@ -79,8 +79,15 @@ function FieldCard({ title, badge, fields, actions }: { title: React.ReactNode; 
   )
 }
 
-export default function PoultryRawMaterialsPage() {
+// Tabs are reflected in the URL as ?tab=items|purchases|usage, so a tab can be
+// linked to, bookmarked and reached with the back button — same pattern as
+// /business-office/setup.
+const TABS = ["items", "purchases", "usage"] as const
+type TabKey = (typeof TABS)[number]
+
+function PoultryRawMaterialsPageInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { toast } = useToast()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const gh = useFmt()
@@ -140,24 +147,24 @@ export default function PoultryRawMaterialsPage() {
   // ?purchase=1[&itemId=N][&qty=X] opens the purchase dialog straight away with
   // the item preselected and the quantity prefilled. Feed Production sends
   // farmers here to buy an ingredient rather than recording it inline, and
-  // passes the quantity that batch is short of. Waits for the items to load so
-  // the item can actually be matched, and only fires once. Read off
-  // window.location so this stays a plain client page — useSearchParams would
-  // need a Suspense boundary around the whole thing.
-  const deepLinkHandled = useRef(false)
+  // passes the quantity that batch is short of; Operations > Purchase > Record
+  // Purchase in the top nav uses the bare ?purchase=1 form. Waits for the items
+  // to load so the item can actually be matched.
+  //
+  // Driven off searchParams (not window.location) so a click on the nav link
+  // while already on this page re-fires it — a ref guard would swallow the
+  // second visit. The router.replace below clears the param, so the next run
+  // falls straight through the early return: no loop.
   useEffect(() => {
-    if (deepLinkHandled.current || loading) return
-    let qs: URLSearchParams
-    try { qs = new URLSearchParams(window.location.search) } catch { return }
-    if (qs.get("purchase") !== "1") return
-    deepLinkHandled.current = true
-    const qty = Number(qs.get("qty"))
+    if (loading) return
+    if (searchParams.get("purchase") !== "1") return
+    const qty = Number(searchParams.get("qty"))
     setEditingPurchase(null)
-    setPurchaseDefaults({ itemId: Number(qs.get("itemId")) || null, quantity: Number.isFinite(qty) && qty > 0 ? qty : null })
+    setPurchaseDefaults({ itemId: Number(searchParams.get("itemId")) || null, quantity: Number.isFinite(qty) && qty > 0 ? qty : null })
     setPurchaseOpen(true)
     // Drop the params so a refresh or a back-navigation doesn't reopen it.
     router.replace("/poultry-raw-materials", { scroll: false })
-  }, [loading, items, defaultCashAccountId, router])
+  }, [loading, items, defaultCashAccountId, router, searchParams])
 
   async function load() {
     setLoading(true)
@@ -168,6 +175,24 @@ export default function PoultryRawMaterialsPage() {
       toast({ title: "Could not load raw materials", description: e?.message ?? String(e), variant: "destructive" })
     } finally { setLoading(false) }
   }
+
+  // The URL is the source of truth for which tab is showing; an unknown or
+  // missing ?tab= falls back to Items rather than rendering an empty panel.
+  const tabParam = searchParams.get("tab")
+  const tab: TabKey = (TABS as readonly string[]).includes(tabParam ?? "") ? (tabParam as TabKey) : "items"
+
+  const selectTab = (v: string) => {
+    // replace, not push: flipping between tabs shouldn't bury the previous page
+    // under a stack of history entries. scroll:false keeps the list in place.
+    router.replace(v === "items" ? "/poultry-raw-materials" : `/poultry-raw-materials?tab=${v}`, { scroll: false })
+  }
+
+  // Usage history is fetched lazily the first time its tab is shown — including
+  // when the page is opened straight at ?tab=usage, which no click would cover.
+  useEffect(() => {
+    if (tab === "usage") void loadUsage()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab])
 
   async function loadUsage() {
     if (usageLoaded) return
@@ -327,31 +352,40 @@ export default function PoultryRawMaterialsPage() {
 
   const roCls = "bg-slate-100 text-slate-600 font-medium pointer-events-none cursor-default border-dashed"
 
+  // Segmented control styling. The shadcn default (muted bar, white active pill)
+  // reads as almost-flat on this page's grey background, so the active tab gets
+  // a solid blue fill, white text and a lift — the switch is unmissable.
+  const tabTriggerCls =
+    "h-auto flex-none shrink-0 gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 sm:px-4 " +
+    "transition-all hover:bg-slate-100 hover:text-slate-900 " +
+    "data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md " +
+    "data-[state=active]:shadow-blue-600/25 data-[state=active]:hover:bg-blue-600 data-[state=active]:hover:text-white"
+  // Count pill inside each trigger — inverted on the active (blue) tab.
+  const tabCountCls =
+    "ml-0.5 rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold tabular-nums text-slate-600 " +
+    "group-data-[state=active]:bg-white/20 group-data-[state=active]:text-white"
+
   return (
     <div className="flex min-h-screen bg-gray-50">
       <DashboardSidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
         <main className="flex-1 p-4 sm:p-6 space-y-4">
-          <Tabs defaultValue="items" onValueChange={(v) => { if (v === "usage") void loadUsage() }} className="gap-4">
+          <Tabs value={tab} onValueChange={selectTab} className="gap-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
+            <div className="min-w-0">
               <h1 className="text-2xl font-bold">Raw Materials &amp; Supplies</h1>
               <p className="text-sm text-slate-500">Track feed inputs, packaging, medication and other supplies — purchases, costing and usage.</p>
             </div>
-            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto sm:ml-auto">
+            {/* One row from sm up — the heading shrinks rather than pushing
+                Record Purchase onto a line of its own. */}
+            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto sm:ml-auto sm:flex-nowrap sm:shrink-0">
               <RecalculateStockButton items={items} onDone={load} />
               <Button variant="outline" onClick={openNewItem}><Plus className="w-4 h-4 mr-1" /> New Item</Button>
               <Button variant="outline" onClick={() => router.push("/poultry-feed-production")}><Factory className="w-4 h-4 mr-1" /> Produce Feed</Button>
               <Button onClick={openNewPurchase}><ShoppingCart className="w-4 h-4 mr-1" /> Record Purchase</Button>
             </div>
           </div>
-          <TabsList className="self-start">
-            <TabsTrigger value="items"><Box className="w-4 h-4 mr-1" /> Items</TabsTrigger>
-            <TabsTrigger value="purchases"><ShoppingCart className="w-4 h-4 mr-1" /> Purchases</TabsTrigger>
-            <TabsTrigger value="usage"><Wallet className="w-4 h-4 mr-1" /> Usage History</TabsTrigger>
-          </TabsList>
-
           {loading ? (
             <div className="flex items-center gap-2 text-slate-500 p-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
           ) : (
@@ -390,6 +424,22 @@ export default function PoultryRawMaterialsPage() {
                   <div className="text-xs text-slate-400 mt-0.5">owed to suppliers</div>
                 </div>
               </div>
+
+              {/* Tabs sit between the summary cards and the table they switch. */}
+              <TabsList className="h-auto w-full max-w-full justify-start gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm sm:w-fit">
+                <TabsTrigger value="items" className={cn("group", tabTriggerCls)}>
+                  <Box className="w-4 h-4" /> Items
+                  <span className={tabCountCls}>{items.length.toLocaleString()}</span>
+                </TabsTrigger>
+                <TabsTrigger value="purchases" className={cn("group", tabTriggerCls)}>
+                  <ShoppingCart className="w-4 h-4" /> Purchases
+                  <span className={tabCountCls}>{purchases.length.toLocaleString()}</span>
+                </TabsTrigger>
+                <TabsTrigger value="usage" className={cn("group", tabTriggerCls)}>
+                  <Wallet className="w-4 h-4" /> Usage History
+                  {usageLoaded && <span className={tabCountCls}>{usage.length.toLocaleString()}</span>}
+                </TabsTrigger>
+              </TabsList>
 
               {/* ITEMS */}
               <TabsContent value="items">
@@ -739,5 +789,14 @@ export default function PoultryRawMaterialsPage() {
       <ConfirmDeleteDialog open={!!deleteItemTarget} onOpenChange={(o) => !o && setDeleteItemTarget(null)} onConfirm={confirmDeleteItem} title="Remove item?" description={`Remove "${deleteItemTarget?.itemName}"? If it has purchase/usage history it will be deactivated instead.`} />
       <ConfirmDeleteDialog open={!!deletePurchaseTarget} onOpenChange={(o) => !o && setDeletePurchaseTarget(null)} onConfirm={confirmDeletePurchase} title="Delete purchase?" description="This will reverse the stock it added." />
     </div>
+  )
+}
+
+export default function PoultryRawMaterialsPage() {
+  // useSearchParams needs a Suspense boundary during prerender.
+  return (
+    <Suspense fallback={null}>
+      <PoultryRawMaterialsPageInner />
+    </Suspense>
   )
 }
