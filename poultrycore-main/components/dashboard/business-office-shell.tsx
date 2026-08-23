@@ -16,6 +16,8 @@ import { useToast } from "@/hooks/use-toast"
 import { Briefcase, Building2, Bird, Droplets, ShoppingBag, Bell, HelpCircle, LogOut, Menu, Settings, Plus, Loader2 } from "lucide-react"
 import { BoCompanySelector } from "@/components/dashboard/bo-company-selector"
 import { getMyCompanies, switchCompany, dashboardHomeForType, type Company } from "@/lib/api/companies"
+import { companyColorMap, companyInitial, FALLBACK_COMPANY_COLOR } from "@/lib/utils/company-color"
+import { cn } from "@/lib/utils"
 
 // Same type→icon mapping the header selector and company cards use.
 function typeIcon(type?: string | null) {
@@ -143,7 +145,13 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
   // Every company the user can reach, listed right under Business Office, with
   // "New company" as the last row. Clicking a name switches into that company.
   function CompaniesGroup() {
+    // One colour each, assigned across the whole list so no two companies in
+    // view collide. Recomputed only when the list itself changes.
+    const colours = companyColorMap(companies)
     const rowBase = "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-slate-300 hover:bg-slate-800/60 hover:text-white"
+    // Company rows carry their own tint and hover, so they drop the shared
+    // hover:bg — leaving it on would fight the colour on hover.
+    const companyRowBase = "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-slate-200 hover:text-white"
     return (
       <div>
         <div className="space-y-0.5">
@@ -156,17 +164,30 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
           ) : companies.map((c) => {
             const Icon = typeIcon(c.type)
             const opening = openingId === c.farmId
+            const colour = colours.get(c.farmId) ?? FALLBACK_COMPANY_COLOR
             return (
               <button
                 key={c.farmId}
                 onClick={() => openCompany(c)}
                 disabled={!!openingId}
                 title={`${c.name} · ${c.type}`}
-                className={`${rowBase} text-left disabled:opacity-60`}
+                className={cn(companyRowBase, colour.row, "text-left disabled:opacity-60")}
               >
-                <Icon className="h-[18px] w-[18px] shrink-0 text-slate-400" />
+                <span
+                  aria-hidden
+                  className={cn(
+                    "h-[22px] w-[22px] shrink-0 rounded-md grid place-items-center text-[11px] font-bold leading-none",
+                    colour.chip,
+                  )}
+                >
+                  {companyInitial(c.name)}
+                </span>
                 <span className="truncate">{c.name}</span>
-                {opening && <Loader2 className="h-3.5 w-3.5 ml-auto shrink-0 animate-spin text-slate-400" />}
+                {/* Type moves to the right of the name now the chip has the left
+                    slot — the colour identifies the company, the icon its kind. */}
+                {opening
+                  ? <Loader2 className="h-3.5 w-3.5 ml-auto shrink-0 animate-spin text-slate-300" />
+                  : <Icon className="h-3.5 w-3.5 ml-auto shrink-0 text-slate-400" />}
               </button>
             )
           })}

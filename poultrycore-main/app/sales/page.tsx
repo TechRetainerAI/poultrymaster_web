@@ -42,7 +42,6 @@ import { toastFormGuide } from "@/lib/utils/validation-toast"
 import {
   SaleInvoiceDocument,
   saleInvoiceNumber,
-  formatSaleInvoiceDate,
   SALE_INVOICE_PRINT_STYLES,
 } from "@/components/sales/sale-invoice-document"
 import { exportTableToPdf, emailTableAsPdf, type PdfExportOptions } from "@/lib/utils/pdf-export"
@@ -1599,40 +1598,67 @@ export default function SalesPage() {
                             </div>
                           </TableCell>
                           <TableCell className={cn("whitespace-nowrap bg-white", isMobile && "sticky-col-actions")}>
+                            {/* Icon-only actions, so each one says what it does on
+                                hover. The mobile card view below uses labelled
+                                buttons instead — tooltips don't open on touch. */}
                             <div className="flex items-center gap-1 min-w-[100px]">
                               {saleOwed(sale) > 0 && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
-                                  onClick={() => openPaymentDialog(sale)}
-                                  aria-label="Record payment"
-                                >
-                                  <Wallet className="h-4 w-4" />
-                                </Button>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
+                                      onClick={() => openPaymentDialog(sale)}
+                                      aria-label="Record payment"
+                                    >
+                                      <Wallet className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">
+                                    Record payment · {formatCurrency(saleOwed(sale), currencyCode)} owed
+                                  </TooltipContent>
+                                </Tooltip>
                               )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => openEditDialog(sale)}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => openDeleteSaleDialog(sale.saleId)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => openInvoiceDialog(sale)}
-                                aria-label="View Invoice"
-                              >
-                                <FileText className="h-4 w-4" />
-                              </Button>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => openEditDialog(sale)}
+                                    aria-label="Edit sale"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">Edit sale</TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => openDeleteSaleDialog(sale.saleId)}
+                                    aria-label="Delete sale"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">Delete sale</TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => openInvoiceDialog(sale)}
+                                    aria-label="View invoice"
+                                  >
+                                    <FileText className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">View invoice</TooltipContent>
+                              </Tooltip>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -2020,48 +2046,32 @@ export default function SalesPage() {
 
             {/* Invoice Dialog */}
             <Dialog open={isInvoiceDialogOpen} onOpenChange={closeInvoiceDialog}>
-              <DialogContent className={cn("w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto", isMobile ? "p-4" : "")}>
-                <DialogHeader>
+              {/* Sized to the document (820px) rather than the old 1600px, which
+                  left the invoice floating in a wide empty band. */}
+              <DialogContent className={cn("w-[95vw] max-w-[920px] max-h-[90vh] overflow-y-auto", isMobile ? "p-3" : "")}>
+                <DialogHeader className={cn(isMobile && "text-left")}>
                   <DialogTitle>Sale invoice</DialogTitle>
-                  <DialogDescription>
+                  <DialogDescription className={cn(isMobile && "sr-only")}>
                     Review the tax invoice and print or save a PDF for your customer.
                   </DialogDescription>
                 </DialogHeader>
 
                 {selectedSale ? (
-                  <div className="space-y-5">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Invoice number</p>
-                        <p className="font-mono text-xl font-semibold text-teal-900">
-                          {saleInvoiceNumber(selectedSale.saleId)}
-                        </p>
-                      </div>
-                      <Button onClick={handlePrintInvoice} className={cn("gap-2 self-start md:self-auto", isMobile && "w-full justify-center h-11")}>
+                  <div className="space-y-4">
+                    {/* Just the action — invoice number, date, customer, payment
+                        and status all appear in the document itself below, so
+                        repeating them here was noise. */}
+                    <div className="flex justify-end">
+                      <Button onClick={handlePrintInvoice} className={cn("gap-2", isMobile && "w-full justify-center h-11")}>
                         <Printer className="h-4 w-4" />
                         Print invoice
                       </Button>
                     </div>
-                    <div className={cn("grid gap-2", isMobile ? "grid-cols-2" : "grid-cols-4")}>
-                      <div className="rounded-lg border bg-slate-50 px-3 py-2">
-                        <p className="text-xs text-slate-500">Date</p>
-                        <p className="text-sm font-semibold">{formatSaleInvoiceDate(selectedSale.saleDate)}</p>
-                      </div>
-                      <div className="rounded-lg border bg-slate-50 px-3 py-2">
-                        <p className="text-xs text-slate-500">Customer</p>
-                        <p className="text-sm font-semibold truncate">{selectedSale.customerName}</p>
-                      </div>
-                      <div className="rounded-lg border bg-slate-50 px-3 py-2">
-                        <p className="text-xs text-slate-500">Payment</p>
-                        <p className="text-sm font-semibold truncate">{selectedSale.paymentMethod}</p>
-                      </div>
-                      <div className="rounded-lg border bg-slate-50 px-3 py-2">
-                        <p className="text-xs text-slate-500">Status</p>
-                        <div className="mt-0.5"><PaymentStatusBadge sale={selectedSale} /></div>
-                      </div>
-                    </div>
 
-                    <div ref={invoicePrintRef} id="invoice-print-area" className="bg-slate-100/80 p-2 sm:p-3 rounded-md">
+                    {/* The grey "desk" the sheet sits on is a desktop nicety —
+                        on a phone it's just padding stacked on the dialog's own,
+                        so the sheet goes edge to edge there instead. */}
+                    <div ref={invoicePrintRef} id="invoice-print-area" className="rounded-lg bg-transparent p-0 sm:bg-slate-100 sm:p-6">
                       <SaleInvoiceDocument
                         sale={selectedSale}
                         farm={{
