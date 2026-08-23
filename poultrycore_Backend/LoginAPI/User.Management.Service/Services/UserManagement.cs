@@ -51,16 +51,21 @@ namespace User.Management.Service.Services
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly IConfiguration _configuration;
         private readonly ISubscriptionService _subscriptionService;
+        // Signup creates its first company through the SAME path as the Business
+        // Office (ICompanyDAL -> spcompany_create). See CreateUserWithTokenAsync.
+        private readonly ICompanyDAL _companyDal;
 
         public UserManagement(UserManager<ApplicationUser> userManager,
             RoleManager<IdentityRole> roleManager,
-            SignInManager<ApplicationUser> signInManager, IConfiguration configuration, ISubscriptionService subscriptionService)
+            SignInManager<ApplicationUser> signInManager, IConfiguration configuration,
+            ISubscriptionService subscriptionService, ICompanyDAL companyDal)
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _signInManager = signInManager;
             _configuration = configuration;
             _subscriptionService = subscriptionService;
+            _companyDal = companyDal;
         }
 
         public async Task<ApiResponse<List<string>>> AssignRoleToUserAsync(List<string> roles, ApplicationUser user)
@@ -100,11 +105,15 @@ namespace User.Management.Service.Services
                     .FirstOrDefault();
                 if (userExist != null)
                 {
+                    // Name the field that actually clashed. "User already exists!" left people
+                    // guessing whether it was the email, the username, or the company — and
+                    // gave them no idea what to do next.
                     return new ApiResponse<CreateUserResponse>
                     {
                         IsSuccess = false,
-                        StatusCode = 403,
-                        Message = "User already exists!"
+                        StatusCode = 409,
+                        Message = $"An account with the email {registerUser.Email} already exists. "
+                                + "Please log in instead, or use \"Forgot password\" if you cannot get in."
                     };
                 }
 
@@ -165,7 +174,9 @@ namespace User.Management.Service.Services
                     user.FirstName       = registerUser.FirstName;
                     user.LastName        = registerUser.LastName;
                     user.PhoneNumber     = registerUser.PhoneNumber;
-                    user.FarmName        = registerUser.FarmName;
+                    // Coalesce: a Business-Office-only signup sends no company, and a null
+                    // here would later blow up the "FarmName" JWT claim (Claim() rejects null).
+                    user.FarmName        = registerUser.FarmName ?? string.Empty;
                     user.EmailConfirmed  = true;
                     user.BusinessOfficeName     = registerUser.BusinessOfficeName;
                     user.BusinessOfficeCurrency = registerUser.BusinessOfficeCurrency;
@@ -187,26 +198,65 @@ namespace User.Management.Service.Services
                     // 2. Create the first company — ONLY if one was provided. Owners
                     // may register with no company and create it later in the
                     // Business Office.
+                    //
+                    // This goes through ICompanyDAL.CreateAsync (spcompany_create) — the
+                    // exact same path as POST /api/Companies from the Business Office —
+                    // rather than the old sp_createfarm. sp_createfarm only INSERTs the
+                    // farms row: it never sets farms.owneruserid and never writes the
+                    // userfarms membership row. spCompany_GetByUserId (/Companies/mine)
+                    // returns a company only when one of those two exists, so a company
+                    // created at signup was invisible to the person who just created it —
+                    // it looked like "only the Business Office was created".
+                    // spcompany_create writes farms + owneruserid + userfarms together and
+                    // handles all three company types via p_type, so there is one company
+                    // creation path for the whole product.
                     if (hasCompany)
                     {
-                        Farm farm = new Farm
+                        var companyRequest = new CreateCompanyRequest
                         {
-                            FarmId = farmId,
                             Name = registerUser.FarmName!,
                             Type = registerUser.CompanyType!,
                             Email = registerUser.Email,
                             PhoneNumber = registerUser.PhoneNumber
                         };
-                        var createFarmResult = await _subscriptionService.CreateFarmAsync(farm);
-                        if (!createFarmResult)
+
+                        var companyCreated = false;
+                        try
                         {
-                            // Compensating delete: don't leave an orphan user that has no farm to log into.
-                            await _userManager.DeleteAsync(user);
+                            // Throws (rather than returning false) when the SP yields no row.
+                            await _companyDal.CreateAsync(farmId, companyRequest, user.Id);
+                            companyCreated = true;
+                        }
+                        catch (Exception companyEx)
+                        {
+                            Console.WriteLine(
+                                $"[CreateUserWithTokenAsync] Company creation failed for {user.UserName} " +
+                                $"(FarmId={farmId}, Type={registerUser.CompanyType}): {companyEx.Message}");
+                        }
+
+                        if (!companyCreated)
+                        {
+                            // The account is NOT coupled to the company. Signup can create a
+                            // Business Office on its own, so a company failure is a partial
+                            // success, not a reason to destroy a valid account — this used to
+                            // compensating-delete the user and hand back a 500.
+                            //
+                            // Clear the minted FarmId/FarmName: the Farms row was never
+                            // inserted, and leaving them set would point the account at a farm
+                            // that does not exist (the orphan-FarmId mess migration 046 had to
+                            // clean up). Blank is exactly the "Business Office only" state, so
+                            // the owner just creates the company from there.
+                            user.FarmId = string.Empty;
+                            user.FarmName = string.Empty;
+                            await _userManager.UpdateAsync(user);
+
                             return new ApiResponse<CreateUserResponse>
                             {
-                                IsSuccess = false,
-                                StatusCode = 500,
-                                Message = "Company creation failed. Please try again."
+                                Response = new CreateUserResponse { User = user, Token = string.Empty },
+                                IsSuccess = true,
+                                StatusCode = 201,
+                                Message = "Account created, but the company could not be set up. "
+                                        + "You can add it from your Business Office after logging in."
                             };
                         }
                     }
@@ -226,13 +276,28 @@ namespace User.Management.Service.Services
                 }
                 else
                 {
+                    // A taken username is a conflict, not a malformed request, and it deserves
+                    // the same plain wording as the duplicate-email case above. Identity reports
+                    // it as DuplicateUserName; everything else here is genuine validation
+                    // (password rules, invalid characters) and is already readable on its own.
+                    if (result.Errors.Any(e => e.Code == "DuplicateUserName"))
+                    {
+                        return new ApiResponse<CreateUserResponse>
+                        {
+                            IsSuccess = false,
+                            StatusCode = 409,
+                            Message = $"The username {registerUser.Username} is already taken. "
+                                    + "Please choose a different one."
+                        };
+                    }
+
                     // Collect all validation errors
                     var errors = string.Join(", ", result.Errors.Select(e => e.Description));
                     return new ApiResponse<CreateUserResponse>
                     {
                         IsSuccess = false,
                         StatusCode = 400,
-                        Message = $"User Failed to Create: {errors}"
+                        Message = errors
                     };
                 }
             }
@@ -506,8 +571,11 @@ namespace User.Management.Service.Services
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                 new Claim("isSubscriber", isSubscriber.ToString()),
                 new Claim("IsStaff", user.IsStaff.ToString().ToLower()),
-                new Claim("FarmId", user.FarmId),
-                new Claim("FarmName", user.FarmName),
+                // Claim(type, value) throws on a null value. An owner who registered with
+                // a Business Office but no company legitimately has neither yet, so
+                // coalesce rather than crash their login.
+                new Claim("FarmId", user.FarmId ?? string.Empty),
+                new Claim("FarmName", user.FarmName ?? string.Empty),
                 new Claim(ClaimTypes.Role, userRole)
             };
 
