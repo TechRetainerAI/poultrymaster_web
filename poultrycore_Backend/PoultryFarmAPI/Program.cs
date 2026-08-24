@@ -200,6 +200,13 @@ builder.Services.AddScoped<IPoultryPayrollService>(sp => new PoultryPayrollServi
 // is idempotent and also runs the finance defaults seed. Migration 049.
 builder.Services.AddScoped<IWaterCompanyService>(sp => new WaterCompanyService(connectionString));
 
+// The Poultry counterpart (brand, Layers/Broilers/Both, housing system, default
+// currency/eggs-per-crate, capacity, owner contact). Before migration 212 the
+// poultry "farm profile" lived only in browser localStorage, so nothing
+// persisted and nothing server-side could read it. Setup is idempotent and also
+// runs sppoultryfinance_seeddefaults. Migration 212.
+builder.Services.AddScoped<IPoultryCompanyService>(sp => new PoultryCompanyService(connectionString));
+
 // Phase W6: Staff + Attendance + Payroll. Payroll items use a computed NetPay
 // column; spWaterPayrollItem_Upsert rolls run totals atomically. Mark-paid
 // writes one CashOut for the run total against the run's WaterCashAccountId.

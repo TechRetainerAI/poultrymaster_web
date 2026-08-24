@@ -49,6 +49,7 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
+import { CurrencySelect } from "@/components/ui/currency-select"
 import {
   listWaterProducts, deleteWaterProduct,
   listWaterCustomers, deleteWaterCustomer,
@@ -604,14 +605,39 @@ function CompanySettingsCard() {
 
   if (loading) {
     return (
-      <Card><CardContent className="p-6 text-slate-500 flex items-center gap-2">
-        <Loader2 className="h-4 w-4 animate-spin" /> Loading company settings…
-      </CardContent></Card>
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b">
+          <div className="flex items-center gap-2 text-slate-700">
+            <Settings className="h-5 w-5 text-sky-600" />
+            <span className="font-semibold">Company</span>
+          </div>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/water-company-setup"><Pencil className="h-4 w-4 mr-1" /> Open full page</Link>
+          </Button>
+        </div>
+        <CardContent className="p-6 text-slate-500 flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading company settings…
+        </CardContent>
+      </Card>
     )
   }
 
   return (
     <Card>
+      {/* Same header bar the entity tabs get, so Company doesn't read as a
+          different kind of tab. There is no Add button — a company has exactly
+          one profile — but it does have a dedicated page, so the escape hatch
+          belongs here too. */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b">
+        <div className="flex items-center gap-2 text-slate-700">
+          <Settings className="h-5 w-5 text-sky-600" />
+          <span className="font-semibold">Company</span>
+          {hasProfile && <Badge variant="secondary" className="ml-1">Set up</Badge>}
+        </div>
+        <Button asChild size="sm" variant="outline">
+          <Link href="/water-company-setup"><Pencil className="h-4 w-4 mr-1" /> Open full page</Link>
+        </Button>
+      </div>
       <CardContent className="p-4 space-y-4">
         <FormSection title="Business profile" color="indigo">
           <FormField label="Brand name" full>
@@ -683,8 +709,11 @@ function CompanySettingsCard() {
         </FormSection>
 
         <FormSection title="Currency settings" color="amber">
-          <FormField label="Currency code" hint="ISO-style identifier — e.g. GHS, USD, EUR.">
-            <Input value={code} onChange={(e) => setCode(e.target.value)} maxLength={10} />
+          <FormField label="Currency" hint="Every ISO 4217 currency — search by code, name or symbol.">
+            {/* Picking a currency fills in its standard symbol, but the symbol
+                field below stays editable: plenty of Ghanaian businesses write
+                "GHC" rather than the ICU symbol "₵". */}
+            <CurrencySelect value={code} onChange={(o) => { setCode(o.code); setSymbol(o.symbol) }} />
           </FormField>
           <FormField label="Currency symbol" hint="Prefix rendered before amounts. e.g. GHC, ₵, $, ₦.">
             <Input value={symbol} onChange={(e) => setSymbol(e.target.value)} maxLength={10} />

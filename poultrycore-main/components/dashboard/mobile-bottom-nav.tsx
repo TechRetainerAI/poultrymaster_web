@@ -279,7 +279,8 @@ export function MobileBottomNav() {
       { href: "/help",                   label: "Help Center",            icon: BookOpen },
       { href: "/profile",                label: "Account",                icon: User },
       { href: "/audit-logs",             label: "Activity Log",           icon: Activity },
-      { href: "/settings",               label: "Settings",               icon: Settings },
+      { href: "/poultry-setup",          label: "Farm Setup",             icon: Settings },
+      { href: "/poultry-company-setup",  label: "Company Setup",          icon: Settings },
       { href: "/terms",                  label: "Terms",                  icon: FileText },
       ...(permissions.isAdmin || permissions.featureAccess.canSeeEmployees
         ? [{ href: "/employees", label: "Employees", icon: UserCog }] : []),
@@ -292,7 +293,7 @@ export function MobileBottomNav() {
       }
       if (item.href === "/reports") return permissions.featureAccess.canViewReports
       if (item.href === "/audit-logs") return permissions.featureAccess.canViewActivityLog
-      if (item.href === "/settings") return permissions.featureAccess.canViewSettings
+      if (item.href === "/poultry-company-setup" || item.href === "/poultry-setup") return permissions.featureAccess.canViewSettings
       return true
     })
     return {

@@ -22,7 +22,9 @@ import { getSales, createSale, updateSale, deleteSale, getFlocks, getCustomers, 
 import { listPoultryCashAccounts, recordPoultryPayment, type PoultryCashAccount } from "@/lib/api/poultry-finance"
 import { useToast } from "@/hooks/use-toast"
 import { getUserContext } from "@/lib/utils/user-context"
-import { formatCurrency, getSelectedCurrency, setSelectedCurrency } from "@/lib/utils/currency"
+import Link from "next/link"
+import { formatCurrency, getSelectedCurrency } from "@/lib/utils/currency"
+import { useCurrency } from "@/lib/currency"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
@@ -102,20 +104,21 @@ export default function SalesPage() {
 
   const productOptions = ["Fresh Eggs", "Chicken", "Manure", "Other"]
   const paymentMethodOptions = ["Cash", "Credit Card", "Bank Transfer", "Check", "Mobile Money"]
-  const currencyOptions = ["GHS", "USD", "EUR", "GBP", "NGN", "KES"]
 
   const [productSelection, setProductSelection] = useState<string | undefined>(undefined)
   const [productOther, setProductOther] = useState("")
-  const [currencyCode, setCurrencyCode] = useState<string>(() => getSelectedCurrency())
+  // Currency is a company-level setting (Setup > Company). Subscribing to the
+  // store means this page re-renders when it changes there, and can never
+  // disagree with the reports.
+  const { code: farmCurrencyCode } = useCurrency()
+  const currencyCode = farmCurrencyCode || getSelectedCurrency()
   const [searchCustomer, setSearchCustomer] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [draftDateFrom, setDraftDateFrom] = useState("")
   const [draftDateTo, setDraftDateTo] = useState("")
-  const [draftCurrencyCode, setDraftCurrencyCode] = useState(() => getSelectedCurrency())
-  const hasDraftChanges =
-    draftDateFrom !== dateFrom || draftDateTo !== dateTo || draftCurrencyCode !== currencyCode
+  const hasDraftChanges = draftDateFrom !== dateFrom || draftDateTo !== dateTo
   const [showAllColumnsMobile, setShowAllColumnsMobile] = useState(false)
   const isMobile = useIsMobile()
   const [crates, setCrates] = useState(0)
@@ -507,31 +510,22 @@ export default function SalesPage() {
     }
   }
 
-  const handleCurrencyChange = (value: string) => {
-    setCurrencyCode(value)
-    setSelectedCurrency(value)
-  }
-
   const clearFilters = () => {
     setSearchCustomer("")
     setDateFrom("")
     setDateTo("")
     setDraftDateFrom("")
     setDraftDateTo("")
-    setDraftCurrencyCode(currencyCode)
   }
 
   const syncDraftFromCommitted = () => {
     setDraftDateFrom(dateFrom)
     setDraftDateTo(dateTo)
-    setDraftCurrencyCode(currencyCode)
   }
 
   const applyMobileFilters = () => {
     setDateFrom(draftDateFrom)
     setDateTo(draftDateTo)
-    setCurrencyCode(draftCurrencyCode)
-    setSelectedCurrency(draftCurrencyCode)
     setCurrentPage(1)
     setFiltersOpen(false)
     toast({ title: "Filters applied", description: "Sales list updated." })
@@ -1311,18 +1305,15 @@ export default function SalesPage() {
                         </div>
                         <div className="space-y-2">
                           <label className="text-sm font-medium text-slate-700">Currency</label>
-                          <Select value={draftCurrencyCode} onValueChange={setDraftCurrencyCode}>
-                            <SelectTrigger className="h-12 text-base">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
-                              {currencyOptions.map((code) => (
-                                <SelectItem key={code} value={code}>
-                                  {code}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          {/* Read-only: currency is a company setting, so it is
+                              chosen once in Setup > Company and every screen
+                              follows it. It used to be editable here and wrote
+                              to a separate localStorage key, which is why this
+                              page could disagree with the reports. */}
+                          <div className="flex h-12 items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 text-base text-slate-700">
+                            <span>{currencyCode}</span>
+                            <Link href="/poultry-setup" className="text-sm font-medium text-amber-700 underline">Change</Link>
+                          </div>
                         </div>
                       </MobileFilterSheetBody>
                       <MobileFilterSheetFooter>
@@ -1372,14 +1363,10 @@ export default function SalesPage() {
               </div>
               <div>
                 <Label className="text-xs text-slate-500">Currency</Label>
-                <Select value={currencyCode} onValueChange={handleCurrencyChange}>
-                  <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {currencyOptions.map((code) => (
-                      <SelectItem key={code} value={code}>{code}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex h-9 w-[140px] items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700">
+                  <span>{currencyCode}</span>
+                  <Link href="/poultry-setup" className="text-xs font-medium text-amber-700 underline">Change</Link>
+                </div>
               </div>
               <div className="ml-auto flex items-center gap-2">
                 <Button variant="outline" size="sm" onClick={handleExportSalesPdf} className="gap-2">

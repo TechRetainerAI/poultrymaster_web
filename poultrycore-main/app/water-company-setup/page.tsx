@@ -19,6 +19,9 @@ import {
   getWaterCompanyProfile, setupWaterCompany, updateWaterCompanyProfile,
   type WaterCompanyProfile, type WaterCompanySetupInput,
 } from "@/lib/api/water"
+import { CurrencySelect } from "@/components/ui/currency-select"
+import { fetchFarmSettings, updateFarmCurrency, useFarmSettingsStore } from "@/lib/currency"
+import { currencySymbolFor } from "@/lib/constants/currencies"
 
 const EMPTY: WaterCompanySetupInput = {
   brandName: "",
@@ -38,6 +41,7 @@ export default function WaterCompanySetupPage() {
   const { toast } = useToast()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const logout = useLogout()
+  const applyFarmSettings = useFarmSettingsStore((st) => st.apply)
 
   const [profile, setProfile] = useState<WaterCompanyProfile | null>(null)
   const [form, setForm] = useState<WaterCompanySetupInput>(EMPTY)
@@ -101,6 +105,27 @@ export default function WaterCompanySetupPage() {
         defaultCurrency: (form.defaultCurrency ?? "").trim() || "GHC",
       }
 
+
+      // Currency has to reach the Farms row too, not just the profile: that row
+      // is what fmtMoney() reads, so every report and dashboard follows it.
+      // Writing only the profile field would leave this page claiming one
+      // currency while the rest of the app showed another. The symbol is only
+      // replaced when the CODE changes — operators often prefer "GHC" over
+      // ICU's "GH₵" and re-saving must not undo that.
+      try {
+        const current = await fetchFarmSettings()
+        const picked = (payload.defaultCurrency ?? "").toUpperCase()
+        if (picked && picked !== (current?.currencyCode ?? "").toUpperCase()) {
+          const updated = await updateFarmCurrency({
+            currencyCode: picked,
+            currencySymbol: currencySymbolFor(picked),
+            showCurrencySymbol: current?.showCurrencySymbol ?? true,
+          })
+          if (updated) applyFarmSettings(updated)
+        }
+      } catch {
+        toast({ title: "Currency not applied app-wide", description: "The profile saved, but the display currency could not be updated. Set it in Water setup > Company.", variant: "destructive" })
+      }
       if (profile) {
         const p = await updateWaterCompanyProfile(payload)
         setProfile(p)
@@ -206,8 +231,9 @@ export default function WaterCompanySetupPage() {
                   <div><Label>Phone</Label>
                     <Input value={form.phoneNumber ?? ""} onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })} placeholder="+233..." /></div>
 
-                  <div><Label>Default currency</Label>
-                    <Input value={form.defaultCurrency ?? "GHC"} onChange={(e) => setForm({ ...form, defaultCurrency: e.target.value })} /></div>
+                  <div><Label htmlFor="default-currency">Default currency</Label>
+                    <CurrencySelect id="default-currency" value={form.defaultCurrency ?? "GHC"}
+                      onChange={(o) => setForm({ ...form, defaultCurrency: o.code })} /></div>
 
                   <div><Label>Sachets per bag</Label>
                     <NumberInput min={1} value={form.defaultBagSachetCount ?? 30} onChange={(e) => setForm({ ...form, defaultBagSachetCount: Number(e.target.value) || 30 })} /></div>

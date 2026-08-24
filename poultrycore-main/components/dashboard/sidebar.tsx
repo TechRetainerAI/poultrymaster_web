@@ -387,10 +387,12 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/companies", label: "Companies", icon: Building2 },
     ...(permissions.featureAccess.canViewActivityLog
       ? [{ href: "/audit-logs", label: "Activity Log", icon: Activity }] : []),
-    // /settings is the poultry farm-profile page; Water and Generic have their
-    // own setup links in their groups above.
+    // The poultry farm profile. Water and Generic have their own setup links in
+    // their groups above; this is the equivalent row for Poultry, pointing at
+    // the database-backed page rather than /settings (now only a redirect).
     ...((!isWater && !isGeneric && permissions.featureAccess.canViewSettings)
-      ? [{ href: "/settings", label: "Settings", icon: Settings }] : []),
+      ? [{ href: "/poultry-setup", label: "Farm Setup", icon: Settings },
+         { href: "/poultry-company-setup", label: "Company Setup", icon: Settings }] : []),
     // /help is poultry-specific (flocks, eggs, vaccinations).
     ...((!isWater && !isGeneric) ? [{ href: "/help", label: "Help Center", icon: HelpCircle }] : []),
     { href: "/terms", label: "Terms & Conditions", icon: ListTodo },

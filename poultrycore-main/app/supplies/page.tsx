@@ -37,6 +37,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
 import { formatDateShort, cn } from "@/lib/utils"
+import { useFmt } from "@/lib/currency"
 import { toastFormGuide } from "@/lib/utils/validation-toast"
 
 type SupplyItem = Supply
@@ -66,6 +67,9 @@ const EMPTY_FORM_DATA: SupplyFormData = {
 }
 
 export default function SuppliesPage() {
+  // Money renders in the company's currency (Setup > Company). These
+  // columns previously hardcoded a $ sign.
+  const fmt = useFmt()
   const router = useRouter()
   const { toast } = useToast()
   const isMobile = useIsMobile()
@@ -724,7 +728,7 @@ export default function SuppliesPage() {
                             <CollapsibleContent>
                               <div className="mt-4 pt-4 border-t border-slate-100 space-y-2 text-sm">
                                 <div className="grid grid-cols-2 gap-2">
-                                  <div><span className="text-slate-500">Cost</span> <span className="font-medium">${item.cost.toFixed(2)}</span></div>
+                                  <div><span className="text-slate-500">Cost</span> <span className="font-medium">{fmt(item.cost)}</span></div>
                                   <div><span className="text-slate-500">Supplier</span> <span className="font-medium">{item.supplier || "—"}</span></div>
                                   <div><span className="text-slate-500">Purchase</span> <span className="font-medium">{item.purchaseDate ? formatDateShort(item.purchaseDate) : "—"}</span></div>
                                 </div>
@@ -803,7 +807,7 @@ export default function SuppliesPage() {
                             <Badge variant="outline">{item.type}</Badge>
                           </TableCell>
                           <TableCell>{item.quantity.toLocaleString()} {item.unit}</TableCell>
-                          <TableCell>${item.cost.toFixed(2)}</TableCell>
+                          <TableCell>{fmt(item.cost)}</TableCell>
                           <TableCell>{item.supplier || "-"}</TableCell>
                           <TableCell>{item.purchaseDate ? (isMobile ? formatDateShort(item.purchaseDate) : new Date(item.purchaseDate).toLocaleDateString()) : "-"}</TableCell>
                           <TableCell className={cn("text-right bg-white", isMobile && "sticky-col-actions")}>

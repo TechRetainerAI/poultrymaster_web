@@ -23,6 +23,7 @@ import { Plus, Pencil, Loader2, Wallet, RefreshCw, ArrowLeftRight, Eye, Trash2 }
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
+import { useFmt } from "@/lib/currency"
 import {
   listWaterCashAccounts, createWaterCashAccount, updateWaterCashAccount, deleteWaterCashAccount, reconcileWaterCashBalances,
   listWaterCashTransactions, listWaterCashTransfers, createWaterCashTransfer, approveWaterCashTransfer, cancelWaterCashTransfer,
@@ -32,6 +33,8 @@ import {
 const ACCOUNT_TYPES = ["FactoryCashBox", "OwnerCash", "MoMoWallet", "BankAccount", "DriverCash", "PettyCash", "Other"]
 
 export default function WaterCashAccountsPage() {
+  // Amounts were rendering as bare numbers with no currency at all.
+  const fmt = useFmt()
   const router = useRouter()
   const { toast } = useToast()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
@@ -161,7 +164,7 @@ export default function WaterCashAccountsPage() {
           </div>
 
           <div className="mb-3 grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Total cash at hand</div><div className="text-xl font-semibold tabular-nums">{totalCash.toFixed(2)}</div></CardContent></Card>
+            <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Total cash at hand</div><div className="text-xl font-semibold tabular-nums">{fmt(totalCash)}</div></CardContent></Card>
             <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Active accounts</div><div className="text-xl font-semibold">{accounts.filter(a => a.isActive).length}</div></CardContent></Card>
             <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Pending transfers</div><div className="text-xl font-semibold">{transfers.filter(t => t.status === "Draft").length}</div></CardContent></Card>
             <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Approved transfers</div><div className="text-xl font-semibold">{transfers.filter(t => t.status === "Approved").length}</div></CardContent></Card>
@@ -193,8 +196,8 @@ export default function WaterCashAccountsPage() {
                   )}
                   details={(a) => [
                     { label: "Type", value: a.accountType },
-                    { label: "Opening", value: a.openingBalance.toFixed(2) },
-                    { label: "Current", value: <span className={a.currentBalance < 0 ? "text-rose-600 font-semibold" : "font-semibold"}>{a.currentBalance.toFixed(2)}</span> },
+                    { label: "Opening", value: fmt(a.openingBalance) },
+                    { label: "Current", value: <span className={a.currentBalance < 0 ? "text-rose-600 font-semibold" : "font-semibold"}>{fmt(a.currentBalance)}</span> },
                     { label: "Status", value: a.isActive ? "Active" : "Inactive" },
                   ]}
                   actions={(a) => (
@@ -224,8 +227,8 @@ export default function WaterCashAccountsPage() {
                           <TableRow key={a.waterCashAccountId}>
                             <TableCell className="font-medium">{a.accountName}</TableCell>
                             <TableCell>{a.accountType}</TableCell>
-                            <TableCell className="text-right tabular-nums">{a.openingBalance.toFixed(2)}</TableCell>
-                            <TableCell className={`text-right tabular-nums font-semibold ${a.currentBalance < 0 ? "text-rose-600" : ""}`}>{a.currentBalance.toFixed(2)}</TableCell>
+                            <TableCell className="text-right tabular-nums">{fmt(a.openingBalance)}</TableCell>
+                            <TableCell className={`text-right tabular-nums font-semibold ${a.currentBalance < 0 ? "text-rose-600" : ""}`}>{fmt(a.currentBalance)}</TableCell>
                             <TableCell>{a.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="outline">Inactive</Badge>}</TableCell>
                             <TableCell className="text-right">
                               <Button size="sm" variant="ghost" onClick={() => router.push(`/water-cash-accounts/${a.waterCashAccountId}`)} title="View details"><Eye className="h-4 w-4" /></Button>
@@ -261,7 +264,7 @@ export default function WaterCashAccountsPage() {
                     { label: "Date", value: t.transferDate.split("T")[0] },
                     { label: "From", value: t.fromAccountName },
                     { label: "To", value: t.toAccountName },
-                    { label: "Amount", value: t.amount.toFixed(2) },
+                    { label: "Amount", value: fmt(t.amount) },
                     { label: "Status", value: t.status },
                   ]}
                   actions={(t) => (
@@ -286,7 +289,7 @@ export default function WaterCashAccountsPage() {
                             <TableCell>{t.transferDate.split("T")[0]}</TableCell>
                             <TableCell>{t.fromAccountName}</TableCell>
                             <TableCell>{t.toAccountName}</TableCell>
-                            <TableCell className="text-right tabular-nums">{t.amount.toFixed(2)}</TableCell>
+                            <TableCell className="text-right tabular-nums">{fmt(t.amount)}</TableCell>
                             <TableCell><Badge variant="outline">{t.status}</Badge></TableCell>
                             <TableCell className="text-right">
                               {t.status === "Draft" && <>
@@ -382,7 +385,7 @@ export default function WaterCashAccountsPage() {
                       <TableCell>{r.transactionDate.split("T")[0]}</TableCell>
                       <TableCell>{r.transactionType}</TableCell>
                       <TableCell>{r.sourceType ?? "—"}</TableCell>
-                      <TableCell className={`text-right tabular-nums ${r.amount < 0 ? "text-rose-600" : "text-green-700"}`}>{r.amount.toFixed(2)}</TableCell>
+                      <TableCell className={`text-right tabular-nums ${r.amount < 0 ? "text-rose-600" : "text-green-700"}`}>{fmt(r.amount)}</TableCell>
                       <TableCell className="max-w-sm whitespace-normal break-words align-top">{r.description ?? "—"}</TableCell>
                     </TableRow>
                   ))}

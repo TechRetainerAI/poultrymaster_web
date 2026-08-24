@@ -171,7 +171,10 @@ export function buildPoultryNavConfig(
         key: "company",
         label: "Company",
         items: [
-          { id: "settings",   title: "Settings",  icon: Settings,  href: "/settings",  visible: featureAccess.canViewSettings },
+          // Points at the real setup page rather than /settings, which is now
+          // only a redirect. Matches Water's "Company Setup" row.
+          { id: "farm-setup", title: "Farm Setup",    icon: Settings, href: "/poultry-setup",         visible: featureAccess.canViewSettings },
+          { id: "settings",   title: "Company Setup", icon: Settings, href: "/poultry-company-setup", visible: featureAccess.canViewSettings },
           // Ungated, so this column (and the Setup trigger) always renders.
           { id: "companies",  title: "Companies", icon: Building2, href: "/companies" },
         ],
