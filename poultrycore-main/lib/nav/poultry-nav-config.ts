@@ -16,7 +16,7 @@
 import {
   Activity, AlertTriangle, Banknote, BarChart3, Bell, Bird, BookOpen, Box, Boxes,
   Building2, Clock, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle,
-  ListTodo, Package, Pill, Settings, ShoppingCart, Truck, User, UserCog, Users,
+  ListTodo, Package, PackageMinus, Pill, Settings, ShoppingCart, Truck, User, UserCog, Users,
   Users2, Wallet, Wheat,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
@@ -93,6 +93,7 @@ export function buildPoultryNavConfig(
           { id: "raw-materials",  title: "Raw Materials & Supplies",  icon: Box,           href: "/poultry-raw-materials" },
           { id: "supplies",       title: "Supplies",                  icon: ShoppingCart,  href: "/supplies" },
           { id: "health",         title: "Health Records",            icon: AlertTriangle, href: "/health" },
+          { id: "internal-use",   title: "Internal Use",              icon: PackageMinus,  href: "/poultry-internal-use" },
           { id: "loss-records",   title: "Loss & Damage",             icon: AlertTriangle, href: "/poultry-loss-records" },
           { id: "other-inventory", title: "Other Inventory",          icon: Package,       href: "/inventory" },
         ],

@@ -15,7 +15,7 @@
 
 import {
   Activity, AlertTriangle, Banknote, BarChart3, Bell, Boxes, Box, Building2,
-  CalendarDays, Cog, CreditCard, Droplets, FileText, Factory, ListTodo, Receipt,
+  CalendarDays, Cog, CreditCard, Droplets, FileText, Factory, ListTodo, PackageMinus, Receipt,
   Route as RouteIcon, Settings, ShoppingBag, ShoppingCart, Truck, User, UserCog,
   Users, Users2, Wallet, Wrench,
 } from "lucide-react"
@@ -107,6 +107,7 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
           { id: "stock",             title: "Stock movement",            icon: Boxes,         href: "/water-stock" },
           { id: "inventory",         title: "Inventory",                 icon: Boxes,         href: "/water-inventory" },
           { id: "raw-materials",     title: "Raw materials & supplies",  icon: Box,           href: "/water-raw-materials" },
+          { id: "internal-use",      title: "Internal Use",              icon: PackageMinus,  href: "/water-internal-use" },
           { id: "loss-records",      title: "Damages & loss",            icon: AlertTriangle, href: "/water-loss-records" },
           { id: "production-losses", title: "Production losses",         icon: AlertTriangle, href: "/water-production-losses" },
         ],

@@ -41,6 +41,7 @@ const WATER_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAdmin: 
   "/water-inventory": (f) => f.canViewWaterInventory,
   "/water-raw-materials": (f) => f.canViewWaterInventory,
   "/water-loss-records": (f) => f.canViewWaterInventory,
+  "/water-internal-use": (f) => f.canViewInternalUse,
   // Losses recorded against a production run: either lens should reach it.
   "/water-production-losses": (f) => f.canViewWaterInventory || f.canViewWaterProduction,
 

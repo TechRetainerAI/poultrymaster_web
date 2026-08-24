@@ -19,6 +19,7 @@ import {
   FileText,
   Egg,
   Package,
+  PackageMinus,
   Bird,
   DollarSign,
   LogOut,
@@ -192,6 +193,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/poultry-raw-materials", label: "Raw Materials & Supplies", icon: Box },
     { href: "/supplies", label: "Supplies", icon: ShoppingCart },
     { href: "/health", label: "Health Records", icon: AlertTriangle },
+    { href: "/poultry-internal-use", label: "Internal Use", icon: PackageMinus },
     { href: "/poultry-loss-records", label: "Loss & Damage", icon: AlertTriangle },
     { href: "/inventory", label: "Other Inventory", icon: Package },
   ]
@@ -297,6 +299,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/water-stock",             label: "Stock movement",           icon: Boxes },
     { href: "/water-inventory",         label: "Inventory",                icon: Boxes },
     { href: "/water-raw-materials",     label: "Raw materials & supplies", icon: Box },
+    { href: "/water-internal-use",      label: "Internal Use",             icon: PackageMinus },
     { href: "/water-loss-records",      label: "Damages & loss",           icon: AlertTriangle },
     { href: "/water-production-losses", label: "Production losses",        icon: AlertTriangle },
   ])
@@ -341,6 +344,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/generic-products",          label: "Products",          icon: ShoppingBag },
     { href: "/generic-inventory",         label: "Inventory",         icon: Boxes },
     { href: "/generic-stock-adjustments", label: "Stock adjustments", icon: Boxes },
+    { href: "/generic-internal-use",      label: "Internal Use",      icon: PackageMinus },
   ]
   const genericSalesItems = [
     { href: "/generic-sales",              label: "Sales",             icon: ShoppingCart },

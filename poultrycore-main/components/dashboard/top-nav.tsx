@@ -8,7 +8,8 @@ import { cn } from "@/lib/utils"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useAlertsStore } from "@/lib/store/alerts-store"
-import { Droplets, ShoppingBag } from "lucide-react"
+import { Droplets, ShoppingBag, PackageMinus,
+} from "lucide-react"
 import { navPathActive, type NavAccent, type NavGroup, type NavItem } from "@/lib/nav/nav-model"
 import { NAV_SURFACE } from "./nav/nav-surface"
 import { WATER_REPORT_NAV_GROUPS, POULTRY_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
@@ -216,6 +217,9 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
   const moreGroup: NavGroup = {
     label: "More",
     items: [
+      // Generic has no Operations mega-menu, so Internal Use rides here beside
+      // the other stock pages rather than getting a menu of its own.
+      { href: "/generic-internal-use",       label: "Internal Use",       icon: PackageMinus },
       { href: "/generic-customer-payments",  label: "Customer payments",  icon: CreditCard },
       { href: "/generic-supplier-payments",  label: "Supplier payments",  icon: CreditCard },
       { href: "/generic-cash",               label: "Cash & Accounts",    icon: Wallet },

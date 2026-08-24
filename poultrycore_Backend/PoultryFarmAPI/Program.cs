@@ -150,6 +150,9 @@ builder.Services.AddScoped<IWaterRawMaterialItemService>(sp => new WaterRawMater
 builder.Services.AddScoped<IWaterRawMaterialPurchaseService>(sp => new WaterRawMaterialPurchaseService(connectionString));
 builder.Services.AddScoped<IWaterRawMaterialUsageService>(sp => new WaterRawMaterialUsageService(connectionString));
 builder.Services.AddScoped<IWaterLossRecordService>(sp => new WaterLossRecordService(connectionString));
+builder.Services.AddScoped<IWaterInternalUsageService>(sp => new WaterInternalUsageService(connectionString));
+builder.Services.AddScoped<IPoultryInternalUsageService>(sp => new PoultryInternalUsageService(connectionString));
+builder.Services.AddScoped<IGenericInternalUsageService>(sp => new GenericInternalUsageService(connectionString));
 builder.Services.AddScoped<IWaterDailyClosingService>(sp => new WaterDailyClosingService(connectionString));
 builder.Services.AddScoped<IWaterReportService>(sp => new WaterReportService(connectionString));
 

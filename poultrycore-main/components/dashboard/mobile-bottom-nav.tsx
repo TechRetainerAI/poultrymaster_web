@@ -15,6 +15,7 @@ import {
   ShoppingCart,
   MoreHorizontal,
   Package,
+  PackageMinus,
   BookOpen,
   AlertTriangle,
   Wallet,
@@ -146,6 +147,7 @@ export function MobileBottomNav() {
           { href: "/water-stock",         label: "Stock movement",    icon: Boxes },
           { href: "/water-inventory",     label: "Inventory",         icon: Boxes },
           { href: "/water-raw-materials", label: "Raw materials & supplies", icon: Box },
+          { href: "/water-internal-use",  label: "Internal Use",      icon: PackageMinus },
           { href: "/water-loss-records",  label: "Damages & loss",    icon: AlertTriangle },
           // Sales & Money
           { href: "/water-payments",      label: "Payments",          icon: CreditCard },
@@ -192,6 +194,7 @@ export function MobileBottomNav() {
         moreItems: [
           { href: "/generic-inventory",          label: "Inventory",         icon: Boxes },
           { href: "/generic-stock-adjustments",  label: "Stock adjustments", icon: Boxes },
+          { href: "/generic-internal-use",       label: "Internal Use",      icon: PackageMinus },
           { href: "/generic-customers",          label: "Customers",         icon: Users },
           { href: "/generic-customer-payments",  label: "Customer payments", icon: CreditCard },
           { href: "/generic-suppliers",          label: "Suppliers",         icon: Truck },
@@ -249,6 +252,7 @@ export function MobileBottomNav() {
       { href: "/poultry-raw-materials",  label: "Raw Materials & Supplies", icon: Box },
       { href: "/supplies",               label: "Supplies",               icon: ShoppingCart },
       { href: "/health",                 label: "Health Records",         icon: AlertTriangle },
+      { href: "/poultry-internal-use",   label: "Internal Use",           icon: PackageMinus },
       { href: "/poultry-loss-records",   label: "Loss & Damage",          icon: AlertTriangle },
       { href: "/inventory",              label: "Other Inventory",        icon: Package },
       // Delivery
