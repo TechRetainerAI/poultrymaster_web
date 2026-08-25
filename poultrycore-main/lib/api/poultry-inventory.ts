@@ -1,4 +1,5 @@
 import { farmApiUrl, getAuthHeaders, getUserContext } from "./config"
+import { explainHttpError } from "@/lib/api/http-error"
 import { forceReauth } from "./session-expiry"
 
 // Poultry inventory + raw materials API wrappers (mirror lib/api/water.ts).
@@ -127,7 +128,7 @@ async function jget<T>(path: string): Promise<T> {
   if (!res.ok) {
     if (res.status === 401) forceReauth()
     const t = await res.text().catch(() => "")
-    throw new Error(`GET ${path} failed (${res.status}): ${t || res.statusText}`)
+    throw new Error(explainHttpError("GET", path, res.status, t))
   }
   return (await res.json()) as T
 }
@@ -139,7 +140,7 @@ async function jsend<T>(path: string, method: "POST" | "PUT" | "DELETE", body?: 
   if (!res.ok) {
     if (res.status === 401) forceReauth()
     const t = await res.text().catch(() => "")
-    throw new Error(`${method} ${path} failed (${res.status}): ${t || res.statusText}`)
+    throw new Error(explainHttpError(method, path, res.status, t))
   }
   if (res.status === 204) return undefined as unknown as T
   const text = await res.text()

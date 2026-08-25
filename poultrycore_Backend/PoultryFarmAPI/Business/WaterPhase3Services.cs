@@ -82,6 +82,10 @@ namespace PoultryFarmAPIWeb.Business
         Task<List<WaterTopCustomerRow>> GetTopCustomersAsync(string farmId, DateTime fromDate, DateTime toDate, int topN);
         // Migration 081: per-supplier purchase + expense rollup ("Supplier Report").
         Task<List<WaterSupplierActivityRow>> GetSupplierActivityAsync(string farmId, DateTime? fromDate, DateTime? toDate);
+
+        // Migration 221 — Inventory Tracker.
+        Task<List<WaterInventoryTrackerRow>> GetInventoryTrackerAsync(string farmId, DateTime fromDate, DateTime toDate);
+        Task<List<WaterInventoryTrackerMovementRow>> GetInventoryTrackerMovementsAsync(string farmId, int waterProductId, DateTime fromDate, DateTime toDate);
     }
 
     // =========================================================================
@@ -1011,6 +1015,64 @@ namespace PoultryFarmAPIWeb.Business
                 ExpenseCount        = r.GetInt32(r.GetOrdinal("ExpenseCount")),
                 LastExpenseDate     = r.IsDBNull(r.GetOrdinal("LastExpenseDate")) ? null : r.GetDateTime(r.GetOrdinal("LastExpenseDate")),
                 OutstandingBalance  = r.GetDecimal(r.GetOrdinal("OutstandingBalance")),
+            });
+        }
+
+        // ---------------------------------------------------------------------
+        // Migration 221 — Inventory Tracker
+        // ---------------------------------------------------------------------
+        // Both SPs read through fnwaterstockledger, which normalises every row to
+        // base units. Do not swap them for a direct sum over
+        // waterstocktransactions: five of the seven txntypes leave basequantity
+        // NULL, so a naive COALESCE(basequantity, quantity) adds bags to sachets.
+        // See the header of 221_WaterInventoryTracker.postgres.sql.
+        public async Task<List<WaterInventoryTrackerRow>> GetInventoryTrackerAsync(string farmId, DateTime fromDate, DateTime toDate)
+        {
+            return await WaterRawMaterialItemService.ReadList("spwaterinventorytracker_get", _cs, c =>
+            {
+                c.Parameters.AddWithValue("@FarmId", farmId);
+                c.Parameters.AddWithValue("@From",   fromDate.Date);
+                c.Parameters.AddWithValue("@To",     toDate.Date);
+            }, r => new WaterInventoryTrackerRow
+            {
+                WaterProductId  = r.GetInt32(r.GetOrdinal("waterproductid")),
+                ProductName     = r.IsDBNull(r.GetOrdinal("productname")) ? "" : r.GetString(r.GetOrdinal("productname")),
+                Sku             = r.IsDBNull(r.GetOrdinal("sku"))      ? null : r.GetString(r.GetOrdinal("sku")),
+                BaseUnit        = r.IsDBNull(r.GetOrdinal("baseunit")) ? null : r.GetString(r.GetOrdinal("baseunit")),
+                IsSachetProduct = !r.IsDBNull(r.GetOrdinal("issachetproduct")) && r.GetBoolean(r.GetOrdinal("issachetproduct")),
+                SachetsPerBag   = r.GetDecimal(r.GetOrdinal("sachetsperbag")),
+                OpeningBase     = r.GetDecimal(r.GetOrdinal("openingbase")),
+                StockInBase     = r.GetDecimal(r.GetOrdinal("stockinbase")),
+                StockOutBase    = r.GetDecimal(r.GetOrdinal("stockoutbase")),
+                ClosingBase     = r.GetDecimal(r.GetOrdinal("closingbase")),
+                OpeningBags     = r.GetDecimal(r.GetOrdinal("openingbags")),
+                ClosingBags     = r.GetDecimal(r.GetOrdinal("closingbags")),
+                UnitCost        = r.GetDecimal(r.GetOrdinal("unitcost")),
+                ClosingValue    = r.GetDecimal(r.GetOrdinal("closingvalue")),
+                MovementCount   = r.GetInt32(r.GetOrdinal("movementcount")),
+            });
+        }
+
+        public async Task<List<WaterInventoryTrackerMovementRow>> GetInventoryTrackerMovementsAsync(string farmId, int waterProductId, DateTime fromDate, DateTime toDate)
+        {
+            return await WaterRawMaterialItemService.ReadList("spwaterinventorytracker_movements", _cs, c =>
+            {
+                c.Parameters.AddWithValue("@FarmId",         farmId);
+                c.Parameters.AddWithValue("@WaterProductId", waterProductId);
+                c.Parameters.AddWithValue("@From",           fromDate.Date);
+                c.Parameters.AddWithValue("@To",             toDate.Date);
+            }, r => new WaterInventoryTrackerMovementRow
+            {
+                StockTxnId    = r.GetInt32(r.GetOrdinal("stocktxnid")),
+                CreatedDate   = r.GetDateTime(r.GetOrdinal("createddate")),
+                TxnType       = r.IsDBNull(r.GetOrdinal("txntype"))       ? "" : r.GetString(r.GetOrdinal("txntype")),
+                MovementLabel = r.IsDBNull(r.GetOrdinal("movementlabel")) ? "" : r.GetString(r.GetOrdinal("movementlabel")),
+                BaseQuantity  = r.GetDecimal(r.GetOrdinal("basequantity")),
+                QuantityBags  = r.GetDecimal(r.GetOrdinal("quantitybags")),
+                RunningBase   = r.GetDecimal(r.GetOrdinal("runningbase")),
+                UnitCost      = r.IsDBNull(r.GetOrdinal("unitcost"))  ? null : r.GetDecimal(r.GetOrdinal("unitcost")),
+                Note          = r.IsDBNull(r.GetOrdinal("note"))      ? null : r.GetString(r.GetOrdinal("note")),
+                CreatedBy     = r.IsDBNull(r.GetOrdinal("createdby")) ? null : r.GetString(r.GetOrdinal("createdby")),
             });
         }
 

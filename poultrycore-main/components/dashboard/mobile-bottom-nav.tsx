@@ -43,6 +43,7 @@ import {
   Banknote,
   Receipt,
   CalendarDays,
+  History,
 } from "lucide-react"
 import {
   Sheet,
@@ -160,7 +161,8 @@ export function MobileBottomNav() {
           // People
           { href: "/water-staff",         label: "Staff",             icon: Users2 },
           { href: "/water-payroll",       label: "Payroll",           icon: Banknote },
-          // Reports + Admin
+          // Analytics + Reports + Admin
+          { href: "/water-inventory-tracker", label: "Inventory tracker", icon: History },
           { href: "/water-reports",       label: "Reports",           icon: BarChart3 },
           { href: "/water-driver-report", label: "Driver report",     icon: BarChart3 },
           // Match desktop sidebar (components/dashboard/sidebar.tsx waterAdminItems):

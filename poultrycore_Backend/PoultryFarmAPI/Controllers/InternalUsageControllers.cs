@@ -47,11 +47,11 @@ namespace PoultryFarmAPIWeb.Controllers
         // legitimate answer for a product with no costed inflow.
         [HttpGet("suggested-cost")]
         public async Task<ActionResult<SuggestedCostResponse>> SuggestedCost(
-            [FromQuery] string farmId, [FromQuery] int waterProductId)
+            [FromQuery] string farmId, [FromQuery] int waterProductId, [FromQuery] string? entryUnit)
         {
             if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
             if (waterProductId <= 0) return BadRequest("Pick a product first.");
-            var cost = await _svc.GetSuggestedCostAsync(farmId, waterProductId);
+            var cost = await _svc.GetSuggestedCostAsync(farmId, waterProductId, entryUnit);
             return Ok(new SuggestedCostResponse { WaterProductId = waterProductId, UnitCost = cost });
         }
 
@@ -156,11 +156,11 @@ namespace PoultryFarmAPIWeb.Controllers
 
         [HttpGet("suggested-cost")]
         public async Task<ActionResult<object>> SuggestedCost(
-            [FromQuery] string farmId, [FromQuery] int poultryProductId)
+            [FromQuery] string farmId, [FromQuery] int poultryProductId, [FromQuery] string? entryUnit)
         {
             if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
             if (poultryProductId <= 0) return BadRequest("Pick a product first.");
-            var cost = await _svc.GetSuggestedCostAsync(farmId, poultryProductId);
+            var cost = await _svc.GetSuggestedCostAsync(farmId, poultryProductId, entryUnit);
             return Ok(new { poultryProductId, unitCost = cost });
         }
 
@@ -266,11 +266,11 @@ namespace PoultryFarmAPIWeb.Controllers
 
         [HttpGet("suggested-cost")]
         public async Task<ActionResult<object>> SuggestedCost(
-            [FromQuery] string farmId, [FromQuery] int genericProductId)
+            [FromQuery] string farmId, [FromQuery] int genericProductId, [FromQuery] string? entryUnit)
         {
             if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
             if (genericProductId <= 0) return BadRequest("Pick a product first.");
-            var cost = await _svc.GetSuggestedCostAsync(farmId, genericProductId);
+            var cost = await _svc.GetSuggestedCostAsync(farmId, genericProductId, entryUnit);
             return Ok(new { genericProductId, unitCost = cost });
         }
 

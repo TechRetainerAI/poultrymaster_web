@@ -17,7 +17,7 @@ import {
   Activity, AlertTriangle, Banknote, BarChart3, Bell, Boxes, Box, Building2,
   CalendarDays, Cog, CreditCard, Droplets, FileText, Factory, ListTodo, PackageMinus, Receipt,
   Route as RouteIcon, Settings, ShoppingBag, ShoppingCart, Truck, User, UserCog,
-  Users, Users2, Wallet, Wrench,
+  Users, Users2, Wallet, Wrench, History,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isWaterNavItemVisible } from "@/lib/utils/water-nav-access"
@@ -38,6 +38,12 @@ export interface WaterNavConfig {
   quickLinks: NavGroup
   operations: MegaMenuGroup[]
   salesMoney: MegaMenuGroup[]
+  /**
+   * Tools you explore on screen, as opposed to Reports which print a period.
+   * Analytics has no landing page of its own — this menu IS the index, so every
+   * row links straight to a tool.
+   */
+  analytics: MegaMenuGroup[]
   setup: MegaMenuGroup[]
   /** Right-hand panel. Mirrors the sidebar's bottom "System" block. */
   system: MegaMenuGroup[]
@@ -121,6 +127,16 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
           // reconciliation.
           { id: "deliveries",    title: "Deliveries",              icon: Truck,      href: "/water-driver-returns" },
           { id: "driver-report", title: "Driver collection report", icon: BarChart3, href: "/water-driver-report" },
+        ],
+      },
+    ],
+
+    analytics: [
+      {
+        key: "stock",
+        label: "Stock",
+        items: [
+          { id: "inventory-tracker", title: "Inventory tracker", icon: History, href: "/water-inventory-tracker" },
         ],
       },
     ],
@@ -227,6 +243,7 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
     quickLinks: { ...config.quickLinks, items: config.quickLinks.items.filter((i) => gate(i.href)) },
     operations: gateGroups(config.operations),
     salesMoney: gateGroups(config.salesMoney),
+    analytics: gateGroups(config.analytics),
     setup: gateGroups(config.setup),
     // `system` is company-neutral (account, alerts, activity log, terms) — no
     // /water-* route in it, so it carries its own gates unchanged.

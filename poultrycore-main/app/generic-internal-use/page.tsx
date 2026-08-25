@@ -28,7 +28,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { usePagination } from "@/hooks/use-pagination"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -36,7 +36,7 @@ import {
 import { PromptDialog } from "@/components/ui/prompt-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Loader2, PackageMinus, Pencil, Trash2, Undo2, CheckCircle2 } from "lucide-react"
+import { Plus, Loader2, PackageMinus, Pencil, Trash2, Undo2, CheckCircle2, Eye, Info } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -114,6 +114,9 @@ export default function GenericInternalUsePage() {
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const [busy, setBusy] = useState(false)
   const [reverseTarget, setReverseTarget] = useState<GenericInternalUsage | null>(null)
+  /** Read-only detail, for every status. The row cannot show the free-text
+      detail, the notes, or who did what and when; this is where those live. */
+  const [viewTarget, setViewTarget] = useState<GenericInternalUsage | null>(null)
 
   // Wrong company type: this page only means anything for a Generic company.
   useEffect(() => {
@@ -197,10 +200,10 @@ export default function GenericInternalUsePage() {
   const onHandBase = selectedProduct?.currentStock ?? 0
   const notEnough = form.genericProductId > 0 && baseQuantity > onHandBase
 
-  // Seed the cost from the weighted average whenever the product changes. The
-  // endpoint answers per egg, so scale it into whichever unit is being
-  // entered. The user can override it, and 0 is a legitimate answer for a
-  // product with no costed inflow — so this never blocks.
+  // Seed the cost from Product setup for the unit being entered (migration 218).
+  // The server answers "what does ONE of these cost", so there is no scaling to
+  // do here — and re-asking when the unit changes keeps bulk pricing honest.
+  // The field stays editable; 0 just means nothing is priced yet.
   useEffect(() => {
     if (!form.genericProductId) return
     let cancelled = false
@@ -208,10 +211,7 @@ export default function GenericInternalUsePage() {
       .then((r) => {
         if (cancelled) return
         setSuggestedPerBase(r.unitCost || 0)
-        setForm((p) => ({
-          ...p,
-          unitCost: round4(r.unitCost || 0),
-        }))
+        setForm((p) => ({ ...p, unitCost: round4(r.unitCost || 0) }))
       })
       .catch(() => { /* suggestion only — leave whatever is in the field */ })
     return () => { cancelled = true }
@@ -345,7 +345,7 @@ export default function GenericInternalUsePage() {
         toast({ title: "Posted", description: "Stock reduced and the cost booked as a non-cash expense." })
       } else {
         await deleteGenericInternalUsage(confirm.id)
-        toast({ title: "Draft deleted" })
+        toast({ title: "Deleted" })
       }
       setConfirm(null)
       await load()
@@ -396,7 +396,11 @@ export default function GenericInternalUsePage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
             <StatCard label="Records" value={String(stats.records)} />
             <StatCard label="Drafts" value={String(stats.drafts)} />
-            <StatCard label="Posted cost" value={gh(stats.postedCost)} />
+            <StatCard
+              label="Posted cost"
+              value={gh(stats.postedCost)}
+              hint="Posting writes a stock movement, updates inventory and books a non-cash expense."
+            />
             <StatCard label="Reversed" value={String(stats.reversed)} />
           </div>
 
@@ -685,6 +689,54 @@ export default function GenericInternalUsePage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* ------------------------------------------------------------ details */}
+      <Dialog open={!!viewTarget} onOpenChange={(o) => { if (!o) setViewTarget(null) }}>
+        <DialogContent className="w-[95vw] max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {viewTarget?.referenceNo || "Internal use"}
+              {viewTarget && (
+                <Badge variant="outline" className={cn("border-0", STATUS_BADGE[viewTarget.status])}>
+                  {viewTarget.status}
+                </Badge>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {(viewTarget?.usageDate || "").split("T")[0]}
+            </DialogDescription>
+          </DialogHeader>
+
+          {viewTarget && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Reason" value={INTERNAL_USE_CATEGORY_LABELS[viewTarget.category] ?? viewTarget.category} />
+                <Field label="Recipient" value={viewTarget.recipientName || "-"} />
+                <Field label="Product" value={viewTarget.items?.[0]?.productName || "-"} />
+                <Field label="Quantity" value={describeQty(viewTarget)} />
+                <Field label="Unit cost" value={gh(viewTarget.items?.[0]?.entryUnitCost ?? 0)} />
+                <Field label="Total cost" value={gh(viewTarget.totalCostValue ?? 0)} />
+                {viewTarget.staffCount ? <Field label="Staff" value={String(viewTarget.staffCount)} /> : null}
+                {viewTarget.reason ? <Field label="Detail" value={viewTarget.reason} /> : null}
+                {viewTarget.notes ? <Field label="Notes" value={viewTarget.notes} /> : null}
+              </div>
+
+              {/* Who did what, and the reversal reason -- the only things here
+                  that the row itself can never show. */}
+              <div className="border-t pt-3 space-y-1 text-sm text-slate-600">
+                <HistoryLine label="Created" who={viewTarget.createdBy} when={viewTarget.createdAt} />
+                <HistoryLine label="Posted" who={viewTarget.postedBy} when={viewTarget.postedAt} />
+                <HistoryLine label="Reversed" who={viewTarget.reversedBy} when={viewTarget.reversedAt}
+                             note={viewTarget.reversalReason} />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewTarget(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <PromptDialog
         open={!!reverseTarget}
         onOpenChange={(o) => { if (!o) setReverseTarget(null) }}
@@ -710,9 +762,15 @@ export default function GenericInternalUsePage() {
 
   // Actions available depend on where the record is in its life.
   function rowActions(r: GenericInternalUsage) {
+    const view = (
+      <Button size="sm" variant="ghost" title="View details" onClick={() => setViewTarget(r)}>
+        <Eye className="w-4 h-4 text-slate-600" />
+      </Button>
+    )
     if (r.status === "Draft") {
       return (
         <>
+          {view}
           <Button size="sm" variant="ghost" title="Edit" onClick={() => openEdit(r)}>
             <Pencil className="w-4 h-4" />
           </Button>
@@ -737,12 +795,42 @@ export default function GenericInternalUsePage() {
     }
     if (r.status === "Posted") {
       return (
-        <Button size="sm" variant="ghost" title="Reverse" onClick={() => setReverseTarget(r)}>
-          <Undo2 className="w-4 h-4 text-amber-600" />
-        </Button>
+        <>
+          {view}
+          <Button size="sm" variant="ghost" title="Reverse" onClick={() => setReverseTarget(r)}>
+            <Undo2 className="w-4 h-4 text-amber-600" />
+          </Button>
+        </>
       )
     }
-    return <span className="text-xs text-slate-400 px-2">Reversed</span>
+    // Reversed. Arithmetically this is a draft again: its ledger rows cancel to
+    // zero and its expense is cancelled, so it edits and deletes like one
+    // (migration 220). Re-posting is the only step that moves stock, which is
+    // why fixing the figures and posting them are two separate presses.
+    return (
+      <>
+        {view}
+        <Button size="sm" variant="ghost" title="Edit" onClick={() => openEdit(r)}>
+          <Pencil className="w-4 h-4" />
+        </Button>
+        <Button size="sm" variant="ghost" title="Post again" onClick={() => setConfirm({
+          type: "post", id: r.genericInternalUsageId,
+          title: "Post this reversed record again?",
+          description: `${describeQty(r)} comes back out of stock and ${gh(r.totalCostValue || 0)} is booked as a non-cash expense again. The reversal stays in the stock history.`,
+          actionLabel: "Post again",
+        })}>
+          <CheckCircle2 className="w-4 h-4 text-green-600" />
+        </Button>
+        <Button size="sm" variant="ghost" title="Delete" onClick={() => setConfirm({
+          type: "delete", id: r.genericInternalUsageId,
+          title: "Delete this reversed record?",
+          description: "The stock came back when this was reversed, so nothing moves now. The out-and-back entries stay in stock history.",
+          actionLabel: "Delete", destructive: true,
+        })}>
+          <Trash2 className="w-4 h-4 text-red-600" />
+        </Button>
+      </>
+    )
   }
 }
 
@@ -785,12 +873,49 @@ function unitWord(unit: string) {
   return unit.toLowerCase() === "crate" ? "Crates" : plural(unit)
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+/** The label-over-value pair the batch production detail page uses. */
+function Field({ label, value }: { label: string; value: string }) {
   return (
-    <Card>
+    <div className="min-w-0">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="font-medium break-words">{value}</div>
+    </div>
+  )
+}
+
+/** One "Posted: 2026-08-24 - admin" line; renders nothing when that step never happened. */
+function HistoryLine({ label, who, when, note }: {
+  label: string; who?: string | null; when?: string | null; note?: string | null
+}) {
+  if (!who && !when) return null
+  return (
+    <p>
+      <span className="text-slate-500">{label}: </span>
+      {(when || "").split("T")[0]}{who ? ` - ${who}` : ""}
+      {note ? <span className="text-slate-500"> ({note})</span> : null}
+    </p>
+  )
+}
+
+/**
+ * `hint` turns the card into a callout: tinted, outlined, and carrying a
+ * sentence about what the number means. Muted small print got lost next to
+ * three plain cards, and the consequence it states -- that posting is what
+ * actually moves stock and money -- is the thing a user needs to see before
+ * pressing Post, not after.
+ */
+function StatCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <Card className={cn(hint && "border-sky-300 bg-sky-50")}>
       <CardContent className="p-4">
-        <p className="text-xs text-slate-500">{label}</p>
+        <p className={cn("text-xs font-medium", hint ? "text-sky-700" : "text-slate-500")}>{label}</p>
         <p className="text-lg font-semibold text-slate-900 mt-0.5">{value}</p>
+        {hint && (
+          <p className="mt-2 flex items-start gap-1.5 text-xs font-medium leading-snug text-sky-900">
+            <Info className="w-4 h-4 shrink-0 mt-px" />
+            <span>{hint}</span>
+          </p>
+        )}
       </CardContent>
     </Card>
   )

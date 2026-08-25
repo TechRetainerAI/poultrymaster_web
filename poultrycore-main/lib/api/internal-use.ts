@@ -8,6 +8,7 @@
 // families to this file with the same shapes.
 
 import { farmApiUrl, getAuthHeaders, getUserContext } from "./config"
+import { explainHttpError } from "@/lib/api/http-error"
 import { forceReauth } from "./session-expiry"
 
 // ----- Types -----
@@ -142,27 +143,11 @@ function activeUserId(): string {
  * 240 in stock, 900 needed."). GlobalExceptionMiddleware wraps them as JSON, so
  * pull the message out rather than showing the raw envelope in a toast.
  */
-function explain(method: string, path: string, status: number, body: string): string {
-  try {
-    const j = JSON.parse(body)
-    const msg = j?.message || j?.detail || j?.title || j?.error
-    if (typeof msg === "string" && msg.trim()) return msg
-    if (j?.errors && typeof j.errors === "object") {
-      const flat = Object.values(j.errors as Record<string, unknown>).flat().map(String)
-      if (flat.length) return flat.join(" ")
-    }
-  } catch {
-    /* not JSON — fall through */
-  }
-  const t = (body || "").trim()
-  return t || `${method} ${path} failed (${status}).`
-}
-
 async function jget<T>(path: string): Promise<T> {
   const res = await fetch(farmApiUrl(path), { headers: getAuthHeaders() })
   if (!res.ok) {
     if (res.status === 401) forceReauth()
-    throw new Error(explain("GET", path, res.status, await res.text().catch(() => "")))
+    throw new Error(explainHttpError("GET", path, res.status, await res.text().catch(() => "")))
   }
   return (await res.json()) as T
 }
@@ -173,7 +158,7 @@ async function jsend<T>(path: string, method: "POST" | "PUT" | "DELETE", body?: 
   const res = await fetch(farmApiUrl(path), init)
   if (!res.ok) {
     if (res.status === 401) forceReauth()
-    throw new Error(explain(method, path, res.status, await res.text().catch(() => "")))
+    throw new Error(explainHttpError(method, path, res.status, await res.text().catch(() => "")))
   }
   if (res.status === 204) return undefined as unknown as T
   const text = await res.text()
@@ -200,13 +185,15 @@ export const getWaterInternalUsage = (id: number) =>
   jget<WaterInternalUsage>(`/Water/internal-usage/${id}?farmId=${encodeURIComponent(activeFarmId())}`)
 
 /**
- * Weighted average cost PER BASE UNIT (sachet). 0 is a legitimate answer for a
- * product with no costed inflow. Callers entering in bags scale it by
- * sachetsPerBag before showing it.
+ * Cost for ONE of the given entry unit, taken from Product setup (migration 218):
+ * bag price for a bag, sachet price for a sachet, falling back to the unit price
+ * and then to stock history. Unit-aware on purpose — bulk pricing means a bag is
+ * rarely 30 × the sachet price, so the client must not scale a per-sachet figure.
+ * 0 is a legitimate answer for a product with no pricing set.
  */
-export const getWaterInternalUseSuggestedCost = (waterProductId: number) =>
+export const getWaterInternalUseSuggestedCost = (waterProductId: number, entryUnit: string) =>
   jget<{ waterProductId: number; unitCost: number }>(
-    `/Water/internal-usage/suggested-cost?farmId=${encodeURIComponent(activeFarmId())}&waterProductId=${waterProductId}`,
+    `/Water/internal-usage/suggested-cost?farmId=${encodeURIComponent(activeFarmId())}&waterProductId=${waterProductId}&entryUnit=${encodeURIComponent(entryUnit)}`,
   )
 
 export const createWaterInternalUsage = (input: WaterInternalUsageInput) =>
@@ -320,10 +307,15 @@ export const listPoultryInternalUsage = (opts?: {
 export const getPoultryInternalUsage = (id: number) =>
   jget<PoultryInternalUsage>(`/Poultry/internal-usage/${id}?farmId=${encodeURIComponent(activeFarmId())}`)
 
-/** Weighted average PER STOCK UNIT (per egg, per bird, per kg). 0 is legitimate. */
-export const getPoultryInternalUseSuggestedCost = (poultryProductId: number) =>
+/**
+ * Cost for ONE of the given entry unit, from Product setup (migration 218).
+ * Note: raw-egg products get NO stock-history fallback — historical unitcost on
+ * egg rows is a crate figure against an egg quantity, so averaging it produces a
+ * ~30× overstatement. Those return 0 until a unit price is set.
+ */
+export const getPoultryInternalUseSuggestedCost = (poultryProductId: number, entryUnit: string) =>
   jget<{ poultryProductId: number; unitCost: number }>(
-    `/Poultry/internal-usage/suggested-cost?farmId=${encodeURIComponent(activeFarmId())}&poultryProductId=${poultryProductId}`,
+    `/Poultry/internal-usage/suggested-cost?farmId=${encodeURIComponent(activeFarmId())}&poultryProductId=${poultryProductId}&entryUnit=${encodeURIComponent(entryUnit)}`,
   )
 
 export const createPoultryInternalUsage = (input: PoultryInternalUsageInput) =>
@@ -434,8 +426,8 @@ export const listGenericInternalUsage = (opts?: {
 export const getGenericInternalUsage = (id: number) =>
   jget<GenericInternalUsage>(`/generic-company/internal-usage/${id}?farmId=${encodeURIComponent(activeFarmId())}`)
 
-/** The product's own cost price — exact, not an average. */
-export const getGenericInternalUseSuggestedCost = (genericProductId: number) =>
+/** The product's own cost price from Product setup — exact, not an average. */
+export const getGenericInternalUseSuggestedCost = (genericProductId: number, entryUnit?: string) =>
   jget<{ genericProductId: number; unitCost: number }>(
     `/generic-company/internal-usage/suggested-cost?farmId=${encodeURIComponent(activeFarmId())}&genericProductId=${genericProductId}`,
   )

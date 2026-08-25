@@ -45,6 +45,12 @@ const WATER_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAdmin: 
   // Losses recorded against a production run: either lens should reach it.
   "/water-production-losses": (f) => f.canViewWaterInventory || f.canViewWaterProduction,
 
+  // --- Analytics -----------------------------------------------------------
+  // Inventory Tracker is an inventory lens rendered as an analytic, so either
+  // flag reaches it — same reasoning as /water-driver-report above, which is a
+  // report that belongs to the delivery flow.
+  "/water-inventory-tracker": (f) => f.canViewWaterInventory || f.canViewReports,
+
   // --- Sales & money -------------------------------------------------------
   // Same predicates the poultry rail uses for its equivalents, so a staff
   // member's access doesn't change shape when they switch company.

@@ -51,6 +51,7 @@ import {
   Briefcase,
   Clock,
   CalendarDays,
+  History,
 } from "lucide-react"
 import { InventoryLogo } from "@/components/auth/logo"
 import { useAlertsStore, type AlertItem } from "@/lib/store/alerts-store"
@@ -325,6 +326,12 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const waterPeopleItems = gateWater([
     { href: "/water-staff", label: "Staff", icon: UserCog },
     { href: "/water-payroll", label: "Payroll", icon: Banknote },
+  ])
+  // Analytics sits beside Reports rather than inside it, mirroring the poultry
+  // rail's own Analytics group: a report prints a period, an analytic is
+  // explored on screen (drill from a closing balance into the movements).
+  const waterAnalyticsItems = gateWater([
+    { href: "/water-inventory-tracker", label: "Inventory tracker", icon: History },
   ])
   const waterReportsItems = gateWater([
     { href: "/water-reports", label: "Reports", icon: BarChart3 },
@@ -621,6 +628,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
             <div className="border-t border-slate-800 mx-2" />
 
+            {renderGroup("Analytics", waterAnalyticsItems, "waterAnalytics")}
             {renderGroup("Reports", waterReportsItems, "waterReports")}
 
             <div className="border-t border-slate-800 mx-2" />

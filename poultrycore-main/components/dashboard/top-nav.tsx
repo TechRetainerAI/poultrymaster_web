@@ -35,6 +35,7 @@ import {
   CreditCard,
   Truck,
   Factory,
+  LineChart,
 } from "lucide-react"
 
 function NavDropdown({ group, accent = "sky" }: { group: NavGroup; accent?: NavAccent }) {
@@ -166,6 +167,16 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
           blurb="Orders, collections, expenses and cash."
           groups={nav.salesMoney}
           columns={2} widthRem={34} layout="grid"
+        />
+
+        {/* Analytics is a menu, not a destination — there is no landing page,
+            so no viewAll. A report prints a period; an analytic is explored. */}
+        <NavMegaMenu
+          label="Analytics" icon={LineChart}
+          title="Analytics"
+          blurb="Explore where your stock actually moved."
+          groups={nav.analytics}
+          columns={1} widthRem={22} layout="grid"
         />
 
         {/* Sourced from lib/reports/water-reports-config.ts — the single source

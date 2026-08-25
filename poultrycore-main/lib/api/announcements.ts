@@ -1,4 +1,5 @@
 import { farmApiUrl, getAuthHeaders } from "./config"
+import { explainHttpError } from "@/lib/api/http-error"
 
 // Prompt 4 — Business Office announcements / notifications.
 export interface Announcement {
@@ -30,14 +31,21 @@ function currentUserId(): string {
 
 async function jget<T>(path: string): Promise<T> {
   const res = await fetch(farmApiUrl(path), { headers: getAuthHeaders() })
-  if (!res.ok) throw new Error(`Announcements ${res.status}`)
+  if (!res.ok) {
+    // Was status-only, so a real reason from the API never reached the caller.
+    const text = await res.text().catch(() => "")
+    throw new Error(explainHttpError("GET", path, res.status, text))
+  }
   return res.json()
 }
 async function jsend<T>(path: string, method: string, body?: any): Promise<T> {
   const init: RequestInit = { method, headers: getAuthHeaders() }
   if (body !== undefined) init.body = JSON.stringify(body)
   const res = await fetch(farmApiUrl(path), init)
-  if (!res.ok) throw new Error(`Announcements ${res.status} ${await res.text().catch(() => "")}`)
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(explainHttpError(method, path, res.status, text))
+  }
   return res.json().catch(() => ({} as T))
 }
 

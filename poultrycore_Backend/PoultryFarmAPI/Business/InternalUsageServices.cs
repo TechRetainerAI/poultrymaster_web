@@ -25,7 +25,7 @@ namespace PoultryFarmAPIWeb.Business
         Task       DeleteAsync(int id, string farmId, string? userId);
         Task       PostAsync(int id, string farmId, string? postedBy);
         Task       ReverseAsync(int id, string farmId, string? reason, string? reversedBy);
-        Task<decimal> GetSuggestedCostAsync(string farmId, int waterProductId);
+        Task<decimal> GetSuggestedCostAsync(string farmId, int waterProductId, string? entryUnit);
     }
 
     public class WaterInternalUsageService : IWaterInternalUsageService
@@ -70,13 +70,16 @@ namespace PoultryFarmAPIWeb.Business
             return await r.ReadAsync() ? Map(r) : null;
         }
 
-        public async Task<decimal> GetSuggestedCostAsync(string farmId, int waterProductId)
+        // Unit-aware: a bag is priced as a bag, not as thirty sachets, because
+        // bulk pricing means bagPrice is rarely 30 x sachetPrice (migration 218).
+        public async Task<decimal> GetSuggestedCostAsync(string farmId, int waterProductId, string? entryUnit)
         {
             using var conn = new NpgsqlConnection(_cs);
             using var cmd = new NpgsqlCommand(
-                "SELECT public.fnwaterproductavgcost(@FarmId::text, @WaterProductId::int)", conn);
+                "SELECT public.fnwaterproductentrycost(@FarmId::text, @WaterProductId::int, @EntryUnit::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@WaterProductId", waterProductId);
+            cmd.Parameters.AddWithValue("@EntryUnit", (object?)entryUnit ?? DBNull.Value);
             await conn.OpenAsync();
             var v = await cmd.ExecuteScalarAsync();
             return v is null || v == DBNull.Value ? 0m : Convert.ToDecimal(v);
@@ -258,7 +261,7 @@ namespace PoultryFarmAPIWeb.Business
         Task       DeleteAsync(int id, string farmId, string? userId);
         Task       PostAsync(int id, string farmId, string? postedBy);
         Task       ReverseAsync(int id, string farmId, string? reason, string? reversedBy);
-        Task<decimal> GetSuggestedCostAsync(string farmId, int poultryProductId);
+        Task<decimal> GetSuggestedCostAsync(string farmId, int poultryProductId, string? entryUnit);
     }
 
     public class PoultryInternalUsageService : IPoultryInternalUsageService
@@ -302,13 +305,14 @@ namespace PoultryFarmAPIWeb.Business
             return await r.ReadAsync() ? Map(r) : null;
         }
 
-        public async Task<decimal> GetSuggestedCostAsync(string farmId, int poultryProductId)
+        public async Task<decimal> GetSuggestedCostAsync(string farmId, int poultryProductId, string? entryUnit)
         {
             using var conn = new NpgsqlConnection(_cs);
             using var cmd = new NpgsqlCommand(
-                "SELECT public.fnpoultryproductavgcost(@FarmId::text, @PoultryProductId::int)", conn);
+                "SELECT public.fnpoultryproductentrycost(@FarmId::text, @PoultryProductId::int, @EntryUnit::text, 30)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@PoultryProductId", poultryProductId);
+            cmd.Parameters.AddWithValue("@EntryUnit", (object?)entryUnit ?? DBNull.Value);
             await conn.OpenAsync();
             var v = await cmd.ExecuteScalarAsync();
             return v is null || v == DBNull.Value ? 0m : Convert.ToDecimal(v);
@@ -472,7 +476,7 @@ namespace PoultryFarmAPIWeb.Business
         Task       DeleteAsync(int id, string farmId, string? userId);
         Task       PostAsync(int id, string farmId, string? postedBy);
         Task       ReverseAsync(int id, string farmId, string? reason, string? reversedBy);
-        Task<decimal> GetSuggestedCostAsync(string farmId, int genericProductId);
+        Task<decimal> GetSuggestedCostAsync(string farmId, int genericProductId, string? entryUnit);
     }
 
     public class GenericInternalUsageService : IGenericInternalUsageService
@@ -516,11 +520,12 @@ namespace PoultryFarmAPIWeb.Business
             return await r.ReadAsync() ? Map(r) : null;
         }
 
-        public async Task<decimal> GetSuggestedCostAsync(string farmId, int genericProductId)
+        // entryUnit is accepted for signature parity; generic has no conversion.
+        public async Task<decimal> GetSuggestedCostAsync(string farmId, int genericProductId, string? entryUnit)
         {
             using var conn = new NpgsqlConnection(_cs);
             using var cmd = new NpgsqlCommand(
-                "SELECT public.fngenericproductavgcost(@FarmId::text, @GenericProductId::int)", conn);
+                "SELECT public.fngenericproductentrycost(@FarmId::text, @GenericProductId::int)", conn);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@GenericProductId", genericProductId);
             await conn.OpenAsync();
