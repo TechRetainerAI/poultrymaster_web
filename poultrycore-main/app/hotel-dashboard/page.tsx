@@ -171,9 +171,9 @@ export default function HotelDashboardPage() {
               <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">Today</h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
                 <StatCard title="Occupancy Rate" value={`${occupancyRate}%`} icon={TrendingUp} color="violet" />
-                <StatCard title="Today's Revenue" value={`GH₵${todayRevenue.toFixed(2)}`} icon={Wallet} href="/hotel-payments" color="emerald" sub={`${todayPayments.length} payment(s)`} />
-                <StatCard title="Today's Expenses" value={`GH₵${todayExpenses.toFixed(2)}`} icon={Wallet} href="/hotel-expenses" color="red" />
-                <StatCard title="Outstanding Balances" value={`GH₵${totalOutstanding.toFixed(2)}`} icon={AlertTriangle} href="/hotel-check-out" color={totalOutstanding > 0 ? "red" : "emerald"} sub={`${guestsOwing.length} guest(s) owe`} />
+                <StatCard title="Today's Revenue" value={`${todayRevenue.toFixed(2)}`} icon={Wallet} href="/hotel-payments" color="emerald" sub={`${todayPayments.length} payment(s)`} />
+                <StatCard title="Today's Expenses" value={`${todayExpenses.toFixed(2)}`} icon={Wallet} href="/hotel-expenses" color="red" />
+                <StatCard title="Outstanding Balances" value={`${totalOutstanding.toFixed(2)}`} icon={AlertTriangle} href="/hotel-check-out" color={totalOutstanding > 0 ? "red" : "emerald"} sub={`${guestsOwing.length} guest(s) owe`} />
               </div>
 
               {/* Row 3: Operations */}

@@ -79,7 +79,7 @@ export default function HotelKitchenPage() {
                               <span className="text-xs text-slate-400">{elapsed}m ago</span>
                             </div>
                             {(o.serverName ?? o.servername) && <div className="text-xs text-slate-500">Server: {o.serverName ?? o.servername}</div>}
-                            {Number(o.totalAmount ?? o.totalamount ?? 0) > 0 && <div className="text-sm font-semibold">GH₵{Number(o.totalAmount ?? o.totalamount ?? 0).toFixed(2)}</div>}
+                            {Number(o.totalAmount ?? o.totalamount ?? 0) > 0 && <div className="text-sm font-semibold">{Number(o.totalAmount ?? o.totalamount ?? 0).toFixed(2)}</div>}
                             {(o.notes) && <div className="text-xs text-slate-500 italic">{o.notes}</div>}
                             {status === "Served" && <div className="text-xs text-emerald-600 font-semibold">✓ Served {(o.deliveredTime ?? o.deliveredtime) ? new Date(o.deliveredTime ?? o.deliveredtime).toLocaleTimeString() : ""}</div>}
                             {next && (

@@ -177,7 +177,7 @@ export default function HotelGuestsPage() {
             <Card><CardContent className="p-3 text-center"><div className="text-2xl font-bold text-violet-700">{guests.length}</div><div className="text-xs text-slate-500">Total Guests</div></CardContent></Card>
             <Card className="cursor-pointer" onClick={() => setFilterVIP(!filterVIP)}><CardContent className="p-3 text-center"><div className="text-2xl font-bold text-amber-700">{vipCount}</div><div className="text-xs text-slate-500">VIP Guests</div></CardContent></Card>
             <Card><CardContent className="p-3 text-center"><div className="text-2xl font-bold text-blue-700">{bookings.length}</div><div className="text-xs text-slate-500">Total Bookings</div></CardContent></Card>
-            <Card><CardContent className="p-3 text-center"><div className="text-2xl font-bold text-emerald-700">GH₵{totalSpent.toFixed(0)}</div><div className="text-xs text-slate-500">Total Revenue</div></CardContent></Card>
+            <Card><CardContent className="p-3 text-center"><div className="text-2xl font-bold text-emerald-700">{totalSpent.toFixed(0)}</div><div className="text-xs text-slate-500">Total Revenue</div></CardContent></Card>
           </div>
 
           {/* Search + filters */}
@@ -253,7 +253,7 @@ export default function HotelGuestsPage() {
                     {/* Lifetime value */}
                     <div className="p-3 bg-violet-50 rounded-lg flex items-center justify-between">
                       <span className="text-sm font-medium text-violet-700">Lifetime Value</span>
-                      <span className="text-lg font-bold text-violet-700">GH₵{totalSpent.toFixed(2)}</span>
+                      <span className="text-lg font-bold text-violet-700">{totalSpent.toFixed(2)}</span>
                     </div>
 
                     {/* Stay History */}
@@ -268,7 +268,7 @@ export default function HotelGuestsPage() {
                                 <div className="text-xs text-slate-400">{b.checkInDate?.slice(0, 10)} to {b.checkOutDate?.slice(0, 10)} | {b.roomTypeName}</div>
                               </div>
                               <div className="text-right">
-                                <div className="font-semibold">GH₵{Number(b.totalAmount ?? 0).toFixed(2)}</div>
+                                <div className="font-semibold">{Number(b.totalAmount ?? 0).toFixed(2)}</div>
                                 <Badge variant="outline" className={`text-[10px] ${b.status === "CheckedOut" ? "bg-slate-100" : b.status === "CheckedIn" ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700"}`}>{b.status}</Badge>
                               </div>
                             </div>

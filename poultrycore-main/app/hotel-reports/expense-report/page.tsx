@@ -134,7 +134,7 @@ export default function ExpenseReportPage() {
               <Button variant="outline" size="sm" onClick={handleDownload}><Download className="h-4 w-4 mr-1" />CSV</Button>
               <Button variant="outline" size="sm" onClick={() => downloadPdf(getPdfConfig())}><FileText className="h-4 w-4 mr-1" />PDF</Button>
               <Button variant="outline" size="sm" onClick={() => setPdfPreviewOpen(true)}><FileText className="h-4 w-4 mr-1" />Preview</Button>
-              <Button variant="outline" size="sm" onClick={() => { const c = getPdfConfig(); printReport({ hotelName, hotelAddress, hotelPhone, hotelEmail, title: c.title, dateRange: c.dateRange, summaryCards: c.summaryCards, headers: c.headers, rows: c.rows, currency: "GH₵" }) }}><Printer className="h-4 w-4 mr-1" />Print</Button>
+              <Button variant="outline" size="sm" onClick={() => { const c = getPdfConfig(); printReport({ hotelName, hotelAddress, hotelPhone, hotelEmail, title: c.title, dateRange: c.dateRange, summaryCards: c.summaryCards, headers: c.headers, rows: c.rows, currency: "" }) }}><Printer className="h-4 w-4 mr-1" />Print</Button>
             </div>
           </div>
 
@@ -152,9 +152,9 @@ export default function ExpenseReportPage() {
             <>
               {/* Summary Cards */}
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-red-600">GH&#8373;{totalExpenses.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Total Expenses</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-red-600">{totalExpenses.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Total Expenses</div></CardContent></Card>
                 <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-violet-700">{categories.length}</div><div className="text-xs text-slate-500 mt-1">Categories</div></CardContent></Card>
-                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-amber-600">GH&#8373;{avgPerExpense.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Avg per Expense</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-amber-600">{avgPerExpense.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Avg per Expense</div></CardContent></Card>
               </div>
 
               {/* Category Summary */}
@@ -175,7 +175,7 @@ export default function ExpenseReportPage() {
                           <tr key={cat} className="border-b hover:bg-slate-50">
                             <td className="p-3 font-medium">{cat}</td>
                             <td className="p-3 text-right">{info.count}</td>
-                            <td className="p-3 text-right text-red-600">GH&#8373;{info.total.toFixed(2)}</td>
+                            <td className="p-3 text-right text-red-600">{info.total.toFixed(2)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -206,7 +206,7 @@ export default function ExpenseReportPage() {
                             <td className="p-3">{x.category ?? ""}</td>
                             <td className="p-3">{x.description ?? ""}</td>
                             <td className="p-3">{x.vendor ?? "-"}</td>
-                            <td className="p-3 text-right text-red-600 font-medium">GH&#8373;{Number(x.amount ?? 0).toFixed(2)}</td>
+                            <td className="p-3 text-right text-red-600 font-medium">{Number(x.amount ?? 0).toFixed(2)}</td>
                           </tr>
                         ))}
                         {filtered.length === 0 && (

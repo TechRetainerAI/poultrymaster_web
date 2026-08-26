@@ -150,7 +150,7 @@ export default function RestaurantSalesPage() {
               <Button variant="outline" size="sm" onClick={handleDownload}><Download className="h-4 w-4 mr-1" />CSV</Button>
               <Button variant="outline" size="sm" onClick={() => downloadPdf(getPdfConfig())}><FileText className="h-4 w-4 mr-1" />PDF</Button>
               <Button variant="outline" size="sm" onClick={() => setPdfPreviewOpen(true)}><FileText className="h-4 w-4 mr-1" />Preview</Button>
-              <Button variant="outline" size="sm" onClick={() => { const c = getPdfConfig(); printReport({ hotelName, hotelAddress, hotelPhone, hotelEmail, title: c.title, dateRange: c.dateRange, summaryCards: c.summaryCards, headers: c.headers, rows: c.rows, currency: "GH₵" }) }}><Printer className="h-4 w-4 mr-1" />Print</Button>
+              <Button variant="outline" size="sm" onClick={() => { const c = getPdfConfig(); printReport({ hotelName, hotelAddress, hotelPhone, hotelEmail, title: c.title, dateRange: c.dateRange, summaryCards: c.summaryCards, headers: c.headers, rows: c.rows, currency: "" }) }}><Printer className="h-4 w-4 mr-1" />Print</Button>
             </div>
           </div>
 
@@ -169,8 +169,8 @@ export default function RestaurantSalesPage() {
               {/* Summary Cards */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-violet-700">{totalOrders}</div><div className="text-xs text-slate-500 mt-1">Total Orders</div></CardContent></Card>
-                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-emerald-700">GH&#8373;{totalRevenue.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Total Revenue</div></CardContent></Card>
-                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-amber-600">GH&#8373;{avgOrderValue.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Avg Order Value</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-emerald-700">{totalRevenue.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Total Revenue</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-amber-600">{avgOrderValue.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Avg Order Value</div></CardContent></Card>
                 <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-green-600">{servedCount}</div><div className="text-xs text-slate-500 mt-1">Served</div></CardContent></Card>
               </div>
 
@@ -223,8 +223,8 @@ export default function RestaurantSalesPage() {
                               <td className="p-3 font-mono text-xs">#{x.hotelRestaurantOrderId ?? x.hotelrestaurantorderid ?? idx}</td>
                               <td className="p-3">{x.tableNumber ?? x.tablenumber ?? "-"}</td>
                               <td className="p-3">{x.serverName ?? x.servername ?? "-"}</td>
-                              <td className="p-3 text-right">GH&#8373;{Number(x.subTotal ?? x.subtotal ?? 0).toFixed(2)}</td>
-                              <td className="p-3 text-right font-medium text-emerald-700">GH&#8373;{Number(x.totalAmount ?? x.totalamount ?? 0).toFixed(2)}</td>
+                              <td className="p-3 text-right">{Number(x.subTotal ?? x.subtotal ?? 0).toFixed(2)}</td>
+                              <td className="p-3 text-right font-medium text-emerald-700">{Number(x.totalAmount ?? x.totalamount ?? 0).toFixed(2)}</td>
                               <td className="p-3 text-center">{orderStatusBadge(x.status ?? "")}</td>
                             </tr>
                           ))}

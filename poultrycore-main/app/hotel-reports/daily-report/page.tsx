@@ -160,9 +160,9 @@ export default function DailyReportPage() {
             <>
               {/* Summary Cards */}
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-emerald-700">GH&#8373;{revenue.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Revenue</div></CardContent></Card>
-                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-red-600">GH&#8373;{expenseTotal.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Expenses</div></CardContent></Card>
-                <Card><CardContent className="p-4 text-center"><div className={`text-2xl font-bold ${net >= 0 ? "text-emerald-700" : "text-red-700"}`}>GH&#8373;{net.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Net</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-emerald-700">{revenue.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Revenue</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-red-600">{expenseTotal.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Expenses</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className={`text-2xl font-bold ${net >= 0 ? "text-emerald-700" : "text-red-700"}`}>{net.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Net</div></CardContent></Card>
                 <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-blue-600">{checkIns.length}</div><div className="text-xs text-slate-500 mt-1">Check-ins</div></CardContent></Card>
                 <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-violet-700">{checkOuts.length}</div><div className="text-xs text-slate-500 mt-1">Check-outs</div></CardContent></Card>
               </div>
@@ -187,7 +187,7 @@ export default function DailyReportPage() {
                             <tr key={b.hotelBookingId ?? b.hotelbookingid ?? `ci-${idx}`} className="border-b hover:bg-slate-50">
                               <td className="p-3 font-medium">{guest}</td>
                               <td className="p-3">{b.roomNumber ?? b.roomnumber ?? "-"}</td>
-                              <td className="p-3 text-right text-emerald-700">GH&#8373;{Number(b.totalAmount ?? b.totalamount ?? b.ratePerNight ?? b.ratepernight ?? 0).toFixed(2)}</td>
+                              <td className="p-3 text-right text-emerald-700">{Number(b.totalAmount ?? b.totalamount ?? b.ratePerNight ?? b.ratepernight ?? 0).toFixed(2)}</td>
                             </tr>
                           )
                         })}
@@ -250,7 +250,7 @@ export default function DailyReportPage() {
                           return (
                             <tr key={p.hotelPaymentId ?? p.hotelpaymentid ?? `pay-${idx}`} className="border-b hover:bg-slate-50">
                               <td className="p-3 font-medium">{guest}</td>
-                              <td className="p-3 text-right text-emerald-700 font-medium">GH&#8373;{Number(p.amount ?? p.totalAmount ?? p.totalamount ?? 0).toFixed(2)}</td>
+                              <td className="p-3 text-right text-emerald-700 font-medium">{Number(p.amount ?? p.totalAmount ?? p.totalamount ?? 0).toFixed(2)}</td>
                               <td className="p-3">{p.paymentMethod ?? p.paymentmethod ?? "-"}</td>
                             </tr>
                           )

@@ -164,9 +164,9 @@ export default function OccupancyReportPage() {
               {/* Summary Cards */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-violet-700">{avgOccupancy.toFixed(1)}%</div><div className="text-xs text-slate-500 mt-1">Avg Occupancy</div></CardContent></Card>
-                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-blue-600">GH&#8373;{avgAdr.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Avg ADR</div></CardContent></Card>
-                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-amber-600">GH&#8373;{avgRevpar.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Avg RevPAR</div></CardContent></Card>
-                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-emerald-700">GH&#8373;{totalRevenue.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Total Revenue</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-blue-600">{avgAdr.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Avg ADR</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-amber-600">{avgRevpar.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Avg RevPAR</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-emerald-700">{totalRevenue.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Total Revenue</div></CardContent></Card>
               </div>
 
               {/* Occupancy Trend Chart */}
@@ -199,9 +199,9 @@ export default function OccupancyReportPage() {
                           <th className="text-right p-3">Occupancy %</th>
                           <th className="text-right p-3">Rooms Occupied</th>
                           <th className="text-right p-3">Total Rooms</th>
-                          <th className="text-right p-3">ADR (GH&#8373;)</th>
-                          <th className="text-right p-3">RevPAR (GH&#8373;)</th>
-                          <th className="text-right p-3">Revenue (GH&#8373;)</th>
+                          <th className="text-right p-3">ADR ()</th>
+                          <th className="text-right p-3">RevPAR ()</th>
+                          <th className="text-right p-3">Revenue ()</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -211,9 +211,9 @@ export default function OccupancyReportPage() {
                             <td className="p-3 text-right">{Number(c.occupancyRate ?? c.occupancyrate ?? 0).toFixed(1)}%</td>
                             <td className="p-3 text-right">{c.roomsOccupied ?? c.roomsoccupied ?? 0}</td>
                             <td className="p-3 text-right">{c.totalRooms ?? c.totalrooms ?? 0}</td>
-                            <td className="p-3 text-right">GH&#8373;{Number(c.adr ?? 0).toFixed(2)}</td>
-                            <td className="p-3 text-right">GH&#8373;{Number(c.revPar ?? c.revpar ?? 0).toFixed(2)}</td>
-                            <td className="p-3 text-right text-emerald-700 font-medium">GH&#8373;{Number(c.totalRevenue ?? c.totalrevenue ?? 0).toFixed(2)}</td>
+                            <td className="p-3 text-right">{Number(c.adr ?? 0).toFixed(2)}</td>
+                            <td className="p-3 text-right">{Number(c.revPar ?? c.revpar ?? 0).toFixed(2)}</td>
+                            <td className="p-3 text-right text-emerald-700 font-medium">{Number(c.totalRevenue ?? c.totalrevenue ?? 0).toFixed(2)}</td>
                           </tr>
                         ))}
                         {filtered.length === 0 && (

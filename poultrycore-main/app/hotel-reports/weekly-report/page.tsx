@@ -177,9 +177,9 @@ export default function WeeklyReportPage() {
             <>
               {/* Summary Cards */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-emerald-700">GH&#8373;{totalRevenue.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Total Revenue</div></CardContent></Card>
-                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-red-600">GH&#8373;{totalExpenses.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Total Expenses</div></CardContent></Card>
-                <Card><CardContent className="p-4 text-center"><div className={`text-2xl font-bold ${netProfit >= 0 ? "text-emerald-700" : "text-red-700"}`}>GH&#8373;{netProfit.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Net Profit</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-emerald-700">{totalRevenue.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Total Revenue</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-red-600">{totalExpenses.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Total Expenses</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className={`text-2xl font-bold ${netProfit >= 0 ? "text-emerald-700" : "text-red-700"}`}>{netProfit.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Net Profit</div></CardContent></Card>
                 <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-violet-700">{totalBookings}</div><div className="text-xs text-slate-500 mt-1">Bookings</div></CardContent></Card>
               </div>
 
@@ -203,20 +203,20 @@ export default function WeeklyReportPage() {
                         {dayRows.map((r) => (
                           <tr key={r.date} className="border-b hover:bg-slate-50">
                             <td className="p-3 font-medium">{r.date}</td>
-                            <td className="p-3 text-right text-emerald-700">GH&#8373;{r.revenue.toFixed(2)}</td>
-                            <td className="p-3 text-right text-red-600">GH&#8373;{r.expenses.toFixed(2)}</td>
+                            <td className="p-3 text-right text-emerald-700">{r.revenue.toFixed(2)}</td>
+                            <td className="p-3 text-right text-red-600">{r.expenses.toFixed(2)}</td>
                             <td className="p-3 text-right">{r.checkIns}</td>
                             <td className="p-3 text-right">{r.checkOuts}</td>
-                            <td className="p-3 text-right text-emerald-700 font-medium">GH&#8373;{r.paymentsTotal.toFixed(2)}</td>
+                            <td className="p-3 text-right text-emerald-700 font-medium">{r.paymentsTotal.toFixed(2)}</td>
                           </tr>
                         ))}
                         <tr className="bg-slate-100 font-bold">
                           <td className="p-3">Total</td>
-                          <td className="p-3 text-right text-emerald-700">GH&#8373;{totalRevenue.toFixed(2)}</td>
-                          <td className="p-3 text-right text-red-600">GH&#8373;{totalExpenses.toFixed(2)}</td>
+                          <td className="p-3 text-right text-emerald-700">{totalRevenue.toFixed(2)}</td>
+                          <td className="p-3 text-right text-red-600">{totalExpenses.toFixed(2)}</td>
                           <td className="p-3 text-right">{dayRows.reduce((s, r) => s + r.checkIns, 0)}</td>
                           <td className="p-3 text-right">{dayRows.reduce((s, r) => s + r.checkOuts, 0)}</td>
-                          <td className="p-3 text-right text-emerald-700">GH&#8373;{dayRows.reduce((s, r) => s + r.paymentsTotal, 0).toFixed(2)}</td>
+                          <td className="p-3 text-right text-emerald-700">{dayRows.reduce((s, r) => s + r.paymentsTotal, 0).toFixed(2)}</td>
                         </tr>
                       </tbody>
                     </table>

@@ -203,7 +203,7 @@ function buildPdf(config: PdfReportConfig): jsPDF {
 
       doc.text(`${name}  |  ${config.title}`, 20, ph - 8)
       doc.text(`Page ${pageNum} of ${totalPages}`, pw - 20, ph - 8, { align: "right" })
-      doc.text(`Currency: ${config.currency ?? "GH₵"}`, pw / 2, ph - 8, { align: "center" })
+      if (config.currency) doc.text(`Currency: ${config.currency}`, pw / 2, ph - 8, { align: "center" })
     },
   })
 

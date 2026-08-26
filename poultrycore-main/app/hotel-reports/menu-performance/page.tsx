@@ -133,7 +133,7 @@ export default function MenuPerformancePage() {
                 <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-violet-700">{totalItems}</div><div className="text-xs text-slate-500 mt-1">Total Items</div></CardContent></Card>
                 <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-emerald-700">{availableCount}</div><div className="text-xs text-slate-500 mt-1">Available</div></CardContent></Card>
                 <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-red-600">{unavailableCount}</div><div className="text-xs text-slate-500 mt-1">Unavailable</div></CardContent></Card>
-                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-amber-600">GH&#8373;{avgPrice.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Avg Price</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-amber-600">{avgPrice.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Avg Price</div></CardContent></Card>
               </div>
 
               {/* Data Table */}
@@ -146,7 +146,7 @@ export default function MenuPerformancePage() {
                         <tr>
                           <th className="text-left p-3">Name</th>
                           <th className="text-left p-3">Category</th>
-                          <th className="text-right p-3">Price (GH&#8373;)</th>
+                          <th className="text-right p-3">Price ()</th>
                           <th className="text-center p-3">Available</th>
                         </tr>
                       </thead>
@@ -157,7 +157,7 @@ export default function MenuPerformancePage() {
                             <tr key={m.hotelMenuItemId ?? m.hotelmenuitemid ?? `mi-${idx}`} className="border-b hover:bg-slate-50">
                               <td className="p-3 font-medium">{m.name ?? m.itemName ?? m.itemname ?? "-"}</td>
                               <td className="p-3">{m.category ?? m.categoryName ?? m.categoryname ?? "-"}</td>
-                              <td className="p-3 text-right text-emerald-700 font-medium">GH&#8373;{Number(m.price ?? 0).toFixed(2)}</td>
+                              <td className="p-3 text-right text-emerald-700 font-medium">{Number(m.price ?? 0).toFixed(2)}</td>
                               <td className="p-3 text-center">
                                 {avail
                                   ? <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Yes</span>

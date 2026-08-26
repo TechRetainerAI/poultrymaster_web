@@ -226,9 +226,9 @@ export default function MonthlyReportPage() {
             <>
               {/* Summary Cards */}
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-emerald-700">GH&#8373;{totalRevenue.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Total Revenue</div></CardContent></Card>
-                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-red-600">GH&#8373;{totalExpenses.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Total Expenses</div></CardContent></Card>
-                <Card><CardContent className="p-4 text-center"><div className={`text-2xl font-bold ${netProfit >= 0 ? "text-emerald-700" : "text-red-700"}`}>GH&#8373;{netProfit.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Net Profit</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-emerald-700">{totalRevenue.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Total Revenue</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-red-600">{totalExpenses.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Total Expenses</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className={`text-2xl font-bold ${netProfit >= 0 ? "text-emerald-700" : "text-red-700"}`}>{netProfit.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Net Profit</div></CardContent></Card>
                 <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-violet-700">{totalBookingsCount}</div><div className="text-xs text-slate-500 mt-1">Total Bookings</div></CardContent></Card>
                 <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-blue-600">{staffCount}</div><div className="text-xs text-slate-500 mt-1">Staff Count</div></CardContent></Card>
               </div>
@@ -253,18 +253,18 @@ export default function MonthlyReportPage() {
                           {weekRows.map(([wk, info]) => (
                             <tr key={wk} className="border-b hover:bg-slate-50">
                               <td className="p-3 font-medium">Week {wk}</td>
-                              <td className="p-3 text-right text-emerald-700">GH&#8373;{info.revenue.toFixed(2)}</td>
-                              <td className="p-3 text-right text-red-600">GH&#8373;{info.expenses.toFixed(2)}</td>
+                              <td className="p-3 text-right text-emerald-700">{info.revenue.toFixed(2)}</td>
+                              <td className="p-3 text-right text-red-600">{info.expenses.toFixed(2)}</td>
                               <td className="p-3 text-right">{info.bookings}</td>
-                              <td className="p-3 text-right text-emerald-700">GH&#8373;{info.payments.toFixed(2)}</td>
+                              <td className="p-3 text-right text-emerald-700">{info.payments.toFixed(2)}</td>
                             </tr>
                           ))}
                           <tr className="bg-slate-100 font-bold">
                             <td className="p-3">Total</td>
-                            <td className="p-3 text-right text-emerald-700">GH&#8373;{totalRevenue.toFixed(2)}</td>
-                            <td className="p-3 text-right text-red-600">GH&#8373;{totalExpenses.toFixed(2)}</td>
+                            <td className="p-3 text-right text-emerald-700">{totalRevenue.toFixed(2)}</td>
+                            <td className="p-3 text-right text-red-600">{totalExpenses.toFixed(2)}</td>
                             <td className="p-3 text-right">{totalBookingsCount}</td>
-                            <td className="p-3 text-right text-emerald-700">GH&#8373;{monthPayments.reduce((s: number, p: any) => s + Number(p.amount ?? p.totalAmount ?? p.totalamount ?? 0), 0).toFixed(2)}</td>
+                            <td className="p-3 text-right text-emerald-700">{monthPayments.reduce((s: number, p: any) => s + Number(p.amount ?? p.totalAmount ?? p.totalamount ?? 0), 0).toFixed(2)}</td>
                           </tr>
                         </tbody>
                       </table>
@@ -277,9 +277,9 @@ export default function MonthlyReportPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          <tr className="border-b hover:bg-slate-50"><td className="p-3 font-medium">Total Revenue</td><td className="p-3 text-right text-emerald-700">GH&#8373;{totalRevenue.toFixed(2)}</td></tr>
-                          <tr className="border-b hover:bg-slate-50"><td className="p-3 font-medium">Total Expenses</td><td className="p-3 text-right text-red-600">GH&#8373;{totalExpenses.toFixed(2)}</td></tr>
-                          <tr className="border-b hover:bg-slate-50"><td className="p-3 font-medium">Net Profit</td><td className={`p-3 text-right font-bold ${netProfit >= 0 ? "text-emerald-700" : "text-red-700"}`}>GH&#8373;{netProfit.toFixed(2)}</td></tr>
+                          <tr className="border-b hover:bg-slate-50"><td className="p-3 font-medium">Total Revenue</td><td className="p-3 text-right text-emerald-700">{totalRevenue.toFixed(2)}</td></tr>
+                          <tr className="border-b hover:bg-slate-50"><td className="p-3 font-medium">Total Expenses</td><td className="p-3 text-right text-red-600">{totalExpenses.toFixed(2)}</td></tr>
+                          <tr className="border-b hover:bg-slate-50"><td className="p-3 font-medium">Net Profit</td><td className={`p-3 text-right font-bold ${netProfit >= 0 ? "text-emerald-700" : "text-red-700"}`}>{netProfit.toFixed(2)}</td></tr>
                           <tr className="border-b hover:bg-slate-50"><td className="p-3 font-medium">Total Bookings</td><td className="p-3 text-right">{totalBookingsCount}</td></tr>
                           <tr className="border-b hover:bg-slate-50"><td className="p-3 font-medium">Staff Count</td><td className="p-3 text-right">{staffCount}</td></tr>
                           {monthBookings.length === 0 && monthPayments.length === 0 && monthExpenses.length === 0 && (

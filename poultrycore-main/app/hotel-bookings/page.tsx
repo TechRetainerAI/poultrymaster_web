@@ -168,7 +168,7 @@ export default function HotelBookingsPage() {
                         <td className="p-3">{b.checkInDate?.slice(0, 10)}</td>
                         <td className="p-3">{b.checkOutDate?.slice(0, 10)}</td>
                         <td className="p-3 text-center">{nights}</td>
-                        <td className="p-3 text-right font-semibold">GH₵{Number(b.totalAmount ?? 0).toFixed(2)}</td>
+                        <td className="p-3 text-right font-semibold">{Number(b.totalAmount ?? 0).toFixed(2)}</td>
                         <td className="p-3"><Badge variant="outline" className={STATUS_COLORS[b.status] ?? ""}>{b.status}</Badge></td>
                         <td className="p-3 text-right space-x-1">
                           <Button variant="ghost" size="icon" title="Print Receipt" onClick={() => setReceiptBooking(b)}><Printer className="h-4 w-4" /></Button>
@@ -292,10 +292,10 @@ export default function HotelBookingsPage() {
                       <div className="border-t pt-2">
                         <h4 className="font-semibold text-slate-700 mb-1">Pricing</h4>
                         <div className="space-y-1 text-xs">
-                          <div className="flex justify-between"><span>Nightly Rate:</span><span>GH₵{Number(b.nightlyRate ?? 0).toFixed(2)}</span></div>
+                          <div className="flex justify-between"><span>Nightly Rate:</span><span>{Number(b.nightlyRate ?? 0).toFixed(2)}</span></div>
                           <div className="flex justify-between"><span>Number of Nights:</span><span>{nights}</span></div>
                           <div className="flex justify-between font-bold text-base border-t pt-1 mt-1">
-                            <span>Total Amount:</span><span className="text-violet-700">GH₵{Number(b.totalAmount ?? 0).toFixed(2)}</span>
+                            <span>Total Amount:</span><span className="text-violet-700">{Number(b.totalAmount ?? 0).toFixed(2)}</span>
                           </div>
                         </div>
                       </div>

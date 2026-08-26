@@ -148,20 +148,20 @@ export default function HotelNightAuditPage() {
 
                 <Card><CardContent className="p-3 text-center">
                   <TrendingUp className="h-5 w-5 mx-auto mb-1 text-emerald-600" />
-                  <div className="text-2xl font-bold text-emerald-700">GH₵{preview.revenue.toFixed(0)}</div>
+                  <div className="text-2xl font-bold text-emerald-700">{preview.revenue.toFixed(0)}</div>
                   <div className="text-xs text-slate-500">Today&apos;s Revenue</div>
                 </CardContent></Card>
 
                 <Card><CardContent className="p-3 text-center">
                   <TrendingDown className="h-5 w-5 mx-auto mb-1 text-red-600" />
-                  <div className="text-2xl font-bold text-red-700">GH₵{preview.expenses.toFixed(0)}</div>
+                  <div className="text-2xl font-bold text-red-700">{preview.expenses.toFixed(0)}</div>
                   <div className="text-xs text-slate-500">Today&apos;s Expenses</div>
                 </CardContent></Card>
 
                 <Card className={preview.outstandingBalances > 0 ? "border-amber-300 bg-amber-50" : ""}>
                   <CardContent className="p-3 text-center">
                     <Wallet className="h-5 w-5 mx-auto mb-1 text-amber-600" />
-                    <div className={`text-2xl font-bold ${preview.outstandingBalances > 0 ? "text-amber-700" : "text-emerald-700"}`}>GH₵{preview.outstandingBalances.toFixed(0)}</div>
+                    <div className={`text-2xl font-bold ${preview.outstandingBalances > 0 ? "text-amber-700" : "text-emerald-700"}`}>{preview.outstandingBalances.toFixed(0)}</div>
                     <div className="text-xs text-slate-500">Outstanding</div>
                   </CardContent>
                 </Card>
@@ -188,7 +188,7 @@ export default function HotelNightAuditPage() {
                       {preview.outstandingBalances > 0 && (
                         <div className="flex items-center gap-2 text-sm p-2 bg-amber-50 rounded">
                           <Wallet className="h-4 w-4 text-amber-600" />
-                          <span>Outstanding guest balances: <strong className="text-amber-700">GH₵{preview.outstandingBalances.toFixed(2)}</strong></span>
+                          <span>Outstanding guest balances: <strong className="text-amber-700">{preview.outstandingBalances.toFixed(2)}</strong></span>
                         </div>
                       )}
                       {preview.pendingHousekeeping > 0 && (
@@ -250,9 +250,9 @@ export default function HotelNightAuditPage() {
                             <td className="p-3 font-medium">{(a.auditdate ?? a.auditDate)?.slice?.(0, 10)}</td>
                             <td className="p-3 text-center">{a.occupiedrooms ?? a.occupiedRooms ?? 0}/{a.totalrooms ?? a.totalRooms ?? 0}</td>
                             <td className="p-3 text-center">{Number(a.occupancyrate ?? a.occupancyRate ?? 0).toFixed(1)}%</td>
-                            <td className="p-3 text-right text-emerald-700 font-semibold">GH₵{Number(a.totalrevenue ?? a.totalRevenue ?? 0).toFixed(2)}</td>
-                            <td className="p-3 text-right text-red-600">GH₵{Number(a.totalexpenses ?? a.totalExpenses ?? 0).toFixed(2)}</td>
-                            <td className={`p-3 text-right font-semibold ${Number(a.outstandingbalances ?? a.outstandingBalances ?? 0) > 0 ? "text-amber-700" : "text-emerald-700"}`}>GH₵{Number(a.outstandingbalances ?? a.outstandingBalances ?? 0).toFixed(2)}</td>
+                            <td className="p-3 text-right text-emerald-700 font-semibold">{Number(a.totalrevenue ?? a.totalRevenue ?? 0).toFixed(2)}</td>
+                            <td className="p-3 text-right text-red-600">{Number(a.totalexpenses ?? a.totalExpenses ?? 0).toFixed(2)}</td>
+                            <td className={`p-3 text-right font-semibold ${Number(a.outstandingbalances ?? a.outstandingBalances ?? 0) > 0 ? "text-amber-700" : "text-emerald-700"}`}>{Number(a.outstandingbalances ?? a.outstandingBalances ?? 0).toFixed(2)}</td>
                             <td className="p-3 text-center">{a.checkincount ?? a.checkinCount ?? 0}</td>
                             <td className="p-3 text-center">{a.checkoutcount ?? a.checkoutCount ?? 0}</td>
                             <td className="p-3 text-center">{a.noshowcount ?? a.noshowCount ?? 0}</td>
@@ -291,9 +291,9 @@ export default function HotelNightAuditPage() {
                   <div className="grid grid-cols-2 gap-2">
                     <div>Rooms: <strong>{preview.occupied}/{preview.totalRooms} occupied</strong></div>
                     <div>Occupancy: <strong>{occRate}%</strong></div>
-                    <div>Revenue: <strong className="text-emerald-700">GH₵{preview.revenue.toFixed(2)}</strong></div>
-                    <div>Expenses: <strong className="text-red-700">GH₵{preview.expenses.toFixed(2)}</strong></div>
-                    <div>Outstanding: <strong className={preview.outstandingBalances > 0 ? "text-amber-700" : "text-emerald-700"}>GH₵{preview.outstandingBalances.toFixed(2)}</strong></div>
+                    <div>Revenue: <strong className="text-emerald-700">{preview.revenue.toFixed(2)}</strong></div>
+                    <div>Expenses: <strong className="text-red-700">{preview.expenses.toFixed(2)}</strong></div>
+                    <div>Outstanding: <strong className={preview.outstandingBalances > 0 ? "text-amber-700" : "text-emerald-700"}>{preview.outstandingBalances.toFixed(2)}</strong></div>
                     <div>In-house: <strong>{preview.checkedIn} guests</strong></div>
                   </div>
                 </div>
@@ -337,8 +337,8 @@ export default function HotelNightAuditPage() {
                       </div>
                       <div className="p-3 bg-emerald-50 rounded-lg">
                         <div className="text-xs text-slate-500">Net Revenue</div>
-                        <div className={`text-lg font-bold ${net >= 0 ? "text-emerald-700" : "text-red-700"}`}>GH₵{net.toFixed(2)}</div>
-                        <div className="text-xs">Rev: GH₵{rev.toFixed(2)} | Exp: GH₵{exp.toFixed(2)}</div>
+                        <div className={`text-lg font-bold ${net >= 0 ? "text-emerald-700" : "text-red-700"}`}>{net.toFixed(2)}</div>
+                        <div className="text-xs">Rev: {rev.toFixed(2)} | Exp: {exp.toFixed(2)}</div>
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-3 text-sm text-center">

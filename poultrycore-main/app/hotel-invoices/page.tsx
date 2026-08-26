@@ -48,11 +48,11 @@ export default function HotelInvoicesPage() {
               <tr key={i.hotelInvoiceId ?? i.hotelinvoiceid ?? `inv-${idx}`} className="border-b hover:bg-slate-50">
                 <td className="p-3 font-mono font-semibold">{i.invoiceNumber ?? i.invoicenumber}</td>
                 <td className="p-3">{(i.issuedDate ?? i.issueddate)?.slice?.(0,10)}</td>
-                <td className="p-3 text-right">GH₵{Number(i.subTotal ?? i.subtotal ?? 0).toFixed(2)}</td>
-                <td className="p-3 text-right">GH₵{Number(i.taxAmount ?? i.taxamount ?? 0).toFixed(2)}</td>
-                <td className="p-3 text-right font-semibold">GH₵{Number(i.totalAmount ?? i.totalamount ?? 0).toFixed(2)}</td>
-                <td className="p-3 text-right text-emerald-700">GH₵{Number(i.amountPaid ?? i.amountpaid ?? 0).toFixed(2)}</td>
-                <td className={`p-3 text-right font-bold ${Number(i.balance ?? 0) > 0 ? "text-red-700" : "text-emerald-700"}`}>GH₵{Number(i.balance ?? 0).toFixed(2)}</td>
+                <td className="p-3 text-right">{Number(i.subTotal ?? i.subtotal ?? 0).toFixed(2)}</td>
+                <td className="p-3 text-right">{Number(i.taxAmount ?? i.taxamount ?? 0).toFixed(2)}</td>
+                <td className="p-3 text-right font-semibold">{Number(i.totalAmount ?? i.totalamount ?? 0).toFixed(2)}</td>
+                <td className="p-3 text-right text-emerald-700">{Number(i.amountPaid ?? i.amountpaid ?? 0).toFixed(2)}</td>
+                <td className={`p-3 text-right font-bold ${Number(i.balance ?? 0) > 0 ? "text-red-700" : "text-emerald-700"}`}>{Number(i.balance ?? 0).toFixed(2)}</td>
                 <td className="p-3"><Badge variant="outline" className={STATUS_COLOR[i.status] ?? ""}>{i.status}</Badge></td>
                 <td className="p-3 text-right"><Button variant="ghost" size="sm" onClick={() => setPrintInvoice(i)}><Printer className="h-4 w-4 mr-1" />Print</Button></td>
               </tr>
@@ -81,12 +81,12 @@ export default function HotelInvoicesPage() {
               </div>
               <table className="w-full mb-6" style={{borderCollapse:"collapse"}}>
                 <tbody>
-                  <tr style={{borderBottom:"1px solid #eee"}}><td className="py-2 text-slate-500" style={{padding:"8px"}}>Subtotal</td><td className="py-2 text-right font-semibold" style={{padding:"8px",textAlign:"right"}}>GH₵{Number(printInvoice?.subTotal ?? printInvoice?.subtotal ?? 0).toFixed(2)}</td></tr>
-                  <tr style={{borderBottom:"1px solid #eee"}}><td className="py-2 text-slate-500" style={{padding:"8px"}}>Tax ({Number(printInvoice?.taxRate ?? printInvoice?.taxrate ?? 0)}%)</td><td className="py-2 text-right" style={{padding:"8px",textAlign:"right"}}>GH₵{Number(printInvoice?.taxAmount ?? printInvoice?.taxamount ?? 0).toFixed(2)}</td></tr>
-                  <tr style={{borderBottom:"1px solid #eee"}}><td className="py-2 text-slate-500" style={{padding:"8px"}}>Discount</td><td className="py-2 text-right" style={{padding:"8px",textAlign:"right"}}>-GH₵{Number(printInvoice?.discountAmount ?? printInvoice?.discountamount ?? 0).toFixed(2)}</td></tr>
-                  <tr style={{borderTop:"2px solid #333"}}><td className="py-2 font-bold text-lg" style={{padding:"8px"}}>Total Due</td><td className="py-2 text-right font-bold text-lg" style={{padding:"8px",textAlign:"right"}}>GH₵{Number(printInvoice?.totalAmount ?? printInvoice?.totalamount ?? 0).toFixed(2)}</td></tr>
-                  <tr><td className="py-2 text-emerald-700" style={{padding:"8px"}}>Amount Paid</td><td className="py-2 text-right text-emerald-700" style={{padding:"8px",textAlign:"right"}}>-GH₵{Number(printInvoice?.amountPaid ?? printInvoice?.amountpaid ?? 0).toFixed(2)}</td></tr>
-                  <tr style={{borderTop:"1px solid #eee"}}><td className="py-2 font-bold" style={{padding:"8px"}}>Balance</td><td className="py-2 text-right font-bold" style={{padding:"8px",textAlign:"right",color:Number(printInvoice?.balance ?? 0) > 0 ? "#dc2626" : "#16a34a"}}>GH₵{Number(printInvoice?.balance ?? 0).toFixed(2)}</td></tr>
+                  <tr style={{borderBottom:"1px solid #eee"}}><td className="py-2 text-slate-500" style={{padding:"8px"}}>Subtotal</td><td className="py-2 text-right font-semibold" style={{padding:"8px",textAlign:"right"}}>{Number(printInvoice?.subTotal ?? printInvoice?.subtotal ?? 0).toFixed(2)}</td></tr>
+                  <tr style={{borderBottom:"1px solid #eee"}}><td className="py-2 text-slate-500" style={{padding:"8px"}}>Tax ({Number(printInvoice?.taxRate ?? printInvoice?.taxrate ?? 0)}%)</td><td className="py-2 text-right" style={{padding:"8px",textAlign:"right"}}>{Number(printInvoice?.taxAmount ?? printInvoice?.taxamount ?? 0).toFixed(2)}</td></tr>
+                  <tr style={{borderBottom:"1px solid #eee"}}><td className="py-2 text-slate-500" style={{padding:"8px"}}>Discount</td><td className="py-2 text-right" style={{padding:"8px",textAlign:"right"}}>-{Number(printInvoice?.discountAmount ?? printInvoice?.discountamount ?? 0).toFixed(2)}</td></tr>
+                  <tr style={{borderTop:"2px solid #333"}}><td className="py-2 font-bold text-lg" style={{padding:"8px"}}>Total Due</td><td className="py-2 text-right font-bold text-lg" style={{padding:"8px",textAlign:"right"}}>{Number(printInvoice?.totalAmount ?? printInvoice?.totalamount ?? 0).toFixed(2)}</td></tr>
+                  <tr><td className="py-2 text-emerald-700" style={{padding:"8px"}}>Amount Paid</td><td className="py-2 text-right text-emerald-700" style={{padding:"8px",textAlign:"right"}}>-{Number(printInvoice?.amountPaid ?? printInvoice?.amountpaid ?? 0).toFixed(2)}</td></tr>
+                  <tr style={{borderTop:"1px solid #eee"}}><td className="py-2 font-bold" style={{padding:"8px"}}>Balance</td><td className="py-2 text-right font-bold" style={{padding:"8px",textAlign:"right",color:Number(printInvoice?.balance ?? 0) > 0 ? "#dc2626" : "#16a34a"}}>{Number(printInvoice?.balance ?? 0).toFixed(2)}</td></tr>
                 </tbody>
               </table>
               <div className="text-center text-sm text-slate-400 border-t pt-4">

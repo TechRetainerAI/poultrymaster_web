@@ -16,7 +16,7 @@ export interface PrintReportConfig {
 }
 
 export function printReport(config: PrintReportConfig) {
-  const cur = config.currency ?? "GH₵"
+  const cur = config.currency ?? ""
   const now = new Date().toLocaleString()
   const contact = [config.hotelAddress, config.hotelPhone, config.hotelEmail].filter(Boolean).join("  •  ")
   const accentColors = ["#10b981", "#ef4444", "#6366f1", "#f59e0b"]
@@ -86,7 +86,7 @@ export function printReport(config: PrintReportConfig) {
   <div style="padding:16px 28px">
     <h2 style="font-size:22px;font-weight:800;color:#1e293b;margin:0">${config.title}</h2>
     <div style="display:inline-block;margin-top:6px;background:#6d28d9;color:white;font-size:10px;font-weight:700;padding:3px 10px;border-radius:10px;letter-spacing:0.05em">${config.rows.length} RECORDS</div>
-    <span style="font-size:10px;color:#94a3b8;margin-left:8px">Currency: ${cur}</span>
+    ${cur ? `<span style="font-size:10px;color:#94a3b8;margin-left:8px">Currency: ${cur}</span>` : ""}
   </div>
 
   <!-- Summary Cards -->

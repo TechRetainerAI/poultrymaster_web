@@ -145,7 +145,7 @@ export default function GuestReportPage() {
               <Button variant="outline" size="sm" onClick={handleDownload}><Download className="h-4 w-4 mr-1" />CSV</Button>
               <Button variant="outline" size="sm" onClick={() => downloadPdf(getPdfConfig())}><FileText className="h-4 w-4 mr-1" />PDF</Button>
               <Button variant="outline" size="sm" onClick={() => setPdfPreviewOpen(true)}><FileText className="h-4 w-4 mr-1" />Preview</Button>
-              <Button variant="outline" size="sm" onClick={() => { const c = getPdfConfig(); printReport({ hotelName, hotelAddress, hotelPhone, hotelEmail, title: c.title, dateRange: c.dateRange, summaryCards: c.summaryCards, headers: c.headers, rows: c.rows, currency: "GH₵" }) }}><Printer className="h-4 w-4 mr-1" />Print</Button>
+              <Button variant="outline" size="sm" onClick={() => { const c = getPdfConfig(); printReport({ hotelName, hotelAddress, hotelPhone, hotelEmail, title: c.title, dateRange: c.dateRange, summaryCards: c.summaryCards, headers: c.headers, rows: c.rows, currency: "" }) }}><Printer className="h-4 w-4 mr-1" />Print</Button>
             </div>
           </div>
 
@@ -192,7 +192,7 @@ export default function GuestReportPage() {
                               </td>
                               <td className="p-3 text-right font-medium">{g.bookingsCount}</td>
                               <td className="p-3">{g.lastStay ? (typeof g.lastStay === "string" ? g.lastStay.slice(0, 10) : "-") : "-"}</td>
-                              <td className="p-3 text-right text-emerald-700 font-medium">GH&#8373;{Number(g.totalSpent ?? 0).toFixed(2)}</td>
+                              <td className="p-3 text-right text-emerald-700 font-medium">{Number(g.totalSpent ?? 0).toFixed(2)}</td>
                             </tr>
                           )
                         })}

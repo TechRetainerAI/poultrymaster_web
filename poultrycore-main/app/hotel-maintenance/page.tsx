@@ -78,7 +78,7 @@ export default function HotelMaintenancePage() {
                 <td className="p-3 max-w-[250px]">{m.issueDescription ?? m.issuedescription}</td>
                 <td className="p-3"><Badge variant="outline" className={PRIORITY_COLOR[m.priority] ?? ""}>{m.priority}</Badge></td>
                 <td className="p-3"><Badge variant="outline" className={STATUS_COLOR[m.status] ?? ""}>{m.status}</Badge></td>
-                <td className="p-3 text-right">GH₵{Number(m.estimatedCost ?? m.estimatedcost ?? 0).toFixed(2)}</td>
+                <td className="p-3 text-right">{Number(m.estimatedCost ?? m.estimatedcost ?? 0).toFixed(2)}</td>
                 <td className="p-3 text-xs text-slate-500">{(m.reportedAt ?? m.reportedat ?? m.createdat)?.slice?.(0, 10)}</td>
                 <td className="p-3 text-right">
                   <Select onValueChange={(v) => changeStatus(m.hotelMaintenanceRequestId ?? m.hotelmaintenancerequestid, v)}>
@@ -107,7 +107,7 @@ export default function HotelMaintenancePage() {
             <div><Label>Issue Description *</Label><Input value={form.issueDescription} onChange={(e) => setForm({...form, issueDescription: e.target.value})} placeholder="Describe the problem in detail" /></div>
             <div className="grid grid-cols-2 gap-4">
               <div><Label>Priority</Label><Select value={form.priority} onValueChange={(v) => setForm({...form, priority: v})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Low">Low</SelectItem><SelectItem value="Normal">Normal</SelectItem><SelectItem value="High">High</SelectItem><SelectItem value="Critical">Critical</SelectItem></SelectContent></Select></div>
-              <div><Label>Estimated Cost (GH₵)</Label><Input type="number" step="0.01" value={form.estimatedCost} onChange={(e) => setForm({...form, estimatedCost: Number(e.target.value)})} /></div>
+              <div><Label>Estimated Cost</Label><Input type="number" step="0.01" value={form.estimatedCost} onChange={(e) => setForm({...form, estimatedCost: Number(e.target.value)})} /></div>
             </div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button><Button onClick={handleSave} disabled={saving} className="bg-violet-600 hover:bg-violet-700">{saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Submit Request</Button></DialogFooter>

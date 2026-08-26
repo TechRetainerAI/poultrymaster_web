@@ -203,7 +203,7 @@ export default function HotelRoomsPage() {
                       <th className="text-left p-3">Floor</th>
                       <th className="text-left p-3">Bed</th>
                       <th className="text-left p-3">Max Guests</th>
-                      <th className="text-right p-3">Rate (GH₵)</th>
+                      <th className="text-right p-3">Rate</th>
                       <th className="text-left p-3">Status</th>
                       <th className="text-right p-3">Actions</th>
                     </tr>
@@ -216,7 +216,7 @@ export default function HotelRoomsPage() {
                         <td className="p-3">{room.floorName ?? "—"}</td>
                         <td className="p-3">{room.bedType ?? "—"}</td>
                         <td className="p-3 text-center">{room.maxOccupancy ?? "—"}</td>
-                        <td className="p-3 text-right font-semibold">GH₵{Number(room.baseRate ?? 0).toFixed(2)}</td>
+                        <td className="p-3 text-right font-semibold">{Number(room.baseRate ?? 0).toFixed(2)}</td>
                         <td className="p-3"><RoomStatusBadge status={room.status} /></td>
                         <td className="p-3 text-right space-x-1" onClick={(e) => e.stopPropagation()}>
                           <Button variant="ghost" size="sm" onClick={() => openEdit(room)}>Edit</Button>
@@ -241,7 +241,7 @@ export default function HotelRoomsPage() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <RoomStatusBadge status={detailRoom.status} />
-                    <span className="text-lg font-bold text-violet-700">GH₵{Number(detailRoom.baseRate ?? 0).toFixed(2)}/night</span>
+                    <span className="text-lg font-bold text-violet-700">{Number(detailRoom.baseRate ?? 0).toFixed(2)}/night</span>
                   </div>
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div><span className="text-slate-500">Type:</span> <strong>{detailRoom.roomTypeName}</strong></div>
@@ -285,7 +285,7 @@ export default function HotelRoomsPage() {
                   <Select value={String(form.hotelRoomTypeId)} onValueChange={(v) => setForm({ ...form, hotelRoomTypeId: Number(v) })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {roomTypes.map((rt) => <SelectItem key={rt.hotelRoomTypeId} value={String(rt.hotelRoomTypeId)}>{rt.name} — GH₵{rt.baseRate} ({rt.bedType ?? "Standard"})</SelectItem>)}
+                      {roomTypes.map((rt) => <SelectItem key={rt.hotelRoomTypeId} value={String(rt.hotelRoomTypeId)}>{rt.name} — {rt.baseRate} ({rt.bedType ?? "Standard"})</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>

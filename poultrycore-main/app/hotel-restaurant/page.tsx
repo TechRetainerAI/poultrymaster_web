@@ -74,7 +74,7 @@ export default function HotelRestaurantPage() {
         hotelBookingId: posForm.hotelBookingId ?? undefined,
         items: cart.map(c => ({ menuItemId: c.menuItem.hotelMenuItemId ?? c.menuItem.hotelmenuitemid, quantity: c.quantity, unitPrice: Number(c.menuItem.price) }))
       })
-      toast({ title: `Order created — GH₵${cartTotal.toFixed(2)}` })
+      toast({ title: `Order created — ${cartTotal.toFixed(2)}` })
       setPosOpen(false); setCart([]); await load()
     } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
     finally { setSaving(false) }
@@ -103,7 +103,7 @@ export default function HotelRestaurantPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
           <Card><CardContent className="p-3 text-center"><div className="text-2xl font-bold text-violet-700">{tables.length}</div><div className="text-xs text-slate-500">Tables</div></CardContent></Card>
           <Card><CardContent className="p-3 text-center"><div className="text-2xl font-bold text-red-700">{activeOrderCount}</div><div className="text-xs text-slate-500">Active Orders</div></CardContent></Card>
-          <Card><CardContent className="p-3 text-center"><div className="text-2xl font-bold text-emerald-700">GH₵{todayRevenue.toFixed(2)}</div><div className="text-xs text-slate-500">Served Revenue</div></CardContent></Card>
+          <Card><CardContent className="p-3 text-center"><div className="text-2xl font-bold text-emerald-700">{todayRevenue.toFixed(2)}</div><div className="text-xs text-slate-500">Served Revenue</div></CardContent></Card>
           <Card><CardContent className="p-3 text-center"><div className="text-2xl font-bold text-violet-700">{menuItems.length}</div><div className="text-xs text-slate-500">Menu Items</div></CardContent></Card>
         </div>
 
@@ -140,7 +140,7 @@ export default function HotelRestaurantPage() {
                       <td className="p-3 font-semibold">{o.tableNumber ?? o.tablenumber ?? "Takeaway"}</td>
                       <td className="p-3">{o.serverName ?? o.servername ?? "—"}</td>
                       <td className="p-3"><Badge variant="outline" className={ORDER_STATUS_COLOR[o.status] ?? ""}>{o.status}</Badge></td>
-                      <td className="p-3 text-right font-semibold">GH₵{Number(o.totalAmount ?? o.totalamount ?? 0).toFixed(2)}</td>
+                      <td className="p-3 text-right font-semibold">{Number(o.totalAmount ?? o.totalamount ?? 0).toFixed(2)}</td>
                       <td className="p-3 text-xs text-slate-500">{(o.orderTime ?? o.ordertime) ? new Date(o.orderTime ?? o.ordertime).toLocaleString() : "—"}</td>
                       <td className="p-3 text-right">
                         {next[o.status] && <Button size="sm" variant="outline" onClick={async () => { await updateRestaurantOrderStatus(id, next[o.status]); toast({ title: `→ ${next[o.status]}` }); await load() }}>{next[o.status]}</Button>}
@@ -169,7 +169,7 @@ export default function HotelRestaurantPage() {
                   {filteredMenu.map((m: any, idx: number) => (
                     <button key={m.hotelMenuItemId ?? m.hotelmenuitemid ?? `mi-${idx}`} onClick={() => addToCart(m)} className="w-full flex items-center justify-between p-2 rounded-lg hover:bg-violet-50 border border-transparent hover:border-violet-200 transition-colors text-left">
                       <div><div className="font-medium text-sm">{m.name}</div><div className="text-xs text-slate-400">{m.category}</div></div>
-                      <span className="font-semibold text-violet-700 text-sm">GH₵{Number(m.price).toFixed(2)}</span>
+                      <span className="font-semibold text-violet-700 text-sm">{Number(m.price).toFixed(2)}</span>
                     </button>
                   ))}
                   {filteredMenu.length === 0 && <div className="text-center py-4 text-slate-400 text-sm">No menu items. Add from Menu page.</div>}
@@ -209,12 +209,12 @@ export default function HotelRestaurantPage() {
                     <div className="space-y-2">
                       {cart.map((c, idx) => (
                         <div key={idx} className="flex items-center justify-between text-sm">
-                          <div className="flex-1"><div className="font-medium">{c.menuItem.name}</div><div className="text-xs text-slate-400">GH₵{Number(c.menuItem.price).toFixed(2)} each</div></div>
+                          <div className="flex-1"><div className="font-medium">{c.menuItem.name}</div><div className="text-xs text-slate-400">{Number(c.menuItem.price).toFixed(2)} each</div></div>
                           <div className="flex items-center gap-1">
                             <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateCartQty(idx, -1)}><Minus className="h-3 w-3" /></Button>
                             <span className="w-6 text-center font-semibold">{c.quantity}</span>
                             <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateCartQty(idx, 1)}><Plus className="h-3 w-3" /></Button>
-                            <span className="w-16 text-right font-semibold">GH₵{(Number(c.menuItem.price) * c.quantity).toFixed(2)}</span>
+                            <span className="w-16 text-right font-semibold">{(Number(c.menuItem.price) * c.quantity).toFixed(2)}</span>
                             <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500" onClick={() => setCart(cart.filter((_, i) => i !== idx))}><Trash2 className="h-3 w-3" /></Button>
                           </div>
                         </div>
@@ -223,7 +223,7 @@ export default function HotelRestaurantPage() {
                   )}
                   <div className="border-t mt-3 pt-3 flex justify-between font-bold text-lg">
                     <span>Total</span>
-                    <span className="text-violet-700">GH₵{cartTotal.toFixed(2)}</span>
+                    <span className="text-violet-700">{cartTotal.toFixed(2)}</span>
                   </div>
                 </div>
               </div>
@@ -232,7 +232,7 @@ export default function HotelRestaurantPage() {
               <Button variant="outline" onClick={() => setPosOpen(false)}>Cancel</Button>
               <Button onClick={handleCreateOrder} disabled={saving || cart.length === 0} className="bg-violet-600 hover:bg-violet-700">
                 {saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-                Place Order — GH₵{cartTotal.toFixed(2)}
+                Place Order — {cartTotal.toFixed(2)}
               </Button>
             </DialogFooter>
           </DialogContent>

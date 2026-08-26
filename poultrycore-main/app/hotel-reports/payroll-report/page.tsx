@@ -138,9 +138,9 @@ export default function PayrollReportPage() {
               {/* Summary Cards */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-violet-700">{totalRuns}</div><div className="text-xs text-slate-500 mt-1">Total Runs</div></CardContent></Card>
-                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-emerald-700">GH&#8373;{totalGross.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Total Gross</div></CardContent></Card>
-                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-red-600">GH&#8373;{totalDeductions.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Total Deductions</div></CardContent></Card>
-                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-blue-600">GH&#8373;{totalNet.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Total Net</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-emerald-700">{totalGross.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Total Gross</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-red-600">{totalDeductions.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Total Deductions</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-blue-600">{totalNet.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Total Net</div></CardContent></Card>
               </div>
 
               {/* Data Table */}
@@ -166,9 +166,9 @@ export default function PayrollReportPage() {
                           <tr key={r.hotelPayrollRunId ?? r.hotelpayrollrunid ?? `pr-${idx}`} className="border-b hover:bg-slate-50">
                             <td className="p-3 font-medium">{(r.periodStart ?? r.periodstart ?? "").slice(0, 10)} &mdash; {(r.periodEnd ?? r.periodend ?? "").slice(0, 10)}</td>
                             <td className="p-3 text-center">{statusBadge(r.status)}</td>
-                            <td className="p-3 text-right text-emerald-700">GH&#8373;{Number(r.totalGross ?? r.totalgross ?? 0).toFixed(2)}</td>
-                            <td className="p-3 text-right text-red-600">GH&#8373;{Number(r.totalDeductions ?? r.totaldeductions ?? 0).toFixed(2)}</td>
-                            <td className="p-3 text-right font-bold text-blue-700">GH&#8373;{Number(r.totalNet ?? r.totalnet ?? 0).toFixed(2)}</td>
+                            <td className="p-3 text-right text-emerald-700">{Number(r.totalGross ?? r.totalgross ?? 0).toFixed(2)}</td>
+                            <td className="p-3 text-right text-red-600">{Number(r.totalDeductions ?? r.totaldeductions ?? 0).toFixed(2)}</td>
+                            <td className="p-3 text-right font-bold text-blue-700">{Number(r.totalNet ?? r.totalnet ?? 0).toFixed(2)}</td>
                             <td className="p-3">{r.cashAccountName ?? r.cashaccountname ?? "-"}</td>
                             <td className="p-3">{r.createdBy ?? r.createdby ?? "-"}</td>
                             <td className="p-3">{r.approvedBy ?? r.approvedby ?? "-"}</td>

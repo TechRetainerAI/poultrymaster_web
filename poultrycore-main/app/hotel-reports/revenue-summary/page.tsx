@@ -154,7 +154,7 @@ export default function RevenueSummaryPage() {
               <Button variant="outline" size="sm" onClick={handleDownload}><Download className="h-4 w-4 mr-1" />CSV</Button>
               <Button variant="outline" size="sm" onClick={() => downloadPdf(getPdfConfig())}><FileText className="h-4 w-4 mr-1" />PDF</Button>
               <Button variant="outline" size="sm" onClick={() => setPdfPreviewOpen(true)}><FileText className="h-4 w-4 mr-1" />Preview</Button>
-              <Button variant="outline" size="sm" onClick={() => { const c = getPdfConfig(); printReport({ hotelName, hotelAddress, hotelPhone, hotelEmail, title: c.title, dateRange: c.dateRange, summaryCards: c.summaryCards, headers: c.headers, rows: c.rows, currency: "GH₵" }) }}><Printer className="h-4 w-4 mr-1" />Print</Button>
+              <Button variant="outline" size="sm" onClick={() => { const c = getPdfConfig(); printReport({ hotelName, hotelAddress, hotelPhone, hotelEmail, title: c.title, dateRange: c.dateRange, summaryCards: c.summaryCards, headers: c.headers, rows: c.rows, currency: "" }) }}><Printer className="h-4 w-4 mr-1" />Print</Button>
             </div>
           </div>
 
@@ -172,9 +172,9 @@ export default function RevenueSummaryPage() {
             <>
               {/* Summary Cards */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-emerald-700">GH&#8373;{totalRevenue.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Total Revenue</div></CardContent></Card>
-                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-red-600">GH&#8373;{totalExpenses.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Total Expenses</div></CardContent></Card>
-                <Card><CardContent className="p-4 text-center"><div className={`text-2xl font-bold ${netProfit >= 0 ? "text-emerald-700" : "text-red-700"}`}>GH&#8373;{netProfit.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Net Profit</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-emerald-700">{totalRevenue.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Total Revenue</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-red-600">{totalExpenses.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Total Expenses</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className={`text-2xl font-bold ${netProfit >= 0 ? "text-emerald-700" : "text-red-700"}`}>{netProfit.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Net Profit</div></CardContent></Card>
                 <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-violet-700">{avgOccupancy.toFixed(1)}%</div><div className="text-xs text-slate-500 mt-1">Avg Occupancy</div></CardContent></Card>
               </div>
 
@@ -230,13 +230,13 @@ export default function RevenueSummaryPage() {
                             return (
                               <tr key={c.hotelDailyClosingId ?? c.hoteldailyclosingid ?? `dc-${idx}`} className="border-b hover:bg-slate-50">
                                 <td className="p-3 font-medium">{(c.closingDate ?? c.closingdate ?? "").slice(0, 10)}</td>
-                                <td className="p-3 text-right text-emerald-700">GH&#8373;{rev.toFixed(2)}</td>
-                                <td className="p-3 text-right text-red-600">GH&#8373;{exp.toFixed(2)}</td>
-                                <td className={`p-3 text-right font-bold ${net >= 0 ? "text-emerald-700" : "text-red-700"}`}>GH&#8373;{net.toFixed(2)}</td>
+                                <td className="p-3 text-right text-emerald-700">{rev.toFixed(2)}</td>
+                                <td className="p-3 text-right text-red-600">{exp.toFixed(2)}</td>
+                                <td className={`p-3 text-right font-bold ${net >= 0 ? "text-emerald-700" : "text-red-700"}`}>{net.toFixed(2)}</td>
                                 <td className="p-3 text-right">{Number(c.occupancyRate ?? c.occupancyrate ?? 0).toFixed(1)}%</td>
                                 <td className="p-3 text-right">{c.roomsOccupied ?? c.roomsoccupied ?? 0}/{c.totalRooms ?? c.totalrooms ?? 0}</td>
-                                <td className="p-3 text-right">GH&#8373;{Number(c.adr ?? 0).toFixed(2)}</td>
-                                <td className="p-3 text-right">GH&#8373;{Number(c.revPar ?? c.revpar ?? 0).toFixed(2)}</td>
+                                <td className="p-3 text-right">{Number(c.adr ?? 0).toFixed(2)}</td>
+                                <td className="p-3 text-right">{Number(c.revPar ?? c.revpar ?? 0).toFixed(2)}</td>
                               </tr>
                             )
                           })}

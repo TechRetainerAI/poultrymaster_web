@@ -161,7 +161,7 @@ export default function HotelCheckOutPage() {
                       <div className="flex gap-2">
                         {!isPaid && (
                           <Button variant="outline" size="sm" className="text-red-700 border-red-300" onClick={() => openPayment(g)}>
-                            <Wallet className="h-4 w-4 mr-1" /> Pay GH₵{g.balance.toFixed(2)}
+                            <Wallet className="h-4 w-4 mr-1" /> Pay {g.balance.toFixed(2)}
                           </Button>
                         )}
                         <Button size="sm" onClick={() => openCheckOut(g)} className={isPaid ? "bg-violet-600 hover:bg-violet-700" : "bg-slate-400"}>

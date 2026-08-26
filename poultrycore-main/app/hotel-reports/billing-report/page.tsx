@@ -156,7 +156,7 @@ export default function BillingReportPage() {
               <Button variant="outline" size="sm" onClick={handleDownload}><Download className="h-4 w-4 mr-1" />CSV</Button>
               <Button variant="outline" size="sm" onClick={() => downloadPdf(getPdfConfig())}><FileText className="h-4 w-4 mr-1" />PDF</Button>
               <Button variant="outline" size="sm" onClick={() => setPdfPreviewOpen(true)}><FileText className="h-4 w-4 mr-1" />Preview</Button>
-              <Button variant="outline" size="sm" onClick={() => { const c = getPdfConfig(); printReport({ hotelName, hotelAddress, hotelPhone, hotelEmail, title: c.title, dateRange: c.dateRange, summaryCards: c.summaryCards, headers: c.headers, rows: c.rows, currency: "GH₵" }) }}><Printer className="h-4 w-4 mr-1" />Print</Button>
+              <Button variant="outline" size="sm" onClick={() => { const c = getPdfConfig(); printReport({ hotelName, hotelAddress, hotelPhone, hotelEmail, title: c.title, dateRange: c.dateRange, summaryCards: c.summaryCards, headers: c.headers, rows: c.rows, currency: "" }) }}><Printer className="h-4 w-4 mr-1" />Print</Button>
             </div>
           </div>
 
@@ -174,10 +174,10 @@ export default function BillingReportPage() {
             <>
               {/* Summary Cards */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-emerald-700">GH&#8373;{totalPayments.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Total Payments</div></CardContent></Card>
-                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-violet-700">GH&#8373;{cashTotal.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Cash</div></CardContent></Card>
-                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-amber-600">GH&#8373;{momoTotal.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">MoMo</div></CardContent></Card>
-                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-blue-600">GH&#8373;{bankTotal.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Bank</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-emerald-700">{totalPayments.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Total Payments</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-violet-700">{cashTotal.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Cash</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-amber-600">{momoTotal.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">MoMo</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-blue-600">{bankTotal.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Bank</div></CardContent></Card>
               </div>
 
               {/* Payment Method Breakdown */}
@@ -196,7 +196,7 @@ export default function BillingReportPage() {
                         {Object.entries(methodMap).sort((a, b) => b[1] - a[1]).map(([method, total]) => (
                           <tr key={method} className="border-b hover:bg-slate-50">
                             <td className="p-3 font-medium">{method}</td>
-                            <td className="p-3 text-right text-emerald-700 font-medium">GH&#8373;{total.toFixed(2)}</td>
+                            <td className="p-3 text-right text-emerald-700 font-medium">{total.toFixed(2)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -239,7 +239,7 @@ export default function BillingReportPage() {
                                 <td className="p-3">{(x.paymentDate ?? x.paymentdate ?? "").slice(0, 10)}</td>
                                 <td className="p-3 font-mono text-xs">{bookingRef}</td>
                                 <td className="p-3">{guestName}</td>
-                                <td className="p-3 text-right text-emerald-700 font-medium">GH&#8373;{Number(x.amount ?? 0).toFixed(2)}</td>
+                                <td className="p-3 text-right text-emerald-700 font-medium">{Number(x.amount ?? 0).toFixed(2)}</td>
                                 <td className="p-3">{x.paymentMethod ?? x.paymentmethod ?? "-"}</td>
                                 <td className="p-3 text-xs">{x.reference ?? "-"}</td>
                                 <td className="p-3">{x.receivedBy ?? x.receivedby ?? "-"}</td>

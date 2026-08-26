@@ -146,7 +146,7 @@ export default function HotelStaffPage() {
             <table className="w-full text-sm">
               <thead className="bg-slate-50 border-b"><tr>
                 <th className="text-left p-3">Name</th><th className="text-left p-3">Role</th><th className="text-left p-3">Department</th>
-                <th className="text-left p-3">Phone</th><th className="text-left p-3">Status</th><th className="text-right p-3">Salary (GH₵)</th><th className="text-right p-3">Actions</th>
+                <th className="text-left p-3">Phone</th><th className="text-left p-3">Status</th><th className="text-right p-3">Salary</th><th className="text-right p-3">Actions</th>
               </tr></thead>
               <tbody>
                 {filtered.map((s: any, idx: number) => {
@@ -199,7 +199,7 @@ export default function HotelStaffPage() {
                     <SelectContent>{ROLES.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
                   </Select>
                 </FormField>
-                <FormField label="Monthly Salary (GH₵)"><NumberInput min={0} step={0.01} value={form.salaryAmount} onChange={(e) => setForm({ ...form, salaryAmount: Number(e.target.value) })} /></FormField>
+                <FormField label="Monthly Salary"><NumberInput min={0} step={0.01} value={form.salaryAmount} onChange={(e) => setForm({ ...form, salaryAmount: Number(e.target.value) })} /></FormField>
                 <FormField label="Hire Date"><Input type="date" value={form.hireDate} onChange={(e) => setForm({ ...form, hireDate: e.target.value })} /></FormField>
               </FormSection>
               <FormSection title="Status" color="slate" columns={1}>

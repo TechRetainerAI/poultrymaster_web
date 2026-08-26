@@ -335,7 +335,7 @@ export default function HotelSetupPage() {
                         <tr>
                           <th className="text-left p-3">Rate Name</th>
                           <th className="text-left p-3">Room Type</th>
-                          <th className="text-right p-3">Rate (GH₵)</th>
+                          <th className="text-right p-3">Rate</th>
                           <th className="text-left p-3">Start Date</th>
                           <th className="text-left p-3">End Date</th>
                           <th className="text-center p-3">Type</th>
@@ -356,7 +356,7 @@ export default function HotelSetupPage() {
                             <tr key={r.hotelroomrateid ?? r.hotelRoomRateId} className="border-b hover:bg-slate-50">
                               <td className="p-3 font-medium">{r.ratename ?? r.rateName}</td>
                               <td className="p-3">{rtName}</td>
-                              <td className="p-3 text-right font-semibold text-violet-700">GH₵{Number(r.rate ?? 0).toFixed(2)}</td>
+                              <td className="p-3 text-right font-semibold text-violet-700">{Number(r.rate ?? 0).toFixed(2)}</td>
                               <td className="p-3">{start}</td>
                               <td className="p-3">{end}</td>
                               <td className="p-3 text-center">
@@ -450,10 +450,10 @@ export default function HotelSetupPage() {
                 <div><Label>Room Type *</Label>
                   <Select value={String(rateForm.hotelRoomTypeId)} onValueChange={(v) => setRateForm({ ...rateForm, hotelRoomTypeId: Number(v) })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{roomTypes.map((rt) => <SelectItem key={rt.hotelRoomTypeId} value={String(rt.hotelRoomTypeId)}>{rt.name} (Base: GH₵{rt.baseRate.toFixed(2)})</SelectItem>)}</SelectContent>
+                    <SelectContent>{roomTypes.map((rt) => <SelectItem key={rt.hotelRoomTypeId} value={String(rt.hotelRoomTypeId)}>{rt.name} (Base: {rt.baseRate.toFixed(2)})</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
-                <div><Label>Rate (GH₵) *</Label><Input type="number" step="0.01" value={rateForm.rate} onChange={(e) => setRateForm({ ...rateForm, rate: Number(e.target.value) })} /></div>
+                <div><Label>Rate *</Label><Input type="number" step="0.01" value={rateForm.rate} onChange={(e) => setRateForm({ ...rateForm, rate: Number(e.target.value) })} /></div>
                 <div className="grid grid-cols-2 gap-4">
                   <div><Label>Start Date *</Label><Input type="date" value={rateForm.startDate} onChange={(e) => setRateForm({ ...rateForm, startDate: e.target.value })} /></div>
                   <div><Label>End Date *</Label><Input type="date" value={rateForm.endDate} onChange={(e) => setRateForm({ ...rateForm, endDate: e.target.value })} /></div>
@@ -468,7 +468,7 @@ export default function HotelSetupPage() {
                   const pct = baseRate > 0 ? ((diff / baseRate) * 100).toFixed(1) : "0"
                   return (
                     <div className={`p-2 rounded text-xs ${diff >= 0 ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"}`}>
-                      {diff >= 0 ? `+${pct}%` : `${pct}%`} vs base rate (GH₵{baseRate.toFixed(2)}) — {diff >= 0 ? "premium" : "discount"} of GH₵{Math.abs(diff).toFixed(2)}/night
+                      {diff >= 0 ? `+${pct}%` : `${pct}%`} vs base rate ({baseRate.toFixed(2)}) — {diff >= 0 ? "premium" : "discount"} of {Math.abs(diff).toFixed(2)}/night
                     </div>
                   )
                 })()}

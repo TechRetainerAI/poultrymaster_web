@@ -148,7 +148,7 @@ export default function MaintenanceReportPage() {
               <Button variant="outline" size="sm" onClick={handleDownload}><Download className="h-4 w-4 mr-1" />CSV</Button>
               <Button variant="outline" size="sm" onClick={() => downloadPdf(getPdfConfig())}><FileText className="h-4 w-4 mr-1" />PDF</Button>
               <Button variant="outline" size="sm" onClick={() => setPdfPreviewOpen(true)}><FileText className="h-4 w-4 mr-1" />Preview</Button>
-              <Button variant="outline" size="sm" onClick={() => { const c = getPdfConfig(); printReport({ hotelName, hotelAddress, hotelPhone, hotelEmail, title: c.title, dateRange: c.dateRange, summaryCards: c.summaryCards, headers: c.headers, rows: c.rows, currency: "GH₵" }) }}><Printer className="h-4 w-4 mr-1" />Print</Button>
+              <Button variant="outline" size="sm" onClick={() => { const c = getPdfConfig(); printReport({ hotelName, hotelAddress, hotelPhone, hotelEmail, title: c.title, dateRange: c.dateRange, summaryCards: c.summaryCards, headers: c.headers, rows: c.rows, currency: "" }) }}><Printer className="h-4 w-4 mr-1" />Print</Button>
             </div>
           </div>
 
@@ -170,7 +170,7 @@ export default function MaintenanceReportPage() {
                 <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-red-600">{openCount}</div><div className="text-xs text-slate-500 mt-1">Open</div></CardContent></Card>
                 <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-amber-600">{inProgressCount}</div><div className="text-xs text-slate-500 mt-1">In Progress</div></CardContent></Card>
                 <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-green-600">{completedCount}</div><div className="text-xs text-slate-500 mt-1">Completed</div></CardContent></Card>
-                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-slate-700">GH&#8373;{estCostTotal.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Est. Cost Total</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-slate-700">{estCostTotal.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Est. Cost Total</div></CardContent></Card>
               </div>
 
               {/* Data Table */}
@@ -206,7 +206,7 @@ export default function MaintenanceReportPage() {
                               <td className="p-3 max-w-[200px] truncate">{x.issueDescription ?? x.issuedescription ?? "-"}</td>
                               <td className="p-3 text-center">{priorityBadge(x.priority ?? "")}</td>
                               <td className="p-3 text-center">{mStatusBadge(x.status ?? "")}</td>
-                              <td className="p-3 text-right">GH&#8373;{Number(x.estimatedCost ?? x.estimatedcost ?? 0).toFixed(2)}</td>
+                              <td className="p-3 text-right">{Number(x.estimatedCost ?? x.estimatedcost ?? 0).toFixed(2)}</td>
                               <td className="p-3">{(x.completedAt ?? x.completedat ?? "-").slice?.(0, 10) ?? "-"}</td>
                             </tr>
                           ))}

@@ -80,9 +80,9 @@ export default function HotelDailyClosingPage() {
               <div><div className="text-2xl font-bold text-emerald-700">{liveStats.available}</div><div className="text-xs text-slate-500">Available</div></div>
               <div><div className="text-2xl font-bold text-violet-700">{liveStats.occupied}</div><div className="text-xs text-slate-500">Occupied</div></div>
               <div><div className="text-2xl font-bold text-violet-700">{occRate}%</div><div className="text-xs text-slate-500">Occupancy</div></div>
-              <div><div className="text-2xl font-bold text-emerald-700">GH₵{liveStats.revenue.toFixed(0)}</div><div className="text-xs text-slate-500">Revenue</div></div>
-              <div><div className="text-2xl font-bold text-red-700">GH₵{liveStats.expenses.toFixed(0)}</div><div className="text-xs text-slate-500">Expenses</div></div>
-              <div><div className={`text-2xl font-bold ${netProfit >= 0 ? "text-emerald-700" : "text-red-700"}`}>GH₵{netProfit.toFixed(0)}</div><div className="text-xs text-slate-500">Net</div></div>
+              <div><div className="text-2xl font-bold text-emerald-700">{liveStats.revenue.toFixed(0)}</div><div className="text-xs text-slate-500">Revenue</div></div>
+              <div><div className="text-2xl font-bold text-red-700">{liveStats.expenses.toFixed(0)}</div><div className="text-xs text-slate-500">Expenses</div></div>
+              <div><div className={`text-2xl font-bold ${netProfit >= 0 ? "text-emerald-700" : "text-red-700"}`}>{netProfit.toFixed(0)}</div><div className="text-xs text-slate-500">Net</div></div>
               <div><div className="text-2xl font-bold text-blue-700">{liveStats.checkedIn}</div><div className="text-xs text-slate-500">In-House</div></div>
             </div>
           </CardContent>
@@ -99,13 +99,13 @@ export default function HotelDailyClosingPage() {
               const net = rev - exp
               return (<tr key={i.hotelDailyClosingId ?? i.hoteldailyclosingid ?? `dc-${idx}`} className="border-b hover:bg-slate-50">
                 <td className="p-3 font-medium">{(i.closingDate ?? i.closingdate)?.slice?.(0,10)}</td>
-                <td className="p-3 text-right text-emerald-700 font-semibold">GH₵{rev.toFixed(2)}</td>
-                <td className="p-3 text-right text-red-600">GH₵{exp.toFixed(2)}</td>
-                <td className={`p-3 text-right font-bold ${net >= 0 ? "text-emerald-700" : "text-red-700"}`}>GH₵{net.toFixed(2)}</td>
+                <td className="p-3 text-right text-emerald-700 font-semibold">{rev.toFixed(2)}</td>
+                <td className="p-3 text-right text-red-600">{exp.toFixed(2)}</td>
+                <td className={`p-3 text-right font-bold ${net >= 0 ? "text-emerald-700" : "text-red-700"}`}>{net.toFixed(2)}</td>
                 <td className="p-3 text-right">{Number(i.occupancyRate ?? i.occupancyrate ?? 0).toFixed(1)}%</td>
                 <td className="p-3 text-right">{i.roomsOccupied ?? i.roomsoccupied ?? 0}/{i.totalRooms ?? i.totalrooms ?? 0}</td>
-                <td className="p-3 text-right">GH₵{Number(i.adr ?? 0).toFixed(2)}</td>
-                <td className="p-3 text-right">GH₵{Number(i.revPar ?? i.revpar ?? 0).toFixed(2)}</td>
+                <td className="p-3 text-right">{Number(i.adr ?? 0).toFixed(2)}</td>
+                <td className="p-3 text-right">{Number(i.revPar ?? i.revpar ?? 0).toFixed(2)}</td>
                 <td className="p-3 text-xs text-slate-500">{i.notes ?? ""}</td>
               </tr>)
             })}
@@ -120,11 +120,11 @@ export default function HotelDailyClosingPage() {
               <p className="text-sm font-semibold text-violet-700">This will auto-calculate and save today&apos;s snapshot:</p>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div>Occupancy: <strong>{occRate}%</strong> ({liveStats.occupied}/{liveStats.totalRooms})</div>
-                <div>Revenue: <strong className="text-emerald-700">GH₵{liveStats.revenue.toFixed(2)}</strong></div>
-                <div>Expenses: <strong className="text-red-700">GH₵{liveStats.expenses.toFixed(2)}</strong></div>
-                <div>Net: <strong className={netProfit >= 0 ? "text-emerald-700" : "text-red-700"}>GH₵{netProfit.toFixed(2)}</strong></div>
+                <div>Revenue: <strong className="text-emerald-700">{liveStats.revenue.toFixed(2)}</strong></div>
+                <div>Expenses: <strong className="text-red-700">{liveStats.expenses.toFixed(2)}</strong></div>
+                <div>Net: <strong className={netProfit >= 0 ? "text-emerald-700" : "text-red-700"}>{netProfit.toFixed(2)}</strong></div>
                 <div>In-house guests: <strong>{liveStats.checkedIn}</strong></div>
-                <div>ADR: <strong>GH₵{liveStats.occupied > 0 ? (liveStats.revenue / liveStats.occupied).toFixed(2) : "0.00"}</strong></div>
+                <div>ADR: <strong>{liveStats.occupied > 0 ? (liveStats.revenue / liveStats.occupied).toFixed(2) : "0.00"}</strong></div>
               </div>
             </div>
             <div><Label>Date</Label><Input type="date" value={form.closingDate} onChange={(e) => setForm({...form, closingDate: e.target.value})} /></div>

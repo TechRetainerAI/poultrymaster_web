@@ -146,7 +146,7 @@ export default function InventoryReportPage() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-violet-700">{totalItems}</div><div className="text-xs text-slate-500 mt-1">Total Items</div></CardContent></Card>
                 <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-red-600">{lowStock}</div><div className="text-xs text-slate-500 mt-1">Low Stock</div></CardContent></Card>
-                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-emerald-700">GH&#8373;{totalValue.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Total Value</div></CardContent></Card>
+                <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-emerald-700">{totalValue.toFixed(2)}</div><div className="text-xs text-slate-500 mt-1">Total Value</div></CardContent></Card>
                 <Card><CardContent className="p-4 text-center"><div className="text-2xl font-bold text-blue-600">{categoriesCount}</div><div className="text-xs text-slate-500 mt-1">Categories</div></CardContent></Card>
               </div>
 
@@ -163,8 +163,8 @@ export default function InventoryReportPage() {
                           <th className="text-left p-3">Unit</th>
                           <th className="text-right p-3">Stock</th>
                           <th className="text-right p-3">Reorder Level</th>
-                          <th className="text-right p-3">Unit Cost (GH&#8373;)</th>
-                          <th className="text-right p-3">Value (GH&#8373;)</th>
+                          <th className="text-right p-3">Unit Cost ()</th>
+                          <th className="text-right p-3">Value ()</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -180,8 +180,8 @@ export default function InventoryReportPage() {
                               <td className="p-3">{i.unit ?? i.unitOfMeasure ?? i.unitofmeasure ?? "-"}</td>
                               <td className={`p-3 text-right font-medium ${isLow ? "text-red-600" : ""}`}>{stock}</td>
                               <td className="p-3 text-right">{reorder}</td>
-                              <td className="p-3 text-right">GH&#8373;{cost.toFixed(2)}</td>
-                              <td className="p-3 text-right text-emerald-700 font-medium">GH&#8373;{(stock * cost).toFixed(2)}</td>
+                              <td className="p-3 text-right">{cost.toFixed(2)}</td>
+                              <td className="p-3 text-right text-emerald-700 font-medium">{(stock * cost).toFixed(2)}</td>
                             </tr>
                           )
                         })}
