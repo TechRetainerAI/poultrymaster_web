@@ -14,6 +14,7 @@ import { NAV_SURFACE } from "./nav/nav-surface"
 import { WATER_REPORT_NAV_GROUPS, POULTRY_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
 import { buildWaterNavConfig } from "@/lib/nav/water-nav-config"
 import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
+import { buildHotelNavConfig } from "@/lib/nav/hotel-nav-config"
 import { NavMegaMenu } from "./nav/nav-mega-menu"
 import { useNavPopover, NAV_TRIGGER_CLASS, NAV_TRIGGER_ACTIVE } from "./nav/use-nav-popover"
 import {
@@ -252,40 +253,65 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
   )
 }
 
-function HotelTopNav() {
-  const moreGroup: NavGroup = {
-    label: "More",
-    items: [
-      { href: "/hotel-billing",       label: "Billing",       icon: DollarSign },
-      { href: "/hotel-invoices",      label: "Invoices",      icon: FileText },
-      { href: "/hotel-payments",      label: "Payments",      icon: CreditCard },
-      { href: "/hotel-cash-accounts", label: "Cash Accounts", icon: Wallet },
-      { href: "/hotel-staff",         label: "Staff",         icon: Users },
-      { href: "/hotel-payroll",       label: "Payroll",       icon: CreditCard },
-      { href: "/hotel-inventory",     label: "Supplies",      icon: Boxes },
-      { href: "/hotel-maintenance",   label: "Maintenance",   icon: Settings },
-      { href: "/hotel-reports",       label: "Reports",       icon: BarChart3 },
-      { href: "/hotel-daily-closing", label: "Daily Closing", icon: FileText },
-      { href: "/hotel-setup",         label: "Setup",         icon: Settings },
-      { href: "/profile",             label: "Account",       icon: User },
-    ],
-  }
+function HotelTopNav({ permissions }: { permissions: ReturnType<typeof usePermissions> }) {
+  const nav = useMemo(() => buildHotelNavConfig({ permissions }), [permissions])
 
   return (
     <div className="hidden lg:block bg-violet-600 border-b border-violet-700">
       <div className="flex items-center gap-1 px-4 pt-1.5 pb-2.5 nav-rail-scroll">
-        <NavLink item={{ href: "/hotel-dashboard",   label: "Dashboard",    icon: Home }}         accent="violet" />
+        <NavLink item={{ href: "/hotel-dashboard", label: "Dashboard", icon: Home }} accent="violet" />
         <div className="h-5 w-px bg-white/30 mx-1" />
-        <NavLink item={{ href: "/hotel-bookings",    label: "Bookings",     icon: FileText }}     accent="violet" />
-        <NavLink item={{ href: "/hotel-check-in",    label: "Check-in",     icon: Activity }}     accent="violet" />
-        <NavLink item={{ href: "/hotel-guests",      label: "Guests",       icon: Users }}        accent="violet" />
-        <NavLink item={{ href: "/hotel-rooms",       label: "Rooms",        icon: Building2 }}    accent="violet" />
-        <NavLink item={{ href: "/hotel-housekeeping", label: "Housekeeping", icon: Factory }}     accent="violet" />
-        <NavLink item={{ href: "/hotel-restaurant",  label: "Restaurant",   icon: ShoppingCart }} accent="violet" />
-        <NavLink item={{ href: "/hotel-expenses",    label: "Expenses",     icon: DollarSign }}   accent="violet" />
-        <NavDropdown group={moreGroup} accent="violet" />
+
+        <NavDropdown group={nav.quickLinks} accent="violet" />
+
+        <NavMegaMenu
+          label="Operations" icon={Factory}
+          title="Operations"
+          blurb="Front desk, rooms and housekeeping."
+          groups={nav.operations}
+          columns={2} widthRem={32} layout="grid" accent="violet"
+        />
+
+        <NavMegaMenu
+          label="Sales & Money" icon={Wallet}
+          title="Sales & Money"
+          blurb="Billing, payments, expenses and cash."
+          groups={nav.salesMoney}
+          columns={2} widthRem={21} layout="grid" accent="violet"
+        />
+
+        <NavMegaMenu
+          label="Restaurant" icon={ShoppingCart}
+          title="Restaurant & Bar"
+          blurb="Orders, menu, kitchen and tables."
+          groups={nav.restaurant}
+          columns={1} widthRem={14} layout="grid" accent="violet"
+        />
+
+        <NavMegaMenu
+          label="Reports" icon={BarChart3}
+          title="Reports"
+          blurb="Revenue, occupancy and audit reports."
+          groups={nav.reports}
+          columns={1} widthRem={14} layout="grid" accent="violet"
+        />
+
+        <NavMegaMenu
+          label="Setup" icon={Settings}
+          title="Setup"
+          blurb="Hotel configuration, staff and facilities."
+          groups={nav.setup}
+          columns={2} widthRem={26.5} layout="grid" accent="violet"
+        />
+
         <div className="ml-auto flex items-center gap-1">
-          <NavLink item={{ href: "/companies", label: "Companies", icon: Building2 }} accent="violet" />
+          <NavMegaMenu
+            label="System" icon={User}
+            title="System"
+            blurb="Account and companies."
+            groups={nav.system}
+            columns={1} widthRem={13.5} layout="grid" accent="violet"
+          />
         </div>
       </div>
     </div>
@@ -310,7 +336,7 @@ export function TopNavigation() {
     return <GenericTopNav permissions={permissions} />
   }
   if (activeFarmType === "Hotel") {
-    return <HotelTopNav />
+    return <HotelTopNav permissions={permissions} />
   }
 
   // 2026-08-07: same treatment as the water rail — nine near-identical narrow

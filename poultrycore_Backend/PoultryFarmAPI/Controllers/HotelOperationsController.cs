@@ -5,8 +5,8 @@ using PoultryFarmAPIWeb.Helpers;
 
 namespace PoultryFarmAPIWeb.Controllers
 {
-    public class CreateStaffRequest { public string FarmId { get; set; } = ""; public string FirstName { get; set; } = ""; public string LastName { get; set; } = ""; public string? Email { get; set; } public string? Phone { get; set; } public string Role { get; set; } = "Other"; public string Department { get; set; } = "Other"; public decimal SalaryAmount { get; set; } public string? HireDate { get; set; } }
-    public class UpdateStaffRequest { public string FarmId { get; set; } = ""; public string FirstName { get; set; } = ""; public string LastName { get; set; } = ""; public string? Email { get; set; } public string? Phone { get; set; } public string Role { get; set; } = ""; public string Department { get; set; } = ""; public decimal SalaryAmount { get; set; } }
+    public class CreateStaffRequest { public string FarmId { get; set; } = ""; public string FirstName { get; set; } = ""; public string LastName { get; set; } = ""; public string? Email { get; set; } public string? Phone { get; set; } public string Role { get; set; } = "Other"; public string Department { get; set; } = "Other"; public decimal SalaryAmount { get; set; } public string? HireDate { get; set; } public bool IsActive { get; set; } = true; }
+    public class UpdateStaffRequest { public string FarmId { get; set; } = ""; public string FirstName { get; set; } = ""; public string LastName { get; set; } = ""; public string? Email { get; set; } public string? Phone { get; set; } public string Role { get; set; } = ""; public string Department { get; set; } = ""; public decimal SalaryAmount { get; set; } public bool IsActive { get; set; } = true; }
     public class CreateInventoryRequest { public string FarmId { get; set; } = ""; public string Name { get; set; } = ""; public string Category { get; set; } = ""; public string Unit { get; set; } = "pcs"; public int StockOnHand { get; set; } public int ReorderLevel { get; set; } public decimal UnitCost { get; set; } }
     public class CreateMaintenanceReq { public string FarmId { get; set; } = ""; public int? HotelRoomId { get; set; } public string AssetDescription { get; set; } = "General"; public string IssueDescription { get; set; } = ""; public string Priority { get; set; } = "Normal"; public decimal EstimatedCost { get; set; } }
     public class CreateClosingRequest { public string FarmId { get; set; } = ""; public string? ClosingDate { get; set; } public string? Notes { get; set; } }
@@ -34,12 +34,12 @@ namespace PoultryFarmAPIWeb.Controllers
             var auth = HotelAuthHelper.VerifyFarmOwnership(User, req.FarmId); if (auth != null) return auth;
             string hire = string.IsNullOrEmpty(req.HireDate) ? DateTime.UtcNow.ToString("yyyy-MM-dd") : req.HireDate;
             using var conn = new NpgsqlConnection(_cs); await conn.OpenAsync();
-            using var cmd = new NpgsqlCommand("INSERT INTO hotelstaff(farmid,firstname,lastname,email,phone,role,department,salaryamount,hiredate) VALUES(@f,@fn,@ln,@e,@p,@r,@d,@s,@h::date) RETURNING *", conn);
+            using var cmd = new NpgsqlCommand("INSERT INTO hotelstaff(farmid,firstname,lastname,email,phone,role,department,salaryamount,hiredate,isactive) VALUES(@f,@fn,@ln,@e,@p,@r,@d,@s,@h::date,@a) RETURNING *", conn);
             cmd.Parameters.AddWithValue("@f", req.FarmId); cmd.Parameters.AddWithValue("@fn", req.FirstName);
             cmd.Parameters.AddWithValue("@ln", req.LastName); cmd.Parameters.AddWithValue("@e", (object?)req.Email ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@p", (object?)req.Phone ?? DBNull.Value); cmd.Parameters.AddWithValue("@r", req.Role);
             cmd.Parameters.AddWithValue("@d", req.Department); cmd.Parameters.AddWithValue("@s", req.SalaryAmount);
-            cmd.Parameters.AddWithValue("@h", hire);
+            cmd.Parameters.AddWithValue("@h", hire); cmd.Parameters.AddWithValue("@a", req.IsActive);
             using var r = await cmd.ExecuteReaderAsync();
             return await r.ReadAsync() ? Ok(ReadRow(r)) : StatusCode(500);
         }
@@ -49,12 +49,12 @@ namespace PoultryFarmAPIWeb.Controllers
         {
             var auth = HotelAuthHelper.VerifyFarmOwnership(User, req.FarmId); if (auth != null) return auth;
             using var conn = new NpgsqlConnection(_cs); await conn.OpenAsync();
-            using var cmd = new NpgsqlCommand("UPDATE hotelstaff SET firstname=@fn,lastname=@ln,email=@e,phone=@p,role=@r,department=@d,salaryamount=@s,updatedat=NOW() WHERE hotelstaffid=@id AND farmid=@f", conn);
+            using var cmd = new NpgsqlCommand("UPDATE hotelstaff SET firstname=@fn,lastname=@ln,email=@e,phone=@p,role=@r,department=@d,salaryamount=@s,isactive=@a,updatedat=NOW() WHERE hotelstaffid=@id AND farmid=@f", conn);
             cmd.Parameters.AddWithValue("@id", id); cmd.Parameters.AddWithValue("@f", req.FarmId);
             cmd.Parameters.AddWithValue("@fn", req.FirstName); cmd.Parameters.AddWithValue("@ln", req.LastName);
             cmd.Parameters.AddWithValue("@e", (object?)req.Email ?? DBNull.Value); cmd.Parameters.AddWithValue("@p", (object?)req.Phone ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@r", req.Role); cmd.Parameters.AddWithValue("@d", req.Department);
-            cmd.Parameters.AddWithValue("@s", req.SalaryAmount);
+            cmd.Parameters.AddWithValue("@s", req.SalaryAmount); cmd.Parameters.AddWithValue("@a", req.IsActive);
             await cmd.ExecuteNonQueryAsync();
             return NoContent();
         }

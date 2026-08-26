@@ -528,3 +528,86 @@ export async function getLoyaltyByGuest(guestId: number): Promise<HotelLoyaltyMe
 export async function enrollLoyalty(guestId: number, notes?: string): Promise<HotelLoyaltyMember> { return jsend<HotelLoyaltyMember>("/Hotel/loyalty/enroll", "POST", { hotelGuestId: guestId, notes, farmId: activeFarmId() }) }
 export async function addLoyaltyPoints(input: { hotelLoyaltyMemberId: number; hotelBookingId?: number; transactionType: string; points: number; description?: string }): Promise<{ success: boolean; tier: string }> { return jsend<{ success: boolean; tier: string }>("/Hotel/loyalty/points", "POST", { ...input, farmId: activeFarmId() }) }
 export async function listLoyaltyTransactions(memberId: number): Promise<HotelLoyaltyTransaction[]> { return jget<HotelLoyaltyTransaction[]>(`/Hotel/loyalty/${memberId}/transactions`) }
+
+// =============================================================================
+// PAYROLL
+// =============================================================================
+
+export interface HotelPayrollRun {
+  hotelpayrollrunid: number; farmid: string
+  periodstart: string; periodend: string; paydate?: string | null
+  totalgrosspay: number; totaldeductions: number; totalnetpay: number
+  status: string; hotelcashaccountid?: number | null; cashaccountname?: string | null
+  notes?: string | null; createdby?: string | null
+  approvedby?: string | null; approvedat?: string | null
+  paidby?: string | null; paidat?: string | null
+  cancelledby?: string | null; cancelreason?: string | null
+  createdat: string; updatedat?: string | null
+}
+
+export interface HotelPayrollItem {
+  hotelpayrollitemid: number; hotelpayrollrunid: number
+  hotelstaffid: number; staffname?: string | null; staffrole?: string | null
+  basicpay: number; dailywage: number; commission: number; bonus: number
+  deductions: number; netpay: number
+  paymentmethod?: string | null; notes?: string | null; createdat: string
+}
+
+export interface HotelPayrollRunDetail {
+  run: HotelPayrollRun; items: HotelPayrollItem[]
+}
+
+// Payroll API
+export async function listHotelPayrollRuns(status?: string): Promise<HotelPayrollRun[]> {
+  const qs = status ? `&status=${encodeURIComponent(status)}` : ""
+  return jget<HotelPayrollRun[]>(`/Hotel/payroll-runs?${qs}`)
+}
+
+export async function getHotelPayrollRun(id: number): Promise<HotelPayrollRunDetail> {
+  return jget<HotelPayrollRunDetail>(`/Hotel/payroll-runs/${id}`)
+}
+
+export async function createHotelPayrollRun(input: { periodStart: string; periodEnd: string; payDate?: string; hotelCashAccountId?: number; notes?: string }): Promise<HotelPayrollRun> {
+  return jsend<HotelPayrollRun>("/Hotel/payroll-runs", "POST", { ...input, farmId: activeFarmId() })
+}
+
+export async function upsertHotelPayrollItem(runId: number, input: { hotelStaffId: number; staffName?: string; staffRole?: string; basicPay: number; dailyWage: number; commission: number; bonus: number; deductions: number; paymentMethod?: string; notes?: string }): Promise<any> {
+  return jsend<any>(`/Hotel/payroll-runs/${runId}/items`, "POST", { ...input, farmId: activeFarmId() })
+}
+
+export async function deleteHotelPayrollItem(itemId: number): Promise<void> {
+  const farmId = activeFarmId()
+  const url = farmApiUrl(`/Hotel/payroll-runs/items/${itemId}?farmId=${encodeURIComponent(farmId)}`)
+  const res = await fetch(url, { method: "DELETE", headers: getAuthHeaders() })
+  if (!res.ok) throw new Error(await readApiError(res))
+}
+
+export async function approveHotelPayrollRun(id: number): Promise<void> {
+  const farmId = activeFarmId()
+  const url = farmApiUrl(`/Hotel/payroll-runs/${id}/approve?farmId=${encodeURIComponent(farmId)}`)
+  const res = await fetch(url, { method: "POST", headers: getAuthHeaders() })
+  if (!res.ok) throw new Error(await readApiError(res))
+}
+
+export async function markHotelPayrollRunPaid(id: number, payDate?: string): Promise<void> {
+  const farmId = activeFarmId()
+  const qs = payDate ? `&payDate=${encodeURIComponent(payDate)}` : ""
+  const url = farmApiUrl(`/Hotel/payroll-runs/${id}/mark-paid?farmId=${encodeURIComponent(farmId)}${qs}`)
+  const res = await fetch(url, { method: "POST", headers: getAuthHeaders() })
+  if (!res.ok) throw new Error(await readApiError(res))
+}
+
+export async function cancelHotelPayrollRun(id: number, reason?: string): Promise<void> {
+  const farmId = activeFarmId()
+  const qs = reason ? `&reason=${encodeURIComponent(reason)}` : ""
+  const url = farmApiUrl(`/Hotel/payroll-runs/${id}/cancel?farmId=${encodeURIComponent(farmId)}${qs}`)
+  const res = await fetch(url, { method: "POST", headers: getAuthHeaders() })
+  if (!res.ok) throw new Error(await readApiError(res))
+}
+
+export async function deleteHotelPayrollRun(id: number): Promise<void> {
+  const farmId = activeFarmId()
+  const url = farmApiUrl(`/Hotel/payroll-runs/${id}?farmId=${encodeURIComponent(farmId)}`)
+  const res = await fetch(url, { method: "DELETE", headers: getAuthHeaders() })
+  if (!res.ok) throw new Error(await readApiError(res))
+}
