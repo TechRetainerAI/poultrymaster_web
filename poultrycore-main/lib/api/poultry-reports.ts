@@ -8,6 +8,7 @@
 // =============================================================================
 
 import { buildApiUrl, getAuthHeaders, getUserContext } from "./config"
+import { explainHttpError } from "@/lib/api/http-error"
 
 /** Uniform response envelope returned by every advanced poultry report. */
 export interface PoultryReportResponse<TSummary = any, TRow = any> {
@@ -84,14 +85,10 @@ export async function fetchPoultryReport<TSummary = any, TRow = any>(
   const url = buildApiUrl(`/poultry/reports/${slug}?${qs.toString()}`)
   const res = await fetch(url, { method: "GET", headers: getAuthHeaders() })
   if (!res.ok) {
-    let message = `Report request failed (${res.status})`
-    try {
-      const body = await res.json()
-      if (body?.message) message = body.message
-    } catch {
-      /* ignore */
-    }
-    throw new Error(message)
+    // Only `message` was read here, so a PascalCase Message or a validation
+    // errors bag came back as the bare status.
+    const text = await res.text().catch(() => "")
+    throw new Error(explainHttpError("GET", `/poultry/reports/${slug}`, res.status, text))
   }
   return (await res.json()) as PoultryReportResponse<TSummary, TRow>
 }

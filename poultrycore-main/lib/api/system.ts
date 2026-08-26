@@ -1,4 +1,5 @@
 import { getAuthHeaders, loginApiUrl } from "./config"
+import { explainHttpError, pathOf } from "@/lib/api/http-error"
 
 export type FarmSummary = {
   farmId: string;
@@ -12,7 +13,9 @@ export type FarmSummary = {
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(text || `Request failed with ${res.status}`);
+    // Was `text || ...`, which put a JSON error payload straight in front of
+    // the user whenever the body was not plain prose.
+    throw new Error(explainHttpError("", pathOf(res), res.status, text));
   }
   if (res.status === 204) return undefined as unknown as T;
   const txt = await res.text();

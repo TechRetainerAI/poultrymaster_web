@@ -8,7 +8,8 @@ import { cn } from "@/lib/utils"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useAlertsStore } from "@/lib/store/alerts-store"
-import { Droplets, ShoppingBag } from "lucide-react"
+import { Droplets, ShoppingBag, PackageMinus,
+} from "lucide-react"
 import { navPathActive, type NavAccent, type NavGroup, type NavItem } from "@/lib/nav/nav-model"
 import { NAV_SURFACE } from "./nav/nav-surface"
 import { WATER_REPORT_NAV_GROUPS, POULTRY_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
@@ -34,6 +35,7 @@ import {
   CreditCard,
   Truck,
   Factory,
+  LineChart,
 } from "lucide-react"
 
 function NavDropdown({ group, accent = "sky" }: { group: NavGroup; accent?: NavAccent }) {
@@ -167,6 +169,16 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
           columns={2} widthRem={34} layout="grid"
         />
 
+        {/* Analytics is a menu, not a destination — there is no landing page,
+            so no viewAll. A report prints a period; an analytic is explored. */}
+        <NavMegaMenu
+          label="Analytics" icon={LineChart}
+          title="Analytics"
+          blurb="Explore where your stock actually moved."
+          groups={nav.analytics}
+          columns={1} widthRem={22} layout="grid"
+        />
+
         {/* Sourced from lib/reports/water-reports-config.ts — the single source
             of truth shared with the /water-reports index page. Keeps the
             "columns" layout so it renders exactly as it always has. */}
@@ -216,6 +228,9 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
   const moreGroup: NavGroup = {
     label: "More",
     items: [
+      // Generic has no Operations mega-menu, so Internal Use rides here beside
+      // the other stock pages rather than getting a menu of its own.
+      { href: "/generic-internal-use",       label: "Internal Use",       icon: PackageMinus },
       { href: "/generic-customer-payments",  label: "Customer payments",  icon: CreditCard },
       { href: "/generic-supplier-payments",  label: "Supplier payments",  icon: CreditCard },
       { href: "/generic-cash",               label: "Cash & Accounts",    icon: Wallet },

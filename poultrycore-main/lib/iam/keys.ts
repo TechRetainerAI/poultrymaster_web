@@ -128,6 +128,17 @@ export const LEGACY_PERMISSION_MAP: Record<StaffFeaturePermissionKey, Permission
     "water.production-losses.edit", "water.production-losses.delete",
   ],
 
+  // Internal Use (migration 212). Water ships first; the poultry and generic
+  // keys are listed now so the flag keeps working when those pages land.
+  canViewInternalUse: [
+    "water.internal-use.view", "water.internal-use.create",
+    "water.internal-use.edit", "water.internal-use.delete",
+    "poultry.internal-use.view", "poultry.internal-use.create",
+    "poultry.internal-use.edit", "poultry.internal-use.delete",
+    "generic.internal-use.view", "generic.internal-use.create",
+    "generic.internal-use.edit", "generic.internal-use.delete",
+  ],
+
   canViewWaterMaintenance: [
     "water.maintenance.view", "water.maintenance.create",
     "water.maintenance.edit", "water.maintenance.delete", "water.maintenance.approve",

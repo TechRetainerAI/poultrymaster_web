@@ -4,6 +4,7 @@
 // getAuthHeaders pattern as the other lib/api/* modules in this project.
 
 import { buildApiUrl, getAuthHeaders, getUserContext } from "./config"
+import { explainHttpError } from "@/lib/api/http-error"
 
 // =============================================================================
 // Types
@@ -313,32 +314,6 @@ function farmBase(): string {
 function withFarmId<T extends object>(input: T): T & { farmId: string } {
   const { farmId } = getUserContext()
   return { ...input, farmId }
-}
-
-// Mirror of lib/api/water.ts → explainHttpError. We parse the Farm API's
-// GlobalExceptionMiddleware JSON ({ message, hint, sqlNumber, ... }) and
-// surface just the `.message` so toasts show "Customer payment cannot be
-// approved from status Cancelled" instead of "POST /Generic/... -> 500".
-function explainHttpError(method: string, endpoint: string, status: number, body: string): string {
-  if (!body) return `${method} ${endpoint} → HTTP ${status}`
-  let parsed: any = null
-  try { parsed = JSON.parse(body) } catch { /* not JSON */ }
-  if (parsed) {
-    if (typeof parsed.message === "string" && parsed.message) return parsed.message
-    if (typeof parsed.detail === "string"  && parsed.detail)  return parsed.detail
-    if (typeof parsed.title === "string"   && parsed.title)   return parsed.title
-    if (typeof parsed.error === "string"   && parsed.error)   return parsed.error
-    if (parsed.errors && typeof parsed.errors === "object") {
-      const lines: string[] = []
-      for (const k of Object.keys(parsed.errors)) {
-        const v = parsed.errors[k]
-        lines.push(`${k}: ${Array.isArray(v) ? v.join(", ") : String(v)}`)
-      }
-      if (lines.length) return lines.join(" · ")
-    }
-  }
-  const trimmed = body.trim().replace(/\s+/g, " ")
-  return trimmed.length > 400 ? trimmed.slice(0, 400) + "…" : trimmed
 }
 
 async function getJson<T>(endpoint: string): Promise<T> {

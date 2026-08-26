@@ -395,6 +395,46 @@ namespace PoultryFarmAPIWeb.Models
         public decimal  OutstandingBalance { get; set; }
     }
 
+    // Migration 221 — Inventory Tracker. One row per product for the period.
+    // Quantities are in BASE units (sachets) because that is the only unit the
+    // ledger can be summed in without mixing bags and sachets; the *Bags fields
+    // are the same figures divided by sachetsPerBag, for display only.
+    public class WaterInventoryTrackerRow
+    {
+        public int      WaterProductId { get; set; }
+        public string   ProductName { get; set; } = string.Empty;
+        public string?  Sku { get; set; }
+        public string?  BaseUnit { get; set; }
+        public bool     IsSachetProduct { get; set; }
+        public decimal  SachetsPerBag { get; set; }
+        public decimal  OpeningBase { get; set; }
+        public decimal  StockInBase { get; set; }
+        public decimal  StockOutBase { get; set; }
+        public decimal  ClosingBase { get; set; }
+        public decimal  OpeningBags { get; set; }
+        public decimal  ClosingBags { get; set; }
+        public decimal  UnitCost { get; set; }
+        public decimal  ClosingValue { get; set; }
+        public int      MovementCount { get; set; }
+    }
+
+    // Migration 221 — the movements behind one product's figures. RunningBase
+    // is seeded from the same opening the row above reports, so the last entry
+    // lands exactly on that row's closing.
+    public class WaterInventoryTrackerMovementRow
+    {
+        public int      StockTxnId { get; set; }
+        public DateTime CreatedDate { get; set; }
+        public string   TxnType { get; set; } = string.Empty;
+        public string   MovementLabel { get; set; } = string.Empty;
+        public decimal  BaseQuantity { get; set; }
+        public decimal  QuantityBags { get; set; }
+        public decimal  RunningBase { get; set; }
+        public decimal? UnitCost { get; set; }
+        public string?  Note { get; set; }
+        public string?  CreatedBy { get; set; }
+    }
+
     // Migration 068 — currency + display settings on the Farms row.
     public class WaterFarmSettingsModel
     {

@@ -4,6 +4,7 @@
 // getUserContext(). Grouped in one module the same way water.ts is.
 
 import { farmApiUrl, getAuthHeaders, getUserContext } from "./config"
+import { explainHttpError } from "@/lib/api/http-error"
 import { forceReauth } from "./session-expiry"
 
 // ----- shared helpers (mirror water.ts) --------------------------------------
@@ -15,27 +16,6 @@ function activeFarmId(): string {
 function currentUserId(): string {
   const { userId } = getUserContext()
   return userId
-}
-function explainHttpError(method: string, path: string, status: number, body: string): string {
-  if (!body) return `${method} ${path} → HTTP ${status}`
-  let parsed: any = null
-  try { parsed = JSON.parse(body) } catch { /* not JSON */ }
-  if (parsed) {
-    if (typeof parsed.message === "string" && parsed.message) return parsed.message
-    if (typeof parsed.detail === "string"  && parsed.detail)  return parsed.detail
-    if (typeof parsed.title === "string"   && parsed.title)   return parsed.title
-    if (typeof parsed.error === "string"   && parsed.error)   return parsed.error
-    if (parsed.errors && typeof parsed.errors === "object") {
-      const lines: string[] = []
-      for (const k of Object.keys(parsed.errors)) {
-        const v = parsed.errors[k]
-        lines.push(`${k}: ${Array.isArray(v) ? v.join(", ") : String(v)}`)
-      }
-      if (lines.length) return lines.join(" · ")
-    }
-  }
-  const trimmed = body.trim().replace(/\s+/g, " ")
-  return trimmed.length > 400 ? trimmed.slice(0, 400) + "…" : trimmed
 }
 async function jget<T>(path: string): Promise<T> {
   const res = await fetch(farmApiUrl(path), { headers: getAuthHeaders() })

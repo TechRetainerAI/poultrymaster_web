@@ -401,6 +401,30 @@ namespace PoultryFarmAPIWeb.Controllers
         [HttpGet("supplier-activity")] public async Task<ActionResult<IEnumerable<WaterSupplierActivityRow>>> SupplierActivity(
             [FromQuery] string farmId, [FromQuery] DateTime? fromDate, [FromQuery] DateTime? toDate)
             => string.IsNullOrWhiteSpace(farmId) ? BadRequest("Company ID is required.") : Ok(await _svc.GetSupplierActivityAsync(farmId, fromDate, toDate));
+
+        // Migration 221 — Inventory Tracker: per-product opening/in/out/closing
+        // for the period, and the movements behind one product's figures.
+        [HttpGet("inventory-tracker")]
+        public async Task<ActionResult<IEnumerable<WaterInventoryTrackerRow>>> InventoryTracker(
+            [FromQuery] string farmId, [FromQuery] DateTime fromDate, [FromQuery] DateTime toDate)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            // An inverted range would silently return an empty period rather
+            // than an error, which reads as "no stock moved". Swap it instead.
+            if (toDate < fromDate) (fromDate, toDate) = (toDate, fromDate);
+            return Ok(await _svc.GetInventoryTrackerAsync(farmId, fromDate, toDate));
+        }
+
+        [HttpGet("inventory-tracker/movements")]
+        public async Task<ActionResult<IEnumerable<WaterInventoryTrackerMovementRow>>> InventoryTrackerMovements(
+            [FromQuery] string farmId, [FromQuery] int productId,
+            [FromQuery] DateTime fromDate, [FromQuery] DateTime toDate)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            if (productId <= 0) return BadRequest("Pick a product first.");
+            if (toDate < fromDate) (fromDate, toDate) = (toDate, fromDate);
+            return Ok(await _svc.GetInventoryTrackerMovementsAsync(farmId, productId, fromDate, toDate));
+        }
     }
 
     // Migration 068 — currency settings on the Water company. The Login API
