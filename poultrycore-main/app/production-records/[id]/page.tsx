@@ -15,7 +15,8 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { FileText, X } from "lucide-react"
 import { getProductionRecord, updateProductionRecord, type ProductionRecordInput } from "@/lib/api/production-record"
-import { createFeedUsage, updateFeedUsage, getFeedUsages, type FeedUsageInput } from "@/lib/api/feed-usage"
+import { getFeedUsages } from "@/lib/api/feed-usage"
+import { cn } from "@/lib/utils"
 import { getUserContext } from "@/lib/utils/user-context"
 import { usePickSettings } from "@/hooks/use-pick-settings"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -97,6 +98,8 @@ export default function EditProductionRecordPage() {
   // Client-side preview of the FIFO/LIFO/HIFO batch draw (mirrors the server's
   // spPoultryRawMaterialItem_ConsumeBatches). The server recomputes and persists
   // the authoritative cost at save time — this is just a live preview.
+  // Matches the add form: the Feed Breakdown wins when it has lines, so the
+  // same feed cannot be counted both here and in inventory.
   const feedComputed = useMemo(
     () => computeFeedLines(feedLines, feedItems, purchases, feedCredit),
     [feedLines, feedItems, purchases, feedCredit],
@@ -106,6 +109,8 @@ export default function EditProductionRecordPage() {
     [medLines, medItems, purchases, medCredit],
   )
   const totalFeedCost = feedComputed.totalCost
+  const feedFromLines = feedComputed.totalConsumed > 0
+  const effectiveFeedKg = feedFromLines ? feedComputed.totalConsumed : (Number(formData.feedKg) || 0)
   const totalMedicationCost = medComputed.totalCost
   const totalCostOfProduction = totalFeedCost + totalMedicationCost
 
@@ -275,7 +280,7 @@ export default function EditProductionRecordPage() {
       noOfBirds: Number(formData.noOfBirds),
       mortality: Number(formData.mortality),
       noOfBirdsLeft,
-      feedKg: Number(formData.feedKg),
+      feedKg: effectiveFeedKg,
       medication: formData.medication,
       notes: formData.notes || null,
       production9AM: Number(formData.production9AM),
@@ -313,32 +318,10 @@ export default function EditProductionRecordPage() {
       return
     }
 
-    // Sync the matching FeedUsage row (create or update) — mirrors the add form.
-    if (parseFloat(formData.feedKg) > 0 && flockId && formData.feedType) {
-      try {
-        if (userId && farmId) {
-          const feedUsagesRes = await getFeedUsages(userId, farmId)
-          let existingFeedUsage: any = null
-          if (feedUsagesRes.success && feedUsagesRes.data) {
-            existingFeedUsage = (feedUsagesRes.data as any[]).find(
-              (fu) => fu.flockId === flockId && new Date(fu.usageDate).toISOString().split("T")[0] === formData.date,
-            )
-          }
-          const feedUsageData: FeedUsageInput = {
-            farmId,
-            userId,
-            flockId,
-            usageDate: formData.date + "T00:00:00Z",
-            feedType: formData.feedType,
-            quantityKg: parseFloat(formData.feedKg) || 0,
-          }
-          if (existingFeedUsage) await updateFeedUsage(existingFeedUsage.feedUsageId, feedUsageData)
-          else await createFeedUsage(feedUsageData)
-        }
-      } catch (feedError) {
-        console.error("Error syncing feed usage:", feedError)
-      }
-    }
+    // FeedUsage is maintained by the database triggers on productionrecords,
+    // keyed on sourceproductionrecordid. This page used to write it as well,
+    // matching on flock + date, which clobbered other records from the same
+    // day. Removed; the trigger is the writer.
 
     router.push("/production-records")
   }
@@ -675,15 +658,18 @@ export default function EditProductionRecordPage() {
                       <NumberInput
                         id="feedKg"
                         name="feedKg"
-
                         step="0.01"
-                        value={formData.feedKg}
+                        value={feedFromLines ? String(feedComputed.totalConsumed) : formData.feedKg}
                         onChange={handleChange}
                         required
                         min="0"
+                        readOnly={feedFromLines}
                         disabled={loading}
-                        className="h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+                        className={cn("h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500", feedFromLines && "bg-slate-100 text-slate-700")}
                       />
+                      <p className="text-xs text-slate-500">
+                        {feedFromLines ? "Totalled from the Feed Breakdown below." : "Enter the total fed, or add lines below to draw it from inventory."}
+                      </p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="medication" className="text-sm font-medium text-slate-700">Medication</Label>

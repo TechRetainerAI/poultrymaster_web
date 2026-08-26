@@ -21,12 +21,6 @@ import {
   getProductionRecords,
   type ProductionRecordInput,
 } from "@/lib/api/production-record"
-import {
-  createFeedUsage,
-  updateFeedUsage,
-  getFeedUsages,
-  type FeedUsageInput,
-} from "@/lib/api/feed-usage"
 import { getBirdsLeftFromRecord, getLatestRecordForFlock } from "@/lib/utils/production-records"
 import {
   EGG_GRADE_OPTIONS,
@@ -132,6 +126,13 @@ export default function NewProductionRecordPage() {
     [medLines, medItems, purchases],
   )
   const totalFeedCost = feedComputed.totalCost
+  // The Feed Breakdown is authoritative when it has lines: the same feed must
+  // not be entered twice. With lines present the manual box shows their sum
+  // and is read-only; with none it behaves as before, which is how most farms
+  // still record feed. Every feed raw-material item is measured in kilograms,
+  // so summing the line quantities into this field is unit-safe.
+  const feedFromLines = feedComputed.totalConsumed > 0
+  const effectiveFeedKg = feedFromLines ? feedComputed.totalConsumed : (parseFloat(form.feedKg) || 0)
   const totalMedicationCost = medComputed.totalCost
   const totalCostOfProduction = totalFeedCost + totalMedicationCost
 
@@ -358,7 +359,7 @@ export default function NewProductionRecordPage() {
         noOfBirds: numBirds,
         mortality,
         noOfBirdsLeft: calculatedLeft,
-        feedKg: parseFloat(form.feedKg) || 0,
+        feedKg: effectiveFeedKg,
         medication: form.medication || "None",
         notes: form.notes || null,
         production9AM: parseInt(form.morning) || 0,
@@ -401,41 +402,11 @@ export default function NewProductionRecordPage() {
         throw new Error(createRes.message || "Failed to save record")
       }
 
-      // Sync feed usage if feedKg > 0 and feedType is provided
-      if (parseFloat(form.feedKg) > 0 && form.flockId && form.feedType) {
-        try {
-          const { userId, farmId } = getUserContext()
-          if (userId && farmId) {
-            const feedUsagesRes = await getFeedUsages(userId, farmId)
-            let existingFeedUsage: any = null
-
-            if (feedUsagesRes.success && feedUsagesRes.data) {
-              existingFeedUsage = feedUsagesRes.data.find(
-                (fu: any) =>
-                  fu.flockId === parseInt(form.flockId) &&
-                  new Date(fu.usageDate).toISOString().split("T")[0] === form.date,
-              )
-            }
-
-            const feedUsageData: FeedUsageInput = {
-              farmId,
-              userId,
-              flockId: parseInt(form.flockId),
-              usageDate: form.date + "T00:00:00Z",
-              feedType: form.feedType,
-              quantityKg: parseFloat(form.feedKg) || 0,
-            }
-
-            if (existingFeedUsage) {
-              await updateFeedUsage(existingFeedUsage.feedUsageId, feedUsageData)
-            } else {
-              await createFeedUsage(feedUsageData)
-            }
-          }
-        } catch (feedError) {
-          console.error("Error syncing feed usage:", feedError)
-        }
-      }
+      // FeedUsage is written by the database triggers on productionrecords
+      // (trg_productionrecord_insertfeedusage / _update / _delete), keyed on
+      // sourceproductionrecordid. This page used to ALSO write it, matching on
+      // flock + date — which overwrote other records' rows for the same day and
+      // created rows with no source link. Removed; the trigger is the writer.
 
       router.push("/production-records")
     } catch (err: any) {
@@ -863,12 +834,13 @@ export default function NewProductionRecordPage() {
                     </Select>
                   </div>
                   <div className="col-span-12 md:col-span-6 space-y-2">
-                    <Label>Feed Description</Label>
+                    <Label>Feed (kg)</Label>
                     <NumberInput
-
                       step="0.01"
                       min="0"
-                      value={form.feedKg}
+                      readOnly={feedFromLines}
+                      className={feedFromLines ? "bg-slate-100 text-slate-700" : undefined}
+                      value={feedFromLines ? String(feedComputed.totalConsumed) : form.feedKg}
                       onChange={(e) =>
                         setForm({
                           ...form,
@@ -876,6 +848,11 @@ export default function NewProductionRecordPage() {
                         })
                       }
                     />
+                    <p className="text-xs text-slate-500">
+                      {feedFromLines
+                        ? "Totalled from the Feed Breakdown below."
+                        : "Enter the total fed, or add lines below to draw it from inventory."}
+                    </p>
                   </div>
 
                   {/* Feed Breakdown (From Inventory) — reduces Raw-Material stock on save */}

@@ -781,12 +781,13 @@ namespace PoultryFarmAPIWeb.Business
             var resp = NewResponse<PoultryExpenseSummaryReportSummary, PoultryExpenseSummaryReportRow>("Poultry Expense Summary", f, start, end);
 
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_expensesummary(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_supplier => @Supplier::text, p_flockid => @FlockId::int)", conn);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_expensesummary(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_supplier => @Supplier::text, p_flockid => @FlockId::int, p_category => @Category::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
             cmd.Parameters.Add(PFlock(f));
             cmd.Parameters.AddWithValue("@Supplier", (object?)f.SupplierName ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Category", (object?)f.Category ?? DBNull.Value);
 
             await conn.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();
@@ -805,6 +806,7 @@ namespace PoultryFarmAPIWeb.Business
                     AmountPaid = amount,
                     Balance = 0,
                     PaymentMethod = Str(r, "PaymentMethod"),
+                    SourceType = Str(r, "SourceType"),
                     Status = "Paid",
                     CreatedBy = Str(r, "CreatedBy"),
                 });

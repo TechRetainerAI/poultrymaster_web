@@ -187,6 +187,12 @@ export default function NewBatchProductionRecordPage() {
     [medLines, medItems, purchases],
   )
   const totalFeedCost = feedComputed.totalCost
+  // Feed comes from the breakdown lines. Allocation computes each flock's share
+  // from batch.feeds (see /batch-production-records/[id]/allocate), and posting
+  // passes THAT to spproductionrecord_insert — the batch-level number below is
+  // never read downstream. Deriving it keeps the figure honest and stops anyone
+  // typing a quantity here that silently does nothing.
+  const feedFromLines = feedComputed.totalConsumed > 0
   const totalMedicationCost = medComputed.totalCost
   const totalCostOfProduction = totalFeedCost + totalMedicationCost
 
@@ -205,6 +211,7 @@ export default function NewBatchProductionRecordPage() {
     notes: "",
     eggGrade: EGG_GRADE_SELECT_VALUE_NONE,
   })
+  const effectiveFeedKg = feedFromLines ? feedComputed.totalConsumed : (parseFloat(form.feedKg) || 0)
 
   const feedTypes = ["Starter Feed", "Grower Feed", "Layer Feed", "Broiler Feed", "Organic Feed", "Custom Mix"]
 
@@ -301,7 +308,7 @@ export default function NewBatchProductionRecordPage() {
         softEggs: form.softEggs === "" ? null : parseInt(form.softEggs) || 0,
         lostEggs: form.lostEggs === "" ? null : parseInt(form.lostEggs) || 0,
         totalEggs,
-        feedKg: parseFloat(form.feedKg) || 0,
+        feedKg: effectiveFeedKg,
         feedType: form.feedType || null,
         medication: form.medication.trim() || null,
         deaths: parseInt(form.deaths) || 0,
@@ -734,8 +741,15 @@ export default function NewBatchProductionRecordPage() {
                     </Select>
                   </div>
                   <div className="col-span-12 md:col-span-6 space-y-2">
-                    <Label>Feed Description</Label>
-                    <NumberInput step="0.01" min="0" value={form.feedKg} onChange={(e) => setForm({ ...form, feedKg: e.target.value })} />
+                    <Label>Feed (kg)</Label>
+                    <NumberInput step="0.01" min="0"
+                      readOnly={feedFromLines}
+                      className={feedFromLines ? "bg-slate-100 text-slate-700" : undefined}
+                      value={feedFromLines ? String(feedComputed.totalConsumed) : form.feedKg}
+                      onChange={(e) => setForm({ ...form, feedKg: e.target.value })} />
+                    <p className="text-xs text-slate-500">
+                      {feedFromLines ? "Totalled from the Feed Breakdown below." : "Add lines below to draw feed from inventory."}
+                    </p>
                   </div>
 
                   <div className="col-span-12 flex items-center gap-2 pt-1">

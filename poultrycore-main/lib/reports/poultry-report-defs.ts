@@ -58,6 +58,7 @@ export interface PoultryReportDef {
     flock?: boolean
     customer?: boolean
     supplier?: boolean
+    category?: boolean
     includeClosedFlocks?: boolean
   }
   cards: CardDef[]
@@ -411,7 +412,7 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
     slug: "expense-summary",
     title: "Poultry Expense Summary Report",
     description: "Poultry farm expenses by category and flock.",
-    filters: { flock: true, supplier: true },
+    filters: { flock: true, supplier: true, category: true },
     cards: [
       { label: "Total expenses", value: (s, c) => c.money(s.totalExpenses), accent: "rose" },
       { label: "Paid expenses", value: (s, c) => c.money(s.paidExpenses) },
@@ -428,7 +429,10 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
       { header: "Supplier", cell: (r, c) => c.text(r.supplier) },
       { header: "Amount", align: "right", cell: (r, c) => c.money(r.amount) },
       { header: "Method", cell: (r, c) => c.text(r.paymentMethod) },
-      { header: "Status", cell: (r, c) => c.text(r.status), badge: true },
+      // Where the expense came from — raw-material purchase, flock batch, driver
+      // return, or blank when it was entered by hand. Replaces the old Status
+      // column, which was the constant "Paid" on every row.
+      { header: "Source", cell: (r, c) => c.text(r.sourceType) },
     ],
   },
 

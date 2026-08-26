@@ -31,6 +31,7 @@ export interface PoultryReportParams {
   flockId?: number | null
   customerName?: string | null
   supplierName?: string | null
+  category?: string | null
   includeClosedFlocks?: boolean
 }
 
@@ -77,6 +78,7 @@ export async function fetchPoultryReport<TSummary = any, TRow = any>(
   if (params.flockId != null) qs.set("flockId", String(params.flockId))
   if (params.customerName) qs.set("customerName", params.customerName)
   if (params.supplierName) qs.set("supplierName", params.supplierName)
+  if (params.category) qs.set("category", params.category)
   if (params.includeClosedFlocks) qs.set("includeClosedFlocks", "true")
 
   const url = buildApiUrl(`/poultry/reports/${slug}?${qs.toString()}`)
@@ -231,7 +233,7 @@ export interface PoultryExpenseSummaryReportSummary {
 export interface PoultryExpenseSummaryReportRow {
   date: string; expenseId: number; category: string; description: string | null; flockName: string | null
   supplier: string | null; amount: number; amountPaid: number; balance: number
-  paymentMethod: string | null; status: string; createdBy: string | null
+  paymentMethod: string | null; sourceType: string | null; status: string; createdBy: string | null
 }
 
 export interface PoultryCashMovementReportSummary {

@@ -39,6 +39,8 @@ namespace PoultryFarmAPIWeb.Models
         public int? SupplierId { get; set; }
         /// <summary>Legacy poultry Expense rows store the supplier/payee as free text.</summary>
         public string? SupplierName { get; set; }
+        /// <summary>Expense category to narrow a report to. Matched case-insensitively.</summary>
+        public string? Category { get; set; }
         public string? Status { get; set; }
         public bool IncludeClosedFlocks { get; set; }
         public bool IncludeInactiveItems { get; set; }
@@ -441,6 +443,16 @@ namespace PoultryFarmAPIWeb.Models
         public decimal AmountPaid { get; set; }
         public decimal Balance { get; set; }
         public string? PaymentMethod { get; set; }
+        /// <summary>
+        /// expense.sourcetype — 'PoultryRawMaterialPurchase', 'MainFlockBatch',
+        /// 'PoultryDriverReturn' and so on. Null for a hand-entered expense.
+        /// </summary>
+        public string? SourceType { get; set; }
+        /// <summary>
+        /// Always "Paid". The expense table has no payment-status column; kept
+        /// so the response shape doesn't change, but no longer shown on the
+        /// report because a constant column tells the reader nothing.
+        /// </summary>
         public string Status { get; set; } = string.Empty;
         public string? CreatedBy { get; set; }
     }
