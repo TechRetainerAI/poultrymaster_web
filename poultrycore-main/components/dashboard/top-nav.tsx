@@ -252,6 +252,46 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
   )
 }
 
+function HotelTopNav() {
+  const moreGroup: NavGroup = {
+    label: "More",
+    items: [
+      { href: "/hotel-billing",       label: "Billing",       icon: DollarSign },
+      { href: "/hotel-invoices",      label: "Invoices",      icon: FileText },
+      { href: "/hotel-payments",      label: "Payments",      icon: CreditCard },
+      { href: "/hotel-cash-accounts", label: "Cash Accounts", icon: Wallet },
+      { href: "/hotel-staff",         label: "Staff",         icon: Users },
+      { href: "/hotel-payroll",       label: "Payroll",       icon: CreditCard },
+      { href: "/hotel-inventory",     label: "Supplies",      icon: Boxes },
+      { href: "/hotel-maintenance",   label: "Maintenance",   icon: Settings },
+      { href: "/hotel-reports",       label: "Reports",       icon: BarChart3 },
+      { href: "/hotel-daily-closing", label: "Daily Closing", icon: FileText },
+      { href: "/hotel-setup",         label: "Setup",         icon: Settings },
+      { href: "/profile",             label: "Account",       icon: User },
+    ],
+  }
+
+  return (
+    <div className="hidden lg:block bg-violet-600 border-b border-violet-700">
+      <div className="flex items-center gap-1 px-4 pt-1.5 pb-2.5 nav-rail-scroll">
+        <NavLink item={{ href: "/hotel-dashboard",   label: "Dashboard",    icon: Home }}         accent="violet" />
+        <div className="h-5 w-px bg-white/30 mx-1" />
+        <NavLink item={{ href: "/hotel-bookings",    label: "Bookings",     icon: FileText }}     accent="violet" />
+        <NavLink item={{ href: "/hotel-check-in",    label: "Check-in",     icon: Activity }}     accent="violet" />
+        <NavLink item={{ href: "/hotel-guests",      label: "Guests",       icon: Users }}        accent="violet" />
+        <NavLink item={{ href: "/hotel-rooms",       label: "Rooms",        icon: Building2 }}    accent="violet" />
+        <NavLink item={{ href: "/hotel-housekeeping", label: "Housekeeping", icon: Factory }}     accent="violet" />
+        <NavLink item={{ href: "/hotel-restaurant",  label: "Restaurant",   icon: ShoppingCart }} accent="violet" />
+        <NavLink item={{ href: "/hotel-expenses",    label: "Expenses",     icon: DollarSign }}   accent="violet" />
+        <NavDropdown group={moreGroup} accent="violet" />
+        <div className="ml-auto flex items-center gap-1">
+          <NavLink item={{ href: "/companies", label: "Companies", icon: Building2 }} accent="violet" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function TopNavigation() {
   const permissions = usePermissions()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
@@ -268,6 +308,9 @@ export function TopNavigation() {
   }
   if (activeFarmType === "Generic") {
     return <GenericTopNav permissions={permissions} />
+  }
+  if (activeFarmType === "Hotel") {
+    return <HotelTopNav />
   }
 
   // 2026-08-07: same treatment as the water rail — nine near-identical narrow

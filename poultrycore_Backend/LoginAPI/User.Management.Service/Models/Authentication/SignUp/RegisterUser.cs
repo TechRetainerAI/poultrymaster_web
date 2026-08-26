@@ -32,8 +32,8 @@ namespace User.Management.Service.Models.Authentication.SignUp
         // created Poultry farms regardless of what the user picked.
         // Optional at signup. When present it must be one of the three types;
         // empty/null means "no company yet" (create it later in the Business Office).
-        [RegularExpression("^(Poultry|Water|Generic)?$",
-            ErrorMessage = "CompanyType must be Poultry, Water, or Generic.")]
+        [RegularExpression("^(Poultry|Water|Generic|Hotel)?$",
+            ErrorMessage = "CompanyType must be Poultry, Water, Generic, or Hotel.")]
         public string? CompanyType { get; set; }
 
         // Prompt 2 — the owner's Business Office (HQ). Optional so older clients

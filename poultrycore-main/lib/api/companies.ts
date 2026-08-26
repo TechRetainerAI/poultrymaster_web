@@ -18,7 +18,7 @@ async function loginApiFetch(path: string, init?: RequestInit): Promise<Response
   return fetch(url, { ...init, headers: { ...getAuthHeaders(), ...(init?.headers ?? {}) } })
 }
 
-export type CompanyType = "Poultry" | "Water" | "Generic" | string
+export type CompanyType = "Poultry" | "Water" | "Generic" | "Hotel" | string
 
 export interface Company {
   farmId: string
@@ -156,6 +156,7 @@ export async function resolveActiveCompanyForUser(farmId: string | null): Promis
 export function dashboardHomeForType(type: CompanyType | null | undefined): string {
   if (type === "Water") return "/water-dashboard"
   if (type === "Generic") return "/generic-dashboard"
+  if (type === "Hotel") return "/hotel-dashboard"
   return "/dashboard"
 }
 

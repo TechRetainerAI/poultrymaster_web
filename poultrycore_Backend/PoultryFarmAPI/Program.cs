@@ -278,6 +278,20 @@ builder.Services.AddScoped<IGenericPayrollService>(sp => new GenericPayrollServi
 // =================================================================
 
 // =================================================================
+// Hotel company module (multi-company support: hotels)
+// Phase H1: Hotel profile, room types, floors, amenities, rooms
+// Phase H2: Guests, bookings
+// =================================================================
+builder.Services.AddScoped<IHotelSetupService>(sp => new HotelSetupService(connectionString));
+builder.Services.AddScoped<IHotelRoomService>(sp => new HotelRoomService(connectionString));
+builder.Services.AddScoped<IHotelGuestService>(sp => new HotelGuestService(connectionString));
+builder.Services.AddScoped<IHotelBookingService>(sp => new HotelBookingService(connectionString));
+// Phase H3: Front desk (check-in/out) + Housekeeping
+builder.Services.AddScoped<IHotelFrontDeskService>(sp => new HotelFrontDeskService(connectionString));
+builder.Services.AddScoped<IHotelHousekeepingService>(sp => new HotelHousekeepingService(connectionString));
+// =================================================================
+
+// =================================================================
 // Email (SMTP via MailKit) — used by EmailController for report PDFs.
 // Set EmailConfiguration__From / __SmtpServer / __Port / __UserName /
 // __Password on Cloud Run. Leave blank locally to disable.

@@ -110,4 +110,18 @@ export const NAV_SURFACE: Record<NavAccent, NavSurface> = {
     triggerIdle: "text-emerald-100 hover:bg-white/15 hover:text-white",
     triggerIcon: "text-emerald-200",
   },
+  violet: {
+    panel:      "bg-slate-800 border-slate-700",
+    header:     "bg-slate-900 border-slate-700",
+    headerTitle: "text-white",
+    headerBlurb: "text-slate-400",
+    groupLabel: "text-violet-400",
+    rowIdle:    "text-white hover:bg-slate-700",
+    rowActive:  "bg-violet-500 text-slate-950",
+    iconIdle:   "text-slate-400",
+    iconActive: "text-slate-950",
+    link:       "text-violet-400 hover:text-violet-300",
+    triggerIdle: "text-violet-100 hover:bg-white/15 hover:text-white",
+    triggerIcon: "text-violet-200",
+  },
 }

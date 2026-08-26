@@ -43,9 +43,9 @@ namespace User.Management.Data.Models
 
         // Type must be an explicit, valid value. A default of "Poultry" used to hide
         // wire bugs (stale frontends or missing field would silently create Poultry farms).
-        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Type is required (Poultry, Water, or Generic).")]
-        [System.ComponentModel.DataAnnotations.RegularExpression("^(Poultry|Water|Generic)$",
-            ErrorMessage = "Type must be Poultry, Water, or Generic.")]
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Type is required (Poultry, Water, Generic, or Hotel).")]
+        [System.ComponentModel.DataAnnotations.RegularExpression("^(Poultry|Water|Generic|Hotel)$",
+            ErrorMessage = "Type must be Poultry, Water, Generic, or Hotel.")]
         public string Type { get; set; } = string.Empty;
 
         public string? Email { get; set; }

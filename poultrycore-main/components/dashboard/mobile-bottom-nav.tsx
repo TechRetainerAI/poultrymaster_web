@@ -42,6 +42,7 @@ import {
   Banknote,
   Receipt,
   CalendarDays,
+  Building2,
 } from "lucide-react"
 import {
   Sheet,
@@ -210,6 +211,42 @@ export function MobileBottomNav() {
             ? [{ href: "/audit-logs", label: "Activity Log", icon: Activity }] : []),
           ...(permissions.isAdmin || permissions.featureAccess.canSeeEmployees
             ? [{ href: "/employees", label: "Employees", icon: UserCog }] : []),
+        ] as NavItem[],
+      }
+    }
+
+    if (activeFarmType === "Hotel") {
+      return {
+        bg: "bg-violet-600",
+        borderTop: "border-violet-700",
+        palette: { inactive: "text-violet-100/90 hover:text-white", activeText: "text-white" },
+        activeBg: "bg-violet-100 text-violet-800",
+        mainTabs: [
+          { href: "/hotel-dashboard", label: "Home",     icon: Home },
+          { href: "/hotel-bookings",  label: "Bookings", icon: FileText },
+          { href: "/hotel-rooms",     label: "Rooms",    icon: Building2 },
+          { href: "/hotel-guests",    label: "Guests",   icon: Users },
+        ] as NavItem[],
+        moreItems: [
+          { href: "/hotel-check-in",         label: "Check-in",      icon: Activity },
+          { href: "/hotel-check-out",        label: "Check-out",     icon: Activity },
+          { href: "/hotel-housekeeping",     label: "Housekeeping",  icon: Factory },
+          { href: "/hotel-room-service",     label: "Room Service",  icon: ShoppingCart },
+          { href: "/hotel-restaurant",       label: "Restaurant",    icon: ShoppingCart },
+          { href: "/hotel-billing",          label: "Billing",       icon: DollarSign },
+          { href: "/hotel-invoices",         label: "Invoices",      icon: FileText },
+          { href: "/hotel-payments",         label: "Payments",      icon: CreditCard },
+          { href: "/hotel-expenses",         label: "Expenses",      icon: DollarSign },
+          { href: "/hotel-cash-accounts",    label: "Cash Accounts", icon: Wallet },
+          { href: "/hotel-staff",            label: "Staff",         icon: Users2 },
+          { href: "/hotel-payroll",          label: "Payroll",       icon: Banknote },
+          { href: "/hotel-inventory",        label: "Supplies",      icon: Boxes },
+          { href: "/hotel-maintenance",      label: "Maintenance",   icon: Settings },
+          { href: "/hotel-reports",          label: "Reports",       icon: BarChart3 },
+          { href: "/hotel-daily-closing",    label: "Daily Closing", icon: FileText },
+          { href: "/hotel-menu",             label: "Menu Items",    icon: ShoppingBag },
+          { href: "/hotel-setup",            label: "Setup",         icon: Settings },
+          { href: "/profile",                label: "Account",       icon: User },
         ] as NavItem[],
       }
     }

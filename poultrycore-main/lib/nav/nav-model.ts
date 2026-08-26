@@ -39,7 +39,7 @@ export interface NavGroup {
  * Used by both the wide NavMegaMenu and the narrow NavDropdown — the classes
  * themselves live in components/dashboard/nav/nav-surface.ts.
  */
-export type NavAccent = "sky" | "orange" | "emerald"
+export type NavAccent = "sky" | "orange" | "emerald" | "violet"
 
 export interface MegaMenuItem {
   /**

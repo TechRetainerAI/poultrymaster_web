@@ -15,12 +15,14 @@ function typeIcon(type?: string | null) {
   if (type === "Water") return Droplets
   if (type === "Poultry") return Bird
   if (type === "Generic") return ShoppingBag
+  if (type === "Hotel") return Building2
   return Building2
 }
 function typeColor(type?: string | null) {
   if (type === "Water") return "text-sky-300"
   if (type === "Poultry") return "text-orange-300"
   if (type === "Generic") return "text-violet-300"
+  if (type === "Hotel") return "text-purple-300"
   return "text-slate-300"
 }
 
@@ -111,6 +113,7 @@ export function CompanySwitcher({ fullWidth = false }: { fullWidth?: boolean } =
       // Poultry top-nav. Each company type now lands on its own home.
       if (c.type === "Water")        router.push("/water-dashboard")
       else if (c.type === "Generic") router.push("/generic-dashboard")
+      else if (c.type === "Hotel")   router.push("/hotel-dashboard")
       else                           router.push("/dashboard")
     } catch (err: any) {
       toast({ title: "Switch failed", description: err?.message ?? String(err), variant: "destructive" })
