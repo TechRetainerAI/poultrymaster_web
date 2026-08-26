@@ -11,7 +11,8 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Loader2, LogIn, Key, Users, Wallet } from "lucide-react"
+import { Loader2, LogIn, Key, Users, Wallet, Search } from "lucide-react"
+import { PaginationControls } from "@/components/ui/pagination-controls"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -36,6 +37,8 @@ export default function HotelCheckInPage() {
   const [rooms, setRooms] = useState<HotelRoom[]>([])
   const [allPayments, setAllPayments] = useState<HotelPayment[]>([])
   const [loading, setLoading] = useState(true); const [tab, setTab] = useState("awaiting")
+  const [search, setSearch] = useState("")
+  const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(20)
 
   // Check-in dialog
   const [dialogOpen, setDialogOpen] = useState(false); const [selected, setSelected] = useState<HotelBooking | null>(null)
@@ -84,6 +87,24 @@ export default function HotelCheckInPage() {
 
   const totalOutstanding = checkedIn.reduce((s, g) => s + Math.max(0, g.balance), 0)
 
+  // Filter confirmed bookings
+  const filteredConfirmed = confirmed.filter((b) => {
+    if (!search) return true
+    const q = search.toLowerCase()
+    const name = `${b.guestFirstName ?? ""} ${b.guestLastName ?? ""}`.toLowerCase()
+    return name.includes(q) || (b.bookingRef ?? "").toLowerCase().includes(q) || (b.roomTypeName ?? "").toLowerCase().includes(q)
+  })
+
+  // Filter in-house guests
+  const filteredInHouse = checkedIn.filter((g) => {
+    if (!search) return true
+    const q = search.toLowerCase()
+    const b = g.booking
+    const name = `${b.guestFirstName ?? ""} ${b.guestLastName ?? ""}`.toLowerCase()
+    return name.includes(q) || (b.bookingRef ?? "").toLowerCase().includes(q) || (b.roomNumber ?? "").toLowerCase().includes(q)
+  })
+  const paginatedInHouse = filteredInHouse.slice((page - 1) * pageSize, page * pageSize)
+
   return (
     <div className="flex h-screen bg-slate-50"><DashboardSidebar onLogout={logout} /><div className="flex-1 flex flex-col min-w-0 overflow-hidden"><DashboardHeader />
       <main className="flex-1 overflow-auto p-4 md:p-6">
@@ -97,17 +118,25 @@ export default function HotelCheckInPage() {
           <Card><CardContent className="p-4"><div className="text-sm text-slate-500">Available Rooms</div><div className="text-2xl font-bold text-violet-700">{rooms.length}</div></CardContent></Card>
         </div>
 
+        {/* Search */}
+        <div className="mb-4">
+          <div className="relative max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <Input placeholder="Search guest name, ref, room..." className="pl-9" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} />
+          </div>
+        </div>
+
         {loading ? <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-violet-600" /></div> : (
-          <Tabs value={tab} onValueChange={setTab}>
+          <Tabs value={tab} onValueChange={(v) => { setTab(v); setPage(1) }}>
             <TabsList className="mb-4">
-              <TabsTrigger value="awaiting">Awaiting Check-in ({confirmed.length})</TabsTrigger>
-              <TabsTrigger value="inhouse">In-House Guests ({checkedIn.length})</TabsTrigger>
+              <TabsTrigger value="awaiting">Awaiting Check-in ({filteredConfirmed.length})</TabsTrigger>
+              <TabsTrigger value="inhouse">In-House Guests ({filteredInHouse.length})</TabsTrigger>
             </TabsList>
 
             {/* TAB 1: Awaiting check-in */}
             <TabsContent value="awaiting">
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {confirmed.map((b) => (
+                {filteredConfirmed.map((b) => (
                   <Card key={b.hotelBookingId} className="hover:shadow-md transition-shadow">
                     <CardHeader className="pb-2"><CardTitle className="text-lg">{b.guestFirstName} {b.guestLastName}</CardTitle></CardHeader>
                     <CardContent className="space-y-2">
@@ -120,7 +149,7 @@ export default function HotelCheckInPage() {
                     </CardContent>
                   </Card>
                 ))}
-                {confirmed.length === 0 && <div className="col-span-full text-center py-12 text-slate-400">No confirmed bookings awaiting check-in.</div>}
+                {filteredConfirmed.length === 0 && <div className="col-span-full text-center py-12 text-slate-400">{search ? "No matching bookings found." : "No confirmed bookings awaiting check-in."}</div>}
               </div>
             </TabsContent>
 
@@ -142,7 +171,7 @@ export default function HotelCheckInPage() {
                     <th className="text-left p-3">Status</th>
                   </tr></thead>
                   <tbody>
-                    {checkedIn.map((g) => {
+                    {paginatedInHouse.map((g) => {
                       const b = g.booking
                       const isPaid = g.balance <= 0
                       return (
@@ -166,9 +195,10 @@ export default function HotelCheckInPage() {
                         </tr>
                       )
                     })}
-                    {checkedIn.length === 0 && <tr><td colSpan={11} className="p-8 text-center text-slate-400">No guests currently checked in.</td></tr>}
+                    {filteredInHouse.length === 0 && <tr><td colSpan={11} className="p-8 text-center text-slate-400">{search ? "No matching guests found." : "No guests currently checked in."}</td></tr>}
                   </tbody>
                 </table>
+                <PaginationControls page={page} pageSize={pageSize} total={filteredInHouse.length} onPageChange={setPage} onPageSizeChange={(ps) => { setPageSize(ps); setPage(1) }} />
               </CardContent></Card>
             </TabsContent>
           </Tabs>

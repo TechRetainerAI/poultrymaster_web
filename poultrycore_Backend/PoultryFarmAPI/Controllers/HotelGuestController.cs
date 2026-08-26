@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Npgsql;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Helpers;
 using PoultryFarmAPIWeb.Models;
@@ -67,13 +68,30 @@ namespace PoultryFarmAPIWeb.Controllers
     public class HotelBookingController : ControllerBase
     {
         private readonly IHotelBookingService _svc;
-        public HotelBookingController(IHotelBookingService svc) => _svc = svc;
+        private readonly string _cs;
+        private readonly IHotelEmailService _hotelEmail;
+        public HotelBookingController(IHotelBookingService svc, IConfiguration config, IHotelEmailService hotelEmail) { _svc = svc; _cs = config.GetConnectionString("PoultryConn") ?? ""; _hotelEmail = hotelEmail; }
 
         [HttpGet]
-        public async Task<IActionResult> GetAll([FromQuery] string farmId)
+        public async Task<IActionResult> GetAll([FromQuery] string farmId, [FromQuery] int? page, [FromQuery] int? pageSize)
         {
             var auth = HotelAuthHelper.VerifyFarmOwnership(User, farmId); if (auth != null) return auth;
-            return Ok(await _svc.ListAsync(farmId));
+            if (page == null || page <= 0) return Ok(await _svc.ListAsync(farmId));
+
+            int ps = Math.Clamp(pageSize ?? 20, 1, 100);
+            int offset = (page.Value - 1) * ps;
+            using var conn = new NpgsqlConnection(_cs); await conn.OpenAsync();
+            int total;
+            using (var cnt = new NpgsqlCommand("SELECT COUNT(*) FROM hotelbookings WHERE farmid=@f", conn)) { cnt.Parameters.AddWithValue("@f", farmId); total = Convert.ToInt32(await cnt.ExecuteScalarAsync()); }
+            using var cmd = new NpgsqlCommand(
+                "SELECT b.*, g.firstname AS guestfirstname, g.lastname AS guestlastname, g.phone AS guestphone, r.roomnumber, rt.name AS roomtypename " +
+                "FROM hotelbookings b LEFT JOIN hotelguests g ON b.hotelguestid=g.hotelguestid LEFT JOIN hotelrooms r ON b.hotelroomid=r.hotelroomid LEFT JOIN hotelroomtypes rt ON b.hotelroomtypeid=rt.hotelroomtypeid " +
+                "WHERE b.farmid=@f ORDER BY b.checkindate DESC LIMIT @lim OFFSET @off", conn);
+            cmd.Parameters.AddWithValue("@f", farmId); cmd.Parameters.AddWithValue("@lim", ps); cmd.Parameters.AddWithValue("@off", offset);
+            using var rd = await cmd.ExecuteReaderAsync();
+            var data = new List<Dictionary<string, object?>>();
+            while (await rd.ReadAsync()) { var d = new Dictionary<string, object?>(); for (int i = 0; i < rd.FieldCount; i++) { var n = rd.GetName(i); d[char.ToLower(n[0]) + n[1..]] = rd.IsDBNull(i) ? null : rd.GetValue(i); } data.Add(d); }
+            return Ok(new { data, total, page = page.Value, pageSize = ps });
         }
 
         [HttpGet("{id}")]
@@ -107,6 +125,7 @@ namespace PoultryFarmAPIWeb.Controllers
             m.BookingRef = $"BK-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..6].ToUpper()}";
             var id = await _svc.InsertAsync(m);
             var created = await _svc.GetByIdAsync(id, m.FarmId);
+            _ = Task.Run(async () => { try { await _hotelEmail.SendBookingConfirmationAsync(m.FarmId, id); } catch { } });
             return CreatedAtAction(nameof(GetById), new { id, farmId = m.FarmId }, created);
         }
 

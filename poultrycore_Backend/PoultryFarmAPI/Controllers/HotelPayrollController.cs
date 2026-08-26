@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Npgsql;
+using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Helpers;
 
 namespace PoultryFarmAPIWeb.Controllers
@@ -15,7 +16,8 @@ namespace PoultryFarmAPIWeb.Controllers
     public class HotelPayrollController : ControllerBase
     {
         private readonly string _cs;
-        public HotelPayrollController(IConfiguration config) => _cs = config.GetConnectionString("PoultryConn") ?? "";
+        private readonly IHotelCashLedgerService _cashLedger;
+        public HotelPayrollController(IConfiguration config, IHotelCashLedgerService cashLedger) { _cs = config.GetConnectionString("PoultryConn") ?? ""; _cashLedger = cashLedger; }
 
         [HttpGet("payroll-runs")]
         public async Task<IActionResult> ListPayrollRuns([FromQuery] string farmId, [FromQuery] string? status = null)
@@ -185,7 +187,13 @@ namespace PoultryFarmAPIWeb.Controllers
             cmd.Parameters.AddWithValue("@u", HotelAuthHelper.GetUserName(User));
             cmd.Parameters.AddWithValue("@pd", payDate);
             using var r = await cmd.ExecuteReaderAsync();
-            return await r.ReadAsync() ? Ok(ReadRow(r)) : NotFound(new { message = "Run not found or not in Approved status." });
+            if (!await r.ReadAsync()) return NotFound(new { message = "Run not found or not in Approved status." });
+            var row = ReadRow(r);
+            decimal totalAmount = Convert.ToDecimal(row.GetValueOrDefault("totalamount", 0m));
+            string period = $"{row.GetValueOrDefault("periodstart", "")} to {row.GetValueOrDefault("periodend", "")}";
+            if (totalAmount > 0)
+                _ = Task.Run(async () => { try { await _cashLedger.PostAsync(req.FarmId, "Payroll", "Debit", totalAmount, $"Payroll run #{id} ({period})", $"PR-{id}", "Payroll", id, HotelAuthHelper.GetUserName(User)); } catch { } });
+            return Ok(row);
         }
 
         [HttpPost("payroll-runs/{id}/cancel")]

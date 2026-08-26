@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Npgsql;
+using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Helpers;
 
 namespace PoultryFarmAPIWeb.Controllers
@@ -15,7 +16,8 @@ namespace PoultryFarmAPIWeb.Controllers
     public class HotelRestaurantController : ControllerBase
     {
         private readonly string _cs;
-        public HotelRestaurantController(IConfiguration config) => _cs = config.GetConnectionString("PoultryConn") ?? "";
+        private readonly IHotelCashLedgerService _cashLedger;
+        public HotelRestaurantController(IConfiguration config, IHotelCashLedgerService cashLedger) { _cs = config.GetConnectionString("PoultryConn") ?? ""; _cashLedger = cashLedger; }
 
         [HttpGet("menu")]
         public async Task<IActionResult> ListMenu([FromQuery] string farmId)
@@ -139,6 +141,10 @@ namespace PoultryFarmAPIWeb.Controllers
                     await ic.ExecuteNonQueryAsync();
                 }
             }
+
+            // Post to POS cash account
+            if (subtotal > 0)
+                _ = Task.Run(async () => { try { await _cashLedger.PostAsync(req.FarmId, "POS", "Credit", subtotal, $"Restaurant order #{orderId}" + (req.TableNumber != null ? $" (Table {req.TableNumber})" : ""), $"ORD-{orderId}", "Order", orderId, HotelAuthHelper.GetUserName(User)); } catch { } });
 
             // Return the created order
             using var getCmd = new NpgsqlCommand("SELECT * FROM hotelrestaurantorders WHERE hotelrestaurantorderid=@id", conn);

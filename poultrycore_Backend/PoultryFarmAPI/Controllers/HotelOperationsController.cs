@@ -209,22 +209,56 @@ namespace PoultryFarmAPIWeb.Controllers
 
             decimal occRate = totalRooms > 0 ? Math.Round((decimal)occupied / totalRooms * 100, 2) : 0;
 
-            // Build issues list
-            var issues = new List<string>();
-            if (outstanding > 0) issues.Add($"Outstanding balances: GH₵{outstanding:F2}");
-            if (pendingHouse > 0) issues.Add($"{pendingHouse} pending housekeeping tasks");
-            if (openMaint > 0) issues.Add($"{openMaint} open maintenance requests");
-            if (noshows > 0) issues.Add($"{noshows} no-shows today");
+            // Auto-post nightly room charges for all checked-in bookings (idempotent)
+            int roomChargesPosted = 0;
+            using var txn = await conn.BeginTransactionAsync();
+            try
+            {
+                using (var bCmd = new NpgsqlCommand("SELECT hotelbookingid, nightlyrate FROM hotelbookings WHERE farmid=@f AND status='CheckedIn'", conn, txn))
+                {
+                    bCmd.Parameters.AddWithValue("@f", req.FarmId);
+                    var checkedInBookings = new List<(int bookingId, decimal rate)>();
+                    using (var br = await bCmd.ExecuteReaderAsync()) { while (await br.ReadAsync()) checkedInBookings.Add((br.GetInt32(0), br.GetDecimal(1))); }
 
-            using var cmd = new NpgsqlCommand("INSERT INTO hotelnightaudits(farmid,auditdate,totalrooms,occupiedrooms,availablerooms,occupancyrate,totalrevenue,totalexpenses,outstandingbalances,checkincount,checkoutcount,noshowcount,pendinghousetasks,openmaintenance,issues,status) VALUES(@f,@d::date,@tr,@or,@ar,@occ,@rev,@exp,@out,@ci,@co,@ns,@ph,@om,@iss,'Completed') ON CONFLICT(farmid,auditdate) DO UPDATE SET totalrooms=EXCLUDED.totalrooms,occupiedrooms=EXCLUDED.occupiedrooms,availablerooms=EXCLUDED.availablerooms,occupancyrate=EXCLUDED.occupancyrate,totalrevenue=EXCLUDED.totalrevenue,totalexpenses=EXCLUDED.totalexpenses,outstandingbalances=EXCLUDED.outstandingbalances,checkincount=EXCLUDED.checkincount,checkoutcount=EXCLUDED.checkoutcount,noshowcount=EXCLUDED.noshowcount,pendinghousetasks=EXCLUDED.pendinghousetasks,openmaintenance=EXCLUDED.openmaintenance,issues=EXCLUDED.issues RETURNING *", conn);
-            cmd.Parameters.AddWithValue("@f", req.FarmId); cmd.Parameters.AddWithValue("@d", date);
-            cmd.Parameters.AddWithValue("@tr", totalRooms); cmd.Parameters.AddWithValue("@or", occupied); cmd.Parameters.AddWithValue("@ar", available);
-            cmd.Parameters.AddWithValue("@occ", occRate); cmd.Parameters.AddWithValue("@rev", revenue); cmd.Parameters.AddWithValue("@exp", expenses);
-            cmd.Parameters.AddWithValue("@out", outstanding); cmd.Parameters.AddWithValue("@ci", checkins); cmd.Parameters.AddWithValue("@co", checkouts);
-            cmd.Parameters.AddWithValue("@ns", noshows); cmd.Parameters.AddWithValue("@ph", pendingHouse); cmd.Parameters.AddWithValue("@om", openMaint);
-            cmd.Parameters.AddWithValue("@iss", issues.Count > 0 ? string.Join("; ", issues) : (object)DBNull.Value);
-            using var r = await cmd.ExecuteReaderAsync();
-            return await r.ReadAsync() ? Ok(ReadRow(r)) : StatusCode(500);
+                    foreach (var (bookingId, rate) in checkedInBookings)
+                    {
+                        if (rate <= 0) continue;
+                        using var chg = new NpgsqlCommand(@"INSERT INTO hotelstaycharges(farmid, hotelbookingid, chargetype, description, quantity, unitprice, totalamount, postedby, chargedate)
+                            SELECT @f, @b, 'Room', 'Nightly room charge - ' || @d, 1, @rate, @rate, 'Night Audit', @d::date
+                            WHERE NOT EXISTS (SELECT 1 FROM hotelstaycharges WHERE farmid=@f AND hotelbookingid=@b AND chargetype='Room' AND chargedate::date=@d::date)", conn, txn);
+                        chg.Parameters.AddWithValue("@f", req.FarmId); chg.Parameters.AddWithValue("@b", bookingId);
+                        chg.Parameters.AddWithValue("@rate", rate); chg.Parameters.AddWithValue("@d", date);
+                        roomChargesPosted += await chg.ExecuteNonQueryAsync();
+                    }
+                }
+
+                // Build issues list
+                var issues = new List<string>();
+                if (outstanding > 0) issues.Add($"Outstanding balances: GH₵{outstanding:F2}");
+                if (pendingHouse > 0) issues.Add($"{pendingHouse} pending housekeeping tasks");
+                if (openMaint > 0) issues.Add($"{openMaint} open maintenance requests");
+                if (noshows > 0) issues.Add($"{noshows} no-shows today");
+
+                using var cmd = new NpgsqlCommand("INSERT INTO hotelnightaudits(farmid,auditdate,totalrooms,occupiedrooms,availablerooms,occupancyrate,totalrevenue,totalexpenses,outstandingbalances,checkincount,checkoutcount,noshowcount,pendinghousetasks,openmaintenance,issues,status,roomchargesposted) VALUES(@f,@d::date,@tr,@or,@ar,@occ,@rev,@exp,@out,@ci,@co,@ns,@ph,@om,@iss,'Completed',@rcp) ON CONFLICT(farmid,auditdate) DO UPDATE SET totalrooms=EXCLUDED.totalrooms,occupiedrooms=EXCLUDED.occupiedrooms,availablerooms=EXCLUDED.availablerooms,occupancyrate=EXCLUDED.occupancyrate,totalrevenue=EXCLUDED.totalrevenue,totalexpenses=EXCLUDED.totalexpenses,outstandingbalances=EXCLUDED.outstandingbalances,checkincount=EXCLUDED.checkincount,checkoutcount=EXCLUDED.checkoutcount,noshowcount=EXCLUDED.noshowcount,pendinghousetasks=EXCLUDED.pendinghousetasks,openmaintenance=EXCLUDED.openmaintenance,issues=EXCLUDED.issues,roomchargesposted=EXCLUDED.roomchargesposted RETURNING *", conn, txn);
+                cmd.Parameters.AddWithValue("@f", req.FarmId); cmd.Parameters.AddWithValue("@d", date);
+                cmd.Parameters.AddWithValue("@tr", totalRooms); cmd.Parameters.AddWithValue("@or", occupied); cmd.Parameters.AddWithValue("@ar", available);
+                cmd.Parameters.AddWithValue("@occ", occRate); cmd.Parameters.AddWithValue("@rev", revenue); cmd.Parameters.AddWithValue("@exp", expenses);
+                cmd.Parameters.AddWithValue("@out", outstanding); cmd.Parameters.AddWithValue("@ci", checkins); cmd.Parameters.AddWithValue("@co", checkouts);
+                cmd.Parameters.AddWithValue("@ns", noshows); cmd.Parameters.AddWithValue("@ph", pendingHouse); cmd.Parameters.AddWithValue("@om", openMaint);
+                cmd.Parameters.AddWithValue("@iss", issues.Count > 0 ? string.Join("; ", issues) : (object)DBNull.Value);
+                cmd.Parameters.AddWithValue("@rcp", roomChargesPosted);
+                using var r = await cmd.ExecuteReaderAsync();
+                if (!await r.ReadAsync()) { await txn.RollbackAsync(); return StatusCode(500); }
+                var result = ReadRow(r);
+                await r.CloseAsync();
+                await txn.CommitAsync();
+                return Ok(result);
+            }
+            catch
+            {
+                await txn.RollbackAsync();
+                throw;
+            }
         }
 
         [HttpGet("night-audit")]

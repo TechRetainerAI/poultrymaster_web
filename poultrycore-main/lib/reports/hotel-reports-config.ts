@@ -5,7 +5,7 @@
 
 import {
   BarChart3, Bed, Calendar, CalendarCheck, ClipboardCheck, CreditCard,
-  DollarSign, FileText, ShoppingCart, Users, Wallet, Wrench,
+  DollarSign, FileText, Landmark, ShoppingCart, Users, Wallet, Wrench,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
@@ -36,6 +36,7 @@ export const HOTEL_REPORT_GROUPS: HotelReportGroup[] = [
       { slug: "expense-report",    title: "Expense Report",      description: "Expenses grouped by category, vendor and period",                          icon: DollarSign,      status: "ready" },
       { slug: "billing-report",    title: "Billing & Payments",  description: "Guest charges, payments received, outstanding balances",                   icon: CreditCard,      status: "ready" },
       { slug: "payroll-report",    title: "Payroll Report",      description: "Staff payroll runs, totals by period, department breakdown",               icon: Wallet,          status: "ready" },
+      { slug: "cash-flow-report",  title: "Cash Flow Report",    description: "Money in/out across all cash accounts with running balances",              icon: Landmark,        status: "ready" },
     ],
   },
   {

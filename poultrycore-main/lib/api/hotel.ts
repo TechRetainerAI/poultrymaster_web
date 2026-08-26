@@ -428,7 +428,8 @@ export async function updateHousekeepingStatus(id: number, status: HotelHousekee
 export interface HotelStayCharge { hotelStayChargeId: number; farmId: string; hotelBookingId: number; chargeType: string; description: string; quantity: number; unitPrice: number; totalAmount: number; chargeDate: string; postedBy?: string | null; createdAt: string }
 export interface HotelInvoice { hotelInvoiceId: number; farmId: string; hotelBookingId: number; hotelGuestId: number; invoiceNumber: string; subTotal: number; taxAmount: number; taxRate: number; discountAmount: number; totalAmount: number; amountPaid: number; balance: number; status: string; issuedDate: string; dueDate?: string | null; notes?: string | null; createdAt: string; updatedAt?: string | null }
 export interface HotelPayment { hotelPaymentId: number; farmId: string; hotelInvoiceId?: number | null; hotelBookingId: number; amount: number; paymentMethod: string; reference?: string | null; paymentDate: string; receivedBy?: string | null; notes?: string | null; createdAt: string }
-export interface HotelExpense { hotelExpenseId: number; farmId: string; category: string; description: string; amount: number; expenseDate: string; vendor?: string | null; receiptRef?: string | null; status: string; approvedBy?: string | null; notes?: string | null; createdAt: string; updatedAt?: string | null }
+export interface HotelExpense { hotelExpenseId: number; farmId: string; category: string; description: string; amount: number; expenseDate: string; vendor?: string | null; receiptRef?: string | null; status: string; approvedBy?: string | null; notes?: string | null; paymentMethod?: string | null; hotelCashAccountId?: number | null; paidTo?: string | null; hotelExpenseCategoryId?: number | null; createdAt: string; updatedAt?: string | null }
+export interface HotelExpenseCategory { hotelExpenseCategoryId: number; farmId: string; name: string; isActive: boolean; createdAt: string }
 export interface HotelCashAccount { hotelCashAccountId: number; farmId: string; accountName: string; accountType: string; openingBalance: number; currentBalance: number; isActive: boolean; notes?: string | null; createdAt: string; updatedAt?: string | null }
 export interface HotelMenuItem { hotelMenuItemId: number; farmId: string; name: string; category: string; description?: string | null; price: number; isAvailable: boolean; isActive: boolean; createdAt: string; updatedAt?: string | null }
 export interface HotelRestaurantTable { hotelRestaurantTableId: number; farmId: string; tableNumber: string; capacity: number; location?: string | null; status: string; createdAt: string }
@@ -442,9 +443,43 @@ export async function generateInvoice(bookingId: number): Promise<HotelInvoice> 
 export async function listHotelPayments(): Promise<HotelPayment[]> { return jget<HotelPayment[]>("/Hotel/billing/payments") }
 export async function recordPayment(input: { hotelBookingId: number; hotelInvoiceId?: number; amount: number; paymentMethod: string; reference?: string; notes?: string }): Promise<HotelPayment> { return jsend<HotelPayment>("/Hotel/billing/payments", "POST", { ...input, farmId: activeFarmId() }) }
 export async function listHotelExpenses(): Promise<HotelExpense[]> { return jget<HotelExpense[]>("/Hotel/finance/expenses") }
-export async function createHotelExpense(input: { category: string; description: string; amount: number; expenseDate: string; vendor?: string; notes?: string }): Promise<HotelExpense> { return jsend<HotelExpense>("/Hotel/finance/expenses", "POST", { ...input, farmId: activeFarmId() }) }
+export async function createHotelExpense(input: { category: string; description: string; amount: number; expenseDate: string; vendor?: string; notes?: string; paymentMethod?: string; hotelCashAccountId?: number | null; paidTo?: string; hotelExpenseCategoryId?: number | null }): Promise<HotelExpense> { return jsend<HotelExpense>("/Hotel/finance/expenses", "POST", { ...input, farmId: activeFarmId() }) }
+export async function submitHotelExpense(id: number): Promise<void> { await jsend<void>(`/Hotel/finance/expenses/${id}/submit`, "POST", { farmId: activeFarmId() }) }
+export async function approveHotelExpense(id: number): Promise<void> { await jsend<void>(`/Hotel/finance/expenses/${id}/approve`, "POST", { farmId: activeFarmId() }) }
+export async function cancelHotelExpense(id: number, reason?: string): Promise<void> { await jsend<void>(`/Hotel/finance/expenses/${id}/cancel`, "POST", { farmId: activeFarmId(), reason }) }
+export async function listHotelExpenseCategories(): Promise<HotelExpenseCategory[]> { return jget<HotelExpenseCategory[]>("/Hotel/finance/expense-categories") }
+export async function createHotelExpenseCategory(input: { name: string }): Promise<HotelExpenseCategory> { return jsend<HotelExpenseCategory>("/Hotel/finance/expense-categories", "POST", { ...input, farmId: activeFarmId() }) }
 export async function listHotelCashAccounts(): Promise<HotelCashAccount[]> { return jget<HotelCashAccount[]>("/Hotel/finance/cash-accounts") }
-export async function createHotelCashAccount(input: { accountName: string; accountType: string; openingBalance: number }): Promise<HotelCashAccount> { return jsend<HotelCashAccount>("/Hotel/finance/cash-accounts", "POST", { ...input, farmId: activeFarmId() }) }
+export async function createHotelCashAccount(input: { accountName: string; accountType: string; openingBalance: number; purpose?: string | null }): Promise<HotelCashAccount> { return jsend<HotelCashAccount>("/Hotel/finance/cash-accounts", "POST", { ...input, farmId: activeFarmId() }) }
+export async function deleteHotelCashAccount(id: number): Promise<void> { const farmId = activeFarmId(); const url = farmApiUrl(`/Hotel/finance/cash-accounts/${id}?farmId=${encodeURIComponent(farmId)}`); const res = await fetch(url, { method: "DELETE", headers: getAuthHeaders() }); if (!res.ok) throw new Error(await readApiError(res)) }
+export async function updateCashAccountPurpose(id: number, purpose: string | null): Promise<void> { await jsend<void>(`/Hotel/finance/cash-accounts/${id}/purpose`, "PATCH", { farmId: activeFarmId(), purpose }) }
+
+// Cash Transactions API
+export interface HotelCashTransaction { hotelcashtxnid: number; farmid: string; hotelcashaccountid: number; txntype: string; amount: number; balanceafter: number; description?: string | null; reference?: string | null; sourcetype?: string | null; sourceid?: number | null; txndate: string; createdby?: string | null; createdat: string; accountname?: string | null }
+export async function listCashTransactions(accountId?: number): Promise<HotelCashTransaction[]> {
+  const farmId = activeFarmId()
+  const acctParam = accountId ? `&accountId=${accountId}` : ""
+  const url = farmApiUrl(`/Hotel/finance/cash-transactions?farmId=${encodeURIComponent(farmId)}${acctParam}`)
+  const res = await fetch(url, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error(await readApiError(res))
+  return res.json()
+}
+
+// Paginated API variants
+export interface PaginatedResult<T> { data: T[]; total: number; page: number; pageSize: number }
+
+async function jpaged<T>(endpoint: string, page: number, pageSize: number): Promise<PaginatedResult<T>> {
+  const farmId = activeFarmId()
+  const sep = endpoint.includes("?") ? "&" : "?"
+  const url = farmApiUrl(`${endpoint}${sep}farmId=${encodeURIComponent(farmId)}&page=${page}&pageSize=${pageSize}`)
+  const res = await fetch(url, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error(await readApiError(res))
+  return res.json()
+}
+
+export async function listHotelBookingsPaged(page: number, pageSize: number): Promise<PaginatedResult<HotelBooking>> { return jpaged<HotelBooking>("/Hotel/bookings", page, pageSize) }
+export async function listHotelPaymentsPaged(page: number, pageSize: number): Promise<PaginatedResult<HotelPayment>> { return jpaged<HotelPayment>("/Hotel/billing/payments", page, pageSize) }
+export async function listHotelExpensesPaged(page: number, pageSize: number): Promise<PaginatedResult<HotelExpense>> { return jpaged<HotelExpense>("/Hotel/finance/expenses", page, pageSize) }
 
 // Menu & Restaurant API
 export async function listMenuItems(): Promise<HotelMenuItem[]> { return jget<HotelMenuItem[]>("/Hotel/restaurant/menu") }
@@ -488,7 +523,7 @@ export async function listDailyClosings(): Promise<HotelDailyClosing[]> { return
 export async function createDailyClosing(input: { closingDate: string; notes?: string }): Promise<HotelDailyClosing> { return jsend<HotelDailyClosing>("/Hotel/reports/daily-closings", "POST", { ...input, farmId: activeFarmId() }) }
 
 // Night Audit API
-export interface HotelNightAudit { hotelnightauditid: number; farmid: string; auditdate: string; totalrooms: number; occupiedrooms: number; availablerooms: number; occupancyrate: number; totalrevenue: number; totalexpenses: number; outstandingbalances: number; checkincount: number; checkoutcount: number; noshowcount: number; pendinghousetasks: number; openmaintenance: number; issues?: string | null; status: string; createdat: string }
+export interface HotelNightAudit { hotelnightauditid: number; farmid: string; auditdate: string; totalrooms: number; occupiedrooms: number; availablerooms: number; occupancyrate: number; totalrevenue: number; totalexpenses: number; outstandingbalances: number; checkincount: number; checkoutcount: number; noshowcount: number; pendinghousetasks: number; openmaintenance: number; issues?: string | null; status: string; roomchargesposted: number; createdat: string }
 export async function runNightAudit(input: { closingDate?: string; notes?: string }): Promise<HotelNightAudit> { return jsend<HotelNightAudit>("/Hotel/night-audit", "POST", { ...input, farmId: activeFarmId() }) }
 export async function listNightAudits(): Promise<HotelNightAudit[]> { return jget<HotelNightAudit[]>("/Hotel/night-audit") }
 
@@ -572,7 +607,7 @@ export async function createHotelPayrollRun(input: { periodStart: string; period
 }
 
 export async function upsertHotelPayrollItem(runId: number, input: { hotelStaffId: number; staffName?: string; staffRole?: string; basicPay: number; dailyWage: number; commission: number; bonus: number; deductions: number; paymentMethod?: string; notes?: string }): Promise<any> {
-  return jsend<any>(`/Hotel/payroll-runs/${runId}/items`, "POST", { ...input, farmId: activeFarmId() })
+  return jsend<any>(`/Hotel/payroll-runs/${runId}/items`, "POST", { ...input, hotelPayrollRunId: runId, farmId: activeFarmId() })
 }
 
 export async function deleteHotelPayrollItem(itemId: number): Promise<void> {
