@@ -646,3 +646,88 @@ export async function deleteHotelPayrollRun(id: number): Promise<void> {
   const res = await fetch(url, { method: "DELETE", headers: getAuthHeaders() })
   if (!res.ok) throw new Error(await readApiError(res))
 }
+
+// =============================================================================
+// PHASE 6: NEW FEATURES
+// =============================================================================
+
+// Room Availability
+export async function checkRoomAvailability(checkIn: string, checkOut: string, roomTypeId?: number): Promise<any[]> {
+  const farmId = activeFarmId()
+  let url = farmApiUrl(`/Hotel/availability?farmId=${encodeURIComponent(farmId)}&checkIn=${checkIn}&checkOut=${checkOut}`)
+  if (roomTypeId) url += `&roomTypeId=${roomTypeId}`
+  const res = await fetch(url, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error(await readApiError(res))
+  return res.json()
+}
+
+// Guest Stay History
+export async function getGuestStayHistory(guestId: number): Promise<any[]> { return jget<any[]>(`/Hotel/stay-history/${guestId}`) }
+
+// Check-in/out History
+export async function listCheckInHistory(): Promise<any[]> { return jget<any[]>("/Hotel/checkin-history") }
+export async function listCheckOutHistory(): Promise<any[]> { return jget<any[]>("/Hotel/checkout-history") }
+
+// Guest Folio
+export async function getGuestFolio(bookingId: number): Promise<any> { return jget<any>(`/Hotel/folio/${bookingId}`) }
+
+// Deposits
+export async function listDeposits(bookingId?: number): Promise<any[]> {
+  const farmId = activeFarmId()
+  let url = farmApiUrl(`/Hotel/deposits?farmId=${encodeURIComponent(farmId)}`)
+  if (bookingId) url += `&bookingId=${bookingId}`
+  const res = await fetch(url, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error(await readApiError(res))
+  return res.json()
+}
+export async function createDeposit(input: { hotelBookingId: number; hotelGuestId: number; depositType: string; amount: number; method?: string; reference?: string; notes?: string }): Promise<any> { return jsend<any>("/Hotel/deposits", "POST", { ...input, farmId: activeFarmId() }) }
+
+// Guest Communications
+export async function listCommunications(guestId?: number): Promise<any[]> {
+  const farmId = activeFarmId()
+  let url = farmApiUrl(`/Hotel/communications?farmId=${encodeURIComponent(farmId)}`)
+  if (guestId) url += `&guestId=${guestId}`
+  const res = await fetch(url, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error(await readApiError(res))
+  return res.json()
+}
+export async function createCommunication(input: { hotelGuestId: number; hotelBookingId?: number; commType: string; subject?: string; message: string; priority?: string; assignedTo?: string }): Promise<any> { return jsend<any>("/Hotel/communications", "POST", { ...input, farmId: activeFarmId() }) }
+export async function updateCommunicationStatus(id: number, status: string): Promise<any> { return jsend<any>(`/Hotel/communications/${id}/status`, "PATCH", { farmId: activeFarmId(), status }) }
+
+// Guest Requests
+export async function listGuestRequests(status?: string): Promise<any[]> {
+  const farmId = activeFarmId()
+  let url = farmApiUrl(`/Hotel/guest-requests?farmId=${encodeURIComponent(farmId)}`)
+  if (status) url += `&status=${status}`
+  const res = await fetch(url, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error(await readApiError(res))
+  return res.json()
+}
+export async function createGuestRequest(input: { hotelBookingId?: number; hotelRoomId?: number; requestType: string; description?: string; scheduledTime?: string; assignedTo?: string; notes?: string }): Promise<any> { return jsend<any>("/Hotel/guest-requests", "POST", { ...input, farmId: activeFarmId() }) }
+export async function updateGuestRequestStatus(id: number, status: string): Promise<any> { return jsend<any>(`/Hotel/guest-requests/${id}/status`, "PATCH", { farmId: activeFarmId(), status }) }
+
+// Lost & Found
+export async function listLostFound(): Promise<any[]> { return jget<any[]>("/Hotel/lost-and-found") }
+export async function createLostFound(input: { hotelRoomId?: number; hotelBookingId?: number; hotelGuestId?: number; itemDescription: string; foundDate?: string; foundBy?: string; foundLocation?: string; category?: string; storageLocation?: string; notes?: string }): Promise<any> { return jsend<any>("/Hotel/lost-and-found", "POST", { ...input, farmId: activeFarmId() }) }
+export async function updateLostFoundStatus(id: number, status: string, claimedBy?: string): Promise<any> { return jsend<any>(`/Hotel/lost-and-found/${id}/status`, "PATCH", { farmId: activeFarmId(), status, claimedBy }) }
+
+// Room Flags
+export async function updateRoomFlags(roomId: number, flags: { dnd?: boolean; lateCheckout?: string; vipTreatment?: boolean; specialInstructions?: string }): Promise<any> { return jsend<any>(`/Hotel/rooms/${roomId}/flags`, "PATCH", { ...flags, farmId: activeFarmId() }) }
+
+// Housekeeping Schedule
+export async function listHKSchedule(date?: string): Promise<any[]> {
+  const farmId = activeFarmId()
+  let url = farmApiUrl(`/Hotel/housekeeping-schedule?farmId=${encodeURIComponent(farmId)}`)
+  if (date) url += `&date=${date}`
+  const res = await fetch(url, { headers: getAuthHeaders() })
+  if (!res.ok) throw new Error(await readApiError(res))
+  return res.json()
+}
+export async function createHKSchedule(input: { scheduleDate: string; hotelRoomId: number; assignedTo?: string; taskType?: string; priority?: string; notes?: string }): Promise<any> { return jsend<any>("/Hotel/housekeeping-schedule", "POST", { ...input, farmId: activeFarmId() }) }
+export async function bulkCreateHKSchedule(input: { scheduleDate: string; taskType?: string; assignedTo?: string }): Promise<any> { return jsend<any>("/Hotel/housekeeping-schedule/bulk", "POST", { ...input, farmId: activeFarmId() }) }
+export async function updateHKScheduleStatus(id: number, status: string): Promise<any> { return jsend<any>(`/Hotel/housekeeping-schedule/${id}/status`, "PATCH", { farmId: activeFarmId(), status }) }
+
+// Shift Handovers
+export async function listShiftHandovers(): Promise<any[]> { return jget<any[]>("/Hotel/shift-handovers") }
+export async function createShiftHandover(input: { shiftDate?: string; shiftType: string; handoverBy: string; keyMessages?: string; pendingItems?: string; vipGuests?: string; incidents?: string; cashBalance?: number }): Promise<any> { return jsend<any>("/Hotel/shift-handovers", "POST", { ...input, farmId: activeFarmId() }) }
+export async function acknowledgeShiftHandover(id: number, receivedBy: string): Promise<any> { return jsend<any>(`/Hotel/shift-handovers/${id}/acknowledge`, "POST", { farmId: activeFarmId(), receivedBy }) }
