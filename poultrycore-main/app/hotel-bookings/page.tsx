@@ -86,6 +86,21 @@ export default function HotelBookingsPage() {
     setDialogOpen(true)
   }
 
+  async function handleBookingMove(booking: HotelBooking, newRoomId: number, newCheckIn: string, newCheckOut: string) {
+    try {
+      const nights = Math.max(1, Math.ceil((new Date(newCheckOut).getTime() - new Date(newCheckIn).getTime()) / 86400000))
+      await updateHotelBooking(booking.hotelBookingId, {
+        hotelGuestId: booking.hotelGuestId, hotelRoomTypeId: booking.hotelRoomTypeId,
+        hotelRoomId: newRoomId, checkInDate: newCheckIn, checkOutDate: newCheckOut,
+        nightlyRate: booking.nightlyRate, totalAmount: nights * booking.nightlyRate,
+        numberOfGuests: booking.numberOfGuests, adults: booking.adults, children: booking.children,
+        source: booking.source, specialRequests: booking.specialRequests,
+      })
+      toast({ title: `Booking ${booking.bookingRef} updated`, description: newRoomId !== booking.hotelRoomId ? `Moved to room ${rooms.find(r => r.hotelRoomId === newRoomId)?.roomNumber ?? newRoomId}` : `Dates: ${newCheckIn} → ${newCheckOut}` })
+      await loadData()
+    } catch (e: any) { toast({ title: "Move failed", description: e?.message, variant: "destructive" }) }
+  }
+
   // Auto-calculate total when dates or rate change
   function calcTotal(checkIn: string, checkOut: string, rate: number) {
     const d1 = new Date(checkIn); const d2 = new Date(checkOut)
@@ -199,7 +214,7 @@ export default function HotelBookingsPage() {
               </TabsContent>
 
               <TabsContent value="calendar">
-                <BookingCalendar bookings={bookings} rooms={rooms} onBookingClick={openEdit} />
+                <BookingCalendar bookings={bookings} rooms={rooms} onBookingClick={openEdit} onBookingMove={handleBookingMove} />
               </TabsContent>
             </Tabs>
           )}
