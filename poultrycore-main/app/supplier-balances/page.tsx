@@ -28,12 +28,15 @@ export default function SupplierBalancesPage() {
       }}
       partyHref={() => "/suppliers"}
       // Raw-material purchases live on a tab of the raw materials page rather
-      // than at a route of their own, so this lands on that tab; flock batches
-      // do have a detail route.
+      // than at a route of their own, so this lands on that tab with the one
+      // purchase in focus — ?purchaseId= narrows the list the same way
+      // ?saleId= does on /sales for the customer side. Without it the link
+      // dropped you into every supplier's purchases and left you to find the
+      // row yourself. Flock batches do have a detail route.
       documentHref={(doc) =>
         doc.documentType === "FlockBatch"
           ? `/flock-batch/${doc.documentId}`
-          : `/poultry-raw-materials?tab=purchases`
+          : `/poultry-raw-materials?tab=purchases&purchaseId=${doc.documentId}`
       }
       permissions={{
         view: "poultry.supplier-balances.view",

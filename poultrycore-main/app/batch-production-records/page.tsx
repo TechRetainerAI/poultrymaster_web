@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
+import { BatchProductionRecordModal } from "@/components/production/batch-production-record-modal"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -78,6 +79,10 @@ interface ConfirmState {
 }
 
 export default function BatchProductionRecordsPage() {
+  // Add/Edit open in the wide modal by default; the full-page routes remain
+  // reachable from inside it via "Open Full Page".
+  const [formOpen, setFormOpen] = useState(false)
+  const [editingId, setEditingId] = useState<number | null>(null)
   const router = useRouter()
   const permissions = usePermissions()
   const { toast } = useToast()
@@ -534,12 +539,12 @@ export default function BatchProductionRecordsPage() {
     const push = (node: React.ReactNode) => buttons.push(node)
     switch (r.status) {
       case "Draft":
-        push(<Button key="edit" variant="ghost" size="sm" className="shrink-0" onClick={() => router.push(`/batch-production-records/${r.id}/edit`)}>Edit</Button>)
+        push(<Button key="edit" variant="ghost" size="sm" className="shrink-0" onClick={() => { setEditingId(r.id); setFormOpen(true) }}>Edit</Button>)
         if (permissions.canDelete) push(<Button key="del" variant="ghost" size="sm" className="text-red-600 shrink-0" onClick={() => openDelete(r)}>Delete</Button>)
         push(<Button key="cancel" variant="ghost" size="sm" className="text-slate-500 shrink-0" onClick={() => openCancel(r)}>Cancel</Button>)
         break
       case "PendingAllocation":
-        push(<Button key="edit" variant="ghost" size="sm" className="shrink-0" onClick={() => router.push(`/batch-production-records/${r.id}/edit`)}>Edit</Button>)
+        push(<Button key="edit" variant="ghost" size="sm" className="shrink-0" onClick={() => { setEditingId(r.id); setFormOpen(true) }}>Edit</Button>)
         push(<Button key="alloc" variant="ghost" size="sm" className="text-blue-600 shrink-0" onClick={() => router.push(`/batch-production-records/${r.id}/allocate`)}>Allocation</Button>)
         if (permissions.canDelete) push(<Button key="del" variant="ghost" size="sm" className="text-red-600 shrink-0" onClick={() => openDelete(r)}>Delete</Button>)
         push(<Button key="cancel" variant="ghost" size="sm" className="text-slate-500 shrink-0" onClick={() => openCancel(r)}>Cancel</Button>)
@@ -585,7 +590,7 @@ export default function BatchProductionRecordsPage() {
                   <p className="text-sm text-slate-600">Log batch-level production and allocate totals across flocks</p>
                 </div>
               </div>
-              <Button className="gap-2 shrink-0 w-full sm:w-auto h-11 sm:h-10 bg-emerald-600 hover:bg-emerald-700" onClick={() => router.push("/batch-production-records/new")}>
+              <Button className="gap-2 shrink-0 w-full sm:w-auto h-11 sm:h-10 bg-emerald-600 hover:bg-emerald-700" onClick={() => { setEditingId(null); setFormOpen(true) }}>
                 <Plus className="w-4 h-4" /> Log Batch Production
               </Button>
             </div>
@@ -820,7 +825,7 @@ export default function BatchProductionRecordsPage() {
                       {paginatedRecords.length === 0 ? (
                         <div className="py-16 px-4 text-center">
                           <p className="text-slate-500 mb-4">No batch records found</p>
-                          <Button onClick={() => router.push("/batch-production-records/new")}>Log one now</Button>
+                          <Button onClick={() => { setEditingId(null); setFormOpen(true) }}>Log one now</Button>
                         </div>
                       ) : (
                         paginatedRecords.map((r, idx) => (
@@ -919,7 +924,7 @@ export default function BatchProductionRecordsPage() {
                           <TableRow>
                             <TableCell colSpan={17} className="py-12 text-center text-slate-500">
                               No batch records found for the selected filters.
-                              <Button variant="link" className="ml-1" onClick={() => router.push("/batch-production-records/new")}>Log one now</Button>
+                              <Button variant="link" className="ml-1" onClick={() => { setEditingId(null); setFormOpen(true) }}>Log one now</Button>
                             </TableCell>
                           </TableRow>
                         ) : paginatedRecords.map((r, idx) => (
@@ -1021,6 +1026,13 @@ export default function BatchProductionRecordsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <BatchProductionRecordModal
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        recordId={editingId}
+        onSaved={load}
+      />
     </div>
   )
 }

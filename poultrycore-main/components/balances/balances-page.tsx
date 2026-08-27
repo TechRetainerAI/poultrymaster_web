@@ -20,7 +20,11 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select, SelectContent, SelectGroup, SelectItem,
+  SelectSeparator, SelectTrigger, SelectValue,
+} from "@/components/ui/select"
+import { PERIOD_GROUPS, periodToRange, rangeToPeriod } from "@/lib/date-ranges"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
   AlertTriangle, ChevronDown, ChevronRight, ExternalLink, FileText,
@@ -32,7 +36,7 @@ import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useFmt } from "@/lib/currency"
 import {
-  BALANCE_STATUS_FILTERS, getBalanceSummary, listBalances, listOpenDocuments,
+  BALANCE_STATUS_FILTERS, getBalanceSummary, listBalances, listOpenDocuments, listPayments,
   type BalanceFilters, type BalanceModule, type BalanceSide, type BalanceStatusFilter,
   type BalanceSummary, type OpenDocumentRow, type PartyBalanceRow,
 } from "@/lib/api/balances"
@@ -85,6 +89,24 @@ export function BalancesPage({
   const [from, setFrom] = useState("")
   const [to, setTo] = useState("")
   const [minBalance, setMinBalance] = useState("")
+  // Pick one party instead of typing a name. Server-side: the list endpoint has
+  // always taken a partyId, the page just never offered it.
+  const [partyFilter, setPartyFilter] = useState("all")
+  // Payment method. NOT a property of an outstanding balance -- a balance is
+  // what is still unpaid -- so this filters parties by the method their POSTED
+  // payments actually used, resolved from the payment list below.
+  const [methodFilter, setMethodFilter] = useState("all")
+
+  // Every party that has a balance, for the dropdown. Seeded from the first
+  // (unfiltered) load and then left alone: options that vanish as you filter
+  // would make the filter impossible to change your mind about.
+  const [partyOptions, setPartyOptions] = useState<{ id: number; name: string }[]>([])
+  // partyId -> the distinct methods that party has paid with, and every method
+  // seen on this farm. Built from one payments read, not one per party.
+  const [methodsByParty, setMethodsByParty] = useState<Record<number, string[]>>({})
+  const [methodOptions, setMethodOptions] = useState<string[]>([])
+  // Bumped after a payment is posted or reversed so the method map refetches.
+  const [paymentsVersion, setPaymentsVersion] = useState(0)
 
   const [payFor, setPayFor] = useState<{ party: PartyBalanceRow; doc: OpenDocumentRow | null } | null>(null)
   const [statementFor, setStatementFor] = useState<PartyBalanceRow | null>(null)
@@ -98,10 +120,22 @@ export function BalancesPage({
   const filters: BalanceFilters = useMemo(() => ({
     from: from || null,
     to: to || null,
+    partyId: partyFilter === "all" ? null : Number(partyFilter),
     status,
     minBalance: minBalance ? Number(minBalance) : null,
     search: search.trim() || null,
-  }), [from, to, status, minBalance, search])
+  }), [from, to, partyFilter, status, minBalance, search])
+
+  // Same Period dropdown the reports use (lib/date-ranges). It is a shortcut for
+  // From/To, not a filter of its own: picking a preset fills both dates, and
+  // editing either date by hand drops it back to Custom. Empty dates mean no
+  // date filter at all, which is this page's default — so it reads as Custom
+  // until a period is picked.
+  const period = from && to ? rangeToPeriod(from, to) : "custom"
+
+  /** True while nothing has been narrowed — the only time `rows` is every party. */
+  const filtersAreEmpty =
+    !from && !to && partyFilter === "all" && status === "All" && !minBalance && !search.trim()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -112,6 +146,11 @@ export function BalancesPage({
       ])
       setRows(list)
       setSummary(sum)
+      // An unfiltered list IS the full set of parties, so take the dropdown's
+      // options from it rather than spending a second request on them.
+      if (filtersAreEmpty) {
+        setPartyOptions(list.map((r) => ({ id: r.partyId, name: r.partyName })))
+      }
       // Any cached document list is stale once a payment has moved balances.
       setDocs({})
     } catch (e: any) {
@@ -126,6 +165,49 @@ export function BalancesPage({
     if (activeFarmType && activeFarmType !== companyType) { router.replace("/dashboard"); return }
     void load()
   }, [activeFarmType, companyType, router, load])
+
+  // One read of the farm's payments, turned into party -> methods. Deliberately
+  // NOT part of load(): load() re-runs on every filter change (every keystroke
+  // in Search), and the method map does not depend on the filters. It refreshes
+  // only when a payment is posted or reversed.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const payments = await listPayments(module, side, {})
+        if (cancelled) return
+        const byParty: Record<number, string[]> = {}
+        const seen = new Set<string>()
+        for (const p of payments) {
+          // A reversed payment was undone; treating it as evidence of a method
+          // would keep a party in the filter for money they never kept.
+          if ((p.status ?? "Posted") !== "Posted") continue
+          const method = (p.paymentMethod ?? "").trim()
+          if (!method) continue
+          seen.add(method)
+          if (p.partyId == null) continue
+          const list = byParty[p.partyId] ?? (byParty[p.partyId] = [])
+          if (!list.includes(method)) list.push(method)
+        }
+        setMethodsByParty(byParty)
+        setMethodOptions(Array.from(seen).sort())
+      } catch {
+        // The balances themselves do not depend on this. Leave the dropdown
+        // empty rather than failing the page over a filter.
+        if (!cancelled) { setMethodsByParty({}); setMethodOptions([]) }
+      }
+    })()
+    return () => { cancelled = true }
+  }, [module, side, paymentsVersion])
+
+  // Applied here rather than server-side: the balances endpoint has no notion of
+  // a payment method, and the map above already has the answer.
+  const visibleRows = useMemo(
+    () => (methodFilter === "all"
+      ? rows
+      : rows.filter((r) => (methodsByParty[r.partyId] ?? []).includes(methodFilter))),
+    [rows, methodFilter, methodsByParty],
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -222,51 +304,118 @@ export function BalancesPage({
             )}
           </div>
 
+          {/* Two rows of four, not one wrapping row of eight. The controls grew
+              one at a time into a flex-wrap bar with four different fixed widths,
+              which re-flowed into a different ragged shape at every viewport.
+              A fixed grid keeps the columns aligned, and the two rows carry
+              meaning: row 1 is WHO and WHAT STATE, row 2 is WHEN and HOW MUCH. */}
           <Card className="mb-4">
-            <CardContent className="flex flex-wrap items-end gap-3 p-4">
-              <div className="min-w-[14rem] flex-1 space-y-1.5">
-                <Label htmlFor="bal-search">Search</Label>
-                <Input
-                  id="bal-search" value={search} onChange={(e) => setSearch(e.target.value)}
-                  placeholder={`${isCustomer ? "Customer" : "Supplier"} name or phone`}
-                />
+            <CardContent className="space-y-4 p-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="bal-search">Search</Label>
+                  <Input
+                    id="bal-search" value={search} onChange={(e) => setSearch(e.target.value)}
+                    placeholder={`${isCustomer ? "Customer" : "Supplier"} name or phone`}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>{isCustomer ? "Customer" : "Supplier"}</Label>
+                  <Select value={partyFilter} onValueChange={setPartyFilter}>
+                    <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All {partyWord}s</SelectItem>
+                      {partyOptions.map((p) => (
+                        <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Payment method</Label>
+                  <Select value={methodFilter} onValueChange={setMethodFilter}>
+                    <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Any method</SelectItem>
+                      {methodOptions.map((m) => (
+                        <SelectItem key={m} value={m}>{m}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Status</Label>
+                  <Select value={status} onValueChange={(v) => setStatus(v as BalanceStatusFilter)}>
+                    <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {BALANCE_STATUS_FILTERS.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s === "All" ? "All with balance" : s === "Partial" ? "Partially paid" : s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Period</Label>
+                  <Select
+                    value={period}
+                    onValueChange={(v) => {
+                      const r = periodToRange(v as never)
+                      // "custom" resolves to null — leave the dates the user typed.
+                      if (r) { setFrom(r.from); setTo(r.to) }
+                    }}
+                  >
+                    <SelectTrigger className="w-full"><SelectValue placeholder="Select period" /></SelectTrigger>
+                    <SelectContent>
+                      {/* Grouped by separators rather than headings, matching the
+                          reports' Period dropdown exactly. */}
+                      {PERIOD_GROUPS.map((g, gi) => (
+                        <SelectGroup key={g.label}>
+                          {gi > 0 && <SelectSeparator />}
+                          {g.options.map((o) => (
+                            <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                          ))}
+                        </SelectGroup>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="bal-from">From</Label>
+                  <Input id="bal-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="bal-to">To</Label>
+                  <Input id="bal-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="bal-min">Min balance</Label>
+                  <Input
+                    id="bal-min" type="number" min="0" step="0.01"
+                    value={minBalance} onChange={(e) => setMinBalance(e.target.value)} placeholder="0.00"
+                  />
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label>Status</Label>
-                <Select value={status} onValueChange={(v) => setStatus(v as BalanceStatusFilter)}>
-                  <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {BALANCE_STATUS_FILTERS.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {s === "All" ? "All with balance" : s === "Partial" ? "Partially paid" : s}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="bal-from">From</Label>
-                <Input id="bal-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="bal-to">To</Label>
-                <Input id="bal-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="bal-min">Min balance</Label>
-                <Input
-                  id="bal-min" type="number" min="0" step="0.01" className="w-32"
-                  value={minBalance} onChange={(e) => setMinBalance(e.target.value)} placeholder="0.00"
-                />
-              </div>
-              <Button variant="ghost" onClick={() => { setSearch(""); setStatus("All"); setFrom(""); setTo(""); setMinBalance("") }}>
-                Reset
-              </Button>
-              {!isCustomer || canStatement ? (
-                <Button variant="outline" onClick={() => setHistoryFor({ party: null, doc: null })}>
-                  <History className="mr-1.5 h-4 w-4" /> All payments
+
+              {/* Actions live below a rule, not inline with the inputs: they act
+                  ON the filters rather than being one. */}
+              <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-3">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setSearch(""); setStatus("All"); setFrom(""); setTo(""); setMinBalance("")
+                    setPartyFilter("all"); setMethodFilter("all")
+                  }}
+                >
+                  Reset
                 </Button>
-              ) : null}
+                {!isCustomer || canStatement ? (
+                  <Button variant="outline" onClick={() => setHistoryFor({ party: null, doc: null })}>
+                    <History className="mr-1.5 h-4 w-4" /> All payments
+                  </Button>
+                ) : null}
+              </div>
             </CardContent>
           </Card>
 
@@ -276,9 +425,11 @@ export function BalancesPage({
                 <div className="flex items-center gap-2 p-6 text-slate-500">
                   <Loader2 className="h-4 w-4 animate-spin" /> Loading…
                 </div>
-              ) : rows.length === 0 ? (
+              ) : visibleRows.length === 0 ? (
                 <div className="p-8 text-center text-slate-500">
-                  Nothing outstanding. Every {docWord} is fully paid.
+                  {methodFilter !== "all" && rows.length > 0
+                    ? <>No {partyWord} has paid by <span className="font-medium text-slate-700">{methodFilter}</span> under these filters.</>
+                    : <>Nothing outstanding. Every {docWord} is fully paid.</>}
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -297,7 +448,7 @@ export function BalancesPage({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {rows.map((party) => {
+                      {visibleRows.map((party) => {
                         const isOpen = expanded === party.partyId
                         const lines = docs[party.partyId]
                         return (
@@ -348,10 +499,16 @@ export function BalancesPage({
                               </TableCell>
                             </TableRow>
 
+                            {/* The open documents for one party. Tinted band + a white
+                                card so the nested table reads as a detail OF the row
+                                above rather than as more rows in the same list — the
+                                two share a column count but not a meaning. Both the
+                                base and hover colours are set, or TableRow's own
+                                hover:bg-muted/50 repaints the band on hover. */}
                             {isOpen && (
-                              <TableRow>
+                              <TableRow className="bg-blue-50 hover:bg-blue-50">
                                 <TableCell />
-                                <TableCell colSpan={8} className="py-2">
+                                <TableCell colSpan={8} className="py-3 pr-4">
                                   {docsLoading === party.partyId || !lines ? (
                                     <span className="flex items-center gap-2 text-sm text-slate-500">
                                       <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading open {docWord}s…
@@ -359,10 +516,17 @@ export function BalancesPage({
                                   ) : lines.length === 0 ? (
                                     <span className="text-sm text-slate-500">No open {docWord}s match the current filters.</span>
                                   ) : (
+                                    <div className="overflow-hidden rounded-md border border-blue-200 bg-white shadow-sm">
                                     <Table>
                                       <TableHeader>
-                                        <TableRow>
+                                        <TableRow className="bg-blue-100 hover:bg-blue-100">
                                           <TableHead>{isCustomer ? "Sale" : "Purchase"}</TableHead>
+                                          {/* What was sold or bought, in its own
+                                              column. It used to sit stacked under
+                                              the reference, which read as one
+                                              two-line value under a header that
+                                              only named the first half of it. */}
+                                          <TableHead>{isCustomer ? "Product" : "Item"}</TableHead>
                                           <TableHead>Date</TableHead>
                                           <TableHead className="text-right">Total</TableHead>
                                           <TableHead className="text-right">Paid</TableHead>
@@ -376,9 +540,11 @@ export function BalancesPage({
                                       <TableBody>
                                         {lines.map((d) => (
                                           <TableRow key={`${d.documentType}:${d.documentId}`}>
-                                            <TableCell className="font-medium">
+                                            <TableCell className="font-medium whitespace-nowrap">
                                               {d.reference ?? d.documentId}
-                                              {d.label ? <span className="block text-xs text-slate-500">{d.label}</span> : null}
+                                            </TableCell>
+                                            <TableCell className="text-slate-600">
+                                              {d.label ?? d.description ?? "—"}
                                             </TableCell>
                                             <TableCell className="whitespace-nowrap">{new Date(d.documentDate).toLocaleDateString()}</TableCell>
                                             <TableCell className="text-right">{fmt(d.totalAmount)}</TableCell>
@@ -414,6 +580,7 @@ export function BalancesPage({
                                         ))}
                                       </TableBody>
                                     </Table>
+                                    </div>
                                   )}
                                 </TableCell>
                               </TableRow>
@@ -438,7 +605,7 @@ export function BalancesPage({
         party={payFor?.party ?? null}
         singleDocument={payFor?.doc ?? null}
         cashAccounts={cashAccounts}
-        onPosted={() => { setExpanded(null); void load() }}
+        onPosted={() => { setExpanded(null); setPaymentsVersion((v) => v + 1); void load() }}
       />
 
       <StatementDialog
@@ -459,7 +626,7 @@ export function BalancesPage({
         documentType={historyFor?.doc?.documentType ?? null}
         documentId={historyFor?.doc?.documentId ?? null}
         canReverse={canReverse}
-        onReversed={() => { setExpanded(null); void load() }}
+        onReversed={() => { setExpanded(null); setPaymentsVersion((v) => v + 1); void load() }}
       />
     </div>
   )

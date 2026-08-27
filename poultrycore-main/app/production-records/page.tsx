@@ -23,7 +23,7 @@ import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
 import { getUserContext } from "@/lib/utils/user-context"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useToast } from "@/hooks/use-toast"
-import { ProductionForm } from "@/components/production/production-form"
+import { ProductionRecordModal } from "@/components/production/production-record-modal"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
@@ -647,7 +647,7 @@ export default function ProductionRecordsPage() {
                   <p className="text-sm text-slate-600">Track daily egg production and performance metrics</p>
                 </div>
               </div>
-              <Button className="gap-2 shrink-0 w-full sm:w-auto h-11 sm:h-10 bg-emerald-600 hover:bg-emerald-700" onClick={() => router.push("/production-records/new")}>
+              <Button className="gap-2 shrink-0 w-full sm:w-auto h-11 sm:h-10 bg-emerald-600 hover:bg-emerald-700" onClick={() => { setEditing(null); setFormOpen(true) }}>
                 <Plus className="w-4 h-4" /> Log Production
               </Button>
             </div>
@@ -1233,7 +1233,7 @@ export default function ProductionRecordsPage() {
         </main>
       </div>
 
-      <ProductionForm open={formOpen} onOpenChange={setFormOpen} record={editing} onSaved={load} />
+      <ProductionRecordModal open={formOpen} onOpenChange={setFormOpen} record={editing} onSaved={load} />
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

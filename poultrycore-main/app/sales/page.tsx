@@ -49,6 +49,29 @@ import {
 import { exportTableToPdf, emailTableAsPdf, type PdfExportOptions } from "@/lib/utils/pdf-export"
 import { Download } from "lucide-react"
 
+/**
+ * Egg quantity as crates and loose pieces, e.g. "2cr + 15pcs".
+ *
+ * A zero part is dropped rather than printed: "2cr + 0pcs" and "0cr + 15pcs"
+ * both spend space saying nothing. An exact 60 reads "2cr", a loose 15 reads
+ * "15pcs". Returns null when there is nothing to break down, so the caller can
+ * omit the whole label instead of rendering an empty one.
+ */
+function eggCrateBreakdown(
+  quantity: number,
+  { long = false, eggsPerCrate = 30 }: { long?: boolean; eggsPerCrate?: number } = {},
+): string | null {
+  if (!Number.isFinite(quantity) || quantity <= 0 || eggsPerCrate <= 0) return null
+  const crates = Math.floor(quantity / eggsPerCrate)
+  const pieces = quantity % eggsPerCrate
+  const parts: string[] = []
+  // `long` is for the summary card, which has room for real words; the table
+  // cell sits next to the number it describes and uses the short form.
+  if (crates > 0) parts.push(long ? `${crates.toLocaleString()} crate${crates === 1 ? "" : "s"}` : `${crates}cr`)
+  if (pieces > 0) parts.push(long ? `${pieces} piece${pieces === 1 ? "" : "s"}` : `${pieces}pcs`)
+  return parts.length ? parts.join(" + ") : null
+}
+
 export default function SalesPage() {
   const router = useRouter()
   const [sales, setSales] = useState<Sale[]>([])
@@ -572,11 +595,12 @@ export default function SalesPage() {
 
   // Amount still owed on a sale (falls back to paid/unpaid when amountPaid is
   // absent, e.g. an older backend).
-  const saleOwed = (s: Sale) => {
+  const salePaid = (s: Sale) => {
     const total = Number(s.totalAmount) || 0
-    const paidAmt = s.amountPaid != null ? Number(s.amountPaid) : (s.paid === false ? 0 : total)
-    return Math.max(0, total - paidAmt)
+    return s.amountPaid != null ? Number(s.amountPaid) : (s.paid === false ? 0 : total)
   }
+
+  const saleOwed = (s: Sale) => Math.max(0, (Number(s.totalAmount) || 0) - salePaid(s))
 
   const openPaymentDialog = (sale: Sale) => {
     const owed = saleOwed(sale)
@@ -671,7 +695,9 @@ export default function SalesPage() {
         { header: "Qty", align: "right" },
         { header: "Unit price", align: "right" },
         { header: "Total", align: "right" },
-        { header: "Payment" },
+        { header: "Paid", align: "right" },
+        { header: "Balance", align: "right" },
+        { header: "Method" },
         { header: "Status" },
         { header: "Flock" },
       ],
@@ -682,8 +708,10 @@ export default function SalesPage() {
         s.quantity ?? 0,
         formatCurrency(s.unitPrice ?? 0, currencyCode),
         formatCurrency(s.totalAmount ?? 0, currencyCode),
+        formatCurrency(salePaid(s), currencyCode),
+        formatCurrency(saleOwed(s), currencyCode),
         s.paymentMethod ?? "",
-        s.paid === false ? "Unpaid" : "Paid",
+        paymentStatusOf(s),
         getFlockLabel(s.flockId),
       ]),
       totalsRow: [
@@ -693,6 +721,8 @@ export default function SalesPage() {
         totalQuantity.toLocaleString(),
         "",
         formatCurrency(totalSales, currencyCode),
+        formatCurrency(filteredSales.reduce((sum, s) => sum + salePaid(s), 0), currencyCode),
+        formatCurrency(filteredSales.reduce((sum, s) => sum + saleOwed(s), 0), currencyCode),
         "",
         "",
         "",
@@ -809,6 +839,9 @@ export default function SalesPage() {
       case "quantity": return Number(item.quantity) || 0
       case "unitPrice": return Number(item.unitPrice) || 0
       case "totalAmount": return Number(item.totalAmount) || 0
+      case "amountPaid": return salePaid(item as Sale)
+      case "balance": return saleOwed(item as Sale)
+      case "paymentStatus": return paymentStatusOf(item as Sale)
       default: return (item as any)[key]
     }
   }), [filteredSales, sortKey, sortDir])
@@ -1435,7 +1468,7 @@ export default function SalesPage() {
                     {totalQuantity.toLocaleString()}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {Math.floor(totalQuantity / 30)} crates + {totalQuantity % 30} pieces
+                    {eggCrateBreakdown(totalQuantity, { long: true }) ?? "—"}
                   </p>
                 </CardContent>
               </Card>
@@ -1526,9 +1559,11 @@ export default function SalesPage() {
                               <div className="mt-4 pt-4 border-t border-slate-100 space-y-2 text-sm">
                                 <div className="grid grid-cols-2 gap-2">
                                   <div><span className="text-slate-500">Quantity</span> <span className="font-medium">{sale.quantity}</span></div>
-                                  <div><span className="text-slate-500">Payment</span> <span className="font-medium">{sale.paymentMethod}</span></div>
-                                  <div className="flex items-center gap-2"><span className="text-slate-500">Status</span> <PaymentStatusBadge sale={sale} /></div>
                                   <div><span className="text-slate-500">Flock</span> <span className="font-medium">{getFlockLabel(sale.flockId)}</span></div>
+                                  <div><span className="text-slate-500">Paid</span> <span className="font-medium tabular-nums text-emerald-700">{formatCurrency(salePaid(sale), currencyCode)}</span></div>
+                                  <div><span className="text-slate-500">Balance</span> <span className={cn("font-medium tabular-nums", saleOwed(sale) > 0 ? "text-amber-700" : "text-slate-400")}>{formatCurrency(saleOwed(sale), currencyCode)}</span></div>
+                                  <div><span className="text-slate-500">Method</span> <span className="font-medium">{sale.paymentMethod}</span></div>
+                                  <div className="flex items-center gap-2"><span className="text-slate-500">Status</span> <PaymentStatusBadge sale={sale} /></div>
                                 </div>
                                 <div className="flex gap-2 pt-2">
                                   {saleOwed(sale) > 0 && (
@@ -1569,7 +1604,7 @@ export default function SalesPage() {
                         </Button>
                       </div>
                     )}
-                  <Table className={cn("w-full", !isMobile && "min-w-[900px]")}>
+                  <Table className={cn("w-full", !isMobile && "min-w-[1150px]")}>
                     <TableHeader>
                       <TableRow>
                         <SortableHeader label="Date" sortKey="saleDate" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn(isMobile && "sticky-col-date bg-slate-50")} />
@@ -1579,7 +1614,10 @@ export default function SalesPage() {
                         <SortableHeader label="Quantity" sortKey="quantity" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
                         <SortableHeader label="Unit Price" sortKey="unitPrice" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
                         <SortableHeader label="Total" sortKey="totalAmount" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
-                        <SortableHeader label="Payment" sortKey="paymentMethod" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
+                        <SortableHeader label="Paid" sortKey="amountPaid" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
+                        <SortableHeader label="Balance" sortKey="balance" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
+                        <SortableHeader label="Method" sortKey="paymentMethod" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
+                        <SortableHeader label="Status" sortKey="paymentStatus" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
                         <TableHead className={cn("min-w-[140px] whitespace-nowrap", isMobile && "sticky-col-actions bg-slate-50")}>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1590,22 +1628,27 @@ export default function SalesPage() {
                           <TableCell>{sale.product}</TableCell>
                           <TableCell>{sale.customerName}</TableCell>
                           <TableCell>{getFlockLabel(sale.flockId)}</TableCell>
-                          <TableCell>
+                          <TableCell className="whitespace-nowrap">
                             {sale.quantity}
-                            {sale.product && sale.product.toLowerCase().includes("egg") && sale.quantity > 0 && (
-                              <span className="block text-xs text-slate-500">
-                                {Math.floor(sale.quantity / 30)}cr + {sale.quantity % 30}pcs
+                            {sale.product?.toLowerCase().includes("egg") && eggCrateBreakdown(sale.quantity) && (
+                              // Inline, not `block`: the crate breakdown reads as a
+                              // unit of the number it follows, so stacking it made
+                              // the row two lines tall for one value.
+                              <span className="ml-1.5 text-xs text-slate-500">
+                                {eggCrateBreakdown(sale.quantity)}
                               </span>
                             )}
                           </TableCell>
                           <TableCell>{formatCurrency(sale.unitPrice, currencyCode)}</TableCell>
                           <TableCell className="font-medium">{formatCurrency(sale.totalAmount, currencyCode)}</TableCell>
-                          <TableCell>
-                            <div className="flex flex-col gap-1">
-                              <Badge variant="outline" className="w-fit">{sale.paymentMethod}</Badge>
-                              <PaymentStatusBadge sale={sale} />
-                            </div>
+                          <TableCell className="tabular-nums text-emerald-700">{formatCurrency(salePaid(sale), currencyCode)}</TableCell>
+                          <TableCell className={cn("tabular-nums", saleOwed(sale) > 0 ? "font-semibold text-amber-700" : "text-slate-400")}>
+                            {formatCurrency(saleOwed(sale), currencyCode)}
                           </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="w-fit">{sale.paymentMethod}</Badge>
+                          </TableCell>
+                          <TableCell><PaymentStatusBadge sale={sale} /></TableCell>
                           <TableCell className={cn("whitespace-nowrap bg-white", isMobile && "sticky-col-actions")}>
                             {/* Icon-only actions, so each one says what it does on
                                 hover. The mobile card view below uses labelled
@@ -2137,18 +2180,20 @@ export default function SalesPage() {
                 <div className="flex justify-between"><span className="text-slate-500">Total</span><span className="tabular-nums">{Number(payDialog.sale.totalAmount).toFixed(2)}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Owed</span><span className="tabular-nums font-semibold text-amber-700">{saleOwed(payDialog.sale).toFixed(2)}</span></div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="pay-amount">Amount *</Label>
-                <Input id="pay-amount" type="number" step="0.01" min="0" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Method</Label>
-                <Select value={payMethod} onValueChange={setPayMethod}>
-                  <SelectTrigger><SelectValue placeholder="Select method" /></SelectTrigger>
-                  <SelectContent>
-                    {["Cash", "Mobile Money", "Bank Transfer", "Cheque", "Other"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="pay-amount">Amount *</Label>
+                  <Input id="pay-amount" type="number" step="0.01" min="0" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Method</Label>
+                  <Select value={payMethod} onValueChange={setPayMethod}>
+                    <SelectTrigger className="w-full"><SelectValue placeholder="Select method" /></SelectTrigger>
+                    <SelectContent>
+                      {["Cash", "Mobile Money", "Bank Transfer", "Cheque", "Other"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="pay-note">Note</Label>

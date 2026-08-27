@@ -311,6 +311,8 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const waterSalesMoneyItems = gateWater([
     { href: "/water-sales",         label: "Sales",           icon: ShoppingCart },
     { href: "/water-payments",      label: "Payments",        icon: CreditCard },
+    { href: "/water-customer-balances", label: "Customer Balances", icon: Users },
+    { href: "/water-supplier-balances", label: "Supplier Balances", icon: Truck },
     { href: "/water-expenses",      label: "Expenses",        icon: Receipt },
     { href: "/water-cash-accounts", label: "Cash accounts",   icon: Wallet },
   ])

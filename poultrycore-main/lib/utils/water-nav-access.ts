@@ -61,6 +61,12 @@ const WATER_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAdmin: 
   "/water-daily-closing": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canViewCashLedger,
 
   // --- Finance (master data) ----------------------------------------------
+  // Customer Balances / Supplier Balances. Read generously, matching the
+  // pages they summarise: anyone who can see the sales or the customers can see
+  // what is outstanding on them. Taking the payment is gated separately, inside
+  // the page, on water.customer-payments.create / water.supplier-payments.create.
+  "/water-customer-balances": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canEnterSales || f.canViewCustomers,
+  "/water-supplier-balances": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canEnterExpenses || f.canViewCustomers,
   "/water-customers": (f, isAdmin) => isAdmin || f.canViewCustomers || f.canViewFinancial || f.canEnterSales,
   "/water-suppliers": (f, isAdmin) => isAdmin || f.canViewCustomers || f.canViewFinancial || f.canEnterSales,
 

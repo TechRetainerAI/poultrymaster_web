@@ -115,6 +115,9 @@ namespace PoultryFarmAPIWeb.Business
             // Migration 111 — where the sale came from (NULL/Direct vs DeliveryRun).
             SourceType      = HasCol(r, "SourceType") && !r.IsDBNull(r.GetOrdinal("SourceType")) ? r.GetString(r.GetOrdinal("SourceType")) : null,
             SourceId        = HasCol(r, "SourceId")   && !r.IsDBNull(r.GetOrdinal("SourceId"))   ? r.GetInt32(r.GetOrdinal("SourceId"))   : (int?)null,
+            // Migration 225 — derived from the sale's payments ("Mixed" when
+            // several methods were used). Absent on a pre-225 database.
+            PaymentMethod   = HasCol(r, "PaymentMethod") && !r.IsDBNull(r.GetOrdinal("PaymentMethod")) ? r.GetString(r.GetOrdinal("PaymentMethod")) : null,
         };
 
         private static WaterSaleItemModel ReadItem(NpgsqlDataReader r) => new()

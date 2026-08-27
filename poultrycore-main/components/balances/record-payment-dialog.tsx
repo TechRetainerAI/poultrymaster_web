@@ -154,6 +154,22 @@ export function RecordPaymentDialog({
     })
   }
 
+  // The picker is date-only, so `new Date("2026-08-27").toISOString()` stamps
+  // every payment at midnight — which is why the Payments list read back
+  // "12:00:00 AM" for a payment taken at 8am. A payment dated today gets the
+  // real clock time (UTC, matching the SP's `now() at time zone 'utc'`
+  // default and the /sales payment path, which sends no date at all). A
+  // deliberately back-dated one keeps midnight: its true time is unknown.
+  const paymentTimestamp = () => {
+    if (!paymentDate) return null
+    const now = new Date()
+    // Both sides are UTC date keys — the initial value above is built the same
+    // way — so this compares like with like.
+    return paymentDate === now.toISOString().slice(0, 10)
+      ? now.toISOString()
+      : `${paymentDate}T00:00:00.000Z`
+  }
+
   const submit = async () => {
     if (!party) return
     setTouched(true)
@@ -164,7 +180,7 @@ export function RecordPaymentDialog({
       await recordPayment(module, side, {
         partyId: party.partyId,
         amount: Number(amount),
-        paymentDate: paymentDate ? new Date(paymentDate).toISOString() : null,
+        paymentDate: paymentTimestamp(),
         paymentMethod: method,
         cashAccountId,
         reference: reference.trim() || null,

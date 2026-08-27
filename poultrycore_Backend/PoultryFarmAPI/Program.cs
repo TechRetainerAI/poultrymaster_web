@@ -91,6 +91,7 @@ builder.Services.AddScoped<IPoultryPaymentService>(sp => new PoultryPaymentServi
 // Customer Balances / Supplier Balances — the payment allocation control pages
 // (migrations 222–224).
 builder.Services.AddScoped<IPoultryBalanceService>(sp => new PoultryBalanceService(connectionString));
+builder.Services.AddScoped<IWaterBalanceService>(sp => new WaterBalanceService(connectionString));
 
 builder.Services.AddScoped<IHouseService>(sp => new HouseService(connectionString));
 builder.Services.AddScoped<IHealthRecordService>(sp => new HealthRecordService(connectionString));

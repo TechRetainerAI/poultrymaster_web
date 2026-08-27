@@ -319,12 +319,16 @@ export function TopNavigation() {
             title="Sales & Money"
             blurb="Orders, collections, expenses, cash and payroll."
             groups={nav.salesMoney}
-            /* 21rem rather than 34, keeping the two columns side by side. This is
-               the floor for that layout: "Cash Account" is the longest label at
-               96px in Geist-Medium (the active row's weight), so a column needs
-               136px, and two of those plus the 16px grid gap and 32px of padding
-               comes to 320px. The extra rem is slack for font rendering. */
-            columns={2} widthRem={21} layout="grid" accent="orange"
+            /* The one lopsided menu here, so it's the one that sizes its columns
+               to their own content (fitColumns) rather than to an equal share.
+               Sales' longest label is "Customer Balances" at 140px in
+               Geist-Medium (the active row's weight) and Money's is "Cash
+               Account" at 100px; each needs 40px more for the icon, gap and row
+               padding, so the two columns are 180px and 140px. Equal columns
+               would make BOTH 180px and hang 40px of dead space off the right
+               edge -- what 26rem did. 23rem = 368px covers 180 + 140 + the 16px
+               grid gap + 32px of panel padding, with slack for font rendering. */
+            columns={2} widthRem={23} layout="grid" fitColumns accent="orange"
           />
 
           <NavMegaMenu

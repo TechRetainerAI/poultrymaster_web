@@ -152,6 +152,8 @@ export function MobileBottomNav() {
           { href: "/water-loss-records",  label: "Damages & loss",    icon: AlertTriangle },
           // Sales & Money
           { href: "/water-payments",      label: "Payments",          icon: CreditCard },
+          { href: "/water-customer-balances", label: "Customer Balances", icon: Users },
+          { href: "/water-supplier-balances", label: "Supplier Balances", icon: Truck },
           { href: "/water-expenses",      label: "Expenses",          icon: Receipt },
           { href: "/water-cash-accounts", label: "Cash accounts",     icon: Wallet },
           // Finance — Customers and Suppliers sit together here, matching the
