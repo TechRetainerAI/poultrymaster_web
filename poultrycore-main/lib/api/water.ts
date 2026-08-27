@@ -1,4 +1,5 @@
 import { farmApiUrl, getAuthHeaders, getUserContext } from "./config"
+import { explainHttpError } from "@/lib/api/http-error"
 import { forceReauth } from "./session-expiry"
 
 // ----- Types -----
@@ -200,37 +201,6 @@ function activeFarmId(): string {
 function currentUserId(): string {
   const { userId } = getUserContext()
   return userId
-}
-
-// Extract the most useful human-readable message from a Farm API error
-// response. The .NET GlobalExceptionMiddleware returns JSON like
-//   { "errorNumber": 50000, "message": "Insufficient warehouse stock ..." }
-// for SqlExceptions, and a ProblemDetails-style JSON for ModelState errors:
-//   { "errors": { "BatchNumber": ["required"] }, ... }
-// Some 4xx return plain text. We try JSON first, fall back to text, and
-// strip the URL prefix so the toast shows just the cause.
-function explainHttpError(method: string, path: string, status: number, body: string): string {
-  if (!body) return `${method} ${path} → HTTP ${status}`
-  let parsed: any = null
-  try { parsed = JSON.parse(body) } catch { /* not JSON */ }
-  if (parsed) {
-    // Common shapes: { message }, { title }, { detail }, { error }, ModelState { errors }
-    if (typeof parsed.message === "string" && parsed.message) return parsed.message
-    if (typeof parsed.detail === "string"  && parsed.detail)  return parsed.detail
-    if (typeof parsed.title === "string"   && parsed.title)   return parsed.title
-    if (typeof parsed.error === "string"   && parsed.error)   return parsed.error
-    if (parsed.errors && typeof parsed.errors === "object") {
-      const lines: string[] = []
-      for (const k of Object.keys(parsed.errors)) {
-        const v = parsed.errors[k]
-        lines.push(`${k}: ${Array.isArray(v) ? v.join(", ") : String(v)}`)
-      }
-      if (lines.length) return lines.join(" · ")
-    }
-  }
-  // Plain-text body (e.g. ASP.NET error page). Trim and trim to a sensible length.
-  const trimmed = body.trim().replace(/\s+/g, " ")
-  return trimmed.length > 400 ? trimmed.slice(0, 400) + "…" : trimmed
 }
 
 async function jget<T>(path: string): Promise<T> {
@@ -490,6 +460,13 @@ export interface WaterCashTransaction {
   amount: number
   description?: string | null
   createdAt: string
+  // Migration 222. Present on the cash-accounts/transactions read.
+  clearingStatus?: WaterClearingStatus | null
+  clearedDate?: string | null
+  clearedBy?: string | null
+  waterCashReconciliationId?: number | null
+  clearingNotes?: string | null
+  reconciliationReference?: string | null
 }
 
 export interface WaterCashTransfer {
@@ -595,13 +572,199 @@ export const adjustWaterCashAccount = (id: number, input: { amount: number; reas
   jsend<void>(`/Water/cash-accounts/${id}/adjust?farmId=${encodeURIComponent(activeFarmId())}`, "POST",
     { amount: input.amount, reason: input.reason, createdBy: currentUserId() || null })
 
-export const listWaterCashTransactions = (opts?: { cashAccountId?: number; fromDate?: string; toDate?: string }) => {
+export const listWaterCashTransactions = (opts?: {
+  cashAccountId?: number; fromDate?: string; toDate?: string; clearingStatus?: WaterClearingStatus
+}) => {
   const qs = new URLSearchParams({ farmId: activeFarmId() })
   if (opts?.cashAccountId) qs.append("cashAccountId", String(opts.cashAccountId))
   if (opts?.fromDate) qs.append("fromDate", opts.fromDate)
   if (opts?.toDate) qs.append("toDate", opts.toDate)
+  if (opts?.clearingStatus) qs.append("clearingStatus", opts.clearingStatus)
   return jget<WaterCashTransaction[]>(`/Water/cash-accounts/transactions?${qs.toString()}`)
 }
+
+// ----- Cash count / reconciliation (migration 222)
+/**
+ * A CASH COUNT: what was physically counted (or read off the bank/MoMo app)
+ * against what the ledger says, with the difference posted as an adjustment.
+ *
+ * Not to be confused with `reconcileWaterCashBalances()` further up, which
+ * recomputes the cached balance from the ledger and moves no money. The API
+ * keeps them on separate routes for the same reason.
+ */
+export type WaterClearingStatus = "Uncleared" | "Cleared" | "Disputed"
+export type WaterCashCountStatus = "Draft" | "Posted" | "Reversed"
+
+/** Why the count differed. Stored as text, so keep these strings stable. */
+export const WATER_CASH_REASONS = [
+  { value: "Cash shortage",                 label: "Cash shortage" },
+  { value: "Cash overage",                  label: "Cash overage" },
+  { value: "Bank charge",                   label: "Bank charge" },
+  { value: "MoMo charge",                   label: "MoMo charge" },
+  { value: "Unrecorded expense",            label: "Unrecorded expense" },
+  { value: "Unrecorded income",             label: "Unrecorded income" },
+  { value: "Wrong cash account used",       label: "Wrong cash account used" },
+  { value: "Owner draw not recorded",       label: "Owner draw not recorded" },
+  { value: "Owner contribution not recorded", label: "Owner contribution not recorded" },
+  { value: "Driver shortage",               label: "Driver shortage" },
+  { value: "Driver overage",                label: "Driver overage" },
+  { value: "Rounding difference",           label: "Rounding difference" },
+  { value: "Opening balance correction",    label: "Opening balance correction" },
+  { value: "Other",                         label: "Other" },
+] as const
+
+/**
+ * Why money moved between two of the company's own accounts.
+ *
+ * Deliberately NOT the same list as WATER_CASH_REASONS: a transfer is not a
+ * correction, so shortage/overage/unrecorded-expense make no sense here, and
+ * offering them would invite miscategorising a routine deposit as a loss.
+ * Stored in the transfer's notes column, so keep the strings stable.
+ */
+export const WATER_CASH_TRANSFER_REASONS = [
+  { value: "Bank deposit",            label: "Bank deposit" },
+  { value: "Bank withdrawal",         label: "Bank withdrawal" },
+  { value: "MoMo cash-out",           label: "MoMo cash-out" },
+  { value: "MoMo top-up",             label: "MoMo top-up" },
+  { value: "Driver float issued",     label: "Driver float issued" },
+  { value: "Driver float returned",   label: "Driver float returned" },
+  { value: "Petty cash top-up",       label: "Petty cash top-up" },
+  { value: "Funding payroll",         label: "Funding payroll" },
+  { value: "Funding supplier payment", label: "Funding supplier payment" },
+  { value: "Consolidating balances",  label: "Consolidating balances" },
+  { value: "Safe keeping",            label: "Safe keeping" },
+  { value: "Other",                   label: "Other" },
+] as const
+
+/**
+ * Why a POSTED count is being undone.
+ *
+ * A third list, deliberately. WATER_CASH_REASONS says why the cash
+ * differed; this says why the count itself should never have been posted. They
+ * are not interchangeable — "Bank charge" is a fine reason for a shortage and a
+ * nonsensical reason for a reversal, and offering it here would put a
+ * cash-explanation into the reversalreason column where an audit later reads it
+ * as one. Stored as text, so keep these strings stable.
+ */
+export const WATER_CASH_REVERSAL_REASONS = [
+  { value: "Counted the wrong account", label: "Counted the wrong account" },
+  { value: "Miscounted",                label: "Miscounted" },
+  { value: "Wrong amount entered",      label: "Wrong amount entered" },
+  { value: "Wrong date",                label: "Wrong date" },
+  { value: "Duplicate count",           label: "Duplicate count" },
+  { value: "Posted by mistake",         label: "Posted by mistake" },
+  { value: "Cash located afterwards",   label: "Cash located afterwards" },
+  { value: "Test or training entry",    label: "Test or training entry" },
+  { value: "Other",                     label: "Other" },
+] as const
+
+
+export interface WaterCashCount {
+  waterCashReconciliationId: number
+  farmId: string
+  waterCashAccountId: number
+  accountName?: string | null
+  accountType?: string | null
+  referenceNo?: string | null
+  reconciliationDate: string
+  /** Ledger truth: opening balance + sum of transactions. */
+  systemBalance: number
+  /** What the cached balance claimed at post time — differs only when this
+   *  count healed a drifted cache. */
+  systemBalanceCached?: number | null
+  /** Null while drafting; 0 is a legitimate count. */
+  actualBalance?: number | null
+  difference: number
+  adjustmentTransactionId?: number | null
+  reversalTransactionId?: number | null
+  clearedCount: number
+  clearedAmount: number
+  reason?: string | null
+  notes?: string | null
+  status: WaterCashCountStatus
+  createdBy?: string | null
+  createdAt: string
+  updatedAt?: string | null
+  postedBy?: string | null
+  postedAt?: string | null
+  reversedBy?: string | null
+  reversedAt?: string | null
+  reversalReason?: string | null
+}
+
+export interface WaterCashAccountCountStatus {
+  waterCashAccountId: number
+  accountName: string
+  accountType?: string | null
+  isActive: boolean
+  currentBalance: number
+  ledgerBalance: number
+  cacheDrift: number
+  lastReconciledAt?: string | null
+  lastReconciledBalance?: number | null
+  daysSinceReconciled?: number | null
+  unclearedCount: number
+  unclearedAmount: number
+  openDraftId?: number | null
+}
+
+export const listWaterCashCounts = (opts?: {
+  cashAccountId?: number; status?: WaterCashCountStatus; fromDate?: string; toDate?: string
+}) => {
+  const qs = new URLSearchParams({ farmId: activeFarmId() })
+  if (opts?.cashAccountId) qs.append("cashAccountId", String(opts.cashAccountId))
+  if (opts?.status) qs.append("status", opts.status)
+  if (opts?.fromDate) qs.append("fromDate", opts.fromDate)
+  if (opts?.toDate) qs.append("toDate", opts.toDate)
+  return jget<WaterCashCount[]>(`/Water/cash-reconciliations?${qs.toString()}`)
+}
+
+export const listWaterCashCountsForAccount = (cashAccountId: number) =>
+  jget<WaterCashCount[]>(
+    `/Water/cash-reconciliations/account/${cashAccountId}?farmId=${encodeURIComponent(activeFarmId())}`)
+
+export const getWaterCashAccountCountStatus = () =>
+  jget<WaterCashAccountCountStatus[]>(
+    `/Water/cash-reconciliations/account-status?farmId=${encodeURIComponent(activeFarmId())}`)
+
+export const createWaterCashCount = (input: {
+  waterCashAccountId: number; reconciliationDate?: string
+  actualBalance?: number | null; reason?: string | null; notes?: string | null
+}) =>
+  jsend<{ waterCashReconciliationId: number }>(
+    `/Water/cash-reconciliations?farmId=${encodeURIComponent(activeFarmId())}`,
+    "POST", { ...input, createdBy: currentUserId() || null })
+
+export const updateWaterCashCount = (id: number, input: {
+  reconciliationDate?: string; actualBalance?: number | null
+  reason?: string | null; notes?: string | null
+}) =>
+  jsend<void>(`/Water/cash-reconciliations/${id}?farmId=${encodeURIComponent(activeFarmId())}`,
+    "PUT", { ...input, createdBy: currentUserId() || null })
+
+export const deleteWaterCashCount = (id: number) =>
+  jsend<void>(
+    `/Water/cash-reconciliations/${id}?farmId=${encodeURIComponent(activeFarmId())}` +
+    `&userId=${encodeURIComponent(currentUserId() || "")}`, "DELETE")
+
+/** Returns the adjustment transaction id, or null when the count balanced. */
+export const postWaterCashCount = (id: number, clearedTransactionIds?: number[]) =>
+  jsend<{ adjustmentTransactionId: number | null }>(
+    `/Water/cash-reconciliations/${id}/post?farmId=${encodeURIComponent(activeFarmId())}`,
+    "POST", { clearedTransactionIds: clearedTransactionIds ?? [], postedBy: currentUserId() || null })
+
+export const reverseWaterCashCount = (id: number, reason?: string) =>
+  jsend<void>(
+    `/Water/cash-reconciliations/${id}/reverse?farmId=${encodeURIComponent(activeFarmId())}`,
+    "POST", { reason, reversedBy: currentUserId() || null })
+
+export const setWaterCashClearing = (input: {
+  waterCashAccountId: number; transactionIds: number[]
+  clearingStatus: WaterClearingStatus; clearingNotes?: string
+}) =>
+  jsend<{ updated: number }>(
+    `/Water/cash-reconciliations/clearing?farmId=${encodeURIComponent(activeFarmId())}`,
+    "POST", { ...input, userId: currentUserId() || null })
 
 // ----- Cash transfers
 export const listWaterCashTransfers = (status?: string) => {
@@ -2105,6 +2268,62 @@ export const getWaterSupplierActivity = (opts?: { fromDate?: string; toDate?: st
   if (opts?.toDate)   qs.set("toDate",   opts.toDate)
   return jget<WaterSupplierActivityRow[]>(`/Water/reports/supplier-activity?${qs.toString()}`)
 }
+
+// ----- Inventory Tracker (migration 221) -----
+/**
+ * Per-product stock position for a period. Quantities ending `Base` are in BASE
+ * units (sachets); the `Bags` pair is the same figure divided by sachetsPerBag,
+ * for display only. Base is the only unit the ledger can be summed in without
+ * mixing bags and sachets — see the migration header for why.
+ */
+export interface WaterInventoryTrackerRow {
+  waterProductId: number
+  productName: string
+  sku?: string | null
+  baseUnit?: string | null
+  isSachetProduct: boolean
+  sachetsPerBag: number
+  openingBase: number
+  stockInBase: number
+  stockOutBase: number
+  closingBase: number
+  openingBags: number
+  closingBags: number
+  unitCost: number
+  closingValue: number
+  movementCount: number
+}
+
+/** One movement. `runningBase` is seeded from the row's opening, so the last
+ *  entry lands exactly on that product's closing figure. */
+export interface WaterInventoryTrackerMovement {
+  stockTxnId: number
+  createdDate: string
+  txnType: string
+  /** Server-supplied wording ("Production", "Loaded to vehicle", …). Don't
+   *  re-map it client-side; the SP is the single source of that vocabulary. */
+  movementLabel: string
+  baseQuantity: number
+  quantityBags: number
+  runningBase: number
+  unitCost?: number | null
+  note?: string | null
+  createdBy?: string | null
+}
+
+export const getWaterInventoryTracker = (fromDate: string, toDate: string) =>
+  jget<WaterInventoryTrackerRow[]>(
+    `/Water/reports/inventory-tracker?farmId=${encodeURIComponent(activeFarmId())}` +
+    `&fromDate=${encodeURIComponent(fromDate)}&toDate=${encodeURIComponent(toDate)}`,
+  )
+
+export const getWaterInventoryTrackerMovements = (
+  productId: number, fromDate: string, toDate: string,
+) =>
+  jget<WaterInventoryTrackerMovement[]>(
+    `/Water/reports/inventory-tracker/movements?farmId=${encodeURIComponent(activeFarmId())}` +
+    `&productId=${productId}&fromDate=${encodeURIComponent(fromDate)}&toDate=${encodeURIComponent(toDate)}`,
+  )
 
 // Migration 079 — single-shot Recreate after Reopen.
 // Backend creates the new Draft using current data and links it to the predecessor.

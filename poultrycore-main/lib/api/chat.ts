@@ -1,4 +1,5 @@
 import { farmApiUrl, getAuthHeaders } from "./config"
+import { explainHttpError, pathOf } from "@/lib/api/http-error"
 
 export type ChatThread = {
   threadId: string
@@ -30,8 +31,8 @@ async function json<T>(res: Response): Promise<T> {
       console.warn("[Chat API] Unauthorized (401) - returning empty data")
       return [] as unknown as T
     }
-    const text = await res.text()
-    throw new Error(`API error: ${res.status} ${res.statusText}${text ? ` - ${text}` : ""}`)
+    const text = await res.text().catch(() => "")
+    throw new Error(explainHttpError("", pathOf(res), res.status, text))
   }
   const text = await res.text()
   if (!text || text.trim() === "") {
@@ -95,16 +96,19 @@ export async function sendMessage(threadId: string, userId: string, content: str
   
   if (!r.ok) {
     // Handle specific error cases
+    // 401 and 403 already say the useful thing; the body was only ever appended
+    // noise, so it stays out of the message.
     if (r.status === 403) {
-      const text = await r.text().catch(() => "")
-      throw new Error(`Permission denied: You are not a participant in this thread. ${text}`)
+      throw new Error("Permission denied: you are not a participant in this thread.")
     }
     if (r.status === 401) {
       throw new Error("Unauthorized: Please log in again.")
     }
     if (r.status === 400) {
       const text = await r.text().catch(() => "")
-      throw new Error(`Invalid request: ${text || "Please check your message content."}`)
+      throw new Error(text
+        ? explainHttpError("POST", `Chat/threads/${threadId}/messages`, r.status, text)
+        : "Invalid request: please check your message content.")
     }
   }
   
@@ -118,8 +122,8 @@ export async function markRead(threadId: string, userId: string): Promise<void> 
     body: JSON.stringify({ userId })
   })
   if (!r.ok && r.status !== 204) {
-    const text = await r.text()
-    throw new Error(`Mark read failed: ${r.status} ${text}`)
+    const text = await r.text().catch(() => "")
+    throw new Error(explainHttpError("POST", `Chat/threads/${threadId}/read`, r.status, text))
   }
 }
 

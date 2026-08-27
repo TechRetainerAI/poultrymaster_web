@@ -53,6 +53,7 @@ export type StaffFeaturePermissionKey =
   | "canViewWaterProduction"
   | "canViewWaterDeliveries"
   | "canViewWaterInventory"
+  | "canViewInternalUse"
   | "canViewWaterMaintenance"
   | "canViewWaterPayroll"
   | "canViewWaterSetup"
@@ -83,6 +84,7 @@ export const DEFAULT_STAFF_FEATURE_PERMISSIONS: Record<StaffFeaturePermissionKey
   canViewWaterProduction: true,
   canViewWaterDeliveries: true,
   canViewWaterInventory: true,
+  canViewInternalUse: true,
   canViewWaterMaintenance: true,
   canViewWaterPayroll: true,
   canViewWaterSetup: true,
@@ -145,6 +147,12 @@ export const STAFF_FEATURE_PERMISSION_OPTIONS: Array<{
     label: "View Water Inventory",
     module: "water",
     hint: "Stock movement, Inventory, Raw materials, Damages & loss, Production losses",
+  },
+  {
+    key: "canViewInternalUse",
+    label: "View Internal Use",
+    module: "water",
+    hint: "Stock consumed internally — staff welfare, owner use, donations, samples, testing",
   },
   { key: "canViewWaterMaintenance", label: "View Maintenance", module: "water" },
   { key: "canViewWaterPayroll", label: "View Water Payroll", module: "water" },

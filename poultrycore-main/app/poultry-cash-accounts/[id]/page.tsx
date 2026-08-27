@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
 import { ArrowLeft, Loader2, Wallet, RefreshCw, Scale, Trash2 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
@@ -25,9 +26,15 @@ import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import {
   getPoultryCashAccount, listPoultryCashTransactions, adjustPoultryCashAccount, reconcilePoultryCashBalances,
-  deletePoultryCashAccount,
-  type PoultryCashAccount, type PoultryCashTransaction,
+  deletePoultryCashAccount, setPoultryCashClearing, POULTRY_CASH_REASONS,
+  type PoultryCashAccount, type PoultryCashTransaction, type PoultryClearingStatus,
 } from "@/lib/api/poultry-finance"
+
+const CLEARING_BADGE: Record<string, string> = {
+  Uncleared: "bg-slate-100 text-slate-600",
+  Cleared: "bg-emerald-100 text-emerald-700",
+  Disputed: "bg-rose-100 text-rose-700",
+}
 
 export default function PoultryCashAccountDetailPage() {
   const router = useRouter()
@@ -44,7 +51,10 @@ export default function PoultryCashAccountDetailPage() {
 
   const [adjOpen, setAdjOpen] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [adj, setAdj] = useState<{ direction: "in" | "out"; amount: number; reason: string }>({ direction: "in", amount: 0, reason: "" })
+  // `reasonNote` only carries text when reason is "Other"; what reaches the API
+  // is one string either way, since the SP stores a plain reason.
+  const [adj, setAdj] = useState<{ direction: "in" | "out"; amount: number; reason: string; reasonNote: string }>(
+    { direction: "in", amount: 0, reason: "", reasonNote: "" })
   const [delOpen, setDelOpen] = useState(false)
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
@@ -58,20 +68,53 @@ export default function PoultryCashAccountDetailPage() {
 
   async function load() {
     setLoading(true)
+    // allSettled, not all: these are independent reads and a failure in one
+    // must not blank the other.
+    const [accRes, txRes] = await Promise.allSettled([
+      getPoultryCashAccount(id),
+      listPoultryCashTransactions({ cashAccountId: id }),
+    ])
+
+    if (accRes.status === "fulfilled") setAccount(accRes.value)
+    else toast({ title: "Could not load account", description: accRes.reason?.message, variant: "destructive" })
+
+    if (txRes.status === "fulfilled") setRows(txRes.value)
+    else toast({ title: "Could not load transactions", description: txRes.reason?.message, variant: "destructive" })
+
+    setLoading(false)
+  }
+
+  /** Mark rows cleared / uncleared / disputed from the ledger. */
+  async function setClearing(txnId: number, status: PoultryClearingStatus) {
     try {
-      const [acc, tx] = await Promise.all([
-        getPoultryCashAccount(id),
-        listPoultryCashTransactions({ cashAccountId: id }),
-      ])
-      setAccount(acc); setRows(tx)
-    } catch (e: any) { toast({ title: "Could not load account", description: e?.message, variant: "destructive" }) }
-    finally { setLoading(false) }
+      await setPoultryCashClearing({
+        poultryCashAccountId: id, transactionIds: [txnId], clearingStatus: status,
+      })
+      await load()
+    } catch (e: any) {
+      toast({ title: "Could not update clearing", description: e?.message, variant: "destructive" })
+    }
   }
 
   const ledger = useMemo(() => {
     const opening = account?.openingBalance ?? 0
+    // Order by CALENDAR DAY, then by id — not by the raw timestamp.
+    //
+    // Rows carry whatever time their source SP wrote. A sale stamps now(); a
+    // posted cash count stamps the count's DATE, which arrives from a date
+    // input as midnight. Sorting on the instant therefore buried a correction
+    // posted this afternoon underneath every other row from the same day, and
+    // on a busy account it fell off the first page entirely — which reads as
+    // "posting did not write a ledger entry" when the entry is simply lower
+    // down. Comparing days and tie-breaking on the id puts the newest row of a
+    // day at the top of that day, which is what "newest first" means to
+    // someone reading it. A genuinely back-dated row still sorts to its own
+    // day. This also makes the running balance follow the order rows were
+    // actually written within a day, rather than a clock time some of them
+    // never had.
+    const day = (r: { transactionDate: string }) => r.transactionDate.split("T")[0]
     const asc = [...rows].sort((a, b) => {
-      const d = new Date(a.transactionDate).getTime() - new Date(b.transactionDate).getTime()
+      const d = day(a).localeCompare(day(b))
       return d !== 0 ? d : a.poultryCashTransactionId - b.poultryCashTransactionId
     })
     let bal = opening
@@ -103,15 +146,20 @@ export default function PoultryCashAccountDetailPage() {
     } catch (e: any) { toast({ title: "Could not remove account", description: e?.message, variant: "destructive" }) }
   }
 
-  function openAdjust() { setAdj({ direction: "in", amount: 0, reason: "" }); setAdjOpen(true) }
+  function openAdjust() { setAdj({ direction: "in", amount: 0, reason: "", reasonNote: "" }); setAdjOpen(true) }
 
   async function saveAdjust() {
     if (adj.amount <= 0) return toast({ title: "Enter an amount greater than 0", variant: "destructive" })
-    if (!adj.reason.trim()) return toast({ title: "A reason is required", variant: "destructive" })
+    if (!adj.reason) return toast({ title: "Pick a reason", variant: "destructive" })
+    if (adj.reason === "Other" && !adj.reasonNote.trim()) {
+      return toast({ title: "Say what happened", variant: "destructive" })
+    }
     setSaving(true)
     try {
       const signed = adj.direction === "out" ? -Math.abs(adj.amount) : Math.abs(adj.amount)
-      await adjustPoultryCashAccount(id, { amount: signed, reason: adj.reason.trim() })
+      // "Other" submits what was typed; a picked option submits itself.
+      const reason = adj.reason === "Other" ? adj.reasonNote.trim() : adj.reason
+      await adjustPoultryCashAccount(id, { amount: signed, reason })
       toast({ title: "Balance adjusted", description: `${adj.direction === "out" ? "Removed" : "Added"} ${gh(adj.amount)}.` })
       setAdjOpen(false); await load()
     } catch (e: any) { toast({ title: "Adjustment failed", description: e?.message, variant: "destructive" }) }
@@ -142,6 +190,13 @@ export default function PoultryCashAccountDetailPage() {
               </h1>
               <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                 <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={reconcile}><RefreshCw className="h-4 w-4 mr-1" /> Recalculate</Button>
+                {/* Reconciliation lives on its own page: it is a task, not a
+                    property of this record. The account travels with the link. */}
+                <Button asChild variant="outline" className="flex-1 sm:flex-none whitespace-nowrap">
+                  <Link href={`/poultry-cash-reconciliation?accountId=${id}`}>
+                    <Scale className="h-4 w-4 mr-1" /> Reconcile
+                  </Link>
+                </Button>
                 <Button className="flex-1 sm:flex-none whitespace-nowrap" onClick={openAdjust}><Scale className="h-4 w-4 mr-1" /> Adjust balance</Button>
                 <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap text-red-600 border-red-200" onClick={() => setDelOpen(true)}><Trash2 className="h-4 w-4 mr-1" /> Delete</Button>
               </div>
@@ -200,6 +255,7 @@ export default function PoultryCashAccountDetailPage() {
                                 <TableHead className="text-right">Money in</TableHead>
                                 <TableHead className="text-right">Money out</TableHead>
                                 <TableHead className="text-right">Running balance</TableHead>
+                                <TableHead>Cleared</TableHead>
                                 <TableHead>Description</TableHead>
                               </TableRow>
                             </TableHeader>
@@ -212,6 +268,31 @@ export default function PoultryCashAccountDetailPage() {
                                   <TableCell className="text-right tabular-nums text-green-700">{r.amount > 0 ? gh(r.amount) : "—"}</TableCell>
                                   <TableCell className="text-right tabular-nums text-rose-600">{r.amount < 0 ? gh(Math.abs(r.amount)) : "—"}</TableCell>
                                   <TableCell className="text-right tabular-nums font-medium">{gh(r.running)}</TableCell>
+                                  {/* Clearing. A row a posted count ticked off
+                                      is locked — the server refuses to change it
+                                      until that count is reversed, so it renders
+                                      as a plain badge rather than a control. */}
+                                  <TableCell>
+                                    {r.poultryCashReconciliationId ? (
+                                      <Badge variant="outline"
+                                             title={`Cleared by cash count ${r.reconciliationReference ?? ""}`.trim()}
+                                             className={cn("border-0", CLEARING_BADGE[r.clearingStatus ?? "Uncleared"])}>
+                                        {r.clearingStatus ?? "Uncleared"}
+                                      </Badge>
+                                    ) : (
+                                      <Select
+                                        value={r.clearingStatus ?? "Uncleared"}
+                                        onValueChange={(v) => void setClearing(r.poultryCashTransactionId, v as PoultryClearingStatus)}
+                                      >
+                                        <SelectTrigger className="h-7 w-[7.5rem] text-xs"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="Uncleared">Uncleared</SelectItem>
+                                          <SelectItem value="Cleared">Cleared</SelectItem>
+                                          <SelectItem value="Disputed">Disputed</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    )}
+                                  </TableCell>
                                   <TableCell className="max-w-sm whitespace-normal break-words align-top">{r.description ?? "—"}</TableCell>
                                 </TableRow>
                               ))}
@@ -249,7 +330,23 @@ export default function PoultryCashAccountDetailPage() {
                 <NumberInput min={0} step="0.01" value={adj.amount} onChange={(e) => setAdj({ ...adj, amount: Number(e.target.value) || 0 })} />
               </FormField>
               <FormField label="Reason *">
-                <Input value={adj.reason} onChange={(e) => setAdj({ ...adj, reason: e.target.value })} placeholder="e.g. Cash count correction, bank charge" />
+                <Select value={adj.reason} onValueChange={(v) => setAdj({ ...adj, reason: v, reasonNote: "" })}>
+                  <SelectTrigger><SelectValue placeholder="Why is the balance changing?" /></SelectTrigger>
+                  <SelectContent>
+                    {POULTRY_CASH_REASONS.map((r) => (
+                      <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {adj.reason === "Other" && (
+                  <Input
+                    autoFocus
+                    className="mt-2"
+                    value={adj.reasonNote}
+                    onChange={(e) => setAdj({ ...adj, reasonNote: e.target.value })}
+                    placeholder="Say what happened"
+                  />
+                )}
               </FormField>
             </FormSection>
             {account && (

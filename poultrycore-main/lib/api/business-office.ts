@@ -1,4 +1,5 @@
 import { farmApiUrl, getAuthHeaders } from "./config"
+import { explainHttpError } from "@/lib/api/http-error"
 import type { CompanyType } from "./companies"
 
 // Today's numbers for the Business Office company cards.
@@ -28,7 +29,12 @@ export async function getCompanySnapshot(farmId: string, type: CompanyType | str
   const res = await fetch(farmApiUrl(`/BusinessOffice/company-snapshot?${qs.toString()}`), {
     headers: getAuthHeaders(),
   })
-  if (!res.ok) throw new Error(`Company snapshot ${res.status}`)
+  if (!res.ok) {
+    // The old message threw the body away, so a real reason from the API never
+    // reached the caller — only the status code did.
+    const text = await res.text().catch(() => "")
+    throw new Error(explainHttpError("GET", "/BusinessOffice/company-snapshot", res.status, text))
+  }
   const raw = await res.json()
   const num = (v: any) => (v === null || v === undefined || v === "" ? null : Number(v))
   return {

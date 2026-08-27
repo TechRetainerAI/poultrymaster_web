@@ -19,6 +19,7 @@ import {
   FileText,
   Egg,
   Package,
+  PackageMinus,
   Bird,
   DollarSign,
   LogOut,
@@ -51,6 +52,8 @@ import {
   Clock,
   CalendarDays,
   Shield,
+  History,
+  Scale,
 } from "lucide-react"
 import { InventoryLogo } from "@/components/auth/logo"
 import { useAlertsStore, type AlertItem } from "@/lib/store/alerts-store"
@@ -195,6 +198,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/poultry-raw-materials", label: "Raw Materials & Supplies", icon: Box },
     { href: "/supplies", label: "Supplies", icon: ShoppingCart },
     { href: "/health", label: "Health Records", icon: AlertTriangle },
+    { href: "/poultry-internal-use", label: "Internal Use", icon: PackageMinus },
     { href: "/poultry-loss-records", label: "Loss & Damage", icon: AlertTriangle },
     { href: "/inventory", label: "Other Inventory", icon: Package },
   ]
@@ -222,6 +226,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const financialItems = [
     { href: "/cash", label: "Cash", icon: Wallet },
     { href: "/poultry-cash-accounts", label: "Cash Account", icon: Wallet },
+    { href: "/poultry-cash-reconciliation", label: "Reconcile cash", icon: Scale },
     { href: "/sales", label: "Sales", icon: ShoppingCart },
     { href: "/poultry-payments", label: "Payments received", icon: Wallet },
     { href: "/expenses", label: "Expenses", icon: DollarSign },
@@ -300,6 +305,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/water-stock",             label: "Stock movement",           icon: Boxes },
     { href: "/water-inventory",         label: "Inventory",                icon: Boxes },
     { href: "/water-raw-materials",     label: "Raw materials & supplies", icon: Box },
+    { href: "/water-internal-use",      label: "Internal Use",             icon: PackageMinus },
     { href: "/water-loss-records",      label: "Damages & loss",           icon: AlertTriangle },
     { href: "/water-production-losses", label: "Production losses",        icon: AlertTriangle },
   ])
@@ -308,6 +314,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/water-payments",      label: "Payments",        icon: CreditCard },
     { href: "/water-expenses",      label: "Expenses",        icon: Receipt },
     { href: "/water-cash-accounts", label: "Cash accounts",   icon: Wallet },
+    { href: "/water-cash-reconciliation", label: "Reconcile cash", icon: Scale },
   ])
   // Finance — Customers (was in Sales & money) and Suppliers (was buried in
   // Admin / Setup) now sit together: both are master data, and they're the two
@@ -325,6 +332,12 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const waterPeopleItems = gateWater([
     { href: "/water-staff", label: "Staff", icon: UserCog },
     { href: "/water-payroll", label: "Payroll", icon: Banknote },
+  ])
+  // Analytics sits beside Reports rather than inside it, mirroring the poultry
+  // rail's own Analytics group: a report prints a period, an analytic is
+  // explored on screen (drill from a closing balance into the movements).
+  const waterAnalyticsItems = gateWater([
+    { href: "/water-inventory-tracker", label: "Inventory tracker", icon: History },
   ])
   const waterReportsItems = gateWater([
     { href: "/water-reports", label: "Reports", icon: BarChart3 },
@@ -344,6 +357,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/generic-products",          label: "Products",          icon: ShoppingBag },
     { href: "/generic-inventory",         label: "Inventory",         icon: Boxes },
     { href: "/generic-stock-adjustments", label: "Stock adjustments", icon: Boxes },
+    { href: "/generic-internal-use",      label: "Internal Use",      icon: PackageMinus },
   ]
   const genericSalesItems = [
     { href: "/generic-sales",              label: "Sales",             icon: ShoppingCart },
@@ -666,6 +680,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
             <div className="border-t border-slate-800 mx-2" />
 
+            {renderGroup("Analytics", waterAnalyticsItems, "waterAnalytics")}
             {renderGroup("Reports", waterReportsItems, "waterReports")}
 
             <div className="border-t border-slate-800 mx-2" />

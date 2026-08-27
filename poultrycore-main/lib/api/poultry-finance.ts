@@ -4,6 +4,7 @@
 // getUserContext(). Grouped in one module the same way water.ts is.
 
 import { farmApiUrl, getAuthHeaders, getUserContext } from "./config"
+import { explainHttpError } from "@/lib/api/http-error"
 import { forceReauth } from "./session-expiry"
 
 // ----- shared helpers (mirror water.ts) --------------------------------------
@@ -15,27 +16,6 @@ function activeFarmId(): string {
 function currentUserId(): string {
   const { userId } = getUserContext()
   return userId
-}
-function explainHttpError(method: string, path: string, status: number, body: string): string {
-  if (!body) return `${method} ${path} → HTTP ${status}`
-  let parsed: any = null
-  try { parsed = JSON.parse(body) } catch { /* not JSON */ }
-  if (parsed) {
-    if (typeof parsed.message === "string" && parsed.message) return parsed.message
-    if (typeof parsed.detail === "string"  && parsed.detail)  return parsed.detail
-    if (typeof parsed.title === "string"   && parsed.title)   return parsed.title
-    if (typeof parsed.error === "string"   && parsed.error)   return parsed.error
-    if (parsed.errors && typeof parsed.errors === "object") {
-      const lines: string[] = []
-      for (const k of Object.keys(parsed.errors)) {
-        const v = parsed.errors[k]
-        lines.push(`${k}: ${Array.isArray(v) ? v.join(", ") : String(v)}`)
-      }
-      if (lines.length) return lines.join(" · ")
-    }
-  }
-  const trimmed = body.trim().replace(/\s+/g, " ")
-  return trimmed.length > 400 ? trimmed.slice(0, 400) + "…" : trimmed
 }
 async function jget<T>(path: string): Promise<T> {
   const res = await fetch(farmApiUrl(path), { headers: getAuthHeaders() })
@@ -96,6 +76,13 @@ export interface PoultryCashTransaction {
   approvedBy?: string | null
   approvedAt?: string | null
   createdAt: string
+  // Migration 223. Returned only by the ledger read; null on any older path.
+  clearingStatus?: PoultryClearingStatus | null
+  clearedDate?: string | null
+  clearedBy?: string | null
+  poultryCashReconciliationId?: number | null
+  clearingNotes?: string | null
+  reconciliationReference?: string | null
 }
 
 export interface PoultryCashTransfer {
@@ -142,14 +129,201 @@ export const adjustPoultryCashAccount = (id: number, input: { amount: number; re
   jsend<void>(`/Poultry/cash-accounts/${id}/adjust?farmId=${fid()}`, "POST",
     { amount: input.amount, reason: input.reason, createdBy: currentUserId() || null })
 
-export const listPoultryCashTransactions = (opts?: { cashAccountId?: number; fromDate?: string; toDate?: string }) => {
+export const listPoultryCashTransactions = (opts?: {
+  cashAccountId?: number; fromDate?: string; toDate?: string; clearingStatus?: PoultryClearingStatus
+}) => {
   const qs = new URLSearchParams({ farmId: activeFarmId() })
   if (opts?.cashAccountId != null) qs.set("cashAccountId", String(opts.cashAccountId))
   if (opts?.fromDate) qs.set("fromDate", opts.fromDate)
   if (opts?.toDate) qs.set("toDate", opts.toDate)
+  if (opts?.clearingStatus) qs.set("clearingStatus", opts.clearingStatus)
   return jget<PoultryCashTransaction[]>(`/Poultry/cash-accounts/transactions?${qs.toString()}`)
 }
 
+// ----- Cash count / reconciliation (migration 223)
+/**
+ * A CASH COUNT: what was physically counted (or read off the bank/MoMo app)
+ * against what the ledger says, with the difference posted as an adjustment.
+ *
+ * Not to be confused with `reconcilePoultryCashBalances()` further up, which
+ * recomputes the cached balance from the ledger and moves no money. The API
+ * keeps them on separate routes for the same reason.
+ */
+export type PoultryClearingStatus = "Uncleared" | "Cleared" | "Disputed"
+export type PoultryCashCountStatus = "Draft" | "Posted" | "Reversed"
+
+/** Why the count differed. Stored as text, so keep these strings stable. */
+export const POULTRY_CASH_REASONS = [
+  { value: "Cash shortage",                 label: "Cash shortage" },
+  { value: "Cash overage",                  label: "Cash overage" },
+  { value: "Bank charge",                   label: "Bank charge" },
+  { value: "MoMo charge",                   label: "MoMo charge" },
+  { value: "Unrecorded expense",            label: "Unrecorded expense" },
+  { value: "Unrecorded income",             label: "Unrecorded income" },
+  { value: "Wrong cash account used",       label: "Wrong cash account used" },
+  { value: "Owner draw not recorded",       label: "Owner draw not recorded" },
+  { value: "Owner contribution not recorded", label: "Owner contribution not recorded" },
+  { value: "Driver shortage",               label: "Driver shortage" },
+  { value: "Driver overage",                label: "Driver overage" },
+  { value: "Rounding difference",           label: "Rounding difference" },
+  { value: "Opening balance correction",    label: "Opening balance correction" },
+  { value: "Other",                         label: "Other" },
+] as const
+
+/**
+ * Why money moved between two of the company's own accounts.
+ *
+ * Deliberately NOT the same list as POULTRY_CASH_REASONS: a transfer is not a
+ * correction, so shortage/overage/unrecorded-expense make no sense here, and
+ * offering them would invite miscategorising a routine deposit as a loss.
+ * Stored in the transfer's notes column, so keep the strings stable.
+ */
+export const POULTRY_CASH_TRANSFER_REASONS = [
+  { value: "Bank deposit",            label: "Bank deposit" },
+  { value: "Bank withdrawal",         label: "Bank withdrawal" },
+  { value: "MoMo cash-out",           label: "MoMo cash-out" },
+  { value: "MoMo top-up",             label: "MoMo top-up" },
+  { value: "Driver float issued",     label: "Driver float issued" },
+  { value: "Driver float returned",   label: "Driver float returned" },
+  { value: "Petty cash top-up",       label: "Petty cash top-up" },
+  { value: "Funding payroll",         label: "Funding payroll" },
+  { value: "Funding supplier payment", label: "Funding supplier payment" },
+  { value: "Consolidating balances",  label: "Consolidating balances" },
+  { value: "Safe keeping",            label: "Safe keeping" },
+  { value: "Other",                   label: "Other" },
+] as const
+
+/**
+ * Why a POSTED count is being undone.
+ *
+ * A third list, deliberately. POULTRY_CASH_REASONS says why the cash
+ * differed; this says why the count itself should never have been posted. They
+ * are not interchangeable — "Bank charge" is a fine reason for a shortage and a
+ * nonsensical reason for a reversal, and offering it here would put a
+ * cash-explanation into the reversalreason column where an audit later reads it
+ * as one. Stored as text, so keep these strings stable.
+ */
+export const POULTRY_CASH_REVERSAL_REASONS = [
+  { value: "Counted the wrong account", label: "Counted the wrong account" },
+  { value: "Miscounted",                label: "Miscounted" },
+  { value: "Wrong amount entered",      label: "Wrong amount entered" },
+  { value: "Wrong date",                label: "Wrong date" },
+  { value: "Duplicate count",           label: "Duplicate count" },
+  { value: "Posted by mistake",         label: "Posted by mistake" },
+  { value: "Cash located afterwards",   label: "Cash located afterwards" },
+  { value: "Test or training entry",    label: "Test or training entry" },
+  { value: "Other",                     label: "Other" },
+] as const
+
+
+export interface PoultryCashCount {
+  poultryCashReconciliationId: number
+  farmId: string
+  poultryCashAccountId: number
+  accountName?: string | null
+  accountType?: string | null
+  referenceNo?: string | null
+  reconciliationDate: string
+  /** Ledger truth: opening balance + sum of transactions. */
+  systemBalance: number
+  /** What the cached balance claimed at post time — differs only when this
+   *  count healed a drifted cache. */
+  systemBalanceCached?: number | null
+  /** Null while drafting; 0 is a legitimate count. */
+  actualBalance?: number | null
+  difference: number
+  adjustmentTransactionId?: number | null
+  reversalTransactionId?: number | null
+  clearedCount: number
+  clearedAmount: number
+  reason?: string | null
+  notes?: string | null
+  status: PoultryCashCountStatus
+  createdBy?: string | null
+  createdAt: string
+  updatedAt?: string | null
+  postedBy?: string | null
+  postedAt?: string | null
+  reversedBy?: string | null
+  reversedAt?: string | null
+  reversalReason?: string | null
+}
+
+export interface PoultryCashAccountCountStatus {
+  poultryCashAccountId: number
+  accountName: string
+  accountType?: string | null
+  isActive: boolean
+  currentBalance: number
+  ledgerBalance: number
+  cacheDrift: number
+  lastReconciledAt?: string | null
+  lastReconciledBalance?: number | null
+  daysSinceReconciled?: number | null
+  unclearedCount: number
+  unclearedAmount: number
+  openDraftId?: number | null
+}
+
+export const listPoultryCashCounts = (opts?: {
+  cashAccountId?: number; status?: PoultryCashCountStatus; fromDate?: string; toDate?: string
+}) => {
+  const qs = new URLSearchParams({ farmId: activeFarmId() })
+  if (opts?.cashAccountId) qs.append("cashAccountId", String(opts.cashAccountId))
+  if (opts?.status) qs.append("status", opts.status)
+  if (opts?.fromDate) qs.append("fromDate", opts.fromDate)
+  if (opts?.toDate) qs.append("toDate", opts.toDate)
+  return jget<PoultryCashCount[]>(`/Poultry/cash-reconciliations?${qs.toString()}`)
+}
+
+export const listPoultryCashCountsForAccount = (cashAccountId: number) =>
+  jget<PoultryCashCount[]>(
+    `/Poultry/cash-reconciliations/account/${cashAccountId}?farmId=${fid()}`)
+
+export const getPoultryCashAccountCountStatus = () =>
+  jget<PoultryCashAccountCountStatus[]>(
+    `/Poultry/cash-reconciliations/account-status?farmId=${fid()}`)
+
+export const createPoultryCashCount = (input: {
+  poultryCashAccountId: number; reconciliationDate?: string
+  actualBalance?: number | null; reason?: string | null; notes?: string | null
+}) =>
+  jsend<{ poultryCashReconciliationId: number }>(
+    `/Poultry/cash-reconciliations?farmId=${fid()}`,
+    "POST", { ...input, createdBy: currentUserId() || null })
+
+export const updatePoultryCashCount = (id: number, input: {
+  reconciliationDate?: string; actualBalance?: number | null
+  reason?: string | null; notes?: string | null
+}) =>
+  jsend<void>(`/Poultry/cash-reconciliations/${id}?farmId=${fid()}`,
+    "PUT", { ...input, createdBy: currentUserId() || null })
+
+export const deletePoultryCashCount = (id: number) =>
+  jsend<void>(
+    `/Poultry/cash-reconciliations/${id}?farmId=${fid()}` +
+    `&userId=${encodeURIComponent(currentUserId() || "")}`, "DELETE")
+
+/** Returns the adjustment transaction id, or null when the count balanced. */
+export const postPoultryCashCount = (id: number, clearedTransactionIds?: number[]) =>
+  jsend<{ adjustmentTransactionId: number | null }>(
+    `/Poultry/cash-reconciliations/${id}/post?farmId=${fid()}`,
+    "POST", { clearedTransactionIds: clearedTransactionIds ?? [], postedBy: currentUserId() || null })
+
+export const reversePoultryCashCount = (id: number, reason?: string) =>
+  jsend<void>(
+    `/Poultry/cash-reconciliations/${id}/reverse?farmId=${fid()}`,
+    "POST", { reason, reversedBy: currentUserId() || null })
+
+export const setPoultryCashClearing = (input: {
+  poultryCashAccountId: number; transactionIds: number[]
+  clearingStatus: PoultryClearingStatus; clearingNotes?: string
+}) =>
+  jsend<{ updated: number }>(
+    `/Poultry/cash-reconciliations/clearing?farmId=${fid()}`,
+    "POST", { ...input, userId: currentUserId() || null })
+
+// ----- Cash transfers
 export const listPoultryCashTransfers = (status?: string) =>
   jget<PoultryCashTransfer[]>(`/Poultry/cash-transfers?farmId=${fid()}${status ? `&status=${encodeURIComponent(status)}` : ""}`)
 
