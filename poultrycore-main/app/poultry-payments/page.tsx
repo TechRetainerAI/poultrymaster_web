@@ -16,9 +16,12 @@ import { Loader2, Wallet } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
+import { useFmt } from "@/lib/currency"
 import { listPoultryPayments, type PoultryPayment } from "@/lib/api/poultry-finance"
 
 export default function PoultryPaymentsPage() {
+  // Amounts were rendering as bare numbers with no currency at all.
+  const fmt = useFmt()
   const router = useRouter()
   const { toast } = useToast()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
@@ -82,7 +85,7 @@ export default function PoultryPaymentsPage() {
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
                   getKey={(p) => p.poultryPaymentId}
-                  primary={(p) => `${p.customerName ?? "Walk-in"} · ${p.amount.toFixed(2)}`}
+                  primary={(p) => `${p.customerName ?? "Walk-in"} · ${fmt(p.amount)}`}
                   secondary={(p) => (
                     <>
                       <span>{new Date(p.paymentDate).toLocaleString()}</span>
@@ -94,7 +97,7 @@ export default function PoultryPaymentsPage() {
                     { label: "Date", value: new Date(p.paymentDate).toLocaleString() },
                     { label: "Sale #", value: `#${p.saleId}` },
                     { label: "Customer", value: p.customerName ?? "Walk-in" },
-                    { label: "Amount", value: p.amount.toFixed(2) },
+                    { label: "Amount", value: fmt(p.amount) },
                     { label: "Method", value: p.paymentMethod ?? "—" },
                     { label: "Reference", value: p.reference ?? "—" },
                     { label: "Note", value: p.note ?? "—" },
@@ -119,7 +122,7 @@ export default function PoultryPaymentsPage() {
                             <TableCell>{new Date(p.paymentDate).toLocaleString()}</TableCell>
                             <TableCell>#{p.saleId}</TableCell>
                             <TableCell>{p.customerName ?? "Walk-in"}</TableCell>
-                            <TableCell className="text-right tabular-nums">{p.amount.toFixed(2)}</TableCell>
+                            <TableCell className="text-right tabular-nums">{fmt(p.amount)}</TableCell>
                             <TableCell>{p.paymentMethod ?? "—"}</TableCell>
                             <TableCell className="text-slate-500">{p.reference ?? "—"}</TableCell>
                             <TableCell className="text-slate-500">{p.note ?? "—"}</TableCell>

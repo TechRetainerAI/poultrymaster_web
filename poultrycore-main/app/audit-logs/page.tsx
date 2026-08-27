@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -19,6 +19,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { formatDateShort, cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
 
 interface AuditLog {
   id: string
@@ -47,8 +50,11 @@ export default function AuditLogsPage() {
   const isMobile = useIsMobile()
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<SortDirection>(null)
-  const [currentPage, setCurrentPage] = useState(1)
-  const pageSize = 10
+  const [filterAction, setFilterAction] = useState("All")
+  const [filterResource, setFilterResource] = useState("All")
+  const [filterUser, setFilterUser] = useState("All")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
   const [viewLog, setViewLog] = useState<AuditLog | null>(null)
 
   const prettyData = (raw?: string | null) => {
@@ -59,6 +65,20 @@ export default function AuditLogsPage() {
       return raw
     }
   }
+  const hasActiveFilters =
+    searchQuery !== "" || filterStatus !== "All" || filterAction !== "All" ||
+    filterResource !== "All" || filterUser !== "All" || dateFrom !== "" || dateTo !== ""
+
+  const clearFilters = () => {
+    setSearchQuery("")
+    setFilterStatus("All")
+    setFilterAction("All")
+    setFilterResource("All")
+    setFilterUser("All")
+    setDateFrom("")
+    setDateTo("")
+  }
+
   const handleSort = (key: string) => { const r = toggleSort(key, sortKey, sortDir); setSortKey(r.key); setSortDir(r.direction) }
 
   const handleLogout = () => {
@@ -99,26 +119,26 @@ export default function AuditLogsPage() {
            return
          }
          
-         console.log("Calling AuditLogsService.getAll with farmId:", farmId)
-         const data = await AuditLogsService.getAll(
-           {
-             farmId,
-             page: 1,
-             pageSize: 200,
-           },
-           ac.signal
-         )
-         
-         clearDeadline()
-         console.log("Audit logs data received:", data)
-         
-         if (data && Array.isArray(data)) {
-           setLogs(data)
-           console.log(`Loaded ${data.length} audit logs`)
-         } else {
-           console.warn("Received non-array data:", data)
-           setLogs([])
+         // Was a single request capped at 200 rows, so anything older simply
+         // never appeared and the totals under the table were wrong. Page
+         // through until a short page comes back. The cap keeps a runaway loop
+         // impossible if the API ever ignores paging.
+         const CHUNK = 500
+         const MAX_PAGES = 100
+         const all: AuditLog[] = []
+         for (let pageNo = 1; pageNo <= MAX_PAGES; pageNo++) {
+           const batch = await AuditLogsService.getAll(
+             { farmId, page: pageNo, pageSize: CHUNK },
+             ac.signal
+           )
+           if (!Array.isArray(batch) || batch.length === 0) break
+           all.push(...batch)
+           if (batch.length < CHUNK) break
          }
+
+         clearDeadline()
+         setLogs(all)
+         console.log(`Loaded ${all.length} audit logs`)
        } catch (err: unknown) {
          clearDeadline()
          console.error("Error loading audit logs:", err)
@@ -142,28 +162,53 @@ export default function AuditLogsPage() {
     fetchLogs()
   }, [user])
 
-  const filteredLogs = logs.filter(log => {
-    const matchesSearch = 
-      log.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      log.resource.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      log.userName.toLowerCase().includes(searchQuery.toLowerCase())
-    
+  // Options come from the rows actually loaded, so they always match what the
+  // table can show.
+  const actionOptions = useMemo(
+    () => Array.from(new Set(logs.map((l) => (l.action || "").trim()).filter(Boolean))).sort(),
+    [logs])
+  const resourceOptions = useMemo(
+    () => Array.from(new Set(logs.map((l) => (l.resource || "").trim()).filter(Boolean))).sort(),
+    [logs])
+  const userOptions = useMemo(
+    () => Array.from(new Set(logs.map((l) => (l.userName || "").trim()).filter(Boolean))).sort(),
+    [logs])
+
+  const filteredLogs = useMemo(() => logs.filter((log) => {
+    const q = searchQuery.trim().toLowerCase()
+    const matchesSearch = !q ||
+      (log.action || "").toLowerCase().includes(q) ||
+      (log.resource || "").toLowerCase().includes(q) ||
+      (log.userName || "").toLowerCase().includes(q) ||
+      (log.details || "").toLowerCase().includes(q) ||
+      (log.resourceId || "").toLowerCase().includes(q) ||
+      (log.ipAddress || "").toLowerCase().includes(q)
+
     const matchesStatus = filterStatus === "All" || log.status === filterStatus
-    
-    return matchesSearch && matchesStatus
-  })
+    const matchesAction = filterAction === "All" || log.action === filterAction
+    const matchesResource = filterResource === "All" || log.resource === filterResource
+    const matchesUser = filterUser === "All" || log.userName === filterUser
+
+    // Dates are compared on the local calendar day so "from 24th" includes
+    // everything logged that day, whatever the time.
+    const day = log.timestamp ? new Date(log.timestamp) : null
+    const dayKey = day && !Number.isNaN(day.getTime())
+      ? `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`
+      : ""
+    const matchesFrom = !dateFrom || (dayKey && dayKey >= dateFrom)
+    const matchesTo = !dateTo || (dayKey && dayKey <= dateTo)
+
+    return matchesSearch && matchesStatus && matchesAction && matchesResource && matchesUser && matchesFrom && matchesTo
+  }), [logs, searchQuery, filterStatus, filterAction, filterResource, filterUser, dateFrom, dateTo])
 
   const sortedLogs = sortData(filteredLogs, sortKey, sortDir, (item: any, key: string) => {
     if (key === "timestamp") return new Date(item.timestamp)
     return (item as any)[key]
   })
-  const totalPages = Math.max(1, Math.ceil(sortedLogs.length / pageSize))
-  const safePage = Math.min(currentPage, totalPages)
-  const paginatedLogs = sortedLogs.slice((safePage - 1) * pageSize, safePage * pageSize)
-
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [searchQuery, filterStatus])
+  // Same paging hook and footer every other table uses, so the rows-per-page
+  // dropdown is here too.
+  const pg = usePagination(sortedLogs, 10)
+  const paginatedLogs = pg.pageItems
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString()
@@ -239,18 +284,89 @@ export default function AuditLogsPage() {
                           <Button variant={filterStatus === "Failed" ? "default" : "outline"} size="sm" onClick={() => setFilterStatus("Failed")}>Failed</Button>
                         </div>
                       </div>
+                      <div className="space-y-2">
+                        <Label>Action</Label>
+                        <Select value={filterAction} onValueChange={setFilterAction}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="All">All actions</SelectItem>
+                            {actionOptions.map((a) => <SelectItem key={a} value={a}>{friendlyAction(a)}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Resource</Label>
+                        <Select value={filterResource} onValueChange={setFilterResource}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="All">All resources</SelectItem>
+                            {resourceOptions.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>User</Label>
+                        <Select value={filterUser} onValueChange={setFilterUser}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="All">All users</SelectItem>
+                            {userOptions.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-2">
+                          <Label>From</Label>
+                          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>To</Label>
+                          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+                        </div>
+                      </div>
                       <div className="flex gap-2 pt-2">
-                        <Button variant="outline" className="flex-1" onClick={() => { setFilterStatus("All"); setSearchQuery("") }}>Clear</Button>
+                        <Button variant="outline" className="flex-1" onClick={clearFilters}>Clear</Button>
                         <Button className="flex-1" onClick={() => setFiltersOpen(false)}>Apply</Button>
                       </div>
                     </div>
                   </SheetContent>
                 </Sheet>
               ) : (
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Button variant={filterStatus === "All" ? "default" : "outline"} size="sm" onClick={() => setFilterStatus("All")}>All</Button>
                   <Button variant={filterStatus === "Success" ? "default" : "outline"} size="sm" onClick={() => setFilterStatus("Success")}>Success</Button>
                   <Button variant={filterStatus === "Failed" ? "default" : "outline"} size="sm" onClick={() => setFilterStatus("Failed")}>Failed</Button>
+
+                  <Select value={filterAction} onValueChange={setFilterAction}>
+                    <SelectTrigger className="w-[130px]"><SelectValue placeholder="Action" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="All">All actions</SelectItem>
+                      {actionOptions.map((a) => <SelectItem key={a} value={a}>{friendlyAction(a)}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={filterResource} onValueChange={setFilterResource}>
+                    <SelectTrigger className="w-[190px]"><SelectValue placeholder="Resource" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="All">All resources</SelectItem>
+                      {resourceOptions.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={filterUser} onValueChange={setFilterUser}>
+                    <SelectTrigger className="w-[160px]"><SelectValue placeholder="User" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="All">All users</SelectItem>
+                      {userOptions.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+
+                  <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[150px]" title="From date" />
+                  <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[150px]" title="To date" />
+
+                  {hasActiveFilters && (
+                    <Button variant="ghost" size="sm" onClick={clearFilters}>Clear</Button>
+                  )}
                 </div>
               )}
               <Button variant="outline" size="icon" className="shrink-0">
@@ -382,32 +498,7 @@ export default function AuditLogsPage() {
                   </div>
                 )}
                 {!loading && !error && filteredLogs.length > 0 && (
-                  <div className="flex items-center justify-between gap-2 px-4 py-3 border-t bg-slate-50">
-                    <p className="text-xs text-slate-600">
-                      Showing {(safePage - 1) * pageSize + 1}-{Math.min(safePage * pageSize, sortedLogs.length)} of {sortedLogs.length}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={safePage <= 1}
-                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                      >
-                        Previous
-                      </Button>
-                      <span className="text-xs text-slate-600">
-                        Page {safePage} of {totalPages}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={safePage >= totalPages}
-                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                      >
-                        Next
-                      </Button>
-                    </div>
-                  </div>
+                  <DataPagination {...pg.paginationProps} className="px-4 py-3 border-t bg-slate-50" />
                 )}
               </CardContent>
             </Card>

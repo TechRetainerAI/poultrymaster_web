@@ -416,12 +416,16 @@ export function TopNavigation() {
             title="Sales & Money"
             blurb="Orders, collections, expenses, cash and payroll."
             groups={nav.salesMoney}
-            /* Two columns side by side. Migration 223's "Reconcile cash" sets
-               the floor rather than "Cash Account": at ~106px in Geist-Medium
-               (the active row's weight) a column needs 146px, so
-               64 + 2x146 + 16 = 372px. Matches the water rail's Sales & Money,
-               which carries the same label. */
-            columns={2} widthRem={24} layout="grid" accent="orange"
+            /* Two columns sized to their OWN content (fitColumns), not to an equal
+               share: Sales' longest label is "Customer Balances" and Money's is
+               "Reconcile cash", and equal columns would widen BOTH to the former
+               and hang the difference off the right edge as dead space.
+               Measured in Geist-Medium (the active row's weight): Customer
+               Balances 132px, Reconcile cash 102px. Each column needs ~40px more
+               for the icon, gap and row padding, so the two are ~180px and
+               ~148px. 24rem = 384px covers 180 + 148 + the 16px grid gap + 32px
+               of panel padding, with slack for font rendering. */
+            columns={2} widthRem={24} layout="grid" fitColumns accent="orange"
           />
 
           <NavMegaMenu

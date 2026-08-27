@@ -38,6 +38,9 @@ export interface NavMegaMenuProps {
    * menu where the columns ARE the taxonomy. Use "grid" for those.
    */
   layout?: "columns" | "grid"
+  /** Grid layout only: size each column to its own content instead of an equal
+   *  share, so a short column doesn't inherit the longest column's width. */
+  fitColumns?: boolean
   /** Prefixes that make the TRIGGER active even when no row matches — e.g. the
    *  /water-reports index page itself, which isn't one of the rows. */
   triggerActiveHrefs?: string[]
@@ -60,10 +63,23 @@ const GRID_CLASS: Record<1 | 2 | 3 | 4, string> = {
   4: "grid grid-cols-2 lg:grid-cols-4 items-start",
 }
 
+// `fitColumns` variant: each column is as wide as its own longest row instead of
+// an equal share of the panel. Equal columns mean the longest label in the menu
+// sets the width of EVERY column, so a menu with one long column and one short
+// one carries the difference as dead space on the right. Opt in when the columns
+// are lopsided, and size widthRem to the sum of the columns rather than to
+// 2x the widest.
+const GRID_FIT_CLASS: Record<1 | 2 | 3 | 4, string> = {
+  1: "grid grid-cols-1 items-start",
+  2: "grid grid-cols-1 lg:grid-cols-[max-content_max-content] items-start",
+  3: "grid grid-cols-2 lg:grid-cols-[max-content_max-content_max-content] items-start",
+  4: "grid grid-cols-2 lg:grid-cols-[max-content_max-content_max-content_max-content] items-start",
+}
+
 
 export function NavMegaMenu({
   label, icon: TriggerIcon, groups, title, blurb, viewAll,
-  columns = 4, widthRem = 56, accent = "sky", layout = "columns",
+  columns = 4, widthRem = 56, accent = "sky", layout = "columns", fitColumns = false,
   triggerActiveHrefs, closeDelayMs = 180,
 }: NavMegaMenuProps) {
   const pathname = usePathname()
@@ -140,7 +156,9 @@ export function NavMegaMenu({
 
           <div
             className={cn(
-              layout === "grid" ? GRID_CLASS[columns] : COLUMNS_CLASS[columns],
+              layout !== "grid"
+                ? COLUMNS_CLASS[columns]
+                : fitColumns ? GRID_FIT_CLASS[columns] : GRID_CLASS[columns],
               "gap-x-4 p-4 max-h-[70vh] overflow-y-auto",
               // A scrollbar on a tall panel eats into the right padding only,
               // which shifts every group left and is most of why this looked

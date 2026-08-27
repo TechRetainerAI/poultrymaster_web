@@ -35,6 +35,16 @@ export function isFinancialNavItemVisible(
       f.canEnterSales
     )
   }
+  // Customer Balances / Supplier Balances. Read generously, matching the pages
+  // they summarise: anyone who can see the sales or the customers can see what
+  // is outstanding on them. Taking the payment is gated separately, inside the
+  // page, on `poultry.customer-payments.create`.
+  if (href === "/customer-balances") {
+    return isAdmin || f.canViewFinancial || f.canEnterSales || f.canViewCustomers
+  }
+  if (href === "/supplier-balances") {
+    return isAdmin || f.canViewFinancial || f.canEnterExpenses || f.canViewCustomers
+  }
   if (href === "/billing") {
     return options?.tempShowPayments === true || isAdmin || f.canViewFinancial
   }

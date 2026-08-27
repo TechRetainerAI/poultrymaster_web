@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
-import { useRouter } from "next/navigation"
+import { Suspense, useEffect, useMemo, useRef, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
@@ -56,12 +56,29 @@ const USAGE_METHOD_OPTIONS: { value: WaterRawMaterialUsageMethod; label: string;
   { value: "HIFO", label: "HIFO", hint: "Highest cost, first used" },
 ]
 
-export default function WaterRawMaterialsPage() {
+const TABS = ["items", "purchases", "usage"] as const
+type TabKey = (typeof TABS)[number]
+
+function WaterRawMaterialsPageInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { toast } = useToast()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const logout = useLogout()
   const gh = useFmt()
+
+  // The URL is the source of truth for which tab is showing; an unknown or
+  // missing ?tab= falls back to Items rather than rendering an empty panel.
+  const tabParam = searchParams.get("tab")
+  const tab: TabKey = (TABS as readonly string[]).includes(tabParam ?? "") ? (tabParam as TabKey) : "items"
+
+  // ?purchaseId= from Supplier Balances -> Open purchase.
+  const purchaseIdParam = Number(searchParams.get("purchaseId"))
+  const focusPurchaseId = Number.isFinite(purchaseIdParam) && purchaseIdParam > 0 ? purchaseIdParam : null
+
+  // Clearing the focus has to drop ?purchaseId= too, or it comes straight back
+  // on the next render.
+  const clearPurchaseFocus = () => router.replace("/water-raw-materials?tab=purchases", { scroll: false })
 
   const [items, setItems] = useState<WaterRawMaterialItem[]>([])
   const [search, setSearch] = useState("")
@@ -154,6 +171,19 @@ export default function WaterRawMaterialsPage() {
 
   // Lazy-loads on first visit to the Usage History tab — usage data isn't
   // needed for the default Items view, no reason to pay for it upfront.
+  // Tab changes go through the URL so the tab is linkable and survives the
+  // back button -- same pattern as the poultry raw-materials page.
+  const selectTab = (v: string) => {
+    router.replace(v === "items" ? "/water-raw-materials" : `/water-raw-materials?tab=${v}`, { scroll: false })
+  }
+
+  // Usage history is fetched lazily the first time its tab is shown -- including
+  // when the page is opened straight at ?tab=usage, which no click would cover.
+  useEffect(() => {
+    if (tab === "usage") void loadUsage()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab])
+
   async function loadUsage() {
     if (usageLoaded) return
     setUsageLoading(true)
@@ -321,9 +351,26 @@ export default function WaterRawMaterialsPage() {
   const byItem = <T extends { waterRawMaterialItemId: number }>(rows: T[]) =>
     itemFilter === "all" ? rows : rows.filter((r) => String(r.waterRawMaterialItemId) === itemFilter)
 
+  // ?purchaseId= from Supplier Balances -> Open purchase. Narrowing to the one
+  // purchase is the point of the link, so it wins over the other filters; the
+  // banner above the table offers the way back out.
   const filteredPurchases = useMemo(
-    () => byItem(filterByDateAndSearch(purchases, { search, dateFrom, dateTo, searchKeys: ["itemName", "supplierName"], dateKey: "purchaseDate" })),
-    [purchases, search, dateFrom, dateTo, itemFilter],
+    () => {
+      if (focusPurchaseId !== null) {
+        return purchases.filter((p) => p.waterRawMaterialPurchaseId === focusPurchaseId)
+      }
+      return byItem(filterByDateAndSearch(purchases, { search, dateFrom, dateTo, searchKeys: ["itemName", "supplierName"], dateKey: "purchaseDate" }))
+    },
+    [purchases, search, dateFrom, dateTo, itemFilter, focusPurchaseId],
+  )
+
+  // Supplier name for the banner, so the link reads as "this supplier's
+  // purchase" rather than a bare id.
+  const focusedPurchaseSupplier = useMemo(
+    () => (focusPurchaseId === null
+      ? null
+      : purchases.find((p) => p.waterRawMaterialPurchaseId === focusPurchaseId)?.supplierName ?? null),
+    [purchases, focusPurchaseId],
   )
   const filteredUsage = useMemo(
     () => byItem(filterByDateAndSearch(usage, { search, dateFrom, dateTo, searchKeys: ["itemName"], dateKey: "usedDate" })),
@@ -368,7 +415,9 @@ export default function WaterRawMaterialsPage() {
             </div>
           </div>
 
-          <Tabs defaultValue="items" onValueChange={(v) => { if (v === "usage") void loadUsage() }}>
+          {/* Controlled by the URL so ?tab=purchases can be linked to -- which
+              is how Supplier Balances lands on the right tab. */}
+          <Tabs value={tab} onValueChange={selectTab}>
             <TabsList>
               <TabsTrigger value="items">Items ({items.length})</TabsTrigger>
               <TabsTrigger value="purchases">Purchases ({purchases.length})</TabsTrigger>
@@ -574,6 +623,16 @@ export default function WaterRawMaterialsPage() {
             </TabsContent>
 
             <TabsContent value="purchases">
+              {/* Arrived here from Supplier Balances -> Open purchase. */}
+              {focusPurchaseId !== null && (
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
+                  <span>
+                    Showing purchase <strong>#{focusPurchaseId}</strong> only
+                    {focusedPurchaseSupplier ? <> — <strong>{focusedPurchaseSupplier}</strong></> : null}.
+                  </span>
+                  <Button variant="ghost" size="sm" onClick={clearPurchaseFocus}>Show all purchases</Button>
+                </div>
+              )}
               <ListFilters
                 search={search} setSearch={setSearch}
                 dateFrom={dateFrom} setDateFrom={setDateFrom}
@@ -583,8 +642,12 @@ export default function WaterRawMaterialsPage() {
               />
               <Card>
                 <CardContent className="p-0">
-                  {purchases.length === 0 ? (
-                    <div className="p-8 text-center text-slate-500">No purchases recorded yet.</div>
+                  {filteredPurchases.length === 0 ? (
+                    <div className="p-8 text-center text-slate-500">
+                      {focusPurchaseId !== null
+                        ? `Purchase #${focusPurchaseId} is not in this list.`
+                        : "No purchases recorded yet."}
+                    </div>
                   ) : (
                     <MobileCardList
                       items={pgPurchases.pageItems}
@@ -1026,5 +1089,14 @@ export default function WaterRawMaterialsPage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+export default function WaterRawMaterialsPage() {
+  // useSearchParams needs a Suspense boundary during prerender.
+  return (
+    <Suspense fallback={null}>
+      <WaterRawMaterialsPageInner />
+    </Suspense>
   )
 }

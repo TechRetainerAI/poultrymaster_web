@@ -21,12 +21,17 @@ export default function SettingsPage() {
   const router = useRouter()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
 
-  // /settings is the POULTRY settings/profile page. Water and Generic companies
-  // have their own dedicated setup pages. Route each company type to its own.
+  // /settings is now a router only: every company type has its own setup page.
+  // Poultry used to be handled inline here, but that form wrote to localStorage
+  // instead of the database — nothing persisted across devices, and the keys
+  // were not namespaced per company, so switching company showed (and could
+  // overwrite) the previous one's values. Migration 212 gave Poultry a real
+  // profile, so it now goes to /poultry-company-setup like the other two.
   useEffect(() => {
     if (activeFarmType === null || activeFarmType === undefined) return
     if (activeFarmType === "Water")        router.replace("/water-company-setup")
     else if (activeFarmType === "Generic") router.replace("/generic-setup")
+    else                                   router.replace("/poultry-company-setup")
   }, [activeFarmType, router])
 
   const [isEditing, setIsEditing] = useState(true)

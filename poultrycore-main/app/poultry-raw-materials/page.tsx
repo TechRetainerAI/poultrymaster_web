@@ -106,6 +106,11 @@ function PoultryRawMaterialsPageInner() {
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [itemFilter, setItemFilter] = useState("all")
+  // ?purchaseId= from Supplier Balances -> Open purchase. Narrows the Purchases
+  // tab to that one row, the way ?saleId= narrows /sales for Customer Balances.
+  // Held in state rather than read from the URL on every render so clearing it
+  // does not need a navigation.
+  const [focusPurchaseId, setFocusPurchaseId] = useState<number | null>(null)
   // Items tab: category + unit dropdowns (records grow fast in production).
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [unitFilter, setUnitFilter] = useState("all")
@@ -165,6 +170,14 @@ function PoultryRawMaterialsPageInner() {
     // Drop the params so a refresh or a back-navigation doesn't reopen it.
     router.replace("/poultry-raw-materials", { scroll: false })
   }, [loading, items, defaultCashAccountId, router, searchParams])
+
+  // ?purchaseId=N from Supplier Balances. Copied into state and left in the URL
+  // — unlike ?purchase=1 there is no dialog to guard against reopening, and
+  // keeping it means a refresh still shows the purchase the link pointed at.
+  useEffect(() => {
+    const pid = Number(searchParams.get("purchaseId"))
+    setFocusPurchaseId(Number.isFinite(pid) && pid > 0 ? pid : null)
+  }, [searchParams])
 
   async function load() {
     setLoading(true)
@@ -245,13 +258,37 @@ function PoultryRawMaterialsPageInner() {
     return Array.from(set).sort()
   }, [items])
   const filteredPurchases = useMemo(
-    () => byItem(filterByDateAndSearch(purchases, { search, dateFrom, dateTo, searchKeys: ["itemName", "supplierName"], dateKey: "purchaseDate" })),
-    [purchases, search, dateFrom, dateTo, itemFilter],
+    () => {
+      // Arriving from Supplier Balances -> Open purchase. Narrowing to the one
+      // purchase is the point of the link, so it wins over the other filters
+      // (the banner above the table offers the way back out).
+      if (focusPurchaseId !== null) {
+        return purchases.filter((p) => p.poultryRawMaterialPurchaseId === focusPurchaseId)
+      }
+      return byItem(filterByDateAndSearch(purchases, { search, dateFrom, dateTo, searchKeys: ["itemName", "supplierName"], dateKey: "purchaseDate" }))
+    },
+    [purchases, search, dateFrom, dateTo, itemFilter, focusPurchaseId],
   )
   const filteredUsage = useMemo(
     () => byItem(filterByDateAndSearch(usage, { search, dateFrom, dateTo, searchKeys: ["itemName"], dateKey: "usedDate" })),
     [usage, search, dateFrom, dateTo, itemFilter],
   )
+
+  // Supplier name for the focus banner, so the link reads as "this supplier's
+  // purchase" rather than a bare id.
+  const focusedPurchaseSupplier = useMemo(
+    () => (focusPurchaseId === null
+      ? null
+      : purchases.find((p) => p.poultryRawMaterialPurchaseId === focusPurchaseId)?.supplierName ?? null),
+    [purchases, focusPurchaseId],
+  )
+
+  // Clearing the focus has to drop ?purchaseId= too, or the effect that reads it
+  // puts the focus straight back on the next render.
+  const clearPurchaseFocus = () => {
+    setFocusPurchaseId(null)
+    router.replace("/poultry-raw-materials?tab=purchases", { scroll: false })
+  }
 
   const sortedItems = useMemo(() => sortData(filteredItems, itemsSort.key, itemsSort.direction), [filteredItems, itemsSort])
   const pgItems = usePagination(sortedItems)
@@ -525,6 +562,17 @@ function PoultryRawMaterialsPageInner() {
                     <h2 className="text-base font-semibold text-slate-900">Purchase History</h2>
                     <p className="text-xs text-slate-500">Stock received, costing, and supplier part payments. Feed produced on the farm appears here too, tagged with its batch.</p>
                   </div>
+                  {/* Arrived here from Supplier Balances -> Open purchase. Say so,
+                      and give a one-click way back to the whole list. */}
+                  {focusPurchaseId !== null && (
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
+                      <span>
+                        Showing purchase <strong>#{focusPurchaseId}</strong> only
+                        {focusedPurchaseSupplier ? <> — <strong>{focusedPurchaseSupplier}</strong></> : null}.
+                      </span>
+                      <Button variant="ghost" size="sm" onClick={clearPurchaseFocus}>Show all purchases</Button>
+                    </div>
+                  )}
                   <div className="mb-3"><ListFilters search={search} setSearch={setSearch} dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo} searchPlaceholder="Search item or supplier" extras={itemFilterDropdown} /></div>
                   <div className="hidden md:block overflow-x-auto"><Table className="min-w-[640px]">
                     <TableHeader><TableRow>
@@ -543,7 +591,7 @@ function PoultryRawMaterialsPageInner() {
                     </TableRow></TableHeader>
                     <TableBody>
                       {filteredPurchases.length === 0 ? (
-                        <TableRow><TableCell colSpan={10} className="text-center text-slate-500 py-6">No purchases yet.</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={10} className="text-center text-slate-500 py-6">{focusPurchaseId !== null ? `Purchase #${focusPurchaseId} is not in this list.` : "No purchases yet."}</TableCell></TableRow>
                       ) : pgPurchases.pageItems.map((p) => (
                         <TableRow key={p.poultryRawMaterialPurchaseId}>
                           <TableCell>{(p.purchaseDate || "").split("T")[0]}</TableCell>
@@ -586,7 +634,7 @@ function PoultryRawMaterialsPageInner() {
                   <DataPagination {...pgPurchases.paginationProps} />
                   {/* Mobile cards */}
                   <div className="md:hidden space-y-2">
-                    {filteredPurchases.length === 0 ? <div className="text-center text-slate-500 py-6">No purchases yet.</div>
+                    {filteredPurchases.length === 0 ? <div className="text-center text-slate-500 py-6">{focusPurchaseId !== null ? `Purchase #${focusPurchaseId} is not in this list.` : "No purchases yet."}</div>
                       : sortedPurchases.map((p) => (
                         <FieldCard key={p.poultryRawMaterialPurchaseId} title={p.itemName}
                           badge={p.feedProductionRole

@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
+import { Suspense, useEffect, useMemo, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
@@ -49,10 +49,11 @@ function priceFor(p: WaterProduct, sellingUnit: string): number {
   return p.unitPrice
 }
 
-export default function WaterSalesPage() {
+function WaterSalesPageInner() {
   const router = useRouter()
   const { toast } = useToast()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
+  const searchParams = useSearchParams()
   const logout = useLogout()
 
   const [sales, setSales] = useState<WaterSale[]>([])
@@ -63,14 +64,32 @@ export default function WaterSalesPage() {
   const [dateTo, setDateTo] = useState("")
   const [loading, setLoading] = useState(true)
   const [deleteTarget, setDeleteTarget] = useState<WaterSale | null>(null)
+  // ?saleId= from Customer Balances -> Open sale. Held in state rather than read
+  // from the URL on every render so clearing it needs no navigation.
+  const [focusSaleId, setFocusSaleId] = useState<number | null>(null)
+
+  useEffect(() => {
+    const sid = Number(searchParams.get("saleId"))
+    setFocusSaleId(Number.isFinite(sid) && sid > 0 ? sid : null)
+  }, [searchParams])
+
+  const clearSaleFocus = () => {
+    setFocusSaleId(null)
+    router.replace("/water-sales", { scroll: false })
+  }
 
   const visibleSales = useMemo(
-    () => filterByDateAndSearch(sales, {
-      search, dateFrom, dateTo,
-      searchKeys: ["customerName", "status", "notes"],
-      dateKey: "saleDate",
-    }),
-    [sales, search, dateFrom, dateTo],
+    () => {
+      // Narrowing to the one sale is the point of the link, so it wins over the
+      // other filters. The banner above the table offers the way back out.
+      if (focusSaleId !== null) return sales.filter((s) => s.waterSaleId === focusSaleId)
+      return filterByDateAndSearch(sales, {
+        search, dateFrom, dateTo,
+        searchKeys: ["customerName", "status", "notes"],
+        dateKey: "saleDate",
+      })
+    },
+    [sales, search, dateFrom, dateTo, focusSaleId],
   )
 
   // Client-side paging: the whole list is already in memory, so this is a
@@ -275,6 +294,15 @@ export default function WaterSalesPage() {
             </Button>
           </div>
 
+          {/* Arrived here from Customer Balances -> Open sale. Say so, and give
+              a one-click way back to the whole list. */}
+          {focusSaleId !== null && (
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
+              <span>Showing sale <strong>W{focusSaleId}</strong> only.</span>
+              <Button variant="ghost" size="sm" onClick={clearSaleFocus}>Show all sales</Button>
+            </div>
+          )}
+
           <ListFilters
             search={search} setSearch={setSearch}
             dateFrom={dateFrom} setDateFrom={setDateFrom}
@@ -318,6 +346,7 @@ export default function WaterSalesPage() {
                         </span>
                       ),
                     },
+                    { label: "Method", value: <MethodBadge method={s.paymentMethod} /> },
                     { label: "Status", value: <StatusBadge status={s.status} /> },
                     { label: "Source", value: isFromDelivery(s) ? `Delivery #${s.sourceId ?? "—"}` : "Direct sale" },
                   ]}
@@ -356,6 +385,7 @@ export default function WaterSalesPage() {
                           <TableHead className="text-right">Total</TableHead>
                           <TableHead className="text-right">Paid</TableHead>
                           <TableHead className="text-right">Balance</TableHead>
+                          <TableHead>Method</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -369,6 +399,7 @@ export default function WaterSalesPage() {
                             <TableCell className="text-right tabular-nums">{s.totalAmount.toFixed(2)}</TableCell>
                             <TableCell className="text-right tabular-nums">{s.amountPaid.toFixed(2)}</TableCell>
                             <TableCell className={`text-right tabular-nums ${s.balance > 0 ? "text-rose-600" : "text-slate-500"}`}>{s.balance.toFixed(2)}</TableCell>
+                            <TableCell><MethodBadge method={s.paymentMethod} /></TableCell>
                             <TableCell>
                               <StatusBadge status={s.status} />
                               {/* Issue 6 (sub-fix 3): clickable "Awaiting
@@ -619,6 +650,10 @@ export default function WaterSalesPage() {
                     <span className="text-slate-500">Date</span>
                     <span className="text-slate-700">{new Date(detailSale.saleDate).toLocaleString()}</span>
                   </div>
+                  <div className="flex items-center justify-between px-3 py-2">
+                    <span className="text-slate-500">Payment method</span>
+                    <MethodBadge method={detailSale.paymentMethod} />
+                  </div>
                 </div>
 
                 {/* Money tiles */}
@@ -698,18 +733,20 @@ export default function WaterSalesPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <div><Label>Amount</Label>
-              <NumberInput min={0} step="0.01" value={payAmount || ""} onChange={(e) => setPayAmount(parseFloat(e.target.value || "0"))} /></div>
-            <div><Label>Method</Label>
-              <Select value={payMethod} onValueChange={setPayMethod}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Cash">Cash</SelectItem>
-                  <SelectItem value="Mobile Money">Mobile Money</SelectItem>
-                  <SelectItem value="Bank">Bank transfer</SelectItem>
-                  <SelectItem value="Cheque">Cheque</SelectItem>
-                </SelectContent>
-              </Select></div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div><Label>Amount</Label>
+                <NumberInput min={0} step="0.01" value={payAmount || ""} onChange={(e) => setPayAmount(parseFloat(e.target.value || "0"))} /></div>
+              <div><Label>Method</Label>
+                <Select value={payMethod} onValueChange={setPayMethod}>
+                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Cash">Cash</SelectItem>
+                    <SelectItem value="Mobile Money">Mobile Money</SelectItem>
+                    <SelectItem value="Bank">Bank transfer</SelectItem>
+                    <SelectItem value="Cheque">Cheque</SelectItem>
+                  </SelectContent>
+                </Select></div>
+            </div>
             <div className="flex justify-end gap-2">
               <Button variant="ghost" onClick={() => setPayOpen(false)}>Cancel</Button>
               <Button onClick={recordPayment} disabled={saving}>{saving ? "Saving…" : "Record"}</Button>
@@ -741,4 +778,25 @@ function StatusBadge({ status }: { status: string }) {
     Cancelled:     "bg-rose-100 text-rose-700",
   }
   return <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${map[status] ?? "bg-slate-100 text-slate-700"}`}>{status}</span>
+}
+
+// How the sale was paid — derived server-side from its payment rows (migration
+// 225). Null means nothing has been paid yet, so it reads as an em dash rather
+// than an empty badge. "Mixed" = more than one method across the payments.
+function MethodBadge({ method }: { method?: string | null }) {
+  if (!method) return <span className="text-slate-400">—</span>
+  return (
+    <span className="inline-block rounded border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-700">
+      {method}
+    </span>
+  )
+}
+
+export default function WaterSalesPage() {
+  // useSearchParams needs a Suspense boundary during prerender.
+  return (
+    <Suspense fallback={null}>
+      <WaterSalesPageInner />
+    </Suspense>
+  )
 }

@@ -229,6 +229,10 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/poultry-cash-reconciliation", label: "Reconcile cash", icon: Scale },
     { href: "/sales", label: "Sales", icon: ShoppingCart },
     { href: "/poultry-payments", label: "Payments received", icon: Wallet },
+    // The collection / payment control centres: what is owed, on which sales or
+    // purchases, and the dialog that settles them.
+    { href: "/customer-balances", label: "Customer Balances", icon: Users },
+    { href: "/supplier-balances", label: "Supplier Balances", icon: Truck },
     { href: "/expenses", label: "Expenses", icon: DollarSign },
     { href: "/billing", label: "Billing", icon: CreditCard },
   ].filter((item) =>
@@ -312,6 +316,8 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const waterSalesMoneyItems = gateWater([
     { href: "/water-sales",         label: "Sales",           icon: ShoppingCart },
     { href: "/water-payments",      label: "Payments",        icon: CreditCard },
+    { href: "/water-customer-balances", label: "Customer Balances", icon: Users },
+    { href: "/water-supplier-balances", label: "Supplier Balances", icon: Truck },
     { href: "/water-expenses",      label: "Expenses",        icon: Receipt },
     { href: "/water-cash-accounts", label: "Cash accounts",   icon: Wallet },
     { href: "/water-cash-reconciliation", label: "Reconcile cash", icon: Scale },
@@ -451,10 +457,13 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/companies", label: "Companies", icon: Building2 },
     ...(permissions.featureAccess.canViewActivityLog
       ? [{ href: "/audit-logs", label: "Activity Log", icon: Activity }] : []),
-    // /settings is the poultry farm-profile page; Water, Generic, and Hotel have their own setup.
+    // The poultry farm profile. Water, Generic and Hotel have their own setup links
+    // in their groups above; this is the equivalent row for Poultry, pointing at the
+    // database-backed pages rather than /settings (now only a redirect).
     ...((!isWater && !isGeneric && !isHotel && permissions.featureAccess.canViewSettings)
-      ? [{ href: "/settings", label: "Settings", icon: Settings }] : []),
-    // /help is poultry-specific.
+      ? [{ href: "/poultry-setup", label: "Farm Setup", icon: Settings },
+         { href: "/poultry-company-setup", label: "Company Setup", icon: Settings }] : []),
+    // /help is poultry-specific (flocks, eggs, vaccinations).
     ...((!isWater && !isGeneric && !isHotel) ? [{ href: "/help", label: "Help Center", icon: HelpCircle }] : []),
     { href: "/terms", label: "Terms & Conditions", icon: ListTodo },
   ]

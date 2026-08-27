@@ -149,6 +149,9 @@ export interface WaterSale {
   // a driver return (cannot be deleted on the Sales page).
   sourceType?: string | null
   sourceId?: number | null
+  // Migration 225 — how the sale was paid, derived from its payment rows:
+  // null when nothing is paid yet, the single method used, or "Mixed".
+  paymentMethod?: string | null
   items: WaterSaleItem[]
 }
 

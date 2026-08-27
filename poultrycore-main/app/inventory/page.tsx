@@ -36,6 +36,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
 import { formatDateShort, cn } from "@/lib/utils"
+import { useFmt } from "@/lib/currency"
 import { toLocalDateKey } from "@/lib/utils/date-key"
 import { toastFormGuide } from "@/lib/utils/validation-toast"
 
@@ -57,6 +58,9 @@ interface InventoryItem {
 }
 
 export default function InventoryPage() {
+  // Money renders in the company's currency (Setup > Company). These
+  // columns previously hardcoded a $ sign.
+  const fmt = useFmt()
   const router = useRouter()
   const { toast } = useToast()
   const [inventory, setInventory] = useState<InventoryItem[]>([])
@@ -844,8 +848,8 @@ export default function InventoryPage() {
                             <CollapsibleContent>
                               <div className="mt-4 pt-4 border-t border-slate-100 space-y-2 text-sm">
                                 <div className="grid grid-cols-2 gap-2">
-                                  <div><span className="text-slate-500">Unit price</span> <span className="font-medium">${item.unitPrice.toFixed(2)}</span></div>
-                                  <div><span className="text-slate-500">Value</span> <span className="font-medium">${(item.quantity * item.unitPrice).toFixed(2)}</span></div>
+                                  <div><span className="text-slate-500">Unit price</span> <span className="font-medium">{fmt(item.unitPrice)}</span></div>
+                                  <div><span className="text-slate-500">Value</span> <span className="font-medium">{fmt(item.quantity * item.unitPrice)}</span></div>
                                   <div><span className="text-slate-500">Supplier</span> <span className="font-medium">{item.supplier || "—"}</span></div>
                                 </div>
                                 <div className="flex gap-2 pt-2">
@@ -925,8 +929,8 @@ export default function InventoryPage() {
                             <Badge variant="outline">{item.category}</Badge>
                           </TableCell>
                           <TableCell>{item.quantity.toLocaleString()} {item.unit}</TableCell>
-                          <TableCell>${item.unitPrice.toFixed(2)}</TableCell>
-                          <TableCell>${(item.quantity * item.unitPrice).toFixed(2)}</TableCell>
+                          <TableCell>{fmt(item.unitPrice)}</TableCell>
+                          <TableCell>{fmt(item.quantity * item.unitPrice)}</TableCell>
                           <TableCell>{item.entryDate ? (isMobile ? formatDateShort(item.entryDate) : new Date(item.entryDate).toLocaleDateString()) : "-"}</TableCell>
                           <TableCell>{item.supplier || "-"}</TableCell>
                           <TableCell>{item.location || "-"}</TableCell>

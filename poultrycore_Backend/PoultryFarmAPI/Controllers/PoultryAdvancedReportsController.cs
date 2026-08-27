@@ -160,6 +160,15 @@ namespace PoultryFarmAPIWeb.Controllers
             return Ok(await _reports.GetCustomerBalanceAsync(filter));
         }
 
+        // 12b
+        [HttpGet("supplier-balance")]
+        public async Task<IActionResult> SupplierBalance([FromQuery] PoultryReportFilterDto filter)
+        {
+            var guard = await EnsurePoultryAsync(filter.FarmId);
+            if (guard is not null) return guard;
+            return Ok(await _reports.GetSupplierBalanceAsync(filter));
+        }
+
         // 13
         [HttpGet("expense-summary")]
         public async Task<IActionResult> ExpenseSummary([FromQuery] PoultryReportFilterDto filter)

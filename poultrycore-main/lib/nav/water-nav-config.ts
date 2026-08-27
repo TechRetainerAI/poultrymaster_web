@@ -148,6 +148,11 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
         items: [
           { id: "sales",    title: "Sales",    icon: ShoppingCart, href: "/water-sales" },
           { id: "payments", title: "Payments", icon: CreditCard,   href: "/water-payments" },
+          // The two collection/payment control centres. They sit under Sales
+          // rather than Money because the question they answer is "who owes
+          // what", not "where is the cash". Mirrors the poultry rail.
+          { id: "customer-balances", title: "Customer Balances", icon: Users, href: "/water-customer-balances" },
+          { id: "supplier-balances", title: "Supplier Balances", icon: Truck, href: "/water-supplier-balances" },
         ],
       },
       {

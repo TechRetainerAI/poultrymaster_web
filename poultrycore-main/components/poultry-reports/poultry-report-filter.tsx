@@ -22,6 +22,7 @@ export interface PoultryReportFilterValue {
   flockId?: number | null
   customerName?: string | null
   supplierName?: string | null
+  category?: string | null
   includeClosedFlocks?: boolean
 }
 
@@ -29,14 +30,16 @@ export interface PoultryReportFilterProps {
   value: PoultryReportFilterValue
   onChange: (next: PoultryReportFilterValue) => void
   onReset: () => void
-  show: { flock?: boolean; customer?: boolean; supplier?: boolean; includeClosedFlocks?: boolean }
+  show: { flock?: boolean; customer?: boolean; supplier?: boolean; category?: boolean; includeClosedFlocks?: boolean }
   flocks: Flock[]
+  /** Category options for the category filter — gathered from the report's own rows. */
+  categories?: string[]
   customers: string[]
 }
 
 const ALL = "__ALL__"
 
-export function PoultryReportFilter({ value, onChange, onReset, show, flocks, customers }: PoultryReportFilterProps) {
+export function PoultryReportFilter({ value, onChange, onReset, show, flocks, customers, categories = [] }: PoultryReportFilterProps) {
   const set = (patch: Partial<PoultryReportFilterValue>) => onChange({ ...value, ...patch })
 
   return (
@@ -103,6 +106,22 @@ export function PoultryReportFilter({ value, onChange, onReset, show, flocks, cu
             placeholder="Any supplier"
             className="flex-1 sm:w-44 sm:flex-none"
           />
+        </div>
+      )}
+
+      {show.category && (
+        <div className="flex items-center gap-1.5 w-full sm:w-auto">
+          <Label className="text-xs text-slate-600 whitespace-nowrap">Category</Label>
+          <Select
+            value={value.category ?? ALL}
+            onValueChange={(v) => set({ category: v === ALL ? null : v })}
+          >
+            <SelectTrigger className="flex-1 sm:w-56 sm:flex-none"><SelectValue placeholder="All categories" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>All categories</SelectItem>
+              {categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
       )}
 

@@ -73,8 +73,18 @@ export interface SummaryCard { label: string; value: string; accent?: Accent }
 
 export function PoultryReportSummaryCards({ cards }: { cards: SummaryCard[] }) {
   if (!cards.length) return null
+  // One row on a wide screen whatever the count. The grid was fixed at four
+  // columns, so a five-card report (Expense Summary) wrapped the last card onto
+  // a second row on its own. Tailwind needs whole class names to survive the
+  // build, so these are spelled out rather than interpolated.
+  const wide =
+    cards.length <= 2 ? "lg:grid-cols-2" :
+    cards.length === 3 ? "lg:grid-cols-3" :
+    cards.length === 4 ? "lg:grid-cols-4" :
+    cards.length === 5 ? "lg:grid-cols-5" :
+    cards.length === 6 ? "lg:grid-cols-6" : "lg:grid-cols-4"
   return (
-    <div className="mb-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 print:gap-2">
+    <div className={`mb-4 grid grid-cols-2 md:grid-cols-3 ${wide} gap-3 print:gap-2`}>
       {cards.map((card) => {
         const valueCls =
           card.accent === "green" ? "text-emerald-700" :

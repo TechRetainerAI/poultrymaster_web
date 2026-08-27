@@ -1,6 +1,41 @@
-import type { FeedUsage } from "@/lib/api/feed-usage"
-import type { Supply } from "@/lib/api/supply"
-import type { Flock } from "@/lib/api/flock"
+import type {
+  PoultryRawMaterialItem,
+  PoultryRawMaterialPurchase,
+  PoultryRawMaterialUsage,
+  PoultryRawMaterialAdjustment,
+} from "@/lib/api/poultry-inventory"
+
+/**
+ * Feed stock ledger — a view over the poultry RAW MATERIALS store.
+ *
+ * This used to read its incoming side from the legacy Supplies table
+ * (`/supplies`), filtering for a type containing "feed". Feed is actually bought
+ * on /poultry-raw-materials, which writes poultryrawmaterialpurchases. Those are
+ * two unconnected inventory systems, and Supplies has never held a single feed
+ * row on this database — so the IN side was permanently zero and every farm
+ * showed a negative balance equal to its total usage. Measured before the
+ * change: Prof Owusu -64,673 kg, Sky Farm -14,236 kg (holding 13,261),
+ * Gyimah -212 kg (holding 940).
+ *
+ * The ledger now uses the same three movements that maintain
+ * poultryrawmaterialitems.currentquantity, so the balance here and the stock on
+ * /poultry-raw-materials are the same number by construction:
+ *
+ *     purchases  -  usage  +  adjustments  =  current quantity
+ *
+ * Usage rows are included even when a later reversal put the stock back: each
+ * reversal is a matching 'ProductionReversal' / 'FeedProductionReversal'
+ * adjustment, so both appear and net to zero. Showing them is the point of a
+ * ledger — the movement happened and then it was undone.
+ *
+ * Verified against the live database: this identity reproduces currentquantity
+ * for 22 of 27 feed items. The five that differ are on the two test farms and
+ * predate this change (two of them already hold negative stock).
+ *
+ * Units: 23 of 27 feed items are stocked in Kilogram, 4 in Bag (all with a 1:1
+ * conversion recorded). Quantities are summed as stored and each row states its
+ * own unit, rather than pretending a bag is a kilogram.
+ */
 
 export interface FeedLedgerRow {
   sortKey: string
@@ -44,90 +79,130 @@ function formatFeedAdjustmentType(t: string): string {
   }
 }
 
-export function isFeedSupply(s: Pick<Supply, "type">): boolean {
-  const t = (s.type || "").trim().toLowerCase()
-  return t === "feed" || t.includes("feed")
+/** The raw-material categories that count as feed. */
+export const FEED_CATEGORIES = ["FinishedFeed", "FeedIngredient"] as const
+
+export function isFeedItem(item: Pick<PoultryRawMaterialItem, "category">): boolean {
+  const c = (item.category || "").trim().toLowerCase()
+  return c === "finishedfeed" || c === "feedingredient"
 }
 
-/** Best-effort kg for ledger math; non-kg units still use numeric quantity (see UI note). */
-export function supplyQuantityToKg(quantity: number, unit: string | null | undefined): number {
-  const q = Math.max(0, Number(quantity) || 0)
-  const u = (unit || "").trim().toLowerCase()
-  if (!u || u === "kg" || u.includes("kilogram")) return q
-  if (u.includes("ton")) return q * 1000
-  if (u === "g" || (u.includes("g") && !u.includes("kg"))) return q / 1000
-  return q
+function iso(dateRaw: string | null | undefined): string {
+  const d = (dateRaw || "").trim()
+  if (!d) return new Date(0).toISOString()
+  const parsed = new Date(d)
+  return Number.isNaN(parsed.getTime()) ? new Date(0).toISOString() : parsed.toISOString()
 }
 
-function flockLabel(flocks: Flock[], flockId: number): string {
-  const f = flocks.find((x) => x.flockId === flockId)
-  return f?.name?.trim() || `Flock #${flockId}`
+const unitBit = (unit: string | null | undefined) => {
+  const u = (unit || "").trim()
+  return u ? ` ${u}` : ""
+}
+
+export interface FeedStockLedgerInput {
+  items: PoultryRawMaterialItem[]
+  purchases: PoultryRawMaterialPurchase[]
+  usages: PoultryRawMaterialUsage[]
+  /** Stock movements from /poultry-raw-materials (reversals, manual corrections). */
+  adjustments: PoultryRawMaterialAdjustment[]
+  /** Corrections entered on this page itself. Unused on the live data so far. */
+  manualAdjustments?: FeedInventoryAdjustmentLedgerInput[]
 }
 
 /**
- * Feed stock: IN from Inventory supplies (category Feed), OUT from feed usage (kg),
- * plus optional manual adjustments (kg). Optional flockId limits OUT rows only; IN and adjustments stay farm-wide.
+ * Feed stock: IN from raw-material feed purchases, OUT from feed consumption,
+ * plus the stock adjustments that accompany reversals.
  */
 export function buildFeedStockLedger(
-  supplies: Supply[],
-  usages: FeedUsage[],
-  flocks: Flock[],
-  options?: { flockId?: number | null; adjustments?: FeedInventoryAdjustmentLedgerInput[] }
+  input: FeedStockLedgerInput,
 ): { rows: FeedLedgerRow[]; feedKgAtHand: number; lastUpdatedIso: string; totalInKg: number; totalOutKg: number } {
-  const lines: LineInput[] = []
-  const flockId = options?.flockId
-  const adjustments = options?.adjustments ?? []
-  const usagesFiltered =
-    flockId != null && Number.isFinite(flockId) ? usages.filter((u) => u.flockId === flockId) : usages
+  const { items, purchases, usages, adjustments, manualAdjustments = [] } = input
 
-  for (const s of supplies) {
-    if (!isFeedSupply(s)) continue
-    const qtyKg = supplyQuantityToKg(s.quantity, s.unit)
-    if (qtyKg <= 0) continue
-    const dateRaw = s.purchaseDate?.trim() || ""
-    const date = dateRaw ? new Date(dateRaw).toISOString() : new Date(0).toISOString()
-    const unitBit = (s.unit || "").trim() ? ` (${s.quantity} ${s.unit})` : ""
+  // Which item ids are feed. The list endpoints already return itemName/category
+  // on each row, but the item list is the authority — a row's own category can
+  // be null on older records.
+  const feedItemIds = new Set(items.filter(isFeedItem).map((i) => i.poultryRawMaterialItemId))
+  const itemById = new Map(items.map((i) => [i.poultryRawMaterialItemId, i]))
+  const isFeed = (id: number, rowCategory?: string | null) =>
+    feedItemIds.has(id) ||
+    ["finishedfeed", "feedingredient"].includes((rowCategory || "").trim().toLowerCase())
+
+  const nameOf = (id: number, fallback?: string | null) =>
+    itemById.get(id)?.itemName || fallback || `Item #${id}`
+  const unitOf = (id: number, fallback?: string | null) =>
+    itemById.get(id)?.unitOfMeasure || fallback || ""
+
+  const lines: LineInput[] = []
+
+  for (const p of purchases) {
+    if (!isFeed(p.poultryRawMaterialItemId, p.category)) continue
+    const qty = Number(p.quantity) || 0
+    if (qty <= 0) continue
+    const unit = unitOf(p.poultryRawMaterialItemId, p.unitOfMeasure)
+    const from = (p.supplierName || "").trim()
     lines.push({
-      sortKey: `supply_${s.id}`,
-      date,
-      type: "Inventory IN",
-      description: `${(s.name || "Feed").trim()} — purchased${unitBit}`,
-      in: qtyKg,
+      sortKey: `purchase_${p.poultryRawMaterialPurchaseId}`,
+      date: iso(p.purchaseDate),
+      type: "Purchase IN",
+      description: `${nameOf(p.poultryRawMaterialItemId, p.itemName)} — purchased (${qty}${unitBit(unit)})${from ? ` from ${from}` : ""}`,
+      in: qty,
       out: 0,
       order: 0,
     })
   }
 
-  for (const u of usagesFiltered) {
-    const kg = Math.max(0, Number(u.quantityKg) || 0)
-    if (kg <= 0) continue
+  for (const u of usages) {
+    if (!isFeed(u.poultryRawMaterialItemId, null)) continue
+    const qty = Number(u.quantityUsed) || 0
+    if (qty <= 0) continue
+    const unit = unitOf(u.poultryRawMaterialItemId, u.unitOfMeasure)
+    // A feed-production batch consumes ingredients to make finished feed; that
+    // is a genuine outflow of the ingredient and has no flock attached.
+    const via = u.poultryFeedProductionBatchId
+      ? ` — feed production ${u.feedProductionBatchNumber ?? `#${u.poultryFeedProductionBatchId}`}`
+      : " — used in production"
     lines.push({
-      sortKey: `usage_${u.feedUsageId}`,
-      date: u.usageDate,
+      sortKey: `usage_${u.poultryRawMaterialUsageId}`,
+      date: iso(u.usedDate),
       type: "Usage OUT",
-      description: `${flockLabel(flocks, u.flockId)} — ${(u.feedType || "Feed").trim()} (usage)`,
+      description: `${nameOf(u.poultryRawMaterialItemId, u.itemName)}${via} (${qty}${unitBit(unit)})`,
       in: 0,
-      out: kg,
+      out: qty,
       order: 1,
     })
   }
 
   for (const a of adjustments) {
+    if (!isFeed(a.poultryRawMaterialItemId, a.category)) continue
+    const qty = Number(a.quantity) || 0
+    if (qty === 0) continue
+    const unit = unitOf(a.poultryRawMaterialItemId, a.unitOfMeasure)
+    const label = (a.movementType || "Adjustment").trim()
+    const note = (a.note || "").trim()
+    lines.push({
+      sortKey: `stockadj_${a.poultryRawMaterialAdjustmentId}`,
+      date: iso(a.adjustedDate),
+      type: "Adjustment",
+      description: `${nameOf(a.poultryRawMaterialItemId, a.itemName)} — ${label}${note ? `: ${note}` : ""} (${Math.abs(qty)}${unitBit(unit)})`,
+      in: qty > 0 ? qty : 0,
+      out: qty < 0 ? -qty : 0,
+      order: 2,
+    })
+  }
+
+  for (const a of manualAdjustments) {
     const d = Number(a.feedDeltaKg)
     if (!Number.isFinite(d) || d === 0) continue
-    const dateStr = a.adjustmentDate
-      ? new Date(a.adjustmentDate).toISOString()
-      : new Date(0).toISOString()
     const typeLabel = formatFeedAdjustmentType(a.adjustmentType)
     const desc = (a.description || "").trim() || typeLabel
     lines.push({
       sortKey: `feedadj_${a.adjustmentId}`,
-      date: dateStr,
+      date: iso(a.adjustmentDate),
       type: "Adjustment",
       description: `${typeLabel}: ${desc}`,
       in: d > 0 ? d : 0,
       out: d < 0 ? -d : 0,
-      order: 2,
+      order: 3,
     })
   }
 
@@ -140,12 +215,12 @@ export function buildFeedStockLedger(
   })
 
   let bal = 0
-  let totalIn = 0
-  let totalOut = 0
+  let totalInKg = 0
+  let totalOutKg = 0
   const rows: FeedLedgerRow[] = lines.map((line) => {
     bal += line.in - line.out
-    totalIn += line.in
-    totalOut += line.out
+    totalInKg += line.in
+    totalOutKg += line.out
     return {
       sortKey: line.sortKey,
       date: line.date,
@@ -157,13 +232,11 @@ export function buildFeedStockLedger(
     }
   })
 
-  const lastUpdatedIso = rows.length > 0 ? rows[rows.length - 1].date : new Date().toISOString()
-
   return {
     rows,
     feedKgAtHand: rows.length > 0 ? rows[rows.length - 1].balance : 0,
-    lastUpdatedIso,
-    totalInKg: totalIn,
-    totalOutKg: totalOut,
+    lastUpdatedIso: rows.length > 0 ? rows[rows.length - 1].date : new Date().toISOString(),
+    totalInKg,
+    totalOutKg,
   }
 }
