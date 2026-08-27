@@ -20,6 +20,7 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 
 export type PromptDialogProps = {
@@ -38,6 +39,20 @@ export type PromptDialogProps = {
   singleLine?: boolean
   /** Allow submitting an empty value (e.g. optional cancel reasons). */
   allowEmpty?: boolean
+  /**
+   * When set, the value is PICKED from this list instead of typed. The chosen
+   * option's `value` is what onSubmit receives, so the list doubles as the
+   * stored vocabulary.
+   *
+   * Choosing `otherValue` reveals the free-text field underneath and submits
+   * what was typed instead — a fixed list never covers everything, and forcing
+   * someone into the nearest wrong option corrupts the data worse than free
+   * text does. Omit `options` entirely and the dialog behaves exactly as it
+   * always has, which is what its other callers rely on.
+   */
+  options?: readonly { value: string; label: string }[]
+  /** Which option opens the free-text box. Defaults to "Other". */
+  otherValue?: string
   onSubmit: (value: string) => Promise<unknown> | unknown
 }
 
@@ -53,16 +68,24 @@ export function PromptDialog({
   confirmVariant = "default",
   singleLine = false,
   allowEmpty = false,
+  options,
+  otherValue = "Other",
   onSubmit,
 }: PromptDialogProps) {
   const [value, setValue] = React.useState(defaultValue)
+  const [choice, setChoice] = React.useState("")
   const [submitting, setSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+
+  const isOther = !!options && choice === otherValue
+  // With a list, the free-text box only appears for "Other".
+  const showText = !options || isOther
 
   // Reset when the dialog opens so a previous run's text isn't shown stale.
   React.useEffect(() => {
     if (open) {
       setValue(defaultValue)
+      setChoice("")
       setError(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -70,14 +93,31 @@ export function PromptDialog({
 
   const handleSubmit = async () => {
     const trimmed = value.trim()
+
+    if (options) {
+      if (!choice) {
+        setError(`${label ?? "Value"} is required.`)
+        return
+      }
+      // A picked option submits itself; "Other" submits what was typed.
+      if (!isOther) {
+        await runSubmit(choice)
+        return
+      }
+    }
+
     if (!allowEmpty && !trimmed) {
       setError(`${label ?? "Value"} is required.`)
       return
     }
+    await runSubmit(trimmed)
+  }
+
+  async function runSubmit(submitted: string) {
     try {
       setSubmitting(true)
       setError(null)
-      await onSubmit(trimmed)
+      await onSubmit(submitted)
       onOpenChange(false)
     } catch (e: any) {
       setError(e?.message ?? "Something went wrong.")
@@ -95,7 +135,19 @@ export function PromptDialog({
         </DialogHeader>
         <div className="space-y-2">
           {label && <Label>{label}</Label>}
-          {singleLine ? (
+          {options && (
+            <Select value={choice} onValueChange={(v) => { setChoice(v); setError(null) }}>
+              <SelectTrigger>
+                <SelectValue placeholder={placeholder ?? "Select a reason"} />
+              </SelectTrigger>
+              <SelectContent>
+                {options.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {showText && (singleLine ? (
             <Input
               autoFocus
               value={value}
@@ -109,9 +161,9 @@ export function PromptDialog({
               rows={4}
               value={value}
               onChange={(e) => setValue(e.target.value)}
-              placeholder={placeholder}
+              placeholder={options ? "Say what happened" : placeholder}
             />
-          )}
+          ))}
           {error && <p className="text-sm text-rose-700">{error}</p>}
         </div>
         <DialogFooter className="gap-2">

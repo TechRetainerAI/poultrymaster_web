@@ -460,6 +460,13 @@ export interface WaterCashTransaction {
   amount: number
   description?: string | null
   createdAt: string
+  // Migration 222. Present on the cash-accounts/transactions read.
+  clearingStatus?: WaterClearingStatus | null
+  clearedDate?: string | null
+  clearedBy?: string | null
+  waterCashReconciliationId?: number | null
+  clearingNotes?: string | null
+  reconciliationReference?: string | null
 }
 
 export interface WaterCashTransfer {
@@ -565,13 +572,199 @@ export const adjustWaterCashAccount = (id: number, input: { amount: number; reas
   jsend<void>(`/Water/cash-accounts/${id}/adjust?farmId=${encodeURIComponent(activeFarmId())}`, "POST",
     { amount: input.amount, reason: input.reason, createdBy: currentUserId() || null })
 
-export const listWaterCashTransactions = (opts?: { cashAccountId?: number; fromDate?: string; toDate?: string }) => {
+export const listWaterCashTransactions = (opts?: {
+  cashAccountId?: number; fromDate?: string; toDate?: string; clearingStatus?: WaterClearingStatus
+}) => {
   const qs = new URLSearchParams({ farmId: activeFarmId() })
   if (opts?.cashAccountId) qs.append("cashAccountId", String(opts.cashAccountId))
   if (opts?.fromDate) qs.append("fromDate", opts.fromDate)
   if (opts?.toDate) qs.append("toDate", opts.toDate)
+  if (opts?.clearingStatus) qs.append("clearingStatus", opts.clearingStatus)
   return jget<WaterCashTransaction[]>(`/Water/cash-accounts/transactions?${qs.toString()}`)
 }
+
+// ----- Cash count / reconciliation (migration 222)
+/**
+ * A CASH COUNT: what was physically counted (or read off the bank/MoMo app)
+ * against what the ledger says, with the difference posted as an adjustment.
+ *
+ * Not to be confused with `reconcileWaterCashBalances()` further up, which
+ * recomputes the cached balance from the ledger and moves no money. The API
+ * keeps them on separate routes for the same reason.
+ */
+export type WaterClearingStatus = "Uncleared" | "Cleared" | "Disputed"
+export type WaterCashCountStatus = "Draft" | "Posted" | "Reversed"
+
+/** Why the count differed. Stored as text, so keep these strings stable. */
+export const WATER_CASH_REASONS = [
+  { value: "Cash shortage",                 label: "Cash shortage" },
+  { value: "Cash overage",                  label: "Cash overage" },
+  { value: "Bank charge",                   label: "Bank charge" },
+  { value: "MoMo charge",                   label: "MoMo charge" },
+  { value: "Unrecorded expense",            label: "Unrecorded expense" },
+  { value: "Unrecorded income",             label: "Unrecorded income" },
+  { value: "Wrong cash account used",       label: "Wrong cash account used" },
+  { value: "Owner draw not recorded",       label: "Owner draw not recorded" },
+  { value: "Owner contribution not recorded", label: "Owner contribution not recorded" },
+  { value: "Driver shortage",               label: "Driver shortage" },
+  { value: "Driver overage",                label: "Driver overage" },
+  { value: "Rounding difference",           label: "Rounding difference" },
+  { value: "Opening balance correction",    label: "Opening balance correction" },
+  { value: "Other",                         label: "Other" },
+] as const
+
+/**
+ * Why money moved between two of the company's own accounts.
+ *
+ * Deliberately NOT the same list as WATER_CASH_REASONS: a transfer is not a
+ * correction, so shortage/overage/unrecorded-expense make no sense here, and
+ * offering them would invite miscategorising a routine deposit as a loss.
+ * Stored in the transfer's notes column, so keep the strings stable.
+ */
+export const WATER_CASH_TRANSFER_REASONS = [
+  { value: "Bank deposit",            label: "Bank deposit" },
+  { value: "Bank withdrawal",         label: "Bank withdrawal" },
+  { value: "MoMo cash-out",           label: "MoMo cash-out" },
+  { value: "MoMo top-up",             label: "MoMo top-up" },
+  { value: "Driver float issued",     label: "Driver float issued" },
+  { value: "Driver float returned",   label: "Driver float returned" },
+  { value: "Petty cash top-up",       label: "Petty cash top-up" },
+  { value: "Funding payroll",         label: "Funding payroll" },
+  { value: "Funding supplier payment", label: "Funding supplier payment" },
+  { value: "Consolidating balances",  label: "Consolidating balances" },
+  { value: "Safe keeping",            label: "Safe keeping" },
+  { value: "Other",                   label: "Other" },
+] as const
+
+/**
+ * Why a POSTED count is being undone.
+ *
+ * A third list, deliberately. WATER_CASH_REASONS says why the cash
+ * differed; this says why the count itself should never have been posted. They
+ * are not interchangeable — "Bank charge" is a fine reason for a shortage and a
+ * nonsensical reason for a reversal, and offering it here would put a
+ * cash-explanation into the reversalreason column where an audit later reads it
+ * as one. Stored as text, so keep these strings stable.
+ */
+export const WATER_CASH_REVERSAL_REASONS = [
+  { value: "Counted the wrong account", label: "Counted the wrong account" },
+  { value: "Miscounted",                label: "Miscounted" },
+  { value: "Wrong amount entered",      label: "Wrong amount entered" },
+  { value: "Wrong date",                label: "Wrong date" },
+  { value: "Duplicate count",           label: "Duplicate count" },
+  { value: "Posted by mistake",         label: "Posted by mistake" },
+  { value: "Cash located afterwards",   label: "Cash located afterwards" },
+  { value: "Test or training entry",    label: "Test or training entry" },
+  { value: "Other",                     label: "Other" },
+] as const
+
+
+export interface WaterCashCount {
+  waterCashReconciliationId: number
+  farmId: string
+  waterCashAccountId: number
+  accountName?: string | null
+  accountType?: string | null
+  referenceNo?: string | null
+  reconciliationDate: string
+  /** Ledger truth: opening balance + sum of transactions. */
+  systemBalance: number
+  /** What the cached balance claimed at post time — differs only when this
+   *  count healed a drifted cache. */
+  systemBalanceCached?: number | null
+  /** Null while drafting; 0 is a legitimate count. */
+  actualBalance?: number | null
+  difference: number
+  adjustmentTransactionId?: number | null
+  reversalTransactionId?: number | null
+  clearedCount: number
+  clearedAmount: number
+  reason?: string | null
+  notes?: string | null
+  status: WaterCashCountStatus
+  createdBy?: string | null
+  createdAt: string
+  updatedAt?: string | null
+  postedBy?: string | null
+  postedAt?: string | null
+  reversedBy?: string | null
+  reversedAt?: string | null
+  reversalReason?: string | null
+}
+
+export interface WaterCashAccountCountStatus {
+  waterCashAccountId: number
+  accountName: string
+  accountType?: string | null
+  isActive: boolean
+  currentBalance: number
+  ledgerBalance: number
+  cacheDrift: number
+  lastReconciledAt?: string | null
+  lastReconciledBalance?: number | null
+  daysSinceReconciled?: number | null
+  unclearedCount: number
+  unclearedAmount: number
+  openDraftId?: number | null
+}
+
+export const listWaterCashCounts = (opts?: {
+  cashAccountId?: number; status?: WaterCashCountStatus; fromDate?: string; toDate?: string
+}) => {
+  const qs = new URLSearchParams({ farmId: activeFarmId() })
+  if (opts?.cashAccountId) qs.append("cashAccountId", String(opts.cashAccountId))
+  if (opts?.status) qs.append("status", opts.status)
+  if (opts?.fromDate) qs.append("fromDate", opts.fromDate)
+  if (opts?.toDate) qs.append("toDate", opts.toDate)
+  return jget<WaterCashCount[]>(`/Water/cash-reconciliations?${qs.toString()}`)
+}
+
+export const listWaterCashCountsForAccount = (cashAccountId: number) =>
+  jget<WaterCashCount[]>(
+    `/Water/cash-reconciliations/account/${cashAccountId}?farmId=${encodeURIComponent(activeFarmId())}`)
+
+export const getWaterCashAccountCountStatus = () =>
+  jget<WaterCashAccountCountStatus[]>(
+    `/Water/cash-reconciliations/account-status?farmId=${encodeURIComponent(activeFarmId())}`)
+
+export const createWaterCashCount = (input: {
+  waterCashAccountId: number; reconciliationDate?: string
+  actualBalance?: number | null; reason?: string | null; notes?: string | null
+}) =>
+  jsend<{ waterCashReconciliationId: number }>(
+    `/Water/cash-reconciliations?farmId=${encodeURIComponent(activeFarmId())}`,
+    "POST", { ...input, createdBy: currentUserId() || null })
+
+export const updateWaterCashCount = (id: number, input: {
+  reconciliationDate?: string; actualBalance?: number | null
+  reason?: string | null; notes?: string | null
+}) =>
+  jsend<void>(`/Water/cash-reconciliations/${id}?farmId=${encodeURIComponent(activeFarmId())}`,
+    "PUT", { ...input, createdBy: currentUserId() || null })
+
+export const deleteWaterCashCount = (id: number) =>
+  jsend<void>(
+    `/Water/cash-reconciliations/${id}?farmId=${encodeURIComponent(activeFarmId())}` +
+    `&userId=${encodeURIComponent(currentUserId() || "")}`, "DELETE")
+
+/** Returns the adjustment transaction id, or null when the count balanced. */
+export const postWaterCashCount = (id: number, clearedTransactionIds?: number[]) =>
+  jsend<{ adjustmentTransactionId: number | null }>(
+    `/Water/cash-reconciliations/${id}/post?farmId=${encodeURIComponent(activeFarmId())}`,
+    "POST", { clearedTransactionIds: clearedTransactionIds ?? [], postedBy: currentUserId() || null })
+
+export const reverseWaterCashCount = (id: number, reason?: string) =>
+  jsend<void>(
+    `/Water/cash-reconciliations/${id}/reverse?farmId=${encodeURIComponent(activeFarmId())}`,
+    "POST", { reason, reversedBy: currentUserId() || null })
+
+export const setWaterCashClearing = (input: {
+  waterCashAccountId: number; transactionIds: number[]
+  clearingStatus: WaterClearingStatus; clearingNotes?: string
+}) =>
+  jsend<{ updated: number }>(
+    `/Water/cash-reconciliations/clearing?farmId=${encodeURIComponent(activeFarmId())}`,
+    "POST", { ...input, userId: currentUserId() || null })
 
 // ----- Cash transfers
 export const listWaterCashTransfers = (status?: string) => {

@@ -80,10 +80,127 @@ namespace PoultryFarmAPIWeb.Controllers
             [FromQuery] string farmId,
             [FromQuery] int? cashAccountId,
             [FromQuery] DateTime? fromDate,
-            [FromQuery] DateTime? toDate)
+            [FromQuery] DateTime? toDate,
+            [FromQuery] string? clearingStatus)
         {
             if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
-            return Ok(await _svc.GetTransactionsAsync(farmId, cashAccountId, fromDate, toDate));
+            return Ok(await _svc.GetTransactionsAsync(farmId, cashAccountId, fromDate, toDate, clearingStatus));
+        }
+    }
+
+    // ====================================================================
+    // Cash reconciliation (migration 223)
+    // ====================================================================
+    // A cash COUNT. Distinct from cash-accounts/reconcile-balances, which
+    // recomputes the cached balance from the ledger and moves no money.
+    //
+    // The /post and /reverse segments are deliberate: IamPermissionMap's
+    // ResolveAction treats both as the `approve` action, so these routes map to
+    // poultry.cash-reconciliation.approve without any special-casing.
+    [ApiController]
+    [Route("api/Poultry/cash-reconciliations")]
+    public class PoultryCashReconciliationController : ControllerBase
+    {
+        private readonly IPoultryCashReconciliationService _svc;
+        public PoultryCashReconciliationController(IPoultryCashReconciliationService svc) => _svc = svc;
+
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<PoultryCashReconciliationModel>>> GetAll(
+            [FromQuery] string farmId, [FromQuery] int? cashAccountId, [FromQuery] string? status,
+            [FromQuery] DateTime? fromDate, [FromQuery] DateTime? toDate)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            return Ok(await _svc.GetAllAsync(farmId, cashAccountId, status, fromDate, toDate));
+        }
+
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult<PoultryCashReconciliationModel>> GetById(int id, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            var model = await _svc.GetByIdAsync(id, farmId);
+            return model is null ? NotFound() : Ok(model);
+        }
+
+        [HttpGet("account/{cashAccountId:int}")]
+        public async Task<ActionResult<IEnumerable<PoultryCashReconciliationModel>>> GetByAccount(
+            int cashAccountId, [FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            return Ok(await _svc.GetByAccountAsync(cashAccountId, farmId));
+        }
+
+        // Badge feed for the accounts list: days since counted, uncleared
+        // totals, cache drift, open draft.
+        [HttpGet("account-status")]
+        public async Task<ActionResult<IEnumerable<PoultryCashAccountReconStatusModel>>> GetAccountStatus(
+            [FromQuery] string farmId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            return Ok(await _svc.GetAccountStatusAsync(farmId));
+        }
+
+        [HttpPost]
+        public async Task<ActionResult<object>> Create(
+            [FromQuery] string farmId, [FromBody] PoultryCashReconciliationModel body)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            if (body is null) return BadRequest("Nothing to save.");
+            if (body.PoultryCashAccountId <= 0) return BadRequest("Pick a cash account first.");
+            var id = await _svc.InsertAsync(farmId, body.PoultryCashAccountId,
+                body.ReconciliationDate == default ? null : body.ReconciliationDate,
+                body.ActualBalance, body.Reason, body.Notes, body.CreatedBy);
+            return Ok(new { PoultryCashReconciliationId = id });
+        }
+
+        [HttpPut("{id:int}")]
+        public async Task<IActionResult> Update(
+            int id, [FromQuery] string farmId, [FromBody] PoultryCashReconciliationModel body)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            if (body is null) return BadRequest("Nothing to save.");
+            await _svc.UpdateAsync(id, farmId,
+                body.ReconciliationDate == default ? null : body.ReconciliationDate,
+                body.ActualBalance, body.Reason, body.Notes, body.CreatedBy);
+            return NoContent();
+        }
+
+        [HttpDelete("{id:int}")]
+        public async Task<IActionResult> Delete(int id, [FromQuery] string farmId, [FromQuery] string? userId)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            await _svc.DeleteAsync(id, farmId, userId);
+            return NoContent();
+        }
+
+        [HttpPost("{id:int}/post")]
+        public async Task<ActionResult<object>> Post(
+            int id, [FromQuery] string farmId, [FromBody] PoultryCashReconciliationPostRequest? body)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            var adjustmentId = await _svc.PostAsync(id, farmId, body?.PostedBy, body?.ClearedTransactionIds);
+            // A null id is the balanced case, not a failure.
+            return Ok(new { AdjustmentTransactionId = adjustmentId });
+        }
+
+        [HttpPost("{id:int}/reverse")]
+        public async Task<IActionResult> Reverse(
+            int id, [FromQuery] string farmId, [FromBody] PoultryCashReconciliationReverseRequest? body)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            await _svc.ReverseAsync(id, farmId, body?.Reason, body?.ReversedBy);
+            return NoContent();
+        }
+
+        [HttpPost("clearing")]
+        public async Task<ActionResult<object>> SetClearing(
+            [FromQuery] string farmId, [FromBody] PoultryCashClearingRequest body)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            if (body is null || body.TransactionIds.Count == 0) return BadRequest("Pick at least one transaction.");
+            if (body.PoultryCashAccountId <= 0) return BadRequest("Cash account is required.");
+            var n = await _svc.SetClearingAsync(farmId, body.PoultryCashAccountId, body.TransactionIds,
+                                                body.ClearingStatus, body.ClearingNotes, body.UserId);
+            return Ok(new { Updated = n });
         }
     }
 

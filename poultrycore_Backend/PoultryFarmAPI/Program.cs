@@ -183,11 +183,13 @@ builder.Services.AddScoped<IWaterExpenseService>(sp => new WaterExpenseService(c
 builder.Services.AddScoped<IWaterSupplierService>(sp => new WaterSupplierService(connectionString));
 builder.Services.AddScoped<IWaterCashAccountService>(sp => new WaterCashAccountService(connectionString));
 builder.Services.AddScoped<IWaterCashTransferService>(sp => new WaterCashTransferService(connectionString));
+builder.Services.AddScoped<IWaterCashReconciliationService>(sp => new WaterCashReconciliationService(connectionString));
 builder.Services.AddScoped<IWaterCustomerLedgerService>(sp => new WaterCustomerLedgerService(connectionString));
 
 // Poultry Cash Accounts (port of the Water cash module). Multi-account cash
 // management + signed ledger + paired transfers. Migrations 128 (schema) + 129 (SPs).
 builder.Services.AddScoped<IPoultryCashAccountService>(sp => new PoultryCashAccountService(connectionString));
+builder.Services.AddScoped<IPoultryCashReconciliationService>(sp => new PoultryCashReconciliationService(connectionString));
 builder.Services.AddScoped<IPoultryCashTransferService>(sp => new PoultryCashTransferService(connectionString));
 
 // Poultry Staff + Attendance + Payroll (port of the Water W6 module). Payroll

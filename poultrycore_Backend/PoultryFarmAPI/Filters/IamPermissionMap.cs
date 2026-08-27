@@ -77,6 +77,13 @@ namespace PoultryFarmAPIWeb.Filters
             ["poultry/closing-report"] = "poultry.reports",
             ["poultry/cash-accounts"] = "poultry.cash",
             ["poultry/cash-transfers"] = "poultry.cash",
+            // Migration 223, mirroring 222 on the Water side. Its own resource
+            // rather than an action on poultry.cash: *.cash has no `approve`, and
+            // widening a shared resource would hand reconciliation rights to
+            // everyone who can merely see cash. The /post and /reverse segments
+            // resolve to the `approve` action via ResolveAction with no extra
+            // wiring.
+            ["poultry/cash-reconciliations"] = "poultry.cash-reconciliation",
             ["poultry/drivers"] = "poultry.drivers",
             ["poultry/vehicles"] = "poultry.vehicles",
             ["poultry/routes"] = "poultry.routes",
@@ -125,6 +132,12 @@ namespace PoultryFarmAPIWeb.Filters
             ["water/expense-categories"] = "water.expenses",
             ["water/cash-accounts"] = "water.cash",
             ["water/cash-transfers"] = "water.cash",
+            // Migration 222. Its own resource rather than an action on
+            // water.cash: *.cash has no `approve`, and widening a shared
+            // resource would hand reconciliation rights to everyone who can
+            // merely see cash. The /post and /reverse segments resolve to the
+            // `approve` action via ResolveAction with no extra wiring.
+            ["water/cash-reconciliations"] = "water.cash-reconciliation",
             ["water/daily-closings"] = "water.daily-closing",
             ["water/loss-records"] = "water.production-losses",
             ["water/production-batches"] = "water.production-batches",

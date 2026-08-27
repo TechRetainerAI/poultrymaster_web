@@ -15,6 +15,9 @@ export function isFinancialNavItemVisible(
   if (href === "/expenses") return f.canEnterExpenses
   if (href === "/cash") return f.canViewCashLedger
   if (href === "/poultry-cash-accounts") return f.canViewCashLedger
+  // Counting cash is a cash-ledger job; it rides the same flag rather than
+  // introducing a permission nobody has been granted yet.
+  if (href === "/poultry-cash-reconciliation") return f.canViewCashLedger
   if (href === "/poultry-payments") return isAdmin || f.canViewFinancial || f.canEnterSales
   if (href === "/customers") {
     return (
