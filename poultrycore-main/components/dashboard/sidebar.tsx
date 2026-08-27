@@ -52,6 +52,7 @@ import {
   Clock,
   CalendarDays,
   History,
+  Scale,
 } from "lucide-react"
 import { InventoryLogo } from "@/components/auth/logo"
 import { useAlertsStore, type AlertItem } from "@/lib/store/alerts-store"
@@ -222,6 +223,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const financialItems = [
     { href: "/cash", label: "Cash", icon: Wallet },
     { href: "/poultry-cash-accounts", label: "Cash Account", icon: Wallet },
+    { href: "/poultry-cash-reconciliation", label: "Reconcile cash", icon: Scale },
     { href: "/sales", label: "Sales", icon: ShoppingCart },
     { href: "/poultry-payments", label: "Payments received", icon: Wallet },
     // The collection / payment control centres: what is owed, on which sales or
@@ -315,6 +317,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/water-supplier-balances", label: "Supplier Balances", icon: Truck },
     { href: "/water-expenses",      label: "Expenses",        icon: Receipt },
     { href: "/water-cash-accounts", label: "Cash accounts",   icon: Wallet },
+    { href: "/water-cash-reconciliation", label: "Reconcile cash", icon: Scale },
   ])
   // Finance — Customers (was in Sales & money) and Suppliers (was buried in
   // Admin / Setup) now sit together: both are master data, and they're the two

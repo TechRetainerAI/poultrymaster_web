@@ -13,7 +13,7 @@
 // Phase 1 records ONE product per entry. The API and schema are header+items, so
 // adding more lines later is additive and needs no migration.
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -47,7 +47,8 @@ import {
   listPoultryInternalUsage, createPoultryInternalUsage, updatePoultryInternalUsage,
   deletePoultryInternalUsage, postPoultryInternalUsage, reversePoultryInternalUsage,
   getPoultryInternalUseSuggestedCost,
-  POULTRY_INTERNAL_USE_CATEGORY_LABELS, POULTRY_INTERNAL_USE_CATEGORIES, STAFF_BASED_CATEGORIES,
+  POULTRY_INTERNAL_USE_CATEGORY_LABELS,
+  INTERNAL_USE_REVERSAL_REASONS, POULTRY_INTERNAL_USE_CATEGORIES, STAFF_BASED_CATEGORIES,
   type PoultryInternalUsage, type InternalUseCategory, type InternalUseStatus,
 } from "@/lib/api/internal-use"
 
@@ -401,6 +402,10 @@ export default function PoultryInternalUsePage() {
                 Eggs, birds, feed or supplies used by the farm — given to staff, taken by the owner,
                 donated, sampled or tested. Recorded at cost, never as a sale.
               </p>
+              <p className="mt-2 inline-flex items-start gap-1.5 rounded-md border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-xs font-medium text-sky-900">
+                <Info className="w-4 h-4 shrink-0 mt-px" />
+                <span>Posting writes a stock movement, updates inventory and books a non-cash expense.</span>
+              </p>
             </div>
             <Button onClick={openCreate} className="shrink-0">
               <Plus className="w-4 h-4 mr-2" /> Record internal use
@@ -423,11 +428,7 @@ export default function PoultryInternalUsePage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
             <StatCard label="Records" value={String(stats.records)} />
             <StatCard label="Drafts" value={String(stats.drafts)} />
-            <StatCard
-              label="Posted cost"
-              value={gh(stats.postedCost)}
-              hint="Posting writes a stock movement, updates inventory and books a non-cash expense."
-            />
+            <StatCard label="Posted cost" value={gh(stats.postedCost)} />
             <StatCard label="Reversed" value={String(stats.reversed)} />
           </div>
 
@@ -744,49 +745,86 @@ export default function PoultryInternalUsePage() {
 
       {/* ------------------------------------------------------------ details */}
       <Dialog open={!!viewTarget} onOpenChange={(o) => { if (!o) setViewTarget(null) }}>
-        <DialogContent className="w-[95vw] max-w-[560px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {viewTarget?.referenceNo || "Internal use"}
-              {viewTarget && (
-                <Badge variant="outline" className={cn("border-0", STATUS_BADGE[viewTarget.status])}>
-                  {viewTarget.status}
-                </Badge>
-              )}
-            </DialogTitle>
-            <DialogDescription>
-              {(viewTarget?.usageDate || "").split("T")[0]}
-            </DialogDescription>
-          </DialogHeader>
+        {/* Grey body so each white card reads as its own block. The previous
+            version was one ruled list on white, which is what made it feel
+            cramped -- nothing separated a fact from the fact under it. */}
+        <DialogContent className="w-[95vw] max-w-[620px] max-h-[88vh] overflow-y-auto gap-0 bg-slate-50 p-0">
+          <div className="px-6 pt-6 pb-4">
+            <DialogHeader className="space-y-1.5 text-left">
+              <div className="flex items-center justify-between gap-3">
+                <DialogTitle className="text-lg font-semibold text-slate-900">
+                  {viewTarget?.referenceNo || "Internal use"}
+                </DialogTitle>
+                {viewTarget && (
+                  <Badge variant="outline" className={cn("border-0 shrink-0", STATUS_BADGE[viewTarget.status])}>
+                    {viewTarget.status}
+                  </Badge>
+                )}
+              </div>
+              <DialogDescription className="text-sm text-slate-500">
+                {(viewTarget?.usageDate || "").split("T")[0]}
+                {viewTarget ? ` · ${POULTRY_INTERNAL_USE_CATEGORY_LABELS[viewTarget.category] ?? viewTarget.category}` : ""}
+              </DialogDescription>
+            </DialogHeader>
+          </div>
 
           {viewTarget && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Reason" value={POULTRY_INTERNAL_USE_CATEGORY_LABELS[viewTarget.category] ?? viewTarget.category} />
-                <Field label="Recipient" value={viewTarget.recipientName || "-"} />
-                <Field label="Product" value={viewTarget.items?.[0]?.productName || "-"} />
-                <Field label="Quantity" value={describeQty(viewTarget)} />
-                <Field label="Unit cost" value={gh(viewTarget.items?.[0]?.entryUnitCost ?? 0)} />
-                <Field label="Total cost" value={gh(viewTarget.totalCostValue ?? 0)} />
-                {viewTarget.staffCount ? <Field label="Staff" value={String(viewTarget.staffCount)} /> : null}
-                {viewTarget.reason ? <Field label="Detail" value={viewTarget.reason} /> : null}
-                {viewTarget.notes ? <Field label="Notes" value={viewTarget.notes} /> : null}
-              </div>
+            <div className="space-y-3 px-6 pb-6">
+              {/* A reversed record's first question is always "why?", so it
+                  leads and carries its own colour. */}
+              {viewTarget.status === "Reversed" && (
+                <DetailCard tone="amber">
+                  <div className="flex gap-3">
+                    <Undo2 className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-amber-900">
+                        Reversed — {viewTarget.reversalReason || "no reason recorded"}
+                      </p>
+                      <p className="mt-1 text-xs text-amber-800">
+                        {(viewTarget.reversedAt || "").split("T")[0]}
+                      </p>
+                    </div>
+                  </div>
+                </DetailCard>
+              )}
 
-              {/* Who did what, and the reversal reason -- the only things here
-                  that the row itself can never show. */}
-              <div className="border-t pt-3 space-y-1 text-sm text-slate-600">
-                <HistoryLine label="Created" who={viewTarget.createdBy} when={viewTarget.createdAt} />
-                <HistoryLine label="Posted" who={viewTarget.postedBy} when={viewTarget.postedAt} />
-                <HistoryLine label="Reversed" who={viewTarget.reversedBy} when={viewTarget.reversedAt}
-                             note={viewTarget.reversalReason} />
+              <DetailCard title="What was used">
+                <p className="text-sm font-medium text-slate-900">
+                  {viewTarget.items?.[0]?.productName || "-"}
+                </p>
+                <div className="mt-2 flex items-end justify-between gap-4">
+                  <span className="text-sm text-slate-500">
+                    {describeQty(viewTarget)} @ {gh(viewTarget.items?.[0]?.entryUnitCost ?? 0)}
+                  </span>
+                  <span className="text-xl font-bold tabular-nums text-slate-900">
+                    {gh(viewTarget.totalCostValue ?? 0)}
+                  </span>
+                </div>
+              </DetailCard>
+
+              <DetailCard title="Who and why">
+                <dl className="divide-y divide-slate-100 text-sm">
+                  <DetailRow label="Reason" value={POULTRY_INTERNAL_USE_CATEGORY_LABELS[viewTarget.category] ?? viewTarget.category} />
+                  <DetailRow label="Recipient" value={viewTarget.recipientName} />
+                  <DetailRow label="Staff" value={viewTarget.staffCount ? String(viewTarget.staffCount) : null} />
+                  <DetailRow label="Detail" value={viewTarget.reason} />
+                  <DetailRow label="Notes" value={viewTarget.notes} />
+                </dl>
+              </DetailCard>
+
+              <DetailCard title="History">
+                <ol className="space-y-3">
+                  <TimelineStep label="Created"  who={viewTarget.createdBy}  when={viewTarget.createdAt} />
+                  <TimelineStep label="Posted"   who={viewTarget.postedBy}   when={viewTarget.postedAt}  tone="green" />
+                  <TimelineStep label="Reversed" who={viewTarget.reversedBy} when={viewTarget.reversedAt} tone="amber" />
+                </ol>
+              </DetailCard>
+
+              <div className="flex justify-end pt-1">
+                <Button variant="outline" onClick={() => setViewTarget(null)}>Close</Button>
               </div>
             </div>
           )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setViewTarget(null)}>Close</Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -796,6 +834,7 @@ export default function PoultryInternalUsePage() {
         title="Reverse this internal use?"
         description="The stock comes back with an opposite ledger entry — the original is kept — and the linked expense is cancelled."
         label="Reason for reversal"
+        options={INTERNAL_USE_REVERSAL_REASONS}
         confirmLabel="Reverse"
         confirmVariant="destructive"
         onSubmit={async (reason: string) => {
@@ -926,49 +965,67 @@ function unitWord(unit: string) {
   return unit.toLowerCase() === "crate" ? "Crates" : plural(unit)
 }
 
-/** The label-over-value pair the batch production detail page uses. */
-function Field({ label, value }: { label: string; value: string }) {
+/** A titled white card inside the details dialog. The dialog body is grey, so
+ *  each card reads as its own block rather than one long ruled list. */
+function DetailCard({ title, children, tone = "white" }: {
+  title?: string
+  children: ReactNode
+  tone?: "white" | "amber"
+}) {
   return (
-    <div className="min-w-0">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="font-medium break-words">{value}</div>
+    <div className={cn(
+      "rounded-lg border p-4",
+      tone === "amber" ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-white",
+    )}>
+      {title && (
+        <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">{title}</p>
+      )}
+      {children}
     </div>
   )
 }
 
-/** One "Posted: 2026-08-24 - admin" line; renders nothing when that step never happened. */
-function HistoryLine({ label, who, when, note }: {
-  label: string; who?: string | null; when?: string | null; note?: string | null
-}) {
-  if (!who && !when) return null
+/** One line of a card. Renders nothing when the value is empty, so a sparse
+ *  record shows a short list rather than a column of dashes. */
+function DetailRow({ label, value }: { label: string; value?: string | null }) {
+  if (!value) return null
   return (
-    <p>
-      <span className="text-slate-500">{label}: </span>
-      {(when || "").split("T")[0]}{who ? ` - ${who}` : ""}
-      {note ? <span className="text-slate-500"> ({note})</span> : null}
-    </p>
+    <div className="flex items-start justify-between gap-6 py-2.5 first:pt-0 last:pb-0">
+      <dt className="shrink-0 text-slate-500">{label}</dt>
+      <dd className="break-words text-right font-medium text-slate-900">{value}</dd>
+    </div>
   )
 }
 
-/**
- * `hint` turns the card into a callout: tinted, outlined, and carrying a
- * sentence about what the number means. Muted small print got lost next to
- * three plain cards, and the consequence it states -- that posting is what
- * actually moves stock and money -- is the thing a user needs to see before
- * pressing Post, not after.
- */
-function StatCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
+/** A step in the record's life. Steps that never happened render nothing, so a
+ *  draft shows one dot and a reversed record shows three. */
+function TimelineStep({ label, who, when, tone = "slate" }: {
+  label: string
+  who?: string | null
+  when?: string | null
+  tone?: "slate" | "green" | "amber"
+}) {
+  if (!who && !when) return null
+  const dot = tone === "green" ? "bg-emerald-500" : tone === "amber" ? "bg-amber-500" : "bg-slate-300"
   return (
-    <Card className={cn(hint && "border-sky-300 bg-sky-50")}>
+    <li className="flex items-center gap-3 text-sm">
+      <span className={cn("h-2 w-2 shrink-0 rounded-full", dot)} />
+      <span className="font-medium text-slate-900">{label}</span>
+      {/* `who` decides whether the step happened, but it holds a raw user id
+          rather than a name, so it is never shown. */}
+      <span className="ml-auto text-xs text-slate-500">
+        {(when || "").split("T")[0]}
+      </span>
+    </li>
+  )
+}
+
+function StatCard({ label, value }: { label: string; value: string }) {
+  return (
+    <Card>
       <CardContent className="p-4">
-        <p className={cn("text-xs font-medium", hint ? "text-sky-700" : "text-slate-500")}>{label}</p>
+        <p className="text-xs text-slate-500">{label}</p>
         <p className="text-lg font-semibold text-slate-900 mt-0.5">{value}</p>
-        {hint && (
-          <p className="mt-2 flex items-start gap-1.5 text-xs font-medium leading-snug text-sky-900">
-            <Info className="w-4 h-4 shrink-0 mt-px" />
-            <span>{hint}</span>
-          </p>
-        )}
       </CardContent>
     </Card>
   )

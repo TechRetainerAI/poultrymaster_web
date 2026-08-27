@@ -17,7 +17,7 @@ import {
   Activity, AlertTriangle, Banknote, BarChart3, Bell, Boxes, Box, Building2,
   CalendarDays, Cog, CreditCard, Droplets, FileText, Factory, ListTodo, PackageMinus, Receipt,
   Route as RouteIcon, Settings, ShoppingBag, ShoppingCart, Truck, User, UserCog,
-  Users, Users2, Wallet, Wrench, History,
+  Users, Users2, Wallet, Wrench, History, Scale,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isWaterNavItemVisible } from "@/lib/utils/water-nav-access"
@@ -161,6 +161,7 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
         items: [
           { id: "expenses",      title: "Expenses",        icon: Receipt,  href: "/water-expenses" },
           { id: "cash-accounts", title: "Cash accounts",   icon: Wallet,   href: "/water-cash-accounts" },
+          { id: "cash-reconciliation", title: "Reconcile cash", icon: Scale, href: "/water-cash-reconciliation" },
           // Payroll is money going out, so it sits with the other outflows
           // rather than with the staff master data in Setup > People.
           { id: "payroll",       title: "Payroll",         icon: Banknote, href: "/water-payroll" },

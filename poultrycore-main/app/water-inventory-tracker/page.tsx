@@ -17,14 +17,14 @@ export const dynamic = "force-dynamic"
  * normalises (migration 221); this page never does unit maths of its own.
  */
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
@@ -40,7 +40,8 @@ import {
   type WaterInventoryTrackerMovement,
 } from "@/lib/api/water"
 import { useFmt } from "@/lib/currency"
-import { defaultReportRange } from "@/lib/date-ranges"
+import { PeriodSelect } from "@/components/ui/period-select"
+import { defaultReportRange, rangeToPeriod } from "@/lib/date-ranges"
 
 const LEDGER_PAGE_SIZE = 15
 const qty = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 2 })
@@ -61,6 +62,9 @@ function WaterInventoryTrackerPageInner() {
   const [productId, setProductId] = useState<number | null>(null)
   const [moves, setMoves] = useState<WaterInventoryTrackerMovement[]>([])
   const [loading, setLoading] = useState(true)
+  /** Distinguishes "first paint" from "the period changed", so only the former
+   *  is allowed to replace the page with a loading card. */
+  const firstLoad = useRef(true)
   const [movesLoading, setMovesLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState("")
@@ -89,7 +93,12 @@ function WaterInventoryTrackerPageInner() {
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Water") { router.replace("/dashboard"); return }
-    setLoading(true)
+    // Only the FIRST load blanks the page. Changing the period re-runs this
+    // effect (loadPositions closes over the dates), and setting `loading` there
+    // tore the whole page down and rebuilt it for every preset click. Later
+    // fetches happen underneath the figures; the ledger card shows its own
+    // "Loading ledger…" for the part that is genuinely changing.
+    if (firstLoad.current) setLoading(true)
     void loadPositions().then((data) => {
       // Preselect from ?productId= (the Track link on /water-inventory), else
       // the product with the most movement — an empty ledger is a poor landing.
@@ -100,7 +109,7 @@ function WaterInventoryTrackerPageInner() {
         const busiest = [...data].sort((a, b) => b.movementCount - a.movementCount)[0]
         return busiest?.waterProductId ?? null
       })
-    }).finally(() => setLoading(false))
+    }).finally(() => { firstLoad.current = false; setLoading(false) })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFarmType, router, loadPositions])
 
@@ -157,6 +166,14 @@ function WaterInventoryTrackerPageInner() {
     [ledgerRows, sortKey, sortDir],
   )
 
+  // Totals for the WHOLE filtered set, not the visible page — a total that only
+  // covered page 1 would quietly disagree with the columns above it.
+  const ledgerTotals = useMemo(() => {
+    const inQty = sortedRows.reduce((s, r) => s + r.inQty, 0)
+    const outQty = sortedRows.reduce((s, r) => s + r.outQty, 0)
+    return { inQty, outQty, net: inQty - outQty }
+  }, [sortedRows])
+
   const totalPages = Math.max(1, Math.ceil(sortedRows.length / LEDGER_PAGE_SIZE))
   const safePage = Math.min(ledgerPage, totalPages)
   const pageRows = useMemo(
@@ -169,8 +186,14 @@ function WaterInventoryTrackerPageInner() {
     setSortKey(next.key); setSortDir(next.direction)
   }
 
+  // Resets what you filtered BY, not what you are looking at: the product stays,
+  // because clearing it would leave the page with nothing to show.
   const clearLedgerFilters = () => {
-    setTypeFilter("ALL"); setDescriptionFilter(""); setLedgerPage(1)
+    setTypeFilter("ALL")
+    setDescriptionFilter("")
+    setFromDate(DEFAULT_RANGE.from)
+    setToDate(DEFAULT_RANGE.to)
+    setLedgerPage(1)
   }
 
   return (
@@ -224,45 +247,46 @@ function WaterInventoryTrackerPageInner() {
               </Card>
             ) : (
               <>
+                {/* Product is the page's SUBJECT, not one of the ledger's
+                    filters: every figure and every row below describes this one
+                    product, so it sits above them on its own rather than as the
+                    first cell of a filter grid. */}
+                <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white p-3">
+                  <label className="text-sm font-medium text-slate-700">Product</label>
+                  <Select
+                    value={productId != null ? String(productId) : ""}
+                    onValueChange={(v) => { setProductId(Number(v)); setLedgerPage(1) }}
+                  >
+                    <SelectTrigger className="h-10 w-full sm:w-[22rem]">
+                      <SelectValue placeholder="Pick a product" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {rows.map((r) => (
+                        <SelectItem key={r.waterProductId} value={String(r.waterProductId)}>
+                          {r.productName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selected ? (
+                    <span className="text-xs text-slate-500">
+                      {selected.movementCount === 1
+                        ? "1 movement in this period"
+                        : `${selected.movementCount.toLocaleString()} movements in this period`}
+                    </span>
+                  ) : null}
+                </div>
+
                 {/* ------------------------------------------------- hero */}
                 <Card className="border-sky-200 bg-sky-50/50">
+                  {/* Figures only. Every control lives in the one filter row on
+                      the ledger card below — the dates used to sit here as well,
+                      which meant two date pickers on one page. */}
                   <CardHeader className="pb-2">
-                    <div className={cn("flex justify-between gap-4", isMobile && "flex-col")}>
-                      <div>
-                        <CardDescription>Inventory tracker</CardDescription>
-                        <CardTitle className="text-base font-semibold text-slate-800 mt-1">
-                          Stock on hand
-                        </CardTitle>
-                      </div>
-                      <div className={cn("flex gap-2", isMobile ? "flex-col" : "items-end")}>
-                        <div className="space-y-1">
-                          <label className="block text-[11px] font-medium text-slate-500">Product</label>
-                          <Select
-                            value={productId != null ? String(productId) : ""}
-                            onValueChange={(v) => setProductId(Number(v))}
-                          >
-                            <SelectTrigger className="h-9 w-full sm:w-[15rem]">
-                              <SelectValue placeholder="Pick a product" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {rows.map((r) => (
-                                <SelectItem key={r.waterProductId} value={String(r.waterProductId)}>
-                                  {r.productName}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-1">
-                          <label className="block text-[11px] font-medium text-slate-500">From</label>
-                          <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="h-9 w-[9.5rem]" />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="block text-[11px] font-medium text-slate-500">To</label>
-                          <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="h-9 w-[9.5rem]" />
-                        </div>
-                      </div>
-                    </div>
+                    <CardDescription>Stock on hand</CardDescription>
+                    <CardTitle className="text-base font-semibold text-slate-800 mt-1">
+                      {selected?.productName ?? "Pick a product"}
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className={cn("grid gap-4", isMobile ? "grid-cols-2" : "grid-cols-5")}>
@@ -313,7 +337,19 @@ function WaterInventoryTrackerPageInner() {
                   <CardHeader>
                     <CardTitle>Stock ledger</CardTitle>
                     <CardDescription>Chronological ledger; filter the table below</CardDescription>
-                    <div className={cn("grid gap-2 pt-3", isMobile ? "grid-cols-2" : "grid-cols-5")}>
+                    {/* Ledger filters. Product is not here — it is the page
+                        subject and sits at the top. Period presets drive the
+                        two date boxes; picking dates by hand flips the preset
+                        back to Custom on its own via rangeToPeriod. */}
+                    <div className={cn("grid gap-2 pt-3", isMobile ? "grid-cols-2" : "grid-cols-6")}>
+                      <PeriodSelect
+                        label={null}
+                        className="w-full"
+                        value={rangeToPeriod(fromDate, toDate)}
+                        onChange={(_p, rg) => {
+                          if (rg) { setFromDate(rg.from); setToDate(rg.to); setLedgerPage(1) }
+                        }}
+                      />
                       <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v); setLedgerPage(1) }}>
                         <SelectTrigger className={cn(isMobile ? "col-span-2" : "")}>
                           <SelectValue placeholder="Type" />
@@ -329,7 +365,7 @@ function WaterInventoryTrackerPageInner() {
                         placeholder="Description…"
                         value={descriptionFilter}
                         onChange={(e) => { setDescriptionFilter(e.target.value); setLedgerPage(1) }}
-                        className="col-span-2"
+                        className={cn(isMobile ? "col-span-2" : "")}
                       />
                       <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
                       <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
@@ -382,6 +418,30 @@ function WaterInventoryTrackerPageInner() {
                               </TableRow>
                             ))}
                           </TableBody>
+                          {/* Totals cover every filtered row, not just this
+                              page, and move with the filters above. */}
+                          <TableFooter>
+                            <TableRow className="bg-slate-50 hover:bg-slate-50">
+                              <TableCell colSpan={3} className="font-medium text-slate-700">
+                                Totals
+                                <span className="ml-1.5 font-normal text-xs text-slate-500">
+                                  ({sortedRows.length.toLocaleString()}
+                                  {sortedRows.length === 1 ? " movement" : " movements"})
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right font-semibold tabular-nums text-emerald-700">
+                                {ledgerTotals.inQty > 0 ? qty(ledgerTotals.inQty) : "—"}
+                              </TableCell>
+                              <TableCell className="text-right font-semibold tabular-nums text-red-600">
+                                {ledgerTotals.outQty > 0 ? qty(ledgerTotals.outQty) : "—"}
+                              </TableCell>
+                              {/* Balance is a running position, not a quantity:
+                                  summing it would add a product's stock level to
+                                  itself once per row and mean nothing. Left
+                                  blank on purpose. */}
+                              <TableCell />
+                            </TableRow>
+                          </TableFooter>
                         </Table>
 
                         <div className="flex items-center justify-center gap-2 pt-3">

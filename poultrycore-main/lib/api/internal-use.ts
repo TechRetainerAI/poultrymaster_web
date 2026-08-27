@@ -49,6 +49,29 @@ export const POULTRY_INTERNAL_USE_CATEGORY_LABELS: Record<InternalUseCategory, s
   FarmUse: "Farm use",
 }
 
+/**
+ * Why someone reverses an internal use. A dropdown rather than free text so the
+ * reasons are consistent enough to group later — `reversalreason` is a plain
+ * text column, so the label IS what gets stored and what the details dialog
+ * shows back; keep these strings stable.
+ *
+ * The list is what actually goes wrong in this module (wrong figure, wrong
+ * product, duplicate, posted early). "Other" stays last and opens a free-text
+ * box — a fixed list will never cover everything, and forcing someone into the
+ * nearest wrong option is worse than letting them type.
+ */
+export const INTERNAL_USE_REVERSAL_REASONS = [
+  { value: "Wrong quantity",        label: "Wrong quantity" },
+  { value: "Wrong product",         label: "Wrong product" },
+  { value: "Wrong cost",            label: "Wrong cost" },
+  { value: "Wrong date",            label: "Wrong date" },
+  { value: "Wrong recipient",       label: "Wrong recipient or reason" },
+  { value: "Duplicate entry",       label: "Duplicate entry" },
+  { value: "Posted by mistake",     label: "Posted by mistake" },
+  { value: "Stock returned unused", label: "Stock returned unused" },
+  { value: "Other",                 label: "Other" },
+] as const
+
 /** Which reasons each company type offers, in the order they should appear. */
 export const WATER_INTERNAL_USE_CATEGORIES: InternalUseCategory[] = [
   "StaffWelfare", "OwnerUse", "OfficeUse", "Sample",
@@ -426,8 +449,13 @@ export const listGenericInternalUsage = (opts?: {
 export const getGenericInternalUsage = (id: number) =>
   jget<GenericInternalUsage>(`/generic-company/internal-usage/${id}?farmId=${encodeURIComponent(activeFarmId())}`)
 
-/** The product's own cost price from Product setup — exact, not an average. */
-export const getGenericInternalUseSuggestedCost = (genericProductId: number, entryUnit?: string) =>
+/**
+ * The product's own cost price from Product setup — exact, not an average.
+ *
+ * No entryUnit, unlike the water and poultry versions: a generic product has no
+ * bag/sachet conversion, so there is only ever one unit to cost.
+ */
+export const getGenericInternalUseSuggestedCost = (genericProductId: number) =>
   jget<{ genericProductId: number; unitCost: number }>(
     `/generic-company/internal-usage/suggested-cost?farmId=${encodeURIComponent(activeFarmId())}&genericProductId=${genericProductId}`,
   )

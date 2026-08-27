@@ -16,7 +16,7 @@
 import {
   Activity, AlertTriangle, Banknote, BarChart3, Bell, Bird, BookOpen, Box, Boxes,
   Building2, Clock, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle,
-  ListTodo, Package, PackageMinus, Pill, Settings, ShoppingCart, Truck, User, UserCog, Users,
+  ListTodo, Package, PackageMinus, Pill, Scale, Settings, ShoppingCart, Truck, User, UserCog, Users,
   Users2, Wallet, Wheat,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
@@ -149,6 +149,7 @@ export function buildPoultryNavConfig(
         items: [
           { id: "cash",          title: "Cash",         icon: Wallet,     href: "/cash",                   visible: money("/cash") },
           { id: "cash-accounts", title: "Cash Account", icon: Wallet,     href: "/poultry-cash-accounts",  visible: money("/poultry-cash-accounts") },
+          { id: "cash-reconciliation", title: "Reconcile cash", icon: Scale, href: "/poultry-cash-reconciliation", visible: money("/poultry-cash-reconciliation") },
           { id: "expenses",      title: "Expenses",     icon: DollarSign, href: "/expenses",               visible: money("/expenses") },
           // Payroll is money going out, so it sits with the other outflows
           // rather than with staff master data in Setup > People. It is also the

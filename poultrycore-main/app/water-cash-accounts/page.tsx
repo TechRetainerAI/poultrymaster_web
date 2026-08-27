@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -19,7 +20,7 @@ import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
-import { Plus, Pencil, Loader2, Wallet, RefreshCw, ArrowLeftRight, Eye, Trash2 } from "lucide-react"
+import { Plus, Pencil, Loader2, Wallet, RefreshCw, ArrowLeftRight, Eye, Trash2, Scale } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -27,6 +28,7 @@ import { useFmt } from "@/lib/currency"
 import {
   listWaterCashAccounts, createWaterCashAccount, updateWaterCashAccount, deleteWaterCashAccount, reconcileWaterCashBalances,
   listWaterCashTransactions, listWaterCashTransfers, createWaterCashTransfer, approveWaterCashTransfer, cancelWaterCashTransfer,
+  WATER_CASH_TRANSFER_REASONS,
   type WaterCashAccount, type WaterCashTransaction, type WaterCashTransfer,
 } from "@/lib/api/water"
 
@@ -67,7 +69,7 @@ export default function WaterCashAccountsPage() {
   const [deleteTarget, setDeleteTarget] = useState<WaterCashAccount | null>(null)
   const [txDlg, setTxDlg] = useState<{ open: boolean; acc?: WaterCashAccount; rows: WaterCashTransaction[] }>({ open: false, rows: [] })
   const [xferDlg, setXferDlg] = useState(false)
-  const [xferForm, setXferForm] = useState({ fromWaterCashAccountId: 0, toWaterCashAccountId: 0, amount: 0, notes: "" })
+  const [xferForm, setXferForm] = useState({ fromWaterCashAccountId: 0, toWaterCashAccountId: 0, amount: 0, notes: "", notesOther: "" })
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Water") { router.replace("/dashboard"); return }
@@ -113,7 +115,7 @@ export default function WaterCashAccountsPage() {
 
   async function reconcile() {
     try { await reconcileWaterCashBalances(); toast({ title: "Balances reconciled" }); await load() }
-    catch (e: any) { toast({ title: "Reconcile failed", description: e?.message, variant: "destructive" }) }
+    catch (e: any) { toast({ title: "Recalculate failed", description: e?.message, variant: "destructive" }) }
   }
 
   async function performDelete(acc: WaterCashAccount) {
@@ -133,11 +135,19 @@ export default function WaterCashAccountsPage() {
   async function saveTransfer() {
     if (xferForm.fromWaterCashAccountId === xferForm.toWaterCashAccountId) return toast({ title: "From and To must differ", variant: "destructive" })
     if (xferForm.amount <= 0) return toast({ title: "Amount required", variant: "destructive" })
+    if (xferForm.notes === "Other" && !xferForm.notesOther.trim()) {
+      return toast({ title: "Say what happened", variant: "destructive" })
+    }
     try {
-      const { waterCashTransferId } = await createWaterCashTransfer(xferForm)
+      // "Other" sends what was typed; a picked option sends itself. notesOther
+      // is dialog-local and never reaches the API.
+      const { notesOther, ...rest } = xferForm
+      const notes = xferForm.notes === "Other" ? notesOther.trim() : xferForm.notes
+      const { waterCashTransferId } = await createWaterCashTransfer({ ...rest, notes })
       await approveWaterCashTransfer(waterCashTransferId)
       toast({ title: "Transfer approved" })
-      setXferDlg(false); setXferForm({ fromWaterCashAccountId: 0, toWaterCashAccountId: 0, amount: 0, notes: "" })
+      setXferDlg(false)
+      setXferForm({ fromWaterCashAccountId: 0, toWaterCashAccountId: 0, amount: 0, notes: "", notesOther: "" })
       await load()
     } catch (e: any) { toast({ title: "Transfer failed", description: e?.message, variant: "destructive" }) }
   }
@@ -157,7 +167,14 @@ export default function WaterCashAccountsPage() {
             {/* Buttons fill the row and wrap on mobile so "New account" is never
                 clipped off-screen; natural-width and right-aligned from sm:. */}
             <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-              <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={reconcile}><RefreshCw className="h-4 w-4 mr-1" /> Reconcile</Button>
+              {/* Reconcile opens the dedicated page — pick an account, count it,
+                  post the difference. Recalculate (rebuilding the cached balance
+                  from the ledger, which moves no money) lives there too, so the
+                  two balance-truth jobs sit together instead of side by side
+                  here where their names invite confusion. */}
+              <Button asChild variant="outline" className="flex-1 sm:flex-none whitespace-nowrap">
+                <Link href="/water-cash-reconciliation"><Scale className="h-4 w-4 mr-1" /> Reconcile</Link>
+              </Button>
               <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={() => setXferDlg(true)}><ArrowLeftRight className="h-4 w-4 mr-1" /> Transfer</Button>
               <Button className="flex-1 sm:flex-none whitespace-nowrap" onClick={openNew}><Plus className="h-4 w-4 mr-1" /> New account</Button>
             </div>
@@ -425,9 +442,32 @@ export default function WaterCashAccountsPage() {
               <FormField label="Amount">
                 <NumberInput min={0.01} step="0.01" value={xferForm.amount} onChange={(e) => setXferForm({ ...xferForm, amount: Number(e.target.value) || 0 })} />
               </FormField>
-              <FormField label="Notes">
-                <Input value={xferForm.notes} onChange={(e) => setXferForm({ ...xferForm, notes: e.target.value })} />
+              {/* Its own vocabulary, not the adjustment one: a transfer moves
+                  money between the company's own accounts, so shortage/overage
+                  would be a miscategorisation waiting to happen. */}
+              <FormField label="Reason">
+                <Select
+                  value={xferForm.notes}
+                  onValueChange={(v) => setXferForm({ ...xferForm, notes: v, notesOther: "" })}
+                >
+                  <SelectTrigger><SelectValue placeholder="Why is the money moving?" /></SelectTrigger>
+                  <SelectContent>
+                    {WATER_CASH_TRANSFER_REASONS.map((r) => (
+                      <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </FormField>
+              {xferForm.notes === "Other" && (
+                <FormField label="Say what happened *">
+                  <Input
+                    autoFocus
+                    value={xferForm.notesOther}
+                    onChange={(e) => setXferForm({ ...xferForm, notesOther: e.target.value })}
+                    placeholder="e.g. Moved to the depot safe overnight"
+                  />
+                </FormField>
+              )}
             </FormSection>
 
             <div className="flex gap-3 justify-end pt-2">

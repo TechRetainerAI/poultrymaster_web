@@ -44,6 +44,7 @@ import {
   Receipt,
   CalendarDays,
   History,
+  Scale,
 } from "lucide-react"
 import {
   Sheet,
@@ -156,6 +157,7 @@ export function MobileBottomNav() {
           { href: "/water-supplier-balances", label: "Supplier Balances", icon: Truck },
           { href: "/water-expenses",      label: "Expenses",          icon: Receipt },
           { href: "/water-cash-accounts", label: "Cash accounts",     icon: Wallet },
+          { href: "/water-cash-reconciliation", label: "Reconcile cash", icon: Scale },
           // Finance — Customers and Suppliers sit together here, matching the
           // sidebar's Finance group and the top nav's Setup > Finance column.
           { href: "/water-customers",     label: "Customers",         icon: Users },
@@ -269,6 +271,7 @@ export function MobileBottomNav() {
       { href: "/poultry-daily-closing",  label: "Daily Closing",          icon: FileText },
       { href: "/cash",                   label: "Cash",                   icon: Wallet },
       { href: "/poultry-cash-accounts",  label: "Cash Account",           icon: Wallet },
+      { href: "/poultry-cash-reconciliation", label: "Reconcile cash",    icon: Scale },
       { href: "/poultry-payments",       label: "Payments received",      icon: CreditCard },
       { href: "/customer-balances",      label: "Customer Balances",      icon: Users },
       { href: "/supplier-balances",      label: "Supplier Balances",      icon: Truck },
@@ -296,7 +299,7 @@ export function MobileBottomNav() {
         ? [{ href: "/employees", label: "Employees", icon: UserCog }] : []),
     ]
     const filteredPoultryMore = poultryMore.filter((item) => {
-      if (["/sales", "/expenses", "/cash", "/customers", "/suppliers", "/billing", "/poultry-cash-accounts", "/poultry-payments", "/customer-balances", "/supplier-balances"].includes(item.href)) {
+      if (["/sales", "/expenses", "/cash", "/customers", "/suppliers", "/billing", "/poultry-cash-accounts", "/poultry-cash-reconciliation", "/poultry-payments", "/customer-balances", "/supplier-balances"].includes(item.href)) {
         return isFinancialNavItemVisible(item.href, permissions.featureAccess, permissions.isAdmin, {
           tempShowPayments: TEMP_SHOW_PAYMENTS_LINK,
         })

@@ -57,6 +57,9 @@ const WATER_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAdmin: 
   "/water-sales": (f) => f.canEnterSales,
   "/water-expenses": (f) => f.canEnterExpenses,
   "/water-cash-accounts": (f) => f.canViewCashLedger,
+  // Counting cash is a cash-ledger job; it rides the same flag rather than
+  // introducing a permission nobody has been granted yet.
+  "/water-cash-reconciliation": (f) => f.canViewCashLedger,
   "/water-payments": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canEnterSales,
   "/water-daily-closing": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canViewCashLedger,
 
