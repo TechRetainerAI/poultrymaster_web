@@ -13,7 +13,7 @@ import { FormSection, FormField } from "@/components/ui/form-section"
 import { NumberInput } from "@/components/ui/number-input"
 import { PromptDialog } from "@/components/ui/prompt-dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
-import { Loader2, Banknote, Plus, Eye, Check, X, Trash2, Wallet } from "lucide-react"
+import { Loader2, Banknote, Plus, Eye, Check, X, Trash2, Wallet, Users, Building2 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -76,6 +76,7 @@ export default function HotelPayrollPage() {
     hotelStaffId: 0, basicPay: 0, dailyWage: 0, commission: 0, bonus: 0, deductions: 0, paymentMethod: "Cash",
   })
   const [itemSaving, setItemSaving] = useState(false)
+  const [bulkAdding, setBulkAdding] = useState(false)
 
   // Cancel dialog
   const [cancelTarget, setCancelTarget] = useState<HotelPayrollRun | null>(null)
@@ -154,13 +155,13 @@ export default function HotelPayrollPage() {
     if (!itemForm.hotelStaffId) {
       toast({ title: "Select a staff member", variant: "destructive" }); return
     }
-    const staff = staffList.find((s: any) => (s.hotelStaffId ?? s.hotelstaffid) === itemForm.hotelStaffId)
+    const staff: any = staffList.find((s: any) => (s.hotelStaffId ?? s.hotelstaffid) === itemForm.hotelStaffId)
     setItemSaving(true)
     try {
       await upsertHotelPayrollItem(detail.run.hotelpayrollrunid, {
         hotelStaffId: itemForm.hotelStaffId,
-        staffName: staff ? `${staff.firstName} ${staff.lastName}` : undefined,
-        staffRole: staff?.role,
+        staffName: staff ? `${staff.firstName ?? staff.firstname} ${staff.lastName ?? staff.lastname}` : undefined,
+        staffRole: staff?.role ?? staff?.department,
         basicPay: itemForm.basicPay,
         dailyWage: itemForm.dailyWage,
         commission: itemForm.commission,
@@ -189,6 +190,49 @@ export default function HotelPayrollPage() {
     } catch (e: any) {
       toast({ title: "Delete failed", description: e?.message, variant: "destructive" })
     }
+  }
+
+  async function handleBulkAddStaff(staffToAdd: any[]) {
+    if (!detail || staffToAdd.length === 0) return
+    setBulkAdding(true)
+    let added = 0
+    try {
+      for (const s of staffToAdd) {
+        const sid = (s as any).hotelStaffId ?? (s as any).hotelstaffid
+        const name = `${(s as any).firstName ?? (s as any).firstname} ${(s as any).lastName ?? (s as any).lastname}`
+        const role = (s as any).role ?? (s as any).department
+        const salary = (s as any).salaryAmount ?? (s as any).salaryamount ?? 0
+        await upsertHotelPayrollItem(detail.run.hotelpayrollrunid, {
+          hotelStaffId: sid, staffName: name, staffRole: role,
+          basicPay: salary, dailyWage: 0, commission: 0, bonus: 0, deductions: 0, paymentMethod: "Cash",
+        })
+        added++
+      }
+      toast({ title: `${added} staff member(s) added with their base salary` })
+      const d = await getHotelPayrollRun(detail.run.hotelpayrollrunid)
+      setDetail(d)
+    } catch (e: any) {
+      toast({ title: `Added ${added}, then failed`, description: e?.message, variant: "destructive" })
+      const d = await getHotelPayrollRun(detail.run.hotelpayrollrunid)
+      setDetail(d)
+    } finally { setBulkAdding(false) }
+  }
+
+  async function handleAddAllStaff() {
+    if (!detail) return
+    const remaining = staffList.filter((s: any) => !detail.items.some((it: any) => it.hotelstaffid === (s.hotelStaffId ?? s.hotelstaffid)))
+    if (remaining.length === 0) { toast({ title: "All staff already added" }); return }
+    await handleBulkAddStaff(remaining)
+  }
+
+  async function handleAddDepartment(dept: string) {
+    if (!detail) return
+    const remaining = staffList.filter((s: any) => {
+      const sDept = ((s as any).department ?? (s as any).Department ?? "").toLowerCase()
+      return sDept === dept.toLowerCase() && !detail.items.some((it: any) => it.hotelstaffid === ((s as any).hotelStaffId ?? (s as any).hotelstaffid))
+    })
+    if (remaining.length === 0) { toast({ title: `All ${dept} staff already added` }); return }
+    await handleBulkAddStaff(remaining)
   }
 
   // ----- Actions -----
@@ -507,17 +551,64 @@ export default function HotelPayrollPage() {
 
                   {/* Add item form (Draft only) */}
                   {detail.run.status === "Draft" && (
-                    <FormSection title="Add staff line" color="indigo" columns={3}>
+                    <>
+                    {/* Quick actions — Add All / Add by Department */}
+                    {(() => {
+                      const remaining = staffList.filter((s: any) => !detail?.items?.some((it: any) => it.hotelstaffid === ((s as any).hotelStaffId ?? (s as any).hotelstaffid)))
+                      if (remaining.length === 0 && detail.items.length > 0) return (
+                        <div className="flex items-center gap-2 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+                          <Check className="h-4 w-4 text-emerald-600" />
+                          <span className="text-sm text-emerald-700">All {detail.items.length} active staff members have been added to this run.</span>
+                        </div>
+                      )
+                      // Group remaining by department
+                      const deptMap = new Map<string, number>()
+                      remaining.forEach((s: any) => {
+                        const dept = (s as any).department ?? (s as any).Department ?? "Other"
+                        deptMap.set(dept, (deptMap.get(dept) ?? 0) + 1)
+                      })
+                      const departments = Array.from(deptMap.entries()).sort((a, b) => a[0].localeCompare(b[0]))
+
+                      return remaining.length > 0 ? (
+                        <div className="space-y-3">
+                          {/* Add All */}
+                          <div className="flex items-center gap-3 p-3 bg-violet-50 rounded-lg border border-violet-200">
+                            <div className="flex-1 text-sm text-violet-700">
+                              <strong>{remaining.length}</strong> staff member(s) not yet added to this run
+                            </div>
+                            <Button onClick={handleAddAllStaff} disabled={bulkAdding} variant="outline" className="border-violet-300 text-violet-700 hover:bg-violet-100">
+                              {bulkAdding ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Adding...</> : <><Users className="h-4 w-4 mr-1" /> Add All Staff</>}
+                            </Button>
+                          </div>
+                          {/* Add by Department */}
+                          {departments.length > 1 && (
+                            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                              <div className="text-xs font-semibold text-slate-500 mb-2 flex items-center gap-1"><Building2 className="h-3 w-3" /> Add by Department</div>
+                              <div className="flex flex-wrap gap-2">
+                                {departments.map(([dept, count]) => (
+                                  <Button key={dept} size="sm" variant="outline" disabled={bulkAdding} onClick={() => handleAddDepartment(dept)} className="text-xs">
+                                    {dept} ({count})
+                                  </Button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : null
+                    })()}
+                    {/* Only show individual add form if there are staff left to add */}
+                    {staffList.filter((s: any) => !detail?.items?.some((it: any) => it.hotelstaffid === ((s as any).hotelStaffId ?? (s as any).hotelstaffid))).length > 0 && (
+                    <FormSection title="Add individual staff" color="indigo" columns={3}>
                       <FormField label="Staff *">
                         <Select
                           value={itemForm.hotelStaffId ? String(itemForm.hotelStaffId) : "none"}
                           onValueChange={(v) => {
                             const sid = v === "none" ? 0 : Number(v)
-                            const s = staffList.find((st: any) => (st.hotelStaffId ?? st.hotelstaffid) === sid)
+                            const s: any = staffList.find((st: any) => (st.hotelStaffId ?? st.hotelstaffid) === sid)
                             setItemForm({
                               ...itemForm,
                               hotelStaffId: sid,
-                              basicPay: s?.salaryAmount ?? 0,
+                              basicPay: s?.salaryAmount ?? s?.salaryamount ?? s?.salary ?? 0,
                             })
                           }}
                         >
@@ -528,7 +619,7 @@ export default function HotelPayrollPage() {
                               .filter((s: any) => !detail?.items?.some((it: any) => it.hotelstaffid === (s.hotelStaffId ?? s.hotelstaffid)))
                               .map((s: any) => (
                               <SelectItem key={s.hotelStaffId ?? s.hotelstaffid} value={String(s.hotelStaffId ?? s.hotelstaffid)}>
-                                {s.firstName} {s.lastName} ({s.role})
+                                {s.firstName ?? s.firstname} {s.lastName ?? s.lastname} — {s.role ?? s.department ?? "Staff"}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -565,6 +656,8 @@ export default function HotelPayrollPage() {
                         </Button>
                       </FormField>
                     </FormSection>
+                    )}
+                    </>
                   )}
 
                   {/* Audit info */}

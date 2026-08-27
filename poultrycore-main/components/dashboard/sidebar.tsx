@@ -403,15 +403,24 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/hotel-check-in",      label: "Check-in",      icon: Activity },
   ])
   const hotelFrontDeskItems = gateHotel([
-    { href: "/hotel-bookings",  label: "Bookings",   icon: Boxes },
-    { href: "/hotel-check-in",  label: "Check-in",   icon: Activity },
-    { href: "/hotel-check-out", label: "Check-out",   icon: Activity },
-    { href: "/hotel-guests",    label: "Guests",      icon: Users },
+    { href: "/hotel-bookings",     label: "Bookings",      icon: Boxes },
+    { href: "/hotel-availability", label: "Availability",  icon: Activity },
+    { href: "/hotel-check-in",     label: "Check-in",      icon: Activity },
+    { href: "/hotel-check-out",    label: "Check-out",     icon: Activity },
+    { href: "/hotel-guests",       label: "Guests",        icon: Users },
+    { href: "/hotel-guest-folio",  label: "Guest Folio",   icon: FileText },
+    { href: "/hotel-stay-history", label: "Stay History",  icon: FileText },
+  ])
+  const hotelGuestServicesItems = gateHotel([
+    { href: "/hotel-communications",  label: "Guest Log",    icon: FileText },
+    { href: "/hotel-guest-requests",  label: "Requests",     icon: Activity },
+    { href: "/hotel-lost-found",      label: "Lost & Found", icon: Boxes },
   ])
   const hotelRoomsItems = gateHotel([
-    { href: "/hotel-rooms",        label: "Room Inventory",  icon: Building2 },
-    { href: "/hotel-housekeeping", label: "Housekeeping",    icon: Activity },
-    { href: "/hotel-room-service", label: "Room Service",    icon: ShoppingCart },
+    { href: "/hotel-rooms",                  label: "Room Inventory",  icon: Building2 },
+    { href: "/hotel-housekeeping",           label: "Housekeeping",    icon: Activity },
+    { href: "/hotel-housekeeping-schedule",  label: "HK Schedule",     icon: Activity },
+    { href: "/hotel-room-service",           label: "Room Service",    icon: ShoppingCart },
   ])
   const hotelRestaurantItems = gateHotel([
     { href: "/hotel-restaurant",        label: "POS / Orders", icon: ShoppingCart },
@@ -435,7 +444,8 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/hotel-maintenance", label: "Maintenance",  icon: Wrench },
   ])
   const hotelReportsItems = gateHotel([
-    { href: "/hotel-reports", label: "Reports", icon: BarChart3 },
+    { href: "/hotel-reports",        label: "Reports",        icon: BarChart3 },
+    { href: "/hotel-shift-handover", label: "Shift Handover", icon: FileText },
   ])
   const hotelAdminItems = gateHotel([
     { href: "/hotel-setup", label: "Setup", icon: Settings },
@@ -701,6 +711,8 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
             {renderGroup("Quick Links", hotelQuickLinkItems, "hotelQuickLinks")}
             <div className="border-t border-slate-800 mx-2" />
             {renderGroup("Front Desk", hotelFrontDeskItems, "hotelFrontDesk")}
+            <div className="border-t border-slate-800 mx-2" />
+            {renderGroup("Guest Services", hotelGuestServicesItems, "hotelGuestServices")}
             <div className="border-t border-slate-800 mx-2" />
             {renderGroup("Rooms", hotelRoomsItems, "hotelRooms")}
             <div className="border-t border-slate-800 mx-2" />

@@ -9,7 +9,8 @@ namespace PoultryFarmAPIWeb.Controllers
     public class HotelFrontDeskController : ControllerBase
     {
         private readonly IHotelFrontDeskService _svc;
-        public HotelFrontDeskController(IHotelFrontDeskService svc) => _svc = svc;
+        private readonly IHotelEmailService _hotelEmail;
+        public HotelFrontDeskController(IHotelFrontDeskService svc, IHotelEmailService hotelEmail) { _svc = svc; _hotelEmail = hotelEmail; }
 
         [HttpPost("check-in")]
         public async Task<IActionResult> CheckIn([FromBody] CheckInRequest req)
@@ -20,6 +21,7 @@ namespace PoultryFarmAPIWeb.Controllers
             var v3 = HotelValidation.ValidateAmount(req.DepositAmount, "Deposit amount"); if (v3 != null) return v3;
 
             var result = await _svc.CheckInAsync(req.FarmId, req.HotelBookingId, req.HotelRoomId, req.KeyCardNumber, req.DepositAmount, req.DepositMethod, req.Notes);
+            _ = Task.Run(async () => { try { await _hotelEmail.SendCheckInConfirmationAsync(req.FarmId, req.HotelBookingId); } catch { } });
             return Ok(result);
         }
 
@@ -33,6 +35,7 @@ namespace PoultryFarmAPIWeb.Controllers
             var v4 = HotelValidation.ValidateAmount(req.DamageCharges, "Damage charges"); if (v4 != null) return v4;
 
             var result = await _svc.CheckOutAsync(req.FarmId, req.HotelBookingId, req.HotelRoomId, req.LateFee, req.DamageCharges, req.KeyReturned, req.Notes);
+            _ = Task.Run(async () => { try { await _hotelEmail.SendCheckOutReceiptAsync(req.FarmId, req.HotelBookingId, 0, 0); } catch { } });
             return Ok(result);
         }
     }

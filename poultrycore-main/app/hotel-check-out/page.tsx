@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Loader2, LogOut, Receipt, AlertTriangle, CheckCircle, Wallet } from "lucide-react"
+import { Loader2, LogOut, Receipt, AlertTriangle, CheckCircle, Wallet, Search } from "lucide-react"
+import { PaginationControls } from "@/components/ui/pagination-controls"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -33,6 +34,9 @@ export default function HotelCheckOutPage() {
   const router = useRouter(); const { toast } = useToast(); const logout = useLogout()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const [guests, setGuests] = useState<GuestBill[]>([]); const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState("")
+  const [balanceFilter, setBalanceFilter] = useState("all")
+  const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(10)
 
   // Checkout dialog
   const [dialogOpen, setDialogOpen] = useState(false); const [selected, setSelected] = useState<GuestBill | null>(null)
@@ -111,6 +115,20 @@ export default function HotelCheckOutPage() {
   const totalOwed = guests.reduce((s, g) => s + Math.max(0, g.balance), 0)
   const fullyPaid = guests.filter((g) => g.balance <= 0).length
 
+  // Filter guests
+  const filtered = guests.filter((g) => {
+    const b = g.booking
+    if (balanceFilter === "paid" && g.balance > 0) return false
+    if (balanceFilter === "owes" && g.balance <= 0) return false
+    if (search) {
+      const q = search.toLowerCase()
+      const name = `${b.guestFirstName ?? ""} ${b.guestLastName ?? ""}`.toLowerCase()
+      if (!name.includes(q) && !(b.bookingRef ?? "").toLowerCase().includes(q) && !(b.roomNumber ?? "").toLowerCase().includes(q)) return false
+    }
+    return true
+  })
+  const paginatedGuests = filtered.slice((page - 1) * pageSize, page * pageSize)
+
   return (
     <div className="flex h-screen bg-slate-50"><DashboardSidebar onLogout={logout} /><div className="flex-1 flex flex-col min-w-0 overflow-hidden"><DashboardHeader />
       <main className="flex-1 overflow-auto p-4 md:p-6">
@@ -124,9 +142,24 @@ export default function HotelCheckOutPage() {
           <Card><CardContent className="p-4"><div className="text-sm text-slate-500">Total Outstanding</div><div className="text-2xl font-bold text-red-700">{totalOwed.toFixed(2)}</div></CardContent></Card>
         </div>
 
+        {/* Search & Filter */}
+        <div className="flex gap-3 flex-wrap mb-4">
+          <div className="relative max-w-sm flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <Input placeholder="Search guest name, ref, room..." className="pl-9" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} />
+          </div>
+          <div className="flex gap-2">
+            {[{ v: "all", l: "All", c: totalGuests }, { v: "paid", l: "Paid", c: fullyPaid }, { v: "owes", l: "Owes", c: totalGuests - fullyPaid }].map(f => (
+              <Button key={f.v} variant={balanceFilter === f.v ? "default" : "outline"} size="sm" onClick={() => { setBalanceFilter(f.v); setPage(1) }} className={balanceFilter === f.v ? "bg-violet-600" : ""}>
+                {f.l} ({f.c})
+              </Button>
+            ))}
+          </div>
+        </div>
+
         {loading ? <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-violet-600" /></div> : (
           <div className="space-y-4">
-            {guests.map((g) => {
+            {paginatedGuests.map((g) => {
               const b = g.booking
               const isPaid = g.balance <= 0
               return (
@@ -188,7 +221,10 @@ export default function HotelCheckOutPage() {
                 </Card>
               )
             })}
-            {guests.length === 0 && <div className="text-center py-12 text-slate-400">No guests currently checked in.</div>}
+            {filtered.length === 0 && <div className="text-center py-12 text-slate-400">{search || balanceFilter !== "all" ? "No matching guests found." : "No guests currently checked in."}</div>}
+            {filtered.length > 0 && (
+              <PaginationControls page={page} pageSize={pageSize} total={filtered.length} onPageChange={setPage} onPageSizeChange={(ps) => { setPageSize(ps); setPage(1) }} />
+            )}
           </div>
         )}
 

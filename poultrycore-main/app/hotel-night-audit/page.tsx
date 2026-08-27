@@ -99,8 +99,9 @@ export default function HotelNightAuditPage() {
   async function handleRunAudit() {
     setRunning(true)
     try {
-      await runNightAudit({ closingDate: new Date().toISOString().slice(0, 10) })
-      toast({ title: "Night audit completed successfully" })
+      const result = await runNightAudit({ closingDate: new Date().toISOString().slice(0, 10) })
+      const posted = (result as any)?.roomchargesposted ?? 0
+      toast({ title: "Night audit completed successfully", description: posted > 0 ? `${posted} room charge(s) auto-posted` : "No room charges to post" })
       setDialogOpen(false)
       await load()
     } catch (e: any) {
@@ -285,7 +286,7 @@ export default function HotelNightAuditPage() {
               </DialogHeader>
               <div className="space-y-4">
                 <p className="text-sm text-slate-600">
-                  The night audit will automatically check and record the following for today:
+                  The night audit will automatically post nightly room charges for all checked-in guests and record the following for today:
                 </p>
                 <div className="p-4 bg-violet-50 rounded-lg space-y-2 text-sm">
                   <div className="grid grid-cols-2 gap-2">
@@ -346,9 +347,10 @@ export default function HotelNightAuditPage() {
                       <div className="p-2 bg-slate-50 rounded"><div className="font-bold text-slate-700">{a.checkoutcount ?? a.checkoutCount ?? 0}</div><div className="text-xs text-slate-500">Check-outs</div></div>
                       <div className="p-2 bg-slate-50 rounded"><div className="font-bold text-amber-700">{a.noshowcount ?? a.noshowCount ?? 0}</div><div className="text-xs text-slate-500">No-shows</div></div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3 text-sm text-center">
+                    <div className="grid grid-cols-3 gap-3 text-sm text-center">
                       <div className="p-2 bg-slate-50 rounded"><div className="font-bold">{a.pendinghousetasks ?? a.pendingHouseTasks ?? 0}</div><div className="text-xs text-slate-500">Pending Housekeeping</div></div>
                       <div className="p-2 bg-slate-50 rounded"><div className="font-bold">{a.openmaintenance ?? a.openMaintenance ?? 0}</div><div className="text-xs text-slate-500">Open Maintenance</div></div>
+                      <div className="p-2 bg-violet-50 rounded"><div className="font-bold text-violet-700">{a.roomchargesposted ?? 0}</div><div className="text-xs text-slate-500">Room Charges Posted</div></div>
                     </div>
                     {(a.issues ?? a.Issues) && (
                       <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">

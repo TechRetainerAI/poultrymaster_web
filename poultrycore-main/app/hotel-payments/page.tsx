@@ -14,7 +14,8 @@ import { Loader2, CreditCard, Plus } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
-import { listHotelPayments, recordPayment, listHotelBookings, type HotelPayment, type HotelBooking } from "@/lib/api/hotel"
+import { listHotelPaymentsPaged, recordPayment, listHotelBookings, type HotelPayment, type HotelBooking } from "@/lib/api/hotel"
+import { PaginationControls } from "@/components/ui/pagination-controls"
 
 const METHOD_COLOR: Record<string, string> = { Cash: "bg-emerald-100 text-emerald-700", Card: "bg-blue-100 text-blue-700", MobileMoney: "bg-amber-100 text-amber-700", BankTransfer: "bg-violet-100 text-violet-700" }
 
@@ -24,9 +25,10 @@ export default function HotelPaymentsPage() {
   const [items, setItems] = useState<HotelPayment[]>([]); const [bookings, setBookings] = useState<HotelBooking[]>([]); const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false); const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({ hotelBookingId: 0, amount: 0, paymentMethod: "Cash", reference: "", notes: "" })
+  const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(20); const [totalItems, setTotalItems] = useState(0)
 
-  useEffect(() => { if (!activeFarmType) return; if (activeFarmType !== "Hotel") { router.replace("/dashboard"); return }; load() }, [activeFarmType, router])
-  async function load() { setLoading(true); try { const [p, b] = await Promise.all([listHotelPayments(), listHotelBookings()]); setItems(p); setBookings(b.filter((x) => x.status === "CheckedIn" || x.status === "Confirmed")) } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) } finally { setLoading(false) } }
+  useEffect(() => { if (!activeFarmType) return; if (activeFarmType !== "Hotel") { router.replace("/dashboard"); return }; load() }, [activeFarmType, router, page, pageSize])
+  async function load() { setLoading(true); try { const [pr, b] = await Promise.all([listHotelPaymentsPaged(page, pageSize), listHotelBookings()]); setItems(pr.data); setTotalItems(pr.total); setBookings(b.filter((x) => x.status === "CheckedIn" || x.status === "Confirmed")) } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) } finally { setLoading(false) } }
 
   async function handleSave() {
     if (!form.hotelBookingId) { toast({ title: "Select a booking", variant: "destructive" }); return }
@@ -36,12 +38,14 @@ export default function HotelPaymentsPage() {
   }
 
   const total = items.reduce((s, p: any) => s + Number(p.amount ?? 0), 0)
+  function handlePageChange(p: number) { setPage(p) }
+  function handlePageSizeChange(ps: number) { setPageSize(ps); setPage(1) }
 
   return (
     <div className="flex h-screen bg-slate-50"><DashboardSidebar onLogout={logout} /><div className="flex-1 flex flex-col min-w-0 overflow-hidden"><DashboardHeader />
       <main className="flex-1 overflow-auto p-4 md:p-6">
         <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3"><CreditCard className="h-6 w-6 text-violet-600" /><h1 className="text-2xl font-bold">Payments</h1><span className="text-sm text-slate-500">({items.length}) — Total: {total.toFixed(2)}</span></div>
+          <div className="flex items-center gap-3"><CreditCard className="h-6 w-6 text-violet-600" /><h1 className="text-2xl font-bold">Payments</h1><span className="text-sm text-slate-500">({totalItems}) — Page total: {total.toFixed(2)}</span></div>
           <Button onClick={() => { setForm({ hotelBookingId: bookings[0]?.hotelBookingId ?? 0, amount: 0, paymentMethod: "Cash", reference: "", notes: "" }); setDialogOpen(true) }} className="bg-violet-600 hover:bg-violet-700"><Plus className="h-4 w-4 mr-1" /> Record Payment</Button>
         </div>
         {loading ? <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-violet-600" /></div> : (
@@ -51,7 +55,9 @@ export default function HotelPaymentsPage() {
               return (<tr key={p.hotelPaymentId ?? p.hotelpaymentid ?? `pay-${idx}`} className="border-b hover:bg-slate-50"><td className="p-3">{(p.paymentDate ?? p.paymentdate)?.slice?.(0,10)}</td><td className="p-3 font-medium">{bk ? `${bk.guestFirstName} ${bk.guestLastName}` : "—"}<div className="text-xs text-slate-400">{bk?.bookingRef ?? ""}</div></td><td className="p-3 text-xs text-slate-500">{p.receivedBy ?? p.receivedby ?? "System"}</td><td className="p-3 text-right font-semibold">{Number(p.amount).toFixed(2)}</td><td className="p-3"><Badge variant="outline" className={METHOD_COLOR[p.paymentMethod ?? p.paymentmethod] ?? ""}>{p.paymentMethod ?? p.paymentmethod}</Badge></td><td className="p-3 font-mono text-xs">{p.reference ?? "—"}</td><td className="p-3 text-xs">{p.notes ?? ""}</td></tr>)
             })}
               {items.length === 0 && <tr><td colSpan={7} className="p-8 text-center text-slate-400">No payments recorded yet.</td></tr>}
-            </tbody></table></CardContent></Card>
+            </tbody></table>
+            <PaginationControls page={page} pageSize={pageSize} total={totalItems} onPageChange={handlePageChange} onPageSizeChange={handlePageSizeChange} />
+          </CardContent></Card>
         )}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}><DialogContent><DialogHeader><DialogTitle>Record Payment</DialogTitle></DialogHeader>
           <div className="space-y-4">

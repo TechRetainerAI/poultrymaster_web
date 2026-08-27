@@ -9,8 +9,8 @@
  */
 
 import {
-  Activity, BarChart3, Boxes, Building2, ClipboardCheck, CreditCard,
-  DollarSign, FileText, Home, Settings, Shield, ShoppingCart, Truck,
+  Activity, BarChart3, Bed, Bell, Boxes, Building2, CalendarSearch, ClipboardCheck, CreditCard,
+  DollarSign, FileText, Home, MessageSquare, Package, ScrollText, Search, Settings, Shield, ShoppingCart, Truck,
   User, UserCog, Users, Users2, UtensilsCrossed, Wallet, Wrench,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
@@ -54,15 +54,28 @@ export function buildHotelNavConfig({ permissions }: HotelNavDeps): HotelNavConf
           { id: "guests",    title: "Guests",     icon: Users,          href: "/hotel-guests",    visible: vis("/hotel-guests") },
           { id: "check-in",  title: "Check-in",   icon: Activity,       href: "/hotel-check-in",  visible: vis("/hotel-check-in") },
           { id: "check-out", title: "Check-out",  icon: ClipboardCheck, href: "/hotel-check-out", visible: vis("/hotel-check-out") },
+          { id: "availability", title: "Availability", icon: Search, href: "/hotel-availability", visible: vis("/hotel-bookings") },
+          { id: "folio",     title: "Guest Folio",  icon: ScrollText, href: "/hotel-guest-folio", visible: vis("/hotel-billing") },
+          { id: "history",   title: "Stay History", icon: FileText,   href: "/hotel-stay-history", visible: vis("/hotel-check-in") },
+        ],
+      },
+      {
+        key: "guest-services",
+        label: "Guest Services",
+        items: [
+          { id: "communications", title: "Guest Log",    icon: MessageSquare, href: "/hotel-communications", visible: vis("/hotel-guests") },
+          { id: "requests",       title: "Requests",     icon: Bell,          href: "/hotel-guest-requests", visible: vis("/hotel-guests") },
+          { id: "lost-found",     title: "Lost & Found", icon: Package,       href: "/hotel-lost-found",     visible: vis("/hotel-guests") },
         ],
       },
       {
         key: "rooms",
         label: "Rooms & Housekeeping",
         items: [
-          { id: "rooms",        title: "Rooms",        icon: Building2, href: "/hotel-rooms",        visible: vis("/hotel-rooms") },
-          { id: "housekeeping", title: "Housekeeping",  icon: ClipboardCheck, href: "/hotel-housekeeping", visible: vis("/hotel-housekeeping") },
-          { id: "room-service", title: "Room Service",  icon: Truck,    href: "/hotel-room-service", visible: vis("/hotel-room-service") },
+          { id: "rooms",        title: "Rooms",         icon: Building2,      href: "/hotel-rooms",        visible: vis("/hotel-rooms") },
+          { id: "housekeeping", title: "Housekeeping",   icon: ClipboardCheck, href: "/hotel-housekeeping", visible: vis("/hotel-housekeeping") },
+          { id: "hk-schedule",  title: "HK Schedule",    icon: CalendarSearch, href: "/hotel-housekeeping-schedule", visible: vis("/hotel-housekeeping") },
+          { id: "room-service", title: "Room Service",   icon: Truck,         href: "/hotel-room-service", visible: vis("/hotel-room-service") },
         ],
       },
     ],
@@ -108,7 +121,8 @@ export function buildHotelNavConfig({ permissions }: HotelNavDeps): HotelNavConf
         items: [
           { id: "reports",       title: "Reports",       icon: BarChart3, href: "/hotel-reports",       visible: vis("/hotel-reports") },
           { id: "daily-closing", title: "Daily Closing", icon: FileText,  href: "/hotel-daily-closing", visible: vis("/hotel-daily-closing") },
-          { id: "night-audit",   title: "Night Audit",   icon: Shield,   href: "/hotel-night-audit",   visible: vis("/hotel-night-audit") },
+          { id: "night-audit",      title: "Night Audit",      icon: Shield,     href: "/hotel-night-audit",      visible: vis("/hotel-night-audit") },
+          { id: "shift-handover",   title: "Shift Handover",   icon: ScrollText, href: "/hotel-shift-handover",   visible: true },
         ],
       },
     ],

@@ -305,6 +305,10 @@ builder.Services.AddScoped<IHotelBookingService>(sp => new HotelBookingService(c
 // Phase H3: Front desk (check-in/out) + Housekeeping
 builder.Services.AddScoped<IHotelFrontDeskService>(sp => new HotelFrontDeskService(connectionString));
 builder.Services.AddScoped<IHotelHousekeepingService>(sp => new HotelHousekeepingService(connectionString));
+// Phase H-Email: Hotel email notifications
+builder.Services.AddScoped<IHotelEmailService, HotelEmailService>();
+// Phase H-Cash: Cash ledger integration
+builder.Services.AddScoped<IHotelCashLedgerService, HotelCashLedgerService>();
 // =================================================================
 
 // =================================================================

@@ -11,7 +11,8 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Loader2, Plus, Calendar, Edit2, X, Printer } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Loader2, Plus, Calendar, Edit2, X, Printer, List } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -20,6 +21,8 @@ import {
   listHotelGuests, listHotelRoomTypes, listHotelRooms, getHotelProfile,
   type HotelBooking, type HotelBookingInput, type HotelGuest, type HotelRoomType, type HotelRoom, type HotelProfile,
 } from "@/lib/api/hotel"
+import { PaginationControls } from "@/components/ui/pagination-controls"
+import { BookingCalendar } from "@/components/hotel/booking-calendar"
 
 const STATUS_COLORS: Record<string, string> = {
   Confirmed: "bg-blue-100 text-blue-700", CheckedIn: "bg-emerald-100 text-emerald-700",
@@ -39,6 +42,8 @@ export default function HotelBookingsPage() {
   const [loading, setLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<HotelBooking | null>(null)
@@ -81,6 +86,21 @@ export default function HotelBookingsPage() {
     setDialogOpen(true)
   }
 
+  async function handleBookingMove(booking: HotelBooking, newRoomId: number, newCheckIn: string, newCheckOut: string) {
+    try {
+      const nights = Math.max(1, Math.ceil((new Date(newCheckOut).getTime() - new Date(newCheckIn).getTime()) / 86400000))
+      await updateHotelBooking(booking.hotelBookingId, {
+        hotelGuestId: booking.hotelGuestId, hotelRoomTypeId: booking.hotelRoomTypeId,
+        hotelRoomId: newRoomId, checkInDate: newCheckIn, checkOutDate: newCheckOut,
+        nightlyRate: booking.nightlyRate, totalAmount: nights * booking.nightlyRate,
+        numberOfGuests: booking.numberOfGuests, adults: booking.adults, children: booking.children,
+        source: booking.source, specialRequests: booking.specialRequests,
+      })
+      toast({ title: `Booking ${booking.bookingRef} updated`, description: newRoomId !== booking.hotelRoomId ? `Moved to room ${rooms.find(r => r.hotelRoomId === newRoomId)?.roomNumber ?? newRoomId}` : `Dates: ${newCheckIn} → ${newCheckOut}` })
+      await loadData()
+    } catch (e: any) { toast({ title: "Move failed", description: e?.message, variant: "destructive" }) }
+  }
+
   // Auto-calculate total when dates or rate change
   function calcTotal(checkIn: string, checkOut: string, rate: number) {
     const d1 = new Date(checkIn); const d2 = new Date(checkOut)
@@ -114,6 +134,7 @@ export default function HotelBookingsPage() {
     }
     return true
   })
+  const paginatedBookings = filtered.slice((page - 1) * pageSize, page * pageSize)
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -152,36 +173,50 @@ export default function HotelBookingsPage() {
           </div>
 
           {loading ? <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-violet-600" /></div> : (
-            <Card>
-              <CardContent className="p-0">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 border-b"><tr><th className="text-left p-3">Ref</th><th className="text-left p-3">Guest</th><th className="text-left p-3">Room</th><th className="text-left p-3">Booked On</th><th className="text-left p-3">Check-in</th><th className="text-left p-3">Check-out</th><th className="text-left p-3">Nights</th><th className="text-right p-3">Amount</th><th className="text-left p-3">Status</th><th className="text-right p-3">Actions</th></tr></thead>
-                  <tbody>
-                    {filtered.map((b) => {
-                      const nights = Math.max(1, Math.ceil((new Date(b.checkOutDate).getTime() - new Date(b.checkInDate).getTime()) / 86400000))
-                      return (
-                      <tr key={b.hotelBookingId} className="border-b hover:bg-slate-50">
-                        <td className="p-3 font-mono font-semibold text-xs">{b.bookingRef}</td>
-                        <td className="p-3">{b.guestFirstName} {b.guestLastName}</td>
-                        <td className="p-3">{b.roomNumber ?? b.roomTypeName}</td>
-                        <td className="p-3 text-xs text-slate-500">{b.createdAt ? new Date(b.createdAt).toLocaleString() : "—"}</td>
-                        <td className="p-3">{b.checkInDate?.slice(0, 10)}</td>
-                        <td className="p-3">{b.checkOutDate?.slice(0, 10)}</td>
-                        <td className="p-3 text-center">{nights}</td>
-                        <td className="p-3 text-right font-semibold">{Number(b.totalAmount ?? 0).toFixed(2)}</td>
-                        <td className="p-3"><Badge variant="outline" className={STATUS_COLORS[b.status] ?? ""}>{b.status}</Badge></td>
-                        <td className="p-3 text-right space-x-1">
-                          <Button variant="ghost" size="icon" title="Print Receipt" onClick={() => setReceiptBooking(b)}><Printer className="h-4 w-4" /></Button>
-                          <Button variant="ghost" size="icon" onClick={() => openEdit(b)}><Edit2 className="h-4 w-4" /></Button>
-                          {b.status === "Confirmed" && <Button variant="ghost" size="icon" className="text-red-600" onClick={() => handleCancel(b)}><X className="h-4 w-4" /></Button>}
-                        </td>
-                      </tr>
-                    )})}
-                    {filtered.length === 0 && <tr><td colSpan={10} className="p-8 text-center text-slate-400">No bookings found.</td></tr>}
-                  </tbody>
-                </table>
-              </CardContent>
-            </Card>
+            <Tabs defaultValue="table">
+              <TabsList className="mb-4">
+                <TabsTrigger value="table" className="gap-1"><List className="h-4 w-4" /> Table View</TabsTrigger>
+                <TabsTrigger value="calendar" className="gap-1"><Calendar className="h-4 w-4" /> Calendar View</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="table">
+                <Card>
+                  <CardContent className="p-0">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50 border-b"><tr><th className="text-left p-3">Ref</th><th className="text-left p-3">Guest</th><th className="text-left p-3">Room</th><th className="text-left p-3">Booked On</th><th className="text-left p-3">Check-in</th><th className="text-left p-3">Check-out</th><th className="text-left p-3">Nights</th><th className="text-right p-3">Amount</th><th className="text-left p-3">Status</th><th className="text-right p-3">Actions</th></tr></thead>
+                      <tbody>
+                        {paginatedBookings.map((b) => {
+                          const nights = Math.max(1, Math.ceil((new Date(b.checkOutDate).getTime() - new Date(b.checkInDate).getTime()) / 86400000))
+                          return (
+                          <tr key={b.hotelBookingId} className="border-b hover:bg-slate-50">
+                            <td className="p-3 font-mono font-semibold text-xs">{b.bookingRef}</td>
+                            <td className="p-3">{b.guestFirstName} {b.guestLastName}</td>
+                            <td className="p-3">{b.roomNumber ?? b.roomTypeName}</td>
+                            <td className="p-3 text-xs text-slate-500">{b.createdAt ? new Date(b.createdAt).toLocaleString() : "—"}</td>
+                            <td className="p-3">{b.checkInDate?.slice(0, 10)}</td>
+                            <td className="p-3">{b.checkOutDate?.slice(0, 10)}</td>
+                            <td className="p-3 text-center">{nights}</td>
+                            <td className="p-3 text-right font-semibold">{Number(b.totalAmount ?? 0).toFixed(2)}</td>
+                            <td className="p-3"><Badge variant="outline" className={STATUS_COLORS[b.status] ?? ""}>{b.status}</Badge></td>
+                            <td className="p-3 text-right space-x-1">
+                              <Button variant="ghost" size="icon" title="Print Receipt" onClick={() => setReceiptBooking(b)}><Printer className="h-4 w-4" /></Button>
+                              <Button variant="ghost" size="icon" onClick={() => openEdit(b)}><Edit2 className="h-4 w-4" /></Button>
+                              {b.status === "Confirmed" && <Button variant="ghost" size="icon" className="text-red-600" onClick={() => handleCancel(b)}><X className="h-4 w-4" /></Button>}
+                            </td>
+                          </tr>
+                        )})}
+                        {filtered.length === 0 && <tr><td colSpan={10} className="p-8 text-center text-slate-400">No bookings found.</td></tr>}
+                      </tbody>
+                    </table>
+                    <PaginationControls page={page} pageSize={pageSize} total={filtered.length} onPageChange={(p) => setPage(p)} onPageSizeChange={(ps) => { setPageSize(ps); setPage(1) }} />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="calendar">
+                <BookingCalendar bookings={bookings} rooms={rooms} onBookingClick={openEdit} onBookingMove={handleBookingMove} />
+              </TabsContent>
+            </Tabs>
           )}
 
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
