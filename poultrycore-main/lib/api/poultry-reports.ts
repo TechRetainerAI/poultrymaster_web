@@ -50,6 +50,7 @@ export type PoultryReportSlug =
   | "egg-stock-balance"
   | "egg-sales"
   | "customer-balance"
+  | "supplier-balance"
   | "expense-summary"
   | "cash-movement"
   | "profit-loss-by-flock"

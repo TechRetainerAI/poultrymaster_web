@@ -113,6 +113,9 @@ export default function SalesPage() {
   const { code: farmCurrencyCode } = useCurrency()
   const currencyCode = farmCurrencyCode || getSelectedCurrency()
   const [searchCustomer, setSearchCustomer] = useState("")
+  // ?saleId= from the Customer Balances page. Held in state rather than read
+  // from the URL on every render so clearing it does not need a navigation.
+  const [focusSaleId, setFocusSaleId] = useState<number | null>(null)
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -134,6 +137,12 @@ export default function SalesPage() {
     loadCustomers()
     // Cash accounts so a sale can be received into one (posts a cash-in when paid).
     listPoultryCashAccounts().then((a) => setCashAccounts(a.filter((x) => x.isActive))).catch(() => setCashAccounts([]))
+
+    // Deep link from Customer Balances -> Open sale.
+    if (typeof window !== 'undefined') {
+      const sid = Number(new URLSearchParams(window.location.search).get('saleId'))
+      if (Number.isFinite(sid) && sid > 0) setFocusSaleId(sid)
+    }
 
     // Check for global search query from header
     if (typeof window !== 'undefined') {
@@ -779,6 +788,10 @@ export default function SalesPage() {
   const filteredSales = useMemo(() => {
     const query = searchCustomer.trim().toLowerCase()
     return sales.filter((sale) => {
+      // Deep link from Customer Balances -> Open sale. Narrowing to the single
+      // sale is the point of the link, so it wins over the other filters (the
+      // banner below offers the way back out).
+      if (focusSaleId !== null) return sale.saleId === focusSaleId
       if (query) {
         const matchesCustomer = sale.customerName?.toLowerCase().includes(query)
         const matchesProduct = sale.product?.toLowerCase().includes(query)
@@ -788,7 +801,7 @@ export default function SalesPage() {
       if (dateTo && toLocalDateKey(sale.saleDate) > dateTo) return false
       return true
     })
-  }, [sales, searchCustomer, dateFrom, dateTo])
+  }, [sales, searchCustomer, dateFrom, dateTo, focusSaleId])
 
   const sortedSales = useMemo(() => sortData(filteredSales, sortKey, sortDir, (item: any, key: string) => {
     switch (key) {
@@ -1244,6 +1257,15 @@ export default function SalesPage() {
           </DialogContent>
         </Dialog>
       </div>
+
+            {/* Arrived here from Customer Balances -> Open sale. Say so, and
+                give a one-click way back to the whole list. */}
+            {focusSaleId !== null && (
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
+                <span>Showing sale <strong>S{focusSaleId}</strong> only.</span>
+                <Button variant="ghost" size="sm" onClick={() => setFocusSaleId(null)}>Show all sales</Button>
+              </div>
+            )}
 
             {/* Filters */}
             {isMobile ? (

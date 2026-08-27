@@ -224,6 +224,10 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/poultry-cash-accounts", label: "Cash Account", icon: Wallet },
     { href: "/sales", label: "Sales", icon: ShoppingCart },
     { href: "/poultry-payments", label: "Payments received", icon: Wallet },
+    // The collection / payment control centres: what is owed, on which sales or
+    // purchases, and the dialog that settles them.
+    { href: "/customer-balances", label: "Customer Balances", icon: Users },
+    { href: "/supplier-balances", label: "Supplier Balances", icon: Truck },
     { href: "/expenses", label: "Expenses", icon: DollarSign },
     { href: "/billing", label: "Billing", icon: CreditCard },
   ].filter((item) =>

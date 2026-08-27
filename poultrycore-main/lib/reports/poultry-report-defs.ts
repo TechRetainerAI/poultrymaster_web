@@ -399,10 +399,43 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
     ],
     columns: [
       { header: "Customer", cell: (r, c) => c.text(r.customer) },
+      { header: "Phone", cell: (r, c) => c.text(r.contactPhone) },
       { header: "Total sales", align: "right", cell: (r, c) => c.money(r.totalSales) },
       { header: "Total paid", align: "right", cell: (r, c) => c.money(r.totalPaid) },
       { header: "Balance", align: "right", cell: (r, c) => c.money(r.currentBalance) },
+      // Real figures since migration 223 — both were hardcoded to null before,
+      // because sales carried no customer link and no notion of due date.
+      { header: "Overdue", align: "right", cell: (r, c) => c.money(r.overdueAmount) },
+      { header: "Open sales", align: "right", cell: (r, c) => c.num(r.openSaleCount) },
       { header: "Last sale", cell: (r, c) => c.date(r.lastSaleDate) },
+      { header: "Last payment", cell: (r, c) => c.date(r.lastPaymentDate) },
+      { header: "Status", cell: (r, c) => c.text(r.status), badge: true },
+    ],
+  },
+
+  // 12b -----------------------------------------------------------------------
+  "supplier-balance": {
+    slug: "supplier-balance",
+    title: "Poultry Supplier Balance Report",
+    description:
+      "What the farm owes suppliers on raw-material purchases and flock batches — all-time outstanding up to the end date, not just the selected period.",
+    filters: { supplier: true },
+    cards: [
+      { label: "Suppliers owed", value: (s, c) => c.num(s.suppliersWithBalance) },
+      { label: "Total payables (all time)", value: (s, c) => c.money(s.totalPayables), accent: "rose" },
+      { label: "Overdue amount", value: (s, c) => c.money(s.overdueAmount) },
+      { label: "Largest payable", value: (s, c) => c.text(s.highestOwedSupplier) },
+    ],
+    columns: [
+      { header: "Supplier", cell: (r, c) => c.text(r.supplier) },
+      { header: "Phone", cell: (r, c) => c.text(r.contactPhone) },
+      { header: "Total purchases", align: "right", cell: (r, c) => c.money(r.totalPurchases) },
+      { header: "Total paid", align: "right", cell: (r, c) => c.money(r.totalPaid) },
+      { header: "Balance", align: "right", cell: (r, c) => c.money(r.currentBalance) },
+      { header: "Overdue", align: "right", cell: (r, c) => c.money(r.overdueAmount) },
+      { header: "Open purchases", align: "right", cell: (r, c) => c.num(r.openPurchaseCount) },
+      { header: "Oldest purchase", cell: (r, c) => c.date(r.oldestPurchaseDate) },
+      { header: "Last payment", cell: (r, c) => c.date(r.lastPaymentDate) },
       { header: "Status", cell: (r, c) => c.text(r.status), badge: true },
     ],
   },

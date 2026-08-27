@@ -33,7 +33,11 @@ namespace PoultryFarmAPIWeb.Models
         public string? DatePreset { get; set; }
         public int? FlockId { get; set; }
         public int? CustomerId { get; set; }
-        /// <summary>Legacy poultry Sale rows link to a customer by name, not id.</summary>
+        /// <summary>
+        /// Sale rows carry both: CustomerId since migration 223, and the free-text
+        /// name they were always entered with. Reports still filter by name because
+        /// that is what the report UI collects.
+        /// </summary>
         public string? CustomerName { get; set; }
         public int? ProductId { get; set; }
         public int? SupplierId { get; set; }
@@ -410,10 +414,38 @@ namespace PoultryFarmAPIWeb.Models
     {
         public int? CustomerId { get; set; }
         public string Customer { get; set; } = string.Empty;
+        public string? ContactPhone { get; set; }
         public decimal TotalSales { get; set; }
         public decimal TotalPaid { get; set; }
         public decimal CurrentBalance { get; set; }
+        public int OpenSaleCount { get; set; }
         public DateTime? LastSaleDate { get; set; }
+        public DateTime? LastPaymentDate { get; set; }
+        public decimal? OverdueAmount { get; set; }
+        public string Status { get; set; } = string.Empty;
+    }
+
+    // -------------------------------------------------------------------------
+    // 12b. Supplier Balance — the payables mirror of Customer Balance.
+    // -------------------------------------------------------------------------
+    public class PoultrySupplierBalanceReportSummary
+    {
+        public int SuppliersWithBalance { get; set; }
+        public decimal TotalPayables { get; set; }
+        public decimal? OverdueAmount { get; set; }
+        public string? HighestOwedSupplier { get; set; }
+    }
+
+    public class PoultrySupplierBalanceReportRow
+    {
+        public int? SupplierId { get; set; }
+        public string Supplier { get; set; } = string.Empty;
+        public string? ContactPhone { get; set; }
+        public decimal TotalPurchases { get; set; }
+        public decimal TotalPaid { get; set; }
+        public decimal CurrentBalance { get; set; }
+        public int OpenPurchaseCount { get; set; }
+        public DateTime? OldestPurchaseDate { get; set; }
         public DateTime? LastPaymentDate { get; set; }
         public decimal? OverdueAmount { get; set; }
         public string Status { get; set; } = string.Empty;

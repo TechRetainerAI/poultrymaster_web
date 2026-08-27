@@ -12,6 +12,13 @@ namespace PoultryFarmAPIWeb.Models
         public decimal TotalAmount { get; set; }
         public string? PaymentMethod { get; set; }
         public string? CustomerName { get; set; }
+        /// <summary>
+        /// Link to Customer (migration 223). Optional on the way in: when it is
+        /// null the SP resolves it from CustomerName, creating the customer if
+        /// that name is new -- so a sale entered the old way still lands on the
+        /// Customer Balances page. A blank name means a walk-in and stays null.
+        /// </summary>
+        public int? CustomerId { get; set; }
         public int? FlockId { get; set; }
         public string? SaleDescription { get; set; }
         public bool Paid { get; set; } = true;

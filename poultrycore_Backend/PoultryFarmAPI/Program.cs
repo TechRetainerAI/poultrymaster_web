@@ -88,6 +88,9 @@ builder.Services.AddScoped<IDashboardService>(sp => new DashboardService(connect
 builder.Services.AddScoped<IProductionRecordService>(sp => new ProductionRecordService(connectionString));
 builder.Services.AddScoped<IProductionBatchRecordService>(sp => new ProductionBatchRecordService(connectionString));
 builder.Services.AddScoped<IPoultryPaymentService>(sp => new PoultryPaymentService(connectionString));
+// Customer Balances / Supplier Balances — the payment allocation control pages
+// (migrations 222–224).
+builder.Services.AddScoped<IPoultryBalanceService>(sp => new PoultryBalanceService(connectionString));
 
 builder.Services.AddScoped<IHouseService>(sp => new HouseService(connectionString));
 builder.Services.AddScoped<IHealthRecordService>(sp => new HealthRecordService(connectionString));

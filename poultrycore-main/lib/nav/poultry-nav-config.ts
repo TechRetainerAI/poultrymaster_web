@@ -135,6 +135,11 @@ export function buildPoultryNavConfig(
         items: [
           { id: "sales",    title: "Sales",             icon: ShoppingCart, href: "/sales",            visible: money("/sales") },
           { id: "payments", title: "Payments",          icon: Wallet,       href: "/poultry-payments", visible: money("/poultry-payments") },
+          // The two collection/payment control centres. They sit under Sales
+          // rather than Money because the question they answer is "who owes
+          // what", not "where is the cash".
+          { id: "customer-balances", title: "Customer Balances", icon: Users, href: "/customer-balances", visible: money("/customer-balances") },
+          { id: "supplier-balances", title: "Supplier Balances", icon: Truck, href: "/supplier-balances", visible: money("/supplier-balances") },
           { id: "billing",  title: "Billing",           icon: CreditCard,   href: "/billing",          visible: money("/billing") },
         ],
       },

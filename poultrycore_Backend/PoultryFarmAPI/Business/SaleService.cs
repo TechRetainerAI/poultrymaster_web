@@ -1,4 +1,4 @@
-using System.Data;
+﻿using System.Data;
 using Npgsql;
 using PoultryFarmAPIWeb.Models;
 using System;
@@ -13,6 +13,7 @@ namespace PoultryFarmAPIWeb.Business
         private readonly string _connectionString;
         private static readonly ConcurrentDictionary<string, bool> SpHasPaidParamCache = new();
         private static readonly ConcurrentDictionary<string, bool> SpHasSizeParamCache = new();
+        private static readonly ConcurrentDictionary<string, bool> SpHasCustomerIdParamCache = new();
 
         public SaleService(string connectionString)
         {
@@ -60,6 +61,31 @@ namespace PoultryFarmAPIWeb.Business
             return has;
         }
 
+        /// <summary>
+        /// Probes whether the stored procedure has @CustomerId (migration 223).
+        /// Same guard the @Paid and @Size probes use, for the same reason: an API
+        /// deployed ahead of its migration must still be able to save a sale.
+        /// </summary>
+        private static async Task<bool> ProcedureHasCustomerIdParameterAsync(NpgsqlConnection conn, string procedureName)
+        {
+            if (SpHasCustomerIdParamCache.TryGetValue(procedureName, out var cached))
+                return cached;
+
+            await using var probe = new NpgsqlCommand(
+                @"SELECT 1
+                  FROM pg_proc p
+                  INNER JOIN pg_namespace n ON n.oid = p.pronamespace
+                  WHERE n.nspname = 'public'
+                    AND p.proname = lower(@procName)
+                    AND 'p_customerid' = ANY(p.proargnames)",
+                conn);
+            probe.Parameters.AddWithValue("@procName", procedureName);
+            var scalar = await probe.ExecuteScalarAsync();
+            var has = scalar != null && scalar != DBNull.Value;
+            SpHasCustomerIdParamCache[procedureName] = has;
+            return has;
+        }
+
         private static string? GetNullableStringIfPresent(NpgsqlDataReader reader, string columnName)
         {
             for (var i = 0; i < reader.FieldCount; i++)
@@ -101,8 +127,12 @@ namespace PoultryFarmAPIWeb.Business
         }
 
         // Posts / reverses the sale's cash-in on the chosen PoultryCashAccount.
-        // Safe to call with a null account (reverse only). Only posts when the
-        // sale is paid — an unpaid sale records the account but moves no money.
+        // Safe to call with a null account (reverse only).
+        //
+        // Since migration 223 a PART-paid sale posts what has actually been
+        // received (sale.AmountPaid) rather than nothing. A paid sale still posts
+        // its full total, and an unpaid sale with no payments still moves no
+        // money — AmountPaid is 0 at that point.
         private async Task SyncSaleCashAsync(string farmId, int saleId, int? cashAccountId, decimal amount, bool paid, string? description, string? createdBy)
         {
             using var conn = new NpgsqlConnection(_connectionString);
@@ -141,6 +171,8 @@ namespace PoultryFarmAPIWeb.Business
                     cmd.Parameters.AddWithValue("@Paid", model.Paid);
                 if (await ProcedureHasSizeParameterAsync(conn, "spSale_Insert"))
                     cmd.Parameters.AddWithValue("@Size", (object?)model.Size ?? DBNull.Value);
+                if (await ProcedureHasCustomerIdParameterAsync(conn, "spSale_Insert"))
+                    cmd.Parameters.AddWithValue("@CustomerId", (object?)model.CustomerId ?? DBNull.Value);
                 // Built after the conditional adds so the call text matches the
                 // parameters actually present.
                 cmd.CommandText = await PgCallText.ForAsync("spSale_Insert", cmd);
@@ -179,6 +211,8 @@ namespace PoultryFarmAPIWeb.Business
                     cmd.Parameters.AddWithValue("@Paid", model.Paid);
                 if (await ProcedureHasSizeParameterAsync(conn, "spSale_Update"))
                     cmd.Parameters.AddWithValue("@Size", (object?)model.Size ?? DBNull.Value);
+                if (await ProcedureHasCustomerIdParameterAsync(conn, "spSale_Update"))
+                    cmd.Parameters.AddWithValue("@CustomerId", (object?)model.CustomerId ?? DBNull.Value);
                 cmd.CommandText = await PgCallText.ForAsync("spSale_Update", cmd);
                 await cmd.ExecuteNonQueryAsync();
                 conn.Close();
@@ -220,6 +254,7 @@ namespace PoultryFarmAPIWeb.Business
                         Size = GetNullableStringIfPresent(reader, "Size"),
                         PoultryCashAccountId = GetNullableInt32IfPresent(reader, "PoultryCashAccountId"),
                         AmountPaid = GetDecimalIfPresent(reader, "AmountPaid", 0m),
+                        CustomerId = GetNullableInt32IfPresent(reader, "CustomerId"),
                         CreatedDate = reader.GetDateTime(reader.GetOrdinal("CreatedDate")),
                         FarmId = reader.GetString(reader.GetOrdinal("FarmId"))
                     };
@@ -262,6 +297,7 @@ namespace PoultryFarmAPIWeb.Business
                         Size = GetNullableStringIfPresent(reader, "Size"),
                         PoultryCashAccountId = GetNullableInt32IfPresent(reader, "PoultryCashAccountId"),
                         AmountPaid = GetDecimalIfPresent(reader, "AmountPaid", 0m),
+                        CustomerId = GetNullableInt32IfPresent(reader, "CustomerId"),
                         CreatedDate = reader.GetDateTime(reader.GetOrdinal("CreatedDate")),
                         FarmId = reader.GetString(reader.GetOrdinal("FarmId"))
                     };
@@ -328,6 +364,7 @@ namespace PoultryFarmAPIWeb.Business
                         Size = GetNullableStringIfPresent(reader, "Size"),
                         PoultryCashAccountId = GetNullableInt32IfPresent(reader, "PoultryCashAccountId"),
                         AmountPaid = GetDecimalIfPresent(reader, "AmountPaid", 0m),
+                        CustomerId = GetNullableInt32IfPresent(reader, "CustomerId"),
                         CreatedDate = reader.GetDateTime(reader.GetOrdinal("CreatedDate")),
                         FarmId = reader.GetString(reader.GetOrdinal("FarmId"))
                     };
