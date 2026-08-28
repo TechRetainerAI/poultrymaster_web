@@ -67,8 +67,8 @@ function eggCrateBreakdown(
   const parts: string[] = []
   // `long` is for the summary card, which has room for real words; the table
   // cell sits next to the number it describes and uses the short form.
-  if (crates > 0) parts.push(long ? `${crates.toLocaleString()} crate${crates === 1 ? "" : "s"}` : `${crates}cr`)
-  if (pieces > 0) parts.push(long ? `${pieces} piece${pieces === 1 ? "" : "s"}` : `${pieces}pcs`)
+  if (crates > 0) parts.push(long ? `${crates.toLocaleString()} crate${crates === 1 ? "" : "s"}` : `${crates}c`)
+  if (pieces > 0) parts.push(long ? `${pieces} piece${pieces === 1 ? "" : "s"}` : `${pieces}p`)
   return parts.length ? parts.join(" + ") : null
 }
 
@@ -1635,7 +1635,7 @@ export default function SalesPage() {
                               // unit of the number it follows, so stacking it made
                               // the row two lines tall for one value.
                               <span className="ml-1.5 text-xs text-slate-500">
-                                {eggCrateBreakdown(sale.quantity)}
+                                ({eggCrateBreakdown(sale.quantity)})
                               </span>
                             )}
                           </TableCell>
