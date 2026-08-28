@@ -634,7 +634,7 @@ export function ProductionRecordForm({
   ]
 
   return (
-    <form id={formId} onSubmit={handleSubmit} className={cn("space-y-4", isModal ? "" : "max-w-6xl")}>
+    <form id={formId} onSubmit={handleSubmit} className={cn("space-y-4", isModal ? "" : "mx-auto w-full max-w-[110rem]")}>
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
@@ -709,7 +709,7 @@ export function ProductionRecordForm({
       >
         <div className="space-y-2">
           {pickRows.map((p) => (
-            <div key={p.key} className="grid grid-cols-1 items-end gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_5.5rem_5.5rem_7rem]">
+            <div key={p.key} className="grid grid-cols-1 items-end gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 sm:grid-cols-[minmax(8rem,22rem)_8.25rem_8.25rem_8rem]">
               <div className="text-sm font-medium text-slate-700">{p.label}</div>
               <NumField label="Crates" value={p.crates} onChange={p.setC} />
               <NumField label="Loose eggs" value={p.loose} onChange={p.setL} />

@@ -42,7 +42,7 @@ function NewProductionRecordPageInner() {
                 <FileText className="h-5 w-5 text-emerald-600" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-slate-900">Add New Egg Production Record</h1>
+                <h1 className="text-2xl font-bold text-slate-900">Add Production Record</h1>
                 <p className="text-sm text-slate-600">Record daily egg production data for a flock</p>
               </div>
             </div>
