@@ -190,9 +190,17 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
           title="Sales & Money"
           blurb="Orders, collections, expenses and cash."
           groups={nav.salesMoney}
-          /* Longest label "Reconcile cash" (14 chars ~= 106px):
-             64 + 2x(40+106) + 16 = 372px. */
-          columns={2} widthRem={24} layout="grid"
+          /* Same treatment as the poultry rail: columns sized to their OWN
+             content (fitColumns), not to an equal share. This was 24rem with
+             equal columns, sized for "Reconcile cash" alone -- which predates
+             the two Balances rows and truncated them to "Customer Bala...".
+             Measured in Geist-Medium (the active row's weight): Sales' longest
+             is "Customer Balances" 132px, Money's is "Reconcile cash" 102px.
+             Each column needs ~40px more for the icon, gap and row padding, so
+             the two are ~180px and ~148px. 24rem = 384px covers 180 + 148 + the
+             16px grid gap + 32px of panel padding, with slack for font
+             rendering -- the same width, but no longer wasted on equal columns. */
+          columns={2} widthRem={24} layout="grid" fitColumns
         />
 
         {/* Analytics is a menu, not a destination — there is no landing page,
