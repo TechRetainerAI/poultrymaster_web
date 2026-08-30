@@ -156,6 +156,7 @@ export function MobileBottomNav() {
           { href: "/water-customer-balances", label: "Customer Balances", icon: Users },
           { href: "/water-supplier-balances", label: "Supplier Balances", icon: Truck },
           { href: "/water-expenses",      label: "Expenses",          icon: Receipt },
+          { href: "/water-cash-flow",     label: "Cash Flow",         icon: Wallet },
           { href: "/water-cash-accounts", label: "Cash accounts",     icon: Wallet },
           { href: "/water-cash-reconciliation", label: "Reconcile cash", icon: Scale },
           // Finance — Customers and Suppliers sit together here, matching the
@@ -269,7 +270,7 @@ export function MobileBottomNav() {
       { href: "/poultry-driver-report",  label: "Driver report",          icon: BarChart3 },
       // Financial
       { href: "/poultry-daily-closing",  label: "Daily Closing",          icon: FileText },
-      { href: "/cash",                   label: "Cash",                   icon: Wallet },
+      { href: "/cash-flow",              label: "Cash Flow",              icon: Wallet },
       { href: "/poultry-cash-accounts",  label: "Cash Account",           icon: Wallet },
       { href: "/poultry-cash-reconciliation", label: "Reconcile cash",    icon: Scale },
       { href: "/poultry-payments",       label: "Payments received",      icon: CreditCard },
@@ -299,7 +300,7 @@ export function MobileBottomNav() {
         ? [{ href: "/employees", label: "Employees", icon: UserCog }] : []),
     ]
     const filteredPoultryMore = poultryMore.filter((item) => {
-      if (["/sales", "/expenses", "/cash", "/customers", "/suppliers", "/billing", "/poultry-cash-accounts", "/poultry-cash-reconciliation", "/poultry-payments", "/customer-balances", "/supplier-balances"].includes(item.href)) {
+      if (["/sales", "/expenses", "/cash-flow", "/customers", "/suppliers", "/billing", "/poultry-cash-accounts", "/poultry-cash-reconciliation", "/poultry-payments", "/customer-balances", "/supplier-balances"].includes(item.href)) {
         return isFinancialNavItemVisible(item.href, permissions.featureAccess, permissions.isAdmin, {
           tempShowPayments: TEMP_SHOW_PAYMENTS_LINK,
         })

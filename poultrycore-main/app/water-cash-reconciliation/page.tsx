@@ -230,67 +230,77 @@ function WaterCashReconciliationPageInner() {
               <Link href="/water-cash-accounts"><ArrowLeft className="h-4 w-4 mr-1" /> Back to Cash &amp; Accounts</Link>
             </Button>
 
-            {/* Blurb beside the title, not under it — it is one sentence of
-                orientation and does not need its own line. It drops below on
-                narrow screens, where the wrap is what keeps both readable. */}
-            <div className="mt-0.5 flex flex-wrap items-baseline gap-x-3">
+            {/* Description under the title, not beside it. Sharing the line
+                saved a row but read as a caption hung off the heading; stacked,
+                it reads as the sentence explaining the page. */}
+            <div className="mt-0.5">
               <h1 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
                 <Scale className="h-5 w-5 text-sky-600" />
                 Reconcile cash
               </h1>
-              <p className="text-xs text-slate-500 min-w-0">
+              <p className="mt-1 text-xs text-slate-500 max-w-3xl">
                 Check what an account actually holds against what the system says. The difference is
                 posted as an adjustment — balances are never edited directly.
               </p>
             </div>
 
-            {/* One control line under the description: which account on the
-                left, what to do with it on the right. ml-auto on the button
-                group rather than justify-between, so on a narrow screen the
-                select takes the line and the buttons wrap underneath still
-                right-aligned instead of jumping to the left edge. */}
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              {accounts.length > 0 && (
-                <>
-                  <label className="text-sm font-medium text-slate-700">Account</label>
-                  <Select
-                    value={accountId != null ? String(accountId) : ""}
-                    onValueChange={(v) => setAccountId(Number(v))}
-                  >
-                    <SelectTrigger className="h-8 w-full sm:w-[20rem]">
-                      <SelectValue placeholder="Pick an account to reconcile" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {accounts.map((a) => (
-                        <SelectItem key={a.waterCashAccountId} value={String(a.waterCashAccountId)}>
-                          {a.accountName}{a.isActive ? "" : " (inactive)"}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </>
-              )}
-              <div className="flex gap-2 ml-auto">
-                {account && (
-                  <Button asChild variant="outline" size="sm" className="whitespace-nowrap">
-                    <Link href={`/water-cash-accounts/${account.waterCashAccountId}`}>
-                      <ExternalLink className="h-4 w-4 mr-1" /> Open ledger
-                    </Link>
-                  </Button>
+            {/* The account picker is the page. Every figure, every button and the
+                whole history below answer for whichever account is chosen here,
+                so it gets a panel of its own and a full-height trigger rather
+                than sitting inline as a small control among the buttons — where
+                it read as a filter, which it is not.
+
+                The actions live in the same panel deliberately: they all act on
+                the selected account, and separating them would invite the reader
+                to think Recalculate or Open ledger meant something company-wide. */}
+            <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
+              <div className="flex flex-wrap items-end gap-3">
+                {accounts.length > 0 && (
+                  <div className="min-w-0 flex-1 sm:flex-none">
+                    <label htmlFor="reconcile-account"
+                           className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Account to reconcile
+                    </label>
+                    <Select
+                      value={accountId != null ? String(accountId) : ""}
+                      onValueChange={(v) => setAccountId(Number(v))}
+                    >
+                      <SelectTrigger id="reconcile-account"
+                                     className="mt-1 h-11 w-full text-base font-medium sm:w-[26rem]">
+                        <SelectValue placeholder="Pick an account to reconcile" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {accounts.map((a) => (
+                          <SelectItem key={a.waterCashAccountId} value={String(a.waterCashAccountId)}>
+                            {a.accountName}{a.isActive ? "" : " (inactive)"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 )}
-                <Button variant="outline" size="sm" className="whitespace-nowrap"
-                        onClick={recalculate} disabled={busy || loading}>
-                  <RefreshCw className={cn("h-4 w-4 mr-1", busy && "animate-spin")} />
-                  Recalculate
-                </Button>
-                {/* Named for the account, never a bare "Reconcile": the word
-                    that follows is the whole point of the vocabulary. */}
-                {account && (
-                  <Button size="sm" className="whitespace-nowrap" onClick={openReconcile}>
-                    <Scale className="h-4 w-4 mr-1" />
-                    {openDraft ? `Finish ${openDraft.referenceNo ?? vocab.recordNoun}` : vocab.action}
+                <div className="flex gap-2 ml-auto">
+                  {account && (
+                    <Button asChild variant="outline" size="sm" className="whitespace-nowrap">
+                      <Link href={`/water-cash-accounts/${account.waterCashAccountId}`}>
+                        <ExternalLink className="h-4 w-4 mr-1" /> Open ledger
+                      </Link>
+                    </Button>
+                  )}
+                  <Button variant="outline" size="sm" className="whitespace-nowrap"
+                          onClick={recalculate} disabled={busy || loading}>
+                    <RefreshCw className={cn("h-4 w-4 mr-1", busy && "animate-spin")} />
+                    Recalculate
                   </Button>
-                )}
+                  {/* Named for the account, never a bare "Reconcile": the word
+                      that follows is the whole point of the vocabulary. */}
+                  {account && (
+                    <Button size="sm" className="whitespace-nowrap" onClick={openReconcile}>
+                      <Scale className="h-4 w-4 mr-1" />
+                      {openDraft ? `Finish ${openDraft.referenceNo ?? vocab.recordNoun}` : vocab.action}
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           </div>

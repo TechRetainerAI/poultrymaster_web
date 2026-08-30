@@ -345,7 +345,7 @@ export function TopNavigation() {
           <NavMegaMenu
             label="Sales & Money" icon={Wallet}
             title="Sales & Money"
-            blurb="Orders, collections, expenses, cash and payroll."
+            blurb="Orders, collections, expenses, cash flow and payroll."
             groups={nav.salesMoney}
             /* Two columns sized to their OWN content (fitColumns), not to an equal
                share: Sales' longest label is "Customer Balances" and Money's is

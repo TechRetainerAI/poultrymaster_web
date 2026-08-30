@@ -58,7 +58,7 @@ namespace PoultryFarmAPIWeb.Business
                 await conn.OpenAsync();
                 var result = await cmd.ExecuteScalarAsync();
                 var newId = Convert.ToInt32(result);
-                await SyncExpenseCashAsync(model.FarmId ?? string.Empty, newId, model.PoultryCashAccountId, model.Amount, model.Description, model.UserId);
+                await SyncExpenseCashAsync(model.FarmId ?? string.Empty, newId, model.PoultryCashAccountId, model.Amount, model.Description, model.UserId, model.ExpenseDate);
                 return newId;
             }
             catch (Exception ex)
@@ -70,7 +70,14 @@ namespace PoultryFarmAPIWeb.Business
         // Posts / reverses the expense's cash-out on the chosen PoultryCashAccount.
         // Safe to call with a null account (reverse only). Uses the NVARCHAR farmId
         // so the cash rows scope correctly (dbo.Expense.FarmId is a GUID).
-        private async Task SyncExpenseCashAsync(string farmId, int expenseId, int? cashAccountId, decimal amount, string? description, string? createdBy)
+        //
+        // businessDate re-stamps the ledger row after the sync. The sync itself
+        // writes now(), and it is reverse-then-repost, so without this a January
+        // expense edited in August lands its cash-out in August and every
+        // date-ranged cash-flow total shifts under the reader. See migration 229 --
+        // it explains why this is a separate call rather than a parameter on the
+        // sync (that function's live Postgres body is not in this repo).
+        private async Task SyncExpenseCashAsync(string farmId, int expenseId, int? cashAccountId, decimal amount, string? description, string? createdBy, DateTime? businessDate = null)
         {
             using var conn = new NpgsqlConnection(_connectionString);
             using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryexpensecash_sync(p_farmid => @FarmId::text, p_expenseid => @ExpenseId::int, p_poultrycashaccountid => @PoultryCashAccountId::int, p_amount => @Amount::numeric, p_description => @Description::text, p_createdby => @CreatedBy::text)", conn);
@@ -82,6 +89,15 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@CreatedBy", (object?)createdBy ?? DBNull.Value);
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
+
+            if (businessDate.HasValue)
+            {
+                using var stamp = new NpgsqlCommand("SELECT public.sppoultrycashtransaction_setbusinessdate(p_farmid => @FarmId::text, p_sourcetype => 'Expense', p_sourceid => @ExpenseId::int, p_businessdate => @BusinessDate::timestamp)", conn);
+                stamp.Parameters.AddWithValue("@FarmId", farmId);
+                stamp.Parameters.AddWithValue("@ExpenseId", expenseId);
+                stamp.Parameters.AddWithValue("@BusinessDate", businessDate.Value);
+                await stamp.ExecuteNonQueryAsync();
+            }
         }
 
         public async Task Update(ExpenseModel model)
@@ -113,7 +129,7 @@ namespace PoultryFarmAPIWeb.Business
                 await conn.OpenAsync();
                 await cmd.ExecuteNonQueryAsync();
                 conn.Close();
-                await SyncExpenseCashAsync(model.FarmId ?? string.Empty, model.ExpenseId, model.PoultryCashAccountId, model.Amount, model.Description, model.UserId);
+                await SyncExpenseCashAsync(model.FarmId ?? string.Empty, model.ExpenseId, model.PoultryCashAccountId, model.Amount, model.Description, model.UserId, model.ExpenseDate);
             }
             catch (Exception ex)
             {

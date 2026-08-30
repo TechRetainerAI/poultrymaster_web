@@ -1,6 +1,7 @@
 import { farmApiUrl, getAuthHeaders, getUserContext } from "./config"
 import { explainHttpError } from "@/lib/api/http-error"
 import { forceReauth } from "./session-expiry"
+import { ledgerFromParam, ledgerToParam } from "@/lib/cash/cash-flow"
 
 // ----- Types -----
 // Migration 063 introduces ProductType so finished goods are separated from
@@ -575,13 +576,22 @@ export const adjustWaterCashAccount = (id: number, input: { amount: number; reas
   jsend<void>(`/Water/cash-accounts/${id}/adjust?farmId=${encodeURIComponent(activeFarmId())}`, "POST",
     { amount: input.amount, reason: input.reason, createdBy: currentUserId() || null })
 
+/**
+ * The ledger read.
+ *
+ * fromDate/toDate accept a plain yyyy-mm-dd and are widened to cover the whole
+ * day. The controller binds toDate as a DateTime and the function compares
+ * `t.transactiondate <= p_todate` (222_WaterCashReconciliation.postgres.sql:830),
+ * so a bare date means midnight and silently drops everything recorded that day
+ * — asking for "Today" returned nothing at all. Same fix as the poultry client.
+ */
 export const listWaterCashTransactions = (opts?: {
   cashAccountId?: number; fromDate?: string; toDate?: string; clearingStatus?: WaterClearingStatus
 }) => {
   const qs = new URLSearchParams({ farmId: activeFarmId() })
   if (opts?.cashAccountId) qs.append("cashAccountId", String(opts.cashAccountId))
-  if (opts?.fromDate) qs.append("fromDate", opts.fromDate)
-  if (opts?.toDate) qs.append("toDate", opts.toDate)
+  if (opts?.fromDate) qs.append("fromDate", ledgerFromParam(opts.fromDate))
+  if (opts?.toDate) qs.append("toDate", ledgerToParam(opts.toDate))
   if (opts?.clearingStatus) qs.append("clearingStatus", opts.clearingStatus)
   return jget<WaterCashTransaction[]>(`/Water/cash-accounts/transactions?${qs.toString()}`)
 }
