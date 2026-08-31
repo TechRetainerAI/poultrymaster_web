@@ -198,10 +198,10 @@ export default function PoultryCashAccountsPage() {
 
           <button
             type="button"
-            onClick={() => router.push("/cash")}
+            onClick={() => router.push("/cash-flow")}
             className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-sky-600 hover:text-sky-700 hover:underline"
           >
-            <ArrowLeftRight className="h-4 w-4" /> Want to see all your money movement in one place? Click here →
+            <ArrowLeftRight className="h-4 w-4" /> See the whole company&apos;s cash flow →
           </button>
 
           <div className="mb-3 grid grid-cols-2 md:grid-cols-4 gap-3">

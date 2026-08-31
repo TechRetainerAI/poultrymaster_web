@@ -6,6 +6,7 @@
 import { farmApiUrl, getAuthHeaders, getUserContext } from "./config"
 import { explainHttpError } from "@/lib/api/http-error"
 import { forceReauth } from "./session-expiry"
+import { ledgerFromParam, ledgerToParam } from "@/lib/cash/cash-flow"
 
 // ----- shared helpers (mirror water.ts) --------------------------------------
 function activeFarmId(): string {
@@ -129,13 +130,28 @@ export const adjustPoultryCashAccount = (id: number, input: { amount: number; re
   jsend<void>(`/Poultry/cash-accounts/${id}/adjust?farmId=${fid()}`, "POST",
     { amount: input.amount, reason: input.reason, createdBy: currentUserId() || null })
 
+/**
+ * The ledger read.
+ *
+ * fromDate/toDate accept a plain yyyy-mm-dd and are widened to cover the whole
+ * day. That is not a convenience — it is a correctness fix. The controller binds
+ * toDate as a DateTime (PoultryCashControllers.cs:82) and the function compares
+ * `t.transactiondate <= p_todate` (223_PoultryCashReconciliation.postgres.sql:862),
+ * so a bare date means midnight and silently excludes everything recorded that
+ * day. Asking for "Today" returned nothing at all.
+ *
+ * Normalised here rather than at each call site so every caller benefits and
+ * nobody has to remember. lib/api/water.ts carries the same fix for the water
+ * ledger; the water cash-flow REPORT that still had the unfixed version was
+ * retired when /water-cash-flow replaced it.
+ */
 export const listPoultryCashTransactions = (opts?: {
   cashAccountId?: number; fromDate?: string; toDate?: string; clearingStatus?: PoultryClearingStatus
 }) => {
   const qs = new URLSearchParams({ farmId: activeFarmId() })
   if (opts?.cashAccountId != null) qs.set("cashAccountId", String(opts.cashAccountId))
-  if (opts?.fromDate) qs.set("fromDate", opts.fromDate)
-  if (opts?.toDate) qs.set("toDate", opts.toDate)
+  if (opts?.fromDate) qs.set("fromDate", ledgerFromParam(opts.fromDate))
+  if (opts?.toDate) qs.set("toDate", ledgerToParam(opts.toDate))
   if (opts?.clearingStatus) qs.set("clearingStatus", opts.clearingStatus)
   return jget<PoultryCashTransaction[]>(`/Poultry/cash-accounts/transactions?${qs.toString()}`)
 }

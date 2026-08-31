@@ -133,7 +133,12 @@ namespace PoultryFarmAPIWeb.Business
         // received (sale.AmountPaid) rather than nothing. A paid sale still posts
         // its full total, and an unpaid sale with no payments still moves no
         // money — AmountPaid is 0 at that point.
-        private async Task SyncSaleCashAsync(string farmId, int saleId, int? cashAccountId, decimal amount, bool paid, string? description, string? createdBy)
+        // businessDate re-stamps the ledger row after the sync. The sync writes
+        // now() and is reverse-then-repost, so a January sale that takes a second
+        // payment in August would otherwise have its whole cash-in re-dated to
+        // August. See migration 229 for why this is a separate call rather than a
+        // parameter on the sync.
+        private async Task SyncSaleCashAsync(string farmId, int saleId, int? cashAccountId, decimal amount, bool paid, string? description, string? createdBy, DateTime? businessDate = null)
         {
             using var conn = new NpgsqlConnection(_connectionString);
             using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrysalecash_sync(p_farmid => @FarmId::text, p_saleid => @SaleId::int, p_poultrycashaccountid => @PoultryCashAccountId::int, p_amount => @Amount::numeric, p_paid => @Paid::boolean, p_description => @Description::text, p_createdby => @CreatedBy::text)", conn);
@@ -146,6 +151,15 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@CreatedBy", (object?)createdBy ?? DBNull.Value);
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
+
+            if (businessDate.HasValue)
+            {
+                using var stamp = new NpgsqlCommand("SELECT public.sppoultrycashtransaction_setbusinessdate(p_farmid => @FarmId::text, p_sourcetype => 'Sale', p_sourceid => @SaleId::int, p_businessdate => @BusinessDate::timestamp)", conn);
+                stamp.Parameters.AddWithValue("@FarmId", farmId);
+                stamp.Parameters.AddWithValue("@SaleId", saleId);
+                stamp.Parameters.AddWithValue("@BusinessDate", businessDate.Value);
+                await stamp.ExecuteNonQueryAsync();
+            }
         }
 
         public async Task<int> Insert(SaleModel model)
@@ -178,7 +192,7 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.CommandText = await PgCallText.ForAsync("spSale_Insert", cmd);
                 var result = await cmd.ExecuteScalarAsync();
                 var newId = Convert.ToInt32(result);
-                await SyncSaleCashAsync(model.FarmId, newId, model.PoultryCashAccountId, model.TotalAmount, model.Paid, model.SaleDescription, model.UserId);
+                await SyncSaleCashAsync(model.FarmId, newId, model.PoultryCashAccountId, model.TotalAmount, model.Paid, model.SaleDescription, model.UserId, model.SaleDate);
                 return newId;
             }
             catch (Exception ex)
@@ -216,7 +230,7 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.CommandText = await PgCallText.ForAsync("spSale_Update", cmd);
                 await cmd.ExecuteNonQueryAsync();
                 conn.Close();
-                await SyncSaleCashAsync(model.FarmId, model.SaleId, model.PoultryCashAccountId, model.TotalAmount, model.Paid, model.SaleDescription, model.UserId);
+                await SyncSaleCashAsync(model.FarmId, model.SaleId, model.PoultryCashAccountId, model.TotalAmount, model.Paid, model.SaleDescription, model.UserId, model.SaleDate);
             }
             catch (Exception ex)
             {

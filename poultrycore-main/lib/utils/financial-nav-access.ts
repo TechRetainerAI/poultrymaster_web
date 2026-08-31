@@ -13,7 +13,11 @@ export function isFinancialNavItemVisible(
   const f = featureAccess
   if (href === "/sales") return f.canEnterSales
   if (href === "/expenses") return f.canEnterExpenses
-  if (href === "/cash") return f.canViewCashLedger
+  // Company-wide money movement. Rides canViewCashLedger rather than a new flag:
+  // staff are deny-by-default, so a fresh permission would quietly remove this
+  // page from everyone who can see it today until an admin re-granted it. Same
+  // reasoning as cash-reconciliation below.
+  if (href === "/cash-flow") return f.canViewCashLedger
   if (href === "/poultry-cash-accounts") return f.canViewCashLedger
   // Counting cash is a cash-ledger job; it rides the same flag rather than
   // introducing a permission nobody has been granted yet.

@@ -56,6 +56,11 @@ const WATER_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAdmin: 
   // member's access doesn't change shape when they switch company.
   "/water-sales": (f) => f.canEnterSales,
   "/water-expenses": (f) => f.canEnterExpenses,
+  // Company-wide money movement. Same flag as the account pages below: it
+  // shows the same rows with better arithmetic, so there is no incremental
+  // disclosure to protect and a new permission would only strip the page
+  // from staff who can already see the data.
+  "/water-cash-flow": (f) => f.canViewCashLedger,
   "/water-cash-accounts": (f) => f.canViewCashLedger,
   // Counting cash is a cash-ledger job; it rides the same flag rather than
   // introducing a permission nobody has been granted yet.
