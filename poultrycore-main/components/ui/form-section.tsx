@@ -44,11 +44,18 @@ const COLORS = {
 export type FormSectionColor = keyof typeof COLORS
 
 export function FormSection({
-  title, color = "indigo", columns = 2, children, className,
+  title, color = "indigo", columns = 2, stackOnMobile = false, children, className,
 }: {
   title: string
   color?: FormSectionColor
   columns?: 1 | 2 | 3
+  /**
+   * Opt this section out of the multi-column-on-mobile default below. Use it
+   * where half a phone screen genuinely isn't enough for the control — long
+   * Select labels that truncate, or a section whose child is itself a grid of
+   * repeated rows. Off by default so existing forms are untouched.
+   */
+  stackOnMobile?: boolean
   children: ReactNode
   className?: string
 }) {
@@ -58,8 +65,8 @@ export function FormSection({
   // get one row per field.
   const gridClass =
     columns === 1 ? "grid-cols-1" :
-    columns === 3 ? "grid-cols-2 md:grid-cols-3" :
-    "grid-cols-2"
+    columns === 3 ? (stackOnMobile ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3" : "grid-cols-2 md:grid-cols-3") :
+    stackOnMobile ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-2"
 
   return (
     // min-w-0 + w-full so this section can shrink within any grid/flex parent
@@ -97,13 +104,15 @@ export function FormField({
   full?: boolean
   children: ReactNode
 }) {
-  // `full` now spans both columns on every screen — was md+ only, which
-  // made wide fields (Name, Notes, Address) collapse weirdly on mobile.
+  // `full` spans every column of whatever grid it lands in, at every width.
+  // `col-span-full` rather than `col-span-2`: in a one-column grid (columns={1},
+  // or a stackOnMobile section on a phone) a hard span of 2 makes the item
+  // reach into an implicit second column and widens the whole grid.
   return (
     // min-w-0 so the field can shrink inside its parent grid track —
     // otherwise long Select values / numeric inputs with default min-content
     // sizing can prevent the parent dialog from reflowing on narrow widths.
-    <div className={cn("space-y-1 min-w-0", full && "col-span-2 md:col-span-2")}>
+    <div className={cn("space-y-1 min-w-0", full && "col-span-full")}>
       <label className="text-xs sm:text-sm font-medium text-slate-700">{label}</label>
       {children}
       {hint && <p className="text-[11px] text-slate-500">{hint}</p>}

@@ -100,6 +100,20 @@ export default function FlockBatchesPage() {
   const [showAllColumnsMobile, setShowAllColumnsMobile] = useState(false)
   const isMobile = useIsMobile()
 
+  // This table hides most of its columns behind `sm:`/`md:`/`lg:`/`xl:`
+  // breakpoints. A phone never reaches any of them, so on mobile — where the
+  // table renders only because the reader chose it over the cards — the hiding
+  // is switched off entirely and the table scrolls sideways instead.
+  // The class strings are written out in full: Tailwind scans source text, so a
+  // composed `hidden ${bp}:table-cell` would never be generated.
+  const HIDE_BELOW = {
+    sm: "hidden sm:table-cell",
+    md: "hidden md:table-cell",
+    lg: "hidden lg:table-cell",
+    xl: "hidden xl:table-cell",
+  } as const
+  const hideBelow = (bp: keyof typeof HIDE_BELOW) => (isMobile ? "" : HIDE_BELOW[bp])
+
   // Suppliers for dropdown
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
 
@@ -899,21 +913,23 @@ export default function FlockBatchesPage() {
                       </div>
                     )}
                   <div className="overflow-x-auto">
-                    <Table className={cn("w-full", !isMobile && "min-w-[1100px]")}>
+                    {/* Every column is shown on mobile (see hideBelow above), so
+                        the table needs its full width to scroll through. */}
+                    <Table className="w-full min-w-[1100px]">
                       <TableHeader>
                         <TableRow className="border-b">
                           <SortableHeader label="Name" sortKey="name" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[150px]", isMobile && "sticky-col-date bg-slate-50")} />
-                          <SortableHeader label="Code" sortKey="code" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[100px] hidden sm:table-cell" />
-                          <SortableHeader label="Number of Birds" sortKey="numberOfBirds" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[120px] hidden md:table-cell" />
-                          <SortableHeader label="Breed" sortKey="breed" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[150px] hidden lg:table-cell" />
-                          <SortableHeader label="Cost/Chick" sortKey="costPerChick" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[110px] hidden md:table-cell" />
-                          <SortableHeader label="Total Cost" sortKey="totalCost" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[120px] hidden md:table-cell" />
-                          <SortableHeader label={`Amount Paid (${currencySymbol})`} sortKey="amountPaid" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[140px] hidden md:table-cell" />
-                          <TableHead className="font-semibold text-slate-900 min-w-[120px] hidden lg:table-cell">Balance ({currencySymbol})</TableHead>
-                          <SortableHeader label="Supplier" sortKey="supplierName" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[150px] hidden lg:table-cell" />
-                          <SortableHeader label="Type" sortKey="supplierType" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[100px] hidden lg:table-cell" />
-                          <SortableHeader label="Status" sortKey="status" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[100px] hidden md:table-cell" />
-                          <SortableHeader label="Start Date" sortKey="startDate" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[140px] hidden xl:table-cell" />
+                          <SortableHeader label="Code" sortKey="code" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[100px]", hideBelow("sm"))} />
+                          <SortableHeader label="Number of Birds" sortKey="numberOfBirds" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[120px]", hideBelow("md"))} />
+                          <SortableHeader label="Breed" sortKey="breed" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[150px]", hideBelow("lg"))} />
+                          <SortableHeader label="Cost/Chick" sortKey="costPerChick" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[110px]", hideBelow("md"))} />
+                          <SortableHeader label="Total Cost" sortKey="totalCost" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[120px]", hideBelow("md"))} />
+                          <SortableHeader label={`Amount Paid (${currencySymbol})`} sortKey="amountPaid" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[140px]", hideBelow("md"))} />
+                          <TableHead className={cn("font-semibold text-slate-900 min-w-[120px]", hideBelow("lg"))}>Balance ({currencySymbol})</TableHead>
+                          <SortableHeader label="Supplier" sortKey="supplierName" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[150px]", hideBelow("lg"))} />
+                          <SortableHeader label="Type" sortKey="supplierType" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[100px]", hideBelow("lg"))} />
+                          <SortableHeader label="Status" sortKey="status" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[100px]", hideBelow("md"))} />
+                          <SortableHeader label="Start Date" sortKey="startDate" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[140px]", hideBelow("xl"))} />
                           <TableHead className="font-semibold text-slate-900 text-center min-w-[100px]">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -932,33 +948,33 @@ export default function FlockBatchesPage() {
                             <TableCell className={cn("font-medium text-slate-900 bg-white", isMobile && "sticky-col-date")}>
                               {batch.batchName}
                             </TableCell>
-                            <TableCell className="hidden sm:table-cell">{batch.batchCode}</TableCell>
-                            <TableCell className="text-slate-600 hidden md:table-cell">
+                            <TableCell className={hideBelow("sm")}>{batch.batchCode}</TableCell>
+                            <TableCell className={cn("text-slate-600", hideBelow("md"))}>
                               <div className="flex items-center gap-2">
                                 <Users className="w-4 h-4 text-slate-400" />
                                 <span>{batch.numberOfBirds.toLocaleString()} birds</span>
                               </div>
                             </TableCell>
-                            <TableCell className="text-slate-600 hidden lg:table-cell">
+                            <TableCell className={cn("text-slate-600", hideBelow("lg"))}>
                               <div className="flex items-center gap-2">
                                 <Bird className="w-4 h-4 text-slate-400" />
                                 <span>{batch.breed}</span>
                               </div>
                             </TableCell>
-                            <TableCell className="text-slate-600 hidden md:table-cell tabular-nums">
+                            <TableCell className={cn("text-slate-600 tabular-nums", hideBelow("md"))}>
                               {Number(batch.costPerChick || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
-                            <TableCell className="text-slate-700 font-medium hidden md:table-cell tabular-nums">
+                            <TableCell className={cn("text-slate-700 font-medium tabular-nums", hideBelow("md"))}>
                               {computedTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
-                            <TableCell className="text-slate-700 font-medium hidden md:table-cell tabular-nums">
+                            <TableCell className={cn("text-slate-700 font-medium tabular-nums", hideBelow("md"))}>
                               {Number(batch.amountPaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
-                            <TableCell className={cn("font-medium hidden lg:table-cell tabular-nums", (computedTotal - Number(batch.amountPaid || 0)) > 0 ? "text-red-600" : "text-emerald-700")}>
+                            <TableCell className={cn("font-medium tabular-nums", hideBelow("lg"), (computedTotal - Number(batch.amountPaid || 0)) > 0 ? "text-red-600" : "text-emerald-700")}>
                               {Math.max(0, computedTotal - Number(batch.amountPaid || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
-                            <TableCell className="text-slate-600 hidden lg:table-cell">{supplierLabel}</TableCell>
-                            <TableCell className="hidden lg:table-cell">
+                            <TableCell className={cn("text-slate-600", hideBelow("lg"))}>{supplierLabel}</TableCell>
+                            <TableCell className={hideBelow("lg")}>
                               {batch.supplierType ? (
                                 <Badge variant="outline" className={cn(
                                   batch.supplierType.toLowerCase() === "foreign"
@@ -971,7 +987,7 @@ export default function FlockBatchesPage() {
                                 <span className="text-slate-400">—</span>
                               )}
                             </TableCell>
-                            <TableCell className="hidden md:table-cell">
+                            <TableCell className={hideBelow("md")}>
                               {statusLower === "pending" ? (
                                 <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-200">Pending</Badge>
                               ) : statusLower === "active" ? (
@@ -980,12 +996,16 @@ export default function FlockBatchesPage() {
                                 <Badge variant="secondary" className="bg-gray-100 text-gray-800">Inactive</Badge>
                               )}
                             </TableCell>
-                            <TableCell className="text-slate-600 hidden xl:table-cell">
+                            <TableCell className={cn("text-slate-600", hideBelow("xl"))}>
                               <div className="flex items-center gap-2">
                                 <span>{batch.startDate ? new Date(batch.startDate).toLocaleDateString() : "—"}</span>
                               </div>
                             </TableCell>
-                            <TableCell className={cn("text-center bg-white", isMobile && "sticky-col-actions")}>
+                            {/* Actions is deliberately NOT pinned: with Name
+                                already pinned, a second pinned column would
+                                leave ~140px of a 390px screen for the eleven
+                                columns the reader opened this view to read. */}
+                            <TableCell className="text-center bg-white">
                               <div className="flex items-center justify-center gap-1">
                                 {(computedTotal - Number(batch.amountPaid || 0)) > 0 && (
                                   <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:bg-emerald-50" title="Pay balance" onClick={(e) => { e.stopPropagation(); openPayBalance(batch) }}>

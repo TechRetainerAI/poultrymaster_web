@@ -123,15 +123,16 @@ export function SecurityView({ farmId, canEdit }: { farmId: string | null; canEd
 
   return (
     <Tabs defaultValue="review">
-      <TabsList>
-        <TabsTrigger value="review">
+      {/* Wraps onto a second row on phones instead of running off the side. */}
+      <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 sm:inline-flex sm:h-9 sm:w-fit sm:flex-nowrap sm:gap-0">
+        <TabsTrigger value="review" className="h-8 sm:h-[calc(100%-1px)]">
           <ClipboardCheck className="h-4 w-4 mr-1.5" /> Access Review
           {needsAttention > 0 && (
             <Badge className="ml-1.5 bg-amber-100 text-amber-800 hover:bg-amber-100 text-[10px]">{needsAttention}</Badge>
           )}
         </TabsTrigger>
-        <TabsTrigger value="policy"><ShieldCheck className="h-4 w-4 mr-1.5" /> Policy</TabsTrigger>
-        <TabsTrigger value="history"><History className="h-4 w-4 mr-1.5" /> Change History</TabsTrigger>
+        <TabsTrigger value="policy" className="h-8 sm:h-[calc(100%-1px)]"><ShieldCheck className="h-4 w-4 mr-1.5" /> Policy</TabsTrigger>
+        <TabsTrigger value="history" className="h-8 sm:h-[calc(100%-1px)]"><History className="h-4 w-4 mr-1.5" /> Change History</TabsTrigger>
       </TabsList>
 
       {/* ---------------- Access review ---------------- */}
@@ -340,12 +341,12 @@ export function SecurityView({ farmId, canEdit }: { farmId: string | null; canEd
 
       {/* ---------------- Change history ---------------- */}
       <TabsContent value="history" className="pt-4 space-y-3">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-slate-600">
             Every change to who can do what, recorded by the database itself.
           </p>
           <Select value={auditDays} onValueChange={setAuditDays}>
-            <SelectTrigger className="w-[160px] h-9"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 w-full sm:w-[160px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               {AUDIT_WINDOWS.map((w) => <SelectItem key={w.value} value={w.value}>{w.label}</SelectItem>)}
             </SelectContent>

@@ -146,15 +146,20 @@ export function BatchProductionRecordModal({
                 </>
               ) : null}
             </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <Button type="button" variant="outline" onClick={requestClose} disabled={saving}>Cancel</Button>
+            {/* Three buttons at their natural width need ~386px; the modal
+                gives them ~319px on a phone, and shrink-0 meant the primary
+                was simply clipped off the right edge. On mobile they become a
+                2-up grid with the primary spanning the row beneath. */}
+            <div className="grid w-full shrink-0 grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
+              <Button type="button" variant="outline" onClick={requestClose} disabled={saving} className="w-full sm:w-auto">Cancel</Button>
               <Button
                 type="button" variant="outline" disabled={saving || loading}
                 onClick={() => saveRef.current?.("Draft")}
+                className="w-full sm:w-auto"
               >
                 Save as Draft
               </Button>
-              <Button type="submit" form={FORM_ID} disabled={saving || loading}>
+              <Button type="submit" form={FORM_ID} disabled={saving || loading} className="col-span-2 w-full sm:col-auto sm:w-auto">
                 {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
                 {isEdit ? "Save Batch Production" : "Log Batch Production"}
               </Button>

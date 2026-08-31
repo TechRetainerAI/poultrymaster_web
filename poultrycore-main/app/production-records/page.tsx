@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -15,13 +15,14 @@ import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { FileText, Plus, Calendar as CalendarIcon, Download, Search, X, RefreshCw, Loader2, ChevronDown, ChevronUp, Filter, Pencil, Trash2, Mail } from "lucide-react"
+import { FileText, Plus, Calendar as CalendarIcon, Download, Search, X, RefreshCw, Loader2, ChevronDown, ChevronUp, Filter, Pencil, Trash2, Mail, Info } from "lucide-react"
 import { sendReportEmail } from "@/lib/api/email"
 import { getProductionRecords, deleteProductionRecord, type ProductionRecord } from "@/lib/api/production-record"
 import { getFlocks, type Flock } from "@/lib/api/flock"
 import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
 import { getUserContext } from "@/lib/utils/user-context"
 import { usePermissions } from "@/hooks/use-permissions"
+import { usePickSettings } from "@/hooks/use-pick-settings"
 import { useToast } from "@/hooks/use-toast"
 import { ProductionRecordModal } from "@/components/production/production-record-modal"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
@@ -50,9 +51,66 @@ import {
 import { flockCountsTowardBirdTotals } from "@/lib/utils/flock-eligibility"
 import { eggGradeFromApi, formatEggGradeLabel } from "@/lib/constants/egg-grade"
 
+// A tap-to-read note beside a stat's label. Popover rather than Tooltip on
+// purpose: hover doesn't exist on a phone, and these notes were written for
+// exactly the person holding one.
+function InfoTip({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={`What "${label}" means`}
+          className="grid h-4 w-4 shrink-0 place-items-center rounded-full text-slate-400 transition-colors hover:text-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400"
+        >
+          <Info className="h-3.5 w-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="top" align="start" className="w-64 p-2.5 text-xs font-normal normal-case leading-relaxed tracking-normal text-slate-600">
+        {children}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+// Every tile is exactly two lines — label, then value. Anything longer moved
+// into the InfoTip: descriptions of different lengths made the grid stretch
+// each row to its tallest tile, leaving dead space inside the shorter one.
+function StatTile({
+  label, value, valueClass, suffix, note, right, isMobile,
+}: {
+  label: string
+  value: string
+  valueClass?: string
+  suffix?: string
+  note?: ReactNode
+  right?: ReactNode
+  isMobile: boolean
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-center gap-1">
+        <span className="text-xs font-medium uppercase tracking-wider text-slate-500">{label}</span>
+        {note && <InfoTip label={label}>{note}</InfoTip>}
+      </div>
+      <div className="mt-0.5 flex items-end justify-between gap-2">
+        <div className="flex min-w-0 items-baseline gap-1.5">
+          <span className={cn("font-bold leading-tight tabular-nums", isMobile ? "text-lg" : "text-xl", valueClass)}>{value}</span>
+          {suffix && <span className="truncate text-xs text-slate-400">{suffix}</span>}
+        </div>
+        {right}
+      </div>
+    </div>
+  )
+}
+
 export default function ProductionRecordsPage() {
   const router = useRouter()
   const permissions = usePermissions()
+  // When the farm has the 4th pick switched off in Egg Pick Settings, the
+  // column is dropped everywhere this page shows picks — table, mobile cards,
+  // CSV and PDF — rather than shown as a run of zeros.
+  const { enableFourthPick } = usePickSettings()
   const { toast } = useToast()
   const [records, setRecords] = useState<ProductionRecord[]>([])
   const [flocks, setFlocks] = useState<Flock[]>([])
@@ -473,7 +531,9 @@ export default function ProductionRecordsPage() {
 
   const exportCsv = () => {
     const headers = [
-      "Date","FlockId","Batch","Age","1st Pick","2nd Pick","3rd Pick","4th Pick","Total","Size","EggPercent","FeedKg","Birds","Deaths","Left","Medication"
+      "Date","FlockId","Batch","Age","1st Pick","2nd Pick","3rd Pick",
+      ...(enableFourthPick ? ["4th Pick"] : []),
+      "Total","Size","EggPercent","FeedKg","Birds","Deaths","Left","Medication"
     ]
     const rows = filtered.map((r: any) => [
       new Date(r.date).toLocaleDateString(),
@@ -483,7 +543,7 @@ export default function ProductionRecordsPage() {
       r.production9AM ?? 0,
       r.production12PM ?? 0,
       r.production4PM ?? 0,
-      r.production4thPick ?? 0,
+      ...(enableFourthPick ? [r.production4thPick ?? 0] : []),
       r.totalProduction ?? 0,
       r.eggGrade ?? "",
       (() => { const b = Number(r.noOfBirds)||0; const t = Number(r.totalProduction)||0; return b? ((t/b)*100).toFixed(1):"" })(),
@@ -526,7 +586,9 @@ export default function ProductionRecordsPage() {
 
     // Table
     const headers = [
-      "Date", "Flock", "Batch", "Age", "1st Pick", "2nd Pick", "3rd Pick", "4th Pick", "Total", "Size", "Egg%", "Feed(kg)", "Birds", "Deaths", "Left", "Medication"
+      "Date", "Flock", "Batch", "Age", "1st Pick", "2nd Pick", "3rd Pick",
+      ...(enableFourthPick ? ["4th Pick"] : []),
+      "Total", "Size", "Egg%", "Feed(kg)", "Birds", "Deaths", "Left", "Medication"
     ]
 
     const rows = filtered.map((r: any) => {
@@ -542,7 +604,7 @@ export default function ProductionRecordsPage() {
         r.production9AM ?? 0,
         r.production12PM ?? 0,
         r.production4PM ?? 0,
-        r.production4thPick ?? 0,
+        ...(enableFourthPick ? [r.production4thPick ?? 0] : []),
         r.totalProduction ?? 0,
         formatEggGradeLabel(r.eggGrade),
         eggPct,
@@ -557,7 +619,8 @@ export default function ProductionRecordsPage() {
     // Add totals row
     rows.push([
       "TOTALS", "", "", "",
-      total9AM, total12PM, total4PM, total4thPick,
+      total9AM, total12PM, total4PM,
+      ...(enableFourthPick ? [total4thPick] : []),
       `${totalEggs} (${totalEggsCrates}c+${totalEggsPieces}p)`,
       "",
       "", totalFeed.toFixed(2),
@@ -572,12 +635,15 @@ export default function ProductionRecordsPage() {
       headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: "bold", fontSize: 7 },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       footStyles: { fillColor: [226, 232, 240], textColor: [30, 41, 59], fontStyle: "bold" },
+      // Keyed by column index, so the two that sit to the right of the 4th-pick
+      // column shift left by one when that column is dropped. The first three
+      // sit to its left and are unaffected.
       columnStyles: {
         0: { cellWidth: 22 },
         2: { cellWidth: 24 },
         3: { cellWidth: 28 },
-        9: { cellWidth: 16 },
-        15: { cellWidth: 22 },
+        [enableFourthPick ? 9 : 8]: { cellWidth: 16 },   // Size
+        [enableFourthPick ? 15 : 14]: { cellWidth: 22 }, // Medication
       },
       didParseCell: (data: any) => {
         // Bold the last (totals) row
@@ -901,56 +967,60 @@ export default function ProductionRecordsPage() {
                 "grid gap-3",
                 isMobile ? "grid-cols-2" : "grid-cols-1 sm:grid-cols-2 xl:grid-cols-6"
               )}>
-                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
-                  <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Eggs</div>
-                  <div className={cn("font-bold text-emerald-600", isMobile ? "text-lg mt-0.5" : "text-xl mt-1")}>{totalEggs.toLocaleString()}</div>
-                  <div className="text-xs text-slate-400 mt-0.5">{totalEggsCrates}c + {totalEggsPieces}p</div>
-                </div>
-                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
-                  <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">Avg / Record</div>
-                  <div className={cn("font-bold text-slate-900", isMobile ? "text-lg mt-0.5" : "text-xl mt-1")}>{avgEggsPerRecord.toLocaleString()}</div>
-                </div>
-                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
-                  <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">Feed (kg)</div>
-                  <div className={cn("font-bold text-slate-900", isMobile ? "text-lg mt-0.5" : "text-xl mt-1")}>{totalFeed.toFixed(2)}</div>
-                </div>
-                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
-                  <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Deaths</div>
-                  <div
-                    className={cn(
-                      "mt-0.5 flex flex-wrap items-end justify-between gap-x-2 gap-y-1",
-                      isMobile ? "min-h-[2rem]" : "min-h-[2.25rem]",
-                    )}
-                  >
-                    <div className={cn("font-bold text-red-600 tabular-nums leading-tight", isMobile ? "text-lg" : "text-xl")}>
-                      {totalDeaths.toLocaleString()}
-                    </div>
-                    <div className="text-right shrink-0">
-                      <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">All logs</div>
-                      <div className="text-sm font-semibold text-slate-800 tabular-nums leading-tight">
+                <StatTile
+                  isMobile={isMobile}
+                  label="Total Eggs"
+                  value={totalEggs.toLocaleString()}
+                  valueClass="text-emerald-600"
+                  suffix={`${totalEggsCrates}c + ${totalEggsPieces}p`}
+                />
+                <StatTile
+                  isMobile={isMobile}
+                  label="Avg / Record"
+                  value={avgEggsPerRecord.toLocaleString()}
+                  valueClass="text-slate-900"
+                />
+                <StatTile
+                  isMobile={isMobile}
+                  label="Feed (kg)"
+                  value={totalFeed.toFixed(2)}
+                  valueClass="text-slate-900"
+                />
+                <StatTile
+                  isMobile={isMobile}
+                  label="Total Deaths"
+                  value={totalDeaths.toLocaleString()}
+                  valueClass="text-red-600"
+                  note={
+                    <>
+                      The big number counts deaths in <b>active flocks</b>. <b>All logs</b> counts every day
+                      ever logged, including flocks that have since closed. Placed − left is{" "}
+                      {birdsLostPlacedMinusLeft.toLocaleString()}.
+                    </>
+                  }
+                  right={
+                    <div className="shrink-0 text-right">
+                      <div className="text-[10px] font-medium uppercase tracking-wide text-slate-500">All logs</div>
+                      <div className="text-sm font-semibold leading-tight tabular-nums text-slate-800">
                         {totalDeathsAllRowsFarmWide.toLocaleString()}
                       </div>
                     </div>
-                  </div>
-                  <div className="text-xs text-slate-400 mt-0.5">
-                    Active flocks (left). Every day logged, including old flocks (right). Placed − left:{" "}
-                    {birdsLostPlacedMinusLeft.toLocaleString()}.
-                  </div>
-                </div>
-                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
-                  <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">Overall Total Birds</div>
-                  <div className={cn("font-bold text-slate-900", isMobile ? "text-lg mt-0.5" : "text-xl mt-1")}>
-                    {farmOverallTotalBirds.toLocaleString()}
-                  </div>
-                  <div className="text-xs text-slate-400 mt-0.5">Birds placed when each flock was created.</div>
-                </div>
-                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
-                  <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Birds Left</div>
-                  <div className={cn("font-bold text-emerald-700", isMobile ? "text-lg mt-0.5" : "text-xl mt-1")}>
-                    {farmTotalBirdsLeft.toLocaleString()}
-                  </div>
-                  <div className="text-xs text-slate-400 mt-0.5">Latest count still alive per flock (from your last entry).</div>
-                </div>
+                  }
+                />
+                <StatTile
+                  isMobile={isMobile}
+                  label="Overall Total Birds"
+                  value={farmOverallTotalBirds.toLocaleString()}
+                  valueClass="text-slate-900"
+                  note="Birds placed when each flock was created."
+                />
+                <StatTile
+                  isMobile={isMobile}
+                  label="Total Birds Left"
+                  value={farmTotalBirdsLeft.toLocaleString()}
+                  valueClass="text-emerald-700"
+                  note="Latest count still alive per flock, taken from your last entry for each."
+                />
               </div>
             )}
 
@@ -987,15 +1057,21 @@ export default function ProductionRecordsPage() {
                               <CollapsibleTrigger asChild>
                                 <div className="relative cursor-pointer">
                                   <ChevronDown className="absolute right-0 top-0 h-4 w-4 text-slate-400 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
-                                  <div className="min-w-0 pr-6">
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-semibold text-slate-900">{formatDateShort(r.date)}</span>
-                                      <span className="text-slate-500">•</span>
-                                      <span className="text-slate-600 truncate">{resolveFlockLabel(r)}</span>
+                                  <div className="min-w-0">
+                                    {/* Only the heading lines clear the chevron —
+                                        pr-6 on the whole block would inset the
+                                        tiles below it too, leaving a dead gutter
+                                        down the right of every card. */}
+                                    <div className="pr-6">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-semibold text-slate-900">{formatDateShort(r.date)}</span>
+                                        <span className="text-slate-500">•</span>
+                                        <span className="text-slate-600 truncate">{resolveFlockLabel(r)}</span>
+                                      </div>
+                                      {resolveBatchLabel(r) !== "-" && (
+                                        <div className="mt-0.5 text-xs text-slate-500 truncate">Batch: {resolveBatchLabel(r)}</div>
+                                      )}
                                     </div>
-                                    {resolveBatchLabel(r) !== "-" && (
-                                      <div className="mt-0.5 text-xs text-slate-500 truncate">Batch: {resolveBatchLabel(r)}</div>
-                                    )}
                                     <div className="mt-3 grid grid-cols-2 gap-2">
                                       <div className="rounded-lg bg-emerald-100 border border-emerald-300 px-3 py-2 shadow-sm">
                                         <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-900">Eggs</p>
@@ -1021,7 +1097,9 @@ export default function ProductionRecordsPage() {
                                     <div><span className="text-slate-500">1st Pick</span> <span className="font-medium text-blue-700">{r.production9AM ?? 0}</span></div>
                                     <div><span className="text-slate-500">2nd Pick</span> <span className="font-medium text-orange-700">{r.production12PM ?? 0}</span></div>
                                     <div><span className="text-slate-500">3rd Pick</span> <span className="font-medium text-purple-700">{r.production4PM ?? 0}</span></div>
-                                    <div><span className="text-slate-500">4th Pick</span> <span className="font-medium text-teal-700">{(r as any).production4thPick ?? 0}</span></div>
+                                    {enableFourthPick && (
+                                      <div><span className="text-slate-500">4th Pick</span> <span className="font-medium text-teal-700">{(r as any).production4thPick ?? 0}</span></div>
+                                    )}
                                     <div><span className="text-slate-500">Feed</span> <span className="font-medium">{(r.feedKg ?? 0).toFixed ? (r.feedKg ?? 0).toFixed(2) : r.feedKg} kg</span></div>
                                     <div><span className="text-slate-500">Deaths</span> <span className={cn("font-medium", (r.mortality ?? 0) > 0 ? "text-red-600" : "")}>{r.mortality ?? 0}</span></div>
                                     <div><span className="text-slate-500">Age</span> <span className="text-slate-700 truncate">{formatAge(r)}</span></div>
@@ -1065,14 +1143,20 @@ export default function ProductionRecordsPage() {
                     <Table className={cn("min-w-[1600px]", isMobile && "min-w-[1400px]")}>
                       <TableHeader className="sticky top-0 bg-blue-50 z-10">
                         <TableRow className="border-b border-blue-200">
+                          {/* Only Date is pinned on mobile. Pinning Flock and
+                              Actions as well cost 350px of a 390px screen and
+                              left a ~40px slot for the numbers this table
+                              exists to show — Age was clipped mid-column. */}
                           <SortableHeader label="Date" sortKey="date" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className={cn("min-w-[100px] px-3 py-2", isMobile && "sticky-col-date bg-blue-50")} />
-                          <SortableHeader label="Flock" sortKey="flockId" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className={cn("min-w-[70px] px-3 py-2", isMobile && "sticky-col-flock bg-blue-50")} />
+                          <SortableHeader label="Flock" sortKey="flockId" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[120px] px-3 py-2" />
                           <SortableHeader label="Batch" sortKey="batchName" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[120px] px-3 py-2 whitespace-nowrap" />
                           <SortableHeader label="Age" sortKey="age" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[170px] px-3 py-2" />
                           <SortableHeader label="1st Pick" sortKey="production9AM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-blue-100 text-blue-900 font-semibold whitespace-nowrap" />
                           <SortableHeader label="2nd Pick" sortKey="production12PM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-orange-100 text-orange-900 font-semibold whitespace-nowrap" />
                           <SortableHeader label="3rd Pick" sortKey="production4PM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-purple-100 text-purple-900 font-semibold whitespace-nowrap" />
-                          <SortableHeader label="4th Pick" sortKey="production4thPick" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-teal-100 text-teal-900 font-semibold whitespace-nowrap" />
+                          {enableFourthPick && (
+                            <SortableHeader label="4th Pick" sortKey="production4thPick" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-teal-100 text-teal-900 font-semibold whitespace-nowrap" />
+                          )}
                           <SortableHeader label="Brokens" sortKey="brokenEggs" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-red-50 text-red-800 font-semibold" />
                           <SortableHeader label="Total" sortKey="totalProduction" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
                           <SortableHeader label="Egg%" sortKey="eggPercent" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
@@ -1081,7 +1165,7 @@ export default function ProductionRecordsPage() {
                           <SortableHeader label="Deaths" sortKey="mortality" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[72px] px-3 py-2 whitespace-nowrap" />
                           <SortableHeader label="Left" sortKey="left" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[70px] px-3 py-2 whitespace-nowrap" />
                           <SortableHeader label="Meds" sortKey="medication" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[100px] px-3 py-2 whitespace-nowrap" />
-                          <TableHead className={cn("text-left min-w-[130px] px-3 py-2 whitespace-nowrap", isMobile && "sticky-col-actions bg-blue-50")}>Actions</TableHead>
+                          <TableHead className="text-left min-w-[130px] px-3 py-2 whitespace-nowrap">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1100,14 +1184,20 @@ export default function ProductionRecordsPage() {
                               idx % 2 === 0 ? "bg-white" : "bg-slate-50/40"
                             )}
                           >
-                            <TableCell className={cn("px-3 py-2 whitespace-nowrap min-w-[100px]", isMobile && "sticky-col-date bg-white")}>{isMobile ? formatDateShort(r.date) : new Date(r.date).toLocaleDateString()}</TableCell>
-                            <TableCell className={cn("px-3 py-2 whitespace-nowrap min-w-[120px] font-medium text-slate-800", isMobile && "sticky-col-flock bg-white")}>{resolveFlockLabel(r)}</TableCell>
+                            {/* The pinned cell needs its own OPAQUE background —
+                                the row's own bg-slate-50/40 is translucent, so
+                                columns would scroll visibly through it. Match
+                                the stripe rather than always white. */}
+                            <TableCell className={cn("px-3 py-2 whitespace-nowrap min-w-[100px]", isMobile && (idx % 2 === 0 ? "sticky-col-date bg-white" : "sticky-col-date bg-slate-100"))}>{isMobile ? formatDateShort(r.date) : new Date(r.date).toLocaleDateString()}</TableCell>
+                            <TableCell className="px-3 py-2 whitespace-nowrap min-w-[120px] font-medium text-slate-800">{resolveFlockLabel(r)}</TableCell>
                             <TableCell className="px-3 py-2 whitespace-nowrap min-w-[120px] text-slate-600">{resolveBatchLabel(r)}</TableCell>
                             <TableCell className="px-3 py-2">{formatAge(r)}</TableCell>
                             <TableCell className="text-right px-3 py-2 text-blue-700 bg-blue-50/40 rounded-sm">{r.production9AM ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2 text-orange-700 bg-orange-50/40 rounded-sm">{r.production12PM ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2 text-purple-700 bg-purple-50/40 rounded-sm">{r.production4PM ?? 0}</TableCell>
-                            <TableCell className="text-right px-3 py-2 text-teal-700 bg-teal-50/40 rounded-sm">{(r as any).production4thPick ?? 0}</TableCell>
+                            {enableFourthPick && (
+                              <TableCell className="text-right px-3 py-2 text-teal-700 bg-teal-50/40 rounded-sm">{(r as any).production4thPick ?? 0}</TableCell>
+                            )}
                             <TableCell className="text-right px-3 py-2 text-red-700 bg-red-50/40 rounded-sm">{(r as any).brokenEggs ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2 font-semibold text-slate-900">{r.totalProduction ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2">{(() => { const b = Number(r.noOfBirds)||0; const t = Number(r.totalProduction)||0; return b? ((t/b)*100).toFixed(1)+"%":"-" })()}</TableCell>
@@ -1118,7 +1208,7 @@ export default function ProductionRecordsPage() {
                             </TableCell>
                             <TableCell className="text-right px-3 py-2">{(Number(r.noOfBirds) || 0) - (Number(r.mortality) || 0)}</TableCell>
                             <TableCell className="px-3 py-2">{r.medication || "-"}</TableCell>
-                            <TableCell className={cn("text-left px-3 py-2 whitespace-nowrap", isMobile && "sticky-col-actions bg-white")}>
+                            <TableCell className="text-left px-3 py-2 whitespace-nowrap">
                               <div className="flex items-center gap-1 min-w-[110px]">
                                 <Button variant="ghost" size="sm" className="shrink-0" onClick={() => { setEditing(r); setFormOpen(true) }}>Edit</Button>
                                 {permissions.canDelete && (
@@ -1131,13 +1221,15 @@ export default function ProductionRecordsPage() {
                         {filtered.length > 0 && (
                           <TableRow className="bg-slate-50/60">
                             <TableCell className={cn("font-semibold text-xs px-3 py-2 bg-slate-50", isMobile && "sticky-col-date")}>Totals</TableCell>
-                            <TableCell className={cn("bg-slate-50", isMobile && "sticky-col-flock")}></TableCell>
+                            <TableCell className="bg-slate-50"></TableCell>
                             <TableCell></TableCell>
                             <TableCell></TableCell>
                             <TableCell className="text-right font-semibold px-3 py-2 text-blue-800 bg-blue-50 border border-blue-100 rounded">{total9AM.toLocaleString()}<div className="text-xs font-normal text-blue-600">{Math.floor(total9AM / EGGS_PER_CRATE)}c + {total9AM % EGGS_PER_CRATE}p</div></TableCell>
                             <TableCell className="text-right font-semibold px-3 py-2 text-orange-800 bg-orange-50 border border-orange-100 rounded">{total12PM.toLocaleString()}<div className="text-xs font-normal text-orange-600">{Math.floor(total12PM / EGGS_PER_CRATE)}c + {total12PM % EGGS_PER_CRATE}p</div></TableCell>
                             <TableCell className="text-right font-semibold px-3 py-2 text-purple-800 bg-purple-50 border border-purple-100 rounded">{total4PM.toLocaleString()}<div className="text-xs font-normal text-purple-600">{Math.floor(total4PM / EGGS_PER_CRATE)}c + {total4PM % EGGS_PER_CRATE}p</div></TableCell>
-                            <TableCell className="text-right font-semibold px-3 py-2 text-teal-800 bg-teal-50 border border-teal-100 rounded">{total4thPick.toLocaleString()}<div className="text-xs font-normal text-teal-600">{Math.floor(total4thPick / EGGS_PER_CRATE)}c + {total4thPick % EGGS_PER_CRATE}p</div></TableCell>
+                            {enableFourthPick && (
+                              <TableCell className="text-right font-semibold px-3 py-2 text-teal-800 bg-teal-50 border border-teal-100 rounded">{total4thPick.toLocaleString()}<div className="text-xs font-normal text-teal-600">{Math.floor(total4thPick / EGGS_PER_CRATE)}c + {total4thPick % EGGS_PER_CRATE}p</div></TableCell>
+                            )}
                             <TableCell className="text-right font-semibold px-3 py-2 text-red-700 bg-red-50 border border-red-100 rounded">{totalBrokens.toLocaleString()}<div className="text-xs font-normal text-red-500">{Math.floor(totalBrokens / EGGS_PER_CRATE)}c + {totalBrokens % EGGS_PER_CRATE}p</div></TableCell>
                             <TableCell className="text-right font-semibold px-3 py-2 text-emerald-700">{totalEggs.toLocaleString()}<div className="text-xs font-normal text-slate-500">{totalEggsCrates}c + {totalEggsPieces}p</div></TableCell>
                             {/* Egg% — no meaningful total */}
@@ -1147,7 +1239,7 @@ export default function ProductionRecordsPage() {
                             <TableCell className="text-right font-semibold px-3 py-2 text-red-700">{totalDeaths.toLocaleString()}</TableCell>
                             <TableCell className="text-right font-semibold px-3 py-2 text-emerald-700">{footerBirdsLeftDisplay.toLocaleString()}</TableCell>
                             <TableCell></TableCell>
-                            <TableCell className={cn("bg-slate-50", isMobile && "sticky-col-actions")}></TableCell>
+                            <TableCell className="bg-slate-50"></TableCell>
                           </TableRow>
                         )}
                       </TableBody>
