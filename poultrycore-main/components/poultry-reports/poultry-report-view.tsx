@@ -56,6 +56,7 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
     flockId: null,
     customerName: null,
     supplierName: null,
+    category: null,
     includeClosedFlocks: false,
   })
 
@@ -109,6 +110,7 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
         flockId: def.filters.flock ? filter.flockId : undefined,
         customerName: def.filters.customer ? filter.customerName : undefined,
         supplierName: def.filters.supplier ? filter.supplierName : undefined,
+        category: def.filters.category ? filter.category : undefined,
         includeClosedFlocks: def.filters.includeClosedFlocks ? filter.includeClosedFlocks : undefined,
       })
       setData(res)
@@ -127,6 +129,19 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
     firstRun.current = false
     return () => clearTimeout(t)
   }, [load])
+
+  // Category options for the filter. The rows are fetched already filtered, so
+  // the list is accumulated rather than recomputed — otherwise picking a
+  // category would leave that category as the only option available.
+  const [categoryOptions, setCategoryOptions] = useState<string[]>([])
+  useEffect(() => {
+    if (!def.filters.category) return
+    const seen = (data?.rows ?? [])
+      .map((r: any) => (r?.category ?? "").toString().trim())
+      .filter(Boolean)
+    if (!seen.length) return
+    setCategoryOptions((prev) => Array.from(new Set([...prev, ...seen])).sort((a, b) => a.localeCompare(b)))
+  }, [data, def.filters.category])
 
   // Formatting context handed to the column / card definitions.
   //
@@ -207,6 +222,7 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
     }
     if (def.filters.customer && filter.customerName) out.push({ label: "Customer", value: filter.customerName })
     if (def.filters.supplier && filter.supplierName) out.push({ label: "Supplier", value: filter.supplierName })
+    if (def.filters.category && filter.category) out.push({ label: "Category", value: filter.category })
     if (def.filters.includeClosedFlocks && filter.includeClosedFlocks) out.push({ label: "Closed flocks", value: "Included" })
     return out
   }, [def, filter, flocks])
@@ -283,7 +299,7 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
 
   const resetFilters = () => setFilter({
     fromDate: initialRange.from, toDate: initialRange.to,
-    flockId: null, customerName: null, supplierName: null, includeClosedFlocks: false,
+    flockId: null, customerName: null, supplierName: null, category: null, includeClosedFlocks: false,
   })
 
   const hasData = !!data && rows.length > 0
@@ -327,6 +343,7 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
             show={def.filters}
             flocks={flocks}
             customers={customers}
+            categories={categoryOptions}
           />
 
           {/* Data-availability notices from the backend (graceful degradation). */}

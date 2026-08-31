@@ -19,7 +19,12 @@ import { Wheat, RefreshCw, Copy, Plus, Pencil, Trash2 } from "lucide-react"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { getFeedUsages, type FeedUsage } from "@/lib/api/feed-usage"
 import { getFlocks, type Flock } from "@/lib/api/flock"
-import { getSupplies, type Supply } from "@/lib/api/supply"
+import {
+  listPoultryRawMaterialItems, listPoultryRawMaterialPurchases,
+  listPoultryRawMaterialUsageHistory, listPoultryRawMaterialAdjustments,
+  type PoultryRawMaterialItem, type PoultryRawMaterialPurchase,
+  type PoultryRawMaterialUsage, type PoultryRawMaterialAdjustment,
+} from "@/lib/api/poultry-inventory"
 import { getUserContext } from "@/lib/utils/user-context"
 import { useToast } from "@/hooks/use-toast"
 import { toastFormGuide } from "@/lib/utils/validation-toast"
@@ -50,14 +55,16 @@ export default function FeedTrackerPage() {
   const { toast } = useToast()
   const isMobile = useIsMobile()
   const [usages, setUsages] = useState<FeedUsage[]>([])
-  const [supplies, setSupplies] = useState<Supply[]>([])
+  const [rmItems, setRmItems] = useState<PoultryRawMaterialItem[]>([])
+  const [rmPurchases, setRmPurchases] = useState<PoultryRawMaterialPurchase[]>([])
+  const [rmUsage, setRmUsage] = useState<PoultryRawMaterialUsage[]>([])
+  const [rmAdjustments, setRmAdjustments] = useState<PoultryRawMaterialAdjustment[]>([])
   const [flocks, setFlocks] = useState<Flock[]>([])
   const [feedAdjustments, setFeedAdjustments] = useState<FeedInventoryAdjustment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [refreshing, setRefreshing] = useState(false)
 
-  const [flockFilter, setFlockFilter] = useState("ALL")
   const [ledgerTypeFilter, setLedgerTypeFilter] = useState("ALL")
   const [ledgerDescriptionFilter, setLedgerDescriptionFilter] = useState("")
   const [ledgerDateFrom, setLedgerDateFrom] = useState("")
@@ -97,12 +104,22 @@ export default function FeedTrackerPage() {
       setRefreshing(false)
       return
     }
-    const [feedRes, flocksRes, supplyRes, adjRes] = await Promise.all([
+    // Stock now comes from the poultry raw-material store — the same movements
+    // that maintain the quantities shown on /poultry-raw-materials. The Supplies
+    // table this page used to read has never held a feed row.
+    const [feedRes, flocksRes, adjRes, itemsRes, purchasesRes, usageRes, rmAdjRes] = await Promise.all([
       getFeedUsages(userId, farmId),
       getFlocks(userId, farmId),
-      getSupplies(userId, farmId),
       getFeedInventoryAdjustments(farmId),
+      listPoultryRawMaterialItems().catch(() => [] as PoultryRawMaterialItem[]),
+      listPoultryRawMaterialPurchases().catch(() => [] as PoultryRawMaterialPurchase[]),
+      listPoultryRawMaterialUsageHistory().catch(() => [] as PoultryRawMaterialUsage[]),
+      listPoultryRawMaterialAdjustments().catch(() => [] as PoultryRawMaterialAdjustment[]),
     ])
+    setRmItems(itemsRes)
+    setRmPurchases(purchasesRes)
+    setRmUsage(usageRes)
+    setRmAdjustments(rmAdjRes)
     if (feedRes.success && feedRes.data) {
       setUsages(feedRes.data)
       setError("")
@@ -112,8 +129,6 @@ export default function FeedTrackerPage() {
     }
     if (flocksRes.success && flocksRes.data) setFlocks(flocksRes.data)
     else setFlocks([])
-    if (supplyRes.success && supplyRes.data) setSupplies(supplyRes.data)
-    else setSupplies([])
     if (adjRes.success && adjRes.data) setFeedAdjustments(adjRes.data)
     else {
       setFeedAdjustments([])
@@ -129,12 +144,6 @@ export default function FeedTrackerPage() {
     void loadData()
   }, [loadData])
 
-  const flockIdForLedger = useMemo(() => {
-    if (flockFilter === "ALL") return null
-    const id = parseInt(flockFilter, 10)
-    return Number.isFinite(id) ? id : null
-  }, [flockFilter])
-
   const adjustmentLedgerInput = useMemo(
     () =>
       feedAdjustments.map((a) => ({
@@ -149,11 +158,14 @@ export default function FeedTrackerPage() {
 
   const feedStockLedger = useMemo(
     () =>
-      buildFeedStockLedger(supplies, usages, flocks, {
-        flockId: flockIdForLedger,
-        adjustments: adjustmentLedgerInput,
+      buildFeedStockLedger({
+        items: rmItems,
+        purchases: rmPurchases,
+        usages: rmUsage,
+        adjustments: rmAdjustments,
+        manualAdjustments: adjustmentLedgerInput,
       }),
-    [supplies, usages, flocks, flockIdForLedger, adjustmentLedgerInput]
+    [rmItems, rmPurchases, rmUsage, rmAdjustments, adjustmentLedgerInput]
   )
   const { rows: feedLedgerAllRows, feedKgAtHand, lastUpdatedIso, totalInKg, totalOutKg } = feedStockLedger
 
@@ -201,7 +213,7 @@ export default function FeedTrackerPage() {
 
   useEffect(() => {
     setLedgerPage(1)
-  }, [ledgerTypeFilter, ledgerDescriptionFilter, ledgerDateFrom, ledgerDateTo, ledgerSortKey, ledgerSortDir, flockFilter])
+  }, [ledgerTypeFilter, ledgerDescriptionFilter, ledgerDateFrom, ledgerDateTo, ledgerSortKey, ledgerSortDir])
 
   const handleLedgerSort = (key: string) => {
     const r = toggleSort(key, ledgerSortKey, ledgerSortDir)
@@ -210,7 +222,6 @@ export default function FeedTrackerPage() {
   }
 
   const clearLedgerFilters = () => {
-    setFlockFilter("ALL")
     setLedgerTypeFilter("ALL")
     setLedgerDescriptionFilter("")
     setLedgerDateFrom("")
@@ -550,22 +561,9 @@ export default function FeedTrackerPage() {
                   <CardHeader>
                     <CardTitle>Feed stock ledger</CardTitle>
                     <CardDescription>
-                      Each row updates the running total: <strong>balance = IN − OUT</strong> (kg). Filter the table below.
+                      Purchases in, consumption out, straight from the raw-material store — so this balance matches the stock on Raw Materials &amp; Supplies. Filter the table below.
                     </CardDescription>
-                    <div className={cn("grid gap-2 pt-3", isMobile ? "grid-cols-1" : "grid-cols-2 lg:grid-cols-6")}>
-                      <Select value={flockFilter} onValueChange={setFlockFilter}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Flock (usage)" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ALL">All flocks (usage)</SelectItem>
-                          {flocks.map((f) => (
-                            <SelectItem key={f.flockId} value={String(f.flockId)}>
-                              {f.name || `Flock #${f.flockId}`}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <div className={cn("grid gap-2 pt-3", isMobile ? "grid-cols-1" : "grid-cols-2 lg:grid-cols-5")}>
                       <Select value={ledgerTypeFilter} onValueChange={setLedgerTypeFilter}>
                         <SelectTrigger>
                           <SelectValue placeholder="Type" />

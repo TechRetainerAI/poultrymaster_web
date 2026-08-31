@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "build": "next build",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "dev": "next dev",
     "dev:webpack": "next dev --webpack",
     "verify": "next build",
@@ -82,6 +84,7 @@
     "postcss": "^8.5",
     "tailwindcss": "^4.1.9",
     "tw-animate-css": "1.3.3",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vitest": "^4.1.11"
   }
 }

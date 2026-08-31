@@ -29,6 +29,12 @@ export interface FeatureAccessPermissions {
   canViewWaterDeliveries: boolean
   /** Water: Stock movement, Inventory, Raw materials, Damages & loss, Production losses. */
   canViewWaterInventory: boolean
+  /**
+   * Internal Use — stock consumed internally (staff welfare, owner use,
+   * donations, samples, testing). One flag across all three company types, the
+   * way canViewWaterInventory covers five water pages.
+   */
+  canViewInternalUse: boolean
   /** Water: the Maintenance register. */
   canViewWaterMaintenance: boolean
   /** Water: Payroll runs. */
@@ -118,6 +124,7 @@ const DEFAULT_FEATURE_ACCESS: FeatureAccessPermissions = {
   canViewWaterProduction: true,
   canViewWaterDeliveries: true,
   canViewWaterInventory: true,
+  canViewInternalUse: true,
   canViewWaterMaintenance: true,
   canViewWaterPayroll: true,
   canViewWaterSetup: true,
@@ -159,6 +166,7 @@ const STAFF_FEATURE_BASE: FeatureAccessPermissions = {
   canViewWaterProduction: false,
   canViewWaterDeliveries: false,
   canViewWaterInventory: false,
+  canViewInternalUse: false,
   canViewWaterMaintenance: false,
   canViewWaterPayroll: false,
   canViewWaterSetup: false,

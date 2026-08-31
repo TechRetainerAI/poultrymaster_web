@@ -16,7 +16,7 @@
 import {
   Activity, AlertTriangle, Banknote, BarChart3, Bell, Bird, BookOpen, Box, Boxes,
   Building2, Clock, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle,
-  ListTodo, Package, Pill, Settings, ShoppingCart, Truck, User, UserCog, Users,
+  ListTodo, Package, PackageMinus, Pill, Scale, Settings, ShoppingCart, Truck, User, UserCog, Users,
   Users2, Wallet, Wheat,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
@@ -93,6 +93,7 @@ export function buildPoultryNavConfig(
           { id: "raw-materials",  title: "Raw Materials & Supplies",  icon: Box,           href: "/poultry-raw-materials" },
           { id: "supplies",       title: "Supplies",                  icon: ShoppingCart,  href: "/supplies" },
           { id: "health",         title: "Health Records",            icon: AlertTriangle, href: "/health" },
+          { id: "internal-use",   title: "Internal Use",              icon: PackageMinus,  href: "/poultry-internal-use" },
           { id: "loss-records",   title: "Loss & Damage",             icon: AlertTriangle, href: "/poultry-loss-records" },
           { id: "other-inventory", title: "Other Inventory",          icon: Package,       href: "/inventory" },
         ],
@@ -134,6 +135,11 @@ export function buildPoultryNavConfig(
         items: [
           { id: "sales",    title: "Sales",             icon: ShoppingCart, href: "/sales",            visible: money("/sales") },
           { id: "payments", title: "Payments",          icon: Wallet,       href: "/poultry-payments", visible: money("/poultry-payments") },
+          // The two collection/payment control centres. They sit under Sales
+          // rather than Money because the question they answer is "who owes
+          // what", not "where is the cash".
+          { id: "customer-balances", title: "Customer Balances", icon: Users, href: "/customer-balances", visible: money("/customer-balances") },
+          { id: "supplier-balances", title: "Supplier Balances", icon: Truck, href: "/supplier-balances", visible: money("/supplier-balances") },
           { id: "billing",  title: "Billing",           icon: CreditCard,   href: "/billing",          visible: money("/billing") },
         ],
       },
@@ -143,6 +149,7 @@ export function buildPoultryNavConfig(
         items: [
           { id: "cash",          title: "Cash",         icon: Wallet,     href: "/cash",                   visible: money("/cash") },
           { id: "cash-accounts", title: "Cash Account", icon: Wallet,     href: "/poultry-cash-accounts",  visible: money("/poultry-cash-accounts") },
+          { id: "cash-reconciliation", title: "Reconcile cash", icon: Scale, href: "/poultry-cash-reconciliation", visible: money("/poultry-cash-reconciliation") },
           { id: "expenses",      title: "Expenses",     icon: DollarSign, href: "/expenses",               visible: money("/expenses") },
           // Payroll is money going out, so it sits with the other outflows
           // rather than with staff master data in Setup > People. It is also the
@@ -171,7 +178,10 @@ export function buildPoultryNavConfig(
         key: "company",
         label: "Company",
         items: [
-          { id: "settings",   title: "Settings",  icon: Settings,  href: "/settings",  visible: featureAccess.canViewSettings },
+          // Points at the real setup page rather than /settings, which is now
+          // only a redirect. Matches Water's "Company Setup" row.
+          { id: "farm-setup", title: "Farm Setup",    icon: Settings, href: "/poultry-setup",         visible: featureAccess.canViewSettings },
+          { id: "settings",   title: "Company Setup", icon: Settings, href: "/poultry-company-setup", visible: featureAccess.canViewSettings },
           // Ungated, so this column (and the Setup trigger) always renders.
           { id: "companies",  title: "Companies", icon: Building2, href: "/companies" },
         ],

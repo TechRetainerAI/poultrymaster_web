@@ -201,6 +201,10 @@ namespace PoultryFarmAPIWeb.Models
         public string? SourceType { get; set; }
         public int? SourceId { get; set; }
 
+        // Migration 225 — how the sale was paid, derived from its payment rows:
+        // NULL when nothing is paid yet, the single method used, or "Mixed".
+        public string? PaymentMethod { get; set; }
+
         // Populated by GetById / Create
         public List<WaterSaleItemModel> Items { get; set; } = new();
     }

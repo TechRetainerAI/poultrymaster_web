@@ -26,6 +26,7 @@ import { usePermissions } from "@/hooks/use-permissions"
 import { useToast } from "@/hooks/use-toast"
 import { format } from "date-fns"
 import { formatDateShort, cn } from "@/lib/utils"
+import { useFmt, useCurrency } from "@/lib/currency"
 import { toastFormGuide } from "@/lib/utils/validation-toast"
 import { Calendar } from "@/components/ui/calendar"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -586,7 +587,11 @@ export default function FlockBatchesPage() {
   }
 
   // Part payment: birds can be paid for over time. Balance = Total − Amount paid.
-  const fmtMoney = (n: number) => `₵${(Number(n) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  // Was a local formatter hardcoding ₵, so this page ignored the company's
+  // currency entirely. useFmt() binds to the settings store, so the numbers
+  // here re-render when the currency changes in Setup > Company.
+  const fmtMoney = useFmt()
+  const { symbol: currencySymbol } = useCurrency()
   const paymentStatus = (total: number, paid: number) => {
     const t = Number(total) || 0
     const p = Number(paid) || 0
@@ -673,14 +678,14 @@ export default function FlockBatchesPage() {
             {!loading && flockBatches.length > 0 && (
               <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
                 <ScoreCard
-                  label="Total Purchase Price (₵)"
+                  label={`Total Purchase Price (${currencySymbol})`}
                   value={totalPurchasePrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   description="Sum of total cost across all batches."
                   icon={DollarSign}
                   accent="emerald"
                 />
                 <ScoreCard
-                  label="Total Amount Paid (₵)"
+                  label={`Total Amount Paid (${currencySymbol})`}
                   value={totalAmountPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   description="Sum of amount paid across all batches."
                   icon={Wallet}
@@ -849,8 +854,8 @@ export default function FlockBatchesPage() {
                                   <div><span className="text-slate-500">Start</span> <span className="font-medium">{batch.startDate ? formatDateShort(batch.startDate) : "—"}</span></div>
                                   <div><span className="text-slate-500">Cost/Chick</span> <span className="font-medium tabular-nums">{Number(batch.costPerChick || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
                                   <div><span className="text-slate-500">Total Cost</span> <span className="font-medium tabular-nums">{computedTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                                  <div><span className="text-slate-500">Amount Paid (₵)</span> <span className="font-medium tabular-nums">{Number(batch.amountPaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
-                                  <div><span className="text-slate-500">Balance (₵)</span> <span className={cn("font-medium tabular-nums", (computedTotal - Number(batch.amountPaid || 0)) > 0 ? "text-red-600" : "text-emerald-700")}>{Math.max(0, computedTotal - Number(batch.amountPaid || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                  <div><span className="text-slate-500">Amount Paid ({currencySymbol})</span> <span className="font-medium tabular-nums">{Number(batch.amountPaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                                  <div><span className="text-slate-500">Balance ({currencySymbol})</span> <span className={cn("font-medium tabular-nums", (computedTotal - Number(batch.amountPaid || 0)) > 0 ? "text-red-600" : "text-emerald-700")}>{Math.max(0, computedTotal - Number(batch.amountPaid || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
                                   <div><span className="text-slate-500">Supplier</span> <span className="font-medium">{supplierLabel}</span></div>
                                   <div><span className="text-slate-500">Type</span> <span className="font-medium">{batch.supplierType ? batch.supplierType.charAt(0).toUpperCase() + batch.supplierType.slice(1).toLowerCase() : "—"}</span></div>
                                 </div>
@@ -903,8 +908,8 @@ export default function FlockBatchesPage() {
                           <SortableHeader label="Breed" sortKey="breed" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[150px] hidden lg:table-cell" />
                           <SortableHeader label="Cost/Chick" sortKey="costPerChick" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[110px] hidden md:table-cell" />
                           <SortableHeader label="Total Cost" sortKey="totalCost" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[120px] hidden md:table-cell" />
-                          <SortableHeader label="Amount Paid (₵)" sortKey="amountPaid" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[140px] hidden md:table-cell" />
-                          <TableHead className="font-semibold text-slate-900 min-w-[120px] hidden lg:table-cell">Balance (₵)</TableHead>
+                          <SortableHeader label={`Amount Paid (${currencySymbol})`} sortKey="amountPaid" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[140px] hidden md:table-cell" />
+                          <TableHead className="font-semibold text-slate-900 min-w-[120px] hidden lg:table-cell">Balance ({currencySymbol})</TableHead>
                           <SortableHeader label="Supplier" sortKey="supplierName" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[150px] hidden lg:table-cell" />
                           <SortableHeader label="Type" sortKey="supplierType" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[100px] hidden lg:table-cell" />
                           <SortableHeader label="Status" sortKey="status" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[100px] hidden md:table-cell" />
@@ -1237,7 +1242,7 @@ export default function FlockBatchesPage() {
                   <NumberInput min="0" step="0.01" placeholder="Auto-calculated" value={createForm.totalCost} onChange={(e) => setCreateForm({ ...createForm, totalCost: parseFloat(e.target.value) || 0 })} disabled={createLoading} />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-slate-700">Amount Paid Now (₵)</Label>
+                  <Label className="text-sm font-medium text-slate-700">Amount Paid Now ({currencySymbol})</Label>
                   <NumberInput min="0" step="0.01" placeholder="e.g., 250.00" value={createForm.amountPaid} onChange={(e) => setCreateForm({ ...createForm, amountPaid: parseFloat(e.target.value) || 0 })} disabled={createLoading} />
                   <p className="text-xs text-slate-500">Part payment is fine — pay the balance later by editing the batch.</p>
                 </div>
@@ -1390,7 +1395,7 @@ export default function FlockBatchesPage() {
                     <NumberInput min="0" step="0.01" placeholder="Auto-calculated" value={editForm.totalCost} onChange={(e) => setEditForm({ ...editForm, totalCost: parseFloat(e.target.value) || 0 })} disabled={editLoading} />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-700">Amount Paid (₵)</Label>
+                    <Label className="text-sm font-medium text-slate-700">Amount Paid ({currencySymbol})</Label>
                     <NumberInput min="0" step="0.01" placeholder="e.g., 250.00" value={editForm.amountPaid} onChange={(e) => setEditForm({ ...editForm, amountPaid: parseFloat(e.target.value) || 0 })} disabled={editLoading} />
                     <p className="text-xs text-slate-500">Raise this to record a further payment toward the balance.</p>
                   </div>
@@ -1502,7 +1507,7 @@ export default function FlockBatchesPage() {
                 Balance <span className="font-semibold text-red-600 tabular-nums">{fmtMoney(outstandingOf(payTarget))}</span>
               </div>
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-slate-700">Payment amount (₵)</Label>
+                <Label className="text-sm font-medium text-slate-700">Payment amount ({currencySymbol})</Label>
                 <NumberInput
                   min="0"
                   step="0.01"

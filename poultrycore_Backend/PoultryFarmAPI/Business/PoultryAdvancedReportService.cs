@@ -745,16 +745,23 @@ namespace PoultryFarmAPIWeb.Business
             {
                 var sales = DecOr(r, "TotalSales");
                 var paid = DecOr(r, "TotalPaid");
-                var balance = sales - paid;
+                // Migration 223 made the SP return the balance directly, using the
+                // same formula the Customer Balances page uses, so the report and
+                // the page cannot disagree. sales - paid is kept as the fallback
+                // for an API running ahead of its migration.
+                var balance = DecN(r, "Balance") ?? (sales - paid);
                 resp.Rows.Add(new PoultryCustomerBalanceReportRow
                 {
+                    CustomerId = IntN(r, "CustomerId"),
                     Customer = Str(r, "Customer") ?? "Unknown",
+                    ContactPhone = Str(r, "ContactPhone"),
+                    OpenSaleCount = IntOr(r, "OpenSaleCount"),
                     TotalSales = sales,
                     TotalPaid = paid,
                     CurrentBalance = balance,
                     LastSaleDate = DateN(r, "LastSaleDate"),
-                    LastPaymentDate = null,
-                    OverdueAmount = null,
+                    LastPaymentDate = DateN(r, "LastPaymentDate"),
+                    OverdueAmount = DecN(r, "OverdueAmount"),
                     Status = balance <= 0 ? "Settled" : "Owing",
                 });
             }
@@ -764,10 +771,64 @@ namespace PoultryFarmAPIWeb.Business
             {
                 CustomersWithBalance = owing.Count,
                 TotalReceivables = owing.Sum(x => x.CurrentBalance),
-                OverdueAmount = null,
+                OverdueAmount = owing.Any(x => x.OverdueAmount.HasValue)
+                    ? owing.Sum(x => x.OverdueAmount ?? 0m)
+                    : null,
                 HighestOwingCustomer = owing.OrderByDescending(x => x.CurrentBalance).FirstOrDefault()?.Customer,
             };
-            resp.Warnings.Add("Balances count part-payments recorded against a sale. Credit notes and due dates are not tracked, so overdue amount is N/A.");
+            resp.Warnings.Add("Balances count part-payments recorded against a sale. Overdue is measured against each customer's payment terms (0 days by default, so an unpaid credit sale is overdue the day after it is made). Credit notes are not tracked.");
+            return resp;
+        }
+
+        // =====================================================================
+        // 12b. Supplier Balance
+        // =====================================================================
+        // Reads the SAME function the Supplier Balances page reads, so the
+        // printable report and the working page cannot disagree about what the
+        // farm owes. The end-date filter is applied as the purchase cut-off.
+        public async Task<PoultryReportResponse<PoultrySupplierBalanceReportSummary, PoultrySupplierBalanceReportRow>>
+            GetSupplierBalanceAsync(PoultryReportFilterDto f)
+        {
+            var (start, end) = ResolveRange(f);
+            var resp = NewResponse<PoultrySupplierBalanceReportSummary, PoultrySupplierBalanceReportRow>("Poultry Supplier Balance", f, start, end);
+
+            using var conn = new NpgsqlConnection(_connectionString);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM sppoultrysupplierbalances(p_farmid => @FarmId::text, p_from => NULL::date, p_to => @EndDate::date, p_supplierid => @SupplierId::int, p_status => 'All'::text, p_minbalance => NULL::numeric, p_search => @Search::text)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
+            cmd.Parameters.AddWithValue("@EndDate", end);
+            cmd.Parameters.AddWithValue("@SupplierId", (object?)f.SupplierId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Search", (object?)f.SupplierName ?? DBNull.Value);
+
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+            {
+                var balance = DecOr(r, "TotalBalance");
+                resp.Rows.Add(new PoultrySupplierBalanceReportRow
+                {
+                    SupplierId = IntN(r, "SupplierId"),
+                    Supplier = Str(r, "SupplierName") ?? "Unknown",
+                    ContactPhone = Str(r, "ContactPhone"),
+                    TotalPurchases = DecOr(r, "TotalPurchases"),
+                    TotalPaid = DecOr(r, "TotalPaid"),
+                    CurrentBalance = balance,
+                    OpenPurchaseCount = IntOr(r, "OpenPurchaseCount"),
+                    OldestPurchaseDate = DateN(r, "OldestPurchaseDate"),
+                    LastPaymentDate = DateN(r, "LastPaymentDate"),
+                    OverdueAmount = DecN(r, "OverdueAmount"),
+                    Status = balance <= 0 ? "Settled" : "Owing",
+                });
+            }
+
+            resp.Summary = new PoultrySupplierBalanceReportSummary
+            {
+                SuppliersWithBalance = resp.Rows.Count,
+                TotalPayables = resp.Rows.Sum(x => x.CurrentBalance),
+                OverdueAmount = resp.Rows.Sum(x => x.OverdueAmount ?? 0m),
+                HighestOwedSupplier = resp.Rows.OrderByDescending(x => x.CurrentBalance).FirstOrDefault()?.Supplier,
+            };
+            resp.Warnings.Add("Payables cover raw-material purchases and flock batches. Purchases with no supplier recorded are excluded, as are expenses, which carry no part-payment balance.");
             return resp;
         }
 
@@ -781,12 +842,13 @@ namespace PoultryFarmAPIWeb.Business
             var resp = NewResponse<PoultryExpenseSummaryReportSummary, PoultryExpenseSummaryReportRow>("Poultry Expense Summary", f, start, end);
 
             using var conn = new NpgsqlConnection(_connectionString);
-            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_expensesummary(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_supplier => @Supplier::text, p_flockid => @FlockId::int)", conn);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryreport_expensesummary(p_farmid => @FarmId::text, p_startdate => @StartDate::date, p_enddate => @EndDate::date, p_supplier => @Supplier::text, p_flockid => @FlockId::int, p_category => @Category::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
             cmd.Parameters.AddWithValue("@StartDate", start);
             cmd.Parameters.AddWithValue("@EndDate", end);
             cmd.Parameters.Add(PFlock(f));
             cmd.Parameters.AddWithValue("@Supplier", (object?)f.SupplierName ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Category", (object?)f.Category ?? DBNull.Value);
 
             await conn.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();
@@ -805,6 +867,7 @@ namespace PoultryFarmAPIWeb.Business
                     AmountPaid = amount,
                     Balance = 0,
                     PaymentMethod = Str(r, "PaymentMethod"),
+                    SourceType = Str(r, "SourceType"),
                     Status = "Paid",
                     CreatedBy = Str(r, "CreatedBy"),
                 });

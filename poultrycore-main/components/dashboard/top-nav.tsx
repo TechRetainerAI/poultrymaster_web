@@ -8,7 +8,8 @@ import { cn } from "@/lib/utils"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useAlertsStore } from "@/lib/store/alerts-store"
-import { Droplets, ShoppingBag } from "lucide-react"
+import { Droplets, ShoppingBag, PackageMinus,
+} from "lucide-react"
 import { navPathActive, type NavAccent, type NavGroup, type NavItem } from "@/lib/nav/nav-model"
 import { NAV_SURFACE } from "./nav/nav-surface"
 import { WATER_REPORT_NAV_GROUPS, POULTRY_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
@@ -37,6 +38,7 @@ import {
   Truck,
   Factory,
   Heart,
+  LineChart,
 } from "lucide-react"
 
 function NavDropdown({ group, accent = "sky" }: { group: NavGroup; accent?: NavAccent }) {
@@ -154,12 +156,35 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
 
         <NavDropdown group={nav.quickLinks} />
 
+        {/* Panel widths below are sized to the longest label each one carries,
+            not picked by eye. NavMegaMenu's padding is shared with the poultry
+            rail, so an oversized widthRem is the whole reason water's groups sat
+            in dead space instead of filling the panel.
+
+            32px panel padding (p-4)
+          + 32px scrollbar gutter  <-- [scrollbar-gutter:stable_both-edges]
+          + 16px per grid gap
+          + per column: 16px px-2 + 16px icon + 8px gap + ~7.6px per character
+
+            THE GUTTER TERM IS NOT OPTIONAL. `stable` reserves the space whether
+            or not the panel actually scrolls, and `both-edges` reserves it
+            twice. It was added in the same pass that first tightened these
+            widths and left out of the arithmetic, which cost every panel 2rem
+            and truncated the longest label in most of them. If you ever drop
+            `both-edges`, drop 16px here; if you drop scrollbar-gutter entirely,
+            drop all 32px -- and re-derive, do not eyeball.
+
+            Rows use `truncate`, so being short does not reflow anything: it
+            silently eats letters. Err wide. */}
         <NavMegaMenu
           label="Operations" icon={Factory}
           title="Operations"
           blurb="Delivery runs, production and stock — everything that moves water."
           groups={nav.operations}
-          columns={3} widthRem={46} layout="grid"
+          /* 3 columns, longest label "Raw materials & supplies" / "Driver
+             collection report" (24 chars ~= 182px): 64 + 3x(40+182) + 2x16 =
+             762px. */
+          columns={3} widthRem={48.5} layout="grid"
         />
 
         <NavMegaMenu
@@ -167,7 +192,29 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
           title="Sales & Money"
           blurb="Orders, collections, expenses and cash."
           groups={nav.salesMoney}
-          columns={2} widthRem={34} layout="grid"
+          /* Same treatment as the poultry rail: columns sized to their OWN
+             content (fitColumns), not to an equal share. This was 24rem with
+             equal columns, sized for "Reconcile cash" alone -- which predates
+             the two Balances rows and truncated them to "Customer Bala...".
+             Measured in Geist-Medium (the active row's weight): Sales' longest
+             is "Customer Balances" 132px, Money's is "Reconcile cash" 102px.
+             Each column needs ~40px more for the icon, gap and row padding, so
+             the two are ~180px and ~148px. 24rem = 384px covers 180 + 148 + the
+             16px grid gap + 32px of panel padding, with slack for font
+             rendering -- the same width, but no longer wasted on equal columns. */
+          columns={2} widthRem={24} layout="grid" fitColumns
+        />
+
+        {/* Analytics is a menu, not a destination — there is no landing page,
+            so no viewAll. A report prints a period; an analytic is explored. */}
+        <NavMegaMenu
+          label="Analytics" icon={LineChart}
+          title="Analytics"
+          blurb="Explore where your stock actually moved."
+          groups={nav.analytics}
+          /* Longest label "Inventory tracker" (17 chars ~= 129px):
+             64 + (40+129) = 233px. */
+          columns={1} widthRem={15.5} layout="grid"
         />
 
         {/* Sourced from lib/reports/water-reports-config.ts — the single source
@@ -180,7 +227,7 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
           viewAll={{ href: "/water-reports", label: "View all reports →" }}
           triggerActiveHrefs={["/water-reports"]}
           groups={WATER_REPORT_NAV_GROUPS}
-          columns={4} widthRem={56}
+          columns={4} widthRem={58}
         />
 
         <NavMegaMenu
@@ -189,9 +236,9 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
           blurb="Company configuration, products, delivery, customers and your team."
           groups={nav.setup}
           /* 5 groups over 2 columns = a 3x2 block with the last cell empty.
-             Denser than one wide row, and it keeps the panel the same width as
-             Sales & Money. */
-          columns={2} widthRem={36} layout="grid"
+             Denser than one wide row. Longest label "Terms & Conditions"
+             (18 chars ~= 137px): 64 + 2x(40+137) + 16 = 434px. */
+          columns={2} widthRem={28.5} layout="grid"
         />
 
         <div className="ml-auto flex items-center gap-1">
@@ -203,7 +250,9 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
             title="System"
             blurb="Alerts, activity and terms."
             groups={nav.system}
-            columns={1} widthRem={20} layout="grid"
+            /* Longest label "Terms & Conditions" (18 chars ~= 137px):
+               64 + (40+137) = 241px. */
+            columns={1} widthRem={15.5} layout="grid"
           />
         </div>
       </div>
@@ -219,6 +268,9 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
   const moreGroup: NavGroup = {
     label: "More",
     items: [
+      // Generic has no Operations mega-menu, so Internal Use rides here beside
+      // the other stock pages rather than getting a menu of its own.
+      { href: "/generic-internal-use",       label: "Internal Use",       icon: PackageMinus },
       { href: "/generic-customer-payments",  label: "Customer payments",  icon: CreditCard },
       { href: "/generic-supplier-payments",  label: "Supplier payments",  icon: CreditCard },
       { href: "/generic-cash",               label: "Cash & Accounts",    icon: Wallet },
@@ -437,13 +489,12 @@ export function TopNavigation() {
             title="Operations"
             blurb="Production, flock purchases, deliveries, stock and health."
             groups={nav.operations}
-            /* 4 groups over 2 columns = a 2x2 block. 32rem is the floor for that
-               layout, and it's those two long labels that set it: "Flock Purchases
-               (Batches)" is 184px in Geist-Medium (the active row's weight) and
-               "Raw Materials & Supplies" 177px, so a column needs 224px, and two
-               of those plus the 16px grid gap and 32px of padding comes to 496px.
-               Shorten both and this drops to about 25.5rem. */
-            columns={2} widthRem={32} layout="grid" accent="orange"
+            /* 4 groups over 2 columns = a 2x2 block, and it's those two long
+               labels that set the floor: "Flock Purchases (Batches)" is 184px in
+               Geist-Medium (the active row's weight) and "Raw Materials &
+               Supplies" 177px, so a column needs 224px:
+               64 + 2x224 + 16 = 528px. Shorten both and this drops to ~27.5rem. */
+            columns={2} widthRem={34} layout="grid" accent="orange"
           />
 
           <NavMegaMenu
@@ -451,12 +502,16 @@ export function TopNavigation() {
             title="Sales & Money"
             blurb="Orders, collections, expenses, cash and payroll."
             groups={nav.salesMoney}
-            /* 21rem rather than 34, keeping the two columns side by side. This is
-               the floor for that layout: "Cash Account" is the longest label at
-               96px in Geist-Medium (the active row's weight), so a column needs
-               136px, and two of those plus the 16px grid gap and 32px of padding
-               comes to 320px. The extra rem is slack for font rendering. */
-            columns={2} widthRem={21} layout="grid" accent="orange"
+            /* Two columns sized to their OWN content (fitColumns), not to an equal
+               share: Sales' longest label is "Customer Balances" and Money's is
+               "Reconcile cash", and equal columns would widen BOTH to the former
+               and hang the difference off the right edge as dead space.
+               Measured in Geist-Medium (the active row's weight): Customer
+               Balances 132px, Reconcile cash 102px. Each column needs ~40px more
+               for the icon, gap and row padding, so the two are ~180px and
+               ~148px. 24rem = 384px covers 180 + 148 + the 16px grid gap + 32px
+               of panel padding, with slack for font rendering. */
+            columns={2} widthRem={24} layout="grid" fitColumns accent="orange"
           />
 
           <NavMegaMenu
@@ -464,12 +519,10 @@ export function TopNavigation() {
             title="Analytics"
             blurb="Day-to-day tracker"
             groups={nav.analytics}
-            /* 13.5rem, against 22 for the other single-column menus. "Medication
-               tracker" is the longest label and sets the floor: 136px in
-               Geist-Medium (the active row's weight) plus 72px of icon, gap and
-               padding = 208px exactly, so this leaves 8px of slack. Tighter and
-               the row's truncate starts eating the label. */
-            columns={1} widthRem={13.5} layout="grid" accent="orange"
+            /* "Medication tracker" is the longest label and sets the floor:
+               137px in Geist-Medium (the active row's weight) plus 40px of icon,
+               gap and row padding, plus the panel's 64px = 241px. */
+            columns={1} widthRem={15.5} layout="grid" accent="orange"
           />
 
           {/* Sourced from lib/reports/poultry-reports-config.ts — the single
@@ -485,7 +538,7 @@ export function TopNavigation() {
               groups={POULTRY_REPORT_NAV_GROUPS}
               /* Four groups of 8/6/9/6 over four columns — one group per
                  column, with Overview & Dashboards last. */
-              columns={4} widthRem={56} accent="orange"
+              columns={4} widthRem={58} accent="orange"
             />
           )}
 
@@ -494,12 +547,11 @@ export function TopNavigation() {
             title="Setup"
             blurb="Houses, flocks, products, delivery, customers and your team."
             groups={nav.setup}
-            /* 6 groups over 2 columns = a 3x2 block. 26.5rem is the floor for that
-               layout: "Users & Permissions" is the longest label at 143px in
-               Geist-Medium (the active row's weight), so a column needs 183px, and
-               two of those plus the 16px grid gap and 32px of padding comes to
-               414px. */
-            columns={2} widthRem={26.5} layout="grid" accent="orange"
+            /* 6 groups over 2 columns = a 3x2 block. "Users & Permissions" is
+               the longest label at 145px in Geist-Medium (the active row's
+               weight), so a column needs 185px:
+               64 + 2x185 + 16 = 450px. */
+            columns={2} widthRem={28.5} layout="grid" accent="orange"
           />
 
           <div className="ml-auto flex items-center gap-1">
@@ -510,11 +562,11 @@ export function TopNavigation() {
               title="System"
               blurb="Alerts, activity, help, terms."
               groups={nav.system}
-              /* 13.5rem rather than 22. "Terms & Conditions" is the longest label
-                 at 138px in Geist-Medium (the active row's weight) plus 72px of
-                 icon, gap and padding = 210px. The Alerts row also carries a count
-                 badge, but at 44px of text it stays well clear. */
-              columns={1} widthRem={13.5} layout="grid" accent="orange"
+              /* "Terms & Conditions" is the longest label at 137px in
+                 Geist-Medium (the active row's weight) plus 40px of icon, gap and
+                 row padding, plus the panel's 64px = 241px. The Alerts row also
+                 carries a count badge, but at 44px of text it stays well clear. */
+              columns={1} widthRem={15.5} layout="grid" accent="orange"
             />
           </div>
         </div>

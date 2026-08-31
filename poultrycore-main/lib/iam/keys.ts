@@ -51,9 +51,24 @@ function everyModule(resource: string, actions: string[]): PermissionKey[] {
  * one would take something away the moment a page moves to `can()`.
  */
 export const LEGACY_PERMISSION_MAP: Record<StaffFeaturePermissionKey, PermissionKey[]> = {
-  canEnterSales: everyModule("sales", ["view", "create", "edit", "export"]),
+  canEnterSales: [
+    ...everyModule("sales", ["view", "create", "edit", "export"]),
+    // Receiving a customer payment is the same act as recording one on the sale
+    // itself — same endpoint, same records — so the flag that allows the second
+    // has to allow the first, or moving the Sales dialog onto can() would lock
+    // people out of the payment they can already take today.
+    ...everyModule("customer-balances", ["view"]),
+    ...everyModule("customer-payments", ["create"]),
+  ],
 
-  canEnterExpenses: everyModule("expenses", ["view", "create", "edit", "export"]),
+  canEnterExpenses: [
+    ...everyModule("expenses", ["view", "create", "edit", "export"]),
+    // Likewise for money going out: paying a supplier balance is the pay-balance
+    // button on the purchase, taken from a different screen.
+    ...everyModule("supplier-balances", ["view"]),
+    ...everyModule("supplier-payments", ["create"]),
+    ...everyModule("supplier-statements", ["view"]),
+  ],
 
   canViewCashLedger: [
     ...everyModule("cash", ["view", "export"]),
@@ -71,11 +86,27 @@ export const LEGACY_PERMISSION_MAP: Record<StaffFeaturePermissionKey, Permission
     ...everyModule("payments", ["view"]),
     ...everyModule("daily-closing", ["view"]),
     ...everyModule("customers", ["view"]),
+    // The umbrella flag gated every money page as one switch, so it grants
+    // sight of both balance pages and their statements too. Recording and
+    // reversing are not here — those come from the sales/expenses flags and
+    // from a real IAM role respectively.
+    ...everyModule("customer-balances", ["view"]),
+    ...everyModule("supplier-balances", ["view"]),
+    ...everyModule("customer-statements", ["view"]),
+    ...everyModule("supplier-statements", ["view"]),
     "generic.supplier-payments.view",
     "generic.cash-transfers.view",
   ],
 
-  canViewCustomers: everyModule("customers", ["view", "export"]),
+  canViewCustomers: [
+    ...everyModule("customers", ["view", "export"]),
+    // Customer Balances is a customers page before it is a money page: someone
+    // trusted with the customer list is trusted to see what those customers
+    // owe, and to open a statement. Taking the payment is NOT here — that comes
+    // from canEnterSales below, so a read-only CRM user stays read-only.
+    ...everyModule("customer-balances", ["view"]),
+    ...everyModule("customer-statements", ["view"]),
+  ],
 
   canViewActivityLog: ["office.audit-log.view", "office.audit-log.export"],
 
@@ -127,6 +158,17 @@ export const LEGACY_PERMISSION_MAP: Record<StaffFeaturePermissionKey, Permission
     "water.stock.view", "water.stock.edit", "water.stock.export",
     "water.production-losses.view", "water.production-losses.create",
     "water.production-losses.edit", "water.production-losses.delete",
+  ],
+
+  // Internal Use (migration 212). Water ships first; the poultry and generic
+  // keys are listed now so the flag keeps working when those pages land.
+  canViewInternalUse: [
+    "water.internal-use.view", "water.internal-use.create",
+    "water.internal-use.edit", "water.internal-use.delete",
+    "poultry.internal-use.view", "poultry.internal-use.create",
+    "poultry.internal-use.edit", "poultry.internal-use.delete",
+    "generic.internal-use.view", "generic.internal-use.create",
+    "generic.internal-use.edit", "generic.internal-use.delete",
   ],
 
   canViewWaterMaintenance: [

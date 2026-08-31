@@ -38,6 +38,9 @@ export interface NavMegaMenuProps {
    * menu where the columns ARE the taxonomy. Use "grid" for those.
    */
   layout?: "columns" | "grid"
+  /** Grid layout only: size each column to its own content instead of an equal
+   *  share, so a short column doesn't inherit the longest column's width. */
+  fitColumns?: boolean
   /** Prefixes that make the TRIGGER active even when no row matches — e.g. the
    *  /water-reports index page itself, which isn't one of the rows. */
   triggerActiveHrefs?: string[]
@@ -60,10 +63,23 @@ const GRID_CLASS: Record<1 | 2 | 3 | 4, string> = {
   4: "grid grid-cols-2 lg:grid-cols-4 items-start",
 }
 
+// `fitColumns` variant: each column is as wide as its own longest row instead of
+// an equal share of the panel. Equal columns mean the longest label in the menu
+// sets the width of EVERY column, so a menu with one long column and one short
+// one carries the difference as dead space on the right. Opt in when the columns
+// are lopsided, and size widthRem to the sum of the columns rather than to
+// 2x the widest.
+const GRID_FIT_CLASS: Record<1 | 2 | 3 | 4, string> = {
+  1: "grid grid-cols-1 items-start",
+  2: "grid grid-cols-1 lg:grid-cols-[max-content_max-content] items-start",
+  3: "grid grid-cols-2 lg:grid-cols-[max-content_max-content_max-content] items-start",
+  4: "grid grid-cols-2 lg:grid-cols-[max-content_max-content_max-content_max-content] items-start",
+}
+
 
 export function NavMegaMenu({
   label, icon: TriggerIcon, groups, title, blurb, viewAll,
-  columns = 4, widthRem = 56, accent = "sky", layout = "columns",
+  columns = 4, widthRem = 56, accent = "sky", layout = "columns", fitColumns = false,
   triggerActiveHrefs, closeDelayMs = 180,
 }: NavMegaMenuProps) {
   const pathname = usePathname()
@@ -118,8 +134,10 @@ export function NavMegaMenu({
           onMouseEnter={pop.handleMouseEnter}
           onMouseLeave={pop.handleMouseLeave}
         >
-          {/* Header strip — gives the menu a clear identity. */}
-          <div className={cn("px-5 py-3 border-b flex items-center justify-between", a.header)}>
+          {/* Header strip — gives the menu a clear identity. px-4 to match the
+              body's p-4 below: at px-5 the title sat a quarter-rem further in
+              than the group labels under it, so the panel had two left edges. */}
+          <div className={cn("px-4 py-3 border-b flex items-center justify-between", a.header)}>
             <div>
               <div className={cn("font-semibold text-sm", a.headerTitle)}>{title}</div>
               {blurb && <div className={cn("text-xs", a.headerBlurb)}>{blurb}</div>}
@@ -138,12 +156,31 @@ export function NavMegaMenu({
 
           <div
             className={cn(
-              layout === "grid" ? GRID_CLASS[columns] : COLUMNS_CLASS[columns],
+              layout !== "grid"
+                ? COLUMNS_CLASS[columns]
+                : fitColumns ? GRID_FIT_CLASS[columns] : GRID_CLASS[columns],
               "gap-x-4 p-4 max-h-[70vh] overflow-y-auto",
+              // A scrollbar on a tall panel eats into the right padding only,
+              // which shifts every group left and is most of why this looked
+              // off-centre. Reserving the gutter on both edges keeps the left
+              // and right insets equal whether or not the panel scrolls.
+              "[scrollbar-gutter:stable_both-edges]",
+              // Grid separates rows with gap-y; the per-group mb-4 below is for
+              // the multi-column layout, where margin is the only vertical
+              // spacing available. Applying both left a double bottom margin,
+              // so the panel had 2rem under the last group against 1rem above
+              // the first.
+              layout === "grid" && "gap-y-4",
             )}
           >
             {visibleGroups.map((g) => (
-              <div key={g.key} className={cn("min-w-0 break-inside-avoid", showGroupLabels && "mb-4")}>
+              <div
+                key={g.key}
+                className={cn(
+                  "min-w-0 break-inside-avoid",
+                  showGroupLabels && layout !== "grid" && "mb-4",
+                )}
+              >
                 {showGroupLabels && (
                   // No rule and no coloured dot — the uppercase tracked label
                   // separates the columns on its own. (The dots before it were
@@ -166,7 +203,11 @@ export function NavMegaMenu({
                     const rowInner = (
                       <>
                         <Icon className={cn("h-4 w-4 mt-0.5 shrink-0", active ? a.iconActive : a.iconIdle)} />
-                        <span className="truncate">{it.title}</span>
+                        {/* title=, because `truncate` fails silently: a panel
+                            1rem too narrow eats the end of a label with nothing
+                            on screen to say so. The width arithmetic in
+                            top-nav.tsx is the fix; this is the net under it. */}
+                        <span className="truncate" title={it.title}>{it.title}</span>
                         {typeof it.badge === "number" && it.badge > 0 && (
                           <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 rounded-full bg-red-500 text-white text-[10px] font-bold px-1.5">
                             {it.badge > 99 ? "99+" : it.badge}

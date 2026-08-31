@@ -15,6 +15,9 @@ export function isFinancialNavItemVisible(
   if (href === "/expenses") return f.canEnterExpenses
   if (href === "/cash") return f.canViewCashLedger
   if (href === "/poultry-cash-accounts") return f.canViewCashLedger
+  // Counting cash is a cash-ledger job; it rides the same flag rather than
+  // introducing a permission nobody has been granted yet.
+  if (href === "/poultry-cash-reconciliation") return f.canViewCashLedger
   if (href === "/poultry-payments") return isAdmin || f.canViewFinancial || f.canEnterSales
   if (href === "/customers") {
     return (
@@ -31,6 +34,16 @@ export function isFinancialNavItemVisible(
       f.canViewFinancial ||
       f.canEnterSales
     )
+  }
+  // Customer Balances / Supplier Balances. Read generously, matching the pages
+  // they summarise: anyone who can see the sales or the customers can see what
+  // is outstanding on them. Taking the payment is gated separately, inside the
+  // page, on `poultry.customer-payments.create`.
+  if (href === "/customer-balances") {
+    return isAdmin || f.canViewFinancial || f.canEnterSales || f.canViewCustomers
+  }
+  if (href === "/supplier-balances") {
+    return isAdmin || f.canViewFinancial || f.canEnterExpenses || f.canViewCustomers
   }
   if (href === "/billing") {
     return options?.tempShowPayments === true || isAdmin || f.canViewFinancial

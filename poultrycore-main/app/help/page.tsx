@@ -155,7 +155,7 @@ const featureGuides = [
   { icon: BarChart3, title: "Reports", description: "View analytics and generate reports", path: "/reports" },
   { icon: Activity, title: "Health Records", description: "Track vaccinations and treatments", path: "/health" },
   { icon: FileText, title: "Inventory", description: "Manage farm supplies and stock", path: "/inventory" },
-  { icon: Settings, title: "Settings", description: "Configure farm preferences", path: "/settings" },
+  { icon: Settings, title: "Company Setup", description: "Configure farm preferences", path: "/poultry-company-setup" },
 ]
 
 export default function HelpPage() {

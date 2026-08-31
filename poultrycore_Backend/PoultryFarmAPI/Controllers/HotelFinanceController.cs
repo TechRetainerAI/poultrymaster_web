@@ -9,7 +9,7 @@ namespace PoultryFarmAPIWeb.Controllers
     // ==================== REQUEST MODELS ====================
     public class AddChargeRequest { public string FarmId { get; set; } = ""; public int HotelBookingId { get; set; } public string ChargeType { get; set; } = "Room"; public string Description { get; set; } = ""; public int Quantity { get; set; } = 1; public decimal UnitPrice { get; set; } public decimal? TotalAmount { get; set; } }
     public class GenerateInvoiceRequest { public string FarmId { get; set; } = ""; public int HotelBookingId { get; set; } }
-    public class RecordPaymentRequest { public string FarmId { get; set; } = ""; public int HotelBookingId { get; set; } public int? HotelInvoiceId { get; set; } public decimal Amount { get; set; } public string PaymentMethod { get; set; } = "Cash"; public string? Reference { get; set; } public string? Notes { get; set; } }
+    public class HotelRecordPaymentRequest { public string FarmId { get; set; } = ""; public int HotelBookingId { get; set; } public int? HotelInvoiceId { get; set; } public decimal Amount { get; set; } public string PaymentMethod { get; set; } = "Cash"; public string? Reference { get; set; } public string? Notes { get; set; } }
     public class CreateExpenseRequest { public string FarmId { get; set; } = ""; public string Category { get; set; } = ""; public string Description { get; set; } = ""; public decimal Amount { get; set; } public string? ExpenseDate { get; set; } public string? Vendor { get; set; } public string? Notes { get; set; } public string PaymentMethod { get; set; } = "Cash"; public int? HotelCashAccountId { get; set; } public string? PaidTo { get; set; } public int? HotelExpenseCategoryId { get; set; } }
     public class CreateCashAccountRequest { public string FarmId { get; set; } = ""; public string AccountName { get; set; } = ""; public string AccountType { get; set; } = "Cash"; public decimal OpeningBalance { get; set; } public string? Purpose { get; set; } }
     public class CreateExpenseCategoryRequest { public string FarmId { get; set; } = ""; public string Name { get; set; } = ""; }
@@ -145,7 +145,7 @@ namespace PoultryFarmAPIWeb.Controllers
         }
 
         [HttpPost("billing/payments")]
-        public async Task<IActionResult> RecordPayment([FromBody] RecordPaymentRequest req)
+        public async Task<IActionResult> RecordPayment([FromBody] HotelRecordPaymentRequest req)
         {
             var auth = HotelAuthHelper.VerifyFarmOwnership(User, req.FarmId); if (auth != null) return auth;
             var v1 = HotelValidation.ValidatePositiveAmount(req.Amount, "Payment amount"); if (v1 != null) return v1;

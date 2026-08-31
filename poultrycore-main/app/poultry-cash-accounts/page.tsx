@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
@@ -19,20 +20,23 @@ import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
-import { Plus, Pencil, Loader2, Wallet, RefreshCw, ArrowLeftRight, Eye, Trash2 } from "lucide-react"
+import { Plus, Pencil, Loader2, Wallet, RefreshCw, ArrowLeftRight, Eye, Trash2, Scale } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
+import { useFmt } from "@/lib/currency"
 import {
   listPoultryCashAccounts, createPoultryCashAccount, updatePoultryCashAccount, deletePoultryCashAccount, reconcilePoultryCashBalances,
   listPoultryCashTransactions, listPoultryCashTransfers, createPoultryCashTransfer, approvePoultryCashTransfer, cancelPoultryCashTransfer,
-  POULTRY_CASH_ACCOUNT_TYPES,
+  POULTRY_CASH_ACCOUNT_TYPES, POULTRY_CASH_TRANSFER_REASONS,
   type PoultryCashAccount, type PoultryCashTransaction, type PoultryCashTransfer,
 } from "@/lib/api/poultry-finance"
 
 const ACCOUNT_TYPES = [...POULTRY_CASH_ACCOUNT_TYPES]
 
 export default function PoultryCashAccountsPage() {
+  // Amounts were rendering as bare numbers with no currency at all.
+  const fmt = useFmt()
   const router = useRouter()
   const { toast } = useToast()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
@@ -62,7 +66,7 @@ export default function PoultryCashAccountsPage() {
   const [deleteTarget, setDeleteTarget] = useState<PoultryCashAccount | null>(null)
   const [txDlg, setTxDlg] = useState<{ open: boolean; acc?: PoultryCashAccount; rows: PoultryCashTransaction[] }>({ open: false, rows: [] })
   const [xferDlg, setXferDlg] = useState(false)
-  const [xferForm, setXferForm] = useState({ fromPoultryCashAccountId: 0, toPoultryCashAccountId: 0, amount: 0, notes: "" })
+  const [xferForm, setXferForm] = useState({ fromPoultryCashAccountId: 0, toPoultryCashAccountId: 0, amount: 0, notes: "", notesOther: "" })
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Poultry") { router.replace("/dashboard"); return }
@@ -126,8 +130,8 @@ export default function PoultryCashAccountsPage() {
   }
 
   async function reconcile() {
-    try { await reconcilePoultryCashBalances(); toast({ title: "Balances reconciled" }); await load() }
-    catch (e: any) { toast({ title: "Reconcile failed", description: e?.message, variant: "destructive" }) }
+    try { await reconcilePoultryCashBalances(); toast({ title: "Balances recalculated" }); await load() }
+    catch (e: any) { toast({ title: "Recalculate failed", description: e?.message, variant: "destructive" }) }
   }
 
   async function performDelete(acc: PoultryCashAccount) {
@@ -147,11 +151,19 @@ export default function PoultryCashAccountsPage() {
   async function saveTransfer() {
     if (xferForm.fromPoultryCashAccountId === xferForm.toPoultryCashAccountId) return toast({ title: "From and To must differ", variant: "destructive" })
     if (xferForm.amount <= 0) return toast({ title: "Amount required", variant: "destructive" })
+    if (xferForm.notes === "Other" && !xferForm.notesOther.trim()) {
+      return toast({ title: "Say what happened", variant: "destructive" })
+    }
     try {
-      const { poultryCashTransferId } = await createPoultryCashTransfer(xferForm)
+      // "Other" sends what was typed; a picked option sends itself. notesOther
+      // is dialog-local and never reaches the API.
+      const { notesOther, ...rest } = xferForm
+      const notes = xferForm.notes === "Other" ? notesOther.trim() : xferForm.notes
+      const { poultryCashTransferId } = await createPoultryCashTransfer({ ...rest, notes })
       await approvePoultryCashTransfer(poultryCashTransferId)
       toast({ title: "Transfer approved" })
-      setXferDlg(false); setXferForm({ fromPoultryCashAccountId: 0, toPoultryCashAccountId: 0, amount: 0, notes: "" })
+      setXferDlg(false)
+      setXferForm({ fromPoultryCashAccountId: 0, toPoultryCashAccountId: 0, amount: 0, notes: "", notesOther: "" })
       await load()
     } catch (e: any) { toast({ title: "Transfer failed", description: e?.message, variant: "destructive" }) }
   }
@@ -169,7 +181,15 @@ export default function PoultryCashAccountsPage() {
               <Wallet className="h-6 w-6 text-sky-600" /> Cash Account
             </h1>
             <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-              <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={reconcile}><RefreshCw className="h-4 w-4 mr-1" /> Reconcile</Button>
+              <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={reconcile}><RefreshCw className="h-4 w-4 mr-1" /> Recalculate</Button>
+              {/* Reconcile opens the dedicated page — pick an account, count it,
+                  post the difference. Recalculate (rebuilding the cached balance
+                  from the ledger, which moves no money) stays here so the two
+                  balance-truth jobs are one click apart without their names
+                  sitting on top of each other. */}
+              <Button asChild variant="outline" className="flex-1 sm:flex-none whitespace-nowrap">
+                <Link href="/poultry-cash-reconciliation"><Scale className="h-4 w-4 mr-1" /> Reconcile</Link>
+              </Button>
               <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={() => setXferDlg(true)}><ArrowLeftRight className="h-4 w-4 mr-1" /> Transfer</Button>
               <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={createDefault} disabled={saving}><Wallet className="h-4 w-4 mr-1" /> Create default account</Button>
               <Button className="flex-1 sm:flex-none whitespace-nowrap" onClick={openNew}><Plus className="h-4 w-4 mr-1" /> New account</Button>
@@ -185,7 +205,7 @@ export default function PoultryCashAccountsPage() {
           </button>
 
           <div className="mb-3 grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Total cash at hand</div><div className="text-xl font-semibold tabular-nums">{totalCash.toFixed(2)}</div></CardContent></Card>
+            <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Total cash at hand</div><div className="text-xl font-semibold tabular-nums">{fmt(totalCash)}</div></CardContent></Card>
             <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Active accounts</div><div className="text-xl font-semibold">{accounts.filter(a => a.isActive).length}</div></CardContent></Card>
             <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Pending transfers</div><div className="text-xl font-semibold">{transfers.filter(t => t.status === "Draft").length}</div></CardContent></Card>
             <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Approved transfers</div><div className="text-xl font-semibold">{transfers.filter(t => t.status === "Approved").length}</div></CardContent></Card>
@@ -216,8 +236,8 @@ export default function PoultryCashAccountsPage() {
                   )}
                   details={(a) => [
                     { label: "Type", value: a.accountType },
-                    { label: "Opening", value: a.openingBalance.toFixed(2) },
-                    { label: "Current", value: <span className={a.currentBalance < 0 ? "text-rose-600 font-semibold" : "font-semibold"}>{a.currentBalance.toFixed(2)}</span> },
+                    { label: "Opening", value: fmt(a.openingBalance) },
+                    { label: "Current", value: <span className={a.currentBalance < 0 ? "text-rose-600 font-semibold" : "font-semibold"}>{fmt(a.currentBalance)}</span> },
                     { label: "Status", value: a.isActive ? "Active" : "Inactive" },
                   ]}
                   actions={(a) => (
@@ -247,8 +267,8 @@ export default function PoultryCashAccountsPage() {
                           <TableRow key={a.poultryCashAccountId}>
                             <TableCell className="font-medium">{a.accountName}</TableCell>
                             <TableCell>{a.accountType}</TableCell>
-                            <TableCell className="text-right tabular-nums">{a.openingBalance.toFixed(2)}</TableCell>
-                            <TableCell className={`text-right tabular-nums font-semibold ${a.currentBalance < 0 ? "text-rose-600" : ""}`}>{a.currentBalance.toFixed(2)}</TableCell>
+                            <TableCell className="text-right tabular-nums">{fmt(a.openingBalance)}</TableCell>
+                            <TableCell className={`text-right tabular-nums font-semibold ${a.currentBalance < 0 ? "text-rose-600" : ""}`}>{fmt(a.currentBalance)}</TableCell>
                             <TableCell>{a.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="outline">Inactive</Badge>}</TableCell>
                             <TableCell className="text-right">
                               <Button size="sm" variant="ghost" onClick={() => router.push(`/poultry-cash-accounts/${a.poultryCashAccountId}`)} title="View details"><Eye className="h-4 w-4" /></Button>
@@ -280,7 +300,7 @@ export default function PoultryCashAccountsPage() {
                     { label: "Date", value: t.transferDate.split("T")[0] },
                     { label: "From", value: t.fromAccountName },
                     { label: "To", value: t.toAccountName },
-                    { label: "Amount", value: t.amount.toFixed(2) },
+                    { label: "Amount", value: fmt(t.amount) },
                     { label: "Status", value: t.status },
                   ]}
                   actions={(t) => (
@@ -305,7 +325,7 @@ export default function PoultryCashAccountsPage() {
                             <TableCell>{t.transferDate.split("T")[0]}</TableCell>
                             <TableCell>{t.fromAccountName}</TableCell>
                             <TableCell>{t.toAccountName}</TableCell>
-                            <TableCell className="text-right tabular-nums">{t.amount.toFixed(2)}</TableCell>
+                            <TableCell className="text-right tabular-nums">{fmt(t.amount)}</TableCell>
                             <TableCell><Badge variant="outline">{t.status}</Badge></TableCell>
                             <TableCell className="text-right">
                               {t.status === "Draft" && <>
@@ -401,7 +421,7 @@ export default function PoultryCashAccountsPage() {
                       <TableCell>{r.transactionDate.split("T")[0]}</TableCell>
                       <TableCell>{r.transactionType}</TableCell>
                       <TableCell>{r.sourceType ?? "—"}</TableCell>
-                      <TableCell className={`text-right tabular-nums ${r.amount < 0 ? "text-rose-600" : "text-green-700"}`}>{r.amount.toFixed(2)}</TableCell>
+                      <TableCell className={`text-right tabular-nums ${r.amount < 0 ? "text-rose-600" : "text-green-700"}`}>{fmt(r.amount)}</TableCell>
                       <TableCell className="max-w-sm whitespace-normal break-words align-top">{r.description ?? "—"}</TableCell>
                     </TableRow>
                   ))}
@@ -441,9 +461,32 @@ export default function PoultryCashAccountsPage() {
               <FormField label="Amount">
                 <NumberInput min={0.01} step="0.01" value={xferForm.amount} onChange={(e) => setXferForm({ ...xferForm, amount: Number(e.target.value) || 0 })} />
               </FormField>
-              <FormField label="Notes">
-                <Input value={xferForm.notes} onChange={(e) => setXferForm({ ...xferForm, notes: e.target.value })} />
+              {/* Its own vocabulary, not the adjustment one: a transfer moves
+                  money between the company's own accounts, so shortage/overage
+                  would be a miscategorisation waiting to happen. */}
+              <FormField label="Reason">
+                <Select
+                  value={xferForm.notes}
+                  onValueChange={(v) => setXferForm({ ...xferForm, notes: v, notesOther: "" })}
+                >
+                  <SelectTrigger><SelectValue placeholder="Why is the money moving?" /></SelectTrigger>
+                  <SelectContent>
+                    {POULTRY_CASH_TRANSFER_REASONS.map((r) => (
+                      <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </FormField>
+              {xferForm.notes === "Other" && (
+                <FormField label="Say what happened *">
+                  <Input
+                    autoFocus
+                    value={xferForm.notesOther}
+                    onChange={(e) => setXferForm({ ...xferForm, notesOther: e.target.value })}
+                    placeholder="e.g. Moved to the depot safe overnight"
+                  />
+                </FormField>
+              )}
             </FormSection>
 
             <div className="flex gap-3 justify-end pt-2">

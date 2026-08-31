@@ -88,6 +88,10 @@ builder.Services.AddScoped<IDashboardService>(sp => new DashboardService(connect
 builder.Services.AddScoped<IProductionRecordService>(sp => new ProductionRecordService(connectionString));
 builder.Services.AddScoped<IProductionBatchRecordService>(sp => new ProductionBatchRecordService(connectionString));
 builder.Services.AddScoped<IPoultryPaymentService>(sp => new PoultryPaymentService(connectionString));
+// Customer Balances / Supplier Balances — the payment allocation control pages
+// (migrations 222–224).
+builder.Services.AddScoped<IPoultryBalanceService>(sp => new PoultryBalanceService(connectionString));
+builder.Services.AddScoped<IWaterBalanceService>(sp => new WaterBalanceService(connectionString));
 
 builder.Services.AddScoped<IHouseService>(sp => new HouseService(connectionString));
 builder.Services.AddScoped<IHealthRecordService>(sp => new HealthRecordService(connectionString));
@@ -150,6 +154,9 @@ builder.Services.AddScoped<IWaterRawMaterialItemService>(sp => new WaterRawMater
 builder.Services.AddScoped<IWaterRawMaterialPurchaseService>(sp => new WaterRawMaterialPurchaseService(connectionString));
 builder.Services.AddScoped<IWaterRawMaterialUsageService>(sp => new WaterRawMaterialUsageService(connectionString));
 builder.Services.AddScoped<IWaterLossRecordService>(sp => new WaterLossRecordService(connectionString));
+builder.Services.AddScoped<IWaterInternalUsageService>(sp => new WaterInternalUsageService(connectionString));
+builder.Services.AddScoped<IPoultryInternalUsageService>(sp => new PoultryInternalUsageService(connectionString));
+builder.Services.AddScoped<IGenericInternalUsageService>(sp => new GenericInternalUsageService(connectionString));
 builder.Services.AddScoped<IWaterDailyClosingService>(sp => new WaterDailyClosingService(connectionString));
 builder.Services.AddScoped<IWaterReportService>(sp => new WaterReportService(connectionString));
 
@@ -180,11 +187,13 @@ builder.Services.AddScoped<IWaterExpenseService>(sp => new WaterExpenseService(c
 builder.Services.AddScoped<IWaterSupplierService>(sp => new WaterSupplierService(connectionString));
 builder.Services.AddScoped<IWaterCashAccountService>(sp => new WaterCashAccountService(connectionString));
 builder.Services.AddScoped<IWaterCashTransferService>(sp => new WaterCashTransferService(connectionString));
+builder.Services.AddScoped<IWaterCashReconciliationService>(sp => new WaterCashReconciliationService(connectionString));
 builder.Services.AddScoped<IWaterCustomerLedgerService>(sp => new WaterCustomerLedgerService(connectionString));
 
 // Poultry Cash Accounts (port of the Water cash module). Multi-account cash
 // management + signed ledger + paired transfers. Migrations 128 (schema) + 129 (SPs).
 builder.Services.AddScoped<IPoultryCashAccountService>(sp => new PoultryCashAccountService(connectionString));
+builder.Services.AddScoped<IPoultryCashReconciliationService>(sp => new PoultryCashReconciliationService(connectionString));
 builder.Services.AddScoped<IPoultryCashTransferService>(sp => new PoultryCashTransferService(connectionString));
 
 // Poultry Staff + Attendance + Payroll (port of the Water W6 module). Payroll
@@ -199,6 +208,13 @@ builder.Services.AddScoped<IPoultryPayrollService>(sp => new PoultryPayrollServi
 // water source, default currency/bag-sachet count, owner contact). Setup SP
 // is idempotent and also runs the finance defaults seed. Migration 049.
 builder.Services.AddScoped<IWaterCompanyService>(sp => new WaterCompanyService(connectionString));
+
+// The Poultry counterpart (brand, Layers/Broilers/Both, housing system, default
+// currency/eggs-per-crate, capacity, owner contact). Before migration 212 the
+// poultry "farm profile" lived only in browser localStorage, so nothing
+// persisted and nothing server-side could read it. Setup is idempotent and also
+// runs sppoultryfinance_seeddefaults. Migration 212.
+builder.Services.AddScoped<IPoultryCompanyService>(sp => new PoultryCompanyService(connectionString));
 
 // Phase W6: Staff + Attendance + Payroll. Payroll items use a computed NetPay
 // column; spWaterPayrollItem_Upsert rolls run totals atomically. Mark-paid

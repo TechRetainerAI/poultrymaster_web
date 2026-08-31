@@ -22,7 +22,9 @@ import { getSales, createSale, updateSale, deleteSale, getFlocks, getCustomers, 
 import { listPoultryCashAccounts, recordPoultryPayment, type PoultryCashAccount } from "@/lib/api/poultry-finance"
 import { useToast } from "@/hooks/use-toast"
 import { getUserContext } from "@/lib/utils/user-context"
-import { formatCurrency, getSelectedCurrency, setSelectedCurrency } from "@/lib/utils/currency"
+import Link from "next/link"
+import { formatCurrency, getSelectedCurrency } from "@/lib/utils/currency"
+import { useCurrency } from "@/lib/currency"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
@@ -46,6 +48,29 @@ import {
 } from "@/components/sales/sale-invoice-document"
 import { exportTableToPdf, emailTableAsPdf, type PdfExportOptions } from "@/lib/utils/pdf-export"
 import { Download } from "lucide-react"
+
+/**
+ * Egg quantity as crates and loose pieces, e.g. "2cr + 15pcs".
+ *
+ * A zero part is dropped rather than printed: "2cr + 0pcs" and "0cr + 15pcs"
+ * both spend space saying nothing. An exact 60 reads "2cr", a loose 15 reads
+ * "15pcs". Returns null when there is nothing to break down, so the caller can
+ * omit the whole label instead of rendering an empty one.
+ */
+function eggCrateBreakdown(
+  quantity: number,
+  { long = false, eggsPerCrate = 30 }: { long?: boolean; eggsPerCrate?: number } = {},
+): string | null {
+  if (!Number.isFinite(quantity) || quantity <= 0 || eggsPerCrate <= 0) return null
+  const crates = Math.floor(quantity / eggsPerCrate)
+  const pieces = quantity % eggsPerCrate
+  const parts: string[] = []
+  // `long` is for the summary card, which has room for real words; the table
+  // cell sits next to the number it describes and uses the short form.
+  if (crates > 0) parts.push(long ? `${crates.toLocaleString()} crate${crates === 1 ? "" : "s"}` : `${crates}c`)
+  if (pieces > 0) parts.push(long ? `${pieces} piece${pieces === 1 ? "" : "s"}` : `${pieces}p`)
+  return parts.length ? parts.join(" + ") : null
+}
 
 export default function SalesPage() {
   const router = useRouter()
@@ -102,20 +127,24 @@ export default function SalesPage() {
 
   const productOptions = ["Fresh Eggs", "Chicken", "Manure", "Other"]
   const paymentMethodOptions = ["Cash", "Credit Card", "Bank Transfer", "Check", "Mobile Money"]
-  const currencyOptions = ["GHS", "USD", "EUR", "GBP", "NGN", "KES"]
 
   const [productSelection, setProductSelection] = useState<string | undefined>(undefined)
   const [productOther, setProductOther] = useState("")
-  const [currencyCode, setCurrencyCode] = useState<string>(() => getSelectedCurrency())
+  // Currency is a company-level setting (Setup > Company). Subscribing to the
+  // store means this page re-renders when it changes there, and can never
+  // disagree with the reports.
+  const { code: farmCurrencyCode } = useCurrency()
+  const currencyCode = farmCurrencyCode || getSelectedCurrency()
   const [searchCustomer, setSearchCustomer] = useState("")
+  // ?saleId= from the Customer Balances page. Held in state rather than read
+  // from the URL on every render so clearing it does not need a navigation.
+  const [focusSaleId, setFocusSaleId] = useState<number | null>(null)
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [draftDateFrom, setDraftDateFrom] = useState("")
   const [draftDateTo, setDraftDateTo] = useState("")
-  const [draftCurrencyCode, setDraftCurrencyCode] = useState(() => getSelectedCurrency())
-  const hasDraftChanges =
-    draftDateFrom !== dateFrom || draftDateTo !== dateTo || draftCurrencyCode !== currencyCode
+  const hasDraftChanges = draftDateFrom !== dateFrom || draftDateTo !== dateTo
   const [showAllColumnsMobile, setShowAllColumnsMobile] = useState(false)
   const isMobile = useIsMobile()
   const [crates, setCrates] = useState(0)
@@ -131,6 +160,12 @@ export default function SalesPage() {
     loadCustomers()
     // Cash accounts so a sale can be received into one (posts a cash-in when paid).
     listPoultryCashAccounts().then((a) => setCashAccounts(a.filter((x) => x.isActive))).catch(() => setCashAccounts([]))
+
+    // Deep link from Customer Balances -> Open sale.
+    if (typeof window !== 'undefined') {
+      const sid = Number(new URLSearchParams(window.location.search).get('saleId'))
+      if (Number.isFinite(sid) && sid > 0) setFocusSaleId(sid)
+    }
 
     // Check for global search query from header
     if (typeof window !== 'undefined') {
@@ -507,31 +542,22 @@ export default function SalesPage() {
     }
   }
 
-  const handleCurrencyChange = (value: string) => {
-    setCurrencyCode(value)
-    setSelectedCurrency(value)
-  }
-
   const clearFilters = () => {
     setSearchCustomer("")
     setDateFrom("")
     setDateTo("")
     setDraftDateFrom("")
     setDraftDateTo("")
-    setDraftCurrencyCode(currencyCode)
   }
 
   const syncDraftFromCommitted = () => {
     setDraftDateFrom(dateFrom)
     setDraftDateTo(dateTo)
-    setDraftCurrencyCode(currencyCode)
   }
 
   const applyMobileFilters = () => {
     setDateFrom(draftDateFrom)
     setDateTo(draftDateTo)
-    setCurrencyCode(draftCurrencyCode)
-    setSelectedCurrency(draftCurrencyCode)
     setCurrentPage(1)
     setFiltersOpen(false)
     toast({ title: "Filters applied", description: "Sales list updated." })
@@ -569,11 +595,12 @@ export default function SalesPage() {
 
   // Amount still owed on a sale (falls back to paid/unpaid when amountPaid is
   // absent, e.g. an older backend).
-  const saleOwed = (s: Sale) => {
+  const salePaid = (s: Sale) => {
     const total = Number(s.totalAmount) || 0
-    const paidAmt = s.amountPaid != null ? Number(s.amountPaid) : (s.paid === false ? 0 : total)
-    return Math.max(0, total - paidAmt)
+    return s.amountPaid != null ? Number(s.amountPaid) : (s.paid === false ? 0 : total)
   }
+
+  const saleOwed = (s: Sale) => Math.max(0, (Number(s.totalAmount) || 0) - salePaid(s))
 
   const openPaymentDialog = (sale: Sale) => {
     const owed = saleOwed(sale)
@@ -668,7 +695,9 @@ export default function SalesPage() {
         { header: "Qty", align: "right" },
         { header: "Unit price", align: "right" },
         { header: "Total", align: "right" },
-        { header: "Payment" },
+        { header: "Paid", align: "right" },
+        { header: "Balance", align: "right" },
+        { header: "Method" },
         { header: "Status" },
         { header: "Flock" },
       ],
@@ -679,8 +708,10 @@ export default function SalesPage() {
         s.quantity ?? 0,
         formatCurrency(s.unitPrice ?? 0, currencyCode),
         formatCurrency(s.totalAmount ?? 0, currencyCode),
+        formatCurrency(salePaid(s), currencyCode),
+        formatCurrency(saleOwed(s), currencyCode),
         s.paymentMethod ?? "",
-        s.paid === false ? "Unpaid" : "Paid",
+        paymentStatusOf(s),
         getFlockLabel(s.flockId),
       ]),
       totalsRow: [
@@ -690,6 +721,8 @@ export default function SalesPage() {
         totalQuantity.toLocaleString(),
         "",
         formatCurrency(totalSales, currencyCode),
+        formatCurrency(filteredSales.reduce((sum, s) => sum + salePaid(s), 0), currencyCode),
+        formatCurrency(filteredSales.reduce((sum, s) => sum + saleOwed(s), 0), currencyCode),
         "",
         "",
         "",
@@ -785,6 +818,10 @@ export default function SalesPage() {
   const filteredSales = useMemo(() => {
     const query = searchCustomer.trim().toLowerCase()
     return sales.filter((sale) => {
+      // Deep link from Customer Balances -> Open sale. Narrowing to the single
+      // sale is the point of the link, so it wins over the other filters (the
+      // banner below offers the way back out).
+      if (focusSaleId !== null) return sale.saleId === focusSaleId
       if (query) {
         const matchesCustomer = sale.customerName?.toLowerCase().includes(query)
         const matchesProduct = sale.product?.toLowerCase().includes(query)
@@ -794,7 +831,7 @@ export default function SalesPage() {
       if (dateTo && toLocalDateKey(sale.saleDate) > dateTo) return false
       return true
     })
-  }, [sales, searchCustomer, dateFrom, dateTo])
+  }, [sales, searchCustomer, dateFrom, dateTo, focusSaleId])
 
   const sortedSales = useMemo(() => sortData(filteredSales, sortKey, sortDir, (item: any, key: string) => {
     switch (key) {
@@ -802,6 +839,9 @@ export default function SalesPage() {
       case "quantity": return Number(item.quantity) || 0
       case "unitPrice": return Number(item.unitPrice) || 0
       case "totalAmount": return Number(item.totalAmount) || 0
+      case "amountPaid": return salePaid(item as Sale)
+      case "balance": return saleOwed(item as Sale)
+      case "paymentStatus": return paymentStatusOf(item as Sale)
       default: return (item as any)[key]
     }
   }), [filteredSales, sortKey, sortDir])
@@ -1251,6 +1291,15 @@ export default function SalesPage() {
         </Dialog>
       </div>
 
+            {/* Arrived here from Customer Balances -> Open sale. Say so, and
+                give a one-click way back to the whole list. */}
+            {focusSaleId !== null && (
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
+                <span>Showing sale <strong>S{focusSaleId}</strong> only.</span>
+                <Button variant="ghost" size="sm" onClick={() => setFocusSaleId(null)}>Show all sales</Button>
+              </div>
+            )}
+
             {/* Filters */}
             {isMobile ? (
               <div className="space-y-3 w-full min-w-0">
@@ -1311,18 +1360,15 @@ export default function SalesPage() {
                         </div>
                         <div className="space-y-2">
                           <label className="text-sm font-medium text-slate-700">Currency</label>
-                          <Select value={draftCurrencyCode} onValueChange={setDraftCurrencyCode}>
-                            <SelectTrigger className="h-12 text-base">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
-                              {currencyOptions.map((code) => (
-                                <SelectItem key={code} value={code}>
-                                  {code}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          {/* Read-only: currency is a company setting, so it is
+                              chosen once in Setup > Company and every screen
+                              follows it. It used to be editable here and wrote
+                              to a separate localStorage key, which is why this
+                              page could disagree with the reports. */}
+                          <div className="flex h-12 items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 text-base text-slate-700">
+                            <span>{currencyCode}</span>
+                            <Link href="/poultry-setup" className="text-sm font-medium text-amber-700 underline">Change</Link>
+                          </div>
                         </div>
                       </MobileFilterSheetBody>
                       <MobileFilterSheetFooter>
@@ -1372,14 +1418,10 @@ export default function SalesPage() {
               </div>
               <div>
                 <Label className="text-xs text-slate-500">Currency</Label>
-                <Select value={currencyCode} onValueChange={handleCurrencyChange}>
-                  <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {currencyOptions.map((code) => (
-                      <SelectItem key={code} value={code}>{code}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex h-9 w-[140px] items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700">
+                  <span>{currencyCode}</span>
+                  <Link href="/poultry-setup" className="text-xs font-medium text-amber-700 underline">Change</Link>
+                </div>
               </div>
               <div className="ml-auto flex items-center gap-2">
                 <Button variant="outline" size="sm" onClick={handleExportSalesPdf} className="gap-2">
@@ -1426,7 +1468,7 @@ export default function SalesPage() {
                     {totalQuantity.toLocaleString()}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {Math.floor(totalQuantity / 30)} crates + {totalQuantity % 30} pieces
+                    {eggCrateBreakdown(totalQuantity, { long: true }) ?? "—"}
                   </p>
                 </CardContent>
               </Card>
@@ -1517,9 +1559,11 @@ export default function SalesPage() {
                               <div className="mt-4 pt-4 border-t border-slate-100 space-y-2 text-sm">
                                 <div className="grid grid-cols-2 gap-2">
                                   <div><span className="text-slate-500">Quantity</span> <span className="font-medium">{sale.quantity}</span></div>
-                                  <div><span className="text-slate-500">Payment</span> <span className="font-medium">{sale.paymentMethod}</span></div>
-                                  <div className="flex items-center gap-2"><span className="text-slate-500">Status</span> <PaymentStatusBadge sale={sale} /></div>
                                   <div><span className="text-slate-500">Flock</span> <span className="font-medium">{getFlockLabel(sale.flockId)}</span></div>
+                                  <div><span className="text-slate-500">Paid</span> <span className="font-medium tabular-nums text-emerald-700">{formatCurrency(salePaid(sale), currencyCode)}</span></div>
+                                  <div><span className="text-slate-500">Balance</span> <span className={cn("font-medium tabular-nums", saleOwed(sale) > 0 ? "text-amber-700" : "text-slate-400")}>{formatCurrency(saleOwed(sale), currencyCode)}</span></div>
+                                  <div><span className="text-slate-500">Method</span> <span className="font-medium">{sale.paymentMethod}</span></div>
+                                  <div className="flex items-center gap-2"><span className="text-slate-500">Status</span> <PaymentStatusBadge sale={sale} /></div>
                                 </div>
                                 <div className="flex gap-2 pt-2">
                                   {saleOwed(sale) > 0 && (
@@ -1560,7 +1604,7 @@ export default function SalesPage() {
                         </Button>
                       </div>
                     )}
-                  <Table className={cn("w-full", !isMobile && "min-w-[900px]")}>
+                  <Table className={cn("w-full", !isMobile && "min-w-[1150px]")}>
                     <TableHeader>
                       <TableRow>
                         <SortableHeader label="Date" sortKey="saleDate" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn(isMobile && "sticky-col-date bg-slate-50")} />
@@ -1570,7 +1614,10 @@ export default function SalesPage() {
                         <SortableHeader label="Quantity" sortKey="quantity" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
                         <SortableHeader label="Unit Price" sortKey="unitPrice" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
                         <SortableHeader label="Total" sortKey="totalAmount" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
-                        <SortableHeader label="Payment" sortKey="paymentMethod" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
+                        <SortableHeader label="Paid" sortKey="amountPaid" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
+                        <SortableHeader label="Balance" sortKey="balance" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
+                        <SortableHeader label="Method" sortKey="paymentMethod" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
+                        <SortableHeader label="Status" sortKey="paymentStatus" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
                         <TableHead className={cn("min-w-[140px] whitespace-nowrap", isMobile && "sticky-col-actions bg-slate-50")}>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1581,22 +1628,27 @@ export default function SalesPage() {
                           <TableCell>{sale.product}</TableCell>
                           <TableCell>{sale.customerName}</TableCell>
                           <TableCell>{getFlockLabel(sale.flockId)}</TableCell>
-                          <TableCell>
+                          <TableCell className="whitespace-nowrap">
                             {sale.quantity}
-                            {sale.product && sale.product.toLowerCase().includes("egg") && sale.quantity > 0 && (
-                              <span className="block text-xs text-slate-500">
-                                {Math.floor(sale.quantity / 30)}cr + {sale.quantity % 30}pcs
+                            {sale.product?.toLowerCase().includes("egg") && eggCrateBreakdown(sale.quantity) && (
+                              // Inline, not `block`: the crate breakdown reads as a
+                              // unit of the number it follows, so stacking it made
+                              // the row two lines tall for one value.
+                              <span className="ml-1.5 text-xs text-slate-500">
+                                ({eggCrateBreakdown(sale.quantity)})
                               </span>
                             )}
                           </TableCell>
                           <TableCell>{formatCurrency(sale.unitPrice, currencyCode)}</TableCell>
                           <TableCell className="font-medium">{formatCurrency(sale.totalAmount, currencyCode)}</TableCell>
-                          <TableCell>
-                            <div className="flex flex-col gap-1">
-                              <Badge variant="outline" className="w-fit">{sale.paymentMethod}</Badge>
-                              <PaymentStatusBadge sale={sale} />
-                            </div>
+                          <TableCell className="tabular-nums text-emerald-700">{formatCurrency(salePaid(sale), currencyCode)}</TableCell>
+                          <TableCell className={cn("tabular-nums", saleOwed(sale) > 0 ? "font-semibold text-amber-700" : "text-slate-400")}>
+                            {formatCurrency(saleOwed(sale), currencyCode)}
                           </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="w-fit">{sale.paymentMethod}</Badge>
+                          </TableCell>
+                          <TableCell><PaymentStatusBadge sale={sale} /></TableCell>
                           <TableCell className={cn("whitespace-nowrap bg-white", isMobile && "sticky-col-actions")}>
                             {/* Icon-only actions, so each one says what it does on
                                 hover. The mobile card view below uses labelled
@@ -2128,18 +2180,20 @@ export default function SalesPage() {
                 <div className="flex justify-between"><span className="text-slate-500">Total</span><span className="tabular-nums">{Number(payDialog.sale.totalAmount).toFixed(2)}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Owed</span><span className="tabular-nums font-semibold text-amber-700">{saleOwed(payDialog.sale).toFixed(2)}</span></div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="pay-amount">Amount *</Label>
-                <Input id="pay-amount" type="number" step="0.01" min="0" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Method</Label>
-                <Select value={payMethod} onValueChange={setPayMethod}>
-                  <SelectTrigger><SelectValue placeholder="Select method" /></SelectTrigger>
-                  <SelectContent>
-                    {["Cash", "Mobile Money", "Bank Transfer", "Cheque", "Other"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="pay-amount">Amount *</Label>
+                  <Input id="pay-amount" type="number" step="0.01" min="0" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Method</Label>
+                  <Select value={payMethod} onValueChange={setPayMethod}>
+                    <SelectTrigger className="w-full"><SelectValue placeholder="Select method" /></SelectTrigger>
+                    <SelectContent>
+                      {["Cash", "Mobile Money", "Bank Transfer", "Cheque", "Other"].map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="pay-note">Note</Label>

@@ -15,6 +15,7 @@ import {
   ShoppingCart,
   MoreHorizontal,
   Package,
+  PackageMinus,
   BookOpen,
   AlertTriangle,
   Wallet,
@@ -43,6 +44,8 @@ import {
   Receipt,
   CalendarDays,
   Building2,
+  History,
+  Scale,
 } from "lucide-react"
 import {
   Sheet,
@@ -147,11 +150,15 @@ export function MobileBottomNav() {
           { href: "/water-stock",         label: "Stock movement",    icon: Boxes },
           { href: "/water-inventory",     label: "Inventory",         icon: Boxes },
           { href: "/water-raw-materials", label: "Raw materials & supplies", icon: Box },
+          { href: "/water-internal-use",  label: "Internal Use",      icon: PackageMinus },
           { href: "/water-loss-records",  label: "Damages & loss",    icon: AlertTriangle },
           // Sales & Money
           { href: "/water-payments",      label: "Payments",          icon: CreditCard },
+          { href: "/water-customer-balances", label: "Customer Balances", icon: Users },
+          { href: "/water-supplier-balances", label: "Supplier Balances", icon: Truck },
           { href: "/water-expenses",      label: "Expenses",          icon: Receipt },
           { href: "/water-cash-accounts", label: "Cash accounts",     icon: Wallet },
+          { href: "/water-cash-reconciliation", label: "Reconcile cash", icon: Scale },
           // Finance — Customers and Suppliers sit together here, matching the
           // sidebar's Finance group and the top nav's Setup > Finance column.
           { href: "/water-customers",     label: "Customers",         icon: Users },
@@ -159,7 +166,8 @@ export function MobileBottomNav() {
           // People
           { href: "/water-staff",         label: "Staff",             icon: Users2 },
           { href: "/water-payroll",       label: "Payroll",           icon: Banknote },
-          // Reports + Admin
+          // Analytics + Reports + Admin
+          { href: "/water-inventory-tracker", label: "Inventory tracker", icon: History },
           { href: "/water-reports",       label: "Reports",           icon: BarChart3 },
           { href: "/water-driver-report", label: "Driver report",     icon: BarChart3 },
           // Match desktop sidebar (components/dashboard/sidebar.tsx waterAdminItems):
@@ -193,6 +201,7 @@ export function MobileBottomNav() {
         moreItems: [
           { href: "/generic-inventory",          label: "Inventory",         icon: Boxes },
           { href: "/generic-stock-adjustments",  label: "Stock adjustments", icon: Boxes },
+          { href: "/generic-internal-use",       label: "Internal Use",      icon: PackageMinus },
           { href: "/generic-customers",          label: "Customers",         icon: Users },
           { href: "/generic-customer-payments",  label: "Customer payments", icon: CreditCard },
           { href: "/generic-suppliers",          label: "Suppliers",         icon: Truck },
@@ -314,6 +323,7 @@ export function MobileBottomNav() {
       { href: "/poultry-raw-materials",  label: "Raw Materials & Supplies", icon: Box },
       { href: "/supplies",               label: "Supplies",               icon: ShoppingCart },
       { href: "/health",                 label: "Health Records",         icon: AlertTriangle },
+      { href: "/poultry-internal-use",   label: "Internal Use",           icon: PackageMinus },
       { href: "/poultry-loss-records",   label: "Loss & Damage",          icon: AlertTriangle },
       { href: "/inventory",              label: "Other Inventory",        icon: Package },
       // Delivery
@@ -326,7 +336,10 @@ export function MobileBottomNav() {
       { href: "/poultry-daily-closing",  label: "Daily Closing",          icon: FileText },
       { href: "/cash",                   label: "Cash",                   icon: Wallet },
       { href: "/poultry-cash-accounts",  label: "Cash Account",           icon: Wallet },
+      { href: "/poultry-cash-reconciliation", label: "Reconcile cash",    icon: Scale },
       { href: "/poultry-payments",       label: "Payments received",      icon: CreditCard },
+      { href: "/customer-balances",      label: "Customer Balances",      icon: Users },
+      { href: "/supplier-balances",      label: "Supplier Balances",      icon: Truck },
       { href: "/expenses",               label: "Expenses",               icon: DollarSign },
       { href: "/billing",                label: "Billing",                icon: CreditCard },
       // Finance — Customers and Suppliers sit together here, matching the
@@ -344,20 +357,21 @@ export function MobileBottomNav() {
       { href: "/help",                   label: "Help Center",            icon: BookOpen },
       { href: "/profile",                label: "Account",                icon: User },
       { href: "/audit-logs",             label: "Activity Log",           icon: Activity },
-      { href: "/settings",               label: "Settings",               icon: Settings },
+      { href: "/poultry-setup",          label: "Farm Setup",             icon: Settings },
+      { href: "/poultry-company-setup",  label: "Company Setup",          icon: Settings },
       { href: "/terms",                  label: "Terms",                  icon: FileText },
       ...(permissions.isAdmin || permissions.featureAccess.canSeeEmployees
         ? [{ href: "/employees", label: "Employees", icon: UserCog }] : []),
     ]
     const filteredPoultryMore = poultryMore.filter((item) => {
-      if (["/sales", "/expenses", "/cash", "/customers", "/suppliers", "/billing", "/poultry-cash-accounts", "/poultry-payments"].includes(item.href)) {
+      if (["/sales", "/expenses", "/cash", "/customers", "/suppliers", "/billing", "/poultry-cash-accounts", "/poultry-cash-reconciliation", "/poultry-payments", "/customer-balances", "/supplier-balances"].includes(item.href)) {
         return isFinancialNavItemVisible(item.href, permissions.featureAccess, permissions.isAdmin, {
           tempShowPayments: TEMP_SHOW_PAYMENTS_LINK,
         })
       }
       if (item.href === "/reports") return permissions.featureAccess.canViewReports
       if (item.href === "/audit-logs") return permissions.featureAccess.canViewActivityLog
-      if (item.href === "/settings") return permissions.featureAccess.canViewSettings
+      if (item.href === "/poultry-company-setup" || item.href === "/poultry-setup") return permissions.featureAccess.canViewSettings
       return true
     })
     return {

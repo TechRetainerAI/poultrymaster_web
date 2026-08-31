@@ -21,7 +21,7 @@ import { usePagination } from "@/hooks/use-pagination"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Boxes, Box, ShoppingBag, AlertTriangle, AlertCircle, Loader2, Search, ExternalLink } from "lucide-react"
+import { Boxes, Box, ShoppingBag, AlertTriangle, AlertCircle, Loader2, Search, ExternalLink, History } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -237,6 +237,7 @@ export default function WaterInventoryPage() {
                               <TableHead className="text-right">Stock (Bags)</TableHead>
                               <TableHead className="text-right">Stock (Sachets)</TableHead>
                               <TableHead>Status</TableHead>
+                              <TableHead className="text-right">Track</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -257,6 +258,16 @@ export default function WaterInventoryPage() {
                                     {sachetCount !== null ? sachetCount.toLocaleString() : "—"}
                                   </TableCell>
                                   <TableCell><ToneBadge tone={st.tone} label={st.label} /></TableCell>
+                                  {/* Straight into this product's ledger — the
+                                      stock figure to the left is the answer, the
+                                      tracker is the working. */}
+                                  <TableCell className="text-right">
+                                    <Button asChild size="sm" variant="ghost" title="Track this product">
+                                      <Link href={`/water-inventory-tracker?productId=${p.waterProductId}`}>
+                                        <History className="w-4 h-4 text-sky-700" />
+                                      </Link>
+                                    </Button>
+                                  </TableCell>
                                 </TableRow>
                               )
                             })}

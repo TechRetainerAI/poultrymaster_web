@@ -77,6 +77,13 @@ namespace PoultryFarmAPIWeb.Filters
             ["poultry/closing-report"] = "poultry.reports",
             ["poultry/cash-accounts"] = "poultry.cash",
             ["poultry/cash-transfers"] = "poultry.cash",
+            // Migration 223, mirroring 222 on the Water side. Its own resource
+            // rather than an action on poultry.cash: *.cash has no `approve`, and
+            // widening a shared resource would hand reconciliation rights to
+            // everyone who can merely see cash. The /post and /reverse segments
+            // resolve to the `approve` action via ResolveAction with no extra
+            // wiring.
+            ["poultry/cash-reconciliations"] = "poultry.cash-reconciliation",
             ["poultry/drivers"] = "poultry.drivers",
             ["poultry/vehicles"] = "poultry.vehicles",
             ["poultry/routes"] = "poultry.routes",
@@ -97,6 +104,7 @@ namespace PoultryFarmAPIWeb.Filters
             ["poultry/production-batches"] = "poultry.production-records",
             ["poultry/production-losses"] = "poultry.loss-records",
             ["poultry/loss-records"] = "poultry.loss-records",
+            ["poultry/internal-usage"] = "poultry.internal-use",
             ["poultry/daily-closings"] = "poultry.daily-closing",
             ["poultry/staff"] = "poultry.staff",
             ["poultry/staff-attendance"] = "poultry.staff",
@@ -108,6 +116,7 @@ namespace PoultryFarmAPIWeb.Filters
             ["water/products"] = "water.products",
             ["water/customers"] = "water.customers",
             ["water/stock"] = "water.stock",
+            ["water/internal-usage"] = "water.internal-use",
             ["water/sales"] = "water.sales",
             ["water/payments"] = "water.payments",
             ["water/suppliers"] = "water.suppliers",
@@ -123,6 +132,12 @@ namespace PoultryFarmAPIWeb.Filters
             ["water/expense-categories"] = "water.expenses",
             ["water/cash-accounts"] = "water.cash",
             ["water/cash-transfers"] = "water.cash",
+            // Migration 222. Its own resource rather than an action on
+            // water.cash: *.cash has no `approve`, and widening a shared
+            // resource would hand reconciliation rights to everyone who can
+            // merely see cash. The /post and /reverse segments resolve to the
+            // `approve` action via ResolveAction with no extra wiring.
+            ["water/cash-reconciliations"] = "water.cash-reconciliation",
             ["water/daily-closings"] = "water.daily-closing",
             ["water/loss-records"] = "water.production-losses",
             ["water/production-batches"] = "water.production-batches",
@@ -147,6 +162,7 @@ namespace PoultryFarmAPIWeb.Filters
             ["generic-company/products"] = "generic.products",
             ["generic-company/service-catalog"] = "generic.products",
             ["generic-company/inventory"] = "generic.inventory",
+            ["generic-company/internal-usage"] = "generic.internal-use",
             ["generic-company/suppliers"] = "generic.suppliers",
             ["generic-company/purchases"] = "generic.purchases",
             ["generic-company/expenses"] = "generic.expenses",
