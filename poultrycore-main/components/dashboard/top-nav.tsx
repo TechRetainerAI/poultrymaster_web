@@ -15,6 +15,7 @@ import { WATER_REPORT_NAV_GROUPS, POULTRY_REPORT_NAV_GROUPS } from "@/lib/nav/re
 import { buildWaterNavConfig } from "@/lib/nav/water-nav-config"
 import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
 import { buildHotelNavConfig } from "@/lib/nav/hotel-nav-config"
+import { buildRestaurantNavConfig } from "@/lib/nav/restaurant-nav-config"
 import { NavMegaMenu } from "./nav/nav-mega-menu"
 import { useNavPopover, NAV_TRIGGER_CLASS, NAV_TRIGGER_ACTIVE } from "./nav/use-nav-popover"
 import {
@@ -35,6 +36,7 @@ import {
   CreditCard,
   Truck,
   Factory,
+  Heart,
 } from "lucide-react"
 
 function NavDropdown({ group, accent = "sky" }: { group: NavGroup; accent?: NavAccent }) {
@@ -318,6 +320,79 @@ function HotelTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
   )
 }
 
+function RestaurantTopNav() {
+  const nav = useMemo(() => buildRestaurantNavConfig(), [])
+
+  return (
+    <div className="hidden lg:block bg-rose-600 border-b border-rose-700">
+      <div className="flex items-center gap-1 px-4 pt-1.5 pb-2.5 nav-rail-scroll">
+        <NavLink item={{ href: "/restaurant-dashboard", label: "Dashboard", icon: Home }} accent="rose" />
+        <div className="h-5 w-px bg-white/30 mx-1" />
+        <NavLink item={{ href: "/restaurant-pos", label: "POS", icon: ShoppingCart }} accent="rose" />
+        <div className="h-5 w-px bg-white/30 mx-1" />
+
+        <NavMegaMenu
+          label="Orders & Kitchen" icon={Activity}
+          title="Orders & Kitchen"
+          blurb="Place orders, track preparation and manage the kitchen display."
+          groups={nav.ordersKitchen}
+          columns={2} widthRem={28} layout="grid" accent="rose"
+        />
+
+        <NavMegaMenu
+          label="Dining" icon={Building2}
+          title="Dining"
+          blurb="Floor plan, table management, reservations and waitlist."
+          groups={nav.dining}
+          columns={2} widthRem={28} layout="grid" accent="rose"
+        />
+
+        <NavMegaMenu
+          label="Delivery & Online" icon={Truck}
+          title="Delivery & Online Ordering"
+          blurb="Online ordering, QR table ordering, delivery drivers and dispatch."
+          groups={nav.deliveryOnline}
+          columns={2} widthRem={30} layout="grid" accent="rose"
+        />
+
+        <NavMegaMenu
+          label="Inventory" icon={Package}
+          title="Inventory & Reports"
+          blurb="Ingredients, stock tracking, reports, and expense management."
+          groups={nav.inventoryReports}
+          columns={1} widthRem={18} layout="grid" accent="rose"
+        />
+
+        <NavMegaMenu
+          label="Growth" icon={Heart}
+          title="Customers & Growth"
+          blurb="CRM, loyalty rewards, events, gift cards, and notifications."
+          groups={nav.growth}
+          columns={2} widthRem={30} layout="grid" accent="rose"
+        />
+
+        <NavMegaMenu
+          label="Setup" icon={Settings}
+          title="Menu & Setup"
+          blurb="Menu items, staff management, and restaurant configuration."
+          groups={nav.setup}
+          columns={1} widthRem={18} layout="grid" accent="rose"
+        />
+
+        <div className="ml-auto flex items-center gap-1">
+          <NavMegaMenu
+            label="System" icon={User}
+            title="System"
+            blurb="Account and companies."
+            groups={nav.system}
+            columns={1} widthRem={14} layout="grid" accent="rose"
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function TopNavigation() {
   const permissions = usePermissions()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
@@ -337,6 +412,9 @@ export function TopNavigation() {
   }
   if (activeFarmType === "Hotel") {
     return <HotelTopNav permissions={permissions} />
+  }
+  if (activeFarmType === "Restaurant") {
+    return <RestaurantTopNav />
   }
 
   // 2026-08-07: same treatment as the water rail — nine near-identical narrow

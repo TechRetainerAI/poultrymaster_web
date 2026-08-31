@@ -51,7 +51,7 @@ function flattenErrors(errors: unknown): string[] {
 
 const USERNAME_RE = /^[A-Za-z0-9._-]{3,30}$/
 const PHONE_RE = /^(\+?\d{7,15}|0\d{6,14})$/
-type CType = "" | "Poultry" | "Water" | "Generic" | "Hotel"
+type CType = "" | "Poultry" | "Water" | "Generic" | "Hotel" | "Restaurant"
 
 const inputCls = "h-10 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-orange-500 focus:ring-orange-500"
 
@@ -234,6 +234,7 @@ export default function RegisterPage() {
                       { value: "Water", emoji: "💧", title: "Water" },
                       { value: "Generic", emoji: "🏪", title: "Generic" },
                       { value: "Hotel", emoji: "🏨", title: "Hotel" },
+                      { value: "Restaurant", emoji: "🍽️", title: "Restaurant" },
                     ] as const).map((opt) => {
                       const selected = f.companyType === opt.value
                       // Clicking a selected type again clears it.

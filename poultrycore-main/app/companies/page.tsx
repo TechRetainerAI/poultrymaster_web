@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
-import { Plus, Building2, Bird, Droplets, Loader2, Check } from "lucide-react"
+import { Plus, Building2, Bird, Droplets, Loader2, Check, UtensilsCrossed } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -114,12 +114,12 @@ export default function CompaniesPage() {
                   </TableHeader>
                   <TableBody>
                     {pg.pageItems.map((c) => {
-                      const Icon = c.type === "Water" ? Droplets : c.type === "Poultry" ? Bird : c.type === "Hotel" ? Building2 : Building2
+                      const Icon = c.type === "Water" ? Droplets : c.type === "Poultry" ? Bird : c.type === "Hotel" ? Building2 : c.type === "Restaurant" ? UtensilsCrossed : Building2
                       const isActive = c.farmId === activeFarmId
                       return (
                         <TableRow key={c.farmId}>
                           <TableCell>
-                            <Icon className={`h-5 w-5 ${c.type === "Water" ? "text-sky-500" : c.type === "Hotel" ? "text-purple-500" : "text-orange-500"}`} />
+                            <Icon className={`h-5 w-5 ${c.type === "Water" ? "text-sky-500" : c.type === "Hotel" ? "text-purple-500" : c.type === "Restaurant" ? "text-rose-600" : "text-orange-500"}`} />
                           </TableCell>
                           <TableCell className="font-medium">{c.name}</TableCell>
                           <TableCell>{c.type}</TableCell>
@@ -156,8 +156,9 @@ export default function CompaniesPage() {
                 <SelectContent>
                   <SelectItem value="Water">Water (sachet / bottled water)</SelectItem>
                   <SelectItem value="Poultry">Poultry farm</SelectItem>
-                  <SelectItem value="Generic">Generic (shop / restaurant / salon / pharmacy / any small business)</SelectItem>
-                  <SelectItem value="Hotel">Hotel (rooms, bookings, front desk, restaurant)</SelectItem>
+                  <SelectItem value="Generic">Generic (shop / salon / pharmacy / any small business)</SelectItem>
+                  <SelectItem value="Hotel">Hotel (rooms, bookings, front desk)</SelectItem>
+                  <SelectItem value="Restaurant">Restaurant (POS, menu, kitchen, delivery)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
