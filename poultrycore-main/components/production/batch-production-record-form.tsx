@@ -172,7 +172,7 @@ export function BatchProductionRecordForm({
   const feedItems = useMemo(() => rawItems.filter((i) => isFeedCategory(i.category)), [rawItems])
   const medItems = useMemo(() => rawItems.filter((i) => isMedicationCategory(i.category)), [rawItems])
 
-  const [feedLines, setFeedLines] = useState<FeedLineDraft[]>(isEdit ? [] : [emptyFeedLine(), emptyFeedLine()])
+  const [feedLines, setFeedLines] = useState<FeedLineDraft[]>(isEdit ? [] : [emptyFeedLine()])
   const addFeedLine = () => { setDirty(true); setFeedLines((d) => [...d, emptyFeedLine()]) }
   const removeFeedLine = (idx: number) => { setDirty(true); setFeedLines((d) => d.filter((_, i) => i !== idx)) }
   const changeFeedLine = (idx: number, p: Partial<FeedLineDraft>) => {
@@ -552,10 +552,20 @@ export function BatchProductionRecordForm({
         accent="amber"
         icon={Egg}
       >
-        <div className="space-y-2">
+        {/* Two picks per line from lg up (1st + 2nd, then 3rd + 4th); one per
+            line below that. The field columns are capped rather than fixed so a
+            half-width card shrinks them instead of overflowing. */}
+        <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
           {pickRows.map((p) => (
-            <div key={p.key} className="grid grid-cols-1 items-end gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 sm:grid-cols-[minmax(8rem,22rem)_8.25rem_8.25rem_8rem]">
-              <div className="text-sm font-medium text-slate-700">{p.label}</div>
+            <div key={p.key} className="grid grid-cols-1 items-end gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 sm:grid-cols-[minmax(7.5rem,1fr)_minmax(0,6.75rem)_minmax(0,6.75rem)_minmax(0,6.5rem)]">
+              {/* text-xs + nowrap keeps the longest label — "4th Pick (12:00 PM)"
+                  — on one line; the 7.5rem column minimum is what guarantees it
+                  the room, so the two must stay in step.
+                  The row is items-end, which would sit this flush with the foot
+                  of the inputs. sm:pb-2.5 lifts it by half the difference
+                  between the 36px input and this 16px line, centring it against
+                  the input rather than the whole cell. */}
+              <div className="whitespace-nowrap text-xs font-medium text-slate-700 sm:pb-2.5">{p.label}</div>
               <NumField label="Crates" value={p.crates} onChange={p.setC} />
               <NumField label="Loose eggs" value={p.loose} onChange={p.setL} />
               <CalcField label="Total eggs" value={p.total.toLocaleString()} />
@@ -631,18 +641,21 @@ export function BatchProductionRecordForm({
               </SelectContent>
             </Select>
           </div>
+          {/* Always derived, never typed — the Feed Breakdown lines are the only
+              way to record feed. It shows `effectiveFeedKg`, which is precisely
+              what gets saved, so an older record that still carries a manual
+              figure displays that figure rather than a misleading 0. */}
           <div className="space-y-1.5">
-            <Label htmlFor="bpr-feedkg">Feed (kg)</Label>
-            <Input
-              id="bpr-feedkg" type="number" min="0" step="0.01"
-              value={feedFromLines ? String(feedComputed.totalConsumed) : form.feedKg}
-              onChange={(e) => patch({ feedKg: e.target.value })}
-              readOnly={feedFromLines}
-              className={feedFromLines ? "bg-slate-100 text-slate-600" : undefined}
-            />
-            {feedFromLines && <p className="text-xs text-slate-500">Summed from the feed lines above.</p>}
+            <CalcField label="Feed (kg)" value={effectiveFeedKg.toLocaleString(undefined, { maximumFractionDigits: 2 })} />
+            <p className="text-xs text-slate-500">
+              {feedFromLines
+                ? "Summed from the feed lines above, so it isn't counted twice."
+                : effectiveFeedKg > 0
+                  ? "Carried over from this record's saved figure. Add a feed line above to change it."
+                  : "Add a feed line above to record feed."}
+            </p>
           </div>
-          <CalcField label="Total feed cost" value={totalFeedCost.toFixed(2)} />
+          <CalcField label="Total feed" value={totalFeedCost.toFixed(2)} />
         </div>
       </FormSectionCard>
 
@@ -661,11 +674,15 @@ export function BatchProductionRecordForm({
             onAdd={addMedLine} onRemove={removeMedLine} onChange={changeMedLine}
           />
         </div>
-        <div className="mt-3 grid grid-cols-1 gap-3 border-t pt-3 sm:grid-cols-3">
+        <div className="mt-3 grid grid-cols-1 gap-3 border-t pt-3 sm:grid-cols-4">
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="bpr-medication">Medication notes</Label>
             <Input id="bpr-medication" value={form.medication} onChange={(e) => patch({ medication: e.target.value })} placeholder="e.g. Newcastle vaccine" />
           </div>
+          {/* Summed straight from the medication lines. Unlike feed — which is
+              kilograms throughout — medication items carry their own units, so
+              this is a count of quantity entered, not a single-unit measure. */}
+          <CalcField label="Total medication consumed" value={medComputed.totalConsumed.toLocaleString(undefined, { maximumFractionDigits: 2 })} />
           <CalcField label="Total medication cost" value={totalMedicationCost.toFixed(2)} />
         </div>
       </FormSectionCard>

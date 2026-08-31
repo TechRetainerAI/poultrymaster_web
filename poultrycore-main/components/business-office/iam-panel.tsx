@@ -151,10 +151,10 @@ export function IamPanel({ showHeading = true }: { showHeading?: boolean }) {
         {heading}
         {/* The scope picker, not a status badge: the Business Office has no
             active company, so this is where you say which one you mean. */}
-        <div className="flex items-center gap-2">
+        <div className="flex w-full items-center gap-2 sm:w-auto">
           <Building2 className="h-4 w-4 text-slate-400 shrink-0" />
           <Select value={scope} onValueChange={setScope}>
-            <SelectTrigger className="w-[220px] h-9"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 w-full sm:w-[220px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL_COMPANIES}>All companies</SelectItem>
               {companies.map((c) => (
@@ -181,11 +181,12 @@ export function IamPanel({ showHeading = true }: { showHeading?: boolean }) {
       </div>
 
       <Tabs defaultValue="roles">
-        <TabsList>
-          <TabsTrigger value="roles"><KeyRound className="h-4 w-4 mr-1.5" /> Roles</TabsTrigger>
-          <TabsTrigger value="matrix"><Check className="h-4 w-4 mr-1.5" /> Permission Matrix</TabsTrigger>
-          <TabsTrigger value="people"><Users className="h-4 w-4 mr-1.5" /> People</TabsTrigger>
-          <TabsTrigger value="security"><ShieldCheck className="h-4 w-4 mr-1.5" /> Security</TabsTrigger>
+        {/* Wraps onto a second row on phones instead of running off the side. */}
+        <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 sm:inline-flex sm:h-9 sm:w-fit sm:flex-nowrap sm:gap-0">
+          <TabsTrigger value="roles" className="h-8 sm:h-[calc(100%-1px)]"><KeyRound className="h-4 w-4 mr-1.5" /> Roles</TabsTrigger>
+          <TabsTrigger value="matrix" className="h-8 sm:h-[calc(100%-1px)]"><Check className="h-4 w-4 mr-1.5" /> Permission Matrix</TabsTrigger>
+          <TabsTrigger value="people" className="h-8 sm:h-[calc(100%-1px)]"><Users className="h-4 w-4 mr-1.5" /> People</TabsTrigger>
+          <TabsTrigger value="security" className="h-8 sm:h-[calc(100%-1px)]"><ShieldCheck className="h-4 w-4 mr-1.5" /> Security</TabsTrigger>
         </TabsList>
 
         <TabsContent value="roles" className="pt-4">

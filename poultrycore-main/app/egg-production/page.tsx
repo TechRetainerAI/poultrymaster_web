@@ -73,6 +73,20 @@ export default function EggProductionsPage() {
 
   // Mobile: card list by default, filters in sheet
   const isMobile = useIsMobile()
+
+  // This table hides most of its columns behind `sm:`/`md:`/`lg:` breakpoints.
+  // A phone never reaches any of them, so on mobile — where the table renders
+  // only because the reader chose it over the cards — the hiding is switched
+  // off entirely and the table scrolls sideways instead.
+  // The class strings are written out in full: Tailwind scans source text, so a
+  // composed `hidden ${bp}:table-cell` would never be generated.
+  const HIDE_BELOW = {
+    sm: "hidden sm:table-cell",
+    md: "hidden md:table-cell",
+    lg: "hidden lg:table-cell",
+    xl: "hidden xl:table-cell",
+  } as const
+  const hideBelow = (bp: keyof typeof HIDE_BELOW) => (isMobile ? "" : HIDE_BELOW[bp])
   const [showAllColumnsMobile, setShowAllColumnsMobile] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [syncScope, setSyncScope] = useState<"selected" | "all">("selected")
@@ -869,19 +883,19 @@ export default function EggProductionsPage() {
                         </Button>
                       </div>
                     )}
-                    <Table className={cn("w-full", !isMobile && "min-w-[700px]")}>
+                    <Table className="w-full min-w-[700px]">
                       <TableHeader>
                         <TableRow className="border-b">
                           <SortableHeader label="Date" sortKey="productionDate" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[100px]", isMobile && "sticky-col-date bg-slate-50")} />
                           <SortableHeader label="Flock" sortKey="flockId" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[120px]" />
-                          <SortableHeader label="Size" sortKey="eggGrade" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[88px] hidden sm:table-cell" />
-                          <SortableHeader label="1st Pick" sortKey="production9AM" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[80px] hidden lg:table-cell whitespace-nowrap" />
-                          <SortableHeader label="2nd Pick" sortKey="production12PM" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[80px] hidden lg:table-cell whitespace-nowrap" />
-                          <SortableHeader label="3rd Pick" sortKey="production4PM" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[80px] hidden lg:table-cell whitespace-nowrap" />
-                          <SortableHeader label="4th Pick" sortKey="production4thPick" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[80px] hidden lg:table-cell whitespace-nowrap" />
-                          <SortableHeader label="Total Production" sortKey="totalProduction" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[120px] hidden sm:table-cell" />
-                          <SortableHeader label="Broken Eggs" sortKey="brokenEggs" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="font-semibold text-slate-900 min-w-[120px] hidden md:table-cell" />
-                          <TableHead className={cn("font-semibold text-slate-900 text-center min-w-[120px] whitespace-nowrap", isMobile && "sticky-col-actions bg-slate-50")}>Actions</TableHead>
+                          <SortableHeader label="Size" sortKey="eggGrade" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[88px]", hideBelow("sm"))} />
+                          <SortableHeader label="1st Pick" sortKey="production9AM" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[80px] whitespace-nowrap", hideBelow("lg"))} />
+                          <SortableHeader label="2nd Pick" sortKey="production12PM" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[80px] whitespace-nowrap", hideBelow("lg"))} />
+                          <SortableHeader label="3rd Pick" sortKey="production4PM" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[80px] whitespace-nowrap", hideBelow("lg"))} />
+                          <SortableHeader label="4th Pick" sortKey="production4thPick" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[80px] whitespace-nowrap", hideBelow("lg"))} />
+                          <SortableHeader label="Total Production" sortKey="totalProduction" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[120px]", hideBelow("sm"))} />
+                          <SortableHeader label="Broken Eggs" sortKey="brokenEggs" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("font-semibold text-slate-900 min-w-[120px]", hideBelow("md"))} />
+                          <TableHead className="font-semibold text-slate-900 text-center min-w-[120px] whitespace-nowrap">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -891,16 +905,16 @@ export default function EggProductionsPage() {
                               {isMobile ? formatDateShort(prod.productionDate) : new Date(prod.productionDate).toLocaleDateString()}
                             </TableCell>
                             <TableCell>{getFlockName(prod)}</TableCell>
-                            <TableCell className="hidden sm:table-cell text-violet-900 font-medium">
+                            <TableCell className={cn("text-violet-900 font-medium", hideBelow("sm"))}>
                               {formatEggGradeLabel(prod.eggGrade)}
                             </TableCell>
-                            <TableCell className="hidden lg:table-cell">{prod.production9AM ?? '-'}</TableCell>
-                            <TableCell className="hidden lg:table-cell">{prod.production12PM ?? '-'}</TableCell>
-                            <TableCell className="hidden lg:table-cell">{prod.production4PM ?? '-'}</TableCell>
-                            <TableCell className="hidden lg:table-cell">{(prod as any).production4thPick ?? '-'}</TableCell>
-                            <TableCell className="hidden sm:table-cell">{prod.totalProduction}</TableCell>
-                            <TableCell className="hidden md:table-cell">{prod.brokenEggs}</TableCell>
-                            <TableCell className={cn("text-center whitespace-nowrap bg-white", isMobile && "sticky-col-actions")}>
+                            <TableCell className={hideBelow("lg")}>{prod.production9AM ?? '-'}</TableCell>
+                            <TableCell className={hideBelow("lg")}>{prod.production12PM ?? '-'}</TableCell>
+                            <TableCell className={hideBelow("lg")}>{prod.production4PM ?? '-'}</TableCell>
+                            <TableCell className={hideBelow("lg")}>{(prod as any).production4thPick ?? '-'}</TableCell>
+                            <TableCell className={hideBelow("sm")}>{prod.totalProduction}</TableCell>
+                            <TableCell className={hideBelow("md")}>{prod.brokenEggs}</TableCell>
+                            <TableCell className="text-center whitespace-nowrap bg-white">
                               <div className="flex items-center justify-center gap-1 min-w-[100px]">
                                 <Link href={`/egg-production/${prod.productionId}`} prefetch={true}>
                                   <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600">
@@ -923,13 +937,13 @@ export default function EggProductionsPage() {
                         ))}
                          <TableRow className="bg-slate-50 font-semibold">
                             <TableCell colSpan={3} className={cn("text-right", isMobile && "sticky-col-date bg-slate-50")}>Total</TableCell>
-                            <TableCell className="hidden lg:table-cell"></TableCell>
-                            <TableCell className="hidden lg:table-cell"></TableCell>
-                            <TableCell className="hidden lg:table-cell"></TableCell>
-                            <TableCell className="hidden lg:table-cell"></TableCell>
-                            <TableCell className="hidden sm:table-cell">{totalEggs.toLocaleString()}<div className="text-xs font-normal text-slate-500">{totalEggsCrates}c + {totalEggsPieces}p</div></TableCell>
-                            <TableCell className="hidden md:table-cell">{totalBroken}</TableCell>
-                            <TableCell className={cn(isMobile && "sticky-col-actions bg-slate-50")}></TableCell>
+                            <TableCell className={hideBelow("lg")}></TableCell>
+                            <TableCell className={hideBelow("lg")}></TableCell>
+                            <TableCell className={hideBelow("lg")}></TableCell>
+                            <TableCell className={hideBelow("lg")}></TableCell>
+                            <TableCell className={hideBelow("sm")}>{totalEggs.toLocaleString()}<div className="text-xs font-normal text-slate-500">{totalEggsCrates}c + {totalEggsPieces}p</div></TableCell>
+                            <TableCell className={hideBelow("md")}>{totalBroken}</TableCell>
+                            <TableCell></TableCell>
                         </TableRow>
                       </TableBody>
                     </Table>
