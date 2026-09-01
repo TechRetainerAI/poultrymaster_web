@@ -311,6 +311,11 @@ namespace PoultryFarmAPIWeb.Business
         // Posts / reverses the purchase's cash-out on the chosen PoultryCashAccount.
         // The SP reads the current AmountPaid + account from the row, so callers
         // just say whether to (re)set the account.
+        //
+        // The date is not passed in: unlike the sale and expense syncs, the SP
+        // already reads the purchase row itself, so it re-stamps from
+        // purchasedate rather than from a caller-supplied value. Migration 229
+        // explains the wider problem this closes.
         private async Task SyncCashAsync(string farmId, int purchaseId, int? cashAccountId, bool setAccount, string? createdBy)
         {
             using var conn = new NpgsqlConnection(_cs);
@@ -322,6 +327,19 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@CreatedBy", (object?)createdBy ?? DBNull.Value);
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
+
+            using var stamp = new NpgsqlCommand(@"
+                SELECT public.sppoultrycashtransaction_setbusinessdate(
+                           p_farmid       => @FarmId::text,
+                           p_sourcetype   => 'RawMaterialPurchase',
+                           p_sourceid     => @PoultryRawMaterialPurchaseId::int,
+                           p_businessdate => (SELECT pu.purchasedate
+                                              FROM   poultryrawmaterialpurchases pu
+                                              WHERE  pu.poultryrawmaterialpurchaseid = @PoultryRawMaterialPurchaseId::int
+                                              LIMIT  1)::timestamp)", conn);
+            stamp.Parameters.AddWithValue("@FarmId", farmId);
+            stamp.Parameters.AddWithValue("@PoultryRawMaterialPurchaseId", purchaseId);
+            await stamp.ExecuteNonQueryAsync();
         }
 
         // A lot the feed-production posting engine created belongs to its batch:

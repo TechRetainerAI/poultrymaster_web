@@ -160,6 +160,7 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
         label: "Money",
         items: [
           { id: "expenses",      title: "Expenses",        icon: Receipt,  href: "/water-expenses" },
+          { id: "cash-flow",     title: "Cash Flow",       icon: Wallet,   href: "/water-cash-flow" },
           { id: "cash-accounts", title: "Cash accounts",   icon: Wallet,   href: "/water-cash-accounts" },
           { id: "cash-reconciliation", title: "Reconcile cash", icon: Scale, href: "/water-cash-reconciliation" },
           // Payroll is money going out, so it sits with the other outflows

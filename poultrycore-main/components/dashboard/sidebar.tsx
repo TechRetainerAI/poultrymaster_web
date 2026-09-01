@@ -221,7 +221,8 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
   const TEMP_SHOW_PAYMENTS_LINK = true
   const financialItems = [
-    { href: "/cash", label: "Cash", icon: Wallet },
+    { href: "/cash-flow", label: "Cash Flow", icon: Wallet },
+    { href: "/cash", label: "Cash", icon: History },
     { href: "/poultry-cash-accounts", label: "Cash Account", icon: Wallet },
     { href: "/poultry-cash-reconciliation", label: "Reconcile cash", icon: Scale },
     { href: "/sales", label: "Sales", icon: ShoppingCart },
@@ -316,6 +317,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/water-customer-balances", label: "Customer Balances", icon: Users },
     { href: "/water-supplier-balances", label: "Supplier Balances", icon: Truck },
     { href: "/water-expenses",      label: "Expenses",        icon: Receipt },
+    { href: "/water-cash-flow", label: "Cash Flow", icon: Wallet },
     { href: "/water-cash-accounts", label: "Cash accounts",   icon: Wallet },
     { href: "/water-cash-reconciliation", label: "Reconcile cash", icon: Scale },
   ])

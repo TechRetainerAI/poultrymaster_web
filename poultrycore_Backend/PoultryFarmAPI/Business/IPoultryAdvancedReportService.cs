@@ -56,6 +56,13 @@ namespace PoultryFarmAPIWeb.Business
         Task<PoultryReportResponse<PoultryCashMovementReportSummary, PoultryCashMovementReportRow>>
             GetCashMovementAsync(PoultryReportFilterDto filter);
 
+        /// <summary>
+        /// Cash movement broken down by what the money was actually FOR, with a
+        /// comparison against the preceding window of equal length.
+        /// </summary>
+        Task<PoultryReportResponse<PoultryCashFlowDetailReportSummary, PoultryCashFlowDetailReportRow>>
+            GetCashFlowDetailAsync(PoultryReportFilterDto filter);
+
         Task<PoultryReportResponse<PoultryProfitLossByFlockReportSummary, PoultryProfitLossByFlockReportRow>>
             GetProfitLossByFlockAsync(PoultryReportFilterDto filter);
 

@@ -891,6 +891,197 @@ namespace PoultryFarmAPIWeb.Business
         // =====================================================================
         // 14. Cash Movement
         // =====================================================================
+        // ---------------------------------------------------------------------
+        // 14b. Cash Flow Detail
+        // ---------------------------------------------------------------------
+        // Cash Movement answers "what moved". This answers "what was it FOR",
+        // which the ledger alone cannot say -- every expense in the company
+        // arrives as the single sourcetype 'Expense'. Migration 233 adds the
+        // category by joining expense.category, and the grouping happens here
+        // rather than in SQL so one pass over the rows serves both the buckets
+        // and the running balance.
+        public async Task<PoultryReportResponse<PoultryCashFlowDetailReportSummary, PoultryCashFlowDetailReportRow>>
+            GetCashFlowDetailAsync(PoultryReportFilterDto f)
+        {
+            var (start, end) = ResolveRange(f);
+            var resp = NewResponse<PoultryCashFlowDetailReportSummary, PoultryCashFlowDetailReportRow>(
+                "Poultry Cash Flow Detail", f, start, end);
+
+            // The window ends at the LAST INSTANT of the end date. A bare date is
+            // midnight and silently drops everything recorded on the final day --
+            // the same bug the ledger read had (see 232's note).
+            var from = start;
+            var to = end.AddDays(1).AddTicks(-1);
+
+            // The preceding window of equal length, so "up on last month" is a
+            // like-for-like comparison rather than a calendar-month assumption.
+            var days = Math.Max(1, (end.Date - start.Date).Days + 1);
+            var prevTo = start.AddTicks(-1);
+            var prevFrom = start.AddDays(-days);
+
+            using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+
+            // ---- rows ------------------------------------------------------
+            var rows = new List<PoultryCashFlowDetailReportRow>();
+            using (var cmd = new NpgsqlCommand(
+                "SELECT * FROM sppoultrycashflow_detail(p_farmid => @FarmId::text, " +
+                "p_fromdate => @From::timestamp, p_todate => @To::timestamp) " +
+                "ORDER BY transactiondate, rowsource, sourcerowid", conn))
+            {
+                cmd.Parameters.AddWithValue("@FarmId", f.FarmId ?? "");
+                cmd.Parameters.AddWithValue("@From", from);
+                cmd.Parameters.AddWithValue("@To", to);
+
+                using var r = await cmd.ExecuteReaderAsync();
+                while (await r.ReadAsync())
+                {
+                    var amount = DecOr(r, "amount");
+                    var isTransfer = BoolOr(r, "istransfer");
+                    var offLedger = BoolOr(r, "offledger");
+                    var rowsource = Str(r, "rowsource") ?? "Ledger";
+                    var sourceRowId = IntOr(r, "sourcerowid");
+
+                    rows.Add(new PoultryCashFlowDetailReportRow
+                    {
+                        Date = DateN(r, "transactiondate") ?? start,
+                        Category = Str(r, "category") ?? "Other",
+                        // Off-ledger money genuinely has no account, and saying so
+                        // is more useful than a dash.
+                        CashAccount = Str(r, "accountname") ?? "No cash account",
+                        SourceType = Str(r, "sourcetype") ?? "Other",
+                        Reference = rowsource switch
+                        {
+                            "UnlinkedExpense"  => $"Expense #{sourceRowId}",
+                            "LegacyAdjustment" => $"Adjustment #{sourceRowId}",
+                            _ => $"{Str(r, "sourcetype") ?? "Txn"} #{IntN(r, "sourceid") ?? sourceRowId}",
+                        },
+                        Description = Str(r, "description"),
+                        Inflow = amount > 0 ? amount : 0m,
+                        Outflow = amount < 0 ? -amount : 0m,
+                        OffLedger = offLedger,
+                        // Transfers ride along as rows so the detail stays a
+                        // complete record, but they are excluded from every total
+                        // below. RunningBalance is filled in after the sort.
+                        RunningBalance = isTransfer ? decimal.MinValue : 0m,
+                    });
+                }
+            }
+
+            // ---- headline figures, from the same source the page uses -------
+            var cur = await ReadCashFlowSummaryAsync(conn, f.FarmId, from, to);
+            var prev = await ReadCashFlowSummaryAsync(conn, f.FarmId, prevFrom, prevTo);
+
+            // ---- buckets ---------------------------------------------------
+            // Transfers excluded: moving money between the company's own accounts
+            // is not income and not spending, and bucketing it would double it.
+            var real = rows.Where(x => !string.Equals(x.Category, "Internal transfer",
+                                                      StringComparison.OrdinalIgnoreCase)).ToList();
+
+            resp.Rows.AddRange(rows);
+
+            // Running balance in date order, over the rows that count.
+            var running = cur.Opening;
+            foreach (var row in resp.Rows)
+            {
+                if (row.RunningBalance == decimal.MinValue) { row.RunningBalance = running; continue; }
+                running += row.Inflow - row.Outflow;
+                row.RunningBalance = running;
+            }
+
+            resp.Summary = new PoultryCashFlowDetailReportSummary
+            {
+                MoneyIn = cur.In,
+                MoneyOut = cur.Out,
+                NetCashFlow = cur.In - cur.Out,
+                CashAtHand = cur.CashAtHand,
+                OpeningBalance = cur.Opening,
+                OffLedgerIn = cur.OffIn,
+                OffLedgerOut = cur.OffOut,
+                TransferVolume = cur.TransferVolume,
+                MovementCount = real.Count,
+                DaysInPeriod = days,
+                PreviousMoneyIn = prev.In,
+                PreviousMoneyOut = prev.Out,
+                PreviousNetCashFlow = prev.In - prev.Out,
+                MoneyInByCategory = Bucket(real, x => x.Inflow),
+                MoneyOutByCategory = Bucket(real, x => x.Outflow),
+            };
+
+            var offLedgerTotal = cur.OffIn + cur.OffOut;
+            if (offLedgerTotal > 0)
+            {
+                // A note, not a warning: money moving without a cash account is
+                // ordinary business, and flagging it as a fault sent people
+                // hunting for a mistake that was not there.
+                resp.Notes.Add($"{offLedgerTotal:N2} of this movement was not posted to a cash account — typically owner injections, or expenses paid without choosing one. It is included in the totals above, but is in no account balance.");
+            }
+
+            var uncategorised = real.Where(x => string.Equals(x.Category, "Uncategorised",
+                                                              StringComparison.OrdinalIgnoreCase))
+                                    .Sum(x => x.Inflow + x.Outflow);
+            if (uncategorised > 0)
+            {
+                resp.Notes.Add($"{uncategorised:N2} sits under “Uncategorised” because those expenses were saved without a category. Setting one on the expense moves it into its proper group here.");
+            }
+
+            return resp;
+        }
+
+        /// <summary>Group movements by category, largest first, with shares.</summary>
+        private static List<PoultryCashFlowBucket> Bucket(
+            IEnumerable<PoultryCashFlowDetailReportRow> rows,
+            Func<PoultryCashFlowDetailReportRow, decimal> pick)
+        {
+            var scored = rows.Select(r => new { r.Category, Amount = pick(r) })
+                             .Where(x => x.Amount > 0)
+                             .GroupBy(x => x.Category, StringComparer.OrdinalIgnoreCase)
+                             .Select(g => new PoultryCashFlowBucket
+                             {
+                                 Label = g.Key,
+                                 Amount = g.Sum(x => x.Amount),
+                                 Movements = g.Count(),
+                             })
+                             .OrderByDescending(b => b.Amount)
+                             .ToList();
+
+            var total = scored.Sum(b => b.Amount);
+            foreach (var b in scored)
+                b.SharePercent = total == 0 ? null : Math.Round((double)(b.Amount / total) * 100.0, 1);
+            return scored;
+        }
+
+        private readonly record struct CashFlowFigures(
+            decimal In, decimal Out, decimal CashAtHand, decimal Opening,
+            decimal OffIn, decimal OffOut, decimal TransferVolume);
+
+        /// <summary>
+        /// One window's figures from sppoultrycashflow_summary (231) — the same
+        /// function the Cash Flow page and the Cash Movement report read, so all
+        /// three agree by construction rather than by coincidence.
+        /// </summary>
+        private static async Task<CashFlowFigures> ReadCashFlowSummaryAsync(
+            NpgsqlConnection conn, string? farmId, DateTime from, DateTime to)
+        {
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM sppoultrycashflow_summary(p_farmid => @FarmId::text, " +
+                "p_fromdate => @From::timestamp, p_todate => @To::timestamp)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId ?? "");
+            cmd.Parameters.AddWithValue("@From", from);
+            cmd.Parameters.AddWithValue("@To", to);
+
+            using var r = await cmd.ExecuteReaderAsync();
+            if (!await r.ReadAsync()) return default;
+            return new CashFlowFigures(
+                DecOr(r, "moneyin"),
+                DecOr(r, "moneyout"),
+                DecOr(r, "cashathand"),
+                DecOr(r, "openingbalance"),
+                DecOr(r, "offledgerin"),
+                DecOr(r, "offledgerout"),
+                DecOr(r, "transfervolume"));
+        }
+
         public async Task<PoultryReportResponse<PoultryCashMovementReportSummary, PoultryCashMovementReportRow>>
             GetCashMovementAsync(PoultryReportFilterDto f)
         {
@@ -919,7 +1110,11 @@ namespace PoultryFarmAPIWeb.Business
                     resp.Rows.Add(new PoultryCashMovementReportRow
                     {
                         Date = DateN(r, "Date") ?? start,
-                        CashAccount = "Farm cash",
+                        // Was the literal "Farm cash" on every row, because the
+                        // old body had no account to report. Migration 232 points
+                        // rs2 at the cash ledger, so this is now the real account
+                        // — or "No cash account" for money that never reached one.
+                        CashAccount = Str(r, "cashaccount") ?? "—",
                         SourceType = Str(r, "SourceType") ?? "—",
                         Reference = Str(r, "Reference"),
                         Description = Str(r, "Description"),
@@ -942,7 +1137,19 @@ namespace PoultryFarmAPIWeb.Business
                 EndingBalance = opening + inflows - outflows,
                 NetCashMovement = inflows - outflows,
             };
-            resp.Warnings.Add("Poultry has no dedicated cash-account ledger; cash movement is reconstructed from paid sales (inflows) and expenses (outflows).");
+            // A NOTE, not a warning. Money can move without touching a cash
+            // account for perfectly ordinary reasons — a vet paid out of pocket,
+            // an owner injection that arrives before anyone decides which account
+            // holds it. Flagging that as a problem sent people looking for a
+            // mistake that was not there. It still gets said, because it is why
+            // this report can differ from the cash accounts page.
+            var offLedger = resp.Rows
+                .Where(x => string.Equals(x.CashAccount, "No cash account", StringComparison.OrdinalIgnoreCase))
+                .Sum(x => x.Inflow + x.Outflow);
+            if (offLedger > 0)
+            {
+                resp.Notes.Add($"{offLedger:N2} of this movement was not posted to a cash account — typically owner injections, or expenses paid without choosing one. It is included in the totals above, but is in no account balance, so reconciliation will not see it.");
+            }
             return resp;
         }
 

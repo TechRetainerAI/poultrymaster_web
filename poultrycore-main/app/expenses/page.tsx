@@ -55,6 +55,74 @@ import { exportTableToPdf } from "@/lib/utils/pdf-export"
 // Sentinel for a farm-wide expense (flockId = null), matching /expenses/new.
 const ALL_FLOCKS = "ALL"
 
+/**
+ * Description on the Add Expense modal: pick one you have used before, or
+ * "Other" to type a new one.
+ *
+ * The selection is REAL STATE, not derived from `value`. Choosing "Other" before
+ * typing resolves to the empty string, which is indistinguishable from "nothing
+ * chosen" — so a derived version snaps the dropdown back to blank and the text
+ * box never appears. That is the whole reason this is a component.
+ *
+ * The parent still receives one plain string, so the receipt-path suffix
+ * (extract/stripReceiptSuffixFromDescription) is untouched.
+ */
+const OTHER = "Other"
+
+function AddExpenseDescription({
+  value, options, disabled, onChange,
+}: {
+  value: string
+  options: string[]
+  disabled?: boolean
+  onChange: (description: string) => void
+}) {
+  const known = (v: string) => !!v && options.includes(v)
+  const [choice, setChoice] = useState(() => (known(value) ? value : value ? OTHER : ""))
+  const [note, setNote] = useState(() => (known(value) ? "" : value))
+
+  // Re-seed only when the incoming value is not what this field last emitted —
+  // i.e. the dialog was reset or opened afresh. Re-seeding on every change would
+  // fight typing, and would undo "Other" the moment it emits an empty string.
+  useEffect(() => {
+    const emitted = choice === OTHER ? note.trim() : choice
+    if (emitted === (value ?? "")) return
+    setChoice(known(value) ? value : value ? OTHER : "")
+    setNote(known(value) ? "" : value)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value])
+
+  return (
+    <div className="space-y-2">
+      <Select
+        value={choice}
+        disabled={disabled}
+        onValueChange={(v) => {
+          setChoice(v)
+          if (v === OTHER) onChange(note.trim())
+          else { setNote(""); onChange(v) }
+        }}
+      >
+        <SelectTrigger><SelectValue placeholder="What was this expense for?" /></SelectTrigger>
+        <SelectContent>
+          {options.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+          <SelectItem value={OTHER}>{OTHER} (type your own)</SelectItem>
+        </SelectContent>
+      </Select>
+
+      {choice === OTHER && (
+        <Input
+          autoFocus
+          value={note}
+          disabled={disabled}
+          onChange={(e) => { setNote(e.target.value); onChange(e.target.value.trim()) }}
+          placeholder="Enter your description"
+        />
+      )}
+    </div>
+  )
+}
+
 export default function ExpensesPage() {
   const router = useRouter()
   const [expenses, setExpenses] = useState<Expense[]>([])
@@ -68,6 +136,14 @@ export default function ExpensesPage() {
   const [selectedFlock, setSelectedFlock] = useState<string>("all")
   const [selectedMonth, setSelectedMonth] = useState<string>("all")
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
+  /**
+   * "Expenses with no cash account" — the ones Cash Flow cannot see.
+   *
+   * An expense saved with "None (no cash movement)" never reaches
+   * poultrycashtransactions, so it is missing from Money Out. Cash Flow counts
+   * them and links here; without a way to find them that link was a dead end.
+   */
+  const [cashAccountFilter, setCashAccountFilter] = useState<string>("all")
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [draftFromDate, setDraftFromDate] = useState("")
   const [draftToDate, setDraftToDate] = useState("")
@@ -377,6 +453,39 @@ export default function ExpensesPage() {
     toast({ title: "Filters applied", description: "Expense list updated." })
   }
 
+  // ?cashAccount=none arrives from Cash Flow's "expenses with no cash account"
+  // warning. Read off window rather than useSearchParams: that hook forces the
+  // whole page into a Suspense boundary to prerender, and this is one large
+  // client component. Reading after mount costs a render and restructures nothing.
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const v = new URLSearchParams(window.location.search).get("cashAccount")
+    if (v) setCashAccountFilter(v === "none" ? "none" : v)
+  }, [])
+
+  // Descriptions already used on this farm. Derived from the data rather than a
+  // list invented here, so it needs no vocabulary decision and gets better as
+  // the farm uses it — the same approach the Category filter above already takes.
+  // The receipt suffix is stripped, or the same description would appear once
+  // per receipt path attached to it.
+  const usedDescriptions = Array.from(new Set(
+    expenses
+      .map((e) => stripReceiptSuffixFromDescription(e.description || "").trim())
+      .filter(Boolean),
+  )).sort((a, b) => a.localeCompare(b))
+
+  const activeFilterCount = [
+    !!searchQuery, !!fromDate, !!toDate,
+    selectedFlock !== "all", selectedMonth !== "all", selectedCategory !== "all",
+    cashAccountFilter !== "all",
+  ].filter(Boolean).length
+
+  function clearAllFilters() {
+    setSearchQuery(""); setFromDate(""); setToDate("")
+    setSelectedFlock("all"); setSelectedMonth("all"); setSelectedCategory("all")
+    setCashAccountFilter("all")
+  }
+
   const filteredExpenses = expenses.filter(expense => {
     const q = searchQuery.trim().toLowerCase()
     const matchesSearch = q === "" || (() => {
@@ -396,7 +505,13 @@ export default function ExpensesPage() {
     const flockOk = selectedFlock === "all" || String(expense.flockId || "") === selectedFlock
     const monthOk = selectedMonth === "all" || (d.getMonth() + 1) === Number(selectedMonth)
     const catOk = selectedCategory === "all" || (expense.category || "").toLowerCase() === selectedCategory.toLowerCase()
-    return matchesSearch && matchesFromDate && matchesToDate && flockOk && monthOk && catOk
+    // == null catches both null and undefined; an expense that predates the
+    // column has neither, and it is just as invisible to Cash Flow.
+    const linkOk =
+      cashAccountFilter === "all" ? true
+      : cashAccountFilter === "none" ? expense.poultryCashAccountId == null
+      : String(expense.poultryCashAccountId ?? "") === cashAccountFilter
+    return matchesSearch && matchesFromDate && matchesToDate && flockOk && monthOk && catOk && linkOk
   })
 
   const thisMonthTotal = expenses
@@ -424,7 +539,7 @@ export default function ExpensesPage() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, fromDate, toDate, selectedFlock, selectedMonth, selectedCategory])
+  }, [searchQuery, fromDate, toDate, selectedFlock, selectedMonth, selectedCategory, cashAccountFilter])
 
   const handlePageChange = (page: number) => setCurrentPage(page)
   const handlePreviousPage = () => { if (safePage > 1) setCurrentPage(safePage - 1) }
@@ -456,7 +571,7 @@ export default function ExpensesPage() {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, fromDate, toDate, selectedFlock, selectedMonth, selectedCategory])
+  }, [searchQuery, fromDate, toDate, selectedFlock, selectedMonth, selectedCategory, cashAccountFilter])
 
   const handleExportCSV = () => {
     const headers = ['ExpenseId','ExpenseDate','Category','Description','Amount','PaymentMethod','PaidTo','FlockId']
@@ -518,7 +633,11 @@ export default function ExpensesPage() {
     form: typeof createForm,
     setForm: (f: typeof createForm) => void,
     isLoading: boolean,
-    receiptSlot?: ReactNode
+    receiptSlot?: ReactNode,
+    // Only the Add modal passes this. Edit keeps the free-text box: an existing
+    // description is often a one-off that is not in the list, and forcing it
+    // through "Other" on every edit would be friction for no gain.
+    descriptionOptions?: string[],
   ) => (
     <>
       <div className="rounded-xl border border-slate-200 overflow-hidden">
@@ -612,7 +731,16 @@ export default function ExpensesPage() {
       <div className="rounded-xl border border-slate-200 overflow-hidden">
         <div className="bg-amber-600 px-4 py-2 text-sm font-semibold text-white">Description</div>
         <div className="p-4 bg-white space-y-4">
-          <Textarea name="description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Enter expense description..." rows={3} required disabled={isLoading} />
+          {descriptionOptions ? (
+            <AddExpenseDescription
+              value={form.description}
+              options={descriptionOptions}
+              disabled={isLoading}
+              onChange={(description) => setForm({ ...form, description })}
+            />
+          ) : (
+            <Textarea name="description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Enter expense description..." rows={3} required disabled={isLoading} />
+          )}
           {receiptSlot}
         </div>
       </div>
@@ -689,9 +817,9 @@ export default function ExpensesPage() {
                       <Button variant="outline" className={MOBILE_FILTERS_TRIGGER_BUTTON_CLASS}>
                         <Filter className="h-4 w-4" />
                         <span className="truncate">Filters</span>
-                        {(!!searchQuery || !!fromDate || !!toDate || selectedFlock !== "all" || selectedMonth !== "all" || selectedCategory !== "all") && (
+                        {activeFilterCount > 0 && (
                           <span className="ml-1 h-5 min-w-[20px] px-1.5 rounded-full bg-orange-500 text-white text-xs flex items-center justify-center">
-                            {[searchQuery, fromDate, toDate, selectedFlock !== "all", selectedMonth !== "all", selectedCategory !== "all"].filter(Boolean).length}
+                            {activeFilterCount}
                           </span>
                         )}
                       </Button>
@@ -859,6 +987,29 @@ export default function ExpensesPage() {
                   {Array.from(new Set(expenses.map(e => e.category))).filter(Boolean).map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
+              {/* "No cash account" first, with its count, because that is the one
+                  people arrive here looking for. Filtering by a specific account
+                  comes free once the field is a Select rather than a toggle. */}
+              <Select value={cashAccountFilter} onValueChange={setCashAccountFilter}>
+                <SelectTrigger className="w-[200px]"><SelectValue placeholder="Cash account" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All cash accounts</SelectItem>
+                  <SelectItem value="none">
+                    No cash account ({expenses.filter((e) => e.poultryCashAccountId == null).length})
+                  </SelectItem>
+                  {cashAccounts.map((a) => (
+                    <SelectItem key={a.poultryCashAccountId} value={String(a.poultryCashAccountId)}>
+                      {a.accountName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {/* Desktop had no way to clear filters — only the mobile sheet did. */}
+              {activeFilterCount > 0 && (
+                <Button variant="ghost" size="sm" onClick={clearAllFilters}>
+                  Clear ({activeFilterCount})
+                </Button>
+              )}
               <div className="ml-auto flex items-center gap-2">
                 <Button variant="outline" size="sm" className="flex items-center gap-2" onClick={handleExportPDF}><FileTextIcon className="w-4 h-4" />PDF</Button>
                 <Button variant="outline" size="sm" className="flex items-center gap-2" onClick={handleExportCSV}><Download className="w-4 h-4" />CSV</Button>
@@ -1136,7 +1287,8 @@ export default function ExpensesPage() {
                     pendingFile={createReceiptFile}
                   onPendingFileChange={setCreateReceiptFile}
                   disabled={createLoading}
-                />
+                />,
+                usedDescriptions,
               )}
             </div>
             <div className="shrink-0 flex gap-3 justify-end border-t pt-3 mt-2">

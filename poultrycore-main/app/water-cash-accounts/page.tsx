@@ -26,11 +26,12 @@ import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import {
-  listWaterCashAccounts, createWaterCashAccount, updateWaterCashAccount, deleteWaterCashAccount, reconcileWaterCashBalances,
+  listWaterCashAccounts, getWaterCashAccountCountStatus, createWaterCashAccount, updateWaterCashAccount, deleteWaterCashAccount, reconcileWaterCashBalances,
   listWaterCashTransactions, listWaterCashTransfers, createWaterCashTransfer, approveWaterCashTransfer, cancelWaterCashTransfer,
   WATER_CASH_TRANSFER_REASONS,
   type WaterCashAccount, type WaterCashTransaction, type WaterCashTransfer,
 } from "@/lib/api/water"
+import { cashByAccount } from "@/lib/cash/cash-flow"
 
 const ACCOUNT_TYPES = ["FactoryCashBox", "OwnerCash", "MoMoWallet", "BankAccount", "DriverCash", "PettyCash", "Other"]
 
@@ -44,6 +45,10 @@ export default function WaterCashAccountsPage() {
 
   const [accounts, setAccounts] = useState<WaterCashAccount[]>([])
   const [transfers, setTransfers] = useState<WaterCashTransfer[]>([])
+  // Reconciliation feed (migration 222/223). Carries ledgerBalance, drift and
+  // how long since each account was reconciled — the figures that used to sit
+  // in Cash Flow's "Cash by Account" and belong here, beside Recalculate.
+  const [status, setStatus] = useState<any[]>([])
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
@@ -80,8 +85,13 @@ export default function WaterCashAccountsPage() {
   async function load() {
     setLoading(true)
     try {
+      // allSettled for the status feed only: it depends on a later migration,
+      // and an older database must still render its accounts rather than fail
+      // the whole page over a column it cannot supply yet.
       const [accs, xfers] = await Promise.all([listWaterCashAccounts(), listWaterCashTransfers()])
       setAccounts(accs); setTransfers(xfers)
+      const st = await getWaterCashAccountCountStatus().catch(() => [])
+      setStatus(st ?? [])
     } catch (e: any) { toast({ title: "Could not load cash accounts", description: e?.message ?? String(e), variant: "destructive" }) }
     finally { setLoading(false) }
   }
@@ -152,7 +162,30 @@ export default function WaterCashAccountsPage() {
     } catch (e: any) { toast({ title: "Transfer failed", description: e?.message, variant: "destructive" }) }
   }
 
-  const totalCash = accounts.filter(a => a.isActive).reduce((s, a) => s + a.currentBalance, 0)
+  // Keyed by account so the table can show the calculated balance beside the
+  // cached one. cashByAccount() is the same tested helper Cash Flow uses, so the
+  // wording of "needs reconciling" is identical on both pages.
+  const statusById = useMemo(() => {
+    const rows = cashByAccount((status ?? []).map((s: any) => ({
+      accountId: s.waterCashAccountId,
+      accountName: s.accountName,
+      accountType: s.accountType,
+      isActive: s.isActive,
+      currentBalance: s.currentBalance,
+      ledgerBalance: s.ledgerBalance,
+      cacheDrift: s.cacheDrift,
+      lastReconciledAt: s.lastReconciledAt,
+      daysSinceReconciled: s.daysSinceReconciled,
+      unclearedCount: s.unclearedCount,
+    })))
+    return new Map(rows.map((r) => [r.accountId, r]))
+  }, [status])
+
+  // Sum the LEDGER, not the cache — currentBalance drifts, which is the whole
+  // reason the calculated column exists. Falls back to the cache only when the
+  // status feed is unavailable.
+  const totalCash = accounts.filter(a => a.isActive).reduce(
+    (s, a) => s + (statusById.get(a.waterCashAccountId)?.ledgerBalance ?? a.currentBalance), 0)
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -235,6 +268,8 @@ export default function WaterCashAccountsPage() {
                           <TableHead>Type</TableHead>
                           <TableHead className="text-right">Opening</TableHead>
                           <TableHead className="text-right">Current</TableHead>
+                          <TableHead className="text-right">Calculated</TableHead>
+                          <TableHead>Reconciled</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -245,10 +280,42 @@ export default function WaterCashAccountsPage() {
                             <TableCell className="font-medium">{a.accountName}</TableCell>
                             <TableCell>{a.accountType}</TableCell>
                             <TableCell className="text-right tabular-nums">{fmt(a.openingBalance)}</TableCell>
-                            <TableCell className={`text-right tabular-nums font-semibold ${a.currentBalance < 0 ? "text-rose-600" : ""}`}>{fmt(a.currentBalance)}</TableCell>
+                            <TableCell className={`text-right tabular-nums ${a.currentBalance < 0 ? "text-rose-600" : "text-slate-500"}`}>{fmt(a.currentBalance)}</TableCell>
+                            {/* Calculated from the account's own transactions. When it
+                                disagrees with Current the cache has drifted, and
+                                Recalculate above is the fix — showing both is what
+                                makes that visible instead of mysterious. */}
+                            <TableCell className="text-right tabular-nums font-semibold">
+                              {(() => {
+                                const s = statusById.get(a.waterCashAccountId)
+                                if (!s) return <span className="text-slate-400">—</span>
+                                const drifted = Math.abs(s.cacheDrift) >= 0.01
+                                return (
+                                  <span className={s.ledgerBalance < 0 ? "text-rose-600" : undefined}>
+                                    {fmt(s.ledgerBalance)}
+                                    {drifted && (
+                                      <span className="ml-1 text-[10px] font-normal text-amber-700"
+                                            title={`Stored balance is ${fmt(Math.abs(s.cacheDrift))} away from this`}>
+                                        drift
+                                      </span>
+                                    )}
+                                  </span>
+                                )
+                              })()}
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              {(() => {
+                                const s = statusById.get(a.waterCashAccountId)
+                                if (!s) return <span className="text-slate-400">—</span>
+                                return s.needsAttention
+                                  ? <span className="text-amber-700">{s.attentionReason}</span>
+                                  : <span className="text-emerald-700">{s.daysSinceReconciled}d ago</span>
+                              })()}
+                            </TableCell>
                             <TableCell>{a.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="outline">Inactive</Badge>}</TableCell>
                             <TableCell className="text-right">
                               <Button size="sm" variant="ghost" onClick={() => router.push(`/water-cash-accounts/${a.waterCashAccountId}`)} title="View details"><Eye className="h-4 w-4" /></Button>
+                              <Button size="sm" variant="ghost" onClick={() => router.push(`/water-cash-reconciliation?accountId=${a.waterCashAccountId}`)} title="Reconcile this account">Reconcile</Button>
                               <Button size="sm" variant="ghost" onClick={() => openEdit(a)}>Edit</Button>
                               <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(a)} title="Delete account"><Trash2 className="h-4 w-4 text-red-500" /></Button>
                             </TableCell>
