@@ -226,6 +226,20 @@ body {
   background: transparent;
 }
 
+/* WebKit builds an input[type=date] out of shadow-DOM sub-fields that carry
+   their own intrinsic widths, so the control refuses to shrink below roughly
+   180px no matter what `width: 100%` / `min-width: 0` say. In a two-column
+   mobile form that track is ~165px, and the control spills over the field
+   beside it. Dropping the native appearance lets the declared width win.
+   Kept narrow — date/time only, where the shadow sub-fields are the problem. */
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+}
+
 /* Mobile table: sticky columns + scroll hint gradient */
 .table-scroll-wrapper {
   position: relative;

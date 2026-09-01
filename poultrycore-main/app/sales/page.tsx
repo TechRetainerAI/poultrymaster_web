@@ -67,8 +67,8 @@ function eggCrateBreakdown(
   const parts: string[] = []
   // `long` is for the summary card, which has room for real words; the table
   // cell sits next to the number it describes and uses the short form.
-  if (crates > 0) parts.push(long ? `${crates.toLocaleString()} crate${crates === 1 ? "" : "s"}` : `${crates}cr`)
-  if (pieces > 0) parts.push(long ? `${pieces} piece${pieces === 1 ? "" : "s"}` : `${pieces}pcs`)
+  if (crates > 0) parts.push(long ? `${crates.toLocaleString()} crate${crates === 1 ? "" : "s"}` : `${crates}c`)
+  if (pieces > 0) parts.push(long ? `${pieces} piece${pieces === 1 ? "" : "s"}` : `${pieces}p`)
   return parts.length ? parts.join(" + ") : null
 }
 
@@ -942,7 +942,7 @@ export default function SalesPage() {
                     Add Sale
                   </Button>
                 </DialogTrigger>
-          <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] flex flex-col gap-4 overflow-hidden p-6">
+          <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] flex flex-col gap-4 overflow-hidden p-4 sm:p-6">
             <DialogHeader className="shrink-0">
               <DialogTitle>Create New Sale</DialogTitle>
               <DialogDescription>
@@ -953,7 +953,7 @@ export default function SalesPage() {
               {/* Section: Sale Details */}
               <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
                 <div className="bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Sale Details</div>
-                <div className="grid grid-cols-2 gap-4 p-4">
+                <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="saleDate">Sale Date *</Label>
                     <Input
@@ -999,7 +999,7 @@ export default function SalesPage() {
               {isEggsProduct && (
                 <div className="rounded-xl border border-amber-200 overflow-hidden">
                   <div className="bg-amber-500 px-4 py-2 text-sm font-semibold text-white">Egg Quantity (Crates × 30 + Loose Eggs)</div>
-                  <div className="grid grid-cols-3 gap-4 p-4 bg-amber-50">
+                  <div className="grid grid-cols-1 gap-4 p-4 bg-amber-50 sm:grid-cols-2 lg:grid-cols-3">
                     <div className="space-y-2">
                       <Label htmlFor="crates" className="text-sm">Crates (30 eggs)</Label>
                       <NumberInput
@@ -1050,7 +1050,7 @@ export default function SalesPage() {
               <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
                 <div className="bg-green-600 px-4 py-2 text-sm font-semibold text-white">Pricing</div>
                 <div className="p-4 space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="quantity">Quantity *</Label>
                       <NumberInput
@@ -1076,7 +1076,7 @@ export default function SalesPage() {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <div className="space-y-2">
                       <Label htmlFor="totalAmount">Calculated Amount</Label>
                       <NumberInput
@@ -1193,7 +1193,7 @@ export default function SalesPage() {
               {/* Section: Customer & Flock */}
               <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
                 <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Customer &amp; Flock</div>
-                <div className="grid grid-cols-3 gap-4 p-4">
+                <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
                   <div className="col-span-2 space-y-2">
                     <div className="flex items-center gap-2">
                       <Label htmlFor="customerName">Customer Name *</Label>
@@ -1281,11 +1281,11 @@ export default function SalesPage() {
                 />
               </div>
             </div>
-            <div className="shrink-0 flex justify-end space-x-2 pt-3 border-t">
-              <Button onClick={() => setIsCreateDialogOpen(false)} className="bg-red-600 hover:bg-red-700 text-white">
+            <div className="shrink-0 flex flex-col gap-2 pt-3 border-t sm:flex-row sm:justify-end">
+              <Button onClick={() => setIsCreateDialogOpen(false)} className="w-full bg-red-600 hover:bg-red-700 text-white sm:w-auto">
                 Cancel
               </Button>
-              <Button onClick={handleCreateSale} className="bg-blue-600 hover:bg-blue-700">Create Sale</Button>
+              <Button onClick={handleCreateSale} className="w-full bg-blue-600 hover:bg-blue-700 sm:w-auto">Create Sale</Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -1635,7 +1635,7 @@ export default function SalesPage() {
                               // unit of the number it follows, so stacking it made
                               // the row two lines tall for one value.
                               <span className="ml-1.5 text-xs text-slate-500">
-                                {eggCrateBreakdown(sale.quantity)}
+                                ({eggCrateBreakdown(sale.quantity)})
                               </span>
                             )}
                           </TableCell>
@@ -1774,7 +1774,7 @@ export default function SalesPage() {
                 }
               }}
             >
-              <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] flex flex-col gap-4 overflow-hidden p-6">
+              <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] flex flex-col gap-4 overflow-hidden p-4 sm:p-6">
                 <DialogHeader className="shrink-0">
                   <DialogTitle>Edit Sale</DialogTitle>
                   <DialogDescription>
@@ -1785,7 +1785,7 @@ export default function SalesPage() {
                   {/* Section: Sale Details */}
                   <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
                     <div className="bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Sale Details</div>
-                    <div className="grid grid-cols-2 gap-4 p-4">
+                    <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label htmlFor="edit-saleDate">Sale Date *</Label>
                         <Input
@@ -1831,7 +1831,7 @@ export default function SalesPage() {
                   {isEggsProduct && (
                     <div className="rounded-xl border border-amber-200 overflow-hidden">
                       <div className="bg-amber-500 px-4 py-2 text-sm font-semibold text-white">Egg Quantity (Crates × 30 + Loose Eggs)</div>
-                      <div className="grid grid-cols-3 gap-4 p-4 bg-amber-50">
+                      <div className="grid grid-cols-1 gap-4 p-4 bg-amber-50 sm:grid-cols-2 lg:grid-cols-3">
                         <div className="space-y-2">
                           <Label htmlFor="edit-crates" className="text-sm">Crates (30 eggs)</Label>
                           <NumberInput
@@ -1882,7 +1882,7 @@ export default function SalesPage() {
                   <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
                     <div className="bg-green-600 px-4 py-2 text-sm font-semibold text-white">Pricing</div>
                     <div className="p-4 space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
                           <Label htmlFor="edit-quantity">Quantity *</Label>
                           <NumberInput
@@ -1908,7 +1908,7 @@ export default function SalesPage() {
                           />
                         </div>
                       </div>
-                      <div className="grid grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                         <div className="space-y-2">
                           <Label htmlFor="edit-totalAmount">Calculated Amount</Label>
                           <NumberInput
@@ -1999,7 +1999,7 @@ export default function SalesPage() {
                   {/* Section: Customer & Flock */}
                   <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
                     <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Customer &amp; Flock</div>
-                    <div className="grid grid-cols-3 gap-4 p-4">
+                    <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
                       <div className="col-span-2 space-y-2">
                         <div className="flex items-center gap-2">
                           <Label htmlFor="edit-customerName">Customer Name *</Label>
@@ -2087,11 +2087,11 @@ export default function SalesPage() {
                     />
                   </div>
                 </div>
-                <div className="shrink-0 flex justify-end space-x-2 pt-3 border-t">
-                  <Button onClick={() => setIsEditDialogOpen(false)} className="bg-red-600 hover:bg-red-700 text-white">
+                <div className="shrink-0 flex flex-col gap-2 pt-3 border-t sm:flex-row sm:justify-end">
+                  <Button onClick={() => setIsEditDialogOpen(false)} className="w-full bg-red-600 hover:bg-red-700 text-white sm:w-auto">
                     Cancel
                   </Button>
-                  <Button onClick={handleUpdateSale} className="bg-blue-600 hover:bg-blue-700">Update Sale</Button>
+                  <Button onClick={handleUpdateSale} className="w-full bg-blue-600 hover:bg-blue-700 sm:w-auto">Update Sale</Button>
                 </div>
               </DialogContent>
             </Dialog>

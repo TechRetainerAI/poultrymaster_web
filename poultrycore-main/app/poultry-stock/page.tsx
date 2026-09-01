@@ -53,6 +53,11 @@ function sourceFor(txnType: string, relatedId?: number | null): string {
   return "Stock Page"
 }
 
+// Toolbar buttons sit two-up on a phone. They need to wrap and grow: the Button
+// base is `whitespace-nowrap` at a fixed h-9, and "Recalculate product stock"
+// wants ~220px against a ~170px half-width cell, so it would spill instead.
+const TOOLBAR_BTN = "w-full h-auto min-h-9 whitespace-normal py-2 leading-tight sm:w-auto sm:h-9 sm:whitespace-nowrap"
+
 export default function PoultryStockPage() {
   const router = useRouter()
   const { toast } = useToast()
@@ -154,13 +159,13 @@ export default function PoultryStockPage() {
       <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
         <main className="flex-1 p-4 sm:p-6 space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div><h1 className="text-2xl font-bold">Stock Movements</h1><p className="text-sm text-slate-500">All stock increases and decreases — finished products and raw materials. Production, sales, purchases and manual entries.</p></div>
-            <div className="flex items-center gap-2">
-              <RecalculateStockButton items={rawItems} onDone={load} />
-              <ReconcileProductStockButton products={products.map((p) => ({ id: p.poultryProductId, name: p.name }))} reconcile={reconcilePoultryProductStock} onDone={load} />
-              <SetProductStockButton products={products.map((p) => ({ id: p.poultryProductId, name: p.name, currentStock: p.stockOnHand, disabledReason: (p.isBirdProduct || p.name === "Birds") ? "Bird stock comes from the birds left in your flocks — correct it in the flock / production records (record mortality, or edit the flock)." : undefined }))} setStock={setPoultryProductStock} onDone={load} />
-              <Button onClick={() => setOpen(true)}><Plus className="w-4 h-4 mr-1" /> New movement</Button>
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+              <RecalculateStockButton className={TOOLBAR_BTN} items={rawItems} onDone={load} />
+              <ReconcileProductStockButton className={TOOLBAR_BTN} products={products.map((p) => ({ id: p.poultryProductId, name: p.name }))} reconcile={reconcilePoultryProductStock} onDone={load} />
+              <SetProductStockButton className={TOOLBAR_BTN} products={products.map((p) => ({ id: p.poultryProductId, name: p.name, currentStock: p.stockOnHand, disabledReason: (p.isBirdProduct || p.name === "Birds") ? "Bird stock comes from the birds left in your flocks — correct it in the flock / production records (record mortality, or edit the flock)." : undefined }))} setStock={setPoultryProductStock} onDone={load} />
+              <Button className={TOOLBAR_BTN} onClick={() => setOpen(true)}><Plus className="w-4 h-4 mr-1" /> New movement</Button>
             </div>
           </div>
           <Card><CardContent className="p-4">
@@ -168,21 +173,21 @@ export default function PoultryStockPage() {
               <>
               <div className="mb-3"><ListFilters search={search} setSearch={setSearch} dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo} searchPlaceholder="Search item, source or note" extras={<>
                 <Select value={itemFilter} onValueChange={setItemFilter}>
-                  <SelectTrigger className="w-[160px]"><SelectValue placeholder="All items" /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-[160px]"><SelectValue placeholder="All items" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All items</SelectItem>
                     {itemOptions.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <Select value={parentTypeFilter} onValueChange={setParentTypeFilter}>
-                  <SelectTrigger className="w-[150px]"><SelectValue placeholder="All types" /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-[150px]"><SelectValue placeholder="All types" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All types</SelectItem>
                     {parentTypeOptions.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <Select value={movementFilter} onValueChange={setMovementFilter}>
-                  <SelectTrigger className="w-[150px]"><SelectValue placeholder="All movements" /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-[150px]"><SelectValue placeholder="All movements" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All movements</SelectItem>
                     {movementOptions.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
@@ -220,16 +225,19 @@ export default function PoultryStockPage() {
                     ))}
                 </TableBody>
               </Table></div>
-              <DataPagination {...pg.paginationProps} />
               {/* Mobile cards */}
               <div className="md:hidden space-y-2">
                 {sortedMoves.length === 0 ? <div className="text-center text-slate-500 py-6">No stock movements yet.</div>
-                  : sortedMoves.map((m) => (
+                  : pg.pageItems.map((m) => (
                     <FieldCard key={m.key} title={m.item}
                       badge={<Badge className={MOVE_COLORS[m.movementType] ?? "bg-gray-100"}>{m.movementType}</Badge>}
                       fields={[["Date", (m.date || "").split("T")[0]], ["Type", m.parentType], ["Qty", <span className={m.qty < 0 ? "text-red-600" : "text-green-700"}>{m.qty > 0 ? "+" : ""}{m.qty.toLocaleString()}</span>], ["Unit price", m.unitCost != null ? gh(m.unitCost) : "—"], ["Total", m.total != null ? gh(m.total) : "—"], ["Source", m.source]]} />
                   ))}
-              </div></>
+              </div>
+              {/* Sits after BOTH lists, so it reads as "below the table" in either
+                  layout — it used to render between them, which put it above
+                  the cards on a phone. */}
+              <DataPagination {...pg.paginationProps} /></>
             )}
           </CardContent></Card>
         </main>

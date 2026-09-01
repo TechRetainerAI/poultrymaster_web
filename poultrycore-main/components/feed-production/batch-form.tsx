@@ -716,7 +716,10 @@ export function FeedProductionBatchForm({ existing }: { existing?: FeedProductio
       </div>
 
       {/* Section 1 — Finished feed output */}
-      <FormSection title="Finished feed output" color="blue">
+      {/* stackOnMobile: half a phone screen is under 170px, which is narrower
+          than a native date control will render, so Production date overlapped
+          Quantity produced. It also un-truncates the two Selects here. */}
+      <FormSection title="Finished feed output" color="blue" stackOnMobile>
         <FormField label="Finished feed *">
           <Select value={header.finishedFeedItemId ? String(header.finishedFeedItemId) : ""} onValueChange={(v) => setHeader({ ...header, finishedFeedItemId: Number(v) })}>
             <SelectTrigger><SelectValue placeholder={finishedFeedItems.length ? "Pick finished feed" : "No finished-feed items — create one first"} /></SelectTrigger>
