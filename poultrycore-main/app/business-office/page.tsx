@@ -410,9 +410,8 @@ export default function BusinessOfficePage() {
                 <SelectContent>
                   <SelectItem value="Water">Water (sachet / bottled water)</SelectItem>
                   <SelectItem value="Poultry">Poultry farm</SelectItem>
-                  <SelectItem value="Generic">Generic (shop / salon / pharmacy / any small business)</SelectItem>
-                  <SelectItem value="Hotel">Hotel (rooms, bookings, front desk)</SelectItem>
-                  <SelectItem value="Restaurant">Restaurant (POS, menu, kitchen, delivery)</SelectItem>
+                  <SelectItem value="Generic">Generic (shop / restaurant / pharmacy / any small business)</SelectItem>
+                  <SelectItem value="Hotel">Hotel (rooms, bookings, front desk, restaurant)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

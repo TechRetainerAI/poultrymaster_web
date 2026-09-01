@@ -312,44 +312,6 @@ builder.Services.AddScoped<IHotelCashLedgerService, HotelCashLedgerService>();
 // =================================================================
 
 // =================================================================
-// Restaurant Management System module
-// Phase R1: Restaurant profile, menu management
-// =================================================================
-builder.Services.AddScoped<IRestaurantSetupService>(sp => new RestaurantSetupService(connectionString));
-builder.Services.AddScoped<IRestaurantMenuService>(sp => new RestaurantMenuService(connectionString));
-// Phase R2: Floor plan + POS / Orders
-builder.Services.AddScoped<IRestaurantFloorService>(sp => new RestaurantFloorService(connectionString));
-builder.Services.AddScoped<IRestaurantOrderService>(sp => new RestaurantOrderService(connectionString));
-// Phase R3: Kitchen Display System
-builder.Services.AddScoped<IRestaurantKdsService>(sp => new RestaurantKdsService(connectionString));
-// Phase R4: Reservations & Waitlist
-builder.Services.AddScoped<IRestaurantReservationService>(sp => new RestaurantReservationService(connectionString));
-// Phase R5: Online Ordering
-builder.Services.AddScoped<IRestaurantOnlineOrderService>(sp => new RestaurantOnlineOrderService(connectionString));
-// Phase R6: Delivery Management
-builder.Services.AddScoped<IRestaurantDeliveryService>(sp => new RestaurantDeliveryService(connectionString));
-// Phase R7: Inventory & Recipes
-builder.Services.AddScoped<IRestaurantInventoryService>(sp => new RestaurantInventoryService(connectionString));
-// Phase R8: Reporting & BI Analytics
-builder.Services.AddScoped<IRestaurantReportService>(sp => new RestaurantReportService(connectionString));
-// Phase R9: CRM
-builder.Services.AddScoped<IRestaurantCRMService>(sp => new RestaurantCRMService(connectionString));
-// Phase R10: Loyalty & Rewards
-builder.Services.AddScoped<IRestaurantLoyaltyService>(sp => new RestaurantLoyaltyService(connectionString));
-// Phase R11: Notifications & Alerts
-builder.Services.AddScoped<IRestaurantNotificationService>(sp => new RestaurantNotificationService(connectionString));
-// Phase R12: Catering & Events
-builder.Services.AddScoped<IRestaurantEventService>(sp => new RestaurantEventService(connectionString));
-// Phase R13: Gift Cards
-builder.Services.AddScoped<IRestaurantGiftCardService>(sp => new RestaurantGiftCardService(connectionString));
-// Phase R14: Expenses & Accounting
-builder.Services.AddScoped<IRestaurantExpenseService>(sp => new RestaurantExpenseService(connectionString));
-// Phase R15: Restaurant Staff
-builder.Services.AddScoped<IRestaurantStaffService>(sp => new RestaurantStaffService(connectionString));
-// =================================================================
-// =================================================================
-
-// =================================================================
 // Email (SMTP via MailKit) — used by EmailController for report PDFs.
 // Set EmailConfiguration__From / __SmtpServer / __Port / __UserName /
 // __Password on Cloud Run. Leave blank locally to disable.

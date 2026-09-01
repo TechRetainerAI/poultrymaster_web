@@ -260,34 +260,6 @@ export function MobileBottomNav() {
       }
     }
 
-    if (activeFarmType === "Restaurant") {
-      return {
-        bg: "bg-rose-600",
-        borderTop: "border-rose-700",
-        palette: { inactive: "text-rose-100/90 hover:text-white", activeText: "text-white" },
-        activeBg: "bg-rose-100 text-rose-800",
-        mainTabs: [
-          { href: "/restaurant-dashboard", label: "Home",    icon: Home },
-          { href: "/restaurant-pos",      label: "POS",     icon: ShoppingCart },
-          { href: "/restaurant-orders",   label: "Orders",  icon: FileText },
-          { href: "/restaurant-kds",      label: "Kitchen", icon: Factory },
-        ] as NavItem[],
-        moreItems: [
-          // Menu
-          { href: "/restaurant-menu",          label: "Menu Items",              icon: ShoppingBag },
-          // Dining
-          { href: "/restaurant-floor-plan",    label: "Floor Plan & Tables",    icon: Building2 },
-          { href: "/restaurant-reservations",  label: "Reservations & Waitlist", icon: CalendarDays },
-          // Delivery & Online
-          { href: "/restaurant-online-orders", label: "Online Settings",        icon: ShoppingBag },
-          { href: "/restaurant-delivery",      label: "Drivers & Dispatch",     icon: Truck },
-          // Setup
-          { href: "/restaurant-setup",         label: "Restaurant Setup",       icon: Settings },
-          { href: "/profile",                  label: "Account",                icon: User },
-        ] as NavItem[],
-      }
-    }
-
     // Default: Poultry (also used when activeFarmType is null/undefined during
     // hydration, since the dashboard route is /dashboard either way).
     const TEMP_SHOW_PAYMENTS_LINK = true

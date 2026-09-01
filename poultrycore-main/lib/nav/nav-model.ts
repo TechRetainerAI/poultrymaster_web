@@ -34,13 +34,12 @@ export interface NavGroup {
 /**
  * Which company colour a nav panel is tinted with. One entry per nav bar:
  * sky = Water (bg-sky-600), orange = Poultry (bg-orange-500),
- * emerald = Generic (bg-emerald-600), violet = Hotel (bg-violet-600),
- * rose = Restaurant (bg-rose-600).
+ * emerald = Generic (bg-emerald-600).
  *
  * Used by both the wide NavMegaMenu and the narrow NavDropdown — the classes
  * themselves live in components/dashboard/nav/nav-surface.ts.
  */
-export type NavAccent = "sky" | "orange" | "emerald" | "violet" | "rose"
+export type NavAccent = "sky" | "orange" | "emerald" | "violet"
 
 export interface MegaMenuItem {
   /**

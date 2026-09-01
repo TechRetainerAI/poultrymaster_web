@@ -67,15 +67,6 @@ export type StaffFeaturePermissionKey =
   | "canViewHotelInventory"
   | "canViewHotelMaintenance"
   | "canViewHotelSetup"
-  | "canViewRestaurantPOS"
-  | "canViewRestaurantKDS"
-  | "canViewRestaurantMenu"
-  | "canViewRestaurantFloorPlan"
-  | "canViewRestaurantReservations"
-  | "canViewRestaurantOnlineOrders"
-  | "canViewRestaurantDelivery"
-  | "canViewRestaurantStaff"
-  | "canViewRestaurantSetup"
 
 export const DEFAULT_STAFF_FEATURE_PERMISSIONS: Record<StaffFeaturePermissionKey, boolean> = {
   canEnterSales: true,
@@ -107,15 +98,6 @@ export const DEFAULT_STAFF_FEATURE_PERMISSIONS: Record<StaffFeaturePermissionKey
   canViewHotelInventory: true,
   canViewHotelMaintenance: true,
   canViewHotelSetup: true,
-  canViewRestaurantPOS: true,
-  canViewRestaurantKDS: true,
-  canViewRestaurantMenu: true,
-  canViewRestaurantFloorPlan: true,
-  canViewRestaurantReservations: true,
-  canViewRestaurantOnlineOrders: true,
-  canViewRestaurantDelivery: true,
-  canViewRestaurantStaff: true,
-  canViewRestaurantSetup: true,
 }
 
 /**
@@ -126,7 +108,7 @@ export const DEFAULT_STAFF_FEATURE_PERMISSIONS: Record<StaffFeaturePermissionKey
  * of that page. `poultry` and `water` flags gate module-specific pages and are
  * only worth showing to someone administering a company of that type.
  */
-export type StaffPermissionModule = "core" | "poultry" | "water" | "hotel" | "restaurant"
+export type StaffPermissionModule = "core" | "poultry" | "water" | "hotel"
 
 export const STAFF_FEATURE_PERMISSION_OPTIONS: Array<{
   key: StaffFeaturePermissionKey
@@ -226,61 +208,6 @@ export const STAFF_FEATURE_PERMISSION_OPTIONS: Array<{
     module: "hotel",
     hint: "Profile, room types, floors, amenities",
   },
-  // Restaurant — one toggle per module group, matching the restaurant sidebar.
-  {
-    key: "canViewRestaurantPOS",
-    label: "View POS & Orders",
-    module: "restaurant",
-    hint: "Point of sale, create and manage orders",
-  },
-  {
-    key: "canViewRestaurantKDS",
-    label: "View Kitchen Display",
-    module: "restaurant",
-    hint: "Kitchen display system, order bumping",
-  },
-  {
-    key: "canViewRestaurantMenu",
-    label: "View Menu Management",
-    module: "restaurant",
-    hint: "Menu items, categories, modifiers, combos",
-  },
-  {
-    key: "canViewRestaurantFloorPlan",
-    label: "View Floor Plan & Tables",
-    module: "restaurant",
-    hint: "Table layout, status, seating",
-  },
-  {
-    key: "canViewRestaurantReservations",
-    label: "View Reservations & Waitlist",
-    module: "restaurant",
-    hint: "Bookings, waitlist, no-show tracking",
-  },
-  {
-    key: "canViewRestaurantOnlineOrders",
-    label: "View Online Ordering",
-    module: "restaurant",
-    hint: "QR codes, promo codes, online order settings",
-  },
-  {
-    key: "canViewRestaurantDelivery",
-    label: "View Delivery Management",
-    module: "restaurant",
-    hint: "Drivers, dispatch, delivery zones, third-party platforms",
-  },
-  {
-    key: "canViewRestaurantStaff",
-    label: "View Restaurant Staff",
-    module: "restaurant",
-    hint: "Staff roster, roles, attendance",
-  },
-  {
-    key: "canViewRestaurantSetup",
-    label: "View Restaurant Setup",
-    module: "restaurant",
-    hint: "Profile, schedules, modifier groups, configuration",
-  },
 ]
 
 /** The water flags, for the grandfathering rule in hooks/use-permissions.ts. */
@@ -294,7 +221,6 @@ function moduleForType(companyType: string | null | undefined): StaffPermissionM
     case "water": return "water"
     case "poultry": return "poultry"
     case "hotel": return "hotel"
-    case "restaurant": return "restaurant"
     default: return null
   }
 }
