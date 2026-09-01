@@ -829,7 +829,7 @@ export function ProductionRecordForm({
               what gets saved, so an older record that still carries a manual
               figure displays that figure rather than a misleading 0. */}
           <div className="space-y-1.5">
-            <CalcField label="Feed (kg)" value={effectiveFeedKg.toLocaleString(undefined, { maximumFractionDigits: 2 })} />
+            <CalcField label="Total feed (kg)" value={effectiveFeedKg.toLocaleString(undefined, { maximumFractionDigits: 2 })} />
             <p className="text-xs text-slate-500">
               {feedFromLines
                 ? "Summed from the feed lines above, so it isn't counted twice."
@@ -838,7 +838,7 @@ export function ProductionRecordForm({
                   : "Add a feed line above to record feed."}
             </p>
           </div>
-          <CalcField label="Total feed" value={totalFeedCost.toFixed(2)} />
+          <CalcField label="Total feed cost" value={totalFeedCost.toFixed(2)} />
         </div>
       </FormSectionCard>
 
