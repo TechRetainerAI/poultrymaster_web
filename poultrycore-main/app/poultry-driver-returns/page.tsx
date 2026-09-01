@@ -17,7 +17,7 @@ import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { usePagination } from "@/hooks/use-pagination"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { FormSection, FormField } from "@/components/ui/form-section"
+import { FormSection, FormField, InfoTip } from "@/components/ui/form-section"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -1113,7 +1113,7 @@ export default function PoultryDriverReturnsPage() {
           Load Vehicle / Create Delivery Run dialog
           =================================================================== */}
       <Dialog open={loadDlg} onOpenChange={setLoadDlg}>
-        <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] sm:max-w-[1600px] max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Truck className="w-5 h-5 text-blue-600" />
@@ -1125,7 +1125,7 @@ export default function PoultryDriverReturnsPage() {
           </DialogHeader>
 
           <div className="space-y-4">
-            <FormSection title="Driver & route" color="indigo" columns={3}>
+            <FormSection title="Driver & route" color="indigo" columns={3} stackOnMobile>
               <FormField label="Driver *">
                 <Select value={String(loadForm.poultryDriverId)} onValueChange={(v) => {
                   const driverId = Number(v)
@@ -1166,7 +1166,7 @@ export default function PoultryDriverReturnsPage() {
                   ))}</SelectContent>
                 </Select>
               </FormField>
-              <FormField label={`Opening cash with driver${cur}`} hint="Cash float given to driver before departure (change, fuel, small expenses). Separate from sales cash.">
+              <FormField label={`Opening cash with driver${cur}`} info="Cash float given to the driver before departure — change, fuel and small expenses. Separate from the cash they collect from sales.">
                 <NumberInput min={0} step="0.01" value={loadForm.openingCashWithDriver}
                   onChange={(e) => setLoadForm({ ...loadForm, openingCashWithDriver: Number(e.target.value) || 0 })} />
               </FormField>
@@ -1196,7 +1196,7 @@ export default function PoultryDriverReturnsPage() {
                       <TableRow>
                         <TableHead className="min-w-[180px]">Product</TableHead>
                         <TableHead className="text-right">Quantity (crates)</TableHead>
-                        <TableHead className="text-right">Eggs / crate</TableHead>
+                        <TableHead className="text-right"><span className="inline-flex items-center gap-1">Eggs / crate <InfoTip label="Eggs / crate">How many eggs are in one crate — used to convert the crates above into the egg count that leaves stock. Only applies to egg products; birds and other goods move one unit per crate whatever this says.</InfoTip></span></TableHead>
                         <TableHead className="text-right">Unit price{cur}</TableHead>
                         <TableHead className="text-right">Expected{cur}</TableHead>
                         <TableHead></TableHead>
@@ -1270,11 +1270,27 @@ export default function PoultryDriverReturnsPage() {
                             <Trash2 className="h-4 w-4 text-red-500" />
                           </Button>
                         </div>
-                        <div className="grid grid-cols-3 gap-2 items-end">
+                        {/* 2x2 rather than 3-across: Eggs / crate is editable on
+                            the desktop table but was missing from this card
+                            entirely, so it could not be changed on a phone. */}
+                        <div className="grid grid-cols-2 gap-2 items-end">
                           <div>
                             <label className="text-xs text-slate-500">Qty (crates)</label>
                             <NumberInput min={0} value={it.cratesLoaded}
                               onChange={(e) => updateLoadItem(idx, { cratesLoaded: Number(e.target.value) || 0 })}
+                              className="text-right w-full" />
+                          </div>
+                          <div>
+                            <span className="inline-flex items-center gap-1 text-xs text-slate-500">
+                              Eggs / crate
+                              <InfoTip label="Eggs / crate">
+                                How many eggs are in one crate — used to convert the crates above into
+                                the egg count that leaves stock. Only applies to egg products; birds and
+                                other goods move one unit per crate whatever this says.
+                              </InfoTip>
+                            </span>
+                            <NumberInput min={0} value={it.eggsPerCrate}
+                              onChange={(e) => updateLoadItem(idx, { eggsPerCrate: Number(e.target.value) || 0 })}
                               className="text-right w-full" />
                           </div>
                           <div>
@@ -1324,7 +1340,7 @@ export default function PoultryDriverReturnsPage() {
           Record Driver Return dialog — multi-product + breakdown + expenses
           =================================================================== */}
       <Dialog open={returnDlg.open} onOpenChange={(v) => { if (!v) { setReturnDlg({ open: false }); editReturnTargetRef.current = null } }}>
-        <DialogContent className="w-[98vw] max-w-[1800px] max-h-[92vh] overflow-y-auto overflow-x-hidden p-3 sm:p-6">
+        <DialogContent className="w-[98vw] sm:max-w-[1800px] max-h-[92vh] overflow-y-auto overflow-x-hidden p-3 sm:p-6">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Truck className="w-5 h-5 text-blue-600" />
