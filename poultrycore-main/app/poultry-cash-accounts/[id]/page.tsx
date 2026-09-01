@@ -24,6 +24,7 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
+import { categoryLabel } from "@/lib/cash/cash-flow"
 import {
   getPoultryCashAccount, listPoultryCashTransactions, adjustPoultryCashAccount, reconcilePoultryCashBalances,
   deletePoultryCashAccount, setPoultryCashClearing, POULTRY_CASH_REASONS,
@@ -238,7 +239,10 @@ export default function PoultryCashAccountDetailPage() {
                       details={(r) => [
                         { label: "Date", value: r.transactionDate.split("T")[0] },
                         { label: "Type", value: r.transactionType },
-                        { label: "Source", value: r.sourceType ?? "—" },
+                        // Through the shared vocabulary so a row reads the same
+                        // here as on Cash Flow. Printing the raw sourceType was
+                        // the reason those labels had to stay unfriendly.
+                        { label: "Source", value: categoryLabel(r.sourceType) },
                         { label: "Money in", value: r.amount > 0 ? gh(r.amount) : "—" },
                         { label: "Money out", value: r.amount < 0 ? gh(Math.abs(r.amount)) : "—" },
                         { label: "Running balance", value: gh(r.running) },
@@ -264,7 +268,7 @@ export default function PoultryCashAccountDetailPage() {
                                 <TableRow key={r.poultryCashTransactionId}>
                                   <TableCell className="whitespace-nowrap">{r.transactionDate.split("T")[0]}</TableCell>
                                   <TableCell>{r.transactionType}</TableCell>
-                                  <TableCell>{r.sourceType ?? "—"}</TableCell>
+                                  <TableCell>{categoryLabel(r.sourceType)}</TableCell>
                                   <TableCell className="text-right tabular-nums text-green-700">{r.amount > 0 ? gh(r.amount) : "—"}</TableCell>
                                   <TableCell className="text-right tabular-nums text-rose-600">{r.amount < 0 ? gh(Math.abs(r.amount)) : "—"}</TableCell>
                                   <TableCell className="text-right tabular-nums font-medium">{gh(r.running)}</TableCell>

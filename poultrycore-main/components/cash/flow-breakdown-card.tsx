@@ -53,6 +53,11 @@ export function FlowBreakdownCard({
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="min-w-0 truncate text-sm text-slate-700" title={b.label}>
                     {b.label}
+                    {/* The count used to sit beside the percentage as a bare
+                        "· 3", which named nothing. Said here instead, in words. */}
+                    <span className="ml-1.5 text-xs text-slate-400">
+                      {b.count} {b.count === 1 ? "entry" : "entries"}
+                    </span>
                   </span>
                   <span className="whitespace-nowrap text-sm font-medium tabular-nums text-slate-900">
                     {fmtMoney(b.amount)}
@@ -67,8 +72,13 @@ export function FlowBreakdownCard({
                       style={{ width: `${Math.max(b.percent, 1)}%` }}
                     />
                   </div>
-                  <span className="w-20 shrink-0 text-right text-[11px] tabular-nums text-slate-500">
-                    {b.percent}% · {b.count}
+                  {/* Share of this card's total — stated, because a bare
+                      percentage next to a bar invites "percent of what?". */}
+                  <span
+                    className="w-24 shrink-0 text-right text-[11px] tabular-nums text-slate-500"
+                    title={`${b.percent}% of ${positive ? "money in" : "money out"}`}
+                  >
+                    {b.percent}% of total
                   </span>
                 </div>
               </li>

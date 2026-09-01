@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest"
 import {
-  buildCashFlowInsights, cashByAccount, cashFlowTotals, cashIdentity,
+  buildCashFlowInsights, cashByAccount, cashFlowTotals, cashIdentity, categoryLabel,
   calculatedCashAtHand, excludeTransfers, flowLabel, groupByFlow,
-  isInternalTransfer, ledgerFromParam, ledgerToParam, summariseTransfers,
+  isInternalTransfer, ledgerFromParam, ledgerToParam, summariseTransfers, withinRange,
   type AccountStatusEntry, type LedgerEntry, type TransferEntry,
 } from "./cash-flow"
 
@@ -280,7 +280,7 @@ describe("buildCashFlowInsights", () => {
       entry({ amount: -21500, sourceType: "Expense" }),
     ]),
     cashAtHand: 4340, customersOwe: 2000, weOweSuppliers: 1000,
-    topIn: null, topOut: null, accountsNeedingAttention: 0,
+    topIn: null, topOut: null,
   }
 
   it("says plainly that the business spent more than it earned", () => {
@@ -347,17 +347,11 @@ describe("buildCashFlowInsights", () => {
     expect(i?.tone).toBe("bad")
   })
 
-  it("says spending is missing when expenses were recorded without a cash account", () => {
-    const i = buildCashFlowInsights({ ...BASE, unlinkedExpenseCount: 6 }, money)
-      .find((x) => x.id === "unlinked-expenses")
-    expect(i?.detail).toContain("6 expenses were")
-    expect(i?.detail).toContain("lower than shown")
-  })
-
-  it("uses the singular for one unlinked expense", () => {
-    const i = buildCashFlowInsights({ ...BASE, unlinkedExpenseCount: 1 }, money)
-      .find((x) => x.id === "unlinked-expenses")
-    expect(i?.detail).toContain("1 expense was")
+  it("leaves data-quality problems to the warnings, and says so only once", () => {
+    // These two used to be emitted here AND rendered as alerts by the page.
+    const ids = buildCashFlowInsights(BASE, money).map((i) => i.id)
+    expect(ids).not.toContain("unlinked-expenses")
+    expect(ids).not.toContain("stale-accounts")
   })
 
   it("never returns more than six", () => {
@@ -366,8 +360,98 @@ describe("buildCashFlowInsights", () => {
       topIn: { key: "Sale", label: "Sales collected", amount: 18000, count: 3, percent: 92 },
       topOut: { key: "Expense", label: "Expenses paid", amount: 21500, count: 5, percent: 88 },
       weOweSuppliers: 99999, customersOwe: 99999,
-      unlinkedExpenseCount: 6, accountsNeedingAttention: 3,
     }, money)
     expect(insights.length).toBeLessThanOrEqual(6)
+  })
+})
+
+describe("categoryLabel", () => {
+  it("spells out adjustment enum values rather than dumping them raw", () => {
+    // These reach the report straight from the legacy /Cash table.
+    expect(categoryLabel("OwnerInjection")).toBe("Owner injection")
+    expect(categoryLabel("LoanReceived")).toBe("Loan received")
+    expect(categoryLabel("OpeningBalance")).toBe("Opening balance")
+  })
+
+  it("names the same money the same way as the Cash Flow page", () => {
+    // 233 emits the literal "Sales"; the page's flowLabel emits "Sales
+    // collected" from sourceType "Sale". Both must land on one label or the two
+    // screens name the same bucket differently.
+    expect(categoryLabel("Sales")).toBe(flowLabel("Sale", null).label)
+    expect(categoryLabel("Transfer")).toBe("Internal transfer")
+    expect(categoryLabel("Internal transfer")).toBe("Internal transfer")
+  })
+
+  it("says why an uncategorised bucket exists", () => {
+    expect(categoryLabel("Uncategorised")).toBe("No category set")
+  })
+
+  it("leaves a farm's own expense categories exactly as they typed them", () => {
+    // Not ours to rewrite — these are the user's bookkeeping words.
+    expect(categoryLabel("Feed")).toBe("Feed")
+    expect(categoryLabel("Veterinary")).toBe("Veterinary")
+    expect(categoryLabel("Labor")).toBe("Labor")
+    expect(categoryLabel("Brooding gas")).toBe("Brooding gas")
+  })
+
+  it("splits an unmapped CamelCase source rather than showing it glued", () => {
+    expect(categoryLabel("SomeNewSourceType")).toBe("Some New Source Type")
+  })
+
+  it("never returns blank", () => {
+    expect(categoryLabel("")).toBe("Unclassified")
+    expect(categoryLabel(null)).toBe("Unclassified")
+    expect(categoryLabel(undefined)).toBe("Unclassified")
+    expect(categoryLabel("   ")).toBe("Unclassified")
+  })
+})
+
+describe("adjustment labels", () => {
+  it("names the adjustment source types properly", () => {
+    expect(flowLabel("ReconciliationAdjustment", null).label).toBe("Cash account reconciliation")
+    expect(flowLabel("Adjustment", "whatever someone typed").label).toBe("Cash account adjustment")
+    expect(flowLabel("LegacyAdjustment", null).label).toBe("Cash adjustment")
+  })
+
+  it("still prefers a known reason over the generic name", () => {
+    // The reason is more specific than "Cash account adjustment", so it wins.
+    expect(flowLabel("Adjustment", "Owner contribution not recorded").label).toBe("Owner contribution")
+  })
+
+  it("keeps the account ledger and the cash flow page saying the same thing", () => {
+    // The ledger renders sourceType through categoryLabel; the breakdown goes
+    // through flowLabel. Both must land on one name for the same row.
+    expect(categoryLabel("Adjustment")).toBe(flowLabel("Adjustment", null).label)
+    expect(categoryLabel("ReconciliationAdjustment"))
+      .toBe(flowLabel("ReconciliationAdjustment", null).label)
+    expect(categoryLabel("LegacyAdjustment")).toBe(flowLabel("LegacyAdjustment", null).label)
+  })
+})
+
+describe("withinRange", () => {
+  it("includes both ends of the range", () => {
+    expect(withinRange("2026-09-01T00:00:00", "2026-09-01", "2026-09-30")).toBe(true)
+    expect(withinRange("2026-09-30T00:00:00", "2026-09-01", "2026-09-30")).toBe(true)
+  })
+
+  it("keeps a row recorded late on the last day", () => {
+    // The bug this exists to avoid: comparing the full timestamp against a bare
+    // end date drops everything after midnight on the final day.
+    expect(withinRange("2026-09-30T23:59:59.999", "2026-09-01", "2026-09-30")).toBe(true)
+  })
+
+  it("excludes either side", () => {
+    expect(withinRange("2026-08-31T23:00:00", "2026-09-01", "2026-09-30")).toBe(false)
+    expect(withinRange("2026-10-01T00:00:00", "2026-09-01", "2026-09-30")).toBe(false)
+  })
+
+  it("excludes a missing date rather than treating it as the epoch", () => {
+    expect(withinRange(null, "2026-09-01", "2026-09-30")).toBe(false)
+    expect(withinRange(undefined, "2026-09-01", "2026-09-30")).toBe(false)
+    expect(withinRange("", "2026-09-01", "2026-09-30")).toBe(false)
+  })
+
+  it("handles a bare date with no time part", () => {
+    expect(withinRange("2026-09-15", "2026-09-01", "2026-09-30")).toBe(true)
   })
 })

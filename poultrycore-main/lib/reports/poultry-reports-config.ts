@@ -11,7 +11,7 @@ import {
   LayoutDashboard, Egg, BarChart3, Activity, HeartPulse, Bird, Skull,
   Wheat, Package, Boxes, Coins, Users, Receipt, Wallet, TrendingUp,
   Calculator, Syringe, Pill, ClipboardCheck, ClipboardList, Flag, CalendarDays, Scale,
-  History, Factory, Truck,
+  History, Factory, Truck, PieChart,
 } from "lucide-react"
 import type { PoultryReportSlug } from "@/lib/api/poultry-reports"
 
@@ -88,6 +88,7 @@ export const POULTRY_REPORT_GROUPS: PoultryReportGroup[] = [
     reports: [
       { slug: "expense-summary", title: "Expense Summary", description: "Farm expenses by category and flock.", icon: Receipt },
       { slug: "cash-movement", title: "Cash Movement", description: "Cash inflows and outflows.", icon: Wallet },
+      { slug: "cash-flow-detail", title: "Cash Flow Detail", description: "Where cash came from and what it went on, with analysis.", icon: PieChart },
     ],
   },
   {
@@ -195,6 +196,7 @@ export const POULTRY_REPORT_MENU_GROUPS: PoultryReportMenuGroup[] = [
       item("supplier-balance"),
       item("expense-summary"),
       item("cash-movement"),
+      item("cash-flow-detail"),
       item("cost-per-egg"),
     ],
   },

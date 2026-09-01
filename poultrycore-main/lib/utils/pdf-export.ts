@@ -12,6 +12,8 @@ export interface PdfExportFilter {
 export interface PdfExportSummaryCard {
   label: string
   value: string
+  /** Scope caveat under the value (e.g. a balance that ignores the date range). */
+  note?: string
   /** Accent colour for the card's left bar + value, matching the on-screen SumTile. */
   accent?: "green" | "rose" | "indigo"
 }
@@ -238,7 +240,9 @@ async function buildPdfDoc(opts: PdfExportOptions) {
     const perRow = Math.min(4, cards.length)
     const gap = 3
     const cardW = (contentW - gap * (perRow - 1)) / perRow
-    const cardH = 16
+    // Taller only when something needs the third line, so every other report's
+    // card grid keeps the height it already had.
+    const cardH = cards.some((c) => c.note) ? 20 : 16
     const radius = 1.5
 
     cards.forEach((card, i) => {
@@ -269,6 +273,16 @@ async function buildPdfDoc(opts: PdfExportOptions) {
       doc.setFont("helvetica", "bold")
       doc.setFontSize(11)
       doc.text(doc.splitTextToSize(card.value, cardW - 7)[0] ?? "", x + 4.5, cy + 12)
+
+      // Note, wrapped to two short lines at most so a long caveat cannot spill
+      // out of the card.
+      if (card.note) {
+        doc.setTextColor(...MUTED)
+        doc.setFont("helvetica", "normal")
+        doc.setFontSize(5.5)
+        doc.splitTextToSize(card.note, cardW - 7).slice(0, 2)
+          .forEach((line: string, li: number) => doc.text(line, x + 4.5, cy + 15.5 + li * 2.2))
+      }
     })
 
     const rowCount = Math.ceil(cards.length / perRow)
@@ -481,7 +495,9 @@ async function buildMultiTablePdfDoc(opts: MultiTablePdfOptions) {
     const perRow = Math.min(4, cards.length)
     const gap = 3
     const cardW = (contentW - gap * (perRow - 1)) / perRow
-    const cardH = 16
+    // Taller only when something needs the third line, so every other report's
+    // card grid keeps the height it already had.
+    const cardH = cards.some((c) => c.note) ? 20 : 16
     const radius = 1.5
     cards.forEach((card, i) => {
       const col = i % perRow
@@ -503,6 +519,16 @@ async function buildMultiTablePdfDoc(opts: MultiTablePdfOptions) {
       doc.setFont("helvetica", "bold")
       doc.setFontSize(11)
       doc.text(doc.splitTextToSize(card.value, cardW - 7)[0] ?? "", x + 4.5, cy + 12)
+
+      // Note, wrapped to two short lines at most so a long caveat cannot spill
+      // out of the card.
+      if (card.note) {
+        doc.setTextColor(...MUTED)
+        doc.setFont("helvetica", "normal")
+        doc.setFontSize(5.5)
+        doc.splitTextToSize(card.note, cardW - 7).slice(0, 2)
+          .forEach((line: string, li: number) => doc.text(line, x + 4.5, cy + 15.5 + li * 2.2))
+      }
     })
     const rowCount = Math.ceil(cards.length / perRow)
     y += rowCount * cardH + (rowCount - 1) * gap + 3
