@@ -757,31 +757,37 @@ export default function InventoryPage() {
             )}
 
             {/* Summary Cards */}
-            <div className={cn("grid gap-4", isMobile ? "grid-cols-2" : "grid-cols-1 md:grid-cols-3")}>
-              <Card>
-                <CardHeader className="pb-2">
+            {/* Three tiles in a 2-up grid leaves the third dangling at half
+                width with dead space beside it, so Total Value — which carries
+                the longest number — takes the whole row. Plain CSS rather than
+                the isMobile branch this used to carry: useIsMobile breaks at
+                768px, which is exactly `md`, so the JS was doing nothing the
+                stylesheet could not. */}
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
+              <Card className="py-4 sm:py-6">
+                <CardHeader className="pb-2 px-4 sm:px-6">
                   <CardDescription>Total Items</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{filteredItems.length}</div>
+                <CardContent className="px-4 sm:px-6">
+                  <div className="text-xl font-bold tabular-nums sm:text-2xl">{filteredItems.length}</div>
                 </CardContent>
               </Card>
-              <Card>
-                <CardHeader className="pb-2">
+              <Card className="py-4 sm:py-6">
+                <CardHeader className="pb-2 px-4 sm:px-6">
                   <CardDescription>Total Quantity</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
+                <CardContent className="px-4 sm:px-6">
+                  <div className="text-xl font-bold tabular-nums sm:text-2xl">
                     {filteredItems.reduce((sum, item) => sum + item.quantity, 0).toLocaleString()}
                   </div>
                 </CardContent>
               </Card>
-              <Card>
-                <CardHeader className="pb-2">
+              <Card className="col-span-2 py-4 sm:py-6 md:col-span-1">
+                <CardHeader className="pb-2 px-4 sm:px-6">
                   <CardDescription>Total Value</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
+                <CardContent className="px-4 sm:px-6">
+                  <div className="text-xl font-bold tabular-nums sm:text-2xl">
                     ${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </div>
                 </CardContent>
