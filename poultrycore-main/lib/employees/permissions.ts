@@ -57,6 +57,16 @@ export type StaffFeaturePermissionKey =
   | "canViewWaterMaintenance"
   | "canViewWaterPayroll"
   | "canViewWaterSetup"
+  | "canViewHotelRooms"
+  | "canViewHotelBookings"
+  | "canViewHotelHousekeeping"
+  | "canViewHotelBilling"
+  | "canViewHotelRestaurant"
+  | "canViewHotelStaff"
+  | "canViewHotelPayroll"
+  | "canViewHotelInventory"
+  | "canViewHotelMaintenance"
+  | "canViewHotelSetup"
 
 export const DEFAULT_STAFF_FEATURE_PERMISSIONS: Record<StaffFeaturePermissionKey, boolean> = {
   canEnterSales: true,
@@ -78,6 +88,16 @@ export const DEFAULT_STAFF_FEATURE_PERMISSIONS: Record<StaffFeaturePermissionKey
   canViewWaterMaintenance: true,
   canViewWaterPayroll: true,
   canViewWaterSetup: true,
+  canViewHotelRooms: true,
+  canViewHotelBookings: true,
+  canViewHotelHousekeeping: true,
+  canViewHotelBilling: true,
+  canViewHotelRestaurant: true,
+  canViewHotelStaff: true,
+  canViewHotelPayroll: true,
+  canViewHotelInventory: true,
+  canViewHotelMaintenance: true,
+  canViewHotelSetup: true,
 }
 
 /**
@@ -88,7 +108,7 @@ export const DEFAULT_STAFF_FEATURE_PERMISSIONS: Record<StaffFeaturePermissionKey
  * of that page. `poultry` and `water` flags gate module-specific pages and are
  * only worth showing to someone administering a company of that type.
  */
-export type StaffPermissionModule = "core" | "poultry" | "water"
+export type StaffPermissionModule = "core" | "poultry" | "water" | "hotel"
 
 export const STAFF_FEATURE_PERMISSION_OPTIONS: Array<{
   key: StaffFeaturePermissionKey
@@ -142,6 +162,52 @@ export const STAFF_FEATURE_PERMISSION_OPTIONS: Array<{
     module: "water",
     hint: "Setup and Company Setup",
   },
+  // Hotel — one toggle per sidebar group, matching the hotel nav layout.
+  {
+    key: "canViewHotelRooms",
+    label: "View Hotel Rooms",
+    module: "hotel",
+    hint: "Room inventory, room status, room service",
+  },
+  {
+    key: "canViewHotelBookings",
+    label: "View Hotel Bookings",
+    module: "hotel",
+    hint: "Bookings, check-in, check-out, guests",
+  },
+  {
+    key: "canViewHotelHousekeeping",
+    label: "View Housekeeping",
+    module: "hotel",
+    hint: "Cleaning tasks, inspections",
+  },
+  {
+    key: "canViewHotelBilling",
+    label: "View Hotel Billing",
+    module: "hotel",
+    hint: "Charges, invoices, payments",
+  },
+  {
+    key: "canViewHotelRestaurant",
+    label: "View Restaurant & Bar",
+    module: "hotel",
+    hint: "POS, tables, menu, kitchen display",
+  },
+  { key: "canViewHotelStaff", label: "View Hotel Staff", module: "hotel" },
+  { key: "canViewHotelPayroll", label: "View Hotel Payroll", module: "hotel" },
+  {
+    key: "canViewHotelInventory",
+    label: "View Hotel Supplies",
+    module: "hotel",
+    hint: "Linens, toiletries, minibar stock",
+  },
+  { key: "canViewHotelMaintenance", label: "View Hotel Maintenance", module: "hotel" },
+  {
+    key: "canViewHotelSetup",
+    label: "View Hotel Setup",
+    module: "hotel",
+    hint: "Profile, room types, floors, amenities",
+  },
 ]
 
 /** The water flags, for the grandfathering rule in hooks/use-permissions.ts. */
@@ -154,6 +220,7 @@ function moduleForType(companyType: string | null | undefined): StaffPermissionM
   switch ((companyType ?? "").toLowerCase()) {
     case "water": return "water"
     case "poultry": return "poultry"
+    case "hotel": return "hotel"
     default: return null
   }
 }
@@ -187,6 +254,9 @@ export function staffPermissionOptionsForCompanyTypes(companyTypes: Array<string
       ? STAFF_FEATURE_PERMISSION_OPTIONS.filter((o) => o.module === "core")
       : STAFF_FEATURE_PERMISSION_OPTIONS
   }
+
+  // Hotel-only shows core + hotel (not water/poultry toggles)
+  // Water-only shows core + water, etc. Already handled by the filter below.
 
   return STAFF_FEATURE_PERMISSION_OPTIONS.filter((o) => o.module === "core" || modules.has(o.module))
 }

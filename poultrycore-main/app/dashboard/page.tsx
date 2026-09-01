@@ -27,6 +27,7 @@ export default function DashboardPage() {
     if (activeFarmType === null || activeFarmType === undefined) return
     if (activeFarmType === "Water")        router.replace("/water-dashboard")
     else if (activeFarmType === "Generic") router.replace("/generic-dashboard")
+    else if (activeFarmType === "Hotel")   router.replace("/hotel-dashboard")
   }, [activeFarmType, router])
 
   // Check if user has 2FA enabled

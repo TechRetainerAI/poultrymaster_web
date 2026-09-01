@@ -51,6 +51,7 @@ import {
   Briefcase,
   Clock,
   CalendarDays,
+  Shield,
   History,
   Scale,
 } from "lucide-react"
@@ -61,6 +62,7 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
 import { filterWaterNavItems } from "@/lib/utils/water-nav-access"
+import { filterHotelNavItems } from "@/lib/utils/hotel-nav-access"
 import { useLogout } from "@/hooks/use-logout"
 
 interface SidebarProps {
@@ -94,6 +96,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const clearActiveCompany = useAuthStore((s) => s.clearActiveCompany)
   const isWater = activeFarmType === "Water"
   const isGeneric = activeFarmType === "Generic"
+  const isHotel = activeFarmType === "Hotel"
   const { isCollapsed, toggle, isMobileOpen, toggleMobile, setMobileOpen } = useSidebarStore()
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     farm: true,
@@ -391,32 +394,89 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/generic-setup",   label: "Setup",   icon: Settings },
   ]
 
+  // Hotel company nav items (shown when activeFarmType === "Hotel")
+  const gateHotel = <T extends { href: string }>(items: T[]) =>
+    filterHotelNavItems(items, permissions.featureAccess, permissions.isAdmin)
+
+  const hotelQuickLinkItems = gateHotel([
+    { href: "/hotel-daily-closing", label: "Daily Closing", icon: FileText },
+    { href: "/hotel-night-audit",   label: "Night Audit",   icon: Shield },
+    { href: "/hotel-bookings",      label: "Bookings",      icon: Boxes },
+    { href: "/hotel-check-in",      label: "Check-in",      icon: Activity },
+  ])
+  const hotelFrontDeskItems = gateHotel([
+    { href: "/hotel-bookings",     label: "Bookings",      icon: Boxes },
+    { href: "/hotel-availability", label: "Availability",  icon: Activity },
+    { href: "/hotel-check-in",     label: "Check-in",      icon: Activity },
+    { href: "/hotel-check-out",    label: "Check-out",     icon: Activity },
+    { href: "/hotel-guests",       label: "Guests",        icon: Users },
+    { href: "/hotel-guest-folio",  label: "Guest Folio",   icon: FileText },
+    { href: "/hotel-stay-history", label: "Stay History",  icon: FileText },
+  ])
+  const hotelGuestServicesItems = gateHotel([
+    { href: "/hotel-communications",  label: "Guest Log",    icon: FileText },
+    { href: "/hotel-guest-requests",  label: "Requests",     icon: Activity },
+    { href: "/hotel-lost-found",      label: "Lost & Found", icon: Boxes },
+  ])
+  const hotelRoomsItems = gateHotel([
+    { href: "/hotel-rooms",                  label: "Room Inventory",  icon: Building2 },
+    { href: "/hotel-housekeeping",           label: "Housekeeping",    icon: Activity },
+    { href: "/hotel-housekeeping-schedule",  label: "HK Schedule",     icon: Activity },
+    { href: "/hotel-room-service",           label: "Room Service",    icon: ShoppingCart },
+  ])
+  const hotelRestaurantItems = gateHotel([
+    { href: "/hotel-restaurant",        label: "POS / Orders", icon: ShoppingCart },
+    { href: "/hotel-restaurant-tables", label: "Tables",       icon: Boxes },
+    { href: "/hotel-menu",              label: "Menu",         icon: FileText },
+    { href: "/hotel-kitchen",           label: "Kitchen",      icon: Activity },
+  ])
+  const hotelFinanceItems = gateHotel([
+    { href: "/hotel-billing",       label: "Billing",       icon: DollarSign },
+    { href: "/hotel-invoices",      label: "Invoices",      icon: FileText },
+    { href: "/hotel-payments",      label: "Payments",      icon: CreditCard },
+    { href: "/hotel-expenses",      label: "Expenses",      icon: DollarSign },
+    { href: "/hotel-cash-accounts", label: "Cash Accounts", icon: Wallet },
+  ])
+  const hotelPeopleItems = gateHotel([
+    { href: "/hotel-staff",   label: "Staff",   icon: UserCog },
+    { href: "/hotel-payroll", label: "Payroll", icon: Banknote },
+  ])
+  const hotelInventoryItems = gateHotel([
+    { href: "/hotel-inventory",   label: "Supplies",     icon: Boxes },
+    { href: "/hotel-maintenance", label: "Maintenance",  icon: Wrench },
+  ])
+  const hotelReportsItems = gateHotel([
+    { href: "/hotel-reports",        label: "Reports",        icon: BarChart3 },
+    { href: "/hotel-shift-handover", label: "Shift Handover", icon: FileText },
+  ])
+  const hotelAdminItems = gateHotel([
+    { href: "/hotel-setup", label: "Setup", icon: Settings },
+  ])
+
   // System — was a flat, unlabelled block at the bottom of the rail; now a real
   // collapsible group so it matches the top nav's System menu. Order and every
   // permission / farm-type guard are carried over unchanged from that block.
   const systemItems: SidebarItem[] = [
     ...((permissions.isAdmin || permissions.featureAccess.canSeeEmployees)
       ? [{ href: "/employees", label: "Users & Permissions", icon: UserCog }] : []),
-    // #28: /reports is the poultry report page. Water and Generic have their own
-    // (water-reports / generic-reports), so linking it here sent water users to
-    // the wrong page.
-    ...((permissions.featureAccess.canViewReports && !isWater && !isGeneric)
+    // #28: /reports is the poultry report page. Water, Generic, and Hotel have their own.
+    ...((permissions.featureAccess.canViewReports && !isWater && !isGeneric && !isHotel)
       ? [{ href: "/reports", label: "Reports", icon: BarChart3 }] : []),
     { href: "/profile", label: "Account", icon: User },
     // Resources is poultry-specific (vaccination / feed / medication schedules).
-    ...((!isWater && !isGeneric) ? [{ href: "/resources", label: "Resources", icon: BookOpen }] : []),
+    ...((!isWater && !isGeneric && !isHotel) ? [{ href: "/resources", label: "Resources", icon: BookOpen }] : []),
     { href: "#", label: "Alerts", icon: Bell, isButton: true, onClick: openAlerts, badge: alerts.length },
     { href: "/companies", label: "Companies", icon: Building2 },
     ...(permissions.featureAccess.canViewActivityLog
       ? [{ href: "/audit-logs", label: "Activity Log", icon: Activity }] : []),
-    // The poultry farm profile. Water and Generic have their own setup links in
-    // their groups above; this is the equivalent row for Poultry, pointing at
-    // the database-backed page rather than /settings (now only a redirect).
-    ...((!isWater && !isGeneric && permissions.featureAccess.canViewSettings)
+    // The poultry farm profile. Water, Generic and Hotel have their own setup links
+    // in their groups above; this is the equivalent row for Poultry, pointing at the
+    // database-backed pages rather than /settings (now only a redirect).
+    ...((!isWater && !isGeneric && !isHotel && permissions.featureAccess.canViewSettings)
       ? [{ href: "/poultry-setup", label: "Farm Setup", icon: Settings },
          { href: "/poultry-company-setup", label: "Company Setup", icon: Settings }] : []),
     // /help is poultry-specific (flocks, eggs, vaccinations).
-    ...((!isWater && !isGeneric) ? [{ href: "/help", label: "Help Center", icon: HelpCircle }] : []),
+    ...((!isWater && !isGeneric && !isHotel) ? [{ href: "/help", label: "Help Center", icon: HelpCircle }] : []),
     { href: "/terms", label: "Terms & Conditions", icon: ListTodo },
   ]
 
@@ -599,9 +659,9 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         {/* Dashboard — route depends on active company type */}
         <div>
           {renderNavItem({
-            href: isWater ? "/water-dashboard" : isGeneric ? "/generic-dashboard" : "/dashboard",
+            href: isWater ? "/water-dashboard" : isGeneric ? "/generic-dashboard" : isHotel ? "/hotel-dashboard" : "/dashboard",
             label: "Dashboard",
-            icon: isWater ? Droplets : isGeneric ? ShoppingBag : Home,
+            icon: isWater ? Droplets : isGeneric ? ShoppingBag : isHotel ? Building2 : Home,
           })}
         </div>
 
@@ -647,6 +707,28 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
             <div className="border-t border-slate-800 mx-2" />
 
             {renderGroup("Admin / Setup", waterAdminItems, "waterAdmin")}
+          </>
+        ) : isHotel ? (
+          <>
+            {renderGroup("Quick Links", hotelQuickLinkItems, "hotelQuickLinks")}
+            <div className="border-t border-slate-800 mx-2" />
+            {renderGroup("Front Desk", hotelFrontDeskItems, "hotelFrontDesk")}
+            <div className="border-t border-slate-800 mx-2" />
+            {renderGroup("Guest Services", hotelGuestServicesItems, "hotelGuestServices")}
+            <div className="border-t border-slate-800 mx-2" />
+            {renderGroup("Rooms", hotelRoomsItems, "hotelRooms")}
+            <div className="border-t border-slate-800 mx-2" />
+            {renderGroup("Restaurant & Bar", hotelRestaurantItems, "hotelRestaurant")}
+            <div className="border-t border-slate-800 mx-2" />
+            {renderGroup("Finance", hotelFinanceItems, "hotelFinance")}
+            <div className="border-t border-slate-800 mx-2" />
+            {renderGroup("People", hotelPeopleItems, "hotelPeople")}
+            <div className="border-t border-slate-800 mx-2" />
+            {renderGroup("Inventory", hotelInventoryItems, "hotelInventory")}
+            <div className="border-t border-slate-800 mx-2" />
+            {renderGroup("Reports", hotelReportsItems, "hotelReports")}
+            <div className="border-t border-slate-800 mx-2" />
+            {renderGroup("Admin / Setup", hotelAdminItems, "hotelAdmin")}
           </>
         ) : isGeneric ? (
           <>

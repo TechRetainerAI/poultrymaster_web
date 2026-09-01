@@ -41,6 +41,26 @@ export interface FeatureAccessPermissions {
   canViewWaterPayroll: boolean
   /** Water: Setup and Company Setup. */
   canViewWaterSetup: boolean
+  /** Hotel: Room inventory, housekeeping, room service. */
+  canViewHotelRooms: boolean
+  /** Hotel: Bookings, check-in/out, guests. */
+  canViewHotelBookings: boolean
+  /** Hotel: Housekeeping tasks. */
+  canViewHotelHousekeeping: boolean
+  /** Hotel: Billing, invoices. */
+  canViewHotelBilling: boolean
+  /** Hotel: Restaurant POS, tables, menu, kitchen. */
+  canViewHotelRestaurant: boolean
+  /** Hotel: Staff management. */
+  canViewHotelStaff: boolean
+  /** Hotel: Payroll runs. */
+  canViewHotelPayroll: boolean
+  /** Hotel: Inventory / supplies. */
+  canViewHotelInventory: boolean
+  /** Hotel: Maintenance requests. */
+  canViewHotelMaintenance: boolean
+  /** Hotel: Setup. */
+  canViewHotelSetup: boolean
 }
 
 export interface UserPermissions {
@@ -90,6 +110,16 @@ const DEFAULT_FEATURE_ACCESS: FeatureAccessPermissions = {
   canViewWaterMaintenance: true,
   canViewWaterPayroll: true,
   canViewWaterSetup: true,
+  canViewHotelRooms: true,
+  canViewHotelBookings: true,
+  canViewHotelHousekeeping: true,
+  canViewHotelBilling: true,
+  canViewHotelRestaurant: true,
+  canViewHotelStaff: true,
+  canViewHotelPayroll: true,
+  canViewHotelInventory: true,
+  canViewHotelMaintenance: true,
+  canViewHotelSetup: true,
 }
 
 /** Staff must be deny-by-default; merging with DEFAULT_FEATURE_ACCESS let missing keys stay "on". */
@@ -113,6 +143,16 @@ const STAFF_FEATURE_BASE: FeatureAccessPermissions = {
   canViewWaterMaintenance: false,
   canViewWaterPayroll: false,
   canViewWaterSetup: false,
+  canViewHotelRooms: false,
+  canViewHotelBookings: false,
+  canViewHotelHousekeeping: false,
+  canViewHotelBilling: false,
+  canViewHotelRestaurant: false,
+  canViewHotelStaff: false,
+  canViewHotelPayroll: false,
+  canViewHotelInventory: false,
+  canViewHotelMaintenance: false,
+  canViewHotelSetup: false,
 }
 
 function toBoolean(value: unknown): boolean | undefined {

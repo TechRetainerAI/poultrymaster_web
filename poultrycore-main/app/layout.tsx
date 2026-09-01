@@ -7,6 +7,7 @@ import { StoreHydration } from '@/components/providers/store-hydration'
 import { FloatingChatWidget } from '@/components/chat/floating-chat-widget'
 import { SubscriptionGuard } from '@/components/auth/subscription-guard'
 import { WaterAccessGuard } from '@/components/auth/water-access-guard'
+import { HotelAccessGuard } from '@/components/auth/hotel-access-guard'
 import { Toaster } from '@/components/ui/toaster'
 import './globals.css'
 
@@ -30,6 +31,7 @@ export default function RootLayout({
           <StoreHydration />
           <SubscriptionGuard />
           <WaterAccessGuard />
+          <HotelAccessGuard />
           {children}
           <FloatingChatWidget />
           <Toaster />

@@ -51,47 +51,99 @@ namespace PoultryFarmAPIWeb.Business
             if (_auditTableByDb.TryGetValue(cacheKey, out var cached))
                 return cached;
 
+            // Prefer the lowercase table when multiple casing variants exist (e.g.
+            // auditlogs AND "AuditLogs"). ORDER BY c.relname DESC puts lowercase first
+            // because lowercase letters sort after uppercase in PostgreSQL's default C
+            // collation. This avoids hitting a legacy PascalCase table that may be
+            // missing columns the code expects.
+            string qualifiedName;
+            string rawRelname;
             using (var resolveCmd = new NpgsqlCommand(@"
-                SELECT c.relname::text
+                SELECT quote_ident(n.nspname) || '.' || quote_ident(c.relname), c.relname
                 FROM pg_class c
                 JOIN pg_namespace n ON n.oid = c.relnamespace
                 WHERE n.nspname = 'public'
                   AND c.relkind IN ('r','p')
                   AND lower(c.relname) = lower(@Name)
+                ORDER BY c.relname DESC
                 LIMIT 1;", conn))
             {
                 resolveCmd.Parameters.AddWithValue("@Name", "auditlogs");
 
-                var result = await resolveCmd.ExecuteScalarAsync();
-                if (result is not string q || string.IsNullOrWhiteSpace(q))
+                using var rdr = await resolveCmd.ExecuteReaderAsync();
+                if (!await rdr.ReadAsync())
                 {
                     throw new InvalidOperationException(
                         "No audit log table found in schema public. Run Migrations/007_AddAuditLogsFarmId.sql or database/create-audit-logs-table.sql. " +
                         "If the table exists under a different letter case, rename it to lowercase auditlogs.");
                 }
 
-                _auditTableByDb[cacheKey] = q;
-                return q;
+                qualifiedName = rdr.GetString(0);
+                rawRelname = rdr.GetString(1);
             }
+
+            // Ensure required columns exist with correct types (older schemas may lack some).
+            try
+            {
+                var cols = new (string name, string type)[] {
+                    ("userid", "TEXT"), ("username", "TEXT"), ("farmid", "TEXT"),
+                    ("action", "TEXT"), ("resource", "TEXT"), ("resourceid", "TEXT"),
+                    ("details", "TEXT"), ("ipaddress", "TEXT"), ("useragent", "TEXT"),
+                    ("timestamp", "TIMESTAMPTZ DEFAULT NOW()"), ("status", "TEXT"),
+                    ("data", "TEXT"),
+                };
+                foreach (var (colName, colType) in cols)
+                {
+                    using var chkCmd = new NpgsqlCommand(@"
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_schema = 'public'
+                          AND table_name = @TableName
+                          AND lower(column_name) = @ColName
+                        LIMIT 1;", conn);
+                    chkCmd.Parameters.AddWithValue("@TableName", rawRelname);
+                    chkCmd.Parameters.AddWithValue("@ColName", colName);
+                    var exists = await chkCmd.ExecuteScalarAsync();
+                    if (exists == null)
+                    {
+                        using var addCmd = new NpgsqlCommand(
+                            $"ALTER TABLE {qualifiedName} ADD COLUMN {colName} {colType} NULL;", conn);
+                        await addCmd.ExecuteNonQueryAsync();
+                    }
+                }
+            }
+            catch { /* best-effort */ }
+
+            _auditTableByDb[cacheKey] = qualifiedName;
+            return qualifiedName;
         }
 
-        private static AuditLogModel MapRow(NpgsqlDataReader reader) =>
-            new AuditLogModel
+        /// <summary>Try to find a column by name (case-insensitive). Returns -1 if not present.</summary>
+        private static int Col(NpgsqlDataReader reader, string name)
+        {
+            try { return reader.GetOrdinal(name); }
+            catch (IndexOutOfRangeException) { return -1; }
+        }
+
+        private static AuditLogModel MapRow(NpgsqlDataReader reader)
+        {
+            var statusVal = Col(reader, "status") >= 0 ? CellString(reader, Col(reader, "status")) : "";
+            return new AuditLogModel
             {
-                Id = reader[0]?.ToString() ?? string.Empty,
-                UserId = CellString(reader, 1),
-                UserName = CellString(reader, 2),
-                FarmId = CellString(reader, 3),
-                Action = CellString(reader, 4),
-                Resource = CellString(reader, 5),
-                ResourceId = CellStringNullable(reader, 6),
-                Details = CellStringNullable(reader, 7),
-                IpAddress = CellStringNullable(reader, 8),
-                UserAgent = CellStringNullable(reader, 9),
-                Timestamp = CellDateTime(reader, 10),
-                Status = string.IsNullOrEmpty(CellString(reader, 11)) ? "Success" : CellString(reader, 11),
-                Data = reader.FieldCount > 12 ? CellStringNullable(reader, 12) : null
+                Id = reader["id"]?.ToString() ?? string.Empty,
+                UserId = Col(reader, "userid") >= 0 ? CellString(reader, Col(reader, "userid")) : string.Empty,
+                UserName = Col(reader, "username") >= 0 ? CellString(reader, Col(reader, "username")) : string.Empty,
+                FarmId = Col(reader, "farmid") >= 0 ? CellString(reader, Col(reader, "farmid")) : string.Empty,
+                Action = Col(reader, "action") >= 0 ? CellString(reader, Col(reader, "action")) : string.Empty,
+                Resource = Col(reader, "resource") >= 0 ? CellString(reader, Col(reader, "resource")) : string.Empty,
+                ResourceId = Col(reader, "resourceid") >= 0 ? CellStringNullable(reader, Col(reader, "resourceid")) : null,
+                Details = Col(reader, "details") >= 0 ? CellStringNullable(reader, Col(reader, "details")) : null,
+                IpAddress = Col(reader, "ipaddress") >= 0 ? CellStringNullable(reader, Col(reader, "ipaddress")) : null,
+                UserAgent = Col(reader, "useragent") >= 0 ? CellStringNullable(reader, Col(reader, "useragent")) : null,
+                Timestamp = Col(reader, "timestamp") >= 0 ? CellDateTime(reader, Col(reader, "timestamp")) : default,
+                Status = string.IsNullOrEmpty(statusVal) ? "Success" : statusVal,
+                Data = Col(reader, "data") >= 0 ? CellStringNullable(reader, Col(reader, "data")) : null,
             };
+        }
 
         public async Task<List<AuditLogModel>> GetAllAsync(string? userId, string? farmId, string? status, DateTime? startDate, DateTime? endDate, int page, int pageSize)
         {
@@ -103,15 +155,16 @@ namespace PoultryFarmAPIWeb.Business
             var table = await ResolveAuditLogsTableNameAsync(conn);
 
             // FarmId: Migrations/007_AddAuditLogsFarmId.sql. Table name: resolved from the catalog above.
+            // Cast timestamp column to timestamptz to handle both text and timestamp column types.
             using var cmd = new NpgsqlCommand($@"
-                SELECT id, userid, username, farmid, action, resource, resourceid, details, ipaddress, useragent, timestamp, status, data
+                SELECT *
                 FROM {table}
-                WHERE (@UserId::text IS NULL OR userid = @UserId::text)
-                  AND (@FarmId::text IS NULL OR farmid = @FarmId::text)
-                  AND (@Status::text IS NULL OR status = @Status::text)
-                  AND (@StartDate::timestamp IS NULL OR timestamp >= @StartDate::timestamp)
-                  AND (@EndDate::timestamp IS NULL OR timestamp <= @EndDate::timestamp)
-                ORDER BY timestamp DESC
+                WHERE (@UserId::text IS NULL OR userid::text = @UserId::text)
+                  AND (@FarmId::text IS NULL OR farmid::text = @FarmId::text)
+                  AND (@Status::text IS NULL OR status::text = @Status::text)
+                  AND (@StartDate::timestamptz IS NULL OR ""timestamp""::timestamptz >= @StartDate::timestamptz)
+                  AND (@EndDate::timestamptz IS NULL OR ""timestamp""::timestamptz <= @EndDate::timestamptz)
+                ORDER BY ""timestamp""::timestamptz DESC
                 OFFSET @Offset::int LIMIT @PageSize::int;", conn);
 
             cmd.Parameters.AddWithValue("@UserId", (object?)userId ?? DBNull.Value);
@@ -142,7 +195,7 @@ namespace PoultryFarmAPIWeb.Business
             var table = await ResolveAuditLogsTableNameAsync(conn);
 
             using var cmd = new NpgsqlCommand($@"
-                SELECT id, userid, username, farmid, action, resource, resourceid, details, ipaddress, useragent, timestamp, status, data
+                SELECT *
                 FROM {table}
                 ORDER BY timestamp DESC
                 LIMIT @Take::int;", conn);
@@ -163,7 +216,7 @@ namespace PoultryFarmAPIWeb.Business
             // lower(...) on both sides reproduces SQL Server's case-insensitive match on the GUID text
             // (SQL Server rendered uniqueidentifier uppercase; PostgreSQL renders uuid lowercase).
             using var cmd = new NpgsqlCommand($@"
-                SELECT id, userid, username, farmid, action, resource, resourceid, details, ipaddress, useragent, timestamp, status, data
+                SELECT *
                 FROM {table}
                 WHERE lower(id::text) = lower(@Id);", conn);
             cmd.Parameters.AddWithValue("@Id", id);

@@ -9,10 +9,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Eye, EyeOff, Lock, User, Building2 } from "lucide-react"
+import { Eye, EyeOff, Lock, User, Building2, Check } from "lucide-react"
 import { login, resolveOrgCode } from "@/lib/api/auth"
 import Link from "next/link"
 import { SuccessModal } from "@/components/auth/success-modal"
+import { FarmIllustration } from "@/components/login/farm-illustration"
 import { useAuthStore } from "@/lib/store/auth-store"
 import {
   resolveActiveCompanyForUser,
@@ -187,23 +188,33 @@ export default function LoginPage() {
     <>
       <div className="min-h-screen flex">
         {/* Left Panel - Illustration */}
-        <div className="hidden lg:flex lg:w-1/2 bg-white items-center justify-center p-12">
-          <div className="max-w-md text-center">
+        <div className="relative hidden lg:flex lg:w-1/2 items-center justify-center overflow-hidden bg-gradient-to-b from-orange-50/60 via-white to-white p-12">
+          {/* soft corner wash, keeps the panel from reading as a blank sheet */}
+          <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-orange-100/50 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-32 -right-16 h-80 w-80 rounded-full bg-emerald-100/40 blur-3xl" />
+
+          <div className="relative w-full max-w-md">
             {/* System Name */}
-            <div className="mb-8">
-              <h1 className="text-4xl font-bold text-slate-900 mb-2">VisibilityCore</h1>
+            <div className="mb-6">
+              <h1 className="mb-2 text-4xl font-bold tracking-tight text-slate-900">VisibilityCore</h1>
               <p className="text-slate-600">Farm Management System</p>
             </div>
-            
-            {/* Farmer Illustration */}
-            <div className="relative">
-              {/* Real farmer image - displayed directly without card */}
-              <img 
-                src="/farmer-illustration.png" 
-                alt="Farmer with watermelon - VisibilityCore" 
-                className="w-full h-96 object-contain"
-              />
-            </div>
+
+            <FarmIllustration className="h-80 w-full" />
+
+            {/* Grounds the panel with what the product actually does */}
+            <ul className="mt-6 space-y-3">
+              {[
+                "Track production, stock and sales in one place",
+                "Costs and expenses reconciled automatically",
+                "Every company in your organisation, one login",
+              ].map((line) => (
+                <li key={line} className="flex items-start gap-3 text-sm text-slate-600">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-orange-500" aria-hidden="true" />
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
 

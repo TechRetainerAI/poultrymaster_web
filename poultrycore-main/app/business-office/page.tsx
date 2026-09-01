@@ -28,6 +28,7 @@ function typeStrip(t: string) {
   if (t === "Water") return "bg-sky-400"
   if (t === "Poultry") return "bg-orange-400"
   if (t === "Generic") return "bg-violet-400"
+  if (t === "Hotel") return "bg-purple-400"
   return "bg-slate-300"
 }
 import { useAuthStore } from "@/lib/store/auth-store"
@@ -52,12 +53,14 @@ function typeIcon(type: string) {
   if (type === "Water") return Droplets
   if (type === "Poultry") return Bird
   if (type === "Generic") return ShoppingBag
+  if (type === "Hotel") return Building2
   return Building2
 }
 function typeTone(type: string) {
   if (type === "Water") return "bg-sky-100 text-sky-700"
   if (type === "Poultry") return "bg-orange-100 text-orange-700"
   if (type === "Generic") return "bg-violet-100 text-violet-700"
+  if (type === "Hotel") return "bg-purple-100 text-purple-700"
   return "bg-slate-100 text-slate-700"
 }
 function annStyle(type: string): { tone: string; icon: any } {
@@ -243,7 +246,7 @@ export default function BusinessOfficePage() {
 
   const counts = useMemo(() => {
     const by = (t: string) => companies.filter((c) => c.type === t).length
-    return { total: companies.length, water: by("Water"), poultry: by("Poultry"), generic: by("Generic") }
+    return { total: companies.length, water: by("Water"), poultry: by("Poultry"), generic: by("Generic"), hotel: by("Hotel") }
   }, [companies])
   const visible = useMemo(() => companies.filter((c) => {
     if (typeFilter !== "all" && c.type !== typeFilter) return false
@@ -299,6 +302,7 @@ export default function BusinessOfficePage() {
           <SummaryTile label="Water" value={loading ? "…" : counts.water} icon={Droplets} tone="text-sky-600" bg="bg-sky-100" />
           <SummaryTile label="Poultry" value={loading ? "…" : counts.poultry} icon={Bird} tone="text-orange-600" bg="bg-orange-100" />
           <SummaryTile label="Generic" value={loading ? "…" : counts.generic} icon={ShoppingBag} tone="text-violet-600" bg="bg-violet-100" />
+          <SummaryTile label="Hotel" value={loading ? "…" : counts.hotel} icon={Building2} tone="text-purple-600" bg="bg-purple-100" />
         </div>
 
         {/* Companies */}
@@ -326,6 +330,7 @@ export default function BusinessOfficePage() {
                   <SelectItem value="Water">Water</SelectItem>
                   <SelectItem value="Poultry">Poultry</SelectItem>
                   <SelectItem value="Generic">Generic</SelectItem>
+                  <SelectItem value="Hotel">Hotel</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -405,7 +410,8 @@ export default function BusinessOfficePage() {
                 <SelectContent>
                   <SelectItem value="Water">Water (sachet / bottled water)</SelectItem>
                   <SelectItem value="Poultry">Poultry farm</SelectItem>
-                  <SelectItem value="Generic">Generic (shop / restaurant / hotel / pharmacy / any business)</SelectItem>
+                  <SelectItem value="Generic">Generic (shop / restaurant / pharmacy / any small business)</SelectItem>
+                  <SelectItem value="Hotel">Hotel (rooms, bookings, front desk, restaurant)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

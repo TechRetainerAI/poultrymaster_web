@@ -107,7 +107,14 @@ BEGIN
                              'spgenericinternalusage_post')
         ORDER  BY p.proname
     LOOP
-        v_def := pg_get_functiondef(r.oid);
+        -- Normalise CRLF to LF before matching. These functions were loaded from
+        -- Windows, so their stored bodies carry \r\n while the anchors below are
+        -- written with \n. Without this the two-line anchors never match and the
+        -- migration aborts claiming the body has drifted, on a body that is in
+        -- fact exactly right. (Diagnosed 2026-08-29: line 1 and line 2 each
+        -- matched individually, the pair did not, and position(E'\r') was > 0.)
+        -- The rewrite below then stores the body with LF endings.
+        v_def := replace(pg_get_functiondef(r.oid), E'\r\n', E'\n');
 
         IF position(c_guard_new in v_def) > 0
            AND position(c_upd_new in v_def) > 0 THEN
