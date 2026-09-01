@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { ArrowLeft, AlertTriangle } from "lucide-react"
+import { ArrowLeft, AlertTriangle, Info } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useFmt, useFarmSettingsStore } from "@/lib/currency"
 import { useLogout } from "@/hooks/use-logout"
@@ -31,7 +31,8 @@ import {
   PoultryReportFilter, type PoultryReportFilterValue,
 } from "@/components/poultry-reports/poultry-report-filter"
 import {
-  PoultryReportSummaryCards, PoultryReportTable, PoultryReportBreakdown, PoultryReportExportButtons,
+  PoultryReportSummaryCards, PoultryReportTable, PoultryReportBreakdown, PoultryReportAnalysis,
+  PoultryReportExportButtons,
   PoultryReportLoadingState, PoultryReportEmptyState, PoultryReportErrorState,
   type SummaryCard,
 } from "@/components/poultry-reports/poultry-report-ui"
@@ -172,6 +173,7 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
       label: c.label,
       value: c.value(data.summary, cardCtx),
       accent: typeof c.accent === "function" ? c.accent(data.summary) : c.accent,
+      note: c.note,
     }))
   }, [data, def, cardCtx])
 
@@ -237,7 +239,7 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
     generatedBy: user?.username || user?.email || undefined,
     currencyLabel,
     orientation: def.columns.length > 8 ? "landscape" : "portrait",
-    summaryCards: cards.map((c) => ({ label: c.label, value: c.value, accent: c.accent as ("green" | "rose" | "indigo" | undefined) })),
+    summaryCards: cards.map((c) => ({ label: c.label, value: c.value, accent: c.accent as ("green" | "rose" | "indigo" | undefined), note: c.note })),
     filtersUsed,
     columns: def.columns.map((c) => ({ header: c.header, align: c.align })),
     rows: rows.map((row) => def.columns.map((c) => c.cell(row, ctx))),
@@ -358,6 +360,20 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
             </div>
           )}
 
+          {/* Notes explain how a figure was built. Deliberately plain — no amber,
+              no warning triangle — because they describe normal things, and the
+              two must not look alike or the real warnings stop registering. */}
+          {data?.notes && data.notes.length > 0 && (
+            <div className="mb-4 rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-xs text-slate-600 space-y-1">
+              {data.notes.map((n, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-slate-400" />
+                  <span className="min-w-0 break-words">{n}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
           {error && <div className="mb-4"><PoultryReportErrorState message={error} onRetry={load} /></div>}
 
           {busy ? (
@@ -419,6 +435,15 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
                 <PoultryReportTable columns={def.columns} rows={rows} ctx={ctx} />
               )}
               {/* Card-style summary panel, not the data table — keeps the symbol. */}
+              {/* Analysis first: it explains the numbers, so it should be read
+                  before the bars that decompose them. */}
+              {def.analysis && data?.summary && (
+                <PoultryReportAnalysis
+                  title={def.analysis.title}
+                  items={def.analysis.items(data.summary, fmtMoney)}
+                />
+              )}
+
               {def.breakdown && data?.summary && !def.tableAsCards && (
                 <PoultryReportBreakdown groups={def.breakdown} summary={data.summary} ctx={cardCtx} />
               )}

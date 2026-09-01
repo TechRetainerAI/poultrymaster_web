@@ -187,6 +187,15 @@ namespace PoultryFarmAPIWeb.Controllers
             return Ok(await _reports.GetCashMovementAsync(filter));
         }
 
+        // 14b
+        [HttpGet("cash-flow-detail")]
+        public async Task<IActionResult> CashFlowDetail([FromQuery] PoultryReportFilterDto filter)
+        {
+            var guard = await EnsurePoultryAsync(filter.FarmId);
+            if (guard is not null) return guard;
+            return Ok(await _reports.GetCashFlowDetailAsync(filter));
+        }
+
         // 15
         [HttpGet("profit-loss-by-flock")]
         public async Task<IActionResult> ProfitLossByFlock([FromQuery] PoultryReportFilterDto filter)

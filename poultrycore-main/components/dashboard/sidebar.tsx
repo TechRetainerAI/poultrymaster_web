@@ -225,6 +225,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const TEMP_SHOW_PAYMENTS_LINK = true
   const financialItems = [
     { href: "/cash-flow", label: "Cash Flow", icon: Wallet },
+    { href: "/cash", label: "Cash", icon: History },
     { href: "/poultry-cash-accounts", label: "Cash Account", icon: Wallet },
     { href: "/poultry-cash-reconciliation", label: "Reconcile cash", icon: Scale },
     { href: "/sales", label: "Sales", icon: ShoppingCart },

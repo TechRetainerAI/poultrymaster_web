@@ -66,6 +66,13 @@ namespace PoultryFarmAPIWeb.Models
         public List<TRow> Rows { get; set; } = new();
         /// <summary>Non-fatal notices, e.g. "Medicine cost is not tracked yet."</summary>
         public List<string> Warnings { get; set; } = new();
+        /// <summary>
+        /// Neutral facts about how a figure was built — NOT problems. Rendered
+        /// plainly rather than as a warning, so ordinary business (money that
+        /// moved without a cash account, say) is explained without implying
+        /// somebody made a mistake.
+        /// </summary>
+        public List<string> Notes { get; set; } = new();
         /// <summary>Echo of the filters actually applied (for the PDF letterhead).</summary>
         public Dictionary<string, string?> AppliedFilters { get; set; } = new();
     }
@@ -499,6 +506,59 @@ namespace PoultryFarmAPIWeb.Models
         public decimal TotalOutflows { get; set; }
         public decimal? EndingBalance { get; set; }
         public decimal NetCashMovement { get; set; }
+    }
+
+    /// <summary>One labelled slice of a money-in or money-out total.</summary>
+    public class PoultryCashFlowBucket
+    {
+        public string Label { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+        /// <summary>Share of its group total, 0-100. Null when the group is zero.</summary>
+        public double? SharePercent { get; set; }
+        public int Movements { get; set; }
+    }
+
+    public class PoultryCashFlowDetailReportSummary
+    {
+        public decimal MoneyIn { get; set; }
+        public decimal MoneyOut { get; set; }
+        public decimal NetCashFlow { get; set; }
+        /// <summary>All time, as-of-now. Does NOT follow the date range.</summary>
+        public decimal CashAtHand { get; set; }
+        public decimal OpeningBalance { get; set; }
+
+        /// <summary>Money that moved without ever reaching a cash account.</summary>
+        public decimal OffLedgerIn { get; set; }
+        public decimal OffLedgerOut { get; set; }
+
+        /// <summary>Between the company's own accounts. Not income, not spending.</summary>
+        public decimal TransferVolume { get; set; }
+
+        public int MovementCount { get; set; }
+        public int DaysInPeriod { get; set; }
+
+        /// <summary>Same-length window immediately before this one, for comparison.</summary>
+        public decimal PreviousMoneyIn { get; set; }
+        public decimal PreviousMoneyOut { get; set; }
+        public decimal PreviousNetCashFlow { get; set; }
+
+        public List<PoultryCashFlowBucket> MoneyInByCategory { get; set; } = new();
+        public List<PoultryCashFlowBucket> MoneyOutByCategory { get; set; } = new();
+    }
+
+    public class PoultryCashFlowDetailReportRow
+    {
+        public DateTime Date { get; set; }
+        public string Category { get; set; } = string.Empty;
+        public string? CashAccount { get; set; }
+        public string SourceType { get; set; } = string.Empty;
+        public string? Reference { get; set; }
+        public string? Description { get; set; }
+        public decimal Inflow { get; set; }
+        public decimal Outflow { get; set; }
+        public decimal RunningBalance { get; set; }
+        /// <summary>True when this movement never reached a cash account.</summary>
+        public bool OffLedger { get; set; }
     }
 
     public class PoultryCashMovementReportRow

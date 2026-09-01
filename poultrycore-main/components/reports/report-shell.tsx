@@ -345,6 +345,9 @@ export function ReportShell({
                   [&_[data-slot=table-head]]:text-xs [&_[data-slot=table-head]]:uppercase [&_[data-slot=table-head]]:tracking-wider
                   [&_[data-slot=table-body]_tr:nth-child(even)]:bg-slate-50/60
                   [&_[data-slot=table-cell]]:py-2.5
+                  [&_[data-slot=table-cell]:not(.text-right)]:whitespace-normal
+                  [&_[data-slot=table-cell]:not(.text-right)]:break-words
+                  [&_[data-slot=table-cell]:not(.text-right)]:align-top
                   print:[&_[data-slot=table-head]]:bg-slate-100
                 ">
                   {children}

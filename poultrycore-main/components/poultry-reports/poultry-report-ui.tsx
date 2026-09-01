@@ -69,7 +69,7 @@ export function PoultryReportErrorState({ message, onRetry }: { message: string;
 }
 
 // --- Summary cards -----------------------------------------------------------
-export interface SummaryCard { label: string; value: string; accent?: Accent }
+export interface SummaryCard { label: string; value: string; accent?: Accent; note?: string }
 
 export function PoultryReportSummaryCards({ cards }: { cards: SummaryCard[] }) {
   if (!cards.length) return null
@@ -100,6 +100,12 @@ export function PoultryReportSummaryCards({ cards }: { cards: SummaryCard[] }) {
             <CardContent className="p-4 pl-5 print:p-3">
               <div className="text-xs uppercase tracking-wider text-slate-500">{card.label}</div>
               <div className={`text-lg sm:text-xl font-semibold tabular-nums mt-1 break-words ${valueCls}`}>{card.value}</div>
+              {/* Scope caveat, for a figure that does not follow the report's
+                  date range. Kept in print — an exported report is the copy
+                  most likely to be read without the filter in view. */}
+              {card.note && (
+                <div className="mt-1 text-[10px] leading-snug text-slate-500 print:text-[8px]">{card.note}</div>
+              )}
             </CardContent>
           </Card>
         )
@@ -140,6 +146,10 @@ export function PoultryReportBreakdown({
     <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4 print:grid-cols-2">
       {groups.map((g) => {
         const barCls = g.accent === "green" ? "bg-emerald-500" : "bg-rose-500"
+        // A derived group can come back empty (no spending in the period at
+        // all). Render nothing rather than an empty titled box.
+        const resolved = typeof g.items === "function" ? g.items(summary) : g.items
+        if (!resolved.length) return null
         return (
           <div key={g.title} className="rounded-lg border border-slate-200 p-4 print:border">
             <div className="flex items-center justify-between mb-3">
@@ -147,7 +157,7 @@ export function PoultryReportBreakdown({
               {g.total && <span className="text-sm font-semibold tabular-nums text-slate-900">{g.total(summary, ctx)}</span>}
             </div>
             <div className="space-y-3">
-              {g.items.map((it) => {
+              {(typeof g.items === "function" ? g.items(summary) : g.items).map((it) => {
                 const pct = it.percent(summary)
                 const width = pct == null ? 0 : Math.min(100, Math.max(0, pct))
                 return (
@@ -169,6 +179,41 @@ export function PoultryReportBreakdown({
           </div>
         )
       })}
+    </div>
+  )
+}
+
+// --- Analysis section --------------------------------------------------------
+// Plain-English readings of the figures. Tone is carried by a left rail and the
+// title colour only — no filled alert boxes, because most of these are ordinary
+// observations and a page of amber panels reads as a page of problems.
+export function PoultryReportAnalysis({
+  title, items,
+}: {
+  title: string
+  items: Array<{ id: string; tone: "good" | "watch" | "neutral"; title: string; detail: string }>
+}) {
+  if (!items.length) return null
+  return (
+    <div className="mt-6 rounded-lg border border-slate-200 p-4 print:border">
+      <h3 className="text-sm font-semibold text-slate-800 mb-3">{title}</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 print:grid-cols-2">
+        {items.map((a) => {
+          const rail =
+            a.tone === "good" ? "bg-emerald-500" :
+            a.tone === "watch" ? "bg-amber-500" : "bg-slate-300"
+          const head =
+            a.tone === "good" ? "text-emerald-800" :
+            a.tone === "watch" ? "text-amber-800" : "text-slate-800"
+          return (
+            <div key={a.id} className="relative rounded-md border border-slate-200 bg-white pl-4 pr-3 py-2.5 overflow-hidden">
+              <div className={`absolute inset-y-0 left-0 w-1 ${rail}`} />
+              <div className={`text-xs font-semibold ${head}`}>{a.title}</div>
+              <div className="mt-1 text-[11px] leading-snug text-slate-600">{a.detail}</div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

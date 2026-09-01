@@ -26,6 +26,8 @@ export interface LedgerEntry {
   transactionDate: string
   transactionType?: string | null
   sourceType?: string | null
+  /** The document this row was posted for. Pairs with sourceType to identify it. */
+  sourceId?: number | null
   /** SIGNED: positive in, negative out. */
   amount: number
   description?: string | null
@@ -177,8 +179,8 @@ const SOURCE_LABELS: Record<string, string> = {
   Expense: "Expenses paid",
   Payroll: "Staff wages",
   RawMaterialPurchase: "Raw materials",
-  Adjustment: "Adjustment",
-  LegacyAdjustment: "Adjustment (recorded before cash accounts)",
+  Adjustment: "Cash account adjustment",
+  LegacyAdjustment: "Cash adjustment",
 
   // Poultry only
   PoultrySupplierPayment: "Supplier payments",
@@ -194,12 +196,30 @@ const SOURCE_LABELS: Record<string, string> = {
   Withdrawal: "Owner draw",
   DailyClosing: "Daily closing",
   Maintenance: "Maintenance",
-  // Kept close to the raw sourceType on purpose. The account ledger page shows
-  // sourceType unlabelled, so anything too friendly here would have the same row
-  // reading two different ways on two screens — and this is the one source type
-  // an operator is most likely to be cross-checking between them.
-  ReconciliationAdjustment: "Reconciliation adjustment",
+  // Held close to the raw sourceType for years because the account ledger
+  // printed sourceType unlabelled, and a friendlier name here would have shown
+  // the same row two ways on two screens. That constraint is gone — the ledger
+  // renders through categoryLabel now — so this can be a real name.
+  ReconciliationAdjustment: "Cash account reconciliation",
   Transfer: "Internal transfer",
+
+  // ---- Adjustment TYPES, as stored by the legacy /Cash table ---------------
+  // These arrive as raw enum values ("OwnerInjection"), and a breakdown that
+  // prints them unmapped reads like a database dump. titleCase would give
+  // "Owner Injection" with a stray capital, so they are spelled out.
+  OwnerInjection: "Owner injection",
+  LoanReceived: "Loan received",
+  OpeningBalance: "Opening balance",
+  Correction: "Correction",
+
+  // ---- Literals already humanised by sppoultrycashflow_detail (233) --------
+  // Mapped anyway so one vocabulary covers both the page and the report, and
+  // "Sales" does not sit beside "Sales collected" on two screens.
+  Sales: "Sales collected",
+  "Supplier payments": "Supplier payments",
+  "Internal transfer": "Internal transfer",
+  // Says WHY the bucket exists, which "Uncategorised" alone does not.
+  Uncategorised: "No category set",
 }
 
 /** Exact values from POULTRY_CASH_REASONS — sppoultrycashaccount_adjust (129:148)
@@ -251,6 +271,44 @@ export function flowLabel(
   // sourceType added later should degrade to a readable name, not disappear
   // from a total the owner is trying to reconcile.
   return { key: source, label: SOURCE_LABELS[source] ?? titleCase(source) }
+}
+
+/**
+ * Human label for a single category or source name.
+ *
+ * The report's categories arrive pre-grouped from SQL (233), so they cannot go
+ * through flowLabel — but they must read the same as the page's buckets or the
+ * two screens name the same money differently. This shares the one vocabulary.
+ *
+ * A farm's own expense categories (Feed, Labor, Utilities) are NOT in the map
+ * and fall through unchanged, which is deliberate: those are the user's words,
+ * and rewriting them would be us overruling their bookkeeping.
+ */
+/**
+ * Is a timestamp inside an inclusive yyyy-mm-dd range?
+ *
+ * Compares the DATE PART as a string, which is what makes it correct: the rows
+ * carry a full timestamp, so `<= toDate` on the raw value silently drops
+ * everything recorded after midnight on the last day of the range. Slicing to
+ * ten characters first sidesteps that, and sidesteps timezone drift with it —
+ * no Date object is constructed, so nothing gets shifted into another day.
+ *
+ * Empty or missing dates are excluded rather than treated as epoch.
+ */
+export function withinRange(
+  value: string | null | undefined,
+  fromDate: string,
+  toDate: string,
+): boolean {
+  const day = (value ?? "").slice(0, 10)
+  if (!day) return false
+  return day >= fromDate && day <= toDate
+}
+
+export function categoryLabel(raw: string | null | undefined): string {
+  const s = (raw ?? "").trim()
+  if (!s) return "Unclassified"
+  return SOURCE_LABELS[s] ?? REASON_LABELS[s] ?? (/[a-z][A-Z]/.test(s) ? titleCase(s) : s)
 }
 
 export function groupByFlow(entries: LedgerEntry[], direction: FlowDirection): FlowBucket[] {
@@ -483,8 +541,6 @@ export interface CashFlowInsightInput {
   weOweSuppliers: number
   topIn: FlowBucket | null
   topOut: FlowBucket | null
-  accountsNeedingAttention: number
-  unlinkedExpenseCount?: number
 }
 
 export interface CashFlowInsight {
@@ -594,25 +650,13 @@ export function buildCashFlowInsights(
     })
   }
 
-  if ((input.unlinkedExpenseCount ?? 0) > 0) {
-    const n = input.unlinkedExpenseCount as number
-    out.push({
-      id: "unlinked-expenses",
-      tone: "warn",
-      headline: "Some spending is missing from this page.",
-      detail: `${n} ${n === 1 ? "expense was" : "expenses were"} recorded without a cash account, so they are not in Money Out. Your real net is lower than shown.`,
-    })
-  }
-
-  if (input.accountsNeedingAttention > 0) {
-    const n = input.accountsNeedingAttention
-    out.push({
-      id: "stale-accounts",
-      tone: "warn",
-      headline: `${n} cash ${n === 1 ? "account needs" : "accounts need"} reconciling.`,
-      detail: "Cash at hand is calculated from what was recorded. Reconciling confirms it matches the money actually there.",
-    })
-  }
+  // Unlinked expenses and accounts needing reconciliation are NOT insights.
+  // They are rendered as alerts in the dialog's "Worth checking first" section,
+  // composed by the page because their links are rail-specific. Emitting them
+  // here too put the same sentence on screen twice, a few centimetres apart.
+  //
+  // The distinction worth keeping: this function says what the numbers MEAN;
+  // the warnings say why the numbers might be WRONG.
 
   return out.slice(0, 6)
 }

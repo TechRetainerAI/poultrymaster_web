@@ -21,6 +21,8 @@ export interface PoultryReportResponse<TSummary = any, TRow = any> {
   summary: TSummary | null
   rows: TRow[]
   warnings: string[]
+  /** Neutral explanations of how a figure was built. Not problems. */
+  notes?: string[]
   appliedFilters: Record<string, string | null>
 }
 
@@ -53,6 +55,7 @@ export type PoultryReportSlug =
   | "supplier-balance"
   | "expense-summary"
   | "cash-movement"
+  | "cash-flow-detail"
   | "profit-loss-by-flock"
   | "profit-loss"
   | "cost-per-egg"

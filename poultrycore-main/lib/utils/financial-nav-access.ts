@@ -18,6 +18,9 @@ export function isFinancialNavItemVisible(
   // page from everyone who can see it today until an admin re-granted it. Same
   // reasoning as cash-reconciliation below.
   if (href === "/cash-flow") return f.canViewCashLedger
+  // The older page, kept alongside it. Same data class, same flag — see the
+  // note on the nav entry for what actually differs between the two.
+  if (href === "/cash") return f.canViewCashLedger
   if (href === "/poultry-cash-accounts") return f.canViewCashLedger
   // Counting cash is a cash-ledger job; it rides the same flag rather than
   // introducing a permission nobody has been granted yet.

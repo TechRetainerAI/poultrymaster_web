@@ -15,7 +15,7 @@
 
 import {
   Activity, AlertTriangle, Banknote, BarChart3, Bell, Bird, BookOpen, Box, Boxes,
-  Building2, Clock, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle,
+  Building2, Clock, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle, History,
   ListTodo, Package, PackageMinus, Pill, Scale, Settings, ShoppingCart, Truck, User, UserCog, Users,
   Users2, Wallet, Wheat,
 } from "lucide-react"
@@ -148,6 +148,10 @@ export function buildPoultryNavConfig(
         label: "Money",
         items: [
           { id: "cash-flow",     title: "Cash Flow",    icon: Wallet,     href: "/cash-flow",              visible: money("/cash-flow") },
+          // The pre-cash-account page, kept while the two are compared. It
+          // counts EVERY sale and expense; Cash Flow counts only what was
+          // linked to a cash account, which is why their totals differ.
+          { id: "cash",          title: "Cash",         icon: History,   href: "/cash",                   visible: money("/cash") },
           { id: "cash-accounts", title: "Cash Account", icon: Wallet,     href: "/poultry-cash-accounts",  visible: money("/poultry-cash-accounts") },
           { id: "cash-reconciliation", title: "Reconcile cash", icon: Scale, href: "/poultry-cash-reconciliation", visible: money("/poultry-cash-reconciliation") },
           { id: "expenses",      title: "Expenses",     icon: DollarSign, href: "/expenses",               visible: money("/expenses") },

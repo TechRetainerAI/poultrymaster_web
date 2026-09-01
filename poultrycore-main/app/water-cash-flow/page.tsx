@@ -44,7 +44,7 @@ import { usePagination } from "@/hooks/use-pagination"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   Wallet, TrendingUp, TrendingDown, Scale, Lightbulb, AlertTriangle, Info,
-  ArrowLeftRight, ExternalLink, Users, Truck,
+  ExternalLink, Users, Truck,
 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
@@ -55,17 +55,16 @@ import { cn } from "@/lib/utils"
 import { defaultReportRange } from "@/lib/date-ranges"
 import { getBalanceSummary, type BalanceSummary } from "@/lib/api/balances"
 import {
-  listWaterCashTransactions, listWaterCashTransfers, getWaterCashAccountCountStatus,
+  listWaterCashTransactions, getWaterCashAccountCountStatus,
   listWaterExpenses,
   adjustWaterCashAccount, WATER_CASH_REASONS,
-  type WaterCashTransaction, type WaterCashTransfer, type WaterCashAccountCountStatus,
+  type WaterCashTransaction, type WaterCashAccountCountStatus, type WaterExpense,
 } from "@/lib/api/water"
 import {
   buildCashFlowInsights, cashByAccount, cashFlowTotals, cashIdentity, calculatedCashAtHand,
-  flowLabel, groupByFlow, isInternalTransfer, summariseTransfers,
+  flowLabel, groupByFlow, isInternalTransfer, withinRange,
   type LedgerEntry,
 } from "@/lib/cash/cash-flow"
-import { FlowBreakdownCard } from "@/components/cash/flow-breakdown-card"
 import { CashFlowInsightsDialog } from "@/components/cash/cash-flow-insights-dialog"
 import { RecordCashAdjustmentDialog } from "@/components/cash/record-cash-adjustment-dialog"
 
@@ -88,10 +87,9 @@ export default function WaterCashFlowPage() {
 
   const [txns, setTxns] = useState<WaterCashTransaction[]>([])
   const [status, setStatus] = useState<WaterCashAccountCountStatus[]>([])
-  const [transfers, setTransfers] = useState<WaterCashTransfer[]>([])
   const [customers, setCustomers] = useState<BalanceSummary | null>(null)
   const [suppliers, setSuppliers] = useState<BalanceSummary | null>(null)
-  const [unlinked, setUnlinked] = useState<{ count: number; total: number }>({ count: 0, total: 0 })
+  const [expenses, setExpenses] = useState<WaterExpense[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
@@ -109,44 +107,34 @@ export default function WaterCashFlowPage() {
 
     // allSettled throughout: six independent reads, and one failing must not
     // blank the other five. A farm with no supplier module still gets its cards.
-    const [txRes, stRes, trRes, custRes, suppRes, expRes] = await Promise.allSettled([
-      listWaterCashTransactions({ fromDate: dateFrom, toDate: dateTo }),
+    const [txRes, stRes, custRes, suppRes, expRes] = await Promise.allSettled([
+      // ALL TIME, both of them, sliced by date in the browser below.
+      //
+      // The breakdown cards cover every movement ever, so the range cannot be
+      // applied at the API. Fetching once and slicing locally also means moving
+      // the date range no longer costs a round trip — the same shape
+      // /cash-flow uses on the poultry rail.
+      listWaterCashTransactions(),
       getWaterCashAccountCountStatus(),
-      listWaterCashTransfers(),
       getBalanceSummary("water", "customer"),
       getBalanceSummary("water", "supplier"),
-      listWaterExpenses({ fromDate: dateFrom, toDate: dateTo }),
+      listWaterExpenses(),
     ])
 
     if (txRes.status === "fulfilled") setTxns(txRes.value ?? [])
     else setError(txRes.reason?.message ?? String(txRes.reason))
 
     setStatus(stRes.status === "fulfilled" ? (stRes.value ?? []) : [])
-    setTransfers(trRes.status === "fulfilled" ? (trRes.value ?? []) : [])
     setCustomers(custRes.status === "fulfilled" ? custRes.value : null)
     setSuppliers(suppRes.status === "fulfilled" ? suppRes.value : null)
 
-    // Expenses with no cash account never reach the ledger, so Money Out
-    // understates and Net Cash Flow flatters the business.
-    //
-    // DIFFERS FROM POULTRY: water expenses have an approval lifecycle, and only
-    // an Approved one is expected to have moved cash. Flagging a Draft would be
-    // a false alarm about money that has not been spent yet. The API already
-    // applied the date range, so there is nothing to filter here but status.
-    if (expRes.status === "fulfilled" && Array.isArray(expRes.value)) {
-      const missing = expRes.value.filter(
-        (e) => e.status === "Approved" && e.waterCashAccountId == null,
-      )
-      setUnlinked({
-        count: missing.length,
-        total: missing.reduce((s, e) => s + (Number(e.amount) || 0), 0),
-      })
-    } else {
-      setUnlinked({ count: 0, total: 0 })
-    }
+    setExpenses(expRes.status === "fulfilled" && Array.isArray(expRes.value) ? expRes.value : [])
 
     setLoading(false)
-  }, [dateFrom, dateTo])
+    // No date dependency on purpose: every fetch above is all-time and the range
+    // is applied downstream, so moving the dates re-slices what is already here
+    // instead of re-reading the whole ledger.
+  }, [])
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Water") { router.replace("/dashboard"); return }
@@ -168,9 +156,53 @@ export default function WaterCashFlowPage() {
     amount: t.amount,
     description: t.description,
   })), [txns])
-  const totals = useMemo(() => cashFlowTotals(entries), [entries])
+  /**
+   * Expenses with no cash account never reach the ledger, so Money Out
+   * understates and Net Cash Flow flatters the business.
+   *
+   * DIFFERS FROM POULTRY: water expenses have an approval lifecycle, and only an
+   * Approved one is expected to have moved cash. Flagging a Draft would be a
+   * false alarm about money that has not been spent yet.
+   *
+   * Credit expenses are EXCLUDED, and that is the point. Water requires a cash
+   * account unless the payment method is Credit (app/water-expenses/page.tsx:174),
+   * so "no account" here means "bought on credit, not yet paid" — no cash has
+   * moved and Money Out is right to leave it out. Counting them would report
+   * correct data as a problem.
+   *
+   * The date range is applied HERE rather than by the API, because the fetch had
+   * to go all-time for the breakdowns. Without this filter the warning would
+   * count every unlinked expense the farm has ever had.
+   */
+  const unlinked = useMemo(() => {
+    const missing = expenses.filter(
+      (e) => e.status === "Approved"
+        && e.waterCashAccountId == null
+        && e.paymentMethod !== "Credit"
+        && withinRange(e.expenseDate, dateFrom, dateTo),
+    )
+    return {
+      count: missing.length,
+      total: missing.reduce((s, e) => s + (Number(e.amount) || 0), 0),
+    }
+  }, [expenses, dateFrom, dateTo])
+
+  /** The selected period. `entries` stays all-time — see the fetch above. */
+  const periodEntries = useMemo(
+    () => entries.filter((e) => withinRange(e.transactionDate, dateFrom, dateTo)),
+    [entries, dateFrom, dateTo],
+  )
+
+  const totals = useMemo(() => cashFlowTotals(periodEntries), [periodEntries])
+
+  /**
+   * ALL TIME, unlike the figures above. Where money has come from and gone is a
+   * question about the business, not about the range someone has selected; the
+   * cards are labelled "all time" so the two scopes cannot be confused.
+   */
   const inBuckets = useMemo(() => groupByFlow(entries, "in"), [entries])
   const outBuckets = useMemo(() => groupByFlow(entries, "out"), [entries])
+  const allTimeTotals = useMemo(() => cashFlowTotals(entries), [entries])
   const accountRows = useMemo(() => cashByAccount(status.map((a) => ({
     accountId: a.waterCashAccountId,
     accountName: a.accountName,
@@ -196,18 +228,56 @@ export default function WaterCashFlowPage() {
     [openingTotal, totals, cashAtHand],
   )
 
-  const transferSummary = useMemo(
-    () => summariseTransfers(transfers.map((t) => ({
-      id: t.waterCashTransferId,
-      fromAccountName: t.fromAccountName,
-      toAccountName: t.toAccountName,
-      transferDate: t.transferDate,
-      amount: t.amount,
-      status: t.status,
-    })), { from: dateFrom, to: dateTo }),
-    [transfers, dateFrom, dateTo],
-  )
   const attention = accountRows.filter((a) => a.needsAttention)
+
+  /**
+   * Everything that makes the headline figures less trustworthy, composed here
+   * rather than in the dialog because the links are rail-specific. `count` drives
+   * the badge on the button; `node` is rendered verbatim inside Insights.
+   */
+  const warnings = useMemo(() => {
+    const items: React.ReactNode[] = []
+    if (cashAtHand < 0) {
+      items.push(
+        <Alert key="negative" className="border-rose-200 bg-rose-50 py-2">
+          <AlertTriangle className="h-4 w-4 text-rose-700" />
+          <AlertDescription className="text-xs text-rose-900">
+            <b>Calculated Cash at Hand is negative.</b> That usually means opening balances were never
+            entered, expenses were recorded before the cash that funded them, a wrong cash account was
+            chosen, or owner contributions and collections were not recorded.{" "}
+            <Link href="/water-cash-accounts" className="underline">Review cash accounts</Link>.
+          </AlertDescription>
+        </Alert>,
+      )
+    }
+    if (unlinked.count > 0) {
+      items.push(
+        <Alert key="unlinked" className="border-amber-200 bg-amber-50 py-2">
+          <AlertTriangle className="h-4 w-4 text-amber-700" />
+          <AlertDescription className="text-xs text-amber-900">
+            {unlinked.count} {unlinked.count === 1 ? "expense" : "expenses"} totalling{" "}
+            {gh(unlinked.total)} {unlinked.count === 1 ? "was" : "were"} recorded without a cash
+            account, so Money Out does not include {unlinked.count === 1 ? "it" : "them"} — your real
+            net is lower than shown.{" "}
+            <Link href="/water-expenses" className="underline">Open Expenses</Link> to link{" "}
+            {unlinked.count === 1 ? "it" : "them"}.
+          </AlertDescription>
+        </Alert>,
+      )
+    }
+    if (attention.length > 0) {
+      items.push(
+        <Alert key="attention" className="border-sky-200 bg-sky-50 py-2">
+          <Info className="h-4 w-4 text-sky-700" />
+          <AlertDescription className="text-xs text-sky-900">
+            {attention.length} of {accountRows.length} cash accounts need reconciling.{" "}
+            <Link href="/water-cash-reconciliation" className="underline">Reconcile cash</Link>.
+          </AlertDescription>
+        </Alert>,
+      )
+    }
+    return { count: items.length, node: items.length ? <>{items}</> : null }
+  }, [cashAtHand, unlinked, attention.length, accountRows.length, gh])
 
   const insights = useMemo(() => buildCashFlowInsights({
     periodLabel: "This period",
@@ -218,23 +288,21 @@ export default function WaterCashFlowPage() {
     weOweSuppliers: suppliers?.totalBalance ?? 0,
     topIn: inBuckets[0] ?? null,
     topOut: outBuckets[0] ?? null,
-    accountsNeedingAttention: attention.length,
-    unlinkedExpenseCount: unlinked.count,
-  }, gh), [dateFrom, dateTo, totals, cashAtHand, customers, suppliers, inBuckets, outBuckets, attention.length, unlinked.count, gh])
+  }, gh), [dateFrom, dateTo, totals, cashAtHand, customers, suppliers, inBuckets, outBuckets, gh])
 
   // ---- transaction history --------------------------------------------------
   const sourceOptions = useMemo(() => {
     const seen = new Map<string, string>()
-    for (const t of entries) {
+    for (const t of periodEntries) {
       if (isInternalTransfer(t)) continue
       const { key, label } = flowLabel(t.sourceType, t.description)
       if (!seen.has(key)) seen.set(key, label)
     }
     return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]))
-  }, [entries])
+  }, [periodEntries])
 
   const history = useMemo(() => {
-    const rows = entries
+    const rows = periodEntries
       .filter((t) => showTransfers || !isInternalTransfer(t))
       .filter((t) => directionFilter === "ALL"
         || (directionFilter === "in" ? t.amount > 0 : t.amount < 0))
@@ -250,7 +318,7 @@ export default function WaterCashFlowPage() {
     })
     let running = 0
     return asc.map((r) => { running += r.amount; return { ...r, running } }).reverse()
-  }, [entries, showTransfers, directionFilter, sourceFilter])
+  }, [periodEntries, showTransfers, directionFilter, sourceFilter])
 
   const visible = useMemo(
     () => filterByDateAndSearch(history, {
@@ -301,6 +369,13 @@ export default function WaterCashFlowPage() {
               <Button size="sm" variant="outline" className="whitespace-nowrap"
                       onClick={() => setInsightsOpen(true)} disabled={loading}>
                 <Lightbulb className="h-4 w-4 mr-1" /> Cash Flow Insights
+                {/* Without this the warnings would be genuinely hidden rather
+                    than relocated — the badge is what makes moving them safe. */}
+                {warnings.count > 0 && (
+                  <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-semibold text-white">
+                    {warnings.count}
+                  </span>
+                )}
               </Button>
               {canAdjust && (
                 <Button size="sm" className="whitespace-nowrap" onClick={() => setAdjustOpen(true)}>
@@ -356,15 +431,15 @@ export default function WaterCashFlowPage() {
                       tip="Money In minus Money Out for the selected date range. Positive means the business brought in more cash than it spent." />
                 <Tile label="Customer Balances"
                       value={customers ? gh(customers.totalBalance) : "—"}
-                      note={customers ? `${customers.partyCount} customers owing` : "Current balance"}
-                      href="/water-customer-balances" icon={<Users className="h-3.5 w-3.5" />}
+                      note={customers ? `All time · ${customers.partyCount} customers owing` : "All time"}
+                      icon={<Users className="h-3.5 w-3.5" />}
                       tip="Total unpaid or partially paid customer sales. This is money customers still owe the company." />
                 <Tile label="Supplier Balances"
                       value={suppliers ? gh(suppliers.totalBalance) : "—"}
-                      note={suppliers ? `${suppliers.partyCount} suppliers owed` : "Current balance"}
-                      href="/water-supplier-balances" icon={<Truck className="h-3.5 w-3.5" />}
+                      note={suppliers ? `All time · ${suppliers.partyCount} suppliers owed` : "All time"}
+                      icon={<Truck className="h-3.5 w-3.5" />}
                       tip="Total unpaid or partially paid purchases. This is money the company still owes suppliers." />
-                <Tile label="Calculated Cash at Hand" value={gh(cashAtHand)} note="Across all cash accounts"
+                <Tile label="Calculated Cash at Hand" value={gh(cashAtHand)} note="All time"
                       tone={cashAtHand < 0 ? "text-rose-700" : undefined}
                       tip="This is calculated from recorded cash-account transactions. It may be wrong if sales, expenses, owner contributions, transfers, withdrawals or reconciliations were not recorded correctly. Reconcile cash accounts regularly to confirm the real available cash." />
               </div>
@@ -388,162 +463,25 @@ export default function WaterCashFlowPage() {
                 </div>
               </div>
 
-              {cashAtHand < 0 && (
-                <Alert className="border-rose-200 bg-rose-50 py-2">
-                  <AlertTriangle className="h-4 w-4 text-rose-700" />
-                  <AlertDescription className="text-xs text-rose-900">
-                    <b>Calculated Cash at Hand is negative.</b> That usually means opening balances were
-                    never entered, expenses were recorded before the cash that funded them, a wrong cash
-                    account was chosen, or owner contributions and collections were not recorded.{" "}
-                    <Link href="/water-cash-accounts" className="underline">Review cash accounts</Link>.
-                  </AlertDescription>
-                </Alert>
-              )}
+              {/* The warnings and the two breakdowns used to sit here. They moved
+                  into Cash Flow Insights: on a page whose job is to state the
+                  position, three alerts above the content made every visit read
+                  like something was wrong. The button that opens them is the
+                  first action in the header, and it carries a count when any are
+                  live — so nothing is buried, it is just one click away. */}
 
-              {unlinked.count > 0 && (
-                <Alert className="border-amber-200 bg-amber-50 py-2">
-                  <AlertTriangle className="h-4 w-4 text-amber-700" />
-                  <AlertDescription className="text-xs text-amber-900">
-                    {unlinked.count} {unlinked.count === 1 ? "expense" : "expenses"} totalling{" "}
-                    {gh(unlinked.total)} {unlinked.count === 1 ? "was" : "were"} recorded without a cash
-                    account, so Money Out does not include {unlinked.count === 1 ? "it" : "them"} — your
-                    real net is lower than shown.{" "}
-                    <Link href="/water-expenses" className="underline">Open Expenses</Link> to link{" "}
-                    {unlinked.count === 1 ? "it" : "them"}.
-                  </AlertDescription>
-                </Alert>
-              )}
+              {/* Cash by Account moved to the cash accounts page. Per-account
+                  balances belong where accounts are managed — and, more to the
+                  point, next to Recalculate, which is the fix when the calculated
+                  balance and the stored one disagree. This page keeps the company
+                  figure; Calculated Cash at Hand above links through to the detail. */}
 
-              {attention.length > 0 && (
-                <Alert className="border-sky-200 bg-sky-50 py-2">
-                  <Info className="h-4 w-4 text-sky-700" />
-                  <AlertDescription className="text-xs text-sky-900">
-                    {attention.length} of {accountRows.length} cash accounts need reconciling.{" "}
-                    <Link href="/water-cash-reconciliation" className="underline">Reconcile cash</Link>.
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              <div className="grid gap-3 lg:grid-cols-2">
-                <FlowBreakdownCard
-                  title="Money In by Source" direction="in" buckets={inBuckets}
-                  total={totals.moneyIn} fmtMoney={gh}
-                  description="Where the money came from. Internal transfers excluded."
-                  emptyText="No money came in during this period."
-                />
-                <FlowBreakdownCard
-                  title="Money Out by Use" direction="out" buckets={outBuckets}
-                  total={totals.moneyOut} fmtMoney={gh}
-                  description="Where the money went. Internal transfers excluded."
-                  emptyText="No money went out during this period."
-                />
-              </div>
-
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Cash by Account</CardTitle>
-                  <CardDescription className="text-xs">
-                    Calculated from each account's transactions. Totals {gh(cashAtHand)}.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {accountRows.length === 0 ? (
-                    <p className="py-6 text-center text-sm text-slate-500">
-                      No cash accounts yet. <Link href="/water-cash-accounts" className="underline">Create one</Link>.
-                    </p>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Account</TableHead>
-                            <TableHead>Type</TableHead>
-                            <TableHead className="text-right">Calculated balance</TableHead>
-                            <TableHead className="text-right">Share</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {accountRows.map((a) => (
-                            <TableRow key={a.accountId}>
-                              <TableCell className="font-medium">
-                                {a.accountName}
-                                {!a.isActive && <Badge className="ml-2 bg-amber-100 text-amber-700">Inactive</Badge>}
-                              </TableCell>
-                              <TableCell className="text-slate-600">{a.accountType ?? "—"}</TableCell>
-                              <TableCell className={cn("text-right tabular-nums font-medium",
-                                                       a.ledgerBalance < 0 && "text-rose-700")}>
-                                {gh(a.ledgerBalance)}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums text-slate-500">{a.sharePercent}%</TableCell>
-                              <TableCell className="text-xs">
-                                {a.needsAttention
-                                  ? <span className="text-amber-700">{a.attentionReason}</span>
-                                  : <span className="text-emerald-700">Reconciled {a.daysSinceReconciled}d ago</span>}
-                              </TableCell>
-                              <TableCell className="text-right whitespace-nowrap">
-                                <Button asChild size="sm" variant="ghost">
-                                  <Link href={`/water-cash-accounts/${a.accountId}`}>View</Link>
-                                </Button>
-                                <Button asChild size="sm" variant="ghost">
-                                  <Link href={`/water-cash-reconciliation?accountId=${a.accountId}`}>
-                                    Reconcile
-                                  </Link>
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <ArrowLeftRight className="h-4 w-4 text-slate-500" /> Internal Transfers
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Transfers between company cash accounts. Excluded from Money In, Money Out and Net
-                    Cash Flow, because they are not new money received or money spent outside the company.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {transferSummary.rows.length === 0 ? (
-                    <p className="py-6 text-center text-sm text-slate-500">
-                      No transfers between accounts in this period.
-                    </p>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Date</TableHead>
-                            <TableHead>From</TableHead>
-                            <TableHead>To</TableHead>
-                            <TableHead className="text-right">Amount</TableHead>
-                            <TableHead>Status</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {transferSummary.rows.map((t) => (
-                            <TableRow key={t.id}>
-                              <TableCell className="whitespace-nowrap">{(t.transferDate ?? "").split("T")[0]}</TableCell>
-                              <TableCell>{t.fromAccountName ?? "—"}</TableCell>
-                              <TableCell>{t.toAccountName ?? "—"}</TableCell>
-                              <TableCell className="text-right tabular-nums">{gh(t.amount)}</TableCell>
-                              <TableCell><Badge variant="outline">{t.status}</Badge></TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              {/* Internal Transfers had a table here. Removed: a transfer is not
+                  cash flow — it is the same money in a different pocket, which is
+                  why it is excluded from every total above. Listing it on this
+                  page invited reading it as movement. It is still reachable two
+                  ways: the Include transfers toggle on the history below, and
+                  the cash accounts page, where transfers are actually made. */}
 
               <Card>
                 <CardHeader className="pb-2">
@@ -668,8 +606,11 @@ export default function WaterCashFlowPage() {
         periodLabel={`${dateFrom} to ${dateTo}`}
         totals={totals}
         insights={insights}
-        topIn={inBuckets.slice(0, 5)}
-        topOut={outBuckets.slice(0, 5)}
+        inBuckets={inBuckets}
+        outBuckets={outBuckets}
+        breakdownTotals={allTimeTotals}
+        breakdownScope="all-time"
+        warnings={warnings.node}
         fmtMoney={gh}
       />
 
