@@ -12,7 +12,7 @@ import { Search, Download, FileText, Filter, ChevronDown, ChevronUp } from "luci
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { useAuth } from "@/lib/hooks/use-auth"
 import { AuditLogsService } from "@/lib/services/audit-logs.service"
-import { getUserContext } from "@/lib/utils/user-context"
+import { useAuthStore } from "@/lib/store/auth-store"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -48,6 +48,7 @@ export default function AuditLogsPage() {
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [showAllColumnsMobile, setShowAllColumnsMobile] = useState(false)
   const isMobile = useIsMobile()
+  const activeFarmId = useAuthStore((s) => s.activeFarmId)
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<SortDirection>(null)
   const [filterAction, setFilterAction] = useState("All")
@@ -109,9 +110,9 @@ export default function AuditLogsPage() {
            console.log("Synced token with apiClient")
          }
          
-         // Get farmId from user context
-        const { farmId } = getUserContext()
-         
+         // Use the active farm from the auth store (reactive to company switches)
+         const farmId = activeFarmId || localStorage.getItem("farmId") || ""
+
          if (!farmId) {
            clearDeadline()
            setError("Farm ID not found. Please log in again.")
@@ -158,9 +159,9 @@ export default function AuditLogsPage() {
        }
     }
 
-    // Always attempt to load, even if user context hasn't hydrated yet
+    // Re-fetch when user or active company changes
     fetchLogs()
-  }, [user])
+  }, [user, activeFarmId])
 
   // Options come from the rows actually loaded, so they always match what the
   // table can show.
