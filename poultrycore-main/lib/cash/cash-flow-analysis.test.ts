@@ -233,3 +233,68 @@ describe("buildCashFlowAnalysis", () => {
     }), fmt)).not.toThrow()
   })
 })
+
+describe("operating vs financing", () => {
+  it("says nothing about funding when the groups are absent", () => {
+    // Callers with only totals must not get an invented self-funding claim.
+    const got = ids({ moneyIn: 1000, moneyOut: 400, netCashFlow: 600 })
+    expect(got).not.toContain("operating-self-funding")
+    expect(got).not.toContain("operating-shortfall")
+  })
+
+  it("credits the business when trading covered its own costs", () => {
+    const i = byId({
+      moneyIn: 1000, moneyOut: 400, netCashFlow: 600,
+      operatingIn: 1000, operatingOut: 400,
+    }, "operating-self-funding")
+    expect(i?.tone).toBe("good")
+    expect(i?.detail).toContain("no capital needed")
+  })
+
+  it("does not credit trading for money the owner put in", () => {
+    // The whole point of the split: net is +600, but trading LOST 200 and only
+    // looks healthy because 800 of capital arrived.
+    const got = buildCashFlowAnalysis(make({
+      moneyIn: 1000, moneyOut: 400, netCashFlow: 600,
+      operatingIn: 200, operatingOut: 400, financingIn: 800,
+    }), fmt)
+    const shortfall = got.find((x) => x.id === "operating-shortfall")
+    expect(shortfall).toBeDefined()
+    expect(shortfall?.tone).toBe("watch")
+    expect(shortfall?.detail).toContain("funded rather than earned")
+    expect(got.map((x) => x.id)).not.toContain("operating-self-funding")
+  })
+
+  it("says when capital did not fully cover the shortfall", () => {
+    const i = byId({
+      moneyIn: 300, moneyOut: 900, netCashFlow: -600,
+      operatingIn: 200, operatingOut: 900, financingIn: 100,
+    }, "operating-shortfall")
+    expect(i?.detail).toContain("which did not cover it")
+  })
+
+  it("reports capital withdrawn as neutral, not as a cost", () => {
+    const i = byId({
+      moneyIn: 1000, moneyOut: 700, netCashFlow: 300,
+      operatingIn: 1000, operatingOut: 400, financingOut: 300,
+    }, "capital-out")
+    expect(i?.tone).toBe("neutral")
+    expect(i?.detail).toContain("not a cost of running the business")
+  })
+
+  it("omits the withdrawal reading when none were taken", () => {
+    expect(ids({
+      moneyIn: 1000, moneyOut: 400, netCashFlow: 600,
+      operatingIn: 1000, operatingOut: 400,
+    })).not.toContain("capital-out")
+  })
+
+  it("puts the funding reading directly after the net position", () => {
+    const got = ids({
+      moneyIn: 1000, moneyOut: 400, netCashFlow: 600,
+      operatingIn: 1000, operatingOut: 400,
+    })
+    expect(got[0]).toBe("net-positive")
+    expect(got[1]).toBe("operating-self-funding")
+  })
+})

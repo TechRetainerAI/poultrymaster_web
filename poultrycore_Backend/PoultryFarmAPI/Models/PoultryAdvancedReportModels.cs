@@ -523,15 +523,25 @@ namespace PoultryFarmAPIWeb.Models
         public decimal MoneyIn { get; set; }
         public decimal MoneyOut { get; set; }
         public decimal NetCashFlow { get; set; }
-        /// <summary>All time, as-of-now. Does NOT follow the date range.</summary>
+        /// <summary>
+        /// Closing cash: OpeningBalance + MoneyIn - MoneyOut, from the same
+        /// transactions. NOT the sum of cash account balances, and not expected
+        /// to equal it -- that comparison is what reconciliation is for.
+        /// </summary>
         public decimal CashAtHand { get; set; }
+        /// <summary>Everything eligible recorded before the period started.</summary>
         public decimal OpeningBalance { get; set; }
 
-        /// <summary>Money that moved without ever reaching a cash account.</summary>
+        /// <summary>Trading: what the business earned and spent.</summary>
+        public decimal OperatingIn { get; set; }
+        public decimal OperatingOut { get; set; }
+        /// <summary>Capital: money put in or taken out by owners and lenders.</summary>
+        public decimal FinancingIn { get; set; }
+        public decimal FinancingOut { get; set; }
+
+        /// <summary>Retired with migration 235; the ledger is no longer read.</summary>
         public decimal OffLedgerIn { get; set; }
         public decimal OffLedgerOut { get; set; }
-
-        /// <summary>Between the company's own accounts. Not income, not spending.</summary>
         public decimal TransferVolume { get; set; }
 
         public int MovementCount { get; set; }
@@ -557,14 +567,22 @@ namespace PoultryFarmAPIWeb.Models
         public decimal Inflow { get; set; }
         public decimal Outflow { get; set; }
         public decimal RunningBalance { get; set; }
-        /// <summary>True when this movement never reached a cash account.</summary>
+        /// <summary>OperatingIn | OperatingOut | FinancingIn | FinancingOut.</summary>
+        public string FlowGroup { get; set; } = string.Empty;
+        /// <summary>Retired with migration 235; always false.</summary>
         public bool OffLedger { get; set; }
     }
 
     public class PoultryCashMovementReportRow
     {
         public DateTime Date { get; set; }
-        public string? CashAccount { get; set; }
+        /// <summary>
+        /// Trading or capital. Replaced CashAccount in migration 237: the report
+        /// no longer reads cash accounts, so naming one would be fiction.
+        /// </summary>
+        public string FlowGroup { get; set; } = string.Empty;
+        /// <summary>What the money was for.</summary>
+        public string Category { get; set; } = string.Empty;
         public string SourceType { get; set; } = string.Empty;
         public string? Reference { get; set; }
         public string? Description { get; set; }

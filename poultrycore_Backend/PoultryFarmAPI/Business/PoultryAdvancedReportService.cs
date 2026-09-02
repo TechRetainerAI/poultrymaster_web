@@ -959,6 +959,7 @@ namespace PoultryFarmAPIWeb.Business
                         Description = Str(r, "description"),
                         Inflow = amount > 0 ? amount : 0m,
                         Outflow = amount < 0 ? -amount : 0m,
+                        FlowGroup = Str(r, "flowgroup") ?? "",
                         OffLedger = offLedger,
                         // Transfers ride along as rows so the detail stays a
                         // complete record, but they are excluded from every total
@@ -1004,17 +1005,23 @@ namespace PoultryFarmAPIWeb.Business
                 PreviousMoneyIn = prev.In,
                 PreviousMoneyOut = prev.Out,
                 PreviousNetCashFlow = prev.In - prev.Out,
+                OperatingIn  = real.Where(x => x.FlowGroup == "OperatingIn").Sum(x => x.Inflow),
+                OperatingOut = real.Where(x => x.FlowGroup == "OperatingOut").Sum(x => x.Outflow),
+                FinancingIn  = real.Where(x => x.FlowGroup == "FinancingIn").Sum(x => x.Inflow),
+                FinancingOut = real.Where(x => x.FlowGroup == "FinancingOut").Sum(x => x.Outflow),
                 MoneyInByCategory = Bucket(real, x => x.Inflow),
                 MoneyOutByCategory = Bucket(real, x => x.Outflow),
             };
 
-            var offLedgerTotal = cur.OffIn + cur.OffOut;
-            if (offLedgerTotal > 0)
+            // Said once, on every run: the figures here and the cash accounts page
+            // now come from independent sources, so they are not expected to match.
+            // Without this, the first person to compare them reports a bug.
+            resp.Notes.Add("These figures come from sales, expenses and capital records, not from cash account balances. Closing cash is not expected to match what the accounts hold — comparing the two is what reconciliation is for.");
+
+            var capital = resp.Summary.FinancingIn + resp.Summary.FinancingOut;
+            if (capital > 0)
             {
-                // A note, not a warning: money moving without a cash account is
-                // ordinary business, and flagging it as a fault sent people
-                // hunting for a mistake that was not there.
-                resp.Notes.Add($"{offLedgerTotal:N2} of this movement was not posted to a cash account — typically owner injections, or expenses paid without choosing one. It is included in the totals above, but is in no account balance.");
+                resp.Notes.Add($"Includes {capital:N2} of capital — money put in or taken out by owners and lenders. That is not trading income or spending, so judge performance on the operating figures.");
             }
 
             var uncategorised = real.Where(x => string.Equals(x.Category, "Uncategorised",
@@ -1110,11 +1117,12 @@ namespace PoultryFarmAPIWeb.Business
                     resp.Rows.Add(new PoultryCashMovementReportRow
                     {
                         Date = DateN(r, "Date") ?? start,
-                        // Was the literal "Farm cash" on every row, because the
-                        // old body had no account to report. Migration 232 points
-                        // rs2 at the cash ledger, so this is now the real account
-                        // — or "No cash account" for money that never reached one.
-                        CashAccount = Str(r, "cashaccount") ?? "—",
+                        // Was an account name until migration 237. This report is
+                        // now built on the transactions themselves, so what it can
+                        // honestly report is whether the movement was trading or
+                        // capital, and what the money was for.
+                        FlowGroup = Str(r, "flowgroup") ?? "—",
+                        Category = Str(r, "category") ?? "—",
                         SourceType = Str(r, "SourceType") ?? "—",
                         Reference = Str(r, "Reference"),
                         Description = Str(r, "Description"),
@@ -1137,18 +1145,20 @@ namespace PoultryFarmAPIWeb.Business
                 EndingBalance = opening + inflows - outflows,
                 NetCashMovement = inflows - outflows,
             };
-            // A NOTE, not a warning. Money can move without touching a cash
-            // account for perfectly ordinary reasons — a vet paid out of pocket,
-            // an owner injection that arrives before anyone decides which account
-            // holds it. Flagging that as a problem sent people looking for a
-            // mistake that was not there. It still gets said, because it is why
-            // this report can differ from the cash accounts page.
-            var offLedger = resp.Rows
-                .Where(x => string.Equals(x.CashAccount, "No cash account", StringComparison.OrdinalIgnoreCase))
+            // Said on every run, because the first person to compare this with the
+            // cash accounts page will otherwise report a bug. Migration 237 made
+            // the two independent on purpose.
+            resp.Notes.Add("Built from sales, expenses and capital records rather than cash account balances. The ending figure is what these records say you should hold — comparing it with what your accounts actually hold is what reconciliation is for.");
+
+            // Capital is not a fault and not a cost; it is simply a different kind
+            // of movement, and judging trading performance without separating it
+            // out is how a funded month reads as a profitable one.
+            var capital = resp.Rows
+                .Where(x => x.FlowGroup.StartsWith("Financing", StringComparison.OrdinalIgnoreCase))
                 .Sum(x => x.Inflow + x.Outflow);
-            if (offLedger > 0)
+            if (capital > 0)
             {
-                resp.Notes.Add($"{offLedger:N2} of this movement was not posted to a cash account — typically owner injections, or expenses paid without choosing one. It is included in the totals above, but is in no account balance, so reconciliation will not see it.");
+                resp.Notes.Add($"Includes {capital:N2} of capital — money put in or taken out by owners and lenders. It moves cash but is not trading income or spending.");
             }
             return resp;
         }

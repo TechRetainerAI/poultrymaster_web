@@ -91,6 +91,9 @@ builder.Services.AddScoped<IPoultryPaymentService>(sp => new PoultryPaymentServi
 // Customer Balances / Supplier Balances — the payment allocation control pages
 // (migrations 222–224).
 builder.Services.AddScoped<IPoultryBalanceService>(sp => new PoultryBalanceService(connectionString));
+// Cash Flow: one service, both rails. Reads the transaction-sourced cash-flow
+// functions (migrations 235/236), never the cash-account ledger.
+builder.Services.AddScoped<ICashFlowService>(sp => new CashFlowService(connectionString));
 builder.Services.AddScoped<IWaterBalanceService>(sp => new WaterBalanceService(connectionString));
 
 builder.Services.AddScoped<IHouseService>(sp => new HouseService(connectionString));
