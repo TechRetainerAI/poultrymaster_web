@@ -37,6 +37,15 @@ export interface CashFlowBucket {
 export interface CashFlowAnalysisInput {
   moneyIn: number
   moneyOut: number
+  /**
+   * The four flow groups. Optional so callers that only have totals still work;
+   * when present they unlock the reading that matters most in a cash flow —
+   * whether the business funded itself or was funded.
+   */
+  operatingIn?: number
+  operatingOut?: number
+  financingIn?: number
+  financingOut?: number
   netCashFlow: number
   cashAtHand: number
   offLedgerIn: number
@@ -117,6 +126,51 @@ export function buildCashFlowAnalysis(
       tone: "watch",
       title: `Spent ${fmt(gap)} more than came in`,
       detail: `${fmt(s.moneyOut)} went out against ${fmt(s.moneyIn)} in. The gap was covered by cash already held, so the balance fell rather than the business stopping.`,
+    })
+  }
+
+  // ---- 1b. Did the business fund itself? ----------------------------------
+  // The single most useful thing a cash flow can say, and the reason operating
+  // and financing are separated at all. A month that looks healthy on the net
+  // figure alone can be a month the owner paid for.
+  const opIn = s.operatingIn ?? 0
+  const opOut = s.operatingOut ?? 0
+  const finIn = s.financingIn ?? 0
+  const finOut = s.financingOut ?? 0
+  const hasGroups = opIn + opOut + finIn + finOut > 0
+
+  if (hasGroups) {
+    const operatingNet = opIn - opOut
+    if (operatingNet >= 0) {
+      out.push({
+        id: "operating-self-funding",
+        tone: "good",
+        title: `Trading covered its own costs, with ${fmt(operatingNet)} left`,
+        detail: finIn > 0
+          ? `${fmt(opIn)} earned against ${fmt(opOut)} spent. ${fmt(finIn)} of capital also came in, but the business did not need it to cover trading.`
+          : `${fmt(opIn)} earned against ${fmt(opOut)} spent, with no capital needed.`,
+      })
+    } else {
+      const gap = Math.abs(operatingNet)
+      const covered = finIn >= gap
+      out.push({
+        id: "operating-shortfall",
+        tone: "watch",
+        title: `Trading fell short by ${fmt(gap)}`,
+        detail: finIn > 0
+          ? `${fmt(opIn)} earned against ${fmt(opOut)} spent. ${fmt(finIn)} of capital came in, ${covered ? "which covered the gap" : "which did not cover it"} — so ${covered ? "this period was funded rather than earned" : "cash already held made up the rest"}.`
+          : `${fmt(opIn)} earned against ${fmt(opOut)} spent, and no capital came in — the gap came out of cash already held.`,
+      })
+    }
+  }
+
+  // ---- 1c. Capital taken out ----------------------------------------------
+  if (finOut > 0) {
+    out.push({
+      id: "capital-out",
+      tone: "neutral",
+      title: `${fmt(finOut)} taken out as capital`,
+      detail: "Owner withdrawals and loan repayments. Counted in money out, but it is not a cost of running the business — trading performance is the operating figures above.",
     })
   }
 
