@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,7 +19,7 @@ interface CartItem {
   menuItemId: number; name: string; price: number; quantity: number; notes: string
 }
 
-export default function RestaurantOrderOnlinePage() {
+function RestaurantOrderOnlineContent() {
   const searchParams = useSearchParams()
   const qrToken = searchParams.get("qr")
   const farmIdParam = searchParams.get("farmId") || searchParams.get("r")
@@ -393,5 +393,19 @@ export default function RestaurantOrderOnlinePage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+export default function RestaurantOrderOnlinePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      }
+    >
+      <RestaurantOrderOnlineContent />
+    </Suspense>
   )
 }
