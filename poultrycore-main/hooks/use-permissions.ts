@@ -61,6 +61,24 @@ export interface FeatureAccessPermissions {
   canViewHotelMaintenance: boolean
   /** Hotel: Setup. */
   canViewHotelSetup: boolean
+  /** Restaurant: POS / Orders. */
+  canViewRestaurantPOS: boolean
+  /** Restaurant: Kitchen Display. */
+  canViewRestaurantKDS: boolean
+  /** Restaurant: Menu management. */
+  canViewRestaurantMenu: boolean
+  /** Restaurant: Floor plan & tables. */
+  canViewRestaurantFloorPlan: boolean
+  /** Restaurant: Reservations & waitlist. */
+  canViewRestaurantReservations: boolean
+  /** Restaurant: Online ordering. */
+  canViewRestaurantOnlineOrders: boolean
+  /** Restaurant: Delivery management. */
+  canViewRestaurantDelivery: boolean
+  /** Restaurant: Staff & payroll. */
+  canViewRestaurantStaff: boolean
+  /** Restaurant: Setup / config. */
+  canViewRestaurantSetup: boolean
 }
 
 export interface UserPermissions {
@@ -120,6 +138,15 @@ const DEFAULT_FEATURE_ACCESS: FeatureAccessPermissions = {
   canViewHotelInventory: true,
   canViewHotelMaintenance: true,
   canViewHotelSetup: true,
+  canViewRestaurantPOS: true,
+  canViewRestaurantKDS: true,
+  canViewRestaurantMenu: true,
+  canViewRestaurantFloorPlan: true,
+  canViewRestaurantReservations: true,
+  canViewRestaurantOnlineOrders: true,
+  canViewRestaurantDelivery: true,
+  canViewRestaurantStaff: true,
+  canViewRestaurantSetup: true,
 }
 
 /** Staff must be deny-by-default; merging with DEFAULT_FEATURE_ACCESS let missing keys stay "on". */
@@ -153,6 +180,15 @@ const STAFF_FEATURE_BASE: FeatureAccessPermissions = {
   canViewHotelInventory: false,
   canViewHotelMaintenance: false,
   canViewHotelSetup: false,
+  canViewRestaurantPOS: false,
+  canViewRestaurantKDS: false,
+  canViewRestaurantMenu: false,
+  canViewRestaurantFloorPlan: false,
+  canViewRestaurantReservations: false,
+  canViewRestaurantOnlineOrders: false,
+  canViewRestaurantDelivery: false,
+  canViewRestaurantStaff: false,
+  canViewRestaurantSetup: false,
 }
 
 function toBoolean(value: unknown): boolean | undefined {
