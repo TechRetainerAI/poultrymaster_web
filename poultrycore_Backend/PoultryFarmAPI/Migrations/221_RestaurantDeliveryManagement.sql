@@ -374,8 +374,8 @@ BEGIN
         COUNT(*) AS total_deliveries,
         COUNT(*) FILTER (WHERE a.status = 'Delivered') AS completed_deliveries,
         COUNT(*) FILTER (WHERE a.status = 'Failed') AS failed_deliveries,
-        AVG(a.actualmins)::DOUBLE PRECISION FILTER (WHERE a.actualmins IS NOT NULL) AS avg_delivery_mins,
-        AVG(a.rating)::DOUBLE PRECISION FILTER (WHERE a.rating IS NOT NULL) AS avg_rating,
+        (AVG(a.actualmins) FILTER (WHERE a.actualmins IS NOT NULL))::DOUBLE PRECISION AS avg_delivery_mins,
+        (AVG(a.rating) FILTER (WHERE a.rating IS NOT NULL))::DOUBLE PRECISION AS avg_rating,
         COALESCE(SUM(a.deliveryfee) FILTER (WHERE a.status = 'Delivered'), 0) AS total_delivery_fees
     FROM restaurantdeliveryassignments a
     WHERE a.driverid = p_driverid AND a.farmid = p_farmid
