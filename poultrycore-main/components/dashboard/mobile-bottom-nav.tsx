@@ -157,6 +157,7 @@ export function MobileBottomNav() {
           { href: "/water-customer-balances", label: "Customer Balances", icon: Users },
           { href: "/water-supplier-balances", label: "Supplier Balances", icon: Truck },
           { href: "/water-expenses",      label: "Expenses",          icon: Receipt },
+          { href: "/water-cash-flow",     label: "Cash Flow",         icon: Wallet },
           { href: "/water-cash-accounts", label: "Cash accounts",     icon: Wallet },
           { href: "/water-cash-reconciliation", label: "Reconcile cash", icon: Scale },
           // Finance — Customers and Suppliers sit together here, matching the
@@ -260,6 +261,34 @@ export function MobileBottomNav() {
       }
     }
 
+    if (activeFarmType === "Restaurant") {
+      return {
+        bg: "bg-rose-600",
+        borderTop: "border-rose-700",
+        palette: { inactive: "text-rose-100/90 hover:text-white", activeText: "text-white" },
+        activeBg: "bg-rose-100 text-rose-800",
+        mainTabs: [
+          { href: "/restaurant-dashboard", label: "Home",    icon: Home },
+          { href: "/restaurant-pos",      label: "POS",     icon: ShoppingCart },
+          { href: "/restaurant-orders",   label: "Orders",  icon: FileText },
+          { href: "/restaurant-kds",      label: "Kitchen", icon: Factory },
+        ] as NavItem[],
+        moreItems: [
+          // Menu
+          { href: "/restaurant-menu",          label: "Menu Items",              icon: ShoppingBag },
+          // Dining
+          { href: "/restaurant-floor-plan",    label: "Floor Plan & Tables",    icon: Building2 },
+          { href: "/restaurant-reservations",  label: "Reservations & Waitlist", icon: CalendarDays },
+          // Delivery & Online
+          { href: "/restaurant-online-orders", label: "Online Settings",        icon: ShoppingBag },
+          { href: "/restaurant-delivery",      label: "Drivers & Dispatch",     icon: Truck },
+          // Setup
+          { href: "/restaurant-setup",         label: "Restaurant Setup",       icon: Settings },
+          { href: "/profile",                  label: "Account",                icon: User },
+        ] as NavItem[],
+      }
+    }
+
     // Default: Poultry (also used when activeFarmType is null/undefined during
     // hydration, since the dashboard route is /dashboard either way).
     const TEMP_SHOW_PAYMENTS_LINK = true
@@ -306,7 +335,8 @@ export function MobileBottomNav() {
       { href: "/poultry-driver-report",  label: "Driver report",          icon: BarChart3 },
       // Financial
       { href: "/poultry-daily-closing",  label: "Daily Closing",          icon: FileText },
-      { href: "/cash",                   label: "Cash",                   icon: Wallet },
+      { href: "/cash-flow",              label: "Cash Flow",              icon: Wallet },
+      { href: "/cash",                   label: "Cash",                   icon: History },
       { href: "/poultry-cash-accounts",  label: "Cash Account",           icon: Wallet },
       { href: "/poultry-cash-reconciliation", label: "Reconcile cash",    icon: Scale },
       { href: "/poultry-payments",       label: "Payments received",      icon: CreditCard },
@@ -336,7 +366,7 @@ export function MobileBottomNav() {
         ? [{ href: "/employees", label: "Employees", icon: UserCog }] : []),
     ]
     const filteredPoultryMore = poultryMore.filter((item) => {
-      if (["/sales", "/expenses", "/cash", "/customers", "/suppliers", "/billing", "/poultry-cash-accounts", "/poultry-cash-reconciliation", "/poultry-payments", "/customer-balances", "/supplier-balances"].includes(item.href)) {
+      if (["/sales", "/expenses", "/cash-flow", "/cash", "/customers", "/suppliers", "/billing", "/poultry-cash-accounts", "/poultry-cash-reconciliation", "/poultry-payments", "/customer-balances", "/supplier-balances"].includes(item.href)) {
         return isFinancialNavItemVisible(item.href, permissions.featureAccess, permissions.isAdmin, {
           tempShowPayments: TEMP_SHOW_PAYMENTS_LINK,
         })

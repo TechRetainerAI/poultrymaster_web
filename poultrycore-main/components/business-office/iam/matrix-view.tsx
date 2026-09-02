@@ -112,14 +112,14 @@ export function MatrixView({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <Select value={String(selectedRoleId ?? "")} onValueChange={(v) => onSelectRole(Number(v))}>
-          <SelectTrigger className="w-[220px] h-9"><SelectValue placeholder="Choose a role" /></SelectTrigger>
+          <SelectTrigger className="h-9 w-full sm:w-[220px]"><SelectValue placeholder="Choose a role" /></SelectTrigger>
           <SelectContent>
             {roles.map((r) => <SelectItem key={r.roleId} value={String(r.roleId)}>{r.name}</SelectItem>)}
           </SelectContent>
         </Select>
 
         <Select value={module} onValueChange={onModuleChange}>
-          <SelectTrigger className="w-[180px] h-9"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-9 w-full sm:w-[180px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             {Object.entries(MODULE_LABEL).map(([k, label]) => (
               <SelectItem key={k} value={k}>{label}</SelectItem>

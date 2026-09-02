@@ -26,11 +26,14 @@ import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import {
-  listPoultryCashAccounts, createPoultryCashAccount, updatePoultryCashAccount, deletePoultryCashAccount, reconcilePoultryCashBalances,
+  listPoultryCashAccounts, getPoultryCashAccountCountStatus, createPoultryCashAccount, updatePoultryCashAccount, deletePoultryCashAccount, reconcilePoultryCashBalances,
   listPoultryCashTransactions, listPoultryCashTransfers, createPoultryCashTransfer, approvePoultryCashTransfer, cancelPoultryCashTransfer,
-  POULTRY_CASH_ACCOUNT_TYPES, POULTRY_CASH_TRANSFER_REASONS,
+  POULTRY_CASH_ACCOUNT_TYPES, POULTRY_CASH_TRANSFER_REASONS, POULTRY_CASH_REASONS,
+  adjustPoultryCashAccount,
   type PoultryCashAccount, type PoultryCashTransaction, type PoultryCashTransfer,
 } from "@/lib/api/poultry-finance"
+import { cashByAccount } from "@/lib/cash/cash-flow"
+import { RecordCashAdjustmentDialog } from "@/components/cash/record-cash-adjustment-dialog"
 
 const ACCOUNT_TYPES = [...POULTRY_CASH_ACCOUNT_TYPES]
 
@@ -44,6 +47,10 @@ export default function PoultryCashAccountsPage() {
 
   const [accounts, setAccounts] = useState<PoultryCashAccount[]>([])
   const [transfers, setTransfers] = useState<PoultryCashTransfer[]>([])
+  // Reconciliation feed (migration 222/223). Carries ledgerBalance, drift and
+  // how long since each account was reconciled — the figures that used to sit
+  // in Cash Flow's "Cash by Account" and belong here, beside Recalculate.
+  const [status, setStatus] = useState<any[]>([])
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
@@ -66,6 +73,9 @@ export default function PoultryCashAccountsPage() {
   const [deleteTarget, setDeleteTarget] = useState<PoultryCashAccount | null>(null)
   const [txDlg, setTxDlg] = useState<{ open: boolean; acc?: PoultryCashAccount; rows: PoultryCashTransaction[] }>({ open: false, rows: [] })
   const [xferDlg, setXferDlg] = useState(false)
+  // Belongs here rather than on Cash Flow: it corrects ONE account's balance,
+  // which is a fact about an account, not about company-wide movement.
+  const [adjustDlg, setAdjustDlg] = useState(false)
   const [xferForm, setXferForm] = useState({ fromPoultryCashAccountId: 0, toPoultryCashAccountId: 0, amount: 0, notes: "", notesOther: "" })
 
   useEffect(() => {
@@ -77,8 +87,13 @@ export default function PoultryCashAccountsPage() {
   async function load() {
     setLoading(true)
     try {
+      // allSettled for the status feed only: it depends on a later migration,
+      // and an older database must still render its accounts rather than fail
+      // the whole page over a column it cannot supply yet.
       const [accs, xfers] = await Promise.all([listPoultryCashAccounts(), listPoultryCashTransfers()])
       setAccounts(accs); setTransfers(xfers)
+      const st = await getPoultryCashAccountCountStatus().catch(() => [])
+      setStatus(st ?? [])
     } catch (e: any) { toast({ title: "Could not load cash accounts", description: e?.message ?? String(e), variant: "destructive" }) }
     finally { setLoading(false) }
   }
@@ -168,7 +183,30 @@ export default function PoultryCashAccountsPage() {
     } catch (e: any) { toast({ title: "Transfer failed", description: e?.message, variant: "destructive" }) }
   }
 
-  const totalCash = accounts.filter(a => a.isActive).reduce((s, a) => s + a.currentBalance, 0)
+  // Keyed by account so the table can show the calculated balance beside the
+  // cached one. cashByAccount() is the same tested helper Cash Flow uses, so the
+  // wording of "needs reconciling" is identical on both pages.
+  const statusById = useMemo(() => {
+    const rows = cashByAccount((status ?? []).map((s: any) => ({
+      accountId: s.poultryCashAccountId,
+      accountName: s.accountName,
+      accountType: s.accountType,
+      isActive: s.isActive,
+      currentBalance: s.currentBalance,
+      ledgerBalance: s.ledgerBalance,
+      cacheDrift: s.cacheDrift,
+      lastReconciledAt: s.lastReconciledAt,
+      daysSinceReconciled: s.daysSinceReconciled,
+      unclearedCount: s.unclearedCount,
+    })))
+    return new Map(rows.map((r) => [r.accountId, r]))
+  }, [status])
+
+  // Sum the LEDGER, not the cache — currentBalance drifts, which is the whole
+  // reason the calculated column exists. Falls back to the cache only when the
+  // status feed is unavailable.
+  const totalCash = accounts.filter(a => a.isActive).reduce(
+    (s, a) => s + (statusById.get(a.poultryCashAccountId)?.ledgerBalance ?? a.currentBalance), 0)
 
   return (
     <div className="flex h-screen bg-slate-50">
@@ -181,6 +219,7 @@ export default function PoultryCashAccountsPage() {
               <Wallet className="h-6 w-6 text-sky-600" /> Cash Account
             </h1>
             <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+              <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={() => setAdjustDlg(true)}><Scale className="h-4 w-4 mr-1" /> Record Cash Adjustment</Button>
               <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={reconcile}><RefreshCw className="h-4 w-4 mr-1" /> Recalculate</Button>
               {/* Reconcile opens the dedicated page — pick an account, count it,
                   post the difference. Recalculate (rebuilding the cached balance
@@ -198,10 +237,10 @@ export default function PoultryCashAccountsPage() {
 
           <button
             type="button"
-            onClick={() => router.push("/cash")}
+            onClick={() => router.push("/cash-flow")}
             className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-sky-600 hover:text-sky-700 hover:underline"
           >
-            <ArrowLeftRight className="h-4 w-4" /> Want to see all your money movement in one place? Click here →
+            <ArrowLeftRight className="h-4 w-4" /> See the whole company&apos;s cash flow →
           </button>
 
           <div className="mb-3 grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -258,6 +297,8 @@ export default function PoultryCashAccountsPage() {
                           <TableHead>Type</TableHead>
                           <TableHead className="text-right">Opening</TableHead>
                           <TableHead className="text-right">Current</TableHead>
+                          <TableHead className="text-right">Calculated</TableHead>
+                          <TableHead>Reconciled</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -268,11 +309,43 @@ export default function PoultryCashAccountsPage() {
                             <TableCell className="font-medium">{a.accountName}</TableCell>
                             <TableCell>{a.accountType}</TableCell>
                             <TableCell className="text-right tabular-nums">{fmt(a.openingBalance)}</TableCell>
-                            <TableCell className={`text-right tabular-nums font-semibold ${a.currentBalance < 0 ? "text-rose-600" : ""}`}>{fmt(a.currentBalance)}</TableCell>
+                            <TableCell className={`text-right tabular-nums ${a.currentBalance < 0 ? "text-rose-600" : "text-slate-500"}`}>{fmt(a.currentBalance)}</TableCell>
+                            {/* Calculated from the account's own transactions. When it
+                                disagrees with Current the cache has drifted, and
+                                Recalculate above is the fix — showing both is what
+                                makes that visible instead of mysterious. */}
+                            <TableCell className="text-right tabular-nums font-semibold">
+                              {(() => {
+                                const s = statusById.get(a.poultryCashAccountId)
+                                if (!s) return <span className="text-slate-400">—</span>
+                                const drifted = Math.abs(s.cacheDrift) >= 0.01
+                                return (
+                                  <span className={s.ledgerBalance < 0 ? "text-rose-600" : undefined}>
+                                    {fmt(s.ledgerBalance)}
+                                    {drifted && (
+                                      <span className="ml-1 text-[10px] font-normal text-amber-700"
+                                            title={`Stored balance is ${fmt(Math.abs(s.cacheDrift))} away from this`}>
+                                        drift
+                                      </span>
+                                    )}
+                                  </span>
+                                )
+                              })()}
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              {(() => {
+                                const s = statusById.get(a.poultryCashAccountId)
+                                if (!s) return <span className="text-slate-400">—</span>
+                                return s.needsAttention
+                                  ? <span className="text-amber-700">{s.attentionReason}</span>
+                                  : <span className="text-emerald-700">{s.daysSinceReconciled}d ago</span>
+                              })()}
+                            </TableCell>
                             <TableCell>{a.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="outline">Inactive</Badge>}</TableCell>
                             <TableCell className="text-right">
                               <Button size="sm" variant="ghost" onClick={() => router.push(`/poultry-cash-accounts/${a.poultryCashAccountId}`)} title="View details"><Eye className="h-4 w-4" /></Button>
                               <Button size="sm" variant="ghost" onClick={() => viewTransactions(a)} title="Quick transactions">Txns</Button>
+                              <Button size="sm" variant="ghost" onClick={() => router.push(`/poultry-cash-reconciliation?accountId=${a.poultryCashAccountId}`)} title="Reconcile this account">Reconcile</Button>
                               <Button size="sm" variant="ghost" onClick={() => openEdit(a)}>Edit</Button>
                               <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(a)} title="Delete account"><Trash2 className="h-4 w-4 text-red-500" /></Button>
                             </TableCell>
@@ -496,6 +569,24 @@ export default function PoultryCashAccountsPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <RecordCashAdjustmentDialog
+        open={adjustDlg}
+        onOpenChange={setAdjustDlg}
+        accounts={accounts.map((a) => ({
+          accountId: a.poultryCashAccountId,
+          accountName: a.accountName,
+          accountType: a.accountType,
+          isActive: a.isActive,
+        }))}
+        reasons={POULTRY_CASH_REASONS}
+        fmtMoney={fmt}
+        reconcileHref="/poultry-cash-reconciliation"
+        onSubmit={async ({ accountId, amount, reason }) => {
+          await adjustPoultryCashAccount(accountId, { amount, reason })
+        }}
+        onDone={() => { void load() }}
+      />
 
       <ConfirmDeleteDialog
         open={!!deleteTarget}

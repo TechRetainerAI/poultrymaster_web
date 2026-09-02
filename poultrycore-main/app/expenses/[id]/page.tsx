@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { DollarSign } from "lucide-react"
@@ -21,6 +20,7 @@ import {
   extractReceiptPathFromDescription,
   stripReceiptSuffixFromDescription,
 } from "@/lib/utils/expense-receipt"
+import { Textarea } from "@/components/ui/textarea"
 import { ExpenseReceiptField } from "@/components/expense/expense-receipt-field"
 import { getUserContext } from "@/lib/utils/user-context"
 import { Alert, AlertDescription } from "@/components/ui/alert"

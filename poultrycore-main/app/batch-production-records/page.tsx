@@ -30,6 +30,7 @@ import {
 } from "@/lib/api/production-batch"
 import { getUserContext } from "@/lib/utils/user-context"
 import { usePermissions } from "@/hooks/use-permissions"
+import { usePickSettings } from "@/hooks/use-pick-settings"
 import { useToast } from "@/hooks/use-toast"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { cn } from "@/lib/utils"
@@ -85,6 +86,10 @@ export default function BatchProductionRecordsPage() {
   const [editingId, setEditingId] = useState<number | null>(null)
   const router = useRouter()
   const permissions = usePermissions()
+  // When the farm has the 4th pick switched off in Egg Pick Settings, the
+  // column is dropped everywhere this page shows picks — table, mobile cards,
+  // CSV and PDF — rather than shown as a run of zeros.
+  const { enableFourthPick } = usePickSettings()
   const { toast } = useToast()
   const [records, setRecords] = useState<ProductionBatchRecord[]>([])
   const [loading, setLoading] = useState(true)
@@ -420,7 +425,11 @@ export default function BatchProductionRecordsPage() {
   }
 
   const exportCsv = () => {
-    const headers = ["Date", "Batch Name", "Scope", "Age", "1st Pick", "2nd Pick", "3rd Pick", "4th Pick", "Broken", "Total", "Egg%", "Feed", "Birds", "Deaths", "Left", "Meds", "Status"]
+    const headers = [
+      "Date", "Batch Name", "Scope", "Age", "1st Pick", "2nd Pick", "3rd Pick",
+      ...(enableFourthPick ? ["4th Pick"] : []),
+      "Broken", "Total", "Egg%", "Feed", "Birds", "Deaths", "Left", "Meds", "Status",
+    ]
     const rows = filtered.map((r) => [
       new Date(r.productionDate).toLocaleDateString(),
       batchNameLabel(r),
@@ -429,7 +438,7 @@ export default function BatchProductionRecordsPage() {
       r.firstPickTotal ?? 0,
       r.secondPickTotal ?? 0,
       r.thirdPickTotal ?? 0,
-      r.fourthPickTotal ?? 0,
+      ...(enableFourthPick ? [r.fourthPickTotal ?? 0] : []),
       r.brokenEggs ?? 0,
       r.totalEggs ?? 0,
       eggPercent(r),
@@ -468,7 +477,11 @@ export default function BatchProductionRecordsPage() {
       14, 31,
     )
 
-    const headers = ["Date", "Batch", "Age", "1st", "2nd", "3rd", "4th", "Broken", "Total", "Egg%", "Feed(kg)", "Birds", "Deaths", "Left", "Meds", "Status"]
+    const headers = [
+      "Date", "Batch", "Age", "1st", "2nd", "3rd",
+      ...(enableFourthPick ? ["4th"] : []),
+      "Broken", "Total", "Egg%", "Feed(kg)", "Birds", "Deaths", "Left", "Meds", "Status",
+    ]
     const rows = filtered.map((r) => [
       new Date(r.productionDate).toLocaleDateString(),
       batchNameLabel(r),
@@ -476,7 +489,7 @@ export default function BatchProductionRecordsPage() {
       r.firstPickTotal ?? 0,
       r.secondPickTotal ?? 0,
       r.thirdPickTotal ?? 0,
-      r.fourthPickTotal ?? 0,
+      ...(enableFourthPick ? [r.fourthPickTotal ?? 0] : []),
       r.brokenEggs ?? 0,
       r.totalEggs ?? 0,
       eggPercent(r),
@@ -837,14 +850,20 @@ export default function BatchProductionRecordsPage() {
                               <CollapsibleTrigger asChild>
                                 <div className="relative cursor-pointer">
                                   <ChevronDown className="absolute right-0 top-0 h-4 w-4 text-slate-400 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
-                                  <div className="min-w-0 pr-6">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <span className="font-semibold text-slate-900">{formatDateShort(r.productionDate)}</span>
-                                      <span className="text-slate-500">•</span>
-                                      <span className="text-slate-600 truncate">{batchNameLabel(r)}</span>
-                                      <StatusBadge status={r.status} />
+                                  <div className="min-w-0">
+                                    {/* Only the heading lines clear the chevron —
+                                        pr-6 on the whole block would inset the
+                                        tiles below it too, leaving a dead gutter
+                                        down the right of every card. */}
+                                    <div className="pr-6">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="font-semibold text-slate-900">{formatDateShort(r.productionDate)}</span>
+                                        <span className="text-slate-500">•</span>
+                                        <span className="text-slate-600 truncate">{batchNameLabel(r)}</span>
+                                        <StatusBadge status={r.status} />
+                                      </div>
+                                      <div className="mt-0.5 text-xs text-slate-500 truncate">{batchScopeLabel(r)}</div>
                                     </div>
-                                    <div className="mt-0.5 text-xs text-slate-500 truncate">{batchScopeLabel(r)}</div>
                                     <div className="mt-3 grid grid-cols-2 gap-2">
                                       <div className="rounded-lg bg-emerald-100 border border-emerald-300 px-3 py-2 shadow-sm">
                                         <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-900">Eggs</p>
@@ -864,7 +883,9 @@ export default function BatchProductionRecordsPage() {
                                     <div><span className="text-slate-500">1st Pick</span> <span className="font-medium text-blue-700">{r.firstPickTotal ?? 0}</span></div>
                                     <div><span className="text-slate-500">2nd Pick</span> <span className="font-medium text-orange-700">{r.secondPickTotal ?? 0}</span></div>
                                     <div><span className="text-slate-500">3rd Pick</span> <span className="font-medium text-purple-700">{r.thirdPickTotal ?? 0}</span></div>
-                                    <div><span className="text-slate-500">4th Pick</span> <span className="font-medium text-teal-700">{r.fourthPickTotal ?? 0}</span></div>
+                                    {enableFourthPick && (
+                                      <div><span className="text-slate-500">4th Pick</span> <span className="font-medium text-teal-700">{r.fourthPickTotal ?? 0}</span></div>
+                                    )}
                                     <div><span className="text-slate-500">Broken</span> <span className="font-medium text-red-700">{r.brokenEggs ?? 0}</span></div>
                                     <div><span className="text-slate-500">Egg %</span> <span className="font-medium">{eggPercent(r)}</span></div>
                                     <div><span className="text-slate-500">Feed</span> <span className="font-medium">{(Number(r.feedKg) || 0).toFixed(2)} kg</span></div>
@@ -901,12 +922,14 @@ export default function BatchProductionRecordsPage() {
                       <TableHeader className="sticky top-0 bg-blue-50 z-10">
                         <TableRow className="border-b border-blue-200">
                           <SortableHeader label="Date" sortKey="date" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className={cn("min-w-[100px] px-3 py-2", isMobile && "sticky-col-date bg-blue-50")} />
-                          <SortableHeader label="Batch Name" sortKey="batchName" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className={cn("min-w-[180px] px-3 py-2 whitespace-nowrap", isMobile && "sticky-col-flock bg-blue-50")} />
+                          <SortableHeader label="Batch Name" sortKey="batchName" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[180px] px-3 py-2 whitespace-nowrap" />
                           <SortableHeader label="Age" sortKey="age" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[90px] px-3 py-2" />
                           <SortableHeader label="1st Pick" sortKey="firstPickTotal" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-blue-100 text-blue-900 font-semibold whitespace-nowrap" />
                           <SortableHeader label="2nd Pick" sortKey="secondPickTotal" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-orange-100 text-orange-900 font-semibold whitespace-nowrap" />
                           <SortableHeader label="3rd Pick" sortKey="thirdPickTotal" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-purple-100 text-purple-900 font-semibold whitespace-nowrap" />
-                          <SortableHeader label="4th Pick" sortKey="fourthPickTotal" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-teal-100 text-teal-900 font-semibold whitespace-nowrap" />
+                          {enableFourthPick && (
+                            <SortableHeader label="4th Pick" sortKey="fourthPickTotal" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-teal-100 text-teal-900 font-semibold whitespace-nowrap" />
+                          )}
                           <SortableHeader label="Broken" sortKey="brokenEggs" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-red-50 text-red-800 font-semibold" />
                           <SortableHeader label="Total" sortKey="totalEggs" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
                           <SortableHeader label="Egg%" sortKey="eggPercent" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
@@ -916,21 +939,25 @@ export default function BatchProductionRecordsPage() {
                           <SortableHeader label="Left" sortKey="birdsLeft" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[70px] px-3 py-2 whitespace-nowrap" />
                           <SortableHeader label="Meds" sortKey="meds" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[90px] px-3 py-2 whitespace-nowrap" />
                           <SortableHeader label="Status" sortKey="status" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="min-w-[120px] px-3 py-2 whitespace-nowrap" />
-                          <TableHead className={cn("text-left min-w-[200px] px-3 py-2 whitespace-nowrap", isMobile && "sticky-col-actions bg-blue-50")}>Actions</TableHead>
+                          <TableHead className="text-left min-w-[200px] px-3 py-2 whitespace-nowrap">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {paginatedRecords.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={17} className="py-12 text-center text-slate-500">
+                            <TableCell colSpan={enableFourthPick ? 17 : 16} className="py-12 text-center text-slate-500">
                               No batch records found for the selected filters.
                               <Button variant="link" className="ml-1" onClick={() => { setEditingId(null); setFormOpen(true) }}>Log one now</Button>
                             </TableCell>
                           </TableRow>
                         ) : paginatedRecords.map((r, idx) => (
                           <TableRow key={r.id} className={cn("hover:bg-slate-50/60", idx % 2 === 0 ? "bg-white" : "bg-slate-50/40")}>
-                            <TableCell className={cn("px-3 py-2 whitespace-nowrap min-w-[100px]", isMobile && "sticky-col-date bg-white")}>{isMobile ? formatDateShort(r.productionDate) : new Date(r.productionDate).toLocaleDateString()}</TableCell>
-                            <TableCell className={cn("px-3 py-2 min-w-[180px]", isMobile && "sticky-col-flock bg-white")}>
+                            {/* The pinned cell needs its own OPAQUE background —
+                                the row's own bg-slate-50/40 is translucent, so
+                                columns would scroll visibly through it. Match
+                                the stripe rather than always white. */}
+                            <TableCell className={cn("px-3 py-2 whitespace-nowrap min-w-[100px]", isMobile && (idx % 2 === 0 ? "sticky-col-date bg-white" : "sticky-col-date bg-slate-100"))}>{isMobile ? formatDateShort(r.productionDate) : new Date(r.productionDate).toLocaleDateString()}</TableCell>
+                            <TableCell className="px-3 py-2 min-w-[180px]">
                               <div className="font-medium text-slate-800 truncate max-w-[220px]">{batchNameLabel(r)}</div>
                               <div className="text-xs text-slate-500 truncate max-w-[220px]">{batchScopeLabel(r)}</div>
                             </TableCell>
@@ -938,7 +965,9 @@ export default function BatchProductionRecordsPage() {
                             <TableCell className="text-right px-3 py-2 text-blue-700 bg-blue-50/40 rounded-sm">{r.firstPickTotal ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2 text-orange-700 bg-orange-50/40 rounded-sm">{r.secondPickTotal ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2 text-purple-700 bg-purple-50/40 rounded-sm">{r.thirdPickTotal ?? 0}</TableCell>
-                            <TableCell className="text-right px-3 py-2 text-teal-700 bg-teal-50/40 rounded-sm">{r.fourthPickTotal ?? 0}</TableCell>
+                            {enableFourthPick && (
+                              <TableCell className="text-right px-3 py-2 text-teal-700 bg-teal-50/40 rounded-sm">{r.fourthPickTotal ?? 0}</TableCell>
+                            )}
                             <TableCell className="text-right px-3 py-2 text-red-700 bg-red-50/40 rounded-sm">{r.brokenEggs ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2 font-semibold text-slate-900">{r.totalEggs ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2">{eggPercent(r)}</TableCell>
@@ -950,7 +979,7 @@ export default function BatchProductionRecordsPage() {
                             <TableCell className="text-right px-3 py-2">{r.birdsLeft ?? "—"}</TableCell>
                             <TableCell className="px-3 py-2 whitespace-nowrap">{medsLabel(r)}</TableCell>
                             <TableCell className="px-3 py-2 whitespace-nowrap"><StatusBadge status={r.status} /></TableCell>
-                            <TableCell className={cn("text-left px-3 py-2 whitespace-nowrap", isMobile && "sticky-col-actions bg-white")}>
+                            <TableCell className="text-left px-3 py-2 whitespace-nowrap">
                               {renderActions(r)}
                             </TableCell>
                           </TableRow>

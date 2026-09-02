@@ -442,13 +442,13 @@ export default function CashPage() {
         <main className="overflow-y-visible overflow-x-hidden p-4 sm:p-6 pb-16 lg:pb-4 min-w-0">
           <div className="space-y-6">
             {/* Page Header */}
-            <div className={cn("flex gap-4", isMobile ? "flex-col" : "items-start")}>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
               <div>
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
                     <Wallet className="w-5 h-5 text-emerald-600" />
                   </div>
-                  <h1 className={cn("font-bold text-slate-900", isMobile ? "text-xl" : "text-2xl")}>Financial → Cash</h1>
+                  <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Financial → Cash</h1>
                 </div>
                 <p className="text-sm text-slate-600">Cash at hand and transaction history</p>
               </div>
@@ -457,7 +457,7 @@ export default function CashPage() {
             {/* Top Summary Card */}
             <Card className="border-emerald-200 bg-emerald-50/50">
               <CardHeader className="pb-2">
-                <div className={cn("flex justify-between gap-4", isMobile && "flex-col")}>
+                <div className="flex flex-col gap-4 sm:flex-row sm:justify-between">
                   <CardDescription>Current Cash at Hand</CardDescription>
                   <Dialog
                     open={adjustmentDialogOpen}
@@ -533,12 +533,12 @@ export default function CashPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className={cn("flex gap-4", isMobile ? "flex-col" : "items-start justify-between")}>
-                  <div className={cn("grid gap-4", isMobile ? "grid-cols-1" : "grid-cols-2")}>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
                       <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Cash at hand</div>
                       <div className="mt-1 flex items-center gap-2">
-                        <span className="text-2xl font-bold text-slate-900">
+                        <span className="text-xl font-bold text-slate-900 sm:text-2xl">
                           {formatCurrency(summary?.currentCash ?? 0, currency)}
                         </span>
                         <Button
@@ -554,12 +554,12 @@ export default function CashPage() {
                     </div>
                     <div>
                       <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total owed</div>
-                      <div className="mt-1 text-2xl font-bold text-amber-700">
+                      <div className="mt-1 text-xl font-bold text-amber-700 sm:text-2xl">
                         {formatCurrency(totalOwed, currency)}
                       </div>
                     </div>
                   </div>
-                  <div className="text-sm text-slate-500">
+                  <div className="text-sm text-slate-500 whitespace-nowrap">
                     Last Updated: {lastUpdated ? lastUpdated.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "—"}
                   </div>
                 </div>
@@ -574,9 +574,9 @@ export default function CashPage() {
               <CardHeader>
                 <CardTitle>Transaction History</CardTitle>
                 <CardDescription>Balance is always auto-calculated</CardDescription>
-                <div className={cn("grid gap-2 pt-3", isMobile ? "grid-cols-2" : "grid-cols-7")}>
+                <div className="grid grid-cols-1 gap-2 pt-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
                   <Select value={typeFilter} onValueChange={setTypeFilter}>
-                    <SelectTrigger className={cn(isMobile ? "col-span-2" : "col-span-1")}>
+                    <SelectTrigger className="col-span-1 sm:col-span-2 lg:col-span-1">
                       <SelectValue placeholder="Type" />
                     </SelectTrigger>
                     <SelectContent>
@@ -590,7 +590,7 @@ export default function CashPage() {
                     placeholder="Description..."
                     value={descriptionFilter}
                     onChange={(e) => setDescriptionFilter(e.target.value)}
-                    className={cn(isMobile ? "col-span-2" : "col-span-2")}
+                    className="col-span-1 sm:col-span-2"
                   />
                   <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
                   <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
@@ -607,8 +607,13 @@ export default function CashPage() {
                 ) : sortedTransactions.length === 0 ? (
                   <p className="text-slate-600 py-8 text-center">No transactions yet. Add sales, expenses, or cash adjustments to see cash flow.</p>
                 ) : isMobile && !showAllColumnsMobile ? (
+                  <>
                   <div className="divide-y divide-slate-100 -mx-6 -mb-6">
-                    {sortedTransactions.map((t, idx) => (
+                    {/* pg.pageItems, not sortedTransactions: the cards used to
+                        render the entire history while the table beside them
+                        rendered one page, so the pager underneath governed only
+                        the desktop view and a phone got everything at once. */}
+                    {pg.pageItems.map((t, idx) => (
                       <Collapsible key={idx} className={cn("group rounded-xl border shadow-sm overflow-hidden", idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}>
                         <div className={cn("p-4 active:bg-slate-50/80 transition-colors", idx % 2 === 1 && "bg-slate-50/20")}>
                           <CollapsibleTrigger asChild>
@@ -658,6 +663,8 @@ export default function CashPage() {
                       </Button>
                     </div>
                   </div>
+                  <DataPagination {...pg.paginationProps} />
+                  </>
                 ) : (
                   <>
                     <p className="text-xs text-slate-500 mb-2">

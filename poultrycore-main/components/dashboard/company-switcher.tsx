@@ -111,10 +111,11 @@ export function CompanySwitcher({ fullWidth = false }: { fullWidth?: boolean } =
       // /dashboard for Generic was the bug behind "I switched to Generic but
       // the nav is still showing flocks/houses": Poultry dashboard +
       // Poultry top-nav. Each company type now lands on its own home.
-      if (c.type === "Water")        router.push("/water-dashboard")
-      else if (c.type === "Generic") router.push("/generic-dashboard")
-      else if (c.type === "Hotel")   router.push("/hotel-dashboard")
-      else                           router.push("/dashboard")
+      if (c.type === "Water")             router.push("/water-dashboard")
+      else if (c.type === "Generic")      router.push("/generic-dashboard")
+      else if (c.type === "Hotel")        router.push("/hotel-dashboard")
+      else if (c.type === "Restaurant")   router.push("/restaurant-dashboard")
+      else                                router.push("/dashboard")
     } catch (err: any) {
       toast({ title: "Switch failed", description: err?.message ?? String(err), variant: "destructive" })
     } finally {

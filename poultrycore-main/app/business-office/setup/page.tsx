@@ -23,11 +23,14 @@ import { UserCog, Users, Building2, KeyRound } from "lucide-react"
 // Access sits after Employees & Users deliberately: you hire someone there, then
 // look at what they can do here. It is additive — Employees & Users keeps its own
 // permission controls, and IAM can only widen access until phase 3.
+// `short` is the phone label. The full titles are far too wide for a 2-up grid
+// on a 375px screen — they'd wrap to four stacked rows and push the tab strip
+// past the viewport.
 const SECTIONS = [
-  { key: "org", icon: UserCog, title: "Organization Profile", Panel: OrganizationProfilePanel },
-  { key: "users", icon: Users, title: "Employees & Users", Panel: UsersPermissionsPanel },
-  { key: "iam", icon: KeyRound, title: "Access Management", Panel: IamPanel },
-  { key: "companies", icon: Building2, title: "Companies", Panel: CompaniesPanel },
+  { key: "org", icon: UserCog, title: "Organization Profile", short: "Organization", Panel: OrganizationProfilePanel },
+  { key: "users", icon: Users, title: "Employees & Users", short: "Employees", Panel: UsersPermissionsPanel },
+  { key: "iam", icon: KeyRound, title: "Access Management", short: "Access", Panel: IamPanel },
+  { key: "companies", icon: Building2, title: "Companies", short: "Companies", Panel: CompaniesPanel },
 ] as const
 
 function BusinessSetupContent() {
@@ -45,15 +48,24 @@ function BusinessSetupContent() {
     <BusinessOfficeShell active="settings">
       <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Administration</h1>
-          <p className="text-slate-600">Set up your organization — your organization profile, employees and companies.</p>
+          <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Administration</h1>
+          <p className="text-sm text-slate-600 sm:text-base">Set up your organization — your organization profile, employees and companies.</p>
         </div>
 
         <Tabs value={tab} onValueChange={selectTab}>
-          <TabsList>
+          {/* 2×2 grid on phones, single inline row from sm up. The default list
+              is w-fit + nowrap, which on a phone runs straight off the side of
+              the screen and takes the whole page into horizontal scroll. */}
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:inline-flex sm:h-9 sm:w-fit sm:gap-0">
             {SECTIONS.map((s) => {
               const Icon = s.icon
-              return <TabsTrigger key={s.key} value={s.key}><Icon className="h-4 w-4 mr-1.5" /> {s.title}</TabsTrigger>
+              return (
+                <TabsTrigger key={s.key} value={s.key} className="h-9 w-full sm:h-[calc(100%-1px)] sm:w-auto">
+                  <Icon className="h-4 w-4 mr-1.5" />
+                  <span className="sm:hidden">{s.short}</span>
+                  <span className="hidden sm:inline">{s.title}</span>
+                </TabsTrigger>
+              )
             })}
           </TabsList>
           {SECTIONS.map(({ key, Panel }) => (

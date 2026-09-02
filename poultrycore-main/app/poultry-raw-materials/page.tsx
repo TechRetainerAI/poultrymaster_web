@@ -300,7 +300,7 @@ function PoultryRawMaterialsPageInner() {
   // Item dropdown shared by the Purchases + Usage filter strips.
   const itemFilterDropdown = (
     <Select value={itemFilter} onValueChange={setItemFilter}>
-      <SelectTrigger className="w-[160px]"><SelectValue placeholder="All items" /></SelectTrigger>
+      <SelectTrigger className="w-full sm:w-[160px]"><SelectValue placeholder="All items" /></SelectTrigger>
       <SelectContent>
         <SelectItem value="all">All items</SelectItem>
         {items.map((i) => <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>{i.itemName}</SelectItem>)}
@@ -416,11 +416,11 @@ function PoultryRawMaterialsPageInner() {
             </div>
             {/* One row from sm up — the heading shrinks rather than pushing
                 Record Purchase onto a line of its own. */}
-            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto sm:ml-auto sm:flex-nowrap sm:shrink-0">
-              <RecalculateStockButton items={items} onDone={load} />
-              <Button variant="outline" onClick={openNewItem}><Plus className="w-4 h-4 mr-1" /> New Item</Button>
-              <Button variant="outline" onClick={() => router.push("/poultry-feed-production")}><Factory className="w-4 h-4 mr-1" /> Produce Feed</Button>
-              <Button onClick={openNewPurchase}><ShoppingCart className="w-4 h-4 mr-1" /> Record Purchase</Button>
+            <div className="grid w-full grid-cols-2 gap-2 self-start sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:self-auto sm:ml-auto sm:flex-nowrap sm:shrink-0">
+              <RecalculateStockButton className={TOOLBAR_BTN} items={items} onDone={load} />
+              <Button variant="outline" className={TOOLBAR_BTN} onClick={openNewItem}><Plus className="w-4 h-4 mr-1" /> New Item</Button>
+              <Button variant="outline" className={TOOLBAR_BTN} onClick={() => router.push("/poultry-feed-production")}><Factory className="w-4 h-4 mr-1" /> Produce Feed</Button>
+              <Button className={TOOLBAR_BTN} onClick={openNewPurchase}><ShoppingCart className="w-4 h-4 mr-1" /> Record Purchase</Button>
             </div>
           </div>
           {loading ? (
@@ -487,14 +487,14 @@ function PoultryRawMaterialsPageInner() {
                   </div>
                   <div className="mb-3"><ListFilters search={search} setSearch={setSearch} searchOnly searchPlaceholder="Search item or category" extras={<>
                     <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                      <SelectTrigger className="w-[160px]"><SelectValue placeholder="All categories" /></SelectTrigger>
+                      <SelectTrigger className="w-full sm:w-[160px]"><SelectValue placeholder="All categories" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All categories</SelectItem>
                         {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{categoryLabel(c)}</SelectItem>)}
                       </SelectContent>
                     </Select>
                     <Select value={unitFilter} onValueChange={setUnitFilter}>
-                      <SelectTrigger className="w-[140px]"><SelectValue placeholder="All units" /></SelectTrigger>
+                      <SelectTrigger className="w-full sm:w-[140px]"><SelectValue placeholder="All units" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All units</SelectItem>
                         {unitOptionsInUse.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
@@ -538,11 +538,10 @@ function PoultryRawMaterialsPageInner() {
                       ))}
                     </TableBody>
                   </Table></div>
-                  <DataPagination {...pgItems.paginationProps} />
                   {/* Mobile cards */}
                   <div className="md:hidden space-y-2">
                     {filteredItems.length === 0 ? <div className="text-center text-slate-500 py-6">No items yet.</div>
-                      : sortedItems.map((i) => (
+                      : pgItems.pageItems.map((i) => (
                         <FieldCard key={i.poultryRawMaterialItemId} title={i.itemName}
                           badge={!i.isActive ? <Badge variant="secondary">Inactive</Badge> : i.isLowStock ? <Badge className="bg-amber-100 text-amber-700">Low stock</Badge> : <Badge className="bg-green-100 text-green-700">OK</Badge>}
                           fields={[["Category", categoryLabel(i.category)], ["Purchase Unit", i.purchaseUnitOfMeasure ?? "—"], ["Production Unit", i.unitOfMeasure ?? "—"], ["In stock", i.currentQuantity.toLocaleString()], ["Min alert", i.minimumStockAlert.toLocaleString()]]}
@@ -552,6 +551,10 @@ function PoultryRawMaterialsPageInner() {
                           </>} />
                       ))}
                   </div>
+                  {/* Sits after BOTH lists, so it reads as "below the table" in
+                      either layout — it used to render between them, which put it
+                      above the cards on a phone. */}
+                  <DataPagination {...pgItems.paginationProps} />
                 </CardContent></Card>
               </TabsContent>
 
@@ -631,11 +634,10 @@ function PoultryRawMaterialsPageInner() {
                       ))}
                     </TableBody>
                   </Table></div>
-                  <DataPagination {...pgPurchases.paginationProps} />
                   {/* Mobile cards */}
                   <div className="md:hidden space-y-2">
                     {filteredPurchases.length === 0 ? <div className="text-center text-slate-500 py-6">{focusPurchaseId !== null ? `Purchase #${focusPurchaseId} is not in this list.` : "No purchases yet."}</div>
-                      : sortedPurchases.map((p) => (
+                      : pgPurchases.pageItems.map((p) => (
                         <FieldCard key={p.poultryRawMaterialPurchaseId} title={p.itemName}
                           badge={p.feedProductionRole
                             ? <Badge variant="outline" className={cn("text-[10px] font-normal", p.feedProductionRole === "Produced" ? "border-emerald-300 text-emerald-700" : "border-indigo-300 text-indigo-700")}>{p.feedProductionRole === "Produced" ? "Produced" : "Bought for production"}{p.feedProductionBatchNumber ? ` · ${p.feedProductionBatchNumber}` : ""}</Badge>
@@ -650,6 +652,10 @@ function PoultryRawMaterialsPageInner() {
                               </>} />
                       ))}
                   </div>
+                  {/* Sits after BOTH lists, so it reads as "below the table" in
+                      either layout — it used to render between them, which put it
+                      above the cards on a phone. */}
+                  <DataPagination {...pgPurchases.paginationProps} />
                 </CardContent></Card>
               </TabsContent>
 
@@ -701,11 +707,10 @@ function PoultryRawMaterialsPageInner() {
                       ))}
                     </TableBody>
                   </Table></div>
-                  <DataPagination {...pgUsage.paginationProps} />
                   {/* Mobile cards */}
                   <div className="md:hidden space-y-2">
                     {filteredUsage.length === 0 ? <div className="text-center text-slate-500 py-6">No usage recorded yet.</div>
-                      : sortedUsage.map((u) => (
+                      : pgUsage.pageItems.map((u) => (
                         <FieldCard key={u.poultryRawMaterialUsageId} title={u.itemName}
                           badge={u.poultryFeedProductionBatchId
                             ? <Badge variant="outline" className="text-[10px] font-normal border-indigo-300 text-indigo-700"><Factory className="w-3 h-3 mr-1" />Feed production{u.feedProductionBatchNumber ? ` · ${u.feedProductionBatchNumber}` : ""}</Badge>
@@ -716,6 +721,10 @@ function PoultryRawMaterialsPageInner() {
                             : undefined} />
                       ))}
                   </div>
+                  {/* Sits after BOTH lists, so it reads as "below the table" in
+                      either layout — it used to render between them, which put it
+                      above the cards on a phone. */}
+                  <DataPagination {...pgUsage.paginationProps} />
                 </CardContent></Card>
               </TabsContent>
             </>
@@ -839,6 +848,11 @@ function PoultryRawMaterialsPageInner() {
     </div>
   )
 }
+
+// Toolbar buttons sit two-up on a phone. They need to wrap and grow: the Button
+// base is `whitespace-nowrap` at a fixed h-9, so a long label would spill out of
+// a half-width cell rather than wrap inside it.
+const TOOLBAR_BTN = "w-full h-auto min-h-9 whitespace-normal py-2 leading-tight sm:w-auto sm:h-9 sm:whitespace-nowrap"
 
 export default function PoultryRawMaterialsPage() {
   // useSearchParams needs a Suspense boundary during prerender.

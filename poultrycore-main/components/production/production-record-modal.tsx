@@ -154,11 +154,14 @@ export function ProductionRecordModal({
                 </>
               ) : null}
             </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <Button type="button" variant="outline" onClick={requestClose} disabled={saving}>
+            {/* shrink-0 on a fixed row clips the primary off the right edge of a
+                narrow phone. Cancel keeps its natural width and the primary
+                takes the rest of the row. */}
+            <div className="grid w-full shrink-0 grid-cols-[auto_1fr] gap-2 sm:flex sm:w-auto sm:items-center">
+              <Button type="button" variant="outline" onClick={requestClose} disabled={saving} className="w-full sm:w-auto">
                 Cancel
               </Button>
-              <Button type="submit" form={FORM_ID} disabled={saving || loading}>
+              <Button type="submit" form={FORM_ID} disabled={saving || loading} className="w-full sm:w-auto">
                 {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
                 {isEdit ? "Update Production Record" : "Save Production Record"}
               </Button>

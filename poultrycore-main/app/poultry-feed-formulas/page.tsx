@@ -283,10 +283,15 @@ export default function PoultryFeedFormulasPage() {
 
       {/* Create / edit formula */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-[820px] max-h-[92vh] overflow-y-auto">
+        {/* sm:max-w, not max-w. An unprefixed max-w-[820px] out-merges the base
+            `max-w-[calc(100%-2rem)]`, so the dialog lost its side gutter on a
+            phone — and the base `sm:max-w-2xl` then survived and capped the
+            desktop width at 672px rather than the 820px asked for. Prefixing
+            fixes both ends. */}
+        <DialogContent className="sm:max-w-[820px] max-h-[92vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader><DialogTitle>{form.poultryFeedFormulaId ? "Edit Feed Formula" : "New Feed Formula"}</DialogTitle></DialogHeader>
 
-          <FormSection title="Formula details" color="blue">
+          <FormSection title="Formula details" color="blue" stackOnMobile>
             <FormField label="Formula name *"><Input value={form.formulaName} onChange={(e) => setForm({ ...form, formulaName: e.target.value })} placeholder="e.g. Layer Mash Formula" /></FormField>
             <FormField label="Finished feed (optional)" hint="Formulas are reusable — leave blank to use with any finished feed">
               <Select value={form.finishedFeedItemId ? String(form.finishedFeedItemId) : "none"} onValueChange={(v) => setForm({ ...form, finishedFeedItemId: v === "none" ? null : Number(v) })}>
@@ -310,18 +315,18 @@ export default function PoultryFeedFormulasPage() {
             <FormField label="Notes" full><Textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></FormField>
           </FormSection>
 
-          <FormSection title="Ingredients" color="emerald">
-            <div className="sm:col-span-2 space-y-2">
+          <FormSection title="Ingredients" color="emerald" stackOnMobile>
+            <div className="col-span-full space-y-2">
               {form.lines.map((l) => (
-                <div key={l.key} className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end rounded-lg border border-slate-200 p-2.5 bg-white">
-                  <div className="sm:col-span-4">
+                <div key={l.key} className="grid grid-cols-2 sm:grid-cols-12 gap-2 items-end rounded-lg border border-slate-200 p-2.5 bg-white">
+                  <div className="col-span-2 sm:col-span-4">
                     <label className="text-xs text-slate-500">Ingredient</label>
                     <Select value={l.ingredientItemId ? String(l.ingredientItemId) : ""} onValueChange={(v) => pickIngredient(l.key, Number(v))}>
                       <SelectTrigger><SelectValue placeholder={ingredientItems.length ? "Pick ingredient" : "No ingredient items"} /></SelectTrigger>
                       <SelectContent>{ingredientItems.map((i) => <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>{i.itemName}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
-                  <div className="sm:col-span-3">
+                  <div className="col-span-1 sm:col-span-3">
                     <label className="text-xs text-slate-500">Mode</label>
                     <Select value={l.quantityMode} onValueChange={(v) => setLine(l.key, { quantityMode: v as FeedFormulaQuantityMode })}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
@@ -331,15 +336,15 @@ export default function PoultryFeedFormulasPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="sm:col-span-2">
+                  <div className="col-span-1 sm:col-span-2">
                     <label className="text-xs text-slate-500">{l.quantityMode === "Percentage" ? "Percent" : `Qty${l.unitOfMeasure ? ` (${l.unitOfMeasure})` : ""}`}</label>
                     <NumberInput min={0} step={l.quantityMode === "Percentage" ? "0.01" : "0.001"} value={l.value} onChange={(e) => setLine(l.key, { value: e.target.value })} />
                   </div>
-                  <div className="sm:col-span-2">
+                  <div className="col-span-2 sm:col-span-2">
                     <label className="text-xs text-slate-500">Notes</label>
                     <Input value={l.notes} onChange={(e) => setLine(l.key, { notes: e.target.value })} />
                   </div>
-                  <div className="sm:col-span-1 flex sm:justify-end">
+                  <div className="col-span-2 flex justify-end sm:col-span-1">
                     <Button variant="ghost" size="sm" onClick={() => removeLine(l.key)} disabled={form.lines.length <= 1}><Trash2 className="w-4 h-4 text-red-600" /></Button>
                   </div>
                 </div>
@@ -369,9 +374,9 @@ export default function PoultryFeedFormulasPage() {
             </div>
           </FormSection>
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button>
-            <Button onClick={() => void save()} disabled={saving}>
+          <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button>
+            <Button className="w-full sm:w-auto" onClick={() => void save()} disabled={saving}>
               {saving ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Saving…</> : <><FlaskConical className="w-4 h-4 mr-1" /> Save Formula</>}
             </Button>
           </div>

@@ -393,7 +393,7 @@ export default function PoultryInternalUsePage() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <DashboardHeader />
         <main className="flex-1 overflow-auto p-4 md:p-6">
-          <div className="flex items-start justify-between gap-4 mb-6">
+          <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <div>
               <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
                 <PackageMinus className="w-6 h-6 text-sky-600" /> Internal Use
@@ -407,7 +407,7 @@ export default function PoultryInternalUsePage() {
                 <span>Posting writes a stock movement, updates inventory and books a non-cash expense.</span>
               </p>
             </div>
-            <Button onClick={openCreate} className="shrink-0">
+            <Button onClick={openCreate} className="w-full sm:w-auto sm:shrink-0">
               <Plus className="w-4 h-4 mr-2" /> Record internal use
             </Button>
           </div>
@@ -440,7 +440,7 @@ export default function PoultryInternalUsePage() {
             extras={(
               <>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-36"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">All statuses</SelectItem>
                     <SelectItem value="Draft">Draft</SelectItem>
@@ -449,7 +449,7 @@ export default function PoultryInternalUsePage() {
                   </SelectContent>
                 </Select>
                 <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                  <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full sm:w-52"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">All reasons</SelectItem>
                     {CATEGORIES.map((c) => (
@@ -535,7 +535,7 @@ export default function PoultryInternalUsePage() {
 
       {/* ------------------------------------------------------------- form */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="w-[95vw] max-w-[900px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] sm:max-w-[900px] max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>{form.poultryInternalUsageId ? "Edit draft" : "Record internal use"}</DialogTitle>
             <DialogDescription>
@@ -545,7 +545,7 @@ export default function PoultryInternalUsePage() {
           </DialogHeader>
 
           <div className="space-y-4">
-            <FormSection title="What was used, and why" color="sky" columns={2}>
+            <FormSection title="What was used, and why" color="sky" columns={2} stackOnMobile>
               <FormField label="Date">
                 <Input type="date" value={form.usageDate} max={today()}
                        onChange={(e) => set("usageDate", e.target.value)} />
@@ -570,7 +570,7 @@ export default function PoultryInternalUsePage() {
               </FormField>
             </FormSection>
 
-            <FormSection title="How much" color="blue" columns={2}>
+            <FormSection title="How much" color="blue" columns={2} stackOnMobile>
               {/* A company with no products has nothing to give out. Say so and
                   point at the fix — an empty dropdown just looks broken. */}
               {products.length === 0 ? (
@@ -714,9 +714,9 @@ export default function PoultryInternalUsePage() {
             </FormSection>
           </div>
 
-          <div className="flex justify-end gap-2 pt-4">
-            <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button>
-            <Button onClick={() => void save()} disabled={saving || notEnough}>
+          <div className="flex flex-col gap-2 pt-4 sm:flex-row sm:justify-end">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button>
+            <Button className="w-full sm:w-auto" onClick={() => void save()} disabled={saving || notEnough}>
               {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving…</> : "Save draft"}
             </Button>
           </div>
@@ -748,7 +748,7 @@ export default function PoultryInternalUsePage() {
         {/* Grey body so each white card reads as its own block. The previous
             version was one ruled list on white, which is what made it feel
             cramped -- nothing separated a fact from the fact under it. */}
-        <DialogContent className="w-[95vw] max-w-[620px] max-h-[88vh] overflow-y-auto gap-0 bg-slate-50 p-0">
+        <DialogContent className="w-[95vw] sm:max-w-[620px] max-h-[88vh] overflow-y-auto gap-0 bg-slate-50 p-0">
           <div className="px-6 pt-6 pb-4">
             <DialogHeader className="space-y-1.5 text-left">
               <div className="flex items-center justify-between gap-3">

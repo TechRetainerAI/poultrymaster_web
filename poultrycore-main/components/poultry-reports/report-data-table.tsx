@@ -240,7 +240,18 @@ export function ReportDataTable({
                   {row.display.map((cell, ci) => (
                     <TableCell
                       key={ci}
-                      className={cn("py-2.5", columns[ci]?.align === "right" && "text-right tabular-nums")}
+                      className={cn(
+                        "py-2.5",
+                        columns[ci]?.align === "right"
+                          ? "text-right tabular-nums"
+                          // The shared TableCell is whitespace-nowrap (ui/table.tsx:86),
+                          // which is right for dates and money but turns a long
+                          // Description into one endless line and pushes every
+                          // column after it off the screen. Text columns wrap;
+                          // right-aligned ones stay on one line, because a wrapped
+                          // amount is unreadable.
+                          : "whitespace-normal break-words align-top max-w-[28rem]",
+                      )}
                     >
                       {cell}
                     </TableCell>

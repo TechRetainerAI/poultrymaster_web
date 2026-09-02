@@ -8,6 +8,8 @@
 // =============================================================================
 
 import type { PoultryReportSlug } from "@/lib/api/poultry-reports"
+import { buildCashFlowAnalysis } from "@/lib/cash/cash-flow-analysis"
+import { categoryLabel } from "@/lib/cash/cash-flow"
 
 export interface FmtCtx {
   money: (n: number | null | undefined) => string
@@ -19,10 +21,52 @@ export interface FmtCtx {
 
 export type Accent = "green" | "rose" | "indigo"
 
+/** Backend numerics arrive as numbers or numeric strings; normalise once. */
+const num = (v: unknown): number => {
+  const n = Number(v)
+  return Number.isFinite(n) ? n : 0
+}
+
+type RawBucket = { label?: string; amount?: unknown; sharePercent?: unknown; movements?: unknown }
+
+/** Normalise a bucket list from the API, dropping anything empty. */
+const buckets = (list: unknown): Array<{ label: string; amount: number; sharePercent: number | null; movements: number }> =>
+  (Array.isArray(list) ? (list as RawBucket[]) : [])
+    .map((b) => ({
+      // Through the shared vocabulary, so a bucket is named the same here as on
+      // the Cash Flow page. Raw enums like "OwnerInjection" would otherwise
+      // reach the screen verbatim.
+      label: categoryLabel((b?.label ?? "").toString()),
+      amount: num(b?.amount),
+      sharePercent: b?.sharePercent == null ? null : num(b.sharePercent),
+      movements: num(b?.movements),
+    }))
+    .filter((b) => b.amount > 0)
+
+/** Bucket list -> breakdown bars. The backend already sorted and shared them. */
+const bars = (list: unknown) =>
+  buckets(list).map((b) => ({
+    label: b.label,
+    value: (_s: any, c: FmtCtx) => c.money(b.amount),
+    percent: () => b.sharePercent,
+  }))
+
+/** Largest bucket as a card value: "Feed — 4,200.00", or a dash when none. */
+const topBucketLabel = (list: unknown, c: FmtCtx): string => {
+  const top = buckets(list)[0]
+  return top ? `${top.label} — ${c.money(top.amount)}` : "—"
+}
+
 export interface CardDef {
   label: string
   value: (summary: any, ctx: FmtCtx) => string
   accent?: Accent | ((summary: any) => Accent | undefined)
+  /**
+   * A caveat printed under the value. For figures whose scope differs from the
+   * report's date range — a balance that is as-of-now while everything beside
+   * it is for the period. Without it the reader assumes one scope for the row.
+   */
+  note?: string
 }
 
 export interface ColumnDef {
@@ -47,7 +91,26 @@ export interface BreakdownGroup {
   title: string
   accent: "green" | "rose"
   total?: (summary: any, ctx: FmtCtx) => string
-  items: BreakdownBar[]
+  /**
+   * Fixed bars, or a function returning them.
+   *
+   * Most reports know their categories at build time (Feed, Labour, Other) and
+   * pass an array. Cash Flow Detail does not — its categories are whatever the
+   * farm actually spends on — so it derives the bars from the summary instead.
+   */
+  items: BreakdownBar[] | ((summary: any) => BreakdownBar[])
+}
+
+/** One plain-English reading of the figures, rendered above the breakdown. */
+export interface AnalysisDef {
+  title: string
+  /** Built from the summary; `fmt` is the report's own currency formatter. */
+  items: (summary: any, fmt: (n: number) => string) => Array<{
+    id: string
+    tone: "good" | "watch" | "neutral"
+    title: string
+    detail: string
+  }>
 }
 
 export interface PoultryReportDef {
@@ -65,6 +128,8 @@ export interface PoultryReportDef {
   columns: ColumnDef[]
   /** Optional grouped breakdown rendered below the detail table. */
   breakdown?: BreakdownGroup[]
+  /** Optional narrative analysis, rendered above the breakdown. */
+  analysis?: AnalysisDef
   /**
    * Render the detail rows as scorecards instead of a table — one Revenue card
    * and one Expenses & Profit card per row. Intended for the Profit & Loss
@@ -476,11 +541,23 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
     description: "Cash inflows and outflows for poultry operations.",
     filters: {},
     cards: [
+      // Order is the arithmetic, left to right: opening + in - out = net, for
+      // the selected period. Cash at hand sits last because it is the only
+      // as-of-now figure in the row and does not belong inside that sum.
       { label: "Opening cash balance", value: (s, c) => c.money(s.openingCashBalance) },
       { label: "Total inflows", value: (s, c) => c.money(s.totalInflows), accent: "green" },
       { label: "Total outflows", value: (s, c) => c.money(s.totalOutflows), accent: "rose" },
-      { label: "Ending balance", value: (s, c) => c.money(s.endingBalance) },
       { label: "Net cash movement", value: (s, c) => c.money(s.netCashMovement), accent: (s) => profitAccent(s.netCashMovement) },
+      // Was "Ending balance", which read as "cash at the end of the range". It
+      // never was: 231 derives openingbalance as cashathand - (in - out)
+      // (231_PoultryCashFlowRows.postgres.sql:284), so opening + in - out
+      // collapses back to cash at hand exactly. All time, and it does not move
+      // when the date filter does — hence the note, and the position.
+      {
+        label: "Cash at hand",
+        value: (s, c) => c.money(s.endingBalance),
+        note: "All time — not affected by the date filter",
+      },
     ],
     columns: [
       { header: "Date", cell: (r, c) => c.date(r.date) },
@@ -491,6 +568,72 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
       { header: "Inflow", align: "right", cell: (r, c) => c.money(r.inflow) },
       { header: "Outflow", align: "right", cell: (r, c) => c.money(r.outflow) },
       { header: "Balance", align: "right", cell: (r, c) => c.money(r.balanceAfter) },
+    ],
+  },
+
+  // 14b -----------------------------------------------------------------------
+  // Cash Movement says WHAT moved. This says what it was FOR — the ledger alone
+  // cannot, since every expense in the company lands as sourcetype 'Expense'.
+  // Migration 233 supplies the category; the analysis is the point of the page.
+  "cash-flow-detail": {
+    slug: "cash-flow-detail",
+    title: "Poultry Cash Flow Detail",
+    description: "Where cash came from, what it went on, and how the period compares.",
+    filters: {},
+    cards: [
+      { label: "Money in", value: (s, c) => c.money(s.moneyIn), accent: "green" },
+      { label: "Money out", value: (s, c) => c.money(s.moneyOut), accent: "rose" },
+      { label: "Net cash flow", value: (s, c) => c.money(s.netCashFlow), accent: (s) => profitAccent(s.netCashFlow) },
+      { label: "Biggest cost", value: (s, c) => topBucketLabel(s.moneyOutByCategory, c) },
+      // The only as-of-now figure in the row, so it sits last and says so —
+      // the same treatment Cash Movement's card got.
+      {
+        label: "Cash at hand",
+        value: (s, c) => c.money(s.cashAtHand),
+        note: "All time — not affected by the date filter",
+      },
+    ],
+    analysis: {
+      title: "Analysis",
+      // Pure, unit-tested, and shared with nothing else yet — the sentences make
+      // claims about somebody's money, so they are tested rather than trusted.
+      items: (s, fmt) => buildCashFlowAnalysis({
+        moneyIn: num(s.moneyIn), moneyOut: num(s.moneyOut), netCashFlow: num(s.netCashFlow),
+        cashAtHand: num(s.cashAtHand),
+        offLedgerIn: num(s.offLedgerIn), offLedgerOut: num(s.offLedgerOut),
+        transferVolume: num(s.transferVolume),
+        movementCount: num(s.movementCount), daysInPeriod: num(s.daysInPeriod),
+        previousMoneyIn: num(s.previousMoneyIn), previousMoneyOut: num(s.previousMoneyOut),
+        previousNetCashFlow: num(s.previousNetCashFlow),
+        moneyInByCategory: buckets(s.moneyInByCategory),
+        moneyOutByCategory: buckets(s.moneyOutByCategory),
+      }, fmt),
+    },
+    breakdown: [
+      {
+        title: "Money in by source",
+        accent: "green",
+        total: (s, c) => c.money(s.moneyIn),
+        items: (s) => bars(s.moneyInByCategory),
+      },
+      {
+        title: "Money out by category",
+        accent: "rose",
+        total: (s, c) => c.money(s.moneyOut),
+        items: (s) => bars(s.moneyOutByCategory),
+      },
+    ],
+    columns: [
+      { header: "Date", cell: (r, c) => c.date(r.date) },
+      { header: "Category", cell: (r, c) => c.text(categoryLabel(r.category)) },
+      { header: "Account", cell: (r, c) => c.text(r.cashAccount) },
+      { header: "Reference", cell: (r, c) => c.text(r.reference) },
+      { header: "Description", cell: (r, c) => c.text(r.description) },
+      { header: "In", align: "right", cell: (r, c) => (r.inflow ? c.money(r.inflow) : "—") },
+      { header: "Out", align: "right", cell: (r, c) => (r.outflow ? c.money(r.outflow) : "—") },
+      // Company-wide cash after each row, not the account's own balance — the
+      // rows span several accounts plus money that reached none.
+      { header: "Running cash", align: "right", cell: (r, c) => c.money(r.runningBalance) },
     ],
   },
 
