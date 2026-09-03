@@ -56,7 +56,7 @@ import { getBalanceSummary, type BalanceSummary } from "@/lib/api/balances"
 import {
   getCashFlow, flowGroupLabel, type CashFlowRow, type CashFlowSummary,
 } from "@/lib/api/cash-flow"
-import { categoryLabel } from "@/lib/cash/cash-flow"
+import { cashFlowBuckets, categoryLabel, withRunningBalance } from "@/lib/cash/cash-flow"
 import { buildCashFlowAnalysis } from "@/lib/cash/cash-flow-analysis"
 import {
   createCashAdjustment, updateCashAdjustment, deleteCashAdjustment,
@@ -77,6 +77,9 @@ const EMPTY_SUMMARY: CashFlowSummary = {
 
 /** Adjustment types that are capital, and therefore editable from this page. */
 const CAPITAL_SOURCE = "Adjustment"
+
+/** Why the row actions are greyed out on everything this page did not create. */
+const SOURCE_OWNED_HINT = "Sales and expenses are managed from their own pages."
 
 export default function CashFlowPage() {
   const router = useRouter()
@@ -167,31 +170,10 @@ export default function CashFlowPage() {
 
   // ---- derived ---------------------------------------------------------------
   /** Buckets for the breakdowns, grouped by what the money was FOR. */
-  const bucketsFor = useCallback((direction: "in" | "out") => {
-    const want = direction === "in" ? 1 : -1
-    const acc = new Map<string, { label: string; amount: number; count: number }>()
-    let total = 0
-    for (const r of rows) {
-      if (Math.sign(r.amount) !== want || r.amount === 0) continue
-      const label = categoryLabel(r.category)
-      const b = acc.get(label)
-      if (b) { b.amount += Math.abs(r.amount); b.count += 1 }
-      else acc.set(label, { label, amount: Math.abs(r.amount), count: 1 })
-      total += Math.abs(r.amount)
-    }
-    return [...acc.values()]
-      .sort((a, b) => b.amount - a.amount)
-      .map((b) => ({
-        key: b.label,
-        label: b.label,
-        amount: Math.round(b.amount * 100) / 100,
-        count: b.count,
-        percent: total === 0 ? 0 : Math.round((b.amount / total) * 1000) / 10,
-      }))
-  }, [rows])
-
-  const inBuckets = useMemo(() => bucketsFor("in"), [bucketsFor])
-  const outBuckets = useMemo(() => bucketsFor("out"), [bucketsFor])
+  // Shared with the Cash Movement / Cash Flow Detail reports, so a bucket cannot
+  // be named or sized one way here and another in the report of the same rows.
+  const inBuckets = useMemo(() => cashFlowBuckets(rows, "in"), [rows])
+  const outBuckets = useMemo(() => cashFlowBuckets(rows, "out"), [rows])
 
   const totals = useMemo(
     () => ({
@@ -290,12 +272,9 @@ export default function CashFlowPage() {
     // Running cash, in date order and BEFORE any user sort, starting from the
     // period's opening cash -- so it is a real running balance rather than a
     // within-period cumulative, and re-sorting cannot change what it means.
-    const asc = [...filtered].sort((a, b) => {
-      const d = (a.transactionDate ?? "").localeCompare(b.transactionDate ?? "")
-      return d !== 0 ? d : a.id - b.id
-    })
-    let running = summary.openingCash
-    const withRunning = asc.map((r) => { running += r.amount; return { ...r, running } })
+    // Accumulated oldest-first BEFORE the display sort — a running balance
+    // computed over a user-sorted list is arithmetic nonsense.
+    const withRunning = withRunningBalance(filtered, summary.openingCash)
 
     return sortData(withRunning, sortKey, sortDir, (item: any, key: string) => {
       switch (key) {
@@ -550,6 +529,7 @@ export default function CashFlowPage() {
                             <TableBody>
                               {pg.pageItems.map((r: any) => {
                                 const capital = r.flowGroup === "FinancingIn" || r.flowGroup === "FinancingOut"
+                                const canManage = r.rowSource === CAPITAL_SOURCE
                                 return (
                                   <TableRow key={`${r.rowSource}-${r.id}`} className={cn(capital && "bg-slate-50")}>
                                     <TableCell className="whitespace-nowrap">
@@ -579,41 +559,30 @@ export default function CashFlowPage() {
                                     </TableCell>
                                     {/* Each row is owned by the module that created
                                         it. A receipt or an expense is edited where
-                                        it was recorded; capital is the only thing
+                                        it was recorded, so the buttons stay visible
+                                        but disabled there; capital is the only thing
                                         this page owns outright. */}
                                     <TableCell className="text-right whitespace-nowrap">
-                                      {r.rowSource === "Expense" && (
-                                        <Button asChild size="sm" variant="ghost" title="Open this expense">
-                                          <Link href={`/expenses/${r.sourceId}`}>
-                                            <ExternalLink className="h-4 w-4" />
-                                          </Link>
+                                      <div className="inline-flex items-center gap-1">
+                                        <Button size="icon" variant="ghost" disabled={!canManage}
+                                                aria-label="Edit transaction"
+                                                title={canManage ? "Edit this adjustment" : SOURCE_OWNED_HINT}
+                                                onClick={() => setEditAdjustment({
+                                                  adjustmentId: Number(r.sourceId),
+                                                  adjustmentType: adjustmentTypeFromLabel(r.sourceType),
+                                                  adjustmentDate: r.transactionDate,
+                                                  amount: r.amount,
+                                                  description: r.description ?? "",
+                                                })}>
+                                          <Pencil className="h-4 w-4 text-slate-600" />
                                         </Button>
-                                      )}
-                                      {(r.rowSource === "Receipt" || r.rowSource === "SaleResidual") && (
-                                        <Button asChild size="sm" variant="ghost" title="Open this sale">
-                                          <Link href={`/sales/${r.sourceId}`}>
-                                            <ExternalLink className="h-4 w-4" />
-                                          </Link>
+                                        <Button size="icon" variant="ghost" disabled={!canManage}
+                                                aria-label="Delete transaction"
+                                                title={canManage ? "Delete this adjustment" : SOURCE_OWNED_HINT}
+                                                onClick={() => setDeleteAdjustment(r)}>
+                                          <Trash2 className="h-4 w-4 text-rose-600" />
                                         </Button>
-                                      )}
-                                      {r.rowSource === CAPITAL_SOURCE && (
-                                        <>
-                                          <Button size="sm" variant="ghost" title="Edit this adjustment"
-                                                  onClick={() => setEditAdjustment({
-                                                    adjustmentId: Number(r.sourceId),
-                                                    adjustmentType: adjustmentTypeFromLabel(r.sourceType),
-                                                    adjustmentDate: r.transactionDate,
-                                                    amount: r.amount,
-                                                    description: r.description ?? "",
-                                                  })}>
-                                            <Pencil className="h-4 w-4 text-slate-600" />
-                                          </Button>
-                                          <Button size="sm" variant="ghost" title="Delete this adjustment"
-                                                  onClick={() => setDeleteAdjustment(r)}>
-                                            <Trash2 className="h-4 w-4 text-rose-600" />
-                                          </Button>
-                                        </>
-                                      )}
+                                      </div>
                                     </TableCell>
                                   </TableRow>
                                 )

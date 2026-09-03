@@ -377,6 +377,76 @@ function assignPercentages(rows: FlowBucket[], total: number): FlowBucket[] {
 }
 
 // ---------------------------------------------------------------------------
+// Transaction-sourced cash flow (migrations 235 / 236)
+// ---------------------------------------------------------------------------
+//
+// groupByFlow above buckets LEDGER entries by sourceType. These two work on the
+// cash-flow rows instead, which already carry the humanised `category` the SQL
+// assigned. Shared by the Cash Flow pages and the Cash Movement / Cash Flow
+// Detail reports on both rails, so a bucket cannot be named one thing on the
+// page and another in the report of the same numbers.
+
+/** The only fields these helpers touch. Structural, so any client's row fits. */
+export interface CashFlowRowLike {
+  id: number
+  category: string
+  transactionDate: string
+  /** SIGNED: positive in, negative out. */
+  amount: number
+}
+
+/** Buckets one direction's rows by what the money was FOR. */
+export function cashFlowBuckets(rows: CashFlowRowLike[], direction: FlowDirection): FlowBucket[] {
+  const want = direction === "in" ? 1 : -1
+  const acc = new Map<string, { label: string; amount: number; count: number }>()
+  let total = 0
+
+  for (const r of rows) {
+    const amount = Number(r.amount) || 0
+    if (amount === 0 || Math.sign(amount) !== want) continue
+    const magnitude = Math.abs(amount)
+    const label = categoryLabel(r.category)
+    const bucket = acc.get(label)
+    if (bucket) {
+      bucket.amount += magnitude
+      bucket.count += 1
+    } else {
+      acc.set(label, { label, amount: magnitude, count: 1 })
+    }
+    total += magnitude
+  }
+
+  const out = [...acc.entries()].map(([key, b]) => ({
+    key, label: b.label, amount: round2(b.amount), count: b.count, percent: 0,
+  }))
+  out.sort((a, b) => b.amount - a.amount || a.label.localeCompare(b.label))
+  return assignPercentages(out, total)
+}
+
+/**
+ * Company-wide cash after each row.
+ *
+ * Accumulated oldest-first from the period's opening figure, whatever order the
+ * caller means to display in — a running balance computed over a newest-first
+ * or user-sorted list is arithmetic nonsense. Sort for display afterwards; the
+ * `running` value travels with its row.
+ */
+export function withRunningBalance<T extends CashFlowRowLike>(
+  rows: T[],
+  openingCash: number,
+): Array<T & { running: number }> {
+  const asc = [...rows].sort((a, b) => {
+    const d = (a.transactionDate ?? "").localeCompare(b.transactionDate ?? "")
+    return d !== 0 ? d : a.id - b.id
+  })
+  let running = Number(openingCash) || 0
+  return asc.map((r) => {
+    running = round2(running + (Number(r.amount) || 0))
+    return { ...r, running }
+  })
+}
+
+// ---------------------------------------------------------------------------
 // Cash by account
 // ---------------------------------------------------------------------------
 
@@ -438,6 +508,144 @@ export function cashByAccount(
  */
 export function calculatedCashAtHand(rows: AccountCashRow[]): number {
   return round2(rows.reduce((s, a) => s + (Number(a.ledgerBalance) || 0), 0))
+}
+
+/**
+ * Where the money sat, for a period.
+ *
+ * cashByAccount answers "where is the money NOW". This answers "where was it at
+ * the start of the period, what moved through each account, and where did it end
+ * up" — the shape a cash account report needs and the one nothing in the
+ * database can supply.
+ *
+ * WHY IT IS COMPUTED HERE
+ * -----------------------
+ * sp{rail}cashreconciliation_getaccountstatus takes no date parameters
+ * (223_PoultryCashReconciliation.postgres.sql:872,
+ *  222_WaterCashReconciliation.postgres.sql:840). Its `ledgerbalance` is
+ * openingbalance + SUM(every transaction ever), and there is no per-account
+ * period opening, in or out anywhere on either rail. So the period figures are
+ * derived from the ledger rows, which the caller must supply as EVERY row up to
+ * and including toDate — not just the period's.
+ *
+ * WHAT STAYS AS-OF-NOW
+ * --------------------
+ * cacheDrift, lastReconciledAt, daysSinceReconciled, unclearedCount and the
+ * attention verdict come from the status feed and are therefore facts about
+ * TODAY, whatever period was asked for. They are passed through unchanged rather
+ * than silently re-dated, and a caller rendering them beside period figures owes
+ * the reader a label saying so.
+ */
+export interface CashAccountPeriodRow extends AccountCashRow {
+  /** Balance as at the start of the period. */
+  openingBalance: number
+  /** Positive magnitude of everything that came in during the period. */
+  periodIn: number
+  /** Positive magnitude of everything that went out during the period. */
+  periodOut: number
+  /** openingBalance + periodIn - periodOut, true by construction. */
+  closingBalance: number
+  /** Ledger rows for this account inside the period. */
+  movementCount: number
+}
+
+/** The account fields this needs. Structural, so either rail's DTO maps on. */
+export interface CashAccountSeed {
+  accountId: number
+  accountName: string
+  accountType?: string | null
+  isActive: boolean
+  /** Seeded on the account itself; the ledger holds no opening-balance row. */
+  openingBalance: number
+}
+
+export function cashAccountsForPeriod(args: {
+  accounts: CashAccountSeed[]
+  status: AccountStatusEntry[]
+  /** EVERY ledger row up to and including toDate, not just the period's. */
+  entries: LedgerEntry[]
+  /** yyyy-mm-dd, inclusive. */
+  fromDate: string
+  toDate: string
+}): CashAccountPeriodRow[] {
+  const { accounts, status, entries, fromDate, toDate } = args
+
+  // Neither list is authoritative on its own: an account can exist without a
+  // status row and a status row can outlive its account. Union them, so nothing
+  // holding money can drop out of a report about where the money is.
+  const seedById = new Map(accounts.map((a) => [a.accountId, a]))
+  const statusById = new Map(status.map((s) => [s.accountId, s]))
+
+  const merged: AccountStatusEntry[] = [...new Set([...seedById.keys(), ...statusById.keys()])]
+    .map((id) => {
+      const seed = seedById.get(id)
+      const st = statusById.get(id)
+      if (st) return { ...st, accountName: st.accountName || seed?.accountName || `Account #${id}` }
+      return {
+        accountId: id,
+        accountName: seed!.accountName,
+        accountType: seed!.accountType ?? null,
+        isActive: seed!.isActive,
+        currentBalance: 0,
+        ledgerBalance: 0,
+        cacheDrift: 0,
+        lastReconciledAt: null,
+        daysSinceReconciled: null,
+        unclearedCount: 0,
+      }
+    })
+
+  // One pass over the ledger. Transfers are NOT excluded: a transfer moves money
+  // between two of these accounts, so it belongs in both accounts' in and out
+  // even though it is not company-wide cash flow. Netting it out here would
+  // break opening + in - out = closing on both sides of the move.
+  const acc = new Map<number, { prior: number; inn: number; out: number; count: number }>()
+  const bucket = (id: number) => {
+    let b = acc.get(id)
+    if (!b) { b = { prior: 0, inn: 0, out: 0, count: 0 }; acc.set(id, b) }
+    return b
+  }
+
+  for (const e of entries) {
+    const amount = Number(e.amount) || 0
+    if (amount === 0) continue
+    const day = (e.transactionDate ?? "").slice(0, 10)
+    if (!day) continue
+    const b = bucket(e.accountId)
+    if (day < fromDate) { b.prior += amount; continue }
+    if (day > toDate) continue
+    b.count += 1
+    if (amount > 0) b.inn += amount
+    else b.out += -amount
+  }
+
+  const base = cashByAccount(merged)
+
+  const rows = base.map((a) => {
+    const b = acc.get(a.accountId)
+    const opening = round2((seedById.get(a.accountId)?.openingBalance ?? 0) + (b?.prior ?? 0))
+    const periodIn = round2(b?.inn ?? 0)
+    const periodOut = round2(b?.out ?? 0)
+    return {
+      ...a,
+      openingBalance: opening,
+      periodIn,
+      periodOut,
+      closingBalance: round2(opening + periodIn - periodOut),
+      movementCount: b?.count ?? 0,
+    }
+  })
+
+  // Share of the PERIOD's closing cash, not of the all-time ledger balance
+  // cashByAccount used. The two coincide when toDate is today and diverge on any
+  // historical range — and this report is about the range that was asked for.
+  const total = rows.reduce((s, r) => s + r.closingBalance, 0)
+  return rows
+    .map((r) => ({
+      ...r,
+      sharePercent: total > 0 ? round2((r.closingBalance / total) * 100) : 0,
+    }))
+    .sort((a, b) => b.closingBalance - a.closingBalance || a.accountName.localeCompare(b.accountName))
 }
 
 // ---------------------------------------------------------------------------

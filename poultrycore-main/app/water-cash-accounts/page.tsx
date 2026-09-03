@@ -20,7 +20,7 @@ import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
-import { Plus, Pencil, Loader2, Wallet, RefreshCw, ArrowLeftRight, Eye, Trash2, Scale } from "lucide-react"
+import { Plus, Pencil, Loader2, Wallet, RefreshCw, ArrowLeftRight, Eye, Trash2, Scale, FileText } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -28,10 +28,11 @@ import { useFmt } from "@/lib/currency"
 import {
   listWaterCashAccounts, getWaterCashAccountCountStatus, createWaterCashAccount, updateWaterCashAccount, deleteWaterCashAccount, reconcileWaterCashBalances,
   listWaterCashTransactions, listWaterCashTransfers, createWaterCashTransfer, approveWaterCashTransfer, cancelWaterCashTransfer,
-  WATER_CASH_TRANSFER_REASONS,
+  WATER_CASH_TRANSFER_REASONS, WATER_CASH_REASONS, adjustWaterCashAccount,
   type WaterCashAccount, type WaterCashTransaction, type WaterCashTransfer,
 } from "@/lib/api/water"
 import { cashByAccount } from "@/lib/cash/cash-flow"
+import { RecordCashAdjustmentDialog } from "@/components/cash/record-cash-adjustment-dialog"
 
 const ACCOUNT_TYPES = ["FactoryCashBox", "OwnerCash", "MoMoWallet", "BankAccount", "DriverCash", "PettyCash", "Other"]
 
@@ -74,6 +75,7 @@ export default function WaterCashAccountsPage() {
   const [deleteTarget, setDeleteTarget] = useState<WaterCashAccount | null>(null)
   const [txDlg, setTxDlg] = useState<{ open: boolean; acc?: WaterCashAccount; rows: WaterCashTransaction[] }>({ open: false, rows: [] })
   const [xferDlg, setXferDlg] = useState(false)
+  const [adjustDlg, setAdjustDlg] = useState(false)
   const [xferForm, setXferForm] = useState({ fromWaterCashAccountId: 0, toWaterCashAccountId: 0, amount: 0, notes: "", notesOther: "" })
 
   useEffect(() => {
@@ -123,8 +125,27 @@ export default function WaterCashAccountsPage() {
     finally { setSaving(false) }
   }
 
+  // One-click default account — every company should have a main cash box.
+  async function createDefault() {
+    const DEFAULT_NAME = "Main Cash Account"
+    if (accounts.some((a) => a.accountName.trim().toLowerCase() === DEFAULT_NAME.toLowerCase())) {
+      toast({ title: "Default account already exists", description: `"${DEFAULT_NAME}" is already set up.` })
+      return
+    }
+    setSaving(true)
+    try {
+      await createWaterCashAccount({ accountName: DEFAULT_NAME, accountType: "FactoryCashBox", openingBalance: 0, allowNegativeBalance: false, notes: "Default cash account" })
+      toast({ title: "Default account created", description: `"${DEFAULT_NAME}" is ready to use.` })
+      await load()
+    } catch (e: any) {
+      toast({ title: "Could not create default account", description: e?.message ?? String(e), variant: "destructive" })
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function reconcile() {
-    try { await reconcileWaterCashBalances(); toast({ title: "Balances reconciled" }); await load() }
+    try { await reconcileWaterCashBalances(); toast({ title: "Balances recalculated" }); await load() }
     catch (e: any) { toast({ title: "Recalculate failed", description: e?.message, variant: "destructive" }) }
   }
 
@@ -200,15 +221,27 @@ export default function WaterCashAccountsPage() {
             {/* Buttons fill the row and wrap on mobile so "New account" is never
                 clipped off-screen; natural-width and right-aligned from sm:. */}
             <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+              <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={() => setAdjustDlg(true)}><Scale className="h-4 w-4 mr-1" /> Record Cash Adjustment</Button>
+              {/* Recalculate belongs here as well as on the reconcile page: the
+                  drift warning in the Calculated column below points at it, and
+                  telling someone the fix is on another screen is how a drifted
+                  balance stays drifted. */}
+              <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={reconcile}><RefreshCw className="h-4 w-4 mr-1" /> Recalculate</Button>
               {/* Reconcile opens the dedicated page — pick an account, count it,
-                  post the difference. Recalculate (rebuilding the cached balance
-                  from the ledger, which moves no money) lives there too, so the
-                  two balance-truth jobs sit together instead of side by side
-                  here where their names invite confusion. */}
+                  post the difference. Recalculate rebuilds the cached balance
+                  from the ledger and moves no money; the two balance-truth jobs
+                  sit one click apart. */}
               <Button asChild variant="outline" className="flex-1 sm:flex-none whitespace-nowrap">
                 <Link href="/water-cash-reconciliation"><Scale className="h-4 w-4 mr-1" /> Reconcile</Link>
               </Button>
+              {/* The printable, emailable version of this page: per-account
+                  opening/in/out/closing for a period, plus drift and
+                  reconciliation status. This screen is the live one. */}
+              <Button asChild variant="outline" className="flex-1 sm:flex-none whitespace-nowrap">
+                <Link href="/water-reports/cash-accounts"><FileText className="h-4 w-4 mr-1" /> Cash Account Report</Link>
+              </Button>
               <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={() => setXferDlg(true)}><ArrowLeftRight className="h-4 w-4 mr-1" /> Transfer</Button>
+              <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={createDefault} disabled={saving}><Wallet className="h-4 w-4 mr-1" /> Create default account</Button>
               <Button className="flex-1 sm:flex-none whitespace-nowrap" onClick={openNew}><Plus className="h-4 w-4 mr-1" /> New account</Button>
             </div>
           </div>
@@ -231,7 +264,10 @@ export default function WaterCashAccountsPage() {
               {loading ? (
                 <div className="p-6 text-slate-500 flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
               ) : accounts.length === 0 ? (
-                <div className="p-8 text-center text-slate-500">No cash accounts. Use Setup to seed defaults or create one above.</div>
+                <div className="p-8 text-center text-slate-500">
+                  <p>No cash accounts yet.</p>
+                  <Button className="mt-3" onClick={createDefault} disabled={saving}><Wallet className="h-4 w-4 mr-1" /> Create default account</Button>
+                </div>
               ) : (
                 <MobileCardList
                   items={pg.pageItems}
@@ -315,6 +351,7 @@ export default function WaterCashAccountsPage() {
                             <TableCell>{a.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="outline">Inactive</Badge>}</TableCell>
                             <TableCell className="text-right">
                               <Button size="sm" variant="ghost" onClick={() => router.push(`/water-cash-accounts/${a.waterCashAccountId}`)} title="View details"><Eye className="h-4 w-4" /></Button>
+                              <Button size="sm" variant="ghost" onClick={() => viewTransactions(a)} title="Quick transactions">Txns</Button>
                               <Button size="sm" variant="ghost" onClick={() => router.push(`/water-cash-reconciliation?accountId=${a.waterCashAccountId}`)} title="Reconcile this account">Reconcile</Button>
                               <Button size="sm" variant="ghost" onClick={() => openEdit(a)}>Edit</Button>
                               <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(a)} title="Delete account"><Trash2 className="h-4 w-4 text-red-500" /></Button>
@@ -546,6 +583,24 @@ export default function WaterCashAccountsPage() {
       </Dialog>
 
       {/* Delete / deactivate a cash account */}
+      <RecordCashAdjustmentDialog
+        open={adjustDlg}
+        onOpenChange={setAdjustDlg}
+        accounts={accounts.map((a) => ({
+          accountId: a.waterCashAccountId,
+          accountName: a.accountName,
+          accountType: a.accountType,
+          isActive: a.isActive,
+        }))}
+        reasons={WATER_CASH_REASONS}
+        fmtMoney={fmt}
+        reconcileHref="/water-cash-reconciliation"
+        onSubmit={async ({ accountId, amount, reason }) => {
+          await adjustWaterCashAccount(accountId, { amount, reason })
+        }}
+        onDone={() => { void load() }}
+      />
+
       <ConfirmDeleteDialog
         open={!!deleteTarget}
         onOpenChange={(o) => { if (!o) setDeleteTarget(null) }}

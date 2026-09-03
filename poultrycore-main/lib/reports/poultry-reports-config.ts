@@ -11,7 +11,7 @@ import {
   LayoutDashboard, Egg, BarChart3, Activity, HeartPulse, Bird, Skull,
   Wheat, Package, Boxes, Coins, Users, Receipt, Wallet, TrendingUp,
   Calculator, Syringe, Pill, ClipboardCheck, ClipboardList, Flag, CalendarDays, Scale,
-  History, Factory, Truck, PieChart,
+  History, Factory, Truck, PieChart, Landmark,
 } from "lucide-react"
 import type { PoultryReportSlug } from "@/lib/api/poultry-reports"
 
@@ -197,6 +197,17 @@ export const POULTRY_REPORT_MENU_GROUPS: PoultryReportMenuGroup[] = [
       item("expense-summary"),
       item("cash-movement"),
       item("cash-flow-detail"),
+      // Standalone (no backend route), so a literal href rather than item():
+      // item() demands a catalogue entry, which demands a PoultryReportSlug
+      // union member and a POULTRY_REPORT_DEFS record, which demand a server
+      // endpoint this report does not need.
+      //
+      // It sits beside the two above and deliberately disagrees with them. They
+      // read business transactions and say what the company earned and spent;
+      // this reads the cash-account LEDGER and says where the money sits. The
+      // two closing figures are not expected to match -- that gap is what
+      // reconciliation exists to explain, and it is not a bug to be fixed.
+      { id: "cash-accounts", title: "Cash Account Report", description: "Per-account opening, in, out and closing, with drift and reconciliation status.", icon: Landmark, href: "/poultry/reports/cash-accounts" },
       item("cost-per-egg"),
     ],
   },
