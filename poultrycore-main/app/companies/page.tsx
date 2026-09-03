@@ -72,7 +72,7 @@ export default function CompaniesPage() {
     try {
       const res = await switchCompany(c.farmId)
       setActiveCompany(res.farmId, res.farmName, c.type, res.accessToken.token)
-      toast({ title: `Switched to ${c.name}` })
+      toast({ title: `Switched to ${c.name}`, duration: 2000 })
     } catch (e: any) { toast({ title: "Switch failed", description: e?.message, variant: "destructive" }) }
   }
 
