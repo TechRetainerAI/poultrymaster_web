@@ -143,6 +143,9 @@ export default function WaterCashAccountReportPage() {
       busy={busy} error={error} onClearError={() => setError(null)}
       fromDate={fromDate} toDate={toDate}
       onFromDateChange={setFromDate} onToDateChange={setToDate}
+      // The body is three tables, not the one `pdf` describes, so each
+      // carries its own phone rendering inside <CashAccountSections>.
+      mobileCards={false}
       pdf={pdf}
       summary={<CashAccountTiles data={data} fmtMoney={fmtMoney} />}
     >

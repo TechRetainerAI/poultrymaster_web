@@ -495,6 +495,7 @@ export default function WaterProductionBatchesPage() {
                 <div className="p-8 text-center text-slate-500">No production records yet.</div>
               ) : (
                 <MobileCardList
+                  defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
                   getKey={(b) => b.waterProductionBatchId}

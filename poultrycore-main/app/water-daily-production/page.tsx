@@ -10,7 +10,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
-import { DataPagination } from "@/components/ui/data-pagination"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { usePagination } from "@/hooks/use-pagination"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -273,56 +273,83 @@ export default function WaterDailyProductionPage() {
           </Card>
 
           <Card>
-            <CardContent className="p-0 overflow-x-auto">
-              {filtered.length === 0 ? (
-                <div className="p-8 text-center text-sm text-slate-500">
-                  No batch production records yet. Log the day&apos;s totals to get started.
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Document</TableHead>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Machines</TableHead>
-                      <TableHead className="text-right">Bags</TableHead>
-                      <TableHead className="text-right">Good</TableHead>
-                      <TableHead className="text-right">Rejected</TableHead>
-                      <TableHead className="text-right">All-in cost</TableHead>
-                      <TableHead className="text-right">Cost/bag</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pg.pageItems.map((r) => (
-                      <TableRow key={r.waterDailyProductionId}>
-                        <TableCell className="whitespace-nowrap">{(r.productionDate || "").slice(0, 10)}</TableCell>
-                        <TableCell className="font-medium">{r.productionNumber || `#${r.waterDailyProductionId}`}</TableCell>
-                        <TableCell>{r.productName ?? "—"}</TableCell>
-                        <TableCell className="text-xs text-slate-600">{waterMachineScopeLabel(r)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{(r.bagsProduced || 0).toLocaleString()}</TableCell>
-                        <TableCell className="text-right tabular-nums">{(r.goodBags || 0).toLocaleString()}</TableCell>
-                        <TableCell className="text-right tabular-nums">{(r.rejectedSachets || 0).toLocaleString()}</TableCell>
-                        <TableCell className="text-right tabular-nums">{gh(r.allInCost || 0)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{gh(r.costPerBag || 0)}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={cn("border-0", STATUS_BADGE[r.status])}>
-                            {WATER_DAILY_PRODUCTION_STATUS_LABELS[r.status] ?? r.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right whitespace-nowrap">{renderActions(r)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-              {!loading && filtered.length > 0 && (
-                <div className="px-4 pb-4">
-                  <DataPagination {...pg.paginationProps} />
-                </div>
-              )}
+            <CardContent className="p-0">
+              {/* Mobile opens on scorecards (expanded by default); "View table
+                  format" flips to the wide table — same pattern as poultry. */}
+              <MobileCardList
+                defaultOpen
+                items={pg.pageItems}
+                pagination={pg.paginationProps}
+                getKey={(r) => r.waterDailyProductionId}
+                primary={(r) => r.productionNumber || `#${r.waterDailyProductionId}`}
+                secondary={(r) => (
+                  <>
+                    <span>{(r.productionDate || "").slice(0, 10)}</span>
+                    <span className="truncate">{r.productName ?? "—"}</span>
+                  </>
+                )}
+                trailing={(r) => (
+                  <Badge variant="outline" className={cn("border-0", STATUS_BADGE[r.status])}>
+                    {WATER_DAILY_PRODUCTION_STATUS_LABELS[r.status] ?? r.status}
+                  </Badge>
+                )}
+                details={(r) => [
+                  { label: "Machines", value: waterMachineScopeLabel(r) },
+                  { label: "Bags", value: (r.bagsProduced || 0).toLocaleString() },
+                  { label: "Good", value: (r.goodBags || 0).toLocaleString() },
+                  { label: "Rejected", value: (r.rejectedSachets || 0).toLocaleString() },
+                  { label: "All-in cost", value: gh(r.allInCost || 0) },
+                  { label: "Cost/bag", value: gh(r.costPerBag || 0) },
+                ]}
+                actions={(r) => <>{renderActions(r)}</>}
+                emptyState={
+                  <div className="p-8 text-center text-sm text-slate-500">
+                    No batch production records yet. Log the day&apos;s totals to get started.
+                  </div>
+                }
+                desktopTable={
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Document</TableHead>
+                          <TableHead>Product</TableHead>
+                          <TableHead>Machines</TableHead>
+                          <TableHead className="text-right">Bags</TableHead>
+                          <TableHead className="text-right">Good</TableHead>
+                          <TableHead className="text-right">Rejected</TableHead>
+                          <TableHead className="text-right">All-in cost</TableHead>
+                          <TableHead className="text-right">Cost/bag</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {pg.pageItems.map((r) => (
+                          <TableRow key={r.waterDailyProductionId}>
+                            <TableCell className="whitespace-nowrap">{(r.productionDate || "").slice(0, 10)}</TableCell>
+                            <TableCell className="font-medium">{r.productionNumber || `#${r.waterDailyProductionId}`}</TableCell>
+                            <TableCell>{r.productName ?? "—"}</TableCell>
+                            <TableCell className="text-xs text-slate-600">{waterMachineScopeLabel(r)}</TableCell>
+                            <TableCell className="text-right tabular-nums">{(r.bagsProduced || 0).toLocaleString()}</TableCell>
+                            <TableCell className="text-right tabular-nums">{(r.goodBags || 0).toLocaleString()}</TableCell>
+                            <TableCell className="text-right tabular-nums">{(r.rejectedSachets || 0).toLocaleString()}</TableCell>
+                            <TableCell className="text-right tabular-nums">{gh(r.allInCost || 0)}</TableCell>
+                            <TableCell className="text-right tabular-nums">{gh(r.costPerBag || 0)}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={cn("border-0", STATUS_BADGE[r.status])}>
+                                {WATER_DAILY_PRODUCTION_STATUS_LABELS[r.status] ?? r.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right whitespace-nowrap">{renderActions(r)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                }
+              />
             </CardContent>
           </Card>
         </main>

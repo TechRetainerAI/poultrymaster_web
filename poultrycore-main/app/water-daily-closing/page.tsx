@@ -260,6 +260,7 @@ export default function WaterDailyClosingPage() {
                 <div className="p-8 text-center text-slate-500">No daily closings yet. Start today's above.</div>
               ) : (
                 <MobileCardList
+                  defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
                   getKey={(c) => c.waterDailyClosingId}

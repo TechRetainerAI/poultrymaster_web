@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
-import { ReportShell, SumTile } from "@/components/reports/report-shell"
+import { ReportShell, SumTile, ReportTableCards } from "@/components/reports/report-shell"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
 import {
@@ -57,6 +57,32 @@ export default function DriverCollectionReportPage() {
 
   const driverName = driverId ? (drivers.find((d) => d.waterDriverId === driverId)?.driverName ?? `#${driverId}`) : "All drivers"
 
+  // Nine and eight columns respectively — both tables need the phone treatment,
+  // so each is described once here and rendered as scorecards below lg. The
+  // per-driver description doubles as the PDF table.
+  const totalsColumns = [
+    { header: "Driver" }, { header: "Runs", align: "right" as const }, { header: "Reconciled", align: "right" as const },
+    { header: "Cash", align: "right" as const }, { header: "MoMo", align: "right" as const }, { header: "Bank", align: "right" as const },
+    { header: "Credit", align: "right" as const }, { header: "Shortage", align: "right" as const }, { header: "Overage", align: "right" as const },
+  ]
+  const totalsRows = report.totals.map((t) => [
+    t.driverName ?? "—", t.deliveryRuns ?? 0, t.reconciledRuns ?? 0,
+    fmtMoney(t.cashCollected ?? 0), fmtMoney(t.moMoCollected ?? 0), fmtMoney(t.bankCollected ?? 0),
+    fmtMoney(t.creditSales ?? 0), fmtMoney(t.shortage ?? 0), fmtMoney(t.overage ?? 0),
+  ])
+  const detailColumns = [
+    { header: "Driver" }, { header: "Product" },
+    { header: "Loaded", align: "right" as const }, { header: "Sold", align: "right" as const },
+    { header: "Returned", align: "right" as const }, { header: "Damaged", align: "right" as const },
+    { header: "Expected cash", align: "right" as const }, { header: "Sales value", align: "right" as const },
+  ]
+  const detailRows = report.detail.map((d) => [
+    d.driverName ?? "—", d.productName ?? "—",
+    (d.bagsLoaded ?? 0).toLocaleString(), (d.bagsSold ?? 0).toLocaleString(),
+    (d.bagsReturned ?? 0).toLocaleString(), (d.bagsDamaged ?? 0).toLocaleString(),
+    fmtMoney(d.expectedCash ?? 0), fmtMoney(d.salesValue ?? 0),
+  ])
+
   return (
     <ReportShell
       title="Driver Collection"
@@ -66,6 +92,9 @@ export default function DriverCollectionReportPage() {
       onFromDateChange={setFromDate} onToDateChange={setToDate}
       onRefresh={load}
       filterSummary={{ Driver: driverName }}
+      // Two wide tables, each carded separately below — the shell's automatic
+      // phone view would keep only the one `pdf` describes.
+      mobileCards={false}
       pdf={{
         // PDF uses the per-driver totals table (the per-product detail is supplementary).
         title: "Driver Collection",
@@ -78,16 +107,8 @@ export default function DriverCollectionReportPage() {
           `Credit sales: ${fmtMoney(totals.credit)}`,
           `Shortages: ${fmtMoney(totals.shortage)}`,
         ],
-        columns: [
-          { header: "Driver" }, { header: "Runs", align: "right" }, { header: "Reconciled", align: "right" },
-          { header: "Cash", align: "right" }, { header: "MoMo", align: "right" }, { header: "Bank", align: "right" },
-          { header: "Credit", align: "right" }, { header: "Shortage", align: "right" }, { header: "Overage", align: "right" },
-        ],
-        rows: report.totals.map((t) => [
-          t.driverName ?? "—", t.deliveryRuns ?? 0, t.reconciledRuns ?? 0,
-          fmtMoney(t.cashCollected ?? 0), fmtMoney(t.moMoCollected ?? 0), fmtMoney(t.bankCollected ?? 0),
-          fmtMoney(t.creditSales ?? 0), fmtMoney(t.shortage ?? 0), fmtMoney(t.overage ?? 0),
-        ]),
+        columns: totalsColumns,
+        rows: totalsRows,
       }}
       filters={
         <div>
@@ -109,6 +130,7 @@ export default function DriverCollectionReportPage() {
       </>}
     >
       <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-600 mb-2">Totals by driver</h2>
+      <ReportTableCards columns={totalsColumns} rows={totalsRows}>
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
@@ -144,8 +166,10 @@ export default function DriverCollectionReportPage() {
         </Table>
       </div>
       <DataPagination {...pgTotals.paginationProps} />
+      </ReportTableCards>
 
       <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-600 mt-4 mb-2">Detail by product</h2>
+      <ReportTableCards columns={detailColumns} rows={detailRows}>
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
@@ -179,6 +203,7 @@ export default function DriverCollectionReportPage() {
         </Table>
       </div>
       <DataPagination {...pgDetail.paginationProps} />
+      </ReportTableCards>
     </ReportShell>
   )
 }

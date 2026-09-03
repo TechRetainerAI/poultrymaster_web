@@ -27,7 +27,7 @@ import Link from "next/link"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { SumTile } from "@/components/reports/report-shell"
+import { SumTile, ReportTableCards } from "@/components/reports/report-shell"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
 import { cashAccountVocabulary } from "@/components/cash/cash-account-vocabulary"
@@ -244,6 +244,26 @@ export function CashAccountSections({
       <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-600 mb-2">
         Where the money sits
       </h2>
+      {/* Eight columns; phones get these as scorecards instead. */}
+      <ReportTableCards
+        columns={[
+          { header: "Account" }, { header: "Type" },
+          { header: "Opening", align: "right" }, { header: "In", align: "right" },
+          { header: "Out", align: "right" }, { header: "Closing", align: "right" },
+          { header: "Share", align: "right" }, { header: "Status (as of today)" },
+        ]}
+        rows={data.rows.map((r) => [
+          r.isActive ? r.accountName : `${r.accountName} (inactive)`,
+          r.accountType ?? "—",
+          fmtMoney(r.openingBalance),
+          r.periodIn ? fmtMoney(r.periodIn) : "—",
+          r.periodOut ? fmtMoney(r.periodOut) : "—",
+          fmtMoney(r.closingBalance),
+          `${r.sharePercent.toFixed(1)}%`,
+          accountStatusText(r, fmtMoney)
+            + ((r.unclearedCount ?? 0) > 0 ? ` · ${r.unclearedCount} uncleared` : ""),
+        ])}
+      >
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
@@ -309,6 +329,7 @@ export function CashAccountSections({
           </TableBody>
         </Table>
       </div>
+      </ReportTableCards>
 
       {/* The arithmetic, printed. Self-checking: over an all-time range it must
           close, and saying so is what makes the row above defensible. */}
@@ -343,6 +364,21 @@ export function CashAccountSections({
           </SelectContent>
         </Select>
       </div>
+      <ReportTableCards
+        columns={[
+          { header: "Date" }, { header: "Account" }, { header: "Source" }, { header: "Description" },
+          { header: "In", align: "right" }, { header: "Out", align: "right" }, { header: "Balance", align: "right" },
+        ]}
+        rows={ledger.map((e) => [
+          (e.transactionDate ?? "").slice(0, 10),
+          e.accountName ?? "—",
+          categoryLabel(e.sourceType),
+          e.description ?? "—",
+          e.amount > 0 ? fmtMoney(e.amount) : "—",
+          e.amount < 0 ? fmtMoney(-e.amount) : "—",
+          e.running == null ? "—" : fmtMoney(e.running),
+        ])}
+      >
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
@@ -388,6 +424,7 @@ export function CashAccountSections({
         </Table>
       </div>
       <DataPagination {...pg.paginationProps} />
+      </ReportTableCards>
 
       {/* ---- 3. Transfers -------------------------------------------------- */}
       {/* Their own section because Cash Flow excludes them by design, so they are
@@ -401,6 +438,19 @@ export function CashAccountSections({
         {transfers.pendingCount > 0 && `, ${transfers.pendingCount} still pending`}. These are not
         income or spending — the money never left the business — so they are excluded from Cash Flow.
       </p>
+      <ReportTableCards
+        columns={[
+          { header: "Date" }, { header: "From" }, { header: "To" },
+          { header: "Amount", align: "right" }, { header: "Status" },
+        ]}
+        rows={transfers.rows.map((t) => [
+          (t.transferDate ?? "").slice(0, 10),
+          t.fromAccountName ?? "—",
+          t.toAccountName ?? "—",
+          fmtMoney(Math.abs(t.amount)),
+          t.status,
+        ])}
+      >
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
@@ -440,6 +490,7 @@ export function CashAccountSections({
           </TableBody>
         </Table>
       </div>
+      </ReportTableCards>
     </>
   )
 }

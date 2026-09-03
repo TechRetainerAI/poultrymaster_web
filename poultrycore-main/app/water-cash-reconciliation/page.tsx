@@ -27,6 +27,7 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -197,6 +198,46 @@ function WaterCashReconciliationPageInner() {
     } catch (e: any) {
       toast({ title: "Recalculate failed", description: e?.message, variant: "destructive" })
     } finally { setBusy(false) }
+  }
+
+  // One action set behind both renderings of the history — the table row
+  // (compact icon buttons) and the mobile scorecard (labelled, thumb-sized).
+  // Draft: correct it or throw it away — those are the only two ways out of
+  // the one-open-draft lock. Posted: reverse. Reversed: count again, which
+  // seeds a NEW count rather than reviving this one.
+  function countActions(c: WaterCashCount, variant: "row" | "card") {
+    const card = variant === "card"
+    const btn = card ? "flex-1 h-10 bg-white" : ""
+    const kind = card ? ("outline" as const) : ("ghost" as const)
+    if (c.status === "Draft") return (
+      <>
+        <Button size="sm" variant={kind} className={btn} title="Post this count to the ledger"
+                onClick={() => void postDraft(c)} disabled={busy}>
+          <Check className={cn("h-4 w-4 text-emerald-600", card && "mr-1")} />{card && "Post"}
+        </Button>
+        <Button size="sm" variant={kind} className={btn} title="Edit this count"
+                onClick={() => { setEditing({ count: c, mode: "draft" }); setFormOpen(true) }}>
+          <Pencil className={cn("h-4 w-4 text-sky-600", card && "mr-1")} />{card && "Edit"}
+        </Button>
+        <Button size="sm" variant={kind} className={btn} title="Discard this draft"
+                onClick={() => setDiscardTarget(c)}>
+          <Trash2 className={cn("h-4 w-4 text-rose-600", card && "mr-1")} />{card && "Discard"}
+        </Button>
+      </>
+    )
+    if (c.status === "Posted") return (
+      <Button size="sm" variant={kind} className={btn} title="Reverse this count"
+              onClick={() => setReverseTarget(c)}>
+        <Undo2 className={cn("h-4 w-4 text-amber-600", card && "mr-1")} />{card && "Reverse"}
+      </Button>
+    )
+    if (c.status === "Reversed") return (
+      <Button size="sm" variant={kind} className={btn} title="Count again from this one"
+              onClick={() => { setEditing({ count: c, mode: "copy" }); setFormOpen(true) }}>
+        <RotateCcw className={cn("h-4 w-4 text-sky-600", card && "mr-1")} />{card && "Count again"}
+      </Button>
+    )
+    return null
   }
 
   // The database allows exactly one open draft per account, so a count that was
@@ -395,11 +436,38 @@ function WaterCashReconciliationPageInner() {
                         </CardDescription>
                       </CardHeader>
                         <CardContent>
-                          {counts.length === 0 ? (
-                            <p className="py-6 text-center text-sm text-slate-500">
-                              {vocab.emptyHistory}
-                            </p>
-                          ) : (
+                          {/* Mobile opens on scorecards (expanded by default);
+                              "View table format" flips to the wide table. */}
+                          <MobileCardList
+                            defaultOpen
+                            items={counts}
+                            getKey={(c) => c.waterCashReconciliationId}
+                            primary={(c) => c.referenceNo ?? `#${c.waterCashReconciliationId}`}
+                            secondary={(c) => <span>{c.reconciliationDate.split("T")[0]}</span>}
+                            trailing={(c) => (
+                              <Badge variant="outline" className={cn("border-0", COUNT_BADGE[c.status])}>{c.status}</Badge>
+                            )}
+                            details={(c) => [
+                              { label: "System", value: gh(c.systemBalance) },
+                              { label: "Actual balance", value: c.actualBalance != null ? gh(c.actualBalance) : "—" },
+                              {
+                                label: "Difference",
+                                value: (
+                                  <span className={cn(c.difference === 0 ? "text-slate-500"
+                                                      : c.difference > 0 ? "text-emerald-700" : "text-rose-700")}>
+                                    {c.difference === 0 ? "Balanced" : gh(c.difference)}
+                                  </span>
+                                ),
+                              },
+                              { label: "Reason", value: c.reason ?? "—" },
+                            ]}
+                            actions={(c) => countActions(c, "card")}
+                            emptyState={
+                              <p className="py-6 text-center text-sm text-slate-500">
+                                {vocab.emptyHistory}
+                              </p>
+                            }
+                            desktopTable={
                             // Only this scrolls. Everything else stays on
                             // screen. Raised from 22rem to spend what the
                             // compacted header and tiles gave back: the point of
@@ -435,47 +503,14 @@ function WaterCashReconciliationPageInner() {
                                     <TableCell>
                                       <Badge variant="outline" className={cn("border-0", COUNT_BADGE[c.status])}>{c.status}</Badge>
                                     </TableCell>
-                                    {/* Draft: correct it or throw it away — those are
-                                        the only two ways out of the one-open-draft
-                                        lock. Posted: reverse. Reversed: count again,
-                                        which seeds a NEW count rather than reviving
-                                        this one. */}
-                                    <TableCell className="text-right whitespace-nowrap">
-                                      {c.status === "Draft" && (
-                                        <>
-                                          <Button size="sm" variant="ghost" title="Post this count to the ledger"
-                                                  onClick={() => void postDraft(c)} disabled={busy}>
-                                            <Check className="h-4 w-4 text-emerald-600" />
-                                          </Button>
-                                          <Button size="sm" variant="ghost" title="Edit this count"
-                                                  onClick={() => { setEditing({ count: c, mode: "draft" }); setFormOpen(true) }}>
-                                            <Pencil className="h-4 w-4 text-sky-600" />
-                                          </Button>
-                                          <Button size="sm" variant="ghost" title="Discard this draft"
-                                                  onClick={() => setDiscardTarget(c)}>
-                                            <Trash2 className="h-4 w-4 text-rose-600" />
-                                          </Button>
-                                        </>
-                                      )}
-                                      {c.status === "Posted" && (
-                                        <Button size="sm" variant="ghost" title="Reverse this count"
-                                                onClick={() => setReverseTarget(c)}>
-                                          <Undo2 className="h-4 w-4 text-amber-600" />
-                                        </Button>
-                                      )}
-                                      {c.status === "Reversed" && (
-                                        <Button size="sm" variant="ghost" title="Count again from this one"
-                                                onClick={() => { setEditing({ count: c, mode: "copy" }); setFormOpen(true) }}>
-                                          <RotateCcw className="h-4 w-4 text-sky-600" />
-                                        </Button>
-                                      )}
-                                    </TableCell>
+                                    <TableCell className="text-right whitespace-nowrap">{countActions(c, "row")}</TableCell>
                                   </TableRow>
                                 ))}
                               </TableBody>
                             </Table>
                             </div>
-                          )}
+                            }
+                          />
                         </CardContent>
                       </Card>
                   </>

@@ -20,7 +20,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ReportShell, SumTile } from "@/components/reports/report-shell"
+import { ReportShell, SumTile, ReportTableCards } from "@/components/reports/report-shell"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { CashAnalysisPanel, CashBreakdownPanel } from "@/components/reports/cash-report-sections"
 import { usePagination } from "@/hooks/use-pagination"
@@ -144,6 +144,14 @@ export default function WaterCashFlowDetailReportPage() {
     [visible, fmtMoney],
   )
 
+  // One column description, shared by the PDF and the phone scorecards.
+  const pdfColumns = [
+    { header: "Date" }, { header: "Type" }, { header: "Category" }, { header: "Reference" },
+    { header: "Description" },
+    { header: "In", align: "right" as const }, { header: "Out", align: "right" as const },
+    { header: "Running cash", align: "right" as const },
+  ]
+
   return (
     <ReportShell
       title="Cash Flow Detail"
@@ -151,6 +159,9 @@ export default function WaterCashFlowDetailReportPage() {
       busy={busy} error={error} onClearError={() => setError(null)}
       fromDate={fromDate} toDate={toDate}
       onFromDateChange={setFromDate} onToDateChange={setToDate}
+      // Breakdown panels and an analysis block sit above the ledger here, and
+      // they read fine on a phone — only the ledger is carded (below).
+      mobileCards={false}
       pdf={{
         title: "Water Cash Flow Detail",
         filename: "water-cash-flow-detail",
@@ -162,12 +173,7 @@ export default function WaterCashFlowDetailReportPage() {
           { label: "Closing cash", value: fmtMoney(summary.closingCash), note: "Not your account balances" },
           { label: "From trading", value: fmtMoney(fromTrading), accent: fromTrading >= 0 ? "green" : "rose", note: "Operating only, excludes capital" },
         ],
-        columns: [
-          { header: "Date" }, { header: "Type" }, { header: "Category" }, { header: "Reference" },
-          { header: "Description" },
-          { header: "In", align: "right" }, { header: "Out", align: "right" },
-          { header: "Running cash", align: "right" },
-        ],
+        columns: pdfColumns,
         rows: pdfRows,
       }}
       summary={<>
@@ -213,6 +219,7 @@ export default function WaterCashFlowDetailReportPage() {
       <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-600 mt-6 mb-2">
         Every movement
       </h2>
+      <ReportTableCards columns={pdfColumns} rows={pdfRows}>
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
@@ -256,6 +263,7 @@ export default function WaterCashFlowDetailReportPage() {
         </Table>
       </div>
       <DataPagination {...pg.paginationProps} />
+      </ReportTableCards>
     </ReportShell>
   )
 }

@@ -192,6 +192,7 @@ export default function WaterMaintenancePage() {
                 <div className="p-8 text-center text-slate-500">No maintenance logs yet.</div>
               ) : (
                 <MobileCardList
+                  defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
                   getKey={(l) => l.waterMaintenanceLogId}

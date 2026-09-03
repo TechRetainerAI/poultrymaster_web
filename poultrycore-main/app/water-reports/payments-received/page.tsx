@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ReportShell, SumTile } from "@/components/reports/report-shell"
+import { ReportShell, SumTile, ReportTableCards } from "@/components/reports/report-shell"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
 import { listWaterPayments } from "@/lib/api/water"
@@ -48,6 +48,25 @@ export default function PaymentsReceivedReportPage() {
     return { total, byMethod }
   }, [rows])
 
+  // One description of the Details table, used by the PDF and by the phone
+  // scorecards alike so the two can never drift apart.
+  const detailColumns = [
+    { header: "Date" },
+    { header: "Sale #" },
+    { header: "Customer" },
+    { header: "Method" },
+    { header: "Reference" },
+    { header: "Amount", align: "right" as const },
+  ]
+  const detailRows = rows.map((r: any) => [
+    (r.paymentDate ?? "").slice(0, 10),
+    r.waterSaleId ?? "—",
+    r.customerName ?? r.waterCustomerId ?? "—",
+    r.paymentMethod ?? "—",
+    r.reference ?? "—",
+    fmtMoney(r.amount ?? 0),
+  ])
+
   return (
     <ReportShell
       title="Payments Received"
@@ -57,6 +76,9 @@ export default function PaymentsReceivedReportPage() {
       onFromDateChange={setFromDate} onToDateChange={setToDate}
       onRefresh={load}
       // Primary table = the "Details" list (the "By method" table is a summary).
+      // That summary is two columns and reads fine on a phone, so it stays put
+      // and only the Details list becomes scorecards (below).
+      mobileCards={false}
       pdf={{
         title: "Payments Received",
         filename: "water-payments-received",
@@ -65,22 +87,8 @@ export default function PaymentsReceivedReportPage() {
           `Total collected: ${fmtMoney(totals.total)}`,
           `Methods used: ${Object.keys(totals.byMethod).length}`,
         ],
-        columns: [
-          { header: "Date" },
-          { header: "Sale #" },
-          { header: "Customer" },
-          { header: "Method" },
-          { header: "Reference" },
-          { header: "Amount", align: "right" },
-        ],
-        rows: rows.map((r: any) => [
-          (r.paymentDate ?? "").slice(0, 10),
-          r.waterSaleId ?? "—",
-          r.customerName ?? r.waterCustomerId ?? "—",
-          r.paymentMethod ?? "—",
-          r.reference ?? "—",
-          fmtMoney(r.amount ?? 0),
-        ]),
+        columns: detailColumns,
+        rows: detailRows,
       }}
       summary={<>
         <SumTile label="Payments count" value={rows.length.toLocaleString()} />
@@ -101,6 +109,7 @@ export default function PaymentsReceivedReportPage() {
       </Table>
 
       <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-600 mt-4 mb-2">Details</h2>
+      <ReportTableCards columns={detailColumns} rows={detailRows}>
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
@@ -130,6 +139,7 @@ export default function PaymentsReceivedReportPage() {
         </Table>
       </div>
       <DataPagination {...pg.paginationProps} />
+      </ReportTableCards>
     </ReportShell>
   )
 }

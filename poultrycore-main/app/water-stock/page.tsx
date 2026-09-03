@@ -188,6 +188,7 @@ export default function WaterStockPage() {
                 <div className="p-8 text-center text-slate-500">No stock movement recorded yet.</div>
               ) : (
                 <MobileCardList
+                  defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
                   getKey={(t) => t.stockTxnId}
