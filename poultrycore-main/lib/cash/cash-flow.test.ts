@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest"
 import {
-  buildCashFlowInsights, cashByAccount, cashFlowTotals, cashIdentity, categoryLabel,
-  calculatedCashAtHand, excludeTransfers, flowLabel, groupByFlow,
+  buildCashFlowInsights, cashAccountsForPeriod, cashByAccount, cashFlowTotals, cashIdentity,
+  categoryLabel, calculatedCashAtHand, excludeTransfers, flowLabel, groupByFlow,
   isInternalTransfer, ledgerFromParam, ledgerToParam, summariseTransfers, withinRange,
-  type AccountStatusEntry, type LedgerEntry, type TransferEntry,
+  type AccountStatusEntry, type CashAccountSeed, type LedgerEntry, type TransferEntry,
 } from "./cash-flow"
 
 // Money is plain here so the assertions read as arithmetic, not formatting.
@@ -222,6 +222,152 @@ describe("cashByAccount", () => {
     expect(rows[0].accountName).toBe("MoMo")   // sorted by balance
     expect(rows[0].sharePercent).toBe(75)
     expect(rows[1].sharePercent).toBe(25)
+  })
+})
+
+describe("cashAccountsForPeriod", () => {
+  const seed = (over: Partial<CashAccountSeed> & { accountId: number }): CashAccountSeed => ({
+    accountName: `Account ${over.accountId}`, accountType: "FarmCashBox",
+    isActive: true, openingBalance: 0, ...over,
+  })
+  const statusFor = (accountId: number, over: Partial<AccountStatusEntry> = {}): AccountStatusEntry => ({
+    accountId, accountName: `Account ${accountId}`, accountType: "FarmCashBox",
+    isActive: true, currentBalance: 0, ledgerBalance: 0, cacheDrift: 0,
+    lastReconciledAt: "2026-08-20T00:00:00", daysSinceReconciled: 8, unclearedCount: 0,
+    ...over,
+  })
+  const row = (accountId: number, day: string, amount: number): LedgerEntry => ({
+    id: nextId++, accountId, transactionDate: `${day}T09:00:00`, amount,
+  })
+
+  const RANGE = { fromDate: "2026-08-01", toDate: "2026-08-31" }
+
+  it("closes the identity: opening + in - out = closing", () => {
+    const rows = cashAccountsForPeriod({
+      accounts: [seed({ accountId: 1, openingBalance: 500 })],
+      status: [statusFor(1)],
+      entries: [
+        // Before the period: folds into opening, never into in/out.
+        row(1, "2026-07-15", 1000),
+        row(1, "2026-08-05", 300),
+        row(1, "2026-08-20", -125.5),
+      ],
+      ...RANGE,
+    })
+
+    expect(rows).toHaveLength(1)
+    const [a] = rows
+    expect(a.openingBalance).toBe(1500)
+    expect(a.periodIn).toBe(300)
+    expect(a.periodOut).toBe(125.5)
+    expect(a.closingBalance).toBe(1674.5)
+    expect(a.openingBalance + a.periodIn - a.periodOut).toBe(a.closingBalance)
+    expect(a.movementCount).toBe(2)
+  })
+
+  it("counts the whole of the last day of the range", () => {
+    // The rows carry a full timestamp. Comparing them raw against the to-date
+    // drops everything recorded after midnight on the final day.
+    const rows = cashAccountsForPeriod({
+      accounts: [seed({ accountId: 1 })],
+      status: [statusFor(1)],
+      entries: [row(1, "2026-08-31", 400)],
+      ...RANGE,
+    })
+    expect(rows[0].periodIn).toBe(400)
+  })
+
+  it("ignores anything after the period", () => {
+    const rows = cashAccountsForPeriod({
+      accounts: [seed({ accountId: 1, openingBalance: 100 })],
+      status: [statusFor(1)],
+      entries: [row(1, "2026-09-02", 9999)],
+      ...RANGE,
+    })
+    expect(rows[0].periodIn).toBe(0)
+    expect(rows[0].closingBalance).toBe(100)
+  })
+
+  it("keeps an account that never moved", () => {
+    // Money sitting still is still money, and a report about where the money is
+    // that omits it does not add up.
+    const rows = cashAccountsForPeriod({
+      accounts: [seed({ accountId: 1, openingBalance: 800 }), seed({ accountId: 2 })],
+      status: [statusFor(1), statusFor(2)],
+      entries: [],
+      ...RANGE,
+    })
+    expect(rows).toHaveLength(2)
+    expect(rows[0].closingBalance).toBe(800)
+    expect(rows[1].movementCount).toBe(0)
+  })
+
+  it("handles an account opened mid-period", () => {
+    const rows = cashAccountsForPeriod({
+      accounts: [seed({ accountId: 7, openingBalance: 0 })],
+      status: [statusFor(7)],
+      entries: [row(7, "2026-08-14", 250)],
+      ...RANGE,
+    })
+    expect(rows[0].openingBalance).toBe(0)
+    expect(rows[0].closingBalance).toBe(250)
+  })
+
+  it("counts both legs of an internal transfer, one in each account", () => {
+    // Deliberately NOT netted out. A transfer is not company-wide cash flow, but
+    // it did move money out of one account and into another, and suppressing it
+    // would break the identity on both sides.
+    const rows = cashAccountsForPeriod({
+      accounts: [seed({ accountId: 1, openingBalance: 5000 }), seed({ accountId: 2 })],
+      status: [statusFor(1), statusFor(2)],
+      entries: [
+        { ...row(1, "2026-08-10", -5000), sourceType: "Transfer", transactionType: "TransferOut" },
+        { ...row(2, "2026-08-10", 5000), sourceType: "Transfer", transactionType: "TransferIn" },
+      ],
+      ...RANGE,
+    })
+    const byId = new Map(rows.map((r) => [r.accountId, r]))
+    expect(byId.get(1)!.periodOut).toBe(5000)
+    expect(byId.get(1)!.closingBalance).toBe(0)
+    expect(byId.get(2)!.periodIn).toBe(5000)
+    expect(byId.get(2)!.closingBalance).toBe(5000)
+  })
+
+  it("shares out the period's closing cash, not the all-time balance", () => {
+    const rows = cashAccountsForPeriod({
+      accounts: [seed({ accountId: 1, openingBalance: 750 }), seed({ accountId: 2, openingBalance: 250 })],
+      // ledgerBalance is all-time and deliberately disagrees with the period.
+      status: [statusFor(1, { ledgerBalance: 99_999 }), statusFor(2, { ledgerBalance: 1 })],
+      entries: [],
+      ...RANGE,
+    })
+    expect(rows.map((r) => r.sharePercent)).toEqual([75, 25])
+    expect(rows.reduce((s, r) => s + r.sharePercent, 0)).toBe(100)
+  })
+
+  it("passes the as-of-now verdict through untouched", () => {
+    // Drift and reconciliation age come from a function with no date parameter,
+    // so they describe today whatever period was asked for.
+    const rows = cashAccountsForPeriod({
+      accounts: [seed({ accountId: 1 })],
+      status: [statusFor(1, { cacheDrift: -40, daysSinceReconciled: 400 })],
+      entries: [],
+      ...RANGE,
+    })
+    expect(rows[0].cacheDrift).toBe(-40)
+    expect(rows[0].attentionReason).toBe("Stored balance disagrees with its transactions")
+  })
+
+  it("keeps an account that has a status row but no account record", () => {
+    const rows = cashAccountsForPeriod({
+      accounts: [],
+      status: [statusFor(3, { accountName: "Closed MoMo" })],
+      entries: [row(3, "2026-08-04", 60)],
+      ...RANGE,
+    })
+    expect(rows).toHaveLength(1)
+    expect(rows[0].accountName).toBe("Closed MoMo")
+    expect(rows[0].periodIn).toBe(60)
   })
 })
 

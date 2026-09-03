@@ -11,14 +11,21 @@
  * Everything comes from GET /api/Water/cash-flow, built on watersales,
  * waterpayments and waterexpenses (migration 236).
  *
- * KNOWN GAP -- CAPITAL ON THIS RAIL
- * ---------------------------------
- * Water records owner injections through a cash-account adjustment, which lives
- * in the ledger this report no longer reads. So Water's capital section will be
- * empty until the rail has its own capital record. That is stated on the page
- * rather than papered over, and it is why the adjustment button that Poultry
- * has is not here: on Water that action adjusts an ACCOUNT, which belongs in
- * Cash Accounts, not on a cash-flow report.
+ * CAPITAL ON THIS RAIL
+ * --------------------
+ * Water used to have no capital section at all: owner injections were recorded
+ * as cash-ACCOUNT adjustments, which live in the ledger this report does not
+ * read, so financing was always empty.
+ *
+ * Add Adjustment closes that. It writes the capital event to `cashadjustment`,
+ * which is keyed by farmid rather than by rail -- migration 236 already reads
+ * it (see its section 4) and expected it to be empty only because nothing in
+ * the Water UI wrote there. Now something does, and no migration was needed.
+ *
+ * Linking an account is still optional and still posts to the ledger as well,
+ * exactly as on Poultry: the capital record is what THIS page counts, and the
+ * account posting is what moves a balance. The two are independent by design,
+ * not a double count.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react"
@@ -34,25 +41,35 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { SortableHeader, sortData, type SortDirection } from "@/components/ui/sortable-header"
 import { usePagination } from "@/hooks/use-pagination"
 import {
-  Droplets, TrendingUp, TrendingDown, Lightbulb, Info,
-  ExternalLink, Users, Truck,
+  Droplets, TrendingUp, TrendingDown, Plus, Lightbulb, Info,
+  ExternalLink, Users, Truck, Trash2, Pencil,
 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useFmt } from "@/lib/currency"
 import { useLogout } from "@/hooks/use-logout"
 import { usePermissions } from "@/hooks/use-permissions"
 import { cn } from "@/lib/utils"
+import { getUserContext } from "@/lib/api/config"
 import { defaultReportRange } from "@/lib/date-ranges"
 import { getBalanceSummary, type BalanceSummary } from "@/lib/api/balances"
 import {
   getCashFlow, flowGroupLabel, type CashFlowRow, type CashFlowSummary,
 } from "@/lib/api/cash-flow"
-import { categoryLabel } from "@/lib/cash/cash-flow"
+import { cashFlowBuckets, categoryLabel, withRunningBalance } from "@/lib/cash/cash-flow"
 import { buildCashFlowAnalysis } from "@/lib/cash/cash-flow-analysis"
+import {
+  createCashAdjustment, updateCashAdjustment, deleteCashAdjustment,
+} from "@/lib/api/cash"
+import { adjustWaterCashAccount, listWaterCashAccounts } from "@/lib/api/water"
+import {
+  CashAdjustmentDialog, ADJUSTMENT_TYPES, adjustmentTypeFromLabel,
+  type CashAdjustmentSeed,
+} from "@/components/cash/cash-adjustment-dialog"
 import { CashFlowInsightsDialog } from "@/components/cash/cash-flow-insights-dialog"
 
 const DEFAULT = defaultReportRange()
@@ -61,6 +78,12 @@ const EMPTY_SUMMARY: CashFlowSummary = {
   moneyIn: 0, moneyOut: 0, netCashFlow: 0, openingCash: 0, closingCash: 0,
   operatingIn: 0, operatingOut: 0, financingIn: 0, financingOut: 0, movementCount: 0,
 }
+
+/** Adjustment types that are capital, and therefore editable from this page. */
+const CAPITAL_SOURCE = "Adjustment"
+
+/** Why the row actions are greyed out on everything this page did not create. */
+const SOURCE_OWNED_HINT = "Sales and expenses are managed from their own pages."
 
 export default function WaterCashFlowPage() {
   const router = useRouter()
@@ -83,11 +106,17 @@ export default function WaterCashFlowPage() {
   const [prevSummary, setPrevSummary] = useState<CashFlowSummary>(EMPTY_SUMMARY)
   const [customers, setCustomers] = useState<BalanceSummary | null>(null)
   const [suppliers, setSuppliers] = useState<BalanceSummary | null>(null)
+  const [accounts, setAccounts] = useState<{ accountId: number; accountName: string; isActive: boolean }[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+
   const [insightsOpen, setInsightsOpen] = useState(false)
+  const [adjustOpen, setAdjustOpen] = useState(false)
+  const [editAdjustment, setEditAdjustment] = useState<CashAdjustmentSeed | null>(null)
+  const [deleteAdjustment, setDeleteAdjustment] = useState<CashFlowRow | null>(null)
 
   const canView = permissions.isAdmin || permissions.featureAccess.canViewCashLedger
+  const canAdjust = canView
 
   const previousRange = useMemo(() => {
     const from = new Date(dateFrom)
@@ -101,11 +130,14 @@ export default function WaterCashFlowPage() {
 
   const load = useCallback(async () => {
     setError("")
-    const [cur, prev, cust, supp] = await Promise.allSettled([
+    const [cur, prev, cust, supp, accts] = await Promise.allSettled([
       getCashFlow("Water", { fromDate: dateFrom, toDate: dateTo }),
       getCashFlow("Water", { fromDate: previousRange.from, toDate: previousRange.to }),
       getBalanceSummary("water", "customer"),
       getBalanceSummary("water", "supplier"),
+      // Only so the adjustment dialog can offer accounts. No figure on this page
+      // is derived from them.
+      listWaterCashAccounts(),
     ])
 
     if (cur.status === "fulfilled") {
@@ -120,6 +152,15 @@ export default function WaterCashFlowPage() {
     setPrevSummary(prev.status === "fulfilled" ? prev.value.summary : EMPTY_SUMMARY)
     setCustomers(cust.status === "fulfilled" ? cust.value : null)
     setSuppliers(supp.status === "fulfilled" ? supp.value : null)
+    setAccounts(
+      accts.status === "fulfilled"
+        ? (accts.value ?? []).map((a: any) => ({
+            accountId: a.waterCashAccountId,
+            accountName: a.accountName,
+            isActive: a.isActive,
+          }))
+        : [],
+    )
     setLoading(false)
   }, [dateFrom, dateTo, previousRange.from, previousRange.to])
 
@@ -130,31 +171,10 @@ export default function WaterCashFlowPage() {
   }, [activeFarmType, activeFarmId, router, load])
 
   // ---- derived ---------------------------------------------------------------
-  const bucketsFor = useCallback((direction: "in" | "out") => {
-    const want = direction === "in" ? 1 : -1
-    const acc = new Map<string, { label: string; amount: number; count: number }>()
-    let total = 0
-    for (const r of rows) {
-      if (Math.sign(r.amount) !== want || r.amount === 0) continue
-      const label = categoryLabel(r.category)
-      const b = acc.get(label)
-      if (b) { b.amount += Math.abs(r.amount); b.count += 1 }
-      else acc.set(label, { label, amount: Math.abs(r.amount), count: 1 })
-      total += Math.abs(r.amount)
-    }
-    return [...acc.values()]
-      .sort((a, b) => b.amount - a.amount)
-      .map((b) => ({
-        key: b.label,
-        label: b.label,
-        amount: Math.round(b.amount * 100) / 100,
-        count: b.count,
-        percent: total === 0 ? 0 : Math.round((b.amount / total) * 1000) / 10,
-      }))
-  }, [rows])
-
-  const inBuckets = useMemo(() => bucketsFor("in"), [bucketsFor])
-  const outBuckets = useMemo(() => bucketsFor("out"), [bucketsFor])
+  // Shared with the Cash Movement / Cash Flow Detail reports, so a bucket cannot
+  // be named or sized one way here and another in the report of the same rows.
+  const inBuckets = useMemo(() => cashFlowBuckets(rows, "in"), [rows])
+  const outBuckets = useMemo(() => cashFlowBuckets(rows, "out"), [rows])
 
   const totals = useMemo(
     () => ({
@@ -229,13 +249,12 @@ export default function WaterCashFlowPage() {
           <Link href="/water-cash-reconciliation" className="underline">reconciliation</Link> is for.
         </AlertDescription>
       </Alert>
-      {/* Said plainly rather than left as a silently empty section. */}
       <Alert className="border-slate-200 bg-slate-50 py-2">
         <Info className="h-4 w-4 text-slate-500" />
         <AlertDescription className="text-xs text-slate-700">
-          Owner contributions and loans are recorded here as cash account adjustments, which this
-          report does not read — so <b>capital does not yet appear on the Water side</b>. Everything
-          above is trading: money earned and money spent.
+          Owner contributions, loans and withdrawals are <b>capital</b>, not trading. Record them
+          with <b>Add Adjustment</b> and they are counted here separately from what the business
+          earned and spent. Linking a cash account is optional — it moves that balance too.
         </AlertDescription>
       </Alert>
     </>
@@ -253,12 +272,9 @@ export default function WaterCashFlowPage() {
       .filter((r) => flowFilter === "ALL" || r.flowGroup === flowFilter)
       .filter((r) => categoryFilter === "ALL" || categoryLabel(r.category) === categoryFilter)
 
-    const asc = [...filtered].sort((a, b) => {
-      const d = (a.transactionDate ?? "").localeCompare(b.transactionDate ?? "")
-      return d !== 0 ? d : a.id - b.id
-    })
-    let running = summary.openingCash
-    const withRunning = asc.map((r) => { running += r.amount; return { ...r, running } })
+    // Accumulated oldest-first BEFORE the display sort — a running balance
+    // computed over a user-sorted list is arithmetic nonsense.
+    const withRunning = withRunningBalance(filtered, summary.openingCash)
 
     return sortData(withRunning, sortKey, sortDir, (item: any, key: string) => {
       switch (key) {
@@ -326,6 +342,11 @@ export default function WaterCashFlowPage() {
                   </span>
                 )}
               </Button>
+              {canAdjust && (
+                <Button size="sm" className="whitespace-nowrap" onClick={() => setAdjustOpen(true)}>
+                  <Plus className="h-4 w-4 mr-1" /> Add Adjustment
+                </Button>
+              )}
               <Button asChild size="sm" variant="outline" className="whitespace-nowrap ml-auto">
                 <Link href="/water-cash-accounts">
                   <ExternalLink className="h-4 w-4 mr-1" /> View Cash Accounts
@@ -337,9 +358,11 @@ export default function WaterCashFlowPage() {
           <div className="mb-3 rounded-lg border border-slate-200 bg-white p-3">
             <p className="text-sm font-medium text-slate-900">Where your money came from and went.</p>
             <p className="mt-1 text-xs leading-snug text-slate-600">
-              Built from your sales, customer payments and approved expenses. A draft expense, or one
-              bought on credit, is not counted until it is approved and paid. Transfers between your
-              own cash accounts are not cash flow and are excluded — they are managed in{" "}
+              Built from your sales, customer payments, approved expenses and capital records. A
+              draft expense, or one bought on credit, is not counted until it is approved and paid.
+              Operating money is what the business earned and spent; capital is money put in or
+              taken out by owners and lenders. Transfers between your own cash accounts are not cash
+              flow and are excluded — they are managed in{" "}
               <Link href="/water-cash-accounts" className="underline">Cash Accounts</Link>.
             </p>
           </div>
@@ -382,7 +405,7 @@ export default function WaterCashFlowPage() {
                       value={`${summary.operatingIn - summary.operatingOut > 0 ? "+" : ""}${gh(summary.operatingIn - summary.operatingOut)}`}
                       note="Operating only"
                       tone={summary.operatingIn - summary.operatingOut >= 0 ? "text-emerald-700" : "text-rose-700"}
-                      tip="Operating income minus operating spending. On the Water side this currently equals Net Cash Flow, because capital is not yet recorded separately." />
+                      tip="Operating income minus operating spending. Capital — owner money and loans in or out — is excluded, so this is what the business itself earned." />
                 <Tile label="Customer Balances"
                       value={customers ? gh(customers.totalBalance) : "—"}
                       note={customers ? `All time · ${customers.partyCount} customers owing` : "All time"}
@@ -488,6 +511,7 @@ export default function WaterCashFlowPage() {
                             <TableBody>
                               {pg.pageItems.map((r: any) => {
                                 const capital = r.flowGroup === "FinancingIn" || r.flowGroup === "FinancingOut"
+                                const canManage = r.rowSource === CAPITAL_SOURCE
                                 return (
                                   <TableRow key={`${r.rowSource}-${r.id}`} className={cn(capital && "bg-slate-50")}>
                                     <TableCell className="whitespace-nowrap">
@@ -514,21 +538,32 @@ export default function WaterCashFlowPage() {
                                     <TableCell className="text-right tabular-nums font-medium">
                                       {gh(r.running)}
                                     </TableCell>
+                                    {/* Each row is owned by the module that created
+                                        it. A sale or an expense is edited where it
+                                        was recorded, so the buttons stay visible but
+                                        disabled there; capital is the only thing
+                                        this page owns outright. */}
                                     <TableCell className="text-right whitespace-nowrap">
-                                      {r.rowSource === "Expense" && (
-                                        <Button asChild size="sm" variant="ghost" title="Open this expense">
-                                          <Link href={`/water-expenses/${r.sourceId}`}>
-                                            <ExternalLink className="h-4 w-4" />
-                                          </Link>
+                                      <div className="inline-flex items-center gap-1">
+                                        <Button size="icon" variant="ghost" disabled={!canManage}
+                                                aria-label="Edit transaction"
+                                                title={canManage ? "Edit this adjustment" : SOURCE_OWNED_HINT}
+                                                onClick={() => setEditAdjustment({
+                                                  adjustmentId: Number(r.sourceId),
+                                                  adjustmentType: adjustmentTypeFromLabel(r.sourceType),
+                                                  adjustmentDate: r.transactionDate,
+                                                  amount: r.amount,
+                                                  description: r.description ?? "",
+                                                })}>
+                                          <Pencil className="h-4 w-4 text-slate-600" />
                                         </Button>
-                                      )}
-                                      {(r.rowSource === "Receipt" || r.rowSource === "SaleResidual") && (
-                                        <Button asChild size="sm" variant="ghost" title="Open this sale">
-                                          <Link href={`/water-sales/${r.sourceId}`}>
-                                            <ExternalLink className="h-4 w-4" />
-                                          </Link>
+                                        <Button size="icon" variant="ghost" disabled={!canManage}
+                                                aria-label="Delete transaction"
+                                                title={canManage ? "Delete this adjustment" : SOURCE_OWNED_HINT}
+                                                onClick={() => setDeleteAdjustment(r)}>
+                                          <Trash2 className="h-4 w-4 text-rose-600" />
                                         </Button>
-                                      )}
+                                      </div>
                                     </TableCell>
                                   </TableRow>
                                 )
@@ -558,6 +593,65 @@ export default function WaterCashFlowPage() {
         warnings={warnings.node}
         notes={notes}
         fmtMoney={gh}
+      />
+
+      <ConfirmDeleteDialog
+        open={!!deleteAdjustment}
+        onOpenChange={(o: boolean) => { if (!o) setDeleteAdjustment(null) }}
+        title="Delete this adjustment?"
+        description="It stops being counted in Cash Flow. Any cash account balance it moved is not affected — correct that from Cash Accounts if you need to."
+        confirmLabel="Delete adjustment"
+        errorTitle="Could not delete the adjustment"
+        onConfirm={async () => {
+          if (!deleteAdjustment) return
+          const { farmId } = getUserContext()
+          const res = await deleteCashAdjustment(Number(deleteAdjustment.sourceId), farmId)
+          if (!res.success) throw new Error(res.message ?? "Could not delete the adjustment.")
+          setDeleteAdjustment(null)
+          await load()
+        }}
+      />
+
+      <CashAdjustmentDialog
+        open={adjustOpen || !!editAdjustment}
+        onOpenChange={(o) => { if (!o) { setAdjustOpen(false); setEditAdjustment(null) } }}
+        accounts={accounts}
+        fmtMoney={gh}
+        editing={editAdjustment}
+        onSubmit={async ({ accountId, adjustmentType, adjustmentDate, amount, description }) => {
+          const { userId, farmId } = getUserContext()
+
+          if (editAdjustment) {
+            const saved = await updateCashAdjustment(editAdjustment.adjustmentId, {
+              farmId, adjustmentDate, adjustmentType, amount,
+              description: description || null,
+            })
+            if (!saved.success) throw new Error(saved.message ?? "Could not update the adjustment.")
+            return
+          }
+
+          // ALWAYS record the capital event, because that is what Cash Flow
+          // reads (236 section 4). Posting only to a cash account would move a
+          // balance while leaving the injection invisible here — which is
+          // exactly how Water ended up with an empty financing section.
+          const created = await createCashAdjustment({
+            userId, farmId, adjustmentDate, adjustmentType, amount,
+            description: description || null,
+          })
+          if (!created.success) throw new Error(created.message ?? "Could not record the adjustment.")
+
+          // If an account was named, move its balance too. Not a double count:
+          // Cash Flow reads the capital record, the account balance comes from
+          // the ledger, and the two are independent by design.
+          if (accountId != null) {
+            const label = ADJUSTMENT_TYPES.find((t) => t.value === adjustmentType)?.label ?? adjustmentType
+            await adjustWaterCashAccount(accountId, {
+              amount,
+              reason: description ? `${label} - ${description}` : label,
+            })
+          }
+        }}
+        onDone={() => { void load() }}
       />
     </div>
     </TooltipProvider>

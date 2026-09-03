@@ -20,7 +20,7 @@ import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
-import { Plus, Pencil, Loader2, Wallet, RefreshCw, ArrowLeftRight, Eye, Trash2, Scale } from "lucide-react"
+import { Plus, Pencil, Loader2, Wallet, RefreshCw, ArrowLeftRight, Eye, Trash2, Scale, FileText } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -228,6 +228,12 @@ export default function PoultryCashAccountsPage() {
                   sitting on top of each other. */}
               <Button asChild variant="outline" className="flex-1 sm:flex-none whitespace-nowrap">
                 <Link href="/poultry-cash-reconciliation"><Scale className="h-4 w-4 mr-1" /> Reconcile</Link>
+              </Button>
+              {/* The printable, emailable version of this page: per-account
+                  opening/in/out/closing for a period, plus drift and
+                  reconciliation status. This screen is the live one. */}
+              <Button asChild variant="outline" className="flex-1 sm:flex-none whitespace-nowrap">
+                <Link href="/poultry/reports/cash-accounts"><FileText className="h-4 w-4 mr-1" /> Cash Account Report</Link>
               </Button>
               <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={() => setXferDlg(true)}><ArrowLeftRight className="h-4 w-4 mr-1" /> Transfer</Button>
               <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={createDefault} disabled={saving}><Wallet className="h-4 w-4 mr-1" /> Create default account</Button>
