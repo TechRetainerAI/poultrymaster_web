@@ -52,6 +52,7 @@ import {
   Clock,
   CalendarDays,
   Shield,
+  UtensilsCrossed,
   History,
   Scale,
 } from "lucide-react"
@@ -63,6 +64,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
 import { filterWaterNavItems } from "@/lib/utils/water-nav-access"
 import { filterHotelNavItems } from "@/lib/utils/hotel-nav-access"
+import { filterRestaurantNavItems } from "@/lib/utils/restaurant-nav-access"
 import { useLogout } from "@/hooks/use-logout"
 
 interface SidebarProps {
@@ -97,6 +99,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const isWater = activeFarmType === "Water"
   const isGeneric = activeFarmType === "Generic"
   const isHotel = activeFarmType === "Hotel"
+  const isRestaurant = activeFarmType === "Restaurant"
   const { isCollapsed, toggle, isMobileOpen, toggleMobile, setMobileOpen } = useSidebarStore()
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     farm: true,
@@ -453,6 +456,42 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/hotel-setup", label: "Setup", icon: Settings },
   ])
 
+  // Restaurant company nav items (shown when activeFarmType === "Restaurant")
+  // Restaurant — grouped to match the top-nav mega menus
+  const gateRestaurant = <T extends { href: string }>(items: T[]) =>
+    filterRestaurantNavItems(items, permissions.featureAccess, permissions.isAdmin)
+
+  const restaurantOrdersItems = gateRestaurant([
+    { href: "/restaurant-pos",    label: "POS / New Order", icon: ShoppingCart },
+    { href: "/restaurant-orders", label: "All Orders",      icon: FileText },
+  ])
+  const restaurantKitchenItems = gateRestaurant([
+    { href: "/restaurant-kds",    label: "Kitchen Display", icon: Activity },
+  ])
+  const restaurantDiningItems = gateRestaurant([
+    { href: "/restaurant-floor-plan",   label: "Floor Plan & Tables",   icon: Building2 },
+    { href: "/restaurant-reservations", label: "Reservations & Waitlist", icon: CalendarDays },
+  ])
+  const restaurantDeliveryOnlineItems = gateRestaurant([
+    { href: "/restaurant-online-orders", label: "Online Settings",     icon: ShoppingBag },
+    { href: "/restaurant-delivery",      label: "Drivers & Dispatch",  icon: Truck },
+  ])
+  const restaurantInventoryItems = gateRestaurant([
+    { href: "/restaurant-inventory", label: "Ingredients & Stock", icon: Boxes },
+    { href: "/restaurant-reports",   label: "Reports & Analytics", icon: BarChart3 },
+    { href: "/restaurant-crm",        label: "Customers & CRM",    icon: Users },
+    { href: "/restaurant-loyalty",     label: "Loyalty & Rewards",  icon: CreditCard },
+    { href: "/restaurant-events",      label: "Events & Catering",  icon: CalendarDays },
+    { href: "/restaurant-gift-cards",  label: "Gift Cards",         icon: CreditCard },
+    { href: "/restaurant-expenses",    label: "Expenses",           icon: DollarSign },
+    { href: "/restaurant-notifications", label: "Notifications",    icon: Bell },
+  ])
+  const restaurantMenuSetupItems = gateRestaurant([
+    { href: "/restaurant-menu",   label: "Menu Items",      icon: UtensilsCrossed },
+    { href: "/restaurant-staff",  label: "Staff & Roles",   icon: UserCog },
+    { href: "/restaurant-setup",  label: "Restaurant Setup", icon: Settings },
+  ])
+
   // System — was a flat, unlabelled block at the bottom of the rail; now a real
   // collapsible group so it matches the top nav's System menu. Order and every
   // permission / farm-type guard are carried over unchanged from that block.
@@ -460,11 +499,11 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     ...((permissions.isAdmin || permissions.featureAccess.canSeeEmployees)
       ? [{ href: "/employees", label: "Users & Permissions", icon: UserCog }] : []),
     // #28: /reports is the poultry report page. Water, Generic, and Hotel have their own.
-    ...((permissions.featureAccess.canViewReports && !isWater && !isGeneric && !isHotel)
+    ...((permissions.featureAccess.canViewReports && !isWater && !isGeneric && !isHotel && !isRestaurant)
       ? [{ href: "/reports", label: "Reports", icon: BarChart3 }] : []),
     { href: "/profile", label: "Account", icon: User },
     // Resources is poultry-specific (vaccination / feed / medication schedules).
-    ...((!isWater && !isGeneric && !isHotel) ? [{ href: "/resources", label: "Resources", icon: BookOpen }] : []),
+    ...((!isWater && !isGeneric && !isHotel && !isRestaurant) ? [{ href: "/resources", label: "Resources", icon: BookOpen }] : []),
     { href: "#", label: "Alerts", icon: Bell, isButton: true, onClick: openAlerts, badge: alerts.length },
     { href: "/companies", label: "Companies", icon: Building2 },
     ...(permissions.featureAccess.canViewActivityLog
@@ -472,11 +511,11 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     // The poultry farm profile. Water, Generic and Hotel have their own setup links
     // in their groups above; this is the equivalent row for Poultry, pointing at the
     // database-backed pages rather than /settings (now only a redirect).
-    ...((!isWater && !isGeneric && !isHotel && permissions.featureAccess.canViewSettings)
+    ...((!isWater && !isGeneric && !isHotel && !isRestaurant && permissions.featureAccess.canViewSettings)
       ? [{ href: "/poultry-setup", label: "Farm Setup", icon: Settings },
          { href: "/poultry-company-setup", label: "Company Setup", icon: Settings }] : []),
     // /help is poultry-specific (flocks, eggs, vaccinations).
-    ...((!isWater && !isGeneric && !isHotel) ? [{ href: "/help", label: "Help Center", icon: HelpCircle }] : []),
+    ...((!isWater && !isGeneric && !isHotel && !isRestaurant) ? [{ href: "/help", label: "Help Center", icon: HelpCircle }] : []),
     { href: "/terms", label: "Terms & Conditions", icon: ListTodo },
   ]
 
@@ -659,9 +698,9 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         {/* Dashboard — route depends on active company type */}
         <div>
           {renderNavItem({
-            href: isWater ? "/water-dashboard" : isGeneric ? "/generic-dashboard" : isHotel ? "/hotel-dashboard" : "/dashboard",
+            href: isWater ? "/water-dashboard" : isGeneric ? "/generic-dashboard" : isHotel ? "/hotel-dashboard" : isRestaurant ? "/restaurant-dashboard" : "/dashboard",
             label: "Dashboard",
-            icon: isWater ? Droplets : isGeneric ? ShoppingBag : isHotel ? Building2 : Home,
+            icon: isWater ? Droplets : isGeneric ? ShoppingBag : isHotel ? Building2 : isRestaurant ? UtensilsCrossed : Home,
           })}
         </div>
 
@@ -729,6 +768,20 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
             {renderGroup("Reports", hotelReportsItems, "hotelReports")}
             <div className="border-t border-slate-800 mx-2" />
             {renderGroup("Admin / Setup", hotelAdminItems, "hotelAdmin")}
+          </>
+        ) : isRestaurant ? (
+          <>
+            {renderGroup("Orders", restaurantOrdersItems, "restaurantOrders")}
+            <div className="border-t border-slate-800 mx-2" />
+            {renderGroup("Kitchen", restaurantKitchenItems, "restaurantKitchen")}
+            <div className="border-t border-slate-800 mx-2" />
+            {renderGroup("Dining", restaurantDiningItems, "restaurantDining")}
+            <div className="border-t border-slate-800 mx-2" />
+            {renderGroup("Delivery & Online", restaurantDeliveryOnlineItems, "restaurantDeliveryOnline")}
+            <div className="border-t border-slate-800 mx-2" />
+            {renderGroup("Inventory", restaurantInventoryItems, "restaurantInventory")}
+            <div className="border-t border-slate-800 mx-2" />
+            {renderGroup("Menu & Setup", restaurantMenuSetupItems, "restaurantMenuSetup")}
           </>
         ) : isGeneric ? (
           <>
