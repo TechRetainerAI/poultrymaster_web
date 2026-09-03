@@ -711,7 +711,7 @@ export default function SuppliesPage() {
                   {isMobile && !showAllColumnsMobile ? (
                     <div className="space-y-3">
                       {filteredItems.map((item, idx) => (
-                        <Collapsible key={item.id} className={cn("group rounded-xl border shadow-sm overflow-hidden", idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}>
+                        <Collapsible key={item.id} defaultOpen className={cn("group rounded-xl border shadow-sm overflow-hidden", idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}>
                           <div className={cn("p-4 active:bg-slate-50/80 transition-colors", idx % 2 === 1 && "bg-slate-50/20")}>
                             <CollapsibleTrigger asChild>
                               <div className="flex items-start justify-between gap-3 cursor-pointer">

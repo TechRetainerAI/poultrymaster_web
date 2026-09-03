@@ -1537,7 +1537,7 @@ export default function SalesPage() {
                   {isMobile && !showAllColumnsMobile ? (
                     <div className="space-y-3">
                       {paginatedSales.map((sale, idx) => (
-                        <Collapsible key={sale.saleId} className={cn("group rounded-xl border shadow-sm overflow-hidden", idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}>
+                        <Collapsible key={sale.saleId} defaultOpen className={cn("group rounded-xl border shadow-sm overflow-hidden", idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}>
                           <div className={cn("p-4 active:bg-slate-50/80 transition-colors", idx % 2 === 1 && "bg-slate-50/20")}>
                             <CollapsibleTrigger asChild>
                               <div className="flex items-start justify-between gap-3 cursor-pointer">
@@ -1565,20 +1565,23 @@ export default function SalesPage() {
                                   <div><span className="text-slate-500">Method</span> <span className="font-medium">{sale.paymentMethod}</span></div>
                                   <div className="flex items-center gap-2"><span className="text-slate-500">Status</span> <PaymentStatusBadge sale={sale} /></div>
                                 </div>
-                                <div className="flex gap-2 pt-2">
+                                {/* Two per row, not one flex line: four labelled
+                                    buttons overflow a 375px card and the card's
+                                    overflow-hidden silently clipped Invoice. */}
+                                <div className="grid grid-cols-2 gap-2 pt-2">
                                   {saleOwed(sale) > 0 && (
-                                    <Button variant="outline" size="sm" className="h-10 text-emerald-700 border-emerald-200 hover:bg-emerald-50" onClick={() => openPaymentDialog(sale)}>
+                                    <Button variant="outline" size="sm" className="h-10 w-full text-emerald-700 border-emerald-200 hover:bg-emerald-50" onClick={() => openPaymentDialog(sale)}>
                                       <Wallet className="h-4 w-4 mr-2" /> Pay
                                     </Button>
                                   )}
-                                  <Button variant="outline" size="sm" className="flex-1 h-10" onClick={() => openEditDialog(sale)}>
+                                  <Button variant="outline" size="sm" className="h-10 w-full" onClick={() => openEditDialog(sale)}>
                                     <Edit className="h-4 w-4 mr-2" /> Edit
                                   </Button>
-                                  <Button variant="outline" size="sm" className="h-10 text-red-600 border-red-200 hover:bg-red-50" onClick={() => openDeleteSaleDialog(sale.saleId)}>
-                                    <Trash2 className="h-4 w-4 mr-2" /> Delete
-                                  </Button>
-                                  <Button variant="outline" size="sm" className="h-10" onClick={() => openInvoiceDialog(sale)}>
+                                  <Button variant="outline" size="sm" className="h-10 w-full" onClick={() => openInvoiceDialog(sale)}>
                                     <FileText className="h-4 w-4 mr-2" /> Invoice
+                                  </Button>
+                                  <Button variant="outline" size="sm" className="h-10 w-full text-red-600 border-red-200 hover:bg-red-50" onClick={() => openDeleteSaleDialog(sale.saleId)}>
+                                    <Trash2 className="h-4 w-4 mr-2" /> Delete
                                   </Button>
                                 </div>
                               </div>

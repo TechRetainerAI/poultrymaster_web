@@ -505,6 +505,7 @@ export default function CashFlowPage() {
                     </p>
                   ) : (
                     <MobileCardList
+                      defaultOpen
                       items={pg.pageItems}
                       pagination={pg.paginationProps}
                       getKey={(r: any) => `${r.rowSource}-${r.id}`}

@@ -840,7 +840,7 @@ export default function FlockBatchesPage() {
                         const supplierLabel = batch.supplierName || supplier?.name || "—"
                         const computedTotal = Number(batch.totalCost) || (Number(batch.costPerChick) * Number(batch.numberOfBirds)) || 0
                         return (
-                        <Collapsible key={batch.batchId} className={cn("group rounded-xl border shadow-sm overflow-hidden", idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}>
+                        <Collapsible key={batch.batchId} defaultOpen className={cn("group rounded-xl border shadow-sm overflow-hidden", idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}>
                           <div className={cn("p-4 active:bg-slate-50/80 transition-colors", idx % 2 === 1 && "bg-slate-50/20")} onClick={() => handleViewFlocks(batch)}>
                             <CollapsibleTrigger asChild>
                               <div className="flex items-start justify-between gap-3 cursor-pointer">

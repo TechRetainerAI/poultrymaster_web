@@ -56,7 +56,10 @@ function sourceFor(txnType: string, relatedId?: number | null): string {
 // Toolbar buttons sit two-up on a phone. They need to wrap and grow: the Button
 // base is `whitespace-nowrap` at a fixed h-9, and "Recalculate product stock"
 // wants ~220px against a ~170px half-width cell, so it would spill instead.
-const TOOLBAR_BTN = "w-full h-auto min-h-9 whitespace-normal py-2 leading-tight sm:w-auto sm:h-9 sm:whitespace-nowrap"
+// Full width on mobile, but the LABEL never wraps -- "Recalculate stock" was
+// breaking onto a second line and making the button twice as tall as its
+// neighbours. Height stays fixed; only the button width is responsive.
+const TOOLBAR_BTN = "w-full h-9 whitespace-nowrap sm:w-auto"
 
 export default function PoultryStockPage() {
   const router = useRouter()

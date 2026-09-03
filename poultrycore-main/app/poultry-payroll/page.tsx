@@ -212,6 +212,7 @@ export default function PoultryPayrollPage() {
                 <div className="p-8 text-center text-slate-500">No payroll runs yet. Create one to start paying staff.</div>
               ) : (
                 <MobileCardList
+                  defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
                   getKey={(r) => r.poultryPayrollRunId}
@@ -288,7 +289,7 @@ export default function PoultryPayrollPage() {
             <FormSection title="Notes" color="slate" columns={1}>
               <FormField label="Notes"><Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></FormField>
             </FormSection>
-            <div className="flex gap-3 justify-end pt-2">
+            <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end sm:gap-3">
               <Button type="button" onClick={() => setOpen(false)} className="bg-red-600 hover:bg-red-700 text-white">Cancel</Button>
               <Button onClick={createRun} disabled={saving}>{saving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Creating…</>) : "Create run"}</Button>
             </div>
@@ -305,7 +306,35 @@ export default function PoultryPayrollPage() {
           </DialogHeader>
           {itemsRun && (
             <div className="space-y-4">
-              <div className="overflow-x-auto">
+              {/* Eight money columns do not fit a phone. Same rows, stacked. */}
+              <div className="space-y-2 sm:hidden">
+                {(itemsRun.items ?? []).length === 0 ? (
+                  <p className="py-4 text-center text-sm text-slate-500">No lines yet.</p>
+                ) : (itemsRun.items ?? []).map((it) => (
+                  <div key={it.poultryPayrollItemId} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-medium text-slate-900 break-words">{it.staffName ?? `#${it.poultryStaffId}`}</div>
+                        <div className="text-xs text-slate-500">Net <span className="font-semibold tabular-nums text-slate-700">{gh(it.netPay)}</span></div>
+                      </div>
+                      {itemsRun.status === "Draft" && (
+                        <Button size="sm" variant="ghost" className="shrink-0" onClick={() => removeItem(it.poultryPayrollItemId)} aria-label="Remove line">
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      )}
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-1.5 text-sm">
+                      <div><span className="text-slate-500">Basic</span> <span className="font-medium tabular-nums">{gh(it.basicPay)}</span></div>
+                      <div><span className="text-slate-500">Daily</span> <span className="font-medium tabular-nums">{gh(it.dailyWage)}</span></div>
+                      <div><span className="text-slate-500">Comm.</span> <span className="font-medium tabular-nums">{gh(it.commission)}</span></div>
+                      <div><span className="text-slate-500">Bonus</span> <span className="font-medium tabular-nums">{gh(it.bonus)}</span></div>
+                      <div className="col-span-2"><span className="text-slate-500">Deductions</span> <span className="font-medium tabular-nums">{gh(it.deductions)}</span></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="hidden overflow-x-auto sm:block">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -419,20 +448,29 @@ export default function PoultryPayrollPage() {
     </div>
   )
 
+  // A Draft run offers five actions. On desktop they are icon-only ghost
+  // buttons in a table cell; on mobile that same row overflowed the card, and
+  // the icon-only ones (Reopen / Cancel / Delete) carried their meaning solely
+  // in a `title` tooltip, which never opens on touch. So mobile gets a
+  // two-column grid and every button gets a word.
   function renderActions(r: PoultryPayrollRun, mobile: boolean) {
-    const cls = mobile ? "flex-1 h-10" : ""
+    const cls = mobile ? "h-10 w-full" : ""
     const v = mobile ? "outline" : "ghost"
-    return (
+    const label = (text: string) => (mobile ? text : "")
+    const buttons = (
       <>
-        <Button size="sm" variant={v} className={cls} onClick={() => router.push(`/poultry-payroll/${r.poultryPayrollRunId}`)} title="Details"><Eye className="h-4 w-4 mr-1" />{mobile ? "Details" : ""}</Button>
-        {r.status === "Draft" && <Button size="sm" variant={v} className={cls} onClick={() => openItems(r)} title="Edit lines"><Users className="h-4 w-4 mr-1" />{mobile ? "Lines" : ""}</Button>}
-        {r.status !== "Draft" && <Button size="sm" variant={v} className={cls} onClick={() => openItems(r)} title="View lines"><Users className="h-4 w-4" /></Button>}
-        {(r.status === "Draft" || r.status === "Reopened") && <Button size="sm" variant={v} className={`${cls} text-blue-700`} onClick={() => approve(r)} title="Approve"><CheckCircle2 className="h-4 w-4 mr-1" />{mobile ? "Approve" : ""}</Button>}
-        {r.status === "Approved" && <Button size="sm" variant={v} className={`${cls} text-green-700`} onClick={() => { setPaidRun(r); setPayDate(today()) }} title="Mark paid"><Banknote className="h-4 w-4 mr-1" />{mobile ? "Mark paid" : ""}</Button>}
-        {(r.status === "Approved" || r.status === "Paid") && <Button size="sm" variant={v} className={`${cls} text-amber-700`} onClick={() => { setReasonDlg({ open: true, run: r, kind: "unapprove" }); setReason("") }} title="Reopen"><RotateCcw className="h-4 w-4" /></Button>}
-        {(r.status === "Draft" || r.status === "Approved") && <Button size="sm" variant={v} className={`${cls} text-rose-600`} onClick={() => { setReasonDlg({ open: true, run: r, kind: "cancel" }); setReason("") }} title="Cancel"><XCircle className="h-4 w-4" /></Button>}
-        {(r.status === "Draft" || r.status === "Reopened" || r.status === "Cancelled") && <Button size="sm" variant={v} className={`${cls} text-red-600`} onClick={() => setDeleteTarget(r)} title="Delete"><Trash2 className="h-4 w-4" /></Button>}
+        <Button size="sm" variant={v} className={cls} onClick={() => router.push(`/poultry-payroll/${r.poultryPayrollRunId}`)} title="Details"><Eye className="h-4 w-4 mr-1" />{label("Details")}</Button>
+        {r.status === "Draft" && <Button size="sm" variant={v} className={cls} onClick={() => openItems(r)} title="Edit lines"><Users className="h-4 w-4 mr-1" />{label("Lines")}</Button>}
+        {r.status !== "Draft" && <Button size="sm" variant={v} className={cls} onClick={() => openItems(r)} title="View lines"><Users className="h-4 w-4 mr-1" />{label("Lines")}</Button>}
+        {(r.status === "Draft" || r.status === "Reopened") && <Button size="sm" variant={v} className={`${cls} text-blue-700`} onClick={() => approve(r)} title="Approve"><CheckCircle2 className="h-4 w-4 mr-1" />{label("Approve")}</Button>}
+        {r.status === "Approved" && <Button size="sm" variant={v} className={`${cls} text-green-700`} onClick={() => { setPaidRun(r); setPayDate(today()) }} title="Mark paid"><Banknote className="h-4 w-4 mr-1" />{label("Mark paid")}</Button>}
+        {(r.status === "Approved" || r.status === "Paid") && <Button size="sm" variant={v} className={`${cls} text-amber-700`} onClick={() => { setReasonDlg({ open: true, run: r, kind: "unapprove" }); setReason("") }} title="Reopen"><RotateCcw className="h-4 w-4 mr-1" />{label("Reopen")}</Button>}
+        {(r.status === "Draft" || r.status === "Approved") && <Button size="sm" variant={v} className={`${cls} text-rose-600`} onClick={() => { setReasonDlg({ open: true, run: r, kind: "cancel" }); setReason("") }} title="Cancel"><XCircle className="h-4 w-4 mr-1" />{label("Cancel")}</Button>}
+        {(r.status === "Draft" || r.status === "Reopened" || r.status === "Cancelled") && <Button size="sm" variant={v} className={`${cls} text-red-600`} onClick={() => setDeleteTarget(r)} title="Delete"><Trash2 className="h-4 w-4 mr-1" />{label("Delete")}</Button>}
       </>
     )
+    // w-full so the grid fills MobileCardList's flex row rather than shrinking
+    // to its content.
+    return mobile ? <div className="grid w-full grid-cols-2 gap-2">{buttons}</div> : buttons
   }
 }
