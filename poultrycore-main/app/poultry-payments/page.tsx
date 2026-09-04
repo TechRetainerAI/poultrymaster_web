@@ -1,144 +1,25 @@
 "use client"
 
-// Poultry "Payments received" — a read-only list of every customer payment
-// captured from the Sales page → Record payment. Port of /water-payments.
+// Poultry "Payments received".
+//
+// Thin: everything lives in <PaymentsReceivedPage>, which water and generic can
+// reuse once they need it. All this file decides is which module it is, where a
+// sale lives, and which permission keys apply.
 
-import { useEffect, useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
-import { DashboardSidebar } from "@/components/dashboard/sidebar"
-import { DashboardHeader } from "@/components/dashboard/header"
-import { Card, CardContent } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { MobileCardList } from "@/components/ui/mobile-card-list"
-import { usePagination } from "@/hooks/use-pagination"
-import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
-import { Loader2, Wallet } from "lucide-react"
-import { useAuthStore } from "@/lib/store/auth-store"
-import { useLogout } from "@/hooks/use-logout"
-import { useToast } from "@/hooks/use-toast"
-import { useFmt } from "@/lib/currency"
-import { listPoultryPayments, type PoultryPayment } from "@/lib/api/poultry-finance"
+import { PaymentsReceivedPage } from "@/components/payments/payments-received-page"
 
 export default function PoultryPaymentsPage() {
-  // Amounts were rendering as bare numbers with no currency at all.
-  const fmt = useFmt()
-  const router = useRouter()
-  const { toast } = useToast()
-  const activeFarmType = useAuthStore((s) => s.activeFarmType)
-  const logout = useLogout()
-  const [items, setItems] = useState<PoultryPayment[]>([])
-  const [search, setSearch] = useState("")
-  const [dateFrom, setDateFrom] = useState("")
-  const [dateTo, setDateTo] = useState("")
-  const [loading, setLoading] = useState(true)
-
-  const visibleItems = useMemo(
-    () => filterByDateAndSearch(items, {
-      search, dateFrom, dateTo,
-      searchKeys: ["customerName", "paymentMethod", "reference", "note"],
-      dateKey: "paymentDate",
-    }),
-    [items, search, dateFrom, dateTo],
-  )
-
-  // Client-side paging: the whole list is already in memory, so this is a
-  // slice. Feed the SAME slice to the cards and the desktop table.
-  const pg = usePagination(visibleItems)
-
-  useEffect(() => {
-    if (activeFarmType && activeFarmType !== "Poultry") { router.replace("/dashboard"); return }
-    let cancelled = false
-    ;(async () => {
-      try { const list = await listPoultryPayments(); if (!cancelled) setItems(list) }
-      catch (e: any) { if (!cancelled) toast({ title: "Could not load payments", description: e?.message ?? String(e), variant: "destructive" }) }
-      finally { if (!cancelled) setLoading(false) }
-    })()
-    return () => { cancelled = true }
-  }, [activeFarmType, router])
-
   return (
-    <div className="flex h-screen bg-slate-50">
-      <DashboardSidebar onLogout={logout} />
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <DashboardHeader />
-        <main className="flex-1 overflow-auto p-4 md:p-6">
-          <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2 mb-4">
-            <Wallet className="h-6 w-6 text-sky-600" /> Payments received
-          </h1>
-          <p className="text-sm text-slate-500 mb-4">Record payments from the Sales page → Pay. This view lists every payment captured.</p>
-
-          <ListFilters
-            search={search} setSearch={setSearch}
-            dateFrom={dateFrom} setDateFrom={setDateFrom}
-            dateTo={dateTo} setDateTo={setDateTo}
-            searchPlaceholder="Search customer, method, reference or note"
-          />
-
-          <Card>
-            <CardContent className="p-0">
-              {loading ? (
-                <div className="p-6 text-slate-500 flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
-              ) : items.length === 0 ? (
-                <div className="p-8 text-center text-slate-500">No payments yet.</div>
-              ) : (
-                <MobileCardList
-                  defaultOpen
-                  items={pg.pageItems}
-                  pagination={pg.paginationProps}
-                  getKey={(p) => p.poultryPaymentId}
-                  primary={(p) => `${p.customerName ?? "Walk-in"} · ${fmt(p.amount)}`}
-                  secondary={(p) => (
-                    <>
-                      <span>{new Date(p.paymentDate).toLocaleString()}</span>
-                      <span>·</span>
-                      <span>Sale #{p.saleId}</span>
-                    </>
-                  )}
-                  details={(p) => [
-                    { label: "Date", value: new Date(p.paymentDate).toLocaleString() },
-                    { label: "Sale #", value: `#${p.saleId}` },
-                    { label: "Customer", value: p.customerName ?? "Walk-in" },
-                    { label: "Amount", value: fmt(p.amount) },
-                    { label: "Method", value: p.paymentMethod ?? "—" },
-                    { label: "Reference", value: p.reference ?? "—" },
-                    { label: "Note", value: p.note ?? "—" },
-                  ]}
-                  desktopTable={
-                    <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Sale #</TableHead>
-                          <TableHead>Customer</TableHead>
-                          <TableHead className="text-right">Amount</TableHead>
-                          <TableHead>Method</TableHead>
-                          <TableHead>Reference</TableHead>
-                          <TableHead>Note</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {pg.pageItems.map((p) => (
-                          <TableRow key={p.poultryPaymentId}>
-                            <TableCell>{new Date(p.paymentDate).toLocaleString()}</TableCell>
-                            <TableCell>#{p.saleId}</TableCell>
-                            <TableCell>{p.customerName ?? "Walk-in"}</TableCell>
-                            <TableCell className="text-right tabular-nums">{fmt(p.amount)}</TableCell>
-                            <TableCell>{p.paymentMethod ?? "—"}</TableCell>
-                            <TableCell className="text-slate-500">{p.reference ?? "—"}</TableCell>
-                            <TableCell className="text-slate-500">{p.note ?? "—"}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                    </div>
-                  }
-                />
-              )}
-            </CardContent>
-          </Card>
-        </main>
-      </div>
-    </div>
+    <PaymentsReceivedPage
+      module="poultry"
+      companyType="Poultry"
+      // The Sales page is a list with its own filters rather than a per-sale
+      // route, so deep-link into it with the sale highlighted.
+      saleHref={(saleId) => `/sales?saleId=${saleId}`}
+      permissions={{
+        view: "poultry.customer-balances.view",
+        reverse: "poultry.customer-payments.reverse",
+      }}
+    />
   )
 }

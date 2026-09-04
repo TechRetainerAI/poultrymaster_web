@@ -16,7 +16,9 @@ import { usePagination } from "@/hooks/use-pagination"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
-import { Plus, Trash2, Loader2, ShoppingCart, X, Wallet, Ban, CheckCircle2, Receipt } from "lucide-react"
+import { Plus, Trash2, Loader2, ShoppingCart, X, Wallet, Ban, CheckCircle2, Receipt, History } from "lucide-react"
+import { PaymentHistoryDialog } from "@/components/balances/payment-history-dialog"
+import { usePermissions } from "@/hooks/use-permissions"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -240,6 +242,12 @@ function WaterSalesPageInner() {
   // — no detour through the Details dialog. Works for both list-row triggers
   // (sets payForSale) and the in-detail "Record payment" button (already sets
   // detailSale, so we just mirror it into payForSale).
+  // Which sale we are showing the payment ledger for. Same dialog the Customer
+  // Balances page uses, scoped to one sale, so a payment reads the same
+  // wherever it is opened from.
+  const [historySale, setHistorySale] = useState<WaterSale | null>(null)
+  const { can } = usePermissions()
+
   function openPay(sale: WaterSale) {
     setPayForSale(sale)
     setPayAmount(sale.balance)
@@ -429,6 +437,17 @@ function WaterSalesPageInner() {
                                   <CheckCircle2 className="h-4 w-4 mr-1" /> Mark as Paid
                                 </Button>
                               )}
+                              {/* Offered on settled sales too: a paid-off sale
+                                  is exactly when someone asks what was paid. */}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setHistorySale(s)}
+                                aria-label="Payment history"
+                                title="Payment history"
+                              >
+                                <History className="h-4 w-4" />
+                              </Button>
                               <Button size="sm" variant="ghost" onClick={() => openDetail(s)}>Details</Button>
                               {isFromDelivery(s) ? (
                                 <span className="text-xs text-slate-400 ml-1" title="From a delivery — undo it from the delivery return.">From delivery</span>
@@ -626,6 +645,21 @@ function WaterSalesPageInner() {
       </Dialog>
 
       {/* Detail dialog */}
+      {/* The ledger for one sale: every payment that touched it, with the
+          balance it moved from and to. Reversing from here reloads the list,
+          because the sale balance and status change with it. */}
+      <PaymentHistoryDialog
+        open={!!historySale}
+        onOpenChange={(o) => { if (!o) setHistorySale(null) }}
+        module="water"
+        side="customer"
+        partyName={historySale?.customerName ?? null}
+        documentType="WaterSale"
+        documentId={historySale?.waterSaleId ?? null}
+        canReverse={can("water.customer-payments.reverse")}
+        onReversed={() => { void loadAll() }}
+      />
+
       <Dialog open={!!detailSale} onOpenChange={(o) => { if (!o) setDetailSale(null) }}>
         <DialogContent className="w-[95vw] max-w-xl max-h-[90vh] overflow-y-auto p-0 gap-0">
           {detailSale && (

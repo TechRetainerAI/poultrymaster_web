@@ -1,0 +1,704 @@
+"use client"
+
+// Payments Received — the customer payment ledger.
+//
+// ONE ROW PER REAL PAYMENT. The old page listed `poultrypayments` rows, and
+// that table stores one row per SALE, so a single GHC 4,820 payment split
+// across two sales appeared here as two payments. It never was two payments:
+// migration 223 groups the rows under a `paymentgroupid` and records how much
+// of the payment each sale received in `customerpaymentallocation`, with the
+// sale's balance before and after captured at the moment it was posted. This
+// page reads that grouped view, so what you see is the money the customer
+// actually handed over, and the allocation is the detail underneath it.
+//
+// A payment against one sale shows its allocation inline -- sale, and the
+// balance it moved from and to -- because expanding a row to read one line is
+// friction for the common case. A payment across several sales shows the count
+// and expands.
+
+import { Fragment, useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { DashboardSidebar } from "@/components/dashboard/sidebar"
+import { DashboardHeader } from "@/components/dashboard/header"
+import { Card, CardContent } from "@/components/ui/card"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ListFilters } from "@/components/ui/list-filters"
+import { DataPagination } from "@/components/ui/data-pagination"
+import { usePagination } from "@/hooks/use-pagination"
+import { ChevronDown, ChevronRight, Loader2, Undo2, Wallet } from "lucide-react"
+import { useAuthStore } from "@/lib/store/auth-store"
+import { useLogout } from "@/hooks/use-logout"
+import { useToast } from "@/hooks/use-toast"
+import { usePermissions } from "@/hooks/use-permissions"
+import { useFmt } from "@/lib/currency"
+import { cn } from "@/lib/utils"
+import {
+  getPayment, listPayments, reversePayment,
+  type BalanceModule, type PaymentAllocationRow, type PaymentHistoryRow,
+} from "@/lib/api/balances"
+
+// Where the payment was taken. The raw codes are what the API stores; these are
+// what a person reads. Anything unrecognised falls through unchanged.
+const SOURCE_LABEL: Record<string, string> = {
+  SaleEntry: "Sale",
+  CustomerBalances: "Balances",
+  CustomerProfile: "Customer",
+  PaymentsPage: "Payments",
+  ImportedPayment: "Imported",
+  Backfill: "Backfill",
+}
+const sourceLabel = (s?: string | null) => (s ? SOURCE_LABEL[s] ?? s : "—")
+
+/**
+ * The payment as a person refers to it: PAY-0001.
+ *
+ * Migration 240 numbers every payment per company. Until it is applied -- and
+ * on the supplier side, which has no numbering -- there is only the group uuid,
+ * so fall back to its first block rather than showing an empty column.
+ */
+const paymentRef = (row: { paymentNumber?: string | null; paymentId: string }) =>
+  row.paymentNumber?.trim() || `#${String(row.paymentId).slice(0, 8)}`
+
+export interface PaymentsReceivedPageProps {
+  module: BalanceModule
+  /** Guard: this page belongs to one company type. */
+  companyType: string
+  /** Deep link to a sale, or null when it has no page. */
+  saleHref: (saleId: number) => string | null
+  /** IAM keys gating this page. */
+  permissions: { view: string; reverse: string }
+}
+
+export function PaymentsReceivedPage({
+  module, companyType, saleHref, permissions,
+}: PaymentsReceivedPageProps) {
+  const fmt = useFmt()
+  const router = useRouter()
+  const { toast } = useToast()
+  const logout = useLogout()
+  const { can, isLoading: permsLoading } = usePermissions()
+  const activeFarmType = useAuthStore((s) => s.activeFarmType)
+
+  const [rows, setRows] = useState<PaymentHistoryRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [allocations, setAllocations] = useState<Record<string, PaymentAllocationRow[]>>({})
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [reverseTarget, setReverseTarget] = useState<PaymentHistoryRow | null>(null)
+  const [reason, setReason] = useState("")
+  const [reversing, setReversing] = useState(false)
+
+  // Filters
+  const [search, setSearch] = useState("")
+  const [from, setFrom] = useState("")
+  const [to, setTo] = useState("")
+  const [method, setMethod] = useState("all")
+  const [source, setSource] = useState("all")
+  const [status, setStatus] = useState("Posted")
+  const [appliedTo, setAppliedTo] = useState("all")
+
+  const canView = can(permissions.view)
+  const canReverse = can(permissions.reverse)
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const list = await listPayments(module, "customer", { from: from || null, to: to || null })
+      setRows(list)
+      // Allocations are keyed by payment, so a reload has to drop the cache or
+      // a reversed payment would keep showing its pre-reversal allocation.
+      setAllocations({})
+    } catch (e: any) {
+      toast({ title: "Could not load payments", description: e?.message ?? String(e), variant: "destructive" })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (activeFarmType && activeFarmType !== companyType) { router.replace("/dashboard"); return }
+    if (permsLoading || !canView) return
+    void load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFarmType, companyType, permsLoading, canView, from, to])
+
+  const methods = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.paymentMethod).filter(Boolean) as string[])).sort(),
+    [rows],
+  )
+  const sources = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.sourceType).filter(Boolean) as string[])).sort(),
+    [rows],
+  )
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return rows.filter((r) => {
+      if (status !== "all" && (r.status ?? "Posted") !== status) return false
+      if (method !== "all" && (r.paymentMethod ?? "") !== method) return false
+      if (source !== "all" && (r.sourceType ?? "") !== source) return false
+      if (appliedTo === "single" && r.allocationCount !== 1) return false
+      if (appliedTo === "multiple" && r.allocationCount <= 1) return false
+      if (q) {
+        const hay = [r.partyName, r.paymentMethod, r.reference, r.notes, paymentRef(r), r.createdBy]
+          .filter(Boolean).join(" ").toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      return true
+    })
+  }, [rows, search, status, method, source, appliedTo])
+
+  const pg = usePagination(filtered)
+
+  const totals = useMemo(() => {
+    const posted = filtered.filter((r) => (r.status ?? "Posted") !== "Reversed")
+    return {
+      count: posted.length,
+      amount: posted.reduce((s, r) => s + (Number(r.totalAmount) || 0), 0),
+      sales: posted.reduce((s, r) => s + (r.allocationCount || 0), 0),
+    }
+  }, [filtered])
+
+  // A payment's allocation, loaded when a row is opened. The one-sale case is
+  // NOT fetched: migration 241 puts its sale and balances on the row itself, so
+  // the page no longer makes a request per row to show them.
+  const fetchAllocation = async (id: string) => {
+    if (allocations[id]) return
+    try {
+      const detail = await getPayment(module, "customer", id)
+      setAllocations((prev) => (prev[id] ? prev : { ...prev, [id]: detail.allocations }))
+    } catch {
+      // Silent: an inline detail that cannot load falls back to the count, and
+      // a toast per row would bury the page.
+    }
+  }
+
+  // Older APIs do not send the inline fields; those rows still need the fetch,
+  // so the page works either side of migration 241.
+  useEffect(() => {
+    for (const r of pg.pageItems) {
+      if (r.allocationCount === 1 && r.saleId == null) void fetchAllocation(r.paymentId)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pg.pageItems])
+
+  const toggle = async (row: PaymentHistoryRow) => {
+    if (expanded === row.paymentId) { setExpanded(null); return }
+    setExpanded(row.paymentId)
+    await fetchAllocation(row.paymentId)
+  }
+
+  const doReverse = async () => {
+    if (!reverseTarget) return
+    if (!reason.trim()) {
+      toast({ title: "A reason is required", description: "Say why this payment is being reversed — it is written to the audit trail.", variant: "destructive" })
+      return
+    }
+    setReversing(true)
+    try {
+      await reversePayment(module, "customer", reverseTarget.paymentId, reason.trim())
+      toast({
+        title: "Payment reversed",
+        description: `${fmt(reverseTarget.totalAmount)} put back on ${reverseTarget.allocationCount} sale${reverseTarget.allocationCount === 1 ? "" : "s"}.`,
+      })
+      setReverseTarget(null)
+      setReason("")
+      await load()
+    } catch (e: any) {
+      toast({ title: "Could not reverse payment", description: e?.message ?? String(e), variant: "destructive" })
+    } finally {
+      setReversing(false)
+    }
+  }
+
+  const dateOf = (d: string) => (d ? new Date(d).toLocaleDateString() : "—")
+
+  /**
+   * The one-sale case as four values: the sale, its total, and the balance the
+   * payment moved it from and to.
+   *
+   * Prefers what the row already carries (241) and falls back to a fetched
+   * allocation, so the page renders the same on an API that has not learned to
+   * send them.
+   */
+  const single = (row: PaymentHistoryRow) => {
+    if (row.allocationCount !== 1) return null
+    if (row.saleId != null) {
+      return {
+        saleId: row.saleId,
+        saleTotal: row.saleTotal ?? null,
+        before: row.balanceBefore ?? null,
+        applied: row.amountApplied ?? row.totalAmount,
+        after: row.balanceAfter ?? null,
+      }
+    }
+    const a = allocations[row.paymentId]?.[0]
+    if (!a) return null
+    return { saleId: a.documentId, saleTotal: a.documentTotal, before: a.balanceBefore, applied: a.amountApplied, after: a.balanceAfter }
+  }
+
+  const saleLink = (saleId: number) => {
+    const href = saleHref(saleId)
+    return href
+      ? <Link href={href} className="font-medium text-sky-700 hover:underline">#{saleId}</Link>
+      : <span className="font-medium">#{saleId}</span>
+  }
+
+  /** Right-aligned money, or the em dash a multi-sale payment gets. */
+  const money = (v: number | null | undefined) =>
+    v == null ? <span className="text-slate-400">—</span> : <span className="tabular-nums">{fmt(v)}</span>
+
+  // A panel, not a second full-width table. Auto layout spreads these columns
+  // across the whole page and leaves each heading sitting nowhere near its own
+  // numbers; declared widths put every heading directly over its column, and
+  // the left rule says this belongs to the payment above it.
+  const allocationTable = (list: PaymentAllocationRow[]) => (
+    <div className="ml-1 border-l-2 border-slate-200 pl-3">
+      <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Applied to</div>
+      <Table className="w-full table-fixed [&_td]:whitespace-normal [&_th]:whitespace-normal">
+      <colgroup>
+        <col className="w-[12%]" />
+        <col className="w-[20%]" />
+        <col className="w-[12%]" />
+        <col className="w-[13%]" />
+        <col className="w-[14%]" />
+        <col className="w-[13%]" />
+        <col className="w-[14%]" />
+        <col className="w-[12%]" />
+      </colgroup>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Sale</TableHead>
+          <TableHead>Description</TableHead>
+          <TableHead>Sale date</TableHead>
+          <TableHead className="text-right">Sale total</TableHead>
+          <TableHead className="text-right">Balance before</TableHead>
+          <TableHead className="text-right">Applied</TableHead>
+          <TableHead className="text-right">Balance after</TableHead>
+          <TableHead>Status</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {list.map((a) => {
+          const href = saleHref(a.documentId)
+          return (
+            <TableRow key={a.allocationId}>
+              <TableCell className="font-medium">
+                {href ? <Link href={href} className="text-sky-700 hover:underline">#{a.documentId}</Link> : `#${a.documentId}`}
+              </TableCell>
+              <TableCell className="text-slate-600">{a.label ?? a.reference ?? "—"}</TableCell>
+              <TableCell className="whitespace-nowrap!">{dateOf(a.documentDate ?? "")}</TableCell>
+              <TableCell className="whitespace-nowrap! text-right">{fmt(a.documentTotal)}</TableCell>
+              <TableCell className="whitespace-nowrap! text-right text-slate-500">{fmt(a.balanceBefore)}</TableCell>
+              <TableCell className="whitespace-nowrap! text-right font-medium">{fmt(a.amountApplied)}</TableCell>
+              <TableCell className="whitespace-nowrap! text-right">{fmt(a.balanceAfter)}</TableCell>
+              <TableCell>
+                {a.balanceAfter <= 0
+                  ? <Badge variant="secondary">Paid</Badge>
+                  : <Badge variant="outline" className="text-amber-700">Part paid</Badge>}
+              </TableCell>
+            </TableRow>
+          )
+        })}
+      </TableBody>
+      </Table>
+    </div>
+  )
+
+  const statusBadge = (row: PaymentHistoryRow) =>
+    (row.status ?? "Posted") === "Reversed"
+      ? <Badge variant="outline" className="text-slate-500">Reversed</Badge>
+      : <Badge variant="secondary">Posted</Badge>
+
+  if (!permsLoading && !canView) {
+    return (
+      <div className="flex h-screen bg-slate-50">
+        <DashboardSidebar onLogout={logout} />
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <DashboardHeader />
+          <main className="flex-1 overflow-auto p-6">
+            <div className="rounded-lg border bg-white p-8 text-center text-slate-500">
+              You do not have permission to view customer payments.
+            </div>
+          </main>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex h-screen bg-slate-50">
+      <DashboardSidebar onLogout={logout} />
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <DashboardHeader />
+        <main className="flex-1 overflow-auto p-4 md:p-6">
+          <h1 className="mb-1 flex items-center gap-2 text-2xl font-semibold text-slate-900">
+            <Wallet className="h-6 w-6 text-sky-600" /> Payments received
+          </h1>
+          <p className="mb-4 text-sm text-slate-500">
+            One row per payment the customer actually made. A payment spread over several sales is one payment
+            here — open it to see how much each sale received.
+          </p>
+
+          <ListFilters
+            search={search} setSearch={setSearch}
+            dateFrom={from} setDateFrom={setFrom}
+            dateTo={to} setDateTo={setTo}
+            searchPlaceholder="Search customer, payment, method or reference"
+            extras={
+              <>
+                <div className="w-full sm:w-[150px]">
+                  <Label className="text-xs text-slate-500">Method</Label>
+                  <Select value={method} onValueChange={setMethod}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All methods</SelectItem>
+                      {methods.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="w-full sm:w-[150px]">
+                  <Label className="text-xs text-slate-500">Source</Label>
+                  <Select value={source} onValueChange={setSource}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All sources</SelectItem>
+                      {sources.map((s) => <SelectItem key={s} value={s}>{sourceLabel(s)}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="w-full sm:w-[150px]">
+                  <Label className="text-xs text-slate-500">Applied to</Label>
+                  <Select value={appliedTo} onValueChange={setAppliedTo}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Any</SelectItem>
+                      <SelectItem value="single">One sale</SelectItem>
+                      <SelectItem value="multiple">Several sales</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="w-full sm:w-[150px]">
+                  <Label className="text-xs text-slate-500">Status</Label>
+                  <Select value={status} onValueChange={setStatus}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Posted">Posted</SelectItem>
+                      <SelectItem value="Reversed">Reversed</SelectItem>
+                      <SelectItem value="all">All</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            }
+          />
+
+          {/* The totals count PAYMENTS, not allocations -- the number of sales
+              settled is its own figure, because the two differ the moment
+              anyone pays for more than one sale at a time. */}
+          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="rounded-lg border bg-white p-3">
+              <div className="text-xs text-slate-500">Payments</div>
+              <div className="text-xl font-bold tabular-nums">{totals.count.toLocaleString()}</div>
+            </div>
+            <div className="rounded-lg border bg-white p-3">
+              <div className="text-xs text-slate-500">Total received</div>
+              <div className="text-xl font-bold tabular-nums text-emerald-700">{fmt(totals.amount)}</div>
+            </div>
+            <div className="rounded-lg border bg-white p-3">
+              <div className="text-xs text-slate-500">Sales settled</div>
+              <div className="text-xl font-bold tabular-nums">{totals.sales.toLocaleString()}</div>
+            </div>
+          </div>
+
+          <Card>
+            <CardContent className="p-0">
+              {loading ? (
+                <div className="flex items-center gap-2 p-6 text-slate-500">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+                </div>
+              ) : filtered.length === 0 ? (
+                <div className="p-8 text-center text-slate-500">
+                  {rows.length === 0 ? "No payments yet." : "No payments match those filters."}
+                </div>
+              ) : (
+                <>
+                  {/* ---- Phones: one card per payment ------------------------ */}
+                  <div className="divide-y divide-slate-100 lg:hidden">
+                    {pg.pageItems.map((row) => {
+                      const isReversed = (row.status ?? "Posted") === "Reversed"
+                      const isOpen = expanded === row.paymentId
+                      const multi = row.allocationCount > 1
+                      const one = single(row)
+                      return (
+                        <div key={row.paymentId} className={cn("p-3", isReversed && "text-slate-400")}>
+                          <button
+                            type="button"
+                            onClick={() => toggle(row)}
+                            className="flex w-full items-start justify-between gap-3 text-left"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className={cn("font-semibold tabular-nums text-slate-900", isReversed && "text-slate-400 line-through")}>
+                                  {fmt(row.totalAmount)}
+                                </span>
+                                {statusBadge(row)}
+                              </div>
+                              <div className="mt-0.5 truncate text-sm text-slate-600">{row.partyName ?? "Walk-in"}</div>
+                              <div className="mt-1 text-xs text-slate-500">
+                                {dateOf(row.paymentDate)} · {row.paymentMethod ?? "—"} ·{" "}
+                                {multi ? `${row.allocationCount} sales` : "1 sale"}
+                              </div>
+                            </div>
+                            {isOpen
+                              ? <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                              : <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />}
+                          </button>
+
+                          <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-500">
+                            <span className="min-w-0 truncate">{paymentRef(row)}</span>
+                            <span className="min-w-0 truncate text-right">Source: {sourceLabel(row.sourceType)}</span>
+                            <span className="min-w-0 truncate">Ref: {row.reference ?? "—"}</span>
+                            <span className="min-w-0 truncate text-right">By: {row.createdBy ?? "—"}</span>
+                          </div>
+
+                          {!multi && one && (
+                            <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 rounded-md bg-slate-50 p-2 text-xs">
+                              <span className="text-slate-500">Sale {saleLink(one.saleId)}</span>
+                              <span className="text-right text-slate-500">Total {fmt(one.saleTotal ?? 0)}</span>
+                              <span className="tabular-nums text-slate-500">Before {fmt(one.before ?? 0)}</span>
+                              <span className="text-right tabular-nums text-slate-500">After {fmt(one.after ?? 0)}</span>
+                            </div>
+                          )}
+
+                          {isReversed && row.reversalReason && (
+                            <p className="mt-2 text-xs text-slate-500">
+                              Reversed{row.reversedBy ? ` by ${row.reversedBy}` : ""}
+                              {row.reversedAt ? ` on ${dateOf(row.reversedAt)}` : ""}: {row.reversalReason}
+                            </p>
+                          )}
+
+                          {canReverse && !isReversed && (
+                            <Button variant="outline" size="sm" className="mt-2 h-10 w-full bg-white"
+                                    onClick={() => { setReverseTarget(row); setReason("") }}>
+                              <Undo2 className="mr-1.5 h-3.5 w-3.5" /> Reverse
+                            </Button>
+                          )}
+
+                          {isOpen && (
+                            <div className="mt-2 space-y-2 rounded-md bg-slate-50 p-2">
+                              {!allocations[row.paymentId] ? (
+                                <span className="flex items-center gap-2 text-sm text-slate-500">
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading allocation…
+                                </span>
+                              ) : allocations[row.paymentId].map((a) => (
+                                <div key={a.allocationId} className="rounded-md border border-slate-200 bg-white p-2.5 text-xs">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <span className="min-w-0 truncate font-medium text-slate-900">#{a.documentId}</span>
+                                    <span className="shrink-0 font-semibold tabular-nums">{fmt(a.amountApplied)}</span>
+                                  </div>
+                                  {a.label ? <div className="truncate text-slate-500">{a.label}</div> : null}
+                                  <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1 text-slate-500">
+                                    <span>{dateOf(a.documentDate ?? "")}</span>
+                                    <span className="text-right tabular-nums">Total {fmt(a.documentTotal)}</span>
+                                    <span className="tabular-nums">Before {fmt(a.balanceBefore)}</span>
+                                    <span className="text-right tabular-nums">After {fmt(a.balanceAfter)}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                    <div className="px-3 py-3">
+                      <DataPagination {...pg.paginationProps} />
+                    </div>
+                  </div>
+
+                  {/* ---- lg and up: the ledger ------------------------------- */}
+                  {/* Cells wrap rather than scroll: <Table> is whitespace-nowrap
+                      by default and wraps itself in an overflow-x-auto div, so
+                      without this the ledger can only ever be scrolled
+                      sideways. Money and dates keep nowrap explicitly. */}
+                  <div className="hidden lg:block">
+                    <Table className="w-full [&_td]:whitespace-normal [&_th]:whitespace-normal">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-8" />
+                          <TableHead>Date</TableHead>
+                          <TableHead>Payment</TableHead>
+                          <TableHead>Customer</TableHead>
+                          <TableHead className="text-right">Amount</TableHead>
+                          {/* The allocation, for the payment that settled one
+                              sale. A payment across several shows the count
+                              here and em dashes across the money columns --
+                              there is no single balance to report -- and opens
+                              for the full breakdown. */}
+                          <TableHead>Sale</TableHead>
+                          <TableHead className="text-right">Sale total</TableHead>
+                          <TableHead className="text-right">Before</TableHead>
+                          <TableHead className="text-right">Applied</TableHead>
+                          <TableHead className="text-right">After</TableHead>
+                          <TableHead>Method</TableHead>
+                          <TableHead>Source</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {pg.pageItems.map((row) => {
+                          const isReversed = (row.status ?? "Posted") === "Reversed"
+                          const isOpen = expanded === row.paymentId
+                          const multi = row.allocationCount > 1
+                          const one = single(row)
+                          return (
+                            <Fragment key={row.paymentId}>
+                              <TableRow className={isReversed ? "text-slate-400" : undefined}>
+                                <TableCell>
+                                  {/* Even a one-sale payment opens, so the full
+                                      allocation row is reachable everywhere. */}
+                                  <button type="button" onClick={() => toggle(row)} aria-label="Show allocation">
+                                    {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                  </button>
+                                </TableCell>
+                                <TableCell className="whitespace-nowrap!">{dateOf(row.paymentDate)}</TableCell>
+                                <TableCell className="whitespace-nowrap! font-medium text-slate-700" title={row.paymentId}>
+                                  {paymentRef(row)}
+                                </TableCell>
+                                <TableCell className="font-medium">{row.partyName ?? "Walk-in"}</TableCell>
+                                <TableCell className={cn("whitespace-nowrap! text-right font-semibold tabular-nums", isReversed && "line-through")}>
+                                  {fmt(row.totalAmount)}
+                                </TableCell>
+                                <TableCell className="whitespace-nowrap!">
+                                  {multi
+                                    ? <span className="font-medium text-slate-700">{row.allocationCount} sales</span>
+                                    : one ? saleLink(one.saleId) : <span className="text-slate-400">—</span>}
+                                </TableCell>
+                                <TableCell className="whitespace-nowrap! text-right">{money(one?.saleTotal)}</TableCell>
+                                <TableCell className="whitespace-nowrap! text-right text-slate-500">{money(one?.before)}</TableCell>
+                                <TableCell className="whitespace-nowrap! text-right font-medium">{money(one?.applied)}</TableCell>
+                                <TableCell className="whitespace-nowrap! text-right">{money(one?.after)}</TableCell>
+                                <TableCell>{row.paymentMethod ?? "—"}</TableCell>
+                                <TableCell className="text-xs text-slate-500" title={row.sourceType ?? undefined}>
+                                  {sourceLabel(row.sourceType)}
+                                </TableCell>
+                                <TableCell>{statusBadge(row)}</TableCell>
+                                <TableCell className="text-right">
+                                  {canReverse && !isReversed && (
+                                    <Button variant="ghost" size="sm" onClick={() => { setReverseTarget(row); setReason("") }}>
+                                      <Undo2 className="mr-1.5 h-3.5 w-3.5" /> Reverse
+                                    </Button>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+
+                              {isReversed && row.reversalReason && (
+                                <TableRow>
+                                  <TableCell />
+                                  <TableCell colSpan={13} className="py-1 text-xs text-slate-500">
+                                    Reversed{row.reversedBy ? ` by ${row.reversedBy}` : ""}
+                                    {row.reversedAt ? ` on ${dateOf(row.reversedAt)}` : ""}: {row.reversalReason}
+                                  </TableCell>
+                                </TableRow>
+                              )}
+
+                              {isOpen && (
+                                <TableRow>
+                                  <TableCell />
+                                  <TableCell colSpan={13} className="py-2">
+                                    {!allocations[row.paymentId] ? (
+                                      <span className="flex items-center gap-2 text-sm text-slate-500">
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading allocation…
+                                      </span>
+                                    ) : allocationTable(allocations[row.paymentId])}
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </Fragment>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                    <div className="px-4 pb-4 pt-2">
+                      <DataPagination {...pg.paginationProps} />
+                    </div>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+
+      {/* Reversal names every sale it will touch, because a bulk payment puts
+          money back onto several balances at once and that is not obvious from
+          the row. */}
+      <Dialog open={!!reverseTarget} onOpenChange={(o) => { if (!o) { setReverseTarget(null); setReason("") } }}>
+        <DialogContent className="w-[95vw] max-w-lg p-4 sm:p-6">
+          <DialogHeader>
+            <DialogTitle>Reverse payment</DialogTitle>
+            <DialogDescription>
+              This reverses the whole payment and restores the balance on every sale it was applied to.
+            </DialogDescription>
+          </DialogHeader>
+
+          {reverseTarget && (
+            <div className="space-y-3 text-sm">
+              <div className="rounded-md border bg-slate-50 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-slate-500">{reverseTarget.partyName ?? "Walk-in"}</span>
+                  <span className="font-semibold tabular-nums">{fmt(reverseTarget.totalAmount)}</span>
+                </div>
+                <div className="mt-2 space-y-1 text-xs text-slate-600">
+                  {!allocations[reverseTarget.paymentId] ? (
+                    <span className="flex items-center gap-2 text-slate-500">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading the sales it covers…
+                    </span>
+                  ) : (
+                    allocations[reverseTarget.paymentId].map((a) => (
+                      <div key={a.allocationId} className="flex items-center justify-between gap-2">
+                        <span>Sale #{a.documentId}</span>
+                        <span className="tabular-nums">{fmt(a.amountApplied)}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="reverse-reason">Why is this being reversed?</Label>
+                <Input
+                  id="reverse-reason"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="e.g. entered twice"
+                />
+              </div>
+              <p className="text-xs text-slate-500">
+                The payment is kept and marked reversed, never deleted.
+              </p>
+            </div>
+          )}
+
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button variant="ghost" className="h-10 w-full sm:h-9 sm:w-auto"
+                    onClick={() => { setReverseTarget(null); setReason("") }}>
+              Cancel
+            </Button>
+            <Button variant="destructive" className="h-10 w-full sm:h-9 sm:w-auto" disabled={reversing} onClick={doReverse}>
+              {reversing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Reverse payment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}

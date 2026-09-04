@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Models;
@@ -6,6 +7,17 @@ namespace PoultryFarmAPIWeb.Controllers
 {
     // Poultry customer payments (partial payments against a Sale).
     // Mirrors WaterPaymentController.
+    // Authentication is REQUIRED here. These endpoints take money in, allocate
+    // it across a customer's sales and reverse it again, and until this
+    // attribute was added they were reachable with no token at all -- the
+    // frontend's usePermissions() gate was the only thing in front of them,
+    // which is exactly the "frontend hiding alone is not enough" case.
+    //
+    // [Authorize] is authentication only. WHICH user may do WHAT is the job of
+    // IamEnforcementFilter, which runs globally in shadow mode by default
+    // (Iam:Enforced); a [RequirePermission] here would enforce immediately and
+    // could lock out staff whose roles have not been granted yet.
+    [Authorize]
     [ApiController]
     [Route("api/Poultry/payments")]
     public class PoultryPaymentController : ControllerBase

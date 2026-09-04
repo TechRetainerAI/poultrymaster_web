@@ -72,9 +72,18 @@ function DialogContent({
         className={cn(
           // Default modal width bumped from sm:max-w-lg (512px) to sm:max-w-2xl (672px).
           // Most data-entry dialogs were cramped, especially the water/generic forms
-          // with 4–8 fields. Pages that explicitly need a smaller modal can still pass
-          // className="max-w-md" / "max-w-sm" / "max-w-lg"; wider overrides like
-          // max-w-3xl / 4xl / 5xl continue to work (Tailwind merges via cn → last wins).
+          // with 4–8 fields.
+          //
+          // A CALLER'S WIDTH MUST CARRY THE sm: PREFIX. Pass
+          // `sm:max-w-4xl`, not `max-w-4xl`. tailwind-merge only drops a class
+          // that conflicts under the SAME modifier, so an unprefixed max-w-*
+          // does not remove the `sm:max-w-2xl` below — and above 640px the
+          // responsive rule wins, silently pinning the dialog to 672px however
+          // wide the caller asked for. An unprefixed value does still replace
+          // `max-w-[calc(100%-2rem)]`, so it also costs the mobile gutter;
+          // that is why the wide dialogs here pair `w-[95vw]` with
+          // `sm:max-w-*`. (This comment used to claim the opposite and cost an
+          // afternoon.)
           'bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid max-h-[90vh] w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto rounded-lg border p-6 shadow-lg duration-200 sm:max-w-2xl',
           className,
         )}

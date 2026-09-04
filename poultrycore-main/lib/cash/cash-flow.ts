@@ -187,9 +187,12 @@ const SOURCE_LABELS: Record<string, string> = {
   FeedProduction: "Feed made",
   FeedProductionReversal: "Feed production reversed",
 
-  // Water only. Note Water DOES have a CustomerPayment source type where
-  // Poultry collapses collections into 'Sale' — so Water's Money In breakdown
-  // separates a sale from the cash that later settles it, and Poultry's cannot.
+  // Water, and Poultry since migration 239. Poultry used to collapse every
+  // collection into one 'Sale' row per sale, so a bulk payment across two sales
+  // appeared as two sale receipts and never as the payment the customer made.
+  // Both modules now post one CustomerPayment row per payment event and leave
+  // only the counter-paid residual on 'Sale' — the same split Cash Flow has
+  // always used.
   CustomerPayment: "Customer payments",
   DriverReturn: "Driver returns",
   OwnerDeposit: "Owner contribution",

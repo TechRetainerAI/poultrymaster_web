@@ -91,16 +91,16 @@ export function BatchProductionRecordModal({
           showCloseButton={false}
         >
           {/* -------------------------------------------- sticky header */}
-          <div className="flex shrink-0 items-start justify-between gap-3 border-b border-sky-200 bg-gradient-to-r from-sky-100 to-sky-50/40 px-5 py-3.5">
+          <div className="flex shrink-0 items-start justify-between gap-2 border-b border-sky-200 bg-gradient-to-r from-sky-100 to-sky-50/40 px-3 py-3 sm:gap-3 sm:px-5 sm:py-3.5">
             <div className="flex min-w-0 items-center gap-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-600 text-white shadow-sm">
+              <span className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-600 text-white shadow-sm sm:flex">
                 <Boxes className="h-4 w-4" />
               </span>
               <div className="min-w-0">
-                <DialogTitle className="text-base font-semibold text-slate-900">
+                <DialogTitle className="text-sm leading-tight font-semibold text-slate-900 sm:text-base">
                   {isEdit ? "Edit Batch Production Record" : "Add Batch Production Record"}
                 </DialogTitle>
-                <DialogDescription className="mt-0.5 text-xs text-slate-500">
+                <DialogDescription className="mt-0.5 truncate text-xs text-slate-500">
                   {contextLine || (isEdit
                     ? "Update batch-level production totals"
                     : "Log total production for a batch or group of flocks")}
@@ -108,8 +108,22 @@ export function BatchProductionRecordModal({
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
-              <Button type="button" variant="outline" size="sm" onClick={requestFullPage}>
-                <Maximize2 className="mr-1.5 h-3.5 w-3.5" /> Open Full Page
+            {/* The label collapses to its icon below `sm`. A 130px button
+                next to a shrink-0 close button left the title about 120px on a
+                phone, which is what wrapped "Add Production Record" onto three
+                lines. The icon alone still opens the full page, and the label
+                comes back as soon as there is room for it. */}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={requestFullPage}
+                className="px-2 sm:px-3"
+                title="Open full page"
+                aria-label="Open full page"
+              >
+                <Maximize2 className="h-3.5 w-3.5 sm:mr-1.5" />
+                <span className="hidden sm:inline">Open Full Page</span>
               </Button>
               <Button type="button" variant="ghost" size="icon" onClick={requestClose} aria-label="Close">
                 <X className="h-4 w-4" />

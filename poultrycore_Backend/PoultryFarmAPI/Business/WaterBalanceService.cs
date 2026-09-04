@@ -77,6 +77,18 @@ namespace PoultryFarmAPIWeb.Business
             return r.IsDBNull(i) ? null : Convert.ToInt32(r.GetValue(i));
         }
 
+        private static decimal? DecN(NpgsqlDataReader r, string col)
+        {
+            var i = r.GetOrdinal(col);
+            return r.IsDBNull(i) ? null : r.GetDecimal(i);
+        }
+
+        private static string? GuidN(NpgsqlDataReader r, string col)
+        {
+            var i = r.GetOrdinal(col);
+            return r.IsDBNull(i) ? null : r.GetGuid(i).ToString();
+        }
+
         private static DateTime? DateN(NpgsqlDataReader r, string col)
         {
             var i = r.GetOrdinal(col);
@@ -348,6 +360,12 @@ namespace PoultryFarmAPIWeb.Business
                 ReversedBy = Str(r, "reversedby"),
                 ReversedAt = DateN(r, "reversedat"),
                 ReversalReason = Str(r, "reversalreason"),
+                PaymentNumber = Str(r, "paymentnumber"),
+                SaleId = IntN(r, "saleid"),
+                SaleTotal = DecN(r, "saletotal"),
+                BalanceBefore = DecN(r, "balancebefore"),
+                AmountApplied = DecN(r, "amountapplied"),
+                BalanceAfter = DecN(r, "balanceafter"),
             });
 
         public Task<List<PaymentHistoryRow>> GetSupplierPayments(string farmId, int? supplierId, string? documentType, int? documentId, DateTime? from, DateTime? to) => Query(
@@ -442,6 +460,12 @@ namespace PoultryFarmAPIWeb.Business
                 RunningBalance = Dec(r, "runningbalance"),
                 DocumentType = supplierSide ? Str(r, "documenttype") : "WaterSale",
                 DocumentId = supplierSide ? IntN(r, "documentid") : IntN(r, "saleid"),
+                // Guarded, not just null-coalesced: the supplier statement does
+                // not return these columns at all, and asking for one by name
+                // that is not in the result throws.
+                PaymentId = supplierSide ? null : GuidN(r, "paymentgroupid"),
+                AllocationCount = supplierSide ? null : IntN(r, "allocationcount"),
+                SourceType = supplierSide ? null : Str(r, "sourcetype"),
             });
 
         public Task<List<StatementLine>> GetCustomerStatement(string farmId, int customerId, DateTime? from, DateTime? to) =>

@@ -11,6 +11,7 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useAlertsStore } from "@/lib/store/alerts-store"
 import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
 import { POULTRY_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
+import { NAV_SURFACE } from "@/components/dashboard/nav/nav-surface"
 import type { MegaMenuGroup } from "@/lib/nav/nav-model"
 import {
   Home,
@@ -187,6 +188,7 @@ export function MobileBottomNav() {
         borderTop: "border-sky-700",
         palette: { inactive: "text-sky-100/90 hover:text-white", activeText: "text-white" },
         activeBg: "bg-sky-100 text-sky-800",
+        accent: "sky" as const,
         mainTabs: gateWater([
           { href: "/water-dashboard",          label: "Home",       icon: Droplets },
           { href: "/water-production-batches", label: "Production", icon: Factory },
@@ -264,6 +266,7 @@ export function MobileBottomNav() {
         borderTop: "border-emerald-700",
         palette: { inactive: "text-emerald-100/90 hover:text-white", activeText: "text-white" },
         activeBg: "bg-emerald-100 text-emerald-800",
+        accent: "emerald" as const,
         mainTabs: [
           { href: "/generic-dashboard", label: "Home",      icon: Home },
           { href: "/generic-products",  label: "Products",  icon: ShoppingBag },
@@ -316,6 +319,7 @@ export function MobileBottomNav() {
         borderTop: "border-violet-700",
         palette: { inactive: "text-violet-100/90 hover:text-white", activeText: "text-white" },
         activeBg: "bg-violet-100 text-violet-800",
+        accent: "violet" as const,
         mainTabs: [
           { href: "/hotel-dashboard", label: "Home",     icon: Home },
           { href: "/hotel-bookings",  label: "Bookings", icon: FileText },
@@ -378,6 +382,7 @@ export function MobileBottomNav() {
         borderTop: "border-rose-700",
         palette: { inactive: "text-rose-100/90 hover:text-white", activeText: "text-white" },
         activeBg: "bg-rose-100 text-rose-800",
+        accent: "rose" as const,
         mainTabs: [
           { href: "/restaurant-dashboard", label: "Home",    icon: Home },
           { href: "/restaurant-pos",      label: "POS",     icon: ShoppingCart },
@@ -442,10 +447,16 @@ export function MobileBottomNav() {
       borderTop: "border-orange-600",
       palette: { inactive: "text-orange-100/90 hover:text-white", activeText: "text-white" },
       activeBg: "bg-orange-100 text-orange-800",
+        accent: "orange" as const,
       mainTabs: visiblePoultryMain,
       moreGroups: filteredPoultryMore,
     }
   })()
+
+  // The same panel colours the desktop dropdowns use, picked by the company's
+  // accent. Defined here rather than inside the sheet so the lookup happens
+  // once per render, not once per section.
+  const surface = NAV_SURFACE[config.accent]
 
   if (!mounted) return null
 
@@ -527,13 +538,31 @@ export function MobileBottomNav() {
           </SheetTrigger>
           {/* Taller than before (85vh): the grouped list is longer, and a short
               sheet meant scrolling a scroll. p-0 so the search bar can stick to
-              the top edge while the list scrolls under it. */}
+              the top edge while the list scrolls under it.
+
+              THE SAME SURFACE AS THE DESKTOP NAV PANEL. This was a white sheet
+              while every dropdown it mirrors is the slate-800 chassis from
+              nav-surface.ts, so the same menu looked like two different
+              components depending on the screen. Reading NAV_SURFACE rather
+              than restating the colours means the two cannot drift, and it
+              keeps that file's contrast reasoning: white on slate-800 is
+              14.5:1, where white on a saturated fill of the bar's own colour
+              would be 2.8:1. The close button inherits `text-white` from here.
+
+              The accent — orange for Poultry, sky for Water — carries the
+              section titles and the current page, exactly as it does on the
+              desktop panels. */}
           <SheetContent
             side="bottom"
-            className="flex max-h-[85vh] flex-col gap-0 rounded-t-2xl p-0 pb-[env(safe-area-inset-bottom)]"
+            className={cn(
+              "flex max-h-[85vh] flex-col gap-0 rounded-t-2xl p-0 pb-[env(safe-area-inset-bottom)] text-white",
+              surface.panel,
+            )}
           >
             <SheetHeader className="shrink-0 px-4 pt-4 pb-2 text-left">
-              <SheetTitle>All pages</SheetTitle>
+              {/* SheetTitle defaults to text-foreground, which is dark — it
+                  needs saying explicitly now the sheet is a dark panel. */}
+              <SheetTitle className="text-white">All pages</SheetTitle>
               {/* Radix warns when a dialog has no description; it is only for
                   screen readers, so it is visually hidden. */}
               <SheetDescription className="sr-only">
@@ -543,21 +572,21 @@ export function MobileBottomNav() {
 
             <div className="shrink-0 px-4 pb-3">
               <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
                 <input
                   type="search"
                   value={moreQuery}
                   onChange={(e) => setMoreQuery(e.target.value)}
                   placeholder="Search pages…"
                   aria-label="Search pages"
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none placeholder:text-slate-400 focus:border-slate-400 focus:bg-white"
+                  className="h-11 w-full rounded-xl border border-slate-700 bg-slate-900 pl-9 pr-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-slate-500"
                 />
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto px-4 pb-6">
+            <div className="min-h-0 flex-1 divide-y divide-slate-700/60 overflow-y-auto px-4 pb-6">
               {visibleMoreSections.length === 0 ? (
-                <p className="py-8 text-center text-sm text-slate-500">
+                <p className="py-8 text-center text-sm text-slate-400">
                   No page matches “{moreQuery}”.
                 </p>
               ) : visibleMoreSections.map((section) => {
@@ -572,9 +601,11 @@ export function MobileBottomNav() {
                       aria-expanded={expanded}
                       className="flex min-h-[44px] w-full items-center justify-between gap-2 py-2 text-left"
                     >
-                      <span className="text-sm font-semibold text-slate-900">{section.title}</span>
+                      <span className={cn("text-xs font-semibold uppercase tracking-wide", surface.groupLabel)}>
+                        {section.title}
+                      </span>
                       <span className="flex items-center gap-2">
-                        <span className="text-xs tabular-nums text-slate-400">{count}</span>
+                        <span className="text-xs tabular-nums text-slate-500">{count}</span>
                         <ChevronDown
                           className={cn(
                             "h-4 w-4 shrink-0 text-slate-400 transition-transform",
@@ -589,7 +620,7 @@ export function MobileBottomNav() {
                         {section.groups.map((group, gi) => (
                           <div key={group.title || `g${gi}`}>
                             {group.title && (
-                              <h4 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                              <h4 className={cn("mb-1.5 text-[11px] font-semibold uppercase tracking-wide", surface.groupLabel)}>
                                 {group.title}
                               </h4>
                             )}
@@ -605,8 +636,8 @@ export function MobileBottomNav() {
                                     className={cn(
                                       "flex min-h-[44px] items-center gap-2.5 rounded-xl p-3 transition-colors",
                                       isActive
-                                        ? `${config.activeBg} font-medium`
-                                        : "bg-slate-100 text-slate-700 hover:bg-slate-200",
+                                        ? `${surface.rowActive} font-medium`
+                                        : "bg-slate-700/60 text-slate-100 hover:bg-slate-700",
                                     )}
                                   >
                                     <Icon className="h-5 w-5 shrink-0" />

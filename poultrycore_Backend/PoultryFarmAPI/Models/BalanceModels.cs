@@ -140,6 +140,13 @@ namespace PoultryFarmAPIWeb.Models
     public class PaymentHistoryRow
     {
         public string PaymentId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// PAY-0001, per company, in the order the payments were made
+        /// (migration 240). Null on the supplier side, which has no such
+        /// number yet, and on a build talking to a database without 240.
+        /// </summary>
+        public string? PaymentNumber { get; set; }
         public int? PartyId { get; set; }
         public string? PartyName { get; set; }
         public DateTime PaymentDate { get; set; }
@@ -155,6 +162,18 @@ namespace PoultryFarmAPIWeb.Models
         public string? ReversedBy { get; set; }
         public DateTime? ReversedAt { get; set; }
         public string? ReversalReason { get; set; }
+
+        // ---- The one-sale case, carried on the row (migration 241) ----------
+        // A payment that settled exactly ONE sale reports it here, so the
+        // ledger can show which sale and what it did to the balance without a
+        // second request per row. All null when the payment spans several
+        // sales -- there is no single balance to report -- and when the payment
+        // predates the allocation table.
+        public int? SaleId { get; set; }
+        public decimal? SaleTotal { get; set; }
+        public decimal? BalanceBefore { get; set; }
+        public decimal? AmountApplied { get; set; }
+        public decimal? BalanceAfter { get; set; }
     }
 
     public class PaymentAllocationRow
@@ -187,6 +206,15 @@ namespace PoultryFarmAPIWeb.Models
         public decimal RunningBalance { get; set; }
         public string? DocumentType { get; set; }
         public int? DocumentId { get; set; }
+
+        // ---- The payment behind a Payment line (migration 242) --------------
+        // A payment line is one payment EVENT, so a payment that settled
+        // several sales is one credit here and DocumentId is null -- there is
+        // no single sale to name. PaymentId opens the allocation behind it.
+        // Customer side only; the supplier statement has no such grouping.
+        public string? PaymentId { get; set; }
+        public int? AllocationCount { get; set; }
+        public string? SourceType { get; set; }
     }
 
     /// <summary>Filters shared by both balance pages.</summary>

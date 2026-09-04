@@ -151,7 +151,7 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
     const rowBase = "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-slate-300 hover:bg-slate-800/60 hover:text-white"
     // Company rows carry their own tint and hover, so they drop the shared
     // hover:bg — leaving it on would fight the colour on hover.
-    const companyRowBase = "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-slate-200 hover:text-white"
+    const companyRowBase = "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-slate-200 hover:text-white"
     return (
       <div>
         <div className="space-y-0.5">
@@ -182,9 +182,16 @@ export function BusinessOfficeShell({ active, children }: { active: ActiveKey; c
                 >
                   {companyInitial(c.name)}
                 </span>
-                <span className="truncate">{c.name}</span>
-                {/* Type moves to the right of the name now the chip has the left
-                    slot — the colour identifies the company, the icon its kind. */}
+                <span className="min-w-0 flex-1 text-left">
+                  <span className="block truncate">{c.name}</span>
+                  {/* The kind, spelled out. The icon on the right says the same
+                      thing, but only to someone who already knows the icons. */}
+                  {c.type && (
+                    <span className="block truncate text-[11px] font-normal leading-tight text-slate-400">
+                      {c.type}
+                    </span>
+                  )}
+                </span>
                 {opening
                   ? <Loader2 className="h-3.5 w-3.5 ml-auto shrink-0 animate-spin text-slate-300" />
                   : <Icon className="h-3.5 w-3.5 ml-auto shrink-0 text-slate-400" />}

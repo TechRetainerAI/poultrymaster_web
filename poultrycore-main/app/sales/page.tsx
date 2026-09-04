@@ -17,7 +17,7 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Plus, Edit, Trash2, ShoppingCart, DollarSign, TrendingUp, Package, FileText, Printer, Loader2, Info, Search, Filter, ChevronDown, ChevronUp, Mail, Wallet } from "lucide-react"
+import { Plus, Edit, Trash2, ShoppingCart, DollarSign, TrendingUp, Package, FileText, Printer, Loader2, Info, Search, Filter, ChevronDown, ChevronUp, Mail, Wallet, History } from "lucide-react"
 import { getSales, createSale, updateSale, deleteSale, getFlocks, getCustomers, createCustomer, type Sale, type SaleInput } from "@/lib/api"
 import { listPoultryCashAccounts, recordPoultryPayment, type PoultryCashAccount } from "@/lib/api/poultry-finance"
 import { useToast } from "@/hooks/use-toast"
@@ -47,6 +47,8 @@ import {
   SALE_INVOICE_PRINT_STYLES,
 } from "@/components/sales/sale-invoice-document"
 import { exportTableToPdf, emailTableAsPdf, type PdfExportOptions } from "@/lib/utils/pdf-export"
+import { PaymentHistoryDialog } from "@/components/balances/payment-history-dialog"
+import { usePermissions } from "@/hooks/use-permissions"
 import { Download } from "lucide-react"
 
 /**
@@ -72,6 +74,56 @@ function eggCrateBreakdown(
   return parts.length ? parts.join(" + ") : null
 }
 
+/**
+ * What a sale line comes to.
+ *
+ * Egg prices are quoted per crate, but a sale is rarely a whole number of
+ * crates. Charging `crates x price` billed "2 crates + 15 loose" as two crates
+ * and the 15 loose eggs left the farm free, so loose eggs are charged pro rata
+ * at one-thirtieth of the crate price. Rounded to the minor unit, so an odd
+ * price on a part crate cannot carry float noise into the ledger.
+ */
+function saleLineTotal(
+  quantity: number,
+  unitPrice: number,
+  isEggs: boolean,
+  eggsPerCrate = 30,
+): number {
+  const qty = Number(quantity) || 0
+  const price = Number(unitPrice) || 0
+  const amount = isEggs && eggsPerCrate > 0 ? (qty / eggsPerCrate) * price : qty * price
+  return Math.round(amount * 100) / 100
+}
+
+/**
+ * An egg count as crates, e.g. 75 -> "2.50".
+ *
+ * The Pricing box shows this rather than the raw egg count so that the line
+ * reads as the arithmetic it is: crates x price per crate = amount. The sale
+ * still stores `quantity` in eggs, which is what stock and the reports count.
+ */
+function eggCratesEquivalent(quantity: number | undefined, eggsPerCrate = 30): string {
+  const qty = Number(quantity) || 0
+  return eggsPerCrate > 0 ? (qty / eggsPerCrate).toFixed(2) : "0.00"
+}
+
+/**
+ * "2 crates + 15 loose priced as 2.50 crates" under the calculated amount.
+ *
+ * The price field is per crate while the sale is counted in crates and loose
+ * eggs, so without this the total looks wrong to anyone checking it by eye.
+ */
+function EggPriceNote({ show, crates, loose }: { show: boolean; crates: number; loose: number }) {
+  if (!show || crates + loose <= 0) return null
+  return (
+    <p className="text-xs text-slate-500">
+      {crates} crate{crates === 1 ? "" : "s"}{loose > 0 && ` + ${loose} loose`} priced as{" "}
+      {((crates * 30 + loose) / 30).toFixed(2)} crates
+      {loose > 0 && " — loose eggs charged pro rata"}.
+    </p>
+  )
+}
+
 export default function SalesPage() {
   const router = useRouter()
   const [sales, setSales] = useState<Sale[]>([])
@@ -88,6 +140,12 @@ export default function SalesPage() {
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null)
   // Record-payment dialog (partial payments against a credit sale).
   const [payDialog, setPayDialog] = useState<{ open: boolean; sale: Sale | null }>({ open: false, sale: null })
+  // Which sale we are showing the payment ledger for. The dialog is the one
+  // the Customer Balances page uses, scoped to a single sale, so a payment
+  // reads the same wherever it is opened from.
+  const [historySale, setHistorySale] = useState<Sale | null>(null)
+  const { can } = usePermissions()
+  const canReversePayments = can("poultry.customer-payments.reverse")
   const [payAmount, setPayAmount] = useState("")
   const [payMethod, setPayMethod] = useState("Cash")
   const [payNote, setPayNote] = useState("")
@@ -283,7 +341,7 @@ export default function SalesPage() {
 
       const quantity = Number(formData.quantity ?? 0)
       const unitPrice = Number(formData.unitPrice ?? 0)
-      const calculatedAmount = isEggsProduct ? crates * unitPrice : quantity * unitPrice
+      const calculatedAmount = saleLineTotal(quantity, unitPrice, isEggsProduct)
       const totalAmount = (overrideAmount !== undefined && overrideAmount > 0) ? overrideAmount : calculatedAmount
       const saleData: SaleInput = {
         farmId,
@@ -369,7 +427,7 @@ export default function SalesPage() {
 
       const quantity = Number(formData.quantity ?? 0)
       const unitPrice = Number(formData.unitPrice ?? 0)
-      const calculatedAmount = isEggsProduct ? crates * unitPrice : quantity * unitPrice
+      const calculatedAmount = saleLineTotal(quantity, unitPrice, isEggsProduct)
       const totalAmount = (overrideAmount !== undefined && overrideAmount > 0) ? overrideAmount : calculatedAmount
 
       const payload: Partial<SaleInput> = {
@@ -637,7 +695,9 @@ export default function SalesPage() {
       paymentMethod: sale.paymentMethod,
       customerName: sale.customerName,
       flockId: sale.flockId,
-      saleDescription: sale.saleDescription,
+      // Null from the API for a sale with no description; the form is
+      // controlled, so it has to be a string all the way down.
+      saleDescription: sale.saleDescription ?? "",
       paid: sale.paid ?? true,
       size: sale.size ?? null,
       poultryCashAccountId: sale.poultryCashAccountId ?? null,
@@ -660,13 +720,13 @@ export default function SalesPage() {
 
   const calculateTotal = () => {
     const unitPrice = Number(formData.unitPrice) || 0
-    const total = isEggsProduct ? crates * unitPrice : (Number(formData.quantity) || 0) * unitPrice
+    const total = saleLineTotal(Number(formData.quantity) || 0, unitPrice, isEggsProduct)
     setFormData(prev => ({ ...prev, totalAmount: total }))
   }
 
   useEffect(() => {
     calculateTotal()
-  }, [formData.quantity, formData.unitPrice, crates, isEggsProduct])
+  }, [formData.quantity, formData.unitPrice, isEggsProduct])
 
   const openInvoiceDialog = (sale: Sale) => {
     setSelectedSale(sale)
@@ -689,6 +749,7 @@ export default function SalesPage() {
       filename: "sales",
       farmName: farmInfo.name,
       columns: [
+        { header: "Sale ID" },
         { header: "Date" },
         { header: "Customer" },
         { header: "Product" },
@@ -702,6 +763,7 @@ export default function SalesPage() {
         { header: "Flock" },
       ],
       rows: filteredSales.map((s) => [
+        `#${s.saleId}`,
         formatDateShort(s.saleDate),
         s.customerName ?? "",
         s.product ?? "",
@@ -715,6 +777,7 @@ export default function SalesPage() {
         getFlockLabel(s.flockId),
       ]),
       totalsRow: [
+        "",
         "",
         "",
         "TOTALS",
@@ -992,6 +1055,79 @@ export default function SalesPage() {
                       />
                     )}
                   </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="customerName">Customer Name *</Label>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-4 w-4 text-slate-400 cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-[260px]">
+                          <p>If you cannot find the customer, please go to the customer page and create the Customer first</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <Select
+                      value={showNewCustomerInput ? "__OTHER__" : formData.customerName || undefined}
+                      onValueChange={(value) => {
+                        if (value === "__OTHER__") {
+                          setShowNewCustomerInput(true)
+                          setOtherCustomerName("")
+                          setFormData(prev => ({ ...prev, customerName: "" }))
+                        } else {
+                          setShowNewCustomerInput(false)
+                          setOtherCustomerName("")
+                          setFormData(prev => ({ ...prev, customerName: value }))
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select a customer" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {customers.map((customer) => (
+                          <SelectItem key={customer.customerId || customer.name} value={customer.name}>
+                            {customer.name}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="__OTHER__">Other Customer</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {showNewCustomerInput && (
+                      <Input
+                        placeholder="Enter other customer name"
+                        value={otherCustomerName}
+                        onChange={(e) => {
+                          setOtherCustomerName(e.target.value)
+                          setFormData(prev => ({ ...prev, customerName: e.target.value }))
+                        }}
+                      />
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="flockId">Flock</Label>
+                    <Select
+                      value={selectedFlockIdString}
+                      onValueChange={(value) =>
+                        setFormData(prev => ({
+                          ...prev,
+                          flockId: value ? Number(value) : undefined,
+                        }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a flock" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0">All flocks</SelectItem>
+                        {flocks.map((flock) => (
+                          <SelectItem key={flock.flockId} value={flock.flockId.toString()}>
+                            {flock.name} ({flock.quantity} birds)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
 
@@ -1052,17 +1188,24 @@ export default function SalesPage() {
                 <div className="p-4 space-y-4">
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="quantity">Quantity *</Label>
+                      <Label htmlFor="quantity">{isEggsProduct ? "Quantity (In crates) *" : "Quantity *"}</Label>
+                      {/* Eggs are priced per crate, so the box shows the crate
+                          equivalent of the count above (75 eggs -> 2.50). It is
+                          read-only for eggs; `formData.quantity` stays in eggs. */}
                       <NumberInput
                         id="quantity"
-                        
-                        value={formData.quantity}
+                        step={isEggsProduct ? "0.01" : undefined}
+                        value={isEggsProduct ? eggCratesEquivalent(formData.quantity) : formData.quantity}
                         onChange={(e) => setFormData(prev => ({ ...prev, quantity: Number(e.target.value) }))}
                         placeholder="0"
                         disabled={isEggsProduct}
                         className={isEggsProduct ? "bg-slate-100" : ""}
                       />
-                      {isEggsProduct && <p className="text-xs text-slate-500">Auto-calculated from crates + eggs above</p>}
+                      {isEggsProduct && (
+                        <p className="text-xs text-slate-500">
+                          {(Number(formData.quantity) || 0).toLocaleString()} eggs total, from the crates and loose eggs above
+                        </p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="unitPrice">{isEggsProduct ? "Unit Price Per Crate *" : "Unit Price *"}</Label>
@@ -1087,6 +1230,7 @@ export default function SalesPage() {
                         readOnly
                         className="bg-slate-100"
                       />
+                      <EggPriceNote show={isEggsProduct} crates={crates} loose={looseEggs} />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="overrideAmount">Override Amount</Label>
@@ -1190,92 +1334,12 @@ export default function SalesPage() {
                 </div>
               </div>
 
-              {/* Section: Customer & Flock */}
-              <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
-                <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Customer &amp; Flock</div>
-                <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
-                  <div className="col-span-2 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="customerName">Customer Name *</Label>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Info className="h-4 w-4 text-slate-400 cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-[260px]">
-                          <p>If you cannot find the customer, please go to the customer page and create the Customer first</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <Select
-                      value={showNewCustomerInput ? "__OTHER__" : formData.customerName || undefined}
-                      onValueChange={(value) => {
-                        if (value === "__OTHER__") {
-                          setShowNewCustomerInput(true)
-                          setOtherCustomerName("")
-                          setFormData(prev => ({ ...prev, customerName: "" }))
-                        } else {
-                          setShowNewCustomerInput(false)
-                          setOtherCustomerName("")
-                          setFormData(prev => ({ ...prev, customerName: value }))
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select a customer" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {customers.map((customer) => (
-                          <SelectItem key={customer.customerId || customer.name} value={customer.name}>
-                            {customer.name}
-                          </SelectItem>
-                        ))}
-                        <SelectItem value="__OTHER__">Other Customer</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {showNewCustomerInput && (
-                      <Input
-                        placeholder="Enter other customer name"
-                        value={otherCustomerName}
-                        onChange={(e) => {
-                          setOtherCustomerName(e.target.value)
-                          setFormData(prev => ({ ...prev, customerName: e.target.value }))
-                        }}
-                      />
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="flockId">Flock</Label>
-                    <Select
-                      value={selectedFlockIdString}
-                      onValueChange={(value) =>
-                        setFormData(prev => ({
-                          ...prev,
-                          flockId: value ? Number(value) : undefined,
-                        }))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a flock" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">All flocks</SelectItem>
-                        {flocks.map((flock) => (
-                          <SelectItem key={flock.flockId} value={flock.flockId.toString()}>
-                            {flock.name} ({flock.quantity} birds)
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-
               {/* Description */}
               <div className="space-y-2">
                 <Label htmlFor="saleDescription">Description</Label>
                 <Textarea
                   id="saleDescription"
-                  value={formData.saleDescription}
+                  value={formData.saleDescription ?? ""}
                   onChange={(e) => setFormData(prev => ({ ...prev, saleDescription: e.target.value }))}
                   placeholder="Additional notes about this sale"
                 />
@@ -1543,6 +1607,8 @@ export default function SalesPage() {
                               <div className="flex items-start justify-between gap-3 cursor-pointer">
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-2">
+                                    {/* Same order as the table: the id, then the date. */}
+                                    <span className="text-xs tabular-nums text-slate-500">#{sale.saleId}</span>
                                     <span className="font-semibold text-slate-900">{formatDateShort(sale.saleDate)}</span>
                                     <span className="text-slate-500">•</span>
                                     <span className="text-slate-600 truncate">{sale.customerName}</span>
@@ -1580,6 +1646,9 @@ export default function SalesPage() {
                                   <Button variant="outline" size="sm" className="h-10 w-full" onClick={() => openInvoiceDialog(sale)}>
                                     <FileText className="h-4 w-4 mr-2" /> Invoice
                                   </Button>
+                                  <Button variant="outline" size="sm" className="h-10 w-full" onClick={() => setHistorySale(sale)}>
+                                    <History className="h-4 w-4 mr-2" /> Payments
+                                  </Button>
                                   <Button variant="outline" size="sm" className="h-10 w-full text-red-600 border-red-200 hover:bg-red-50" onClick={() => openDeleteSaleDialog(sale.saleId)}>
                                     <Trash2 className="h-4 w-4 mr-2" /> Delete
                                   </Button>
@@ -1607,9 +1676,10 @@ export default function SalesPage() {
                         </Button>
                       </div>
                     )}
-                  <Table className={cn("w-full", !isMobile && "min-w-[1150px]")}>
+                  <Table className={cn("w-full", !isMobile && "min-w-[1240px]")}>
                     <TableHeader>
                       <TableRow>
+                        <SortableHeader label="Sale ID" sortKey="saleId" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
                         <SortableHeader label="Date" sortKey="saleDate" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn(isMobile && "sticky-col-date bg-slate-50")} />
                         <SortableHeader label="Product" sortKey="product" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
                         <SortableHeader label="Customer" sortKey="customerName" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} />
@@ -1627,6 +1697,7 @@ export default function SalesPage() {
                     <TableBody>
                       {paginatedSales.map((sale) => (
                         <TableRow key={sale.saleId}>
+                          <TableCell className="whitespace-nowrap tabular-nums text-slate-500">#{sale.saleId}</TableCell>
                           <TableCell className={cn("bg-white", isMobile && "sticky-col-date")}>{isMobile ? formatDateShort(sale.saleDate) : new Date(sale.saleDate).toLocaleDateString()}</TableCell>
                           <TableCell>{sale.product}</TableCell>
                           <TableCell>{sale.customerName}</TableCell>
@@ -1675,6 +1746,22 @@ export default function SalesPage() {
                                   </TooltipContent>
                                 </Tooltip>
                               )}
+                              {/* Always offered, including on a settled sale:
+                                  a paid-off sale is exactly when someone asks
+                                  what was paid and when. */}
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setHistorySale(sale)}
+                                    aria-label="Payment history"
+                                  >
+                                    <History className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">Payment history</TooltipContent>
+                              </Tooltip>
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button
@@ -1827,6 +1914,79 @@ export default function SalesPage() {
                           />
                         )}
                       </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="edit-customerName">Customer Name *</Label>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="h-4 w-4 text-slate-400 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-[260px]">
+                              <p>If you cannot find the customer, please go to the customer page and create the Customer first</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <Select
+                          value={showNewCustomerInput ? "__OTHER__" : formData.customerName || undefined}
+                          onValueChange={(value) => {
+                            if (value === "__OTHER__") {
+                              setShowNewCustomerInput(true)
+                              setOtherCustomerName("")
+                              setFormData(prev => ({ ...prev, customerName: "" }))
+                            } else {
+                              setShowNewCustomerInput(false)
+                              setOtherCustomerName("")
+                              setFormData(prev => ({ ...prev, customerName: value }))
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select a customer" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {customers.map((customer) => (
+                              <SelectItem key={customer.customerId || customer.name} value={customer.name}>
+                                {customer.name}
+                              </SelectItem>
+                            ))}
+                            <SelectItem value="__OTHER__">Other Customer</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {showNewCustomerInput && (
+                          <Input
+                            placeholder="Enter other customer name"
+                            value={otherCustomerName}
+                            onChange={(e) => {
+                              setOtherCustomerName(e.target.value)
+                              setFormData(prev => ({ ...prev, customerName: e.target.value }))
+                            }}
+                          />
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-flockId">Flock</Label>
+                        <Select
+                          value={selectedFlockIdString}
+                          onValueChange={(value) =>
+                            setFormData(prev => ({
+                              ...prev,
+                              flockId: value ? Number(value) : undefined,
+                            }))
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a flock" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="0">All flocks</SelectItem>
+                            {flocks.map((flock) => (
+                              <SelectItem key={flock.flockId} value={flock.flockId.toString()}>
+                                {flock.name} ({flock.quantity} birds)
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   </div>
 
@@ -1887,17 +2047,24 @@ export default function SalesPage() {
                     <div className="p-4 space-y-4">
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
-                          <Label htmlFor="edit-quantity">Quantity *</Label>
+                          <Label htmlFor="edit-quantity">{isEggsProduct ? "Quantity (In crates) *" : "Quantity *"}</Label>
+                          {/* Eggs are priced per crate, so the box shows the crate
+                              equivalent of the count above (75 eggs -> 2.50). It is
+                              read-only for eggs; `formData.quantity` stays in eggs. */}
                           <NumberInput
                             id="edit-quantity"
-                            
-                            value={formData.quantity}
+                            step={isEggsProduct ? "0.01" : undefined}
+                            value={isEggsProduct ? eggCratesEquivalent(formData.quantity) : formData.quantity}
                             onChange={(e) => setFormData(prev => ({ ...prev, quantity: Number(e.target.value) }))}
                             placeholder="0"
                             disabled={isEggsProduct}
                             className={isEggsProduct ? "bg-slate-100" : ""}
                           />
-                          {isEggsProduct && <p className="text-xs text-slate-500">Auto-calculated from crates + eggs above</p>}
+                          {isEggsProduct && (
+                            <p className="text-xs text-slate-500">
+                              {(Number(formData.quantity) || 0).toLocaleString()} eggs total, from the crates and loose eggs above
+                            </p>
+                          )}
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="edit-unitPrice">{isEggsProduct ? "Unit Price Per Crate *" : "Unit Price *"}</Label>
@@ -1922,6 +2089,7 @@ export default function SalesPage() {
                             readOnly
                             className="bg-slate-100"
                           />
+                          <EggPriceNote show={isEggsProduct} crates={crates} loose={looseEggs} />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="edit-overrideAmount">Override Amount</Label>
@@ -1999,92 +2167,12 @@ export default function SalesPage() {
                     </div>
                   </div>
 
-                  {/* Section: Customer & Flock */}
-                  <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
-                    <div className="bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Customer &amp; Flock</div>
-                    <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
-                      <div className="col-span-2 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Label htmlFor="edit-customerName">Customer Name *</Label>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Info className="h-4 w-4 text-slate-400 cursor-help" />
-                            </TooltipTrigger>
-                            <TooltipContent side="top" className="max-w-[260px]">
-                              <p>If you cannot find the customer, please go to the customer page and create the Customer first</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </div>
-                        <Select
-                          value={showNewCustomerInput ? "__OTHER__" : formData.customerName || undefined}
-                          onValueChange={(value) => {
-                            if (value === "__OTHER__") {
-                              setShowNewCustomerInput(true)
-                              setOtherCustomerName("")
-                              setFormData(prev => ({ ...prev, customerName: "" }))
-                            } else {
-                              setShowNewCustomerInput(false)
-                              setOtherCustomerName("")
-                              setFormData(prev => ({ ...prev, customerName: value }))
-                            }
-                          }}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select a customer" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {customers.map((customer) => (
-                              <SelectItem key={customer.customerId || customer.name} value={customer.name}>
-                                {customer.name}
-                              </SelectItem>
-                            ))}
-                            <SelectItem value="__OTHER__">Other Customer</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        {showNewCustomerInput && (
-                          <Input
-                            placeholder="Enter other customer name"
-                            value={otherCustomerName}
-                            onChange={(e) => {
-                              setOtherCustomerName(e.target.value)
-                              setFormData(prev => ({ ...prev, customerName: e.target.value }))
-                            }}
-                          />
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="edit-flockId">Flock</Label>
-                        <Select
-                          value={selectedFlockIdString}
-                          onValueChange={(value) =>
-                            setFormData(prev => ({
-                              ...prev,
-                              flockId: value ? Number(value) : undefined,
-                            }))
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a flock" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="0">All flocks</SelectItem>
-                            {flocks.map((flock) => (
-                              <SelectItem key={flock.flockId} value={flock.flockId.toString()}>
-                                {flock.name} ({flock.quantity} birds)
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  </div>
-
                   {/* Description */}
                   <div className="space-y-2">
                     <Label htmlFor="edit-saleDescription">Description</Label>
                     <Textarea
                       id="edit-saleDescription"
-                      value={formData.saleDescription}
+                      value={formData.saleDescription ?? ""}
                       onChange={(e) => setFormData(prev => ({ ...prev, saleDescription: e.target.value }))}
                       placeholder="Additional notes about this sale"
                     />
@@ -2171,6 +2259,21 @@ export default function SalesPage() {
       </AlertDialog>
 
       {/* Record payment dialog */}
+      {/* The ledger for one sale: every payment that touched it, with the
+          balance it moved from and to. Reversing from here re-reads the list,
+          because the sale's Paid and Balance change with it. */}
+      <PaymentHistoryDialog
+        open={!!historySale}
+        onOpenChange={(o) => { if (!o) setHistorySale(null) }}
+        module="poultry"
+        side="customer"
+        partyName={historySale?.customerName ?? null}
+        documentType="Sale"
+        documentId={historySale?.saleId ?? null}
+        canReverse={canReversePayments}
+        onReversed={() => { loadSales() }}
+      />
+
       <Dialog open={payDialog.open} onOpenChange={(o) => setPayDialog((p) => ({ ...p, open: o }))}>
         <DialogContent className="max-w-md">
           <DialogHeader>
