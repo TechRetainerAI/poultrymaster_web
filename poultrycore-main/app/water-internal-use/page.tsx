@@ -467,6 +467,7 @@ export default function WaterInternalUsePage() {
                 </div>
               ) : (
                 <MobileCardList
+                  defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
                   getKey={(r) => r.waterInternalUsageId}

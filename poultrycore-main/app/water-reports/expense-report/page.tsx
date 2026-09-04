@@ -7,7 +7,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ReportShell, SumTile } from "@/components/reports/report-shell"
+import { ReportShell, SumTile, ReportTableCards } from "@/components/reports/report-shell"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
 import { listWaterExpenses, getWaterExpenseByCategory, type WaterExpenseByCategoryRow } from "@/lib/api/water"
@@ -60,6 +60,10 @@ export default function ExpenseReportPage() {
       fromDate={fromDate} toDate={toDate}
       onFromDateChange={setFromDate} onToDateChange={setToDate}
       onRefresh={load}
+      // Two tables here and `pdf` describes only the rollup, so the shell's
+      // automatic phone view would drop the detail list: it gets its own
+      // <ReportTableCards> below instead.
+      mobileCards={false}
       pdf={{
         // PDF uses the authoritative "By category" rollup (the detail list is supplementary).
         title: "Expense Report",
@@ -99,6 +103,23 @@ export default function ExpenseReportPage() {
       </Table>
 
       <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-600 mt-4 mb-2 print:hidden">Details</h2>
+      {/* The rollup above is three columns and reads fine on a phone; this one
+          is seven, so it becomes scorecards below lg. */}
+      <ReportTableCards
+        columns={[
+          { header: "Date" }, { header: "Category" }, { header: "Description" }, { header: "Method" },
+          { header: "Source" }, { header: "Amount", align: "right" }, { header: "Status" },
+        ]}
+        rows={rows.map((e: any) => [
+          (e.expenseDate ?? "").slice(0, 10),
+          e.categoryName ?? "—",
+          e.description ?? "—",
+          e.paymentMethod ?? "—",
+          e.linkedWaterProductionBatchId ? "Production" : "Manual",
+          fmtMoney(e.amount ?? 0),
+          e.status ?? "—",
+        ])}
+      >
       <div className="overflow-x-auto print:hidden">
         <Table>
           <TableHeader>
@@ -130,6 +151,7 @@ export default function ExpenseReportPage() {
         </Table>
       </div>
       <DataPagination {...pg.paginationProps} />
+      </ReportTableCards>
     </ReportShell>
   )
 }

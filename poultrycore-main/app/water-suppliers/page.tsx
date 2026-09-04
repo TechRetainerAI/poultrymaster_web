@@ -152,6 +152,7 @@ export default function WaterSuppliersPage() {
                 </div>
               ) : (
                 <MobileCardList
+                  defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
                   getKey={(s) => s.waterSupplierId}

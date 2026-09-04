@@ -142,7 +142,9 @@ BEGIN
            s.saleid,
            s.poultrycashaccountid,
            NULL::text,
-           s.saledate,
+           -- sale.saledate is DATE while this function returns TIMESTAMP; the
+           -- cast is required or RETURN QUERY fails on the type mismatch.
+           s.saledate::timestamp,
            'CashIn'::text,
            'Sale'::text,
            s.saleid,

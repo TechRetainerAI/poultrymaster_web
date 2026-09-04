@@ -269,6 +269,7 @@ export default function PoultryCashAccountsPage() {
                 </div>
               ) : (
                 <MobileCardList
+                  defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
                   getKey={(a) => a.poultryCashAccountId}
@@ -371,6 +372,7 @@ export default function PoultryCashAccountsPage() {
               <CardContent className="p-4">
                 <div className="mb-2 font-medium text-slate-700">Recent transfers</div>
                 <MobileCardList
+                  defaultOpen
                   items={transfers.slice(0, 8)}
                   getKey={(t) => t.poultryCashTransferId}
                   primary={(t) => `${t.fromAccountName} → ${t.toAccountName}`}

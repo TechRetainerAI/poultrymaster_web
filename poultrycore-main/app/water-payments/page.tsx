@@ -76,6 +76,7 @@ export default function WaterPaymentsPage() {
                 <div className="p-8 text-center text-slate-500">No payments yet.</div>
               ) : (
                 <MobileCardList
+                  defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
                   getKey={(p) => p.waterPaymentId}

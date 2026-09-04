@@ -47,6 +47,9 @@ export default function ProfitLossReportPage() {
       fromDate={fromDate} toDate={toDate}
       onFromDateChange={setFromDate} onToDateChange={setToDate}
       onRefresh={load}
+      // Two columns of statement lines: the table is already phone-shaped, and
+      // carding it would break the running arithmetic apart.
+      mobileCards={false}
       pdf={{
         title: "Profit & Loss",
         filename: "water-profit-loss",

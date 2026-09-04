@@ -391,6 +391,7 @@ export default function WaterExpensesPage() {
                 <div className="p-8 text-center text-slate-500">No expenses {statusFilter !== "ALL" && `with status "${statusFilter}"`} yet.</div>
               ) : (
                 <MobileCardList
+                  defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
                   getKey={(e) => e.kind === "Direct" ? `exp-${e.row.waterExpenseId}` : `del-${e.row.waterDeliveryExpenseId}`}

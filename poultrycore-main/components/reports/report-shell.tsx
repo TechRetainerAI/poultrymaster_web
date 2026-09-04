@@ -22,7 +22,7 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Loader2, ArrowLeft, Printer, AlertCircle, Mail } from "lucide-react"
+import { Loader2, ArrowLeft, Printer, AlertCircle, Mail, ChevronDown, ChevronUp } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useFarmSettingsStore } from "@/lib/currency"
 import { useLogout } from "@/hooks/use-logout"
@@ -30,7 +30,8 @@ import { PeriodSelect } from "@/components/ui/period-select"
 import { rangeToPeriod, defaultReportRange } from "@/lib/date-ranges"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
-import { exportTableToPdf, emailTableAsPdf, type PdfExportOptions } from "@/lib/utils/pdf-export"
+import { exportTableToPdf, emailTableAsPdf, type PdfExportOptions, type PdfExportColumn } from "@/lib/utils/pdf-export"
+import { cn } from "@/lib/utils"
 
 export interface ReportShellProps {
   title: string
@@ -72,12 +73,20 @@ export interface ReportShellProps {
   // be a getter so the latest filtered data is captured at click time. When
   // omitted, Export falls back to window.print() and Email is disabled.
   pdf?: PdfExportOptions | (() => PdfExportOptions)
+
+  /**
+   * Phones render the report as scorecards built from `pdf` (columns + rows)
+   * instead of the wide table. Pass false where `children` is more than the one
+   * table that `pdf` describes — a rollup plus a detail list, say — and render
+   * <ReportTableCards> around the wide parts yourself.
+   */
+  mobileCards?: boolean
 }
 
 export function ReportShell({
   title, description, busy, error, onClearError, backHref = "/water-reports",
   fromDate, toDate, onFromDateChange, onToDateChange, onClearFilters,
-  filters, summary, children, filterSummary, pdf,
+  filters, summary, children, filterSummary, pdf, mobileCards: mobileCardsProp = true,
 }: ReportShellProps) {
   const farmName = useAuthStore((s) => s.activeFarmName)
   const user = useAuthStore((s) => s.user)
@@ -143,6 +152,10 @@ export function ReportShell({
   // at click time so the latest filtered data is captured.
   const resolvedPdf = resolvePdf()
   const recordCount = resolvedPdf?.rows?.length
+  // The phone card view is built from that same definition, so it only exists
+  // where a report supplies one AND has rows: an empty report falls back to the
+  // table so its own "nothing here" row is what the user sees.
+  const mobileCards = mobileCardsProp && !!(resolvedPdf?.columns?.length && resolvedPdf?.rows?.length)
 
   async function exportPdf() {
     const opts = resolvePdf()
@@ -350,7 +363,22 @@ export function ReportShell({
                   [&_[data-slot=table-cell]:not(.text-right)]:align-top
                   print:[&_[data-slot=table-head]]:bg-slate-100
                 ">
-                  {children}
+                  {/* Phones get scorecards built from the report's own PDF
+                      definition; the table itself stays for lg+ and for print.
+                      A report that has no rows (or no pdf definition) falls
+                      through to the table alone, so its own empty-state row
+                      still shows. */}
+                  {mobileCards ? (
+                    <ReportTableCards
+                      columns={resolvedPdf!.columns}
+                      rows={resolvedPdf!.rows}
+                      totalsRow={resolvedPdf!.totalsRow}
+                    >
+                      {children}
+                    </ReportTableCards>
+                  ) : (
+                    children
+                  )}
                 </div>
               </>
             )}
@@ -393,6 +421,121 @@ export function ReportShell({
 }
 
 import { Card, CardContent } from "@/components/ui/card"
+
+
+/**
+ * Responsive wrapper for a report table.
+ *
+ * Every converted report already describes its table as data so the vector PDF
+ * can be built from it (`pdf.columns` + `pdf.rows`), so the phone view is
+ * derived from that same definition instead of asking 20-odd report pages to
+ * hand-roll a card list each. Cards show every field at once — the app's
+ * default-open scorecard convention — and "View table format" flips to the
+ * real table for whoever wants the columns side by side.
+ *
+ * The table it wraps is rendered once, either way: hidden below `lg` while the
+ * cards are showing, and always present for print, so a printed report looks
+ * exactly as it always has.
+ */
+export function ReportTableCards({
+  columns, rows, totalsRow, children,
+}: {
+  columns: PdfExportColumn[]
+  rows: (string | number | null | undefined)[][]
+  totalsRow?: (string | number | null | undefined)[]
+  children: ReactNode
+}) {
+  // Reports routinely run to hundreds of rows, and `rows` is the whole filtered
+  // set rather than a page of it — grow the list on demand instead of mounting
+  // a card per row on a phone.
+  const STEP = 20
+  const [showTable, setShowTable] = useState(false)
+  const [limit, setLimit] = useState(STEP)
+  const text = (v: string | number | null | undefined) =>
+    v == null || v === "" ? "—" : String(v)
+
+  // Nothing to card up: let the table through at every width so the report's
+  // own "no rows in this period" message is what the reader gets.
+  if (rows.length === 0) return <>{children}</>
+
+  const shown = rows.slice(0, limit)
+  const rest = rows.length - shown.length
+
+  return (
+    <>
+      {showTable ? (
+        <div className="lg:hidden print:hidden mb-2 flex items-center justify-between gap-2 rounded-lg border bg-slate-50 px-3 py-2">
+          <span className="text-xs text-slate-600">Table • Scroll → for more</span>
+          <Button variant="ghost" size="sm" onClick={() => setShowTable(false)}>
+            <ChevronUp className="h-4 w-4 mr-1" /> Cards
+          </Button>
+        </div>
+      ) : (
+        <div className="lg:hidden print:hidden space-y-2">
+          {shown.map((row, i) => (
+            <div key={i} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+              <div className="font-semibold text-slate-900 break-words">{text(row[0])}</div>
+              {columns.length > 1 && (
+                <div className="mt-0.5 text-sm text-slate-600 break-words">{text(row[1])}</div>
+              )}
+              {columns.length > 2 && (
+                <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 text-sm">
+                  {columns.slice(2).map((c, ci) => (
+                    <div key={ci} className="min-w-0">
+                      <div className="text-xs text-slate-500">{c.header}</div>
+                      <div className={cn("font-medium break-words", c.align === "right" && "tabular-nums")}>
+                        {text(row[ci + 2])}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* The totals row lives in the table footer, which the phone does not
+              show — repeat it so the cards add up to the same report. */}
+          {totalsRow && totalsRow.some((v) => v != null && v !== "") && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-emerald-900">Totals</div>
+              <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                {columns.map((c, ci) => {
+                  const v = totalsRow[ci]
+                  if (v == null || v === "") return null
+                  return (
+                    <div key={ci} className="min-w-0">
+                      <div className="text-xs text-emerald-800/70">{c.header}</div>
+                      <div className="font-semibold tabular-nums break-words">{String(v)}</div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {rest > 0 && (
+            <Button variant="outline" size="sm" className="h-10 w-full bg-white" onClick={() => setLimit((l) => l + STEP)}>
+              Show {Math.min(STEP, rest).toLocaleString()} more
+              <span className="ml-1 text-slate-500">
+                ({shown.length.toLocaleString()} of {rows.length.toLocaleString()})
+              </span>
+            </Button>
+          )}
+          <Button variant="ghost" size="sm" className="w-full text-slate-600" onClick={() => setShowTable(true)}>
+            View table format <ChevronDown className="h-4 w-4 ml-1" />
+          </Button>
+        </div>
+      )}
+
+      {/* `print:block!` is important on purpose: it has to beat the `hidden`
+          that keeps the table out of the way while the cards are showing, so a
+          printed report still contains the table at any paper width. */}
+      <div className={cn("print:block!", showTable ? "overflow-x-auto lg:overflow-visible" : "hidden lg:block")}>
+        {children}
+      </div>
+    </>
+  )
+}
 
 export function SumTile({ label, value, accent }: { label: string; value: string; accent?: "green" | "rose" | "indigo" }) {
   const valueCls =

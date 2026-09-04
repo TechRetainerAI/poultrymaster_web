@@ -151,6 +151,7 @@ export default function PoultryStaffPage() {
                 <div className="p-8 text-center text-slate-500">No staff yet. Add your first team member above.</div>
               ) : (
                 <MobileCardList
+                  defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
                   getKey={(s) => s.poultryStaffId}

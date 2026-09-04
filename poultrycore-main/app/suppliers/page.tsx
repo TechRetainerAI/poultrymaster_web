@@ -528,6 +528,7 @@ export default function SuppliersPage() {
                       {currentSuppliers.map((s, idx) => (
                         <Collapsible
                           key={s.supplierId}
+                          defaultOpen
                           className={cn(
                             "group rounded-xl border shadow-sm overflow-hidden",
                             idx % 2 === 0 ? "bg-amber-50 border-amber-200" : "bg-white border-slate-200"

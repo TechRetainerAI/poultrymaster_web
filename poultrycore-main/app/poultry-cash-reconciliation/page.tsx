@@ -30,9 +30,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { PromptDialog } from "@/components/ui/prompt-dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
-import { Scale, RefreshCw, Undo2, ExternalLink, AlertTriangle, ArrowLeft, Pencil, Trash2, RotateCcw, Check } from "lucide-react"
+import { Scale, RefreshCw, Undo2, ExternalLink, AlertTriangle, ArrowLeft, Pencil, Trash2, RotateCcw, Check, ChevronDown } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -279,15 +280,18 @@ function PoultryCashReconciliationPageInner() {
                     </Select>
                   </div>
                 )}
-                <div className="flex gap-2 ml-auto">
+                {/* Three labelled buttons do not fit one phone row, so they
+                    grow to half-width cells there and only become an inline
+                    right-aligned group from sm up. */}
+                <div className="grid w-full grid-cols-2 gap-2 sm:ml-auto sm:flex sm:w-auto">
                   {account && (
-                    <Button asChild variant="outline" size="sm" className="whitespace-nowrap">
+                    <Button asChild variant="outline" size="sm" className="h-10 w-full whitespace-nowrap sm:h-9 sm:w-auto">
                       <Link href={`/poultry-cash-accounts/${account.poultryCashAccountId}`}>
                         <ExternalLink className="h-4 w-4 mr-1" /> Open ledger
                       </Link>
                     </Button>
                   )}
-                  <Button variant="outline" size="sm" className="whitespace-nowrap"
+                  <Button variant="outline" size="sm" className="h-10 w-full whitespace-nowrap sm:h-9 sm:w-auto"
                           onClick={recalculate} disabled={busy || loading}>
                     <RefreshCw className={cn("h-4 w-4 mr-1", busy && "animate-spin")} />
                     Recalculate
@@ -295,7 +299,7 @@ function PoultryCashReconciliationPageInner() {
                   {/* Named for the account, never a bare "Reconcile": the word
                       that follows is the whole point of the vocabulary. */}
                   {account && (
-                    <Button size="sm" className="whitespace-nowrap" onClick={openReconcile}>
+                    <Button size="sm" className="col-span-2 h-10 w-full whitespace-nowrap sm:col-span-1 sm:h-9 sm:w-auto" onClick={openReconcile}>
                       <Scale className="h-4 w-4 mr-1" />
                       {openDraft ? `Finish ${openDraft.referenceNo ?? vocab.recordNoun}` : vocab.action}
                     </Button>
@@ -405,7 +409,100 @@ function PoultryCashReconciliationPageInner() {
                             // compacted header and tiles gave back: the point of
                             // the tidy-up was more history visible, not more
                             // whitespace.
-                            <div className="max-h-[28rem] overflow-auto">
+                            <>
+                            {/* Mobile: one scorecard per count, open by default.
+                                The eight-column table is unreadable on a phone
+                                and its action icons are unlabelled. */}
+                            <div className="space-y-3 lg:hidden">
+                              {counts.map((c, idx) => (
+                                <Collapsible
+                                  key={c.poultryCashReconciliationId}
+                                  defaultOpen
+                                  className={cn("group w-full overflow-hidden rounded-xl border shadow-sm",
+                                    idx % 2 === 0 ? "border-amber-300 bg-amber-100" : "border-slate-200 bg-white")}
+                                >
+                                  <div className={cn("px-2.5 py-3 transition-colors", idx % 2 === 0 ? "active:bg-black/10" : "active:bg-black/5")}>
+                                    <CollapsibleTrigger asChild>
+                                      <div className="relative cursor-pointer">
+                                        <ChevronDown className="absolute right-0 top-0 h-4 w-4 shrink-0 text-slate-400 transition-transform group-data-[state=open]:rotate-180" />
+                                        <div className="min-w-0">
+                                          <div className="pr-6">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                              <span className="font-semibold text-slate-900">{c.referenceNo ?? `#${c.poultryCashReconciliationId}`}</span>
+                                              <Badge variant="outline" className={cn("border-0", COUNT_BADGE[c.status])}>{c.status}</Badge>
+                                            </div>
+                                            <div className="mt-0.5 text-xs text-slate-500">{c.reconciliationDate.split("T")[0]}</div>
+                                          </div>
+                                          <div className="mt-3 grid grid-cols-2 gap-2">
+                                            <div className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 shadow-sm">
+                                              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-700">System</p>
+                                              <p className="text-lg font-extrabold leading-tight tabular-nums text-slate-900">{gh(c.systemBalance)}</p>
+                                            </div>
+                                            <div className="rounded-lg border border-blue-300 bg-blue-100 px-3 py-2 shadow-sm">
+                                              <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-900">Counted</p>
+                                              <p className="text-lg font-extrabold leading-tight tabular-nums text-blue-800">{c.actualBalance != null ? gh(c.actualBalance) : "—"}</p>
+                                            </div>
+                                            {/* The difference is the answer the page exists to give,
+                                                so it gets its own full-width tile rather than a cell. */}
+                                            <div className={cn("col-span-2 rounded-lg border px-3 py-2 shadow-sm",
+                                              c.difference === 0 ? "border-emerald-300 bg-emerald-100"
+                                              : c.difference > 0 ? "border-emerald-300 bg-emerald-100" : "border-rose-300 bg-rose-100")}>
+                                              <p className={cn("text-[11px] font-semibold uppercase tracking-wide",
+                                                c.difference < 0 ? "text-rose-900" : "text-emerald-900")}>Difference</p>
+                                              <p className={cn("text-lg font-extrabold leading-tight tabular-nums",
+                                                c.difference === 0 ? "text-emerald-800"
+                                                : c.difference > 0 ? "text-emerald-800" : "text-rose-700")}>
+                                                {c.difference === 0 ? "Balanced" : gh(c.difference)}
+                                              </p>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </CollapsibleTrigger>
+                                    <CollapsibleContent>
+                                      <div className="mt-4 space-y-2 border-t border-slate-200/70 pt-4 text-sm">
+                                        <div><span className="text-slate-500">Reason</span> <span className="font-medium">{c.reason ?? "—"}</span></div>
+                                        {/* The table's icon-only actions carry their
+                                            meaning in a title tooltip, which never
+                                            opens on touch — so they are labelled here. */}
+                                        <div className="grid grid-cols-2 gap-2 pt-2">
+                                          {c.status === "Draft" && (
+                                            <>
+                                              <Button size="sm" variant="outline" className="h-10 w-full bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                                                      onClick={(e) => { e.stopPropagation(); void postDraft(c) }} disabled={busy}>
+                                                <Check className="mr-2 h-4 w-4" /> Post
+                                              </Button>
+                                              <Button size="sm" variant="outline" className="h-10 w-full bg-white text-sky-700 border-sky-200 hover:bg-sky-50"
+                                                      onClick={(e) => { e.stopPropagation(); setEditing({ count: c, mode: "draft" }); setFormOpen(true) }}>
+                                                <Pencil className="mr-2 h-4 w-4" /> Edit
+                                              </Button>
+                                              <Button size="sm" variant="outline" className="col-span-2 h-10 w-full bg-white text-rose-600 border-rose-200 hover:bg-rose-50"
+                                                      onClick={(e) => { e.stopPropagation(); setDiscardTarget(c) }}>
+                                                <Trash2 className="mr-2 h-4 w-4" /> Discard draft
+                                              </Button>
+                                            </>
+                                          )}
+                                          {c.status === "Posted" && (
+                                            <Button size="sm" variant="outline" className="col-span-2 h-10 w-full bg-white text-amber-700 border-amber-200 hover:bg-amber-50"
+                                                    onClick={(e) => { e.stopPropagation(); setReverseTarget(c) }}>
+                                              <Undo2 className="mr-2 h-4 w-4" /> Reverse
+                                            </Button>
+                                          )}
+                                          {c.status === "Reversed" && (
+                                            <Button size="sm" variant="outline" className="col-span-2 h-10 w-full bg-white text-sky-700 border-sky-200 hover:bg-sky-50"
+                                                    onClick={(e) => { e.stopPropagation(); setEditing({ count: c, mode: "copy" }); setFormOpen(true) }}>
+                                              <RotateCcw className="mr-2 h-4 w-4" /> Count again
+                                            </Button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </CollapsibleContent>
+                                  </div>
+                                </Collapsible>
+                              ))}
+                            </div>
+
+                            <div className="hidden max-h-[28rem] overflow-auto lg:block">
                             <Table>
                               <TableHeader>
                                 <TableRow>
@@ -475,6 +572,7 @@ function PoultryCashReconciliationPageInner() {
                               </TableBody>
                             </Table>
                             </div>
+                            </>
                           )}
                         </CardContent>
                       </Card>

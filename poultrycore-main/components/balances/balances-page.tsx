@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/select"
 import { PERIOD_GROUPS, periodToRange, rangeToPeriod } from "@/lib/date-ranges"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { cn } from "@/lib/utils"
 import {
   AlertTriangle, ChevronDown, ChevronRight, ExternalLink, FileText,
   History, Loader2, Users, Wallet,
@@ -433,7 +435,130 @@ export function BalancesPage({
                     : <>Nothing outstanding. Every {docWord} is fully paid.</>}
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <>
+                {/* Mobile + tablet: one scorecard per party, open by default.
+                    The open-document list stays behind its own button — it is
+                    fetched lazily per party, so expanding every card on load
+                    would fire a request per row. */}
+                <div className="space-y-3 p-3 lg:hidden">
+                  {visibleRows.map((party, idx) => {
+                    const isOpen = expanded === party.partyId
+                    const lines = docs[party.partyId]
+                    return (
+                      <Collapsible
+                        key={party.partyId}
+                        defaultOpen
+                        className={cn("group w-full rounded-xl border shadow-sm overflow-hidden",
+                          idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}
+                      >
+                        <div className={cn("px-2.5 py-3 transition-colors", idx % 2 === 0 ? "active:bg-black/10" : "active:bg-black/5")}>
+                          <CollapsibleTrigger asChild>
+                            <div className="relative cursor-pointer">
+                              <ChevronDown className="absolute right-0 top-0 h-4 w-4 shrink-0 text-slate-400 transition-transform group-data-[state=open]:rotate-180" />
+                              <div className="min-w-0">
+                                <div className="pr-6">
+                                  <div className="font-semibold text-slate-900 break-words">{party.partyName}</div>
+                                  <div className="mt-0.5 truncate text-xs text-slate-500">{party.contactPhone ?? "No phone"}</div>
+                                </div>
+                                <div className="mt-3 grid grid-cols-2 gap-2">
+                                  <div className="rounded-lg border border-violet-300 bg-violet-100 px-3 py-2 shadow-sm">
+                                    <p className="text-[11px] font-semibold uppercase tracking-wide text-violet-900">Balance</p>
+                                    <p className="text-xl font-extrabold leading-tight text-violet-900 tabular-nums">{fmt(party.totalBalance)}</p>
+                                  </div>
+                                  <div className={cn("rounded-lg border px-3 py-2 shadow-sm",
+                                    party.overdueAmount > 0 ? "border-red-300 bg-red-100" : "border-slate-300 bg-slate-100")}>
+                                    <p className={cn("text-[11px] font-semibold uppercase tracking-wide",
+                                      party.overdueAmount > 0 ? "text-red-900" : "text-slate-700")}>Overdue</p>
+                                    <p className={cn("text-xl font-extrabold leading-tight tabular-nums",
+                                      party.overdueAmount > 0 ? "text-red-700" : "text-slate-400")}>
+                                      {party.overdueAmount > 0 ? fmt(party.overdueAmount) : "—"}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent>
+                            <div className="mt-4 space-y-2 border-t border-slate-200/70 pt-4 text-sm">
+                              <div className="grid grid-cols-2 gap-2">
+                                <div><span className="text-slate-500">Open {docWord}s</span> <span className="font-medium tabular-nums">{party.openDocumentCount}</span></div>
+                                <div><span className="text-slate-500">Oldest</span> <span className="font-medium">{party.oldestDocumentDate ? new Date(party.oldestDocumentDate).toLocaleDateString() : "—"}</span></div>
+                                <div className="col-span-2"><span className="text-slate-500">Last payment</span> <span className="font-medium">{party.lastPaymentDate ? new Date(party.lastPaymentDate).toLocaleDateString() : "Never"}</span></div>
+                              </div>
+                              {/* Two per row: labelled buttons overflow a 375px card on one flex line. */}
+                              <div className="grid grid-cols-2 gap-2 pt-2">
+                                {canPay && (
+                                  <Button size="sm" className="col-span-2 h-10 w-full" onClick={(e) => { e.stopPropagation(); setPayFor({ party, doc: null }) }}>
+                                    <Wallet className="mr-2 h-4 w-4" /> {isCustomer ? "Receive bulk payment" : "Record bulk payment"}
+                                  </Button>
+                                )}
+                                {canStatement && (
+                                  <Button size="sm" variant="outline" className="h-10 w-full bg-white" onClick={(e) => { e.stopPropagation(); setStatementFor(party) }}>
+                                    <FileText className="mr-2 h-4 w-4" /> Statement
+                                  </Button>
+                                )}
+                                <Button size="sm" variant="outline" className={cn("h-10 w-full bg-white", !canStatement && "col-span-2")} onClick={(e) => { e.stopPropagation(); setHistoryFor({ party, doc: null }) }}>
+                                  <History className="mr-2 h-4 w-4" /> History
+                                </Button>
+                                <Button size="sm" variant="outline" className="col-span-2 h-10 w-full bg-white" onClick={(e) => { e.stopPropagation(); void toggleParty(party) }}>
+                                  {isOpen ? <ChevronDown className="mr-2 h-4 w-4" /> : <ChevronRight className="mr-2 h-4 w-4" />}
+                                  {isOpen ? `Hide open ${docWord}s` : `Show ${party.openDocumentCount} open ${docWord}${party.openDocumentCount === 1 ? "" : "s"}`}
+                                </Button>
+                              </div>
+
+                              {isOpen && (
+                                <div className="mt-2 space-y-2 rounded-lg border border-blue-200 bg-blue-50 p-2">
+                                  {docsLoading === party.partyId || !lines ? (
+                                    <span className="flex items-center gap-2 py-2 text-sm text-slate-500">
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading open {docWord}s…
+                                    </span>
+                                  ) : lines.length === 0 ? (
+                                    <span className="block py-2 text-sm text-slate-500">No open {docWord}s match the current filters.</span>
+                                  ) : lines.map((d) => (
+                                    <div key={`${d.documentType}:${d.documentId}`} className="rounded-md border border-blue-200 bg-white p-2.5 shadow-sm">
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0">
+                                          <div className="font-medium text-slate-900">{d.reference ?? d.documentId}</div>
+                                          <div className="truncate text-xs text-slate-500">{d.label ?? d.description ?? "—"}</div>
+                                        </div>
+                                        {d.isOverdue
+                                          ? <Badge variant="destructive" className="shrink-0 gap-1"><AlertTriangle className="h-3 w-3" /> Overdue</Badge>
+                                          : <Badge variant="secondary" className="shrink-0">{d.status}</Badge>}
+                                      </div>
+                                      <div className="mt-2 grid grid-cols-2 gap-1.5 text-sm">
+                                        <div><span className="text-slate-500">Date</span> <span className="font-medium">{new Date(d.documentDate).toLocaleDateString()}</span></div>
+                                        <div><span className="text-slate-500">Due</span> <span className="font-medium">{d.dueDate ? new Date(d.dueDate).toLocaleDateString() : "—"}</span></div>
+                                        <div><span className="text-slate-500">Total</span> <span className="font-medium tabular-nums">{fmt(d.totalAmount)}</span></div>
+                                        <div><span className="text-slate-500">Paid</span> <span className="font-medium tabular-nums text-slate-500">{fmt(d.amountPaid)}</span></div>
+                                        <div><span className="text-slate-500">Balance</span> <span className="font-semibold tabular-nums">{fmt(d.balance)}</span></div>
+                                        <div><span className="text-slate-500">Age</span> <span className="font-medium tabular-nums">{d.ageDays}d</span></div>
+                                      </div>
+                                      <div className="mt-2 grid grid-cols-2 gap-2">
+                                        {canPay && (
+                                          <Button size="sm" variant="outline" className="col-span-2 h-10 w-full" onClick={(e) => { e.stopPropagation(); setPayFor({ party, doc: d }) }}>
+                                            <Wallet className="mr-2 h-4 w-4" /> {isCustomer ? "Receive payment" : "Record payment"}
+                                          </Button>
+                                        )}
+                                        <Button size="sm" variant="ghost" className="h-10 w-full" onClick={(e) => { e.stopPropagation(); openDocument(d) }}>
+                                          <ExternalLink className="mr-2 h-4 w-4" /> Open
+                                        </Button>
+                                        <Button size="sm" variant="ghost" className="h-10 w-full" onClick={(e) => { e.stopPropagation(); setHistoryFor({ party, doc: d }) }}>
+                                          <History className="mr-2 h-4 w-4" /> History
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </CollapsibleContent>
+                        </div>
+                      </Collapsible>
+                    )
+                  })}
+                </div>
+
+                <div className="hidden overflow-x-auto lg:block">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -592,6 +717,7 @@ export function BalancesPage({
                     </TableBody>
                   </Table>
                 </div>
+                </>
               )}
             </CardContent>
           </Card>

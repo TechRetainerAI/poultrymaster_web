@@ -477,6 +477,7 @@ export default function WaterCashFlowPage() {
                     </p>
                   ) : (
                     <MobileCardList
+                      defaultOpen
                       items={pg.pageItems}
                       pagination={pg.paginationProps}
                       getKey={(r: any) => `${r.rowSource}-${r.id}`}

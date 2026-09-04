@@ -217,6 +217,7 @@ export default function WaterPayrollPage() {
                 <div className="p-8 text-center text-slate-500">No payroll runs yet.</div>
               ) : (
                 <MobileCardList
+                  defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
                   getKey={(r) => r.waterPayrollRunId}

@@ -7,7 +7,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ReportShell, SumTile } from "@/components/reports/report-shell"
+import { ReportShell, SumTile, ReportTableCards } from "@/components/reports/report-shell"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
 import { listWaterRawMaterialUsageHistory, getWaterRawMaterialVariance, type WaterRawMaterialVarianceRow } from "@/lib/api/water"
@@ -52,6 +52,35 @@ export default function RawMaterialUsageReportPage() {
     absVariance: variance.reduce((s, v) => s + Math.abs(v.totalVariance ?? 0), 0),
   }), [variance])
 
+  // Both tables on this page are too wide for a phone, so each gets its own
+  // scorecard rendering. The rollup's description is shared with the PDF.
+  const materialColumns = [
+    { header: "Material" }, { header: "Category" }, { header: "Unit" },
+    { header: "Expected", align: "right" as const }, { header: "Actual", align: "right" as const },
+    { header: "Variance", align: "right" as const }, { header: "Usage count", align: "right" as const },
+  ]
+  const materialRows = variance.map((v) => [
+    v.itemName, v.category, v.unitOfMeasure ?? "—",
+    num(v.totalExpected), num(v.totalActual), num(v.totalVariance),
+    (v.usageCount ?? 0).toLocaleString(),
+  ])
+  const usageColumns = [
+    { header: "Date" }, { header: "Batch" }, { header: "Material" },
+    { header: "Expected", align: "right" as const }, { header: "Actual", align: "right" as const },
+    { header: "Variance", align: "right" as const }, { header: "Unit cost", align: "right" as const },
+    { header: "Total cost", align: "right" as const },
+  ]
+  const usageRows = rows.map((r: any) => [
+    (r.usedDate ?? "").slice(0, 10),
+    r.batchNumber ?? "—",
+    r.itemName ?? "—",
+    num(r.expectedQuantityUsed),
+    num(r.quantityUsed),
+    num(r.variance),
+    r.unitCost ? fmtMoney(r.unitCost) : "—",
+    r.totalCost ? fmtMoney(r.totalCost) : "—",
+  ])
+
   return (
     <ReportShell
       title="Raw Material Usage"
@@ -60,6 +89,9 @@ export default function RawMaterialUsageReportPage() {
       fromDate={fromDate} toDate={toDate}
       onFromDateChange={setFromDate} onToDateChange={setToDate}
       onRefresh={load}
+      // Two wide tables, each with its own <ReportTableCards> below — the
+      // shell's automatic phone view would show only the one `pdf` describes.
+      mobileCards={false}
       pdf={{
         // PDF uses the authoritative per-material variance rollup (usage detail is supplementary).
         title: "Raw Material Usage",
@@ -70,16 +102,8 @@ export default function RawMaterialUsageReportPage() {
           `Actual qty: ${num(totals.actual)}`,
           `Abs variance: ${num(totals.absVariance)}`,
         ],
-        columns: [
-          { header: "Material" }, { header: "Category" }, { header: "Unit" },
-          { header: "Expected", align: "right" }, { header: "Actual", align: "right" },
-          { header: "Variance", align: "right" }, { header: "Usage count", align: "right" },
-        ],
-        rows: variance.map((v) => [
-          v.itemName, v.category, v.unitOfMeasure ?? "—",
-          num(v.totalExpected), num(v.totalActual), num(v.totalVariance),
-          (v.usageCount ?? 0).toLocaleString(),
-        ]),
+        columns: materialColumns,
+        rows: materialRows,
       }}
       summary={<>
         <SumTile label="Materials" value={String(totals.items)} />
@@ -89,6 +113,7 @@ export default function RawMaterialUsageReportPage() {
       </>}
     >
       <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-600 mb-2">By material</h2>
+      <ReportTableCards columns={materialColumns} rows={materialRows}>
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
@@ -119,8 +144,10 @@ export default function RawMaterialUsageReportPage() {
           </TableBody>
         </Table>
       </div>
+      </ReportTableCards>
 
       <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-600 mt-4 mb-2 print:hidden">Usage detail</h2>
+      <ReportTableCards columns={usageColumns} rows={usageRows}>
       <div className="overflow-x-auto print:hidden">
         <Table>
           <TableHeader>
@@ -154,6 +181,7 @@ export default function RawMaterialUsageReportPage() {
         </Table>
       </div>
       <DataPagination {...pg.paginationProps} />
+      </ReportTableCards>
     </ReportShell>
   )
 }
