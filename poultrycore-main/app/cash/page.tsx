@@ -33,6 +33,7 @@ import { toastFormGuide } from "@/lib/utils/validation-toast"
 import { SortableHeader, type SortDirection, sortData } from "@/components/ui/sortable-header"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
+import { entryTimestamp } from "@/lib/utils/date-key"
 
 const ADJUSTMENT_TYPES = [
   { value: "OpeningBalance", label: "Opening Balance" },
@@ -124,7 +125,10 @@ export default function CashPage() {
     }
 
     const inputBase = {
-      adjustmentDate: adjustmentForm.adjustmentDate || new Date().toISOString().split("T")[0],
+      // Recorded now → real clock time, so it sorts above everything already
+      // entered today. Back-dated → midnight. Same rule the payment and
+      // adjustment dialogs use.
+      adjustmentDate: entryTimestamp(adjustmentForm.adjustmentDate) ?? new Date().toISOString(),
       adjustmentType: adjustmentForm.adjustmentType,
       amount: adjustmentForm.adjustmentType === "Withdrawal" ? -Math.abs(amount) : Math.abs(amount),
       description: adjustmentForm.description || undefined,
@@ -315,7 +319,7 @@ export default function CashPage() {
       const input: CashAdjustmentInput = {
         userId,
         farmId,
-        adjustmentDate: new Date().toISOString().split("T")[0],
+        adjustmentDate: new Date().toISOString(),
         adjustmentType: parsed.type as any,
         amount: parsed.type === "Withdrawal" ? -parsed.amount : parsed.amount,
         description: text,
@@ -391,7 +395,7 @@ export default function CashPage() {
       sortData(filteredTransactions, sortKey, sortDirection, (item, key) => {
         switch (key) {
           case "date":
-            return new Date(item.date)
+            return item.sortKey ?? item.date
           case "type":
             return item.type || ""
           case "description":

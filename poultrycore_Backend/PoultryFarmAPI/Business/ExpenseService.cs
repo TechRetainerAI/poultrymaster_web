@@ -36,7 +36,10 @@ namespace PoultryFarmAPIWeb.Business
             try
             {
                 using var conn = new NpgsqlConnection(_connectionString);
-                using var cmd = new NpgsqlCommand("SELECT * FROM spexpense_insert(p_expensedate => @ExpenseDate::timestamp, p_category => @Category::text, p_description => @Description::text, p_amount => @Amount::numeric, p_paymentmethod => @PaymentMethod::text, p_supplier => @Supplier::text, p_flockid => @FlockId::int, p_userid => @UserId::text, p_farmid => @FarmId::uuid, p_attachmentimage => @AttachmentImage::bytea, p_attachmentcontenttype => @AttachmentContentType::text)", conn);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spexpense_insert(p_expensedate => @ExpenseDate::timestamp, p_category => @Category::text, p_description => @Description::text, p_amount => @Amount::numeric, p_paymentmethod => @PaymentMethod::text, p_supplier => @Supplier::text, p_flockid => @FlockId::int, p_userid => @UserId::text, p_farmid => @FarmId::uuid, p_attachmentimage => @AttachmentImage::bytea, p_attachmentcontenttype => @AttachmentContentType::text, p_supplierid => @SupplierId::int, p_amountpaid => @AmountPaid::numeric, p_duedate => @DueDate::date)", conn);
+                cmd.Parameters.AddWithValue("@SupplierId", (object?)model.SupplierId ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@AmountPaid", (object?)model.AmountPaid ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@DueDate", (object?)model.DueDate?.Date ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@ExpenseDate", model.ExpenseDate);
                 cmd.Parameters.AddWithValue("@Category", model.Category);
                 cmd.Parameters.AddWithValue("@Description", (object?)model.Description ?? DBNull.Value);
@@ -70,6 +73,12 @@ namespace PoultryFarmAPIWeb.Business
         // Posts / reverses the expense's cash-out on the chosen PoultryCashAccount.
         // Safe to call with a null account (reverse only). Uses the NVARCHAR farmId
         // so the cash rows scope correctly (dbo.Expense.FarmId is a GUID).
+        //
+        // Since migration 238 the AMOUNT argument is advisory: the function posts
+        // the expense's own resolved amountpaid, minus whatever supplier payments
+        // have already covered, so a part-paid bill moves only the cash that
+        // actually moved and the payment's own CashOut is not double counted.
+        // Call it AFTER the insert/update, never before -- it reads the row.
         //
         // businessDate re-stamps the ledger row after the sync. The sync itself
         // writes now(), and it is reverse-then-repost, so without this a January
@@ -105,7 +114,10 @@ namespace PoultryFarmAPIWeb.Business
             try
             {
                 using var conn = new NpgsqlConnection(_connectionString);
-                using var cmd = new NpgsqlCommand("SELECT * FROM spexpense_update(p_expenseid => @ExpenseId::int, p_expensedate => @ExpenseDate::timestamp, p_category => @Category::text, p_description => @Description::text, p_amount => @Amount::numeric, p_paymentmethod => @PaymentMethod::text, p_supplier => @Supplier::text, p_flockid => @FlockId::int, p_userid => @UserId::text, p_farmid => @FarmId::uuid, p_attachmentimageset => @AttachmentImageSet::boolean, p_attachmentimage => @AttachmentImage::bytea, p_attachmentcontenttype => @AttachmentContentType::text)", conn);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spexpense_update(p_expenseid => @ExpenseId::int, p_expensedate => @ExpenseDate::timestamp, p_category => @Category::text, p_description => @Description::text, p_amount => @Amount::numeric, p_paymentmethod => @PaymentMethod::text, p_supplier => @Supplier::text, p_flockid => @FlockId::int, p_userid => @UserId::text, p_farmid => @FarmId::uuid, p_attachmentimageset => @AttachmentImageSet::boolean, p_attachmentimage => @AttachmentImage::bytea, p_attachmentcontenttype => @AttachmentContentType::text, p_supplierid => @SupplierId::int, p_amountpaid => @AmountPaid::numeric, p_duedate => @DueDate::date)", conn);
+                cmd.Parameters.AddWithValue("@SupplierId", (object?)model.SupplierId ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@AmountPaid", (object?)model.AmountPaid ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@DueDate", (object?)model.DueDate?.Date ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@ExpenseId", model.ExpenseId);
                 cmd.Parameters.AddWithValue("@ExpenseDate", model.ExpenseDate);
                 cmd.Parameters.AddWithValue("@Category", model.Category);
@@ -289,6 +301,36 @@ namespace PoultryFarmAPIWeb.Business
             if (TryGetOrdinal(reader, "UserId", out var ordUid) && !reader.IsDBNull(ordUid))
                 resolvedUserId = reader.GetString(ordUid);
 
+            // Payment state (migration 238). Read defensively -- a farm whose DB
+            // has not had 238 applied yet returns none of these columns, and the
+            // page must still render rather than 500.
+            int? supplierId = null;
+            if (TryGetOrdinal(reader, "SupplierId", out var ordSupId) && !reader.IsDBNull(ordSupId))
+                supplierId = ReadIntFlexible(reader, "SupplierId");
+            string? supplierName = null;
+            if (TryGetOrdinal(reader, "SupplierName", out var ordSupName) && !reader.IsDBNull(ordSupName))
+                supplierName = reader.GetString(ordSupName);
+            // The SP resolves amountpaid for us, so an absent column -- not a NULL
+            // -- is the only "unknown", and unknown means the legacy fully-paid.
+            var amountPaid = TryGetOrdinal(reader, "AmountPaid", out var ordPaid) && !reader.IsDBNull(ordPaid)
+                ? reader.GetDecimal(ordPaid)
+                : amount;
+            var balance = TryGetOrdinal(reader, "Balance", out var ordBal) && !reader.IsDBNull(ordBal)
+                ? reader.GetDecimal(ordBal)
+                : 0m;
+            string? paymentStatus = null;
+            if (TryGetOrdinal(reader, "PaymentStatus", out var ordStatus) && !reader.IsDBNull(ordStatus))
+                paymentStatus = reader.GetString(ordStatus);
+            DateTime? dueDate = null;
+            if (TryGetOrdinal(reader, "DueDate", out var ordDue) && !reader.IsDBNull(ordDue))
+                dueDate = reader.GetDateTime(ordDue);
+            string? sourceType = null;
+            if (TryGetOrdinal(reader, "SourceType", out var ordSrcT) && !reader.IsDBNull(ordSrcT))
+                sourceType = reader.GetString(ordSrcT);
+            int? sourceId = null;
+            if (TryGetOrdinal(reader, "SourceId", out var ordSrcId) && !reader.IsDBNull(ordSrcId))
+                sourceId = ReadIntFlexible(reader, "SourceId");
+
             return new ExpenseModel
             {
                 ExpenseId = ReadIntFlexible(reader, "ExpenseId", "ExpenseID", "Id", "EXPENSEID"),
@@ -298,6 +340,14 @@ namespace PoultryFarmAPIWeb.Business
                 Amount = amount,
                 PaymentMethod = paymentMethod,
                 Supplier = supplier,
+                SupplierId = supplierId,
+                SupplierName = supplierName,
+                AmountPaid = amountPaid,
+                Balance = balance,
+                PaymentStatus = paymentStatus ?? (balance > 0m ? "PartiallyPaid" : "Paid"),
+                DueDate = dueDate,
+                SourceType = sourceType,
+                SourceId = sourceId,
                 FlockId = flockId,
                 PoultryCashAccountId = cashAccountId,
                 CreatedDate = createdDate,

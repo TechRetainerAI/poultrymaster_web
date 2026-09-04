@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState, type ReactNode } from "react"
-import { useRouter } from "next/navigation"
+import { Suspense, useEffect, useState, type ReactNode } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -10,10 +10,25 @@ import { toastFormGuide } from "@/lib/utils/validation-toast"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
-import { Plus, Pencil, Trash2, Calendar, DollarSign, Search, FileText as FileTextIcon, Download, Loader2, Filter, ChevronDown, ChevronUp, ImageIcon } from "lucide-react"
+import { Plus, Pencil, Trash2, Calendar, DollarSign, Search, FileText as FileTextIcon, Download, Loader2, Filter, ChevronDown, ChevronUp, ImageIcon, Banknote, History, Truck } from "lucide-react"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { getExpenses, getExpense, createExpense, updateExpense, deleteExpense, type Expense, type ExpenseInput } from "@/lib/api/expense"
 import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
+import { getSuppliers, type Supplier } from "@/lib/api/supplier"
+import { RecordPaymentDialog, type CashAccountOption } from "@/components/balances/record-payment-dialog"
+import { PaymentHistoryDialog } from "@/components/balances/payment-history-dialog"
+import type { OpenDocumentRow } from "@/lib/api/balances"
+import { usePermissions } from "@/hooks/use-permissions"
+import {
+  SELECTABLE_PAYMENT_STATUSES,
+  PAYMENT_STATUS_LABELS,
+  amountPaidForStatus,
+  expenseSourceLabel,
+  isPayableExpense,
+  requiresCashAccount,
+  validateExpensePayment,
+  type SelectablePaymentStatus,
+} from "@/lib/expenses/payment-status"
 import { uploadExpenseReceipt } from "@/lib/api/receipt-upload"
 import {
   appendReceiptSuffix,
@@ -124,7 +139,29 @@ function AddExpenseDescription({
 }
 
 export default function ExpensesPage() {
+  // useSearchParams needs a Suspense boundary during prerender — same wrapper
+  // /poultry-raw-materials uses for its ?purchaseId= deep link.
+  return (
+    <Suspense fallback={null}>
+      <ExpensesPageInner />
+    </Suspense>
+  )
+}
+
+function ExpensesPageInner() {
   const router = useRouter()
+  // ?expenseId=N narrows the list to one bill, so a link from the Supplier
+  // Payments ledger lands ON the expense that was paid rather than on the whole
+  // list with the reader left to find the row. Same trick /poultry-raw-materials
+  // uses with ?purchaseId=.
+  const searchParams = useSearchParams()
+  const focusExpenseId = Number(searchParams.get("expenseId") ?? "") || null
+  const { can: canDo } = usePermissions()
+  // Paying a bill IS a supplier payment, so it is gated on the same key the
+  // Supplier Balances dialog is gated on -- not on a second, parallel one that
+  // could drift out of step with it.
+  const canPayExpense = canDo("poultry.supplier-payments.create")
+  const canReverseExpense = canDo("poultry.supplier-payments.reverse")
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -182,8 +219,18 @@ export default function ExpensesPage() {
   } = useBatchFlockSelect()
   const [createForm, setCreateForm] = useState({
     flockId: "", expenseDate: new Date().toISOString().split("T")[0], category: "", description: "", amount: "", paymentMethod: "", poultryCashAccountId: "",
+    // Payment state (migration 238). paymentStatus drives the other three:
+    // Paid sends amountPaid = null (the API's "paid in full"), Unpaid sends 0.
+    supplierId: "", paymentStatus: "Paid" as SelectablePaymentStatus, amountPaid: "", dueDate: "",
   })
   const [cashAccounts, setCashAccounts] = useState<PoultryCashAccount[]>([])
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+
+  // Paying a bill and looking at what has been paid against it. Both reuse the
+  // Supplier Balances components -- an expense is a payable document like any
+  // other now, so it needs no dialog of its own.
+  const [payFor, setPayFor] = useState<Expense | null>(null)
+  const [historyFor, setHistoryFor] = useState<Expense | null>(null)
 
   // Edit dialog state
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
@@ -194,6 +241,7 @@ export default function ExpensesPage() {
   const [editFarmId, setEditFarmId] = useState<string | undefined>(undefined)
   const [editForm, setEditForm] = useState({
     flockId: "", expenseDate: "", category: "", description: "", amount: "", paymentMethod: "", poultryCashAccountId: "",
+    supplierId: "", paymentStatus: "Paid" as SelectablePaymentStatus, amountPaid: "", dueDate: "",
   })
   const [createReceiptFile, setCreateReceiptFile] = useState<File | null>(null)
   const [editReceiptFile, setEditReceiptFile] = useState<File | null>(null)
@@ -209,6 +257,16 @@ export default function ExpensesPage() {
     loadExpenses()
     loadFlocks()
     listPoultryCashAccounts().then((a) => setCashAccounts(a.filter((x) => x.isActive))).catch(() => setCashAccounts([]))
+    // Needed to turn an expense into a payable: without a supplier there is
+    // nobody to owe, so it can never reach Supplier Balances.
+    {
+      const { userId: uid, farmId: fid } = getUserContext()
+      if (uid && fid) {
+        getSuppliers(uid, fid)
+          .then((r) => setSuppliers(r.success && r.data ? r.data : []))
+          .catch(() => setSuppliers([]))
+      }
+    }
 
     if (typeof window !== 'undefined') {
       const globalSearch = sessionStorage.getItem('globalSearchQuery')
@@ -252,7 +310,12 @@ export default function ExpensesPage() {
 
   // Create handlers
   const openCreateDialog = () => {
-    setCreateForm({ flockId: "", expenseDate: new Date().toISOString().split("T")[0], category: "", description: "", amount: "", paymentMethod: "", poultryCashAccountId: "" })
+    setCreateForm({
+      flockId: "", expenseDate: new Date().toISOString().split("T")[0], category: "", description: "", amount: "", paymentMethod: "", poultryCashAccountId: "",
+      // Paid by default: that is what almost every expense entered by hand is,
+      // and it is the behaviour the page had before payment state existed.
+      supplierId: "", paymentStatus: "Paid", amountPaid: "", dueDate: "",
+    })
     setCreateReceiptFile(null)
     setCreateError("")
     loadFlocksForSelect()
@@ -269,7 +332,24 @@ export default function ExpensesPage() {
     if (!createForm.category) { setCreateError("Choose a category"); toastFormGuide(toast, "Pick an expense category so reports and cash stay organized."); setCreateLoading(false); return }
     if (!createForm.description.trim()) { setCreateError("Add a short description"); toastFormGuide(toast, "Add a few words describing what this expense was for — it helps later when you search."); setCreateLoading(false); return }
     if (!createForm.amount || Number(createForm.amount) <= 0) { setCreateError("Enter amount"); toastFormGuide(toast, "Enter the amount spent as a number greater than zero."); setCreateLoading(false); return }
-    if (!createForm.paymentMethod) { setCreateError("Choose payment method"); toastFormGuide(toast, "Select how this was paid (cash, mobile money, bank, etc.)."); setCreateLoading(false); return }
+    if (!createForm.paymentMethod && requiresCashAccount(createForm.paymentStatus)) { setCreateError("Choose payment method"); toastFormGuide(toast, "Select how this was paid (cash, mobile money, bank, etc.)."); setCreateLoading(false); return }
+
+    // Payment state, checked with the same rules the SQL enforces
+    // (spexpense_insert / spexpense_update, migration 238). A warning here is
+    // informational -- an unpaid expense with no supplier is legitimate, it just
+    // cannot be chased -- so only errors stop the submit.
+    const payment = validateExpensePayment({
+      total: Number(createForm.amount || 0),
+      status: createForm.paymentStatus,
+      amountPaid: Number(createForm.amountPaid || 0),
+      paymentMethod: createForm.paymentMethod,
+      cashAccountId: createForm.poultryCashAccountId ? Number(createForm.poultryCashAccountId) : null,
+      supplierId: createForm.supplierId ? Number(createForm.supplierId) : null,
+    })
+    if (!payment.ok) {
+      const first = payment.errors[0]
+      setCreateError(first.message); toastFormGuide(toast, first.message); setCreateLoading(false); return
+    }
 
     let descriptionOut = createForm.description.trim()
     if (createReceiptFile) {
@@ -287,7 +367,17 @@ export default function ExpensesPage() {
       expenseDate: createForm.expenseDate + "T00:00:00Z",
       category: createForm.category, description: descriptionOut,
       amount: Number(createForm.amount), paymentMethod: createForm.paymentMethod,
-      poultryCashAccountId: createForm.poultryCashAccountId ? Number(createForm.poultryCashAccountId) : null,
+      // Unpaid means no money moved, so no account is stamped and no cash-out is
+      // posted. Sending the account anyway would post the whole bill as cash.
+      poultryCashAccountId:
+        requiresCashAccount(createForm.paymentStatus) && createForm.poultryCashAccountId
+          ? Number(createForm.poultryCashAccountId)
+          : null,
+      supplierId: createForm.supplierId ? Number(createForm.supplierId) : null,
+      // null for Paid -- the API reads that as "paid in full". See
+      // amountPaidForStatus; sending 0 would create a debt instead.
+      amountPaid: amountPaidForStatus(createForm.paymentStatus, Number(createForm.amount || 0), Number(createForm.amountPaid || 0)),
+      dueDate: createForm.dueDate || null,
     }
     const result = await createExpense(expense)
     if (result.success) {
@@ -328,6 +418,15 @@ export default function ExpensesPage() {
         description: stripReceiptSuffixFromDescription(rawDesc),
         amount: String(e.amount), paymentMethod: e.paymentMethod,
         poultryCashAccountId: e.poultryCashAccountId ? String(e.poultryCashAccountId) : "",
+        supplierId: e.supplierId ? String(e.supplierId) : "",
+        // NonCash rows (internal use) are not editable as a payment state --
+        // they are shown as Paid so the form has a valid value, and the amount
+        // fields stay consistent with the row.
+        paymentStatus: e.paymentStatus === "PartiallyPaid" || e.paymentStatus === "Unpaid"
+          ? e.paymentStatus
+          : "Paid",
+        amountPaid: String(e.amountPaid ?? e.amount),
+        dueDate: e.dueDate ? new Date(e.dueDate).toISOString().split("T")[0] : "",
       })
       setEditHasDbAttachment(Boolean(e.hasAttachmentImage))
     } else {
@@ -349,7 +448,24 @@ export default function ExpensesPage() {
     if (!editForm.category) { setEditError("Choose a category"); toastFormGuide(toast, "Pick an expense category so reports and cash stay organized."); setEditLoading(false); return }
     if (!editForm.description.trim()) { setEditError("Add a short description"); toastFormGuide(toast, "Add a few words describing what this expense was for — it helps later when you search."); setEditLoading(false); return }
     if (!editForm.amount || Number(editForm.amount) <= 0) { setEditError("Enter amount"); toastFormGuide(toast, "Enter the amount spent as a number greater than zero."); setEditLoading(false); return }
-    if (!editForm.paymentMethod) { setEditError("Choose payment method"); toastFormGuide(toast, "Select how this was paid (cash, mobile money, bank, etc.)."); setEditLoading(false); return }
+    if (!editForm.paymentMethod && requiresCashAccount(editForm.paymentStatus)) { setEditError("Choose payment method"); toastFormGuide(toast, "Select how this was paid (cash, mobile money, bank, etc.)."); setEditLoading(false); return }
+
+    // Payment state, checked with the same rules the SQL enforces
+    // (spexpense_insert / spexpense_update, migration 238). A warning here is
+    // informational -- an unpaid expense with no supplier is legitimate, it just
+    // cannot be chased -- so only errors stop the submit.
+    const payment = validateExpensePayment({
+      total: Number(editForm.amount || 0),
+      status: editForm.paymentStatus,
+      amountPaid: Number(editForm.amountPaid || 0),
+      paymentMethod: editForm.paymentMethod,
+      cashAccountId: editForm.poultryCashAccountId ? Number(editForm.poultryCashAccountId) : null,
+      supplierId: editForm.supplierId ? Number(editForm.supplierId) : null,
+    })
+    if (!payment.ok) {
+      const first = payment.errors[0]
+      setEditError(first.message); toastFormGuide(toast, first.message); setEditLoading(false); return
+    }
 
     let descriptionOut = editForm.description.trim()
     if (editReceiptFile) {
@@ -369,7 +485,13 @@ export default function ExpensesPage() {
       expenseDate: editForm.expenseDate + "T00:00:00Z",
       category: editForm.category, description: descriptionOut,
       amount: Number(editForm.amount), paymentMethod: editForm.paymentMethod,
-      poultryCashAccountId: editForm.poultryCashAccountId ? Number(editForm.poultryCashAccountId) : null,
+      poultryCashAccountId:
+        requiresCashAccount(editForm.paymentStatus) && editForm.poultryCashAccountId
+          ? Number(editForm.poultryCashAccountId)
+          : null,
+      supplierId: editForm.supplierId ? Number(editForm.supplierId) : null,
+      amountPaid: amountPaidForStatus(editForm.paymentStatus, Number(editForm.amount || 0), Number(editForm.amountPaid || 0)),
+      dueDate: editForm.dueDate || null,
     }
     const result = await updateExpense(editingExpenseId, expense)
     if (result.success) {
@@ -417,6 +539,55 @@ export default function ExpensesPage() {
   }
 
   const formatCurrency = (amount: number) => fmtCurrency(amount)
+
+  const cashAccountName = (id?: number | null) =>
+    id ? (cashAccounts.find((a) => a.poultryCashAccountId === id)?.accountName ?? `Account #${id}`) : "—"
+
+  /** Past its due date and still owing. A settled bill is never overdue. */
+  const isOverdue = (e: Expense) =>
+    !!e.dueDate && e.balance > 0 && new Date(e.dueDate) < new Date(new Date().toDateString())
+
+  const renderPaymentStatus = (e: Expense) => {
+    if (e.paymentStatus === "NonCash") {
+      return <Badge variant="outline" className="border-slate-300 text-slate-600">Non-cash</Badge>
+    }
+    if (e.balance <= 0) {
+      return <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">Paid</Badge>
+    }
+    if (isOverdue(e)) {
+      return <Badge className="bg-red-100 text-red-800 hover:bg-red-100">Overdue</Badge>
+    }
+    if (e.amountPaid > 0) {
+      return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">Partially paid</Badge>
+    }
+    return <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">Unpaid</Badge>
+  }
+
+  /**
+   * An expense, in the shape the Supplier Balances payment dialog speaks.
+   *
+   * Nothing is invented here: every field is already on the row, because
+   * migration 238 made an expense a payable document like any other. That is
+   * what lets this page reuse the dialog instead of growing one of its own.
+   */
+  const asOpenDocument = (e: Expense): OpenDocumentRow => ({
+    documentType: "Expense",
+    documentId: e.expenseId,
+    reference: `E${e.expenseId}`,
+    documentDate: e.expenseDate,
+    label: stripReceiptSuffixFromDescription(e.description || "") || e.category,
+    totalAmount: e.amount,
+    amountPaid: e.amountPaid,
+    balance: e.balance,
+    dueDate: e.dueDate ?? null,
+    ageDays: Math.max(
+      Math.floor((Date.now() - new Date(e.expenseDate).getTime()) / 86_400_000),
+      0,
+    ),
+    status: e.paymentStatus,
+    isOverdue: isOverdue(e),
+    cashAccountId: e.poultryCashAccountId ?? null,
+  })
 
   const getCategoryColor = (category: string) => {
     const colors: { [key: string]: string } = {
@@ -511,7 +682,8 @@ export default function ExpensesPage() {
       cashAccountFilter === "all" ? true
       : cashAccountFilter === "none" ? expense.poultryCashAccountId == null
       : String(expense.poultryCashAccountId ?? "") === cashAccountFilter
-    return matchesSearch && matchesFromDate && matchesToDate && flockOk && monthOk && catOk && linkOk
+    const focusOk = focusExpenseId === null || expense.expenseId === focusExpenseId
+    return matchesSearch && matchesFromDate && matchesToDate && flockOk && monthOk && catOk && linkOk && focusOk
   })
 
   const thisMonthTotal = expenses
@@ -526,6 +698,9 @@ export default function ExpensesPage() {
   const sortedExpenses = sortData(filteredExpenses, sortKey, sortDir, (item: any, key: string) => {
     if (key === "expenseDate") return new Date(item.expenseDate)
     if (key === "amount") return Number(item.amount) || 0
+    if (key === "amountPaid") return Number(item.amountPaid) || 0
+    if (key === "balance") return Number(item.balance) || 0
+    if (key === "dueDate") return item.dueDate ? new Date(item.dueDate) : new Date(0)
     if (key === "description") return stripReceiptSuffixFromDescription(item.description || "")
     return (item as any)[key]
   })
@@ -728,6 +903,91 @@ export default function ExpensesPage() {
           </div>
         </div>
       </div>
+      {/* Who this is owed to and how much of it has actually been paid.
+          Separate from "Category & Payment" above, which is about the cost
+          itself: this band is about the DEBT, and it is what decides whether the
+          row shows up on Supplier Balances. */}
+      <div className="rounded-xl border border-slate-200 overflow-hidden">
+        <div className="bg-sky-600 px-4 py-2 text-sm font-semibold text-white">Supplier &amp; Payment Status</div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-white">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-slate-700">Supplier / Paid To</Label>
+            <Select
+              value={form.supplierId || "none"}
+              onValueChange={(v) => setForm({ ...form, supplierId: v === "none" ? "" : v })}
+              disabled={isLoading}
+            >
+              <SelectTrigger><SelectValue placeholder="Not linked to a supplier" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Not linked to a supplier</SelectItem>
+                {suppliers.map((sup) => (
+                  <SelectItem key={sup.supplierId} value={String(sup.supplierId)}>{sup.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-slate-700">Payment Status *</Label>
+            <Select
+              value={form.paymentStatus}
+              onValueChange={(v) => setForm({ ...form, paymentStatus: v as SelectablePaymentStatus })}
+              disabled={isLoading}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {SELECTABLE_PAYMENT_STATUSES.map((st) => (
+                  <SelectItem key={st} value={st}>{PAYMENT_STATUS_LABELS[st]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-slate-700">
+              Amount Paid {form.paymentStatus === "PartiallyPaid" ? "*" : ""}
+            </Label>
+            <NumberInput
+              step="0.01" min="0"
+              value={form.paymentStatus === "PartiallyPaid" ? form.amountPaid : (form.paymentStatus === "Paid" ? form.amount : "0")}
+              onChange={(e) => setForm({ ...form, amountPaid: e.target.value })}
+              placeholder="0.00"
+              // Only meaningful for a part payment. For Paid and Unpaid the
+              // number is decided by the status, and letting it be typed would
+              // invite the two to disagree.
+              disabled={isLoading || form.paymentStatus !== "PartiallyPaid"}
+              className="max-w-[200px]"
+            />
+            <div className="text-xs text-slate-500">
+              Balance: {formatCurrency(Math.max(
+                Number(form.amount || 0) -
+                  (form.paymentStatus === "Paid"
+                    ? Number(form.amount || 0)
+                    : form.paymentStatus === "Unpaid"
+                      ? 0
+                      : Number(form.amountPaid || 0)),
+                0,
+              ))}
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-slate-700">Due Date</Label>
+            <Input
+              type="date" value={form.dueDate}
+              onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+              disabled={isLoading || form.paymentStatus === "Paid"}
+            />
+            <div className="text-xs text-slate-500">Overrides the supplier&apos;s payment terms.</div>
+          </div>
+          {form.paymentStatus !== "Paid" && !form.supplierId && (
+            <div className="md:col-span-2 self-end">
+              <Alert>
+                <AlertDescription className="text-sm">
+                  Select a supplier if you want this unpaid expense to appear in Supplier Balances.
+                </AlertDescription>
+              </Alert>
+            </div>
+          )}
+        </div>
+      </div>
       <div className="rounded-xl border border-slate-200 overflow-hidden">
         <div className="bg-amber-600 px-4 py-2 text-sm font-semibold text-white">Description</div>
         <div className="p-4 bg-white space-y-4">
@@ -795,6 +1055,16 @@ export default function ExpensesPage() {
                 <Plus className="w-4 h-4" /> Add Expense
               </Button>
             </div>
+            {focusExpenseId && (
+              // Arriving from a link that narrows the list has to SAY it does,
+              // or the page looks like it lost every other expense.
+              <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-sky-900">
+                <span>Showing expense #{focusExpenseId} only.</span>
+                <Button variant="outline" size="sm" className="h-8" onClick={() => router.push("/expenses")}>
+                  Show all expenses
+                </Button>
+              </div>
+            )}
 
             {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
 
@@ -1144,16 +1414,24 @@ export default function ExpensesPage() {
                       and absorbs whatever is left, so the widths can never add up
                       to more than the table and squeeze cells into each other.
                       Below the min width the wrapper scrolls instead. */}
-                  <Table className="table-fixed w-full min-w-[900px]">
+                  {/* Fixed columns now total 1300px, so the min width grows with
+                      them and the wrapper scrolls rather than crushing cells. */}
+                  <Table className="table-fixed w-full min-w-[1500px]">
                     <TableHeader>
                       <TableRow>
                         <SortableHeader label="Date" sortKey="expenseDate" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("w-[100px]", isMobile && "sticky-col-date bg-slate-50")} />
                         <SortableHeader label="Description" sortKey="description" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-auto min-w-0" />
                         <SortableHeader label="Category" sortKey="category" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[150px]" />
-                        <SortableHeader label="Amount" sortKey="amount" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[130px] text-right whitespace-nowrap" />
-                        <SortableHeader label="Payment Method" sortKey="paymentMethod" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[130px]" />
-                        <SortableHeader label="Paid To" sortKey="paidTo" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[110px] min-w-0" />
-                        <TableHead className={cn("text-right w-[100px] min-w-[100px] whitespace-nowrap", isMobile && "sticky-col-actions bg-slate-50")}>Actions</TableHead>
+                        <SortableHeader label="Supplier / Paid To" sortKey="paidTo" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[140px] min-w-0" />
+                        <SortableHeader label="Total" sortKey="amount" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[110px] text-right whitespace-nowrap" />
+                        <SortableHeader label="Paid" sortKey="amountPaid" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[110px] text-right whitespace-nowrap" />
+                        <SortableHeader label="Balance" sortKey="balance" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[110px] text-right whitespace-nowrap" />
+                        <SortableHeader label="Status" sortKey="paymentStatus" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[120px]" />
+                        <SortableHeader label="Method" sortKey="paymentMethod" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[120px]" />
+                        <TableHead className="w-[130px]">Cash account</TableHead>
+                        <SortableHeader label="Due" sortKey="dueDate" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[100px] whitespace-nowrap" />
+                        <TableHead className="w-[110px]">Source</TableHead>
+                        <TableHead className={cn("text-right w-[160px] min-w-[160px] whitespace-nowrap", isMobile && "sticky-col-actions bg-slate-50")}>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1190,9 +1468,25 @@ export default function ExpensesPage() {
                               ("Raw Materials / Inventory Purchase") renders past this
                               fixed-width cell and over the Amount column. Let it wrap. */}
                           <TableCell className="align-top min-w-0"><Badge className={cn("whitespace-normal break-words shrink max-w-full text-left", getCategoryColor(expense.category))}>{expense.category}</Badge></TableCell>
+                          <TableCell className="text-slate-600 min-w-0 wrap-anywhere align-top overflow-hidden">
+                            {expense.supplierName || expense.paidTo || "N/A"}
+                          </TableCell>
                           <TableCell className="text-right font-medium whitespace-nowrap align-top">{formatCurrency(expense.amount)}</TableCell>
+                          <TableCell className="text-right whitespace-nowrap align-top text-slate-600">{formatCurrency(expense.amountPaid)}</TableCell>
+                          <TableCell className={cn("text-right whitespace-nowrap align-top font-medium", expense.balance > 0 ? "text-amber-700" : "text-slate-400")}>
+                            {formatCurrency(expense.balance)}
+                          </TableCell>
+                          <TableCell className="align-top">{renderPaymentStatus(expense)}</TableCell>
                           <TableCell className="align-top"><Badge variant="outline">{expense.paymentMethod || "N/A"}</Badge></TableCell>
-                          <TableCell className="text-slate-600 min-w-0 wrap-anywhere align-top overflow-hidden">{expense.paidTo || "N/A"}</TableCell>
+                          <TableCell className="align-top text-slate-600 text-sm min-w-0 wrap-anywhere">
+                            {cashAccountName(expense.poultryCashAccountId)}
+                          </TableCell>
+                          <TableCell className={cn("align-top whitespace-nowrap text-sm", isOverdue(expense) ? "text-red-600 font-medium" : "text-slate-600")}>
+                            {expense.dueDate ? formatDateShort(expense.dueDate) : "—"}
+                          </TableCell>
+                          <TableCell className="align-top text-slate-500 text-xs min-w-0 wrap-anywhere">
+                            {expenseSourceLabel(expense.sourceType)}
+                          </TableCell>
                           <TableCell className={cn("text-right whitespace-nowrap bg-white", isMobile && "sticky-col-actions")}>
                             <div className="flex items-center justify-end gap-2 min-w-[80px]">
                               {(() => {
@@ -1207,6 +1501,30 @@ export default function ExpensesPage() {
                                   </Button>
                                 )
                               })()}
+                              {/* Record payment only where there is something to
+                                  pay and someone to pay it to -- the same three
+                                  conditions fnpoultrypayables applies. */}
+                              {canPayExpense && isPayableExpense(expense) && (
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-emerald-700 hover:bg-emerald-50"
+                                  title="Record a payment against this expense"
+                                  onClick={() => setPayFor(expense)}>
+                                  <Banknote className="w-4 h-4" />
+                                </Button>
+                              )}
+                              {expense.amountPaid > 0 && (
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0"
+                                  title="Payments applied to this expense"
+                                  onClick={() => setHistoryFor(expense)}>
+                                  <History className="w-4 h-4" />
+                                </Button>
+                              )}
+                              {expense.supplierId && (
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0"
+                                  title="Open this supplier's balance"
+                                  onClick={() => router.push("/supplier-balances")}>
+                                  <Truck className="w-4 h-4" />
+                                </Button>
+                              )}
                               <Button variant="ghost" size="sm"
                                 onClick={() => openConfirmDelete((expense as any).expenseId ?? (expense as any).ExpenseId ?? (expense as any).id ?? (expense as any).Id, expense.farmId, stripReceiptSuffixFromDescription(expense.description || ""))}
                                 className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50">
@@ -1361,6 +1679,56 @@ export default function ExpensesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Paying a bill and reading what has been paid against it. Both are the
+          Supplier Balances components: an expense is a payable document now, so
+          it needs no bespoke dialog of its own. */}
+      {payFor && (
+        <RecordPaymentDialog
+          open={!!payFor}
+          onOpenChange={(open) => { if (!open) setPayFor(null) }}
+          module="poultry"
+          side="supplier"
+          // Only the id and the name are read; the rollup fields belong to the
+          // balances page and are not known (or needed) from a single bill.
+          party={{
+            partyId: payFor.supplierId!,
+            partyName: payFor.supplierName ?? payFor.paidTo ?? "Supplier",
+            paymentTermsDays: 0,
+            totalBalance: payFor.balance,
+            openDocumentCount: 1,
+            overdueAmount: isOverdue(payFor) ? payFor.balance : 0,
+            totalInvoiced: payFor.amount,
+            totalPaid: payFor.amountPaid,
+          }}
+          singleDocument={asOpenDocument(payFor)}
+          cashAccounts={cashAccounts
+            .filter((a) => a.isActive)
+            .map<CashAccountOption>((a) => ({
+              id: a.poultryCashAccountId,
+              name: a.accountName,
+              currentBalance: a.currentBalance,
+              allowNegativeBalance: a.allowNegativeBalance,
+            }))}
+          sourceType="ExpenseEntry"
+          onPosted={() => { setPayFor(null); loadExpenses() }}
+        />
+      )}
+
+      {historyFor && (
+        <PaymentHistoryDialog
+          open={!!historyFor}
+          onOpenChange={(open) => { if (!open) setHistoryFor(null) }}
+          module="poultry"
+          side="supplier"
+          partyId={historyFor.supplierId ?? null}
+          partyName={historyFor.supplierName ?? historyFor.paidTo ?? null}
+          documentType="Expense"
+          documentId={historyFor.expenseId}
+          canReverse={canReverseExpense}
+          onReversed={() => loadExpenses()}
+        />
+      )}
     </div>
   )
 }

@@ -75,6 +75,8 @@ const WATER_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAdmin: 
   // the page, on water.customer-payments.create / water.supplier-payments.create.
   "/water-customer-balances": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canEnterSales || f.canViewCustomers,
   "/water-supplier-balances": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canEnterExpenses || f.canViewCustomers,
+  // Same audience as Supplier Balances: the paid side of the same ledger.
+  "/water-supplier-payments": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canEnterExpenses || f.canViewCustomers,
   "/water-customers": (f, isAdmin) => isAdmin || f.canViewCustomers || f.canViewFinancial || f.canEnterSales,
   "/water-suppliers": (f, isAdmin) => isAdmin || f.canViewCustomers || f.canViewFinancial || f.canEnterSales,
 

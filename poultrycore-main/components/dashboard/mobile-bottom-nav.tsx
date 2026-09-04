@@ -156,6 +156,7 @@ export function MobileBottomNav() {
           { href: "/water-payments",      label: "Payments",          icon: CreditCard },
           { href: "/water-customer-balances", label: "Customer Balances", icon: Users },
           { href: "/water-supplier-balances", label: "Supplier Balances", icon: Truck },
+          { href: "/water-supplier-payments", label: "Supplier Payments", icon: Receipt },
           { href: "/water-expenses",      label: "Expenses",          icon: Receipt },
           { href: "/water-cash-flow",     label: "Cash Flow",         icon: Wallet },
           { href: "/water-cash-accounts", label: "Cash accounts",     icon: Wallet },
@@ -342,6 +343,7 @@ export function MobileBottomNav() {
       { href: "/poultry-payments",       label: "Payments received",      icon: CreditCard },
       { href: "/customer-balances",      label: "Customer Balances",      icon: Users },
       { href: "/supplier-balances",      label: "Supplier Balances",      icon: Truck },
+      { href: "/supplier-payments",      label: "Supplier Payments",      icon: Receipt },
       { href: "/expenses",               label: "Expenses",               icon: DollarSign },
       { href: "/billing",                label: "Billing",                icon: CreditCard },
       // Finance — Customers and Suppliers sit together here, matching the
@@ -366,7 +368,7 @@ export function MobileBottomNav() {
         ? [{ href: "/employees", label: "Employees", icon: UserCog }] : []),
     ]
     const filteredPoultryMore = poultryMore.filter((item) => {
-      if (["/sales", "/expenses", "/cash-flow", "/cash", "/customers", "/suppliers", "/billing", "/poultry-cash-accounts", "/poultry-cash-reconciliation", "/poultry-payments", "/customer-balances", "/supplier-balances"].includes(item.href)) {
+      if (["/sales", "/expenses", "/cash-flow", "/cash", "/customers", "/suppliers", "/billing", "/poultry-cash-accounts", "/poultry-cash-reconciliation", "/poultry-payments", "/customer-balances", "/supplier-balances", "/supplier-payments"].includes(item.href)) {
         return isFinancialNavItemVisible(item.href, permissions.featureAccess, permissions.isAdmin, {
           tempShowPayments: TEMP_SHOW_PAYMENTS_LINK,
         })

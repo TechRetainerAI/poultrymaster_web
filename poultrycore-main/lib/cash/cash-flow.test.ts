@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   buildCashFlowInsights, cashAccountsForPeriod, cashByAccount, cashFlowTotals, cashIdentity,
-  categoryLabel, calculatedCashAtHand, excludeTransfers, flowLabel, groupByFlow,
+  categoryLabel, calculatedCashAtHand, excludeTransfers, flowLabel, groupByFlow, sourceTypeLabel,
   isInternalTransfer, ledgerFromParam, ledgerToParam, summariseTransfers, withinRange,
   type AccountStatusEntry, type CashAccountSeed, type LedgerEntry, type TransferEntry,
 } from "./cash-flow"
@@ -99,7 +99,7 @@ describe("excludeTransfers", () => {
 
 describe("flowLabel", () => {
   it("gives sourceTypes owner-facing names", () => {
-    expect(flowLabel("Sale", null).label).toBe("Sales collected")
+    expect(flowLabel("Sale", null).label).toBe("Sales")
     expect(flowLabel("RawMaterialPurchase", null).label).toBe("Raw materials")
     expect(flowLabel("PoultrySupplierPayment", null).label).toBe("Supplier payments")
   })
@@ -142,7 +142,7 @@ describe("groupByFlow", () => {
   it("groups inflows by source, largest first, transfers excluded", () => {
     const buckets = groupByFlow(ROWS, "in")
     expect(buckets.map((b) => b.label)).toEqual([
-      "Sales collected", "Owner contribution", "Other income",
+      "Sales", "Owner contribution", "Other income",
     ])
     expect(buckets[0].amount).toBe(16500)
     expect(buckets[0].count).toBe(2)
@@ -476,13 +476,13 @@ describe("buildCashFlowInsights", () => {
   })
 
   it("warns when one source dominates income", () => {
-    const topIn = { key: "Sale", label: "Sales collected", amount: 18000, count: 3, percent: 92 }
+    const topIn = { key: "Sale", label: "Sales", amount: 18000, count: 3, percent: 92 }
     const ids = buildCashFlowInsights({ ...BASE, topIn }, money).map((i) => i.id)
     expect(ids).toContain("in-concentration")
   })
 
   it("stays quiet about concentration when income is spread", () => {
-    const topIn = { key: "Sale", label: "Sales collected", amount: 100, count: 1, percent: 35 }
+    const topIn = { key: "Sale", label: "Sales", amount: 100, count: 1, percent: 35 }
     const ids = buildCashFlowInsights({ ...BASE, topIn }, money).map((i) => i.id)
     expect(ids).not.toContain("in-concentration")
   })
@@ -503,11 +503,42 @@ describe("buildCashFlowInsights", () => {
   it("never returns more than six", () => {
     const insights = buildCashFlowInsights({
       ...BASE,
-      topIn: { key: "Sale", label: "Sales collected", amount: 18000, count: 3, percent: 92 },
+      topIn: { key: "Sale", label: "Sales", amount: 18000, count: 3, percent: 92 },
       topOut: { key: "Expense", label: "Expenses paid", amount: 21500, count: 5, percent: 88 },
       weOweSuppliers: 99999, customersOwe: 99999,
     }, money)
     expect(insights.length).toBeLessThanOrEqual(6)
+  })
+})
+
+describe("sourceTypeLabel", () => {
+  it("uses the same words GET /Cash returns, so both pages name a movement alike", () => {
+    // CashController.cs:74,93 and FormatAdjustmentType at :189.
+    expect(sourceTypeLabel("Sale")).toBe("Sale")
+    expect(sourceTypeLabel("Expense")).toBe("Expense")
+    expect(sourceTypeLabel("OwnerInjection")).toBe("Owner injection")
+    expect(sourceTypeLabel("LoanReceived")).toBe("Loan received")
+    expect(sourceTypeLabel("OpeningBalance")).toBe("Opening Balance")
+  })
+
+  it("calls a customer receipt a Sale, because the Cash page does", () => {
+    // The cash-flow SPs separate a receipt from the sale that created it
+    // (235:117); GET /Cash does not (CashController.cs:74). A column whose job is
+    // to match the Cash page matches it — Category still tells the two apart.
+    expect(sourceTypeLabel("CustomerPayment")).toBe("Sale")
+    expect(sourceTypeLabel("Sale")).toBe("Sale")
+  })
+
+  it("says something different from categoryLabel for the same row", () => {
+    // Adjacent columns: this says what the row IS, categoryLabel what it was FOR.
+    expect(sourceTypeLabel("Expense")).toBe("Expense")
+    expect(categoryLabel("Expense")).toBe("Expenses paid")
+  })
+
+  it("title-cases an unknown type rather than dropping it", () => {
+    expect(sourceTypeLabel("DriverReturn")).toBe("Driver Return")
+    expect(sourceTypeLabel(null)).toBe("—")
+    expect(sourceTypeLabel("  ")).toBe("—")
   })
 })
 

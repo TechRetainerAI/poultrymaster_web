@@ -25,7 +25,7 @@ export default function HotelPaymentsPage() {
   const [items, setItems] = useState<HotelPayment[]>([]); const [bookings, setBookings] = useState<HotelBooking[]>([]); const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false); const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({ hotelBookingId: 0, amount: 0, paymentMethod: "Cash", reference: "", notes: "" })
-  const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(20); const [totalItems, setTotalItems] = useState(0)
+  const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(10); const [totalItems, setTotalItems] = useState(0)
 
   useEffect(() => { if (!activeFarmType) return; if (activeFarmType !== "Hotel") { router.replace("/dashboard"); return }; load() }, [activeFarmType, router, page, pageSize])
   async function load() { setLoading(true); try { const [pr, b] = await Promise.all([listHotelPaymentsPaged(page, pageSize), listHotelBookings()]); setItems(pr.data); setTotalItems(pr.total); setBookings(b.filter((x) => x.status === "CheckedIn" || x.status === "Confirmed")) } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) } finally { setLoading(false) } }

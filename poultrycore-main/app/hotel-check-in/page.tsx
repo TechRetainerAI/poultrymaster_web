@@ -38,7 +38,7 @@ export default function HotelCheckInPage() {
   const [allPayments, setAllPayments] = useState<HotelPayment[]>([])
   const [loading, setLoading] = useState(true); const [tab, setTab] = useState("awaiting")
   const [search, setSearch] = useState("")
-  const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(20)
+  const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(10)
 
   // Check-in dialog
   const [dialogOpen, setDialogOpen] = useState(false); const [selected, setSelected] = useState<HotelBooking | null>(null)

@@ -372,6 +372,13 @@ export interface WaterExpense {
   // RawMaterialPurchase, ProductionBatch). Powers the clickable Source column.
   sourceType?: "Payroll" | "RawMaterialPurchase" | "ProductionBatch" | string | null
   sourceId?: number | null
+  // Migration 240 — payment state. amountPaid arrives RESOLVED: a bill with
+  // nothing recorded reads as paid in full unless its paymentMethod is Credit,
+  // the rule 047 set and migration 236 already relies on.
+  amountPaid: number
+  balance: number
+  paymentStatus?: "Paid" | "PartiallyPaid" | "Unpaid" | "NonCash" | "Cancelled" | string | null
+  dueDate?: string | null
   status: "Draft" | "Submitted" | "Approved" | "Rejected" | "Cancelled" | string
   notes?: string | null
   createdBy?: string | null
@@ -513,6 +520,22 @@ export const getWaterExpense = (id: number) =>
 
 export const createWaterExpense = (input: WaterExpenseInput) =>
   jsend<WaterExpense>(`/Water/expenses`, "POST", { ...input, farmId: activeFarmId(), createdBy: currentUserId() || null })
+
+/**
+ * Set how much of a bill has been paid, and when it falls due.
+ *
+ * `amountPaid: null` means paid in full — NOT zero, which would mean the whole
+ * bill is still owed. Call after creating or editing the expense.
+ */
+export const setWaterExpensePayment = (
+  id: number,
+  input: { amountPaid: number | null; dueDate: string | null },
+) =>
+  jsend<WaterExpense>(
+    `/Water/expenses/${id}/payment?farmId=${encodeURIComponent(activeFarmId())}`,
+    "POST",
+    input,
+  )
 
 export const submitWaterExpense = (id: number) =>
   jsend<void>(`/Water/expenses/${id}/submit?farmId=${encodeURIComponent(activeFarmId())}`, "POST")

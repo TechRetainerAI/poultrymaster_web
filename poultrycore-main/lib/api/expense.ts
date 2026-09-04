@@ -1,6 +1,7 @@
 // API utility functions for Expense management
 
 import { farmApiUrl, getAuthHeaders } from "./config"
+import { derivePaymentStatus } from "@/lib/expenses/payment-status"
 
 export interface Expense {
   farmId: string
@@ -19,7 +20,27 @@ export interface Expense {
   paidTo?: string
   /** Receipt bytes stored on row; use GET …/attachment or /api/expense-image */
   hasAttachmentImage?: boolean
+
+  // --- payment state (migration 238) ---------------------------------------
+  /** The supplier this is owed to. `paidTo` stays the display name; this is what
+   * makes the row a payable, so an unpaid expense without it never reaches
+   * Supplier Balances. */
+  supplierId?: number | null
+  supplierName?: string | null
+  /** Always resolved by the API: a fully paid expense reports amountPaid ===
+   * amount, never null. */
+  amountPaid: number
+  /** amount − amountPaid, never negative. */
+  balance: number
+  paymentStatus: ExpensePaymentStatus
+  dueDate?: string | null
+  /** Which workflow created the row. Null means entered by hand. */
+  sourceType?: string | null
+  sourceId?: number | null
 }
+
+/** Generated in SQL from the amounts, so it cannot disagree with them. */
+export type ExpensePaymentStatus = "Paid" | "PartiallyPaid" | "Unpaid" | "NonCash"
 
 export interface ExpenseInput {
   farmId: string
@@ -36,6 +57,14 @@ export interface ExpenseInput {
   poultryCashAccountId?: number | null
   createdDate?: string
   supplier?: string
+  /** The supplier this expense is owed to. Required for an unpaid expense to
+   * appear on Supplier Balances. */
+  supplierId?: number | null
+  /** Cash paid so far. Omit or send null to mean "paid in full" — that is the
+   * shape every expense written before migration 238 has, and sending 0 instead
+   * would silently turn a paid expense into a payable. */
+  amountPaid?: number | null
+  dueDate?: string | null
   /** Base64 payload only (no data URL prefix). API maps to byte[]. */
   attachmentImage?: string | null
   attachmentContentType?: string | null
@@ -70,6 +99,18 @@ function normalizeExpense(x: any, fallbackUserId?: string): Expense {
   const rawHas = x?.hasAttachmentImage ?? x?.HasAttachmentImage
   const hasAttachmentImage =
     rawHas === true || rawHas === 1 || String(rawHas).toLowerCase() === "true"
+  const amount = Number(x.amount ?? x.Amount ?? 0)
+  // A backend that has not had migration 238 applied returns none of the payment
+  // fields. Falling back to "paid in full" keeps such a farm rendering exactly as
+  // it does today rather than showing every expense as an unpaid debt.
+  const rawPaid = x.amountPaid ?? x.AmountPaid
+  const amountPaid = rawPaid === undefined || rawPaid === null ? amount : Number(rawPaid)
+  const rawBalance = x.balance ?? x.Balance
+  const balance =
+    rawBalance === undefined || rawBalance === null
+      ? Math.max(amount - amountPaid, 0)
+      : Number(rawBalance)
+  const paymentMethod = x.paymentMethod ?? x.PaymentMethod ?? ""
   return {
     farmId: x.farmId ?? x.FarmId ?? "",
     userId: x.userId ?? x.UserId ?? fallbackUserId ?? "",
@@ -77,14 +118,30 @@ function normalizeExpense(x: any, fallbackUserId?: string): Expense {
     expenseDate: x.expenseDate ?? x.ExpenseDate,
     category: x.category ?? x.Category ?? "",
     description: x.description ?? x.Description ?? "",
-    amount: Number(x.amount ?? x.Amount ?? 0),
-    paymentMethod: x.paymentMethod ?? x.PaymentMethod ?? "",
+    amount,
+    paymentMethod,
     flockId: Number(x.flockId ?? x.FlockId ?? 0),
     poultryCashAccountId: (x.poultryCashAccountId ?? x.PoultryCashAccountId) ?? null,
     createdDate: x.createdDate ?? x.CreatedDate,
     notes: x.notes ?? x.Notes,
     paidTo: x.paidTo ?? x.PaidTo ?? x.supplier ?? x.Supplier,
     hasAttachmentImage,
+    supplierId: (x.supplierId ?? x.SupplierId) ?? null,
+    supplierName: (x.supplierName ?? x.SupplierName) ?? null,
+    amountPaid,
+    balance,
+    paymentStatus:
+      (x.paymentStatus ?? x.PaymentStatus) ??
+      (paymentMethod === "NonCash"
+        ? "NonCash"
+        : balance <= 0
+          ? "Paid"
+          : amountPaid > 0
+            ? "PartiallyPaid"
+            : "Unpaid"),
+    dueDate: (x.dueDate ?? x.DueDate) ?? null,
+    sourceType: (x.sourceType ?? x.SourceType) ?? null,
+    sourceId: (x.sourceId ?? x.SourceId) ?? null,
   }
 }
 
@@ -282,6 +339,18 @@ export async function createExpense(expense: ExpenseInput): Promise<ApiResponse<
     if (expense.supplier !== undefined) {
       requestBody.supplier = expense.supplier
     }
+    if (expense.supplierId !== undefined) {
+      requestBody.supplierId = expense.supplierId
+    }
+    // Sent only when the caller means it. `undefined` leaves the backend on its
+    // "paid in full" default; an explicit null says the same thing deliberately.
+    // Sending 0 by accident would turn a paid expense into an unpaid payable.
+    if (expense.amountPaid !== undefined) {
+      requestBody.amountPaid = expense.amountPaid
+    }
+    if (expense.dueDate !== undefined) {
+      requestBody.dueDate = expense.dueDate
+    }
     if (expense.attachmentImage && expense.attachmentContentType) {
       requestBody.attachmentImage = expense.attachmentImage
       requestBody.attachmentContentType = expense.attachmentContentType
@@ -341,6 +410,10 @@ export async function updateExpense(id: number, expense: Partial<ExpenseInput>):
     if (expense.poultryCashAccountId !== undefined) requestBody.poultryCashAccountId = expense.poultryCashAccountId
     if (expense.createdDate) requestBody.createdDate = expense.createdDate
     if (expense.supplier !== undefined) requestBody.supplier = expense.supplier
+    if (expense.supplierId !== undefined) requestBody.supplierId = expense.supplierId
+    // See createExpense: undefined means "don't touch", null means "paid in full".
+    if (expense.amountPaid !== undefined) requestBody.amountPaid = expense.amountPaid
+    if (expense.dueDate !== undefined) requestBody.dueDate = expense.dueDate
 
     if (expense.setAttachmentImage === true) {
       requestBody.setAttachmentImage = true
@@ -385,6 +458,21 @@ export async function updateExpense(id: number, expense: Partial<ExpenseInput>):
         paymentMethod: expense.paymentMethod ?? "",
         flockId: Number(expense.flockId ?? 0),
         createdDate: expense.createdDate ?? "",
+        // A 204 returns no body, so this echoes back what was sent. amountPaid
+        // is undefined when the caller did not touch it, and undefined means
+        // "paid in full" — the same reading normalizeExpense applies.
+        supplierId: expense.supplierId ?? null,
+        amountPaid: expense.amountPaid ?? Number(expense.amount ?? 0),
+        balance: Math.max(
+          Number(expense.amount ?? 0) - (expense.amountPaid ?? Number(expense.amount ?? 0)),
+          0,
+        ),
+        paymentStatus: derivePaymentStatus(
+          Number(expense.amount ?? 0),
+          expense.amountPaid ?? Number(expense.amount ?? 0),
+          expense.paymentMethod,
+        ),
+        dueDate: expense.dueDate ?? null,
       }
       if (expense.setAttachmentImage === true) {
         synthetic.hasAttachmentImage = Boolean(expense.attachmentImage && expense.attachmentContentType)

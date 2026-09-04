@@ -19,7 +19,7 @@ export default function HotelStayHistoryPage() {
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const [checkins, setCheckins] = useState<any[]>([]); const [checkouts, setCheckouts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState(""); const [page, setPage] = useState(1); const pageSize = 20
+  const [search, setSearch] = useState(""); const [page, setPage] = useState(1); const pageSize = 10
 
   useEffect(() => { if (!activeFarmType) return; if (activeFarmType !== "Hotel") { router.replace("/dashboard"); return }; load() }, [activeFarmType, router])
   async function load() { setLoading(true); try { const [ci, co] = await Promise.all([listCheckInHistory(), listCheckOutHistory()]); setCheckins(ci); setCheckouts(co) } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) } finally { setLoading(false) } }

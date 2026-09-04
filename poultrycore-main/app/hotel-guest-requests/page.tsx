@@ -26,7 +26,7 @@ export default function HotelGuestRequestsPage() {
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const [items, setItems] = useState<any[]>([]); const [bookings, setBookings] = useState<HotelBooking[]>([]); const [rooms, setRooms] = useState<HotelRoom[]>([])
   const [loading, setLoading] = useState(true); const [statusFilter, setStatusFilter] = useState("ALL")
-  const [search, setSearch] = useState(""); const [page, setPage] = useState(1); const pageSize = 20
+  const [search, setSearch] = useState(""); const [page, setPage] = useState(1); const pageSize = 10
   const [open, setOpen] = useState(false); const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({ hotelBookingId: null as number | null, hotelRoomId: null as number | null, requestType: "Other", description: "", scheduledTime: "", assignedTo: "", notes: "" })
 
