@@ -23,7 +23,6 @@ import {
   SELECTABLE_PAYMENT_STATUSES,
   PAYMENT_STATUS_LABELS,
   amountPaidForStatus,
-  expenseSourceLabel,
   isPayableExpense,
   requiresCashAccount,
   validateExpensePayment,
@@ -539,9 +538,6 @@ function ExpensesPageInner() {
   }
 
   const formatCurrency = (amount: number) => fmtCurrency(amount)
-
-  const cashAccountName = (id?: number | null) =>
-    id ? (cashAccounts.find((a) => a.poultryCashAccountId === id)?.accountName ?? `Account #${id}`) : "—"
 
   /** Past its due date and still owing. A settled bill is never overdue. */
   const isOverdue = (e: Expense) =>
@@ -1410,13 +1406,22 @@ function ExpensesPageInner() {
                         </Button>
                       </div>
                     )}
-                  {/* Fixed columns total 720px; Description is the one auto column
-                      and absorbs whatever is left, so the widths can never add up
-                      to more than the table and squeeze cells into each other.
-                      Below the min width the wrapper scrolls instead. */}
-                  {/* Fixed columns now total 1300px, so the min width grows with
-                      them and the wrapper scrolls rather than crushing cells. */}
-                  <Table className="table-fixed w-full min-w-[1500px]">
+                  {/* KEEP THIS SUM TRUE when you add, remove or resize a column.
+                      Description is the one auto column: under table-fixed it gets
+                      (table width - every fixed width), so the min width below is
+                      the ONLY thing stopping it collapsing. Below it the wrapper
+                      scrolls instead of crushing cells.
+
+                        Date 100 + Category 150 + Supplier 140 + Total 110
+                        + Paid 110 + Balance 110 + Status 120 + Method 120
+                        + Actions 160
+                        = 1120 fixed, + 280 floor for Description = 1400.
+
+                      This drifted twice before: the comment claimed 720 and then
+                      1300 while the columns had grown to 1460, against a 1500 min
+                      width -- which left Description 40px and ran it into
+                      Category. */}
+                  <Table className="table-fixed w-full min-w-[1400px]">
                     <TableHeader>
                       <TableRow>
                         <SortableHeader label="Date" sortKey="expenseDate" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("w-[100px]", isMobile && "sticky-col-date bg-slate-50")} />
@@ -1428,9 +1433,6 @@ function ExpensesPageInner() {
                         <SortableHeader label="Balance" sortKey="balance" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[110px] text-right whitespace-nowrap" />
                         <SortableHeader label="Status" sortKey="paymentStatus" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[120px]" />
                         <SortableHeader label="Method" sortKey="paymentMethod" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[120px]" />
-                        <TableHead className="w-[130px]">Cash account</TableHead>
-                        <SortableHeader label="Due" sortKey="dueDate" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[100px] whitespace-nowrap" />
-                        <TableHead className="w-[110px]">Source</TableHead>
                         <TableHead className={cn("text-right w-[160px] min-w-[160px] whitespace-nowrap", isMobile && "sticky-col-actions bg-slate-50")}>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1441,11 +1443,15 @@ function ExpensesPageInner() {
                         return (
                         <TableRow key={`${expense.expenseId || 'tmp'}-${idx}`}>
                           <TableCell className={cn("font-medium bg-white", isMobile && "sticky-col-date")}>{isMobile ? formatDateShort(expense.expenseDate) : formatDate(expense.expenseDate)}</TableCell>
-                          {/* overflow-hidden clips anything that still escapes, and
-                              wrap-anywhere lets a long unbroken run break mid-word —
-                              break-words alone leaves the intrinsic min-width intact,
-                              which is what let long text reach into Category. */}
-                          <TableCell className="min-w-0 align-top overflow-hidden">
+                          {/* whitespace-normal is doing the real work: TableCell's
+                              base classes set whitespace-nowrap, which INHIBITS
+                              overflow-wrap entirely -- so wrap-anywhere, min-w-0 and
+                              overflow-hidden were all dead letters until this
+                              overrode it. wrap-anywhere then breaks a long unbroken
+                              run mid-word (break-words alone leaves the intrinsic
+                              min-width intact, which is what let long text reach
+                              into Category), and overflow-hidden clips the rest. */}
+                          <TableCell className="min-w-0 align-top overflow-hidden whitespace-normal">
                             <div className="min-w-0">
                               <div className="font-medium flex items-start gap-2 min-w-0">
                                 <span className="min-w-0 wrap-anywhere">{stripReceiptSuffixFromDescription(expense.description || "")}</span>
@@ -1468,7 +1474,7 @@ function ExpensesPageInner() {
                               ("Raw Materials / Inventory Purchase") renders past this
                               fixed-width cell and over the Amount column. Let it wrap. */}
                           <TableCell className="align-top min-w-0"><Badge className={cn("whitespace-normal break-words shrink max-w-full text-left", getCategoryColor(expense.category))}>{expense.category}</Badge></TableCell>
-                          <TableCell className="text-slate-600 min-w-0 wrap-anywhere align-top overflow-hidden">
+                          <TableCell className="text-slate-600 min-w-0 wrap-anywhere whitespace-normal align-top overflow-hidden">
                             {expense.supplierName || expense.paidTo || "N/A"}
                           </TableCell>
                           <TableCell className="text-right font-medium whitespace-nowrap align-top">{formatCurrency(expense.amount)}</TableCell>
@@ -1478,15 +1484,6 @@ function ExpensesPageInner() {
                           </TableCell>
                           <TableCell className="align-top">{renderPaymentStatus(expense)}</TableCell>
                           <TableCell className="align-top"><Badge variant="outline">{expense.paymentMethod || "N/A"}</Badge></TableCell>
-                          <TableCell className="align-top text-slate-600 text-sm min-w-0 wrap-anywhere">
-                            {cashAccountName(expense.poultryCashAccountId)}
-                          </TableCell>
-                          <TableCell className={cn("align-top whitespace-nowrap text-sm", isOverdue(expense) ? "text-red-600 font-medium" : "text-slate-600")}>
-                            {expense.dueDate ? formatDateShort(expense.dueDate) : "—"}
-                          </TableCell>
-                          <TableCell className="align-top text-slate-500 text-xs min-w-0 wrap-anywhere">
-                            {expenseSourceLabel(expense.sourceType)}
-                          </TableCell>
                           <TableCell className={cn("text-right whitespace-nowrap bg-white", isMobile && "sticky-col-actions")}>
                             <div className="flex items-center justify-end gap-2 min-w-[80px]">
                               {(() => {
