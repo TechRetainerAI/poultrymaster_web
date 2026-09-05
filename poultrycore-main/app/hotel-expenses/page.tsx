@@ -50,7 +50,7 @@ export default function HotelExpensesPage() {
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [statusFilter, setStatusFilter] = useState("ALL")
-  const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(20)
+  const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(10)
 
   const [open, setOpen] = useState(false); const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({ category: "", description: "", amount: 0, expenseDate: "", vendor: "", notes: "", paymentMethod: "Cash", hotelCashAccountId: null as number | null, paidTo: "", hotelExpenseCategoryId: null as number | null })

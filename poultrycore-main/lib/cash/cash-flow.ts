@@ -175,12 +175,18 @@ export interface FlowBucket {
  */
 const SOURCE_LABELS: Record<string, string> = {
   // Shared
-  Sale: "Sales collected",
+  Sale: "Sales",
   Expense: "Expenses paid",
   Payroll: "Staff wages",
   RawMaterialPurchase: "Raw materials",
   Adjustment: "Cash account adjustment",
   LegacyAdjustment: "Cash adjustment",
+
+  // A bill that was recorded unpaid and settled later (migration 239). Kept as
+  // its own bucket rather than merged into "Expenses paid", because the whole
+  // point of separating them is that the money moved on a different day from the
+  // one the cost was incurred.
+  ExpensePayment: "Bills paid later",
 
   // Poultry only
   PoultrySupplierPayment: "Supplier payments",
@@ -216,9 +222,11 @@ const SOURCE_LABELS: Record<string, string> = {
   Correction: "Correction",
 
   // ---- Literals already humanised by sppoultrycashflow_detail (233) --------
-  // Mapped anyway so one vocabulary covers both the page and the report, and
-  // "Sales" does not sit beside "Sales collected" on two screens.
-  Sales: "Sales collected",
+  // Mapped anyway so one vocabulary covers both the page and the report, even
+  // where the mapping is now identity: the map is the list of every label this
+  // module can produce, and a missing key reads as an oversight rather than a
+  // decision.
+  Sales: "Sales",
   "Supplier payments": "Supplier payments",
   "Internal transfer": "Internal transfer",
   // Says WHY the bucket exists, which "Uncategorised" alone does not.
@@ -306,6 +314,53 @@ export function withinRange(
   const day = (value ?? "").slice(0, 10)
   if (!day) return false
   return day >= fromDate && day <= toDate
+}
+
+/**
+ * What KIND of transaction a row is — "Sale", "Expense", "Owner injection".
+ *
+ * Deliberately a different vocabulary from categoryLabel, because they answer
+ * different questions and sit in adjacent columns. This says what the row IS;
+ * categoryLabel says what the money was FOR. Printing "Expenses paid" in both
+ * places was the confusion worth removing.
+ *
+ * THE WORDS ARE THE CASH PAGE'S WORDS, EXACTLY.
+ * GET /Cash returns "Sale" (CashController.cs:74), "Expense" (:93) and the
+ * adjustment names from FormatAdjustmentType (:189). This map reproduces that
+ * list so the same movement is never named two different things on two screens.
+ *
+ * That is why CustomerPayment reads "Sale" rather than "Customer payment". The
+ * cash-flow functions do separate a receipt from the sale that created it
+ * (235:117 and 236's equivalent) and the Cash page does not — but a column whose
+ * whole job is to match the Cash page has to match it, and the distinction is
+ * still carried by the Category column beside it.
+ */
+const SOURCE_TYPE_LABELS: Record<string, string> = {
+  Sale: "Sale",
+  // Collapsed into "Sale" on purpose — see above.
+  CustomerPayment: "Sale",
+  Expense: "Expense",
+  // Same KIND of movement as an Expense — this column says what the row is, and
+  // it is money going out on a bill. The Category column beside it still carries
+  // which bill, and the breakdown still separates the two.
+  ExpensePayment: "Expense",
+  Adjustment: "Adjustment",
+
+  // Adjustment types, spelled exactly as FormatAdjustmentType spells them.
+  OpeningBalance: "Opening Balance",
+  OwnerInjection: "Owner injection",
+  LoanReceived: "Loan received",
+  Withdrawal: "Withdrawal",
+  Correction: "Correction",
+}
+
+export function sourceTypeLabel(raw: string | null | undefined): string {
+  const s = (raw ?? "").trim()
+  if (!s) return "—"
+  // An unrecognised source type is title-cased rather than dropped: a type added
+  // to the SQL later should read sensibly, not vanish from a column someone is
+  // scanning.
+  return SOURCE_TYPE_LABELS[s] ?? titleCase(s)
 }
 
 export function categoryLabel(raw: string | null | undefined): string {

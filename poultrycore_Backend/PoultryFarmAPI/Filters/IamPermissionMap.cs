@@ -110,6 +110,26 @@ namespace PoultryFarmAPIWeb.Filters
             ["poultry/staff-attendance"] = "poultry.staff",
             ["poultry/payroll-runs"] = "poultry.payroll",
 
+            // Migrations 222-224 and 238: the balance / payment-allocation pages.
+            // Previously UNMAPPED, which meant IamEnforcementFilter could not say
+            // anything about them at all -- and, with Iam:DenyUnmapped on, would
+            // have refused them outright.
+            //
+            // KNOWN MISMATCH, left as-is deliberately: ResolveAction turns the
+            // /reverse segment into the `approve` action, but 222 seeded the key
+            // as supplier-payments.REVERSE. So reversal resolves to
+            // poultry.supplier-payments.approve, which is not in the catalog.
+            // Harmless while enforcement is in shadow mode (the default); before
+            // Iam:Enforced is switched on, either seed the .approve keys or put
+            // [RequirePermission("poultry.supplier-payments.reverse")] on the two
+            // reverse actions. Doing the latter now would make them the first
+            // hard-enforced endpoints in the API, which is a phase-3 decision.
+            ["poultry/customer-balances"] = "poultry.customer-balances",
+            ["poultry/supplier-balances"] = "poultry.supplier-balances",
+            ["poultry/customer-payments"] = "poultry.customer-payments",
+            ["poultry/supplier-payments"] = "poultry.supplier-payments",
+            ["poultry/balances"] = "poultry.supplier-balances",
+
             // ---- Water --------------------------------------------------------
             ["water/company"] = "office.settings",
             ["water/farm-settings"] = "office.settings",
@@ -147,6 +167,13 @@ namespace PoultryFarmAPIWeb.Filters
             ["water/maintenance-logs"] = "water.maintenance",
             ["water/quality-tests"] = "water.quality-tests",
             ["water/pumping-logs"] = "water.pumping-logs",
+            // Migrations 222/227 -- see the poultry note above, including the
+            // reverse/approve mismatch.
+            ["water/customer-balances"] = "water.customer-balances",
+            ["water/supplier-balances"] = "water.supplier-balances",
+            ["water/customer-payments"] = "water.customer-payments",
+            ["water/supplier-payments"] = "water.supplier-payments",
+            ["water/balances"] = "water.supplier-balances",
             ["water/raw-material-items"] = "water.raw-materials",
             ["water/raw-material-adjustments"] = "water.raw-materials",
             ["water/raw-material-purchases"] = "water.raw-materials",

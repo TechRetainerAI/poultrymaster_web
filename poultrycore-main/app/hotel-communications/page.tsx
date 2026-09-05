@@ -28,7 +28,7 @@ export default function HotelCommunicationsPage() {
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const [items, setItems] = useState<any[]>([]); const [guests, setGuests] = useState<HotelGuest[]>([]); const [bookings, setBookings] = useState<HotelBooking[]>([])
   const [loading, setLoading] = useState(true); const [statusFilter, setStatusFilter] = useState("ALL")
-  const [search, setSearch] = useState(""); const [page, setPage] = useState(1); const pageSize = 20
+  const [search, setSearch] = useState(""); const [page, setPage] = useState(1); const pageSize = 10
   const [open, setOpen] = useState(false); const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({ hotelGuestId: 0, hotelBookingId: null as number | null, commType: "Note", subject: "", message: "", priority: "Normal", assignedTo: "" })
 

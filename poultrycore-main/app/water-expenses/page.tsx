@@ -18,8 +18,12 @@ import { ListFilters } from "@/components/ui/list-filters"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Loader2, Receipt, CheckCircle2, XCircle, Tag, Truck } from "lucide-react"
+import { Plus, Loader2, Receipt, CheckCircle2, XCircle, Tag, Truck, Banknote, History } from "lucide-react"
 import Link from "next/link"
+import { RecordPaymentDialog, type CashAccountOption } from "@/components/balances/record-payment-dialog"
+import { PaymentHistoryDialog } from "@/components/balances/payment-history-dialog"
+import type { OpenDocumentRow } from "@/lib/api/balances"
+import { usePermissions } from "@/hooks/use-permissions"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -27,7 +31,7 @@ import { PromptDialog } from "@/components/ui/prompt-dialog"
 import { SupplierSelect } from "@/components/water/supplier-select"
 import { ExpenseSourceLink } from "@/components/water/expense-source-link"
 import {
-  listWaterExpenses, createWaterExpense, submitWaterExpense, approveWaterExpense, cancelWaterExpense,
+  listWaterExpenses, createWaterExpense, setWaterExpensePayment, submitWaterExpense, approveWaterExpense, cancelWaterExpense,
   listWaterExpenseCategories, createWaterExpenseCategory,
   listWaterCashAccounts,
   listWaterDeliveryExpenses,
@@ -73,6 +77,15 @@ function todayLocal(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 }
 
+/**
+ * Payment state on the form.
+ *
+ * Water has always encoded "unpaid" as paymentMethod === "Credit", so the two
+ * controls have to agree: choosing Unpaid sets the method to Credit, and
+ * choosing Credit means unpaid. Partial is the new case migration 240 adds.
+ */
+type WaterPaymentState = "Paid" | "PartiallyPaid" | "Unpaid"
+
 const EMPTY: WaterExpenseInput = {
   waterExpenseCategoryId: 0,
   expenseDate: "",
@@ -92,6 +105,28 @@ function paidToLabel(e: WaterExpense): string {
   return e.supplierName?.trim() || e.paidTo?.trim() || "—"
 }
 
+/** Past its due date and still owing. A settled bill is never overdue. */
+function isWaterExpenseOverdue(e: WaterExpense): boolean {
+  return !!e.dueDate && e.balance > 0 && new Date(e.dueDate) < new Date(new Date().toDateString())
+}
+
+/**
+ * The payment badge.
+ *
+ * Kept separate from the approval Status badge beside it: one says where the
+ * expense is in the approval workflow, the other says whether the money has
+ * left. They are genuinely different questions — an Approved bill can be unpaid.
+ */
+function renderPaymentBadge(e: WaterExpense) {
+  if (e.paymentStatus === "NonCash" || e.sourceType === "WaterInternalUsage") {
+    return <Badge className="bg-slate-100 text-slate-600">Non-cash</Badge>
+  }
+  if (e.balance <= 0) return <Badge className="bg-emerald-100 text-emerald-800">Paid</Badge>
+  if (isWaterExpenseOverdue(e)) return <Badge className="bg-red-100 text-red-800">Overdue</Badge>
+  if (e.amountPaid > 0) return <Badge className="bg-amber-100 text-amber-800">Partially paid</Badge>
+  return <Badge className="bg-slate-100 text-slate-700">Unpaid</Badge>
+}
+
 const STATUS_COLORS: Record<string, string> = {
   Draft: "bg-slate-100 text-slate-700",
   Submitted: "bg-blue-100 text-blue-700",
@@ -102,6 +137,11 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function WaterExpensesPage() {
   const router = useRouter()
+  const { can: canDo } = usePermissions()
+  // Paying a bill IS a supplier payment, gated on the same key the Supplier
+  // Balances dialog uses rather than a second, parallel one that could drift.
+  const canPayBill = canDo("water.supplier-payments.create")
+  const canReverseBill = canDo("water.supplier-payments.reverse")
   const { toast } = useToast()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const logout = useLogout()
@@ -118,7 +158,16 @@ export default function WaterExpensesPage() {
 
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<WaterExpenseInput>(EMPTY)
+  const [paymentState, setPaymentState] = useState<WaterPaymentState>("Paid")
+  const [amountPaid, setAmountPaid] = useState("")
+  const [dueDate, setDueDate] = useState("")
   const [saving, setSaving] = useState(false)
+
+  // Paying a bill and reading what has been paid against it, both reusing the
+  // Supplier Balances components -- a water expense is a payable document like
+  // any other since migration 240.
+  const [payFor, setPayFor] = useState<WaterExpense | null>(null)
+  const [historyFor, setHistoryFor] = useState<WaterExpense | null>(null)
 
   const [catDlg, setCatDlg] = useState(false)
   const [newCatName, setNewCatName] = useState("")
@@ -172,11 +221,35 @@ export default function WaterExpensesPage() {
     if (!form.waterExpenseCategoryId) return toast({ title: "Pick a category", variant: "destructive" })
     if (!form.amount || form.amount <= 0) return toast({ title: "Amount must be greater than zero", variant: "destructive" })
     if (form.paymentMethod !== "Credit" && !form.waterCashAccountId) return toast({ title: "Cash account required for non-credit expenses", variant: "destructive" })
+    const paidNow = paymentState === "PartiallyPaid" ? Number(amountPaid || 0) : 0
+    if (paymentState === "PartiallyPaid" && (paidNow <= 0 || paidNow >= form.amount)) {
+      return toast({
+        title: "Enter how much of the bill has been paid",
+        description: `Something between 0 and ${form.amount.toFixed(2)}. Use Paid or Unpaid for the whole thing.`,
+        variant: "destructive",
+      })
+    }
+    if (paymentState !== "Paid" && !form.supplierId) {
+      // A warning, not a refusal: an unpaid bill with nobody to owe is a
+      // legitimate record, it just cannot be chased.
+      toast({ title: "No supplier picked", description: "This bill will not appear in Supplier Balances." })
+    }
     setSaving(true)
     try {
-      await createWaterExpense(form)
+      const created = await createWaterExpense(form)
+      // Only when the user actually chose something other than the default:
+      // null means "paid in full" and 0 means "owes everything", and the
+      // difference is the whole point.
+      if (paymentState !== "Paid" || dueDate) {
+        await setWaterExpensePayment(created.waterExpenseId, {
+          amountPaid: paymentState === "Paid" ? null : paidNow,
+          dueDate: dueDate || null,
+        })
+      }
       toast({ title: "Expense recorded as Draft" })
-      setOpen(false); setForm(EMPTY); await load()
+      setOpen(false)
+      setForm(EMPTY); setPaymentState("Paid"); setAmountPaid(""); setDueDate("")
+      await load()
     } catch (e: any) { toast({ title: "Save failed", description: e?.message, variant: "destructive" }) }
     finally { setSaving(false) }
   }
@@ -398,9 +471,13 @@ export default function WaterExpensesPage() {
                           <TableHead>Date</TableHead>
                           <TableHead>Category</TableHead>
                           <TableHead>Description</TableHead>
-                          <TableHead className="text-right">Amount</TableHead>
-                          <TableHead>Paid to</TableHead>
+                          <TableHead>Supplier / Paid to</TableHead>
+                          <TableHead className="text-right">Total</TableHead>
+                          <TableHead className="text-right">Paid</TableHead>
+                          <TableHead className="text-right">Balance</TableHead>
+                          <TableHead>Payment</TableHead>
                           <TableHead>Method</TableHead>
+                          <TableHead>Due</TableHead>
                           <TableHead>Source</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
@@ -416,9 +493,17 @@ export default function WaterExpensesPage() {
                                 <TableCell>{d.categoryName ?? "—"}</TableCell>
                                 {/* Wrap long descriptions instead of ellipsis-truncating. */}
                                 <TableCell className="max-w-sm whitespace-normal break-words align-top">{d.description ?? "—"}</TableCell>
-                                <TableCell className="text-right tabular-nums">{d.amount.toFixed(2)}</TableCell>
                                 <TableCell>{paidToLabel(d)}</TableCell>
+                                <TableCell className="text-right tabular-nums">{d.amount.toFixed(2)}</TableCell>
+                                <TableCell className="text-right tabular-nums text-slate-600">{d.amountPaid.toFixed(2)}</TableCell>
+                                <TableCell className={`text-right tabular-nums font-medium ${d.balance > 0 ? "text-amber-700" : "text-slate-400"}`}>
+                                  {d.balance.toFixed(2)}
+                                </TableCell>
+                                <TableCell>{renderPaymentBadge(d)}</TableCell>
                                 <TableCell>{d.paymentMethod}</TableCell>
+                                <TableCell className={`whitespace-nowrap text-sm ${isWaterExpenseOverdue(d) ? "text-red-600 font-medium" : "text-slate-600"}`}>
+                                  {d.dueDate ? d.dueDate.split("T")[0] : "—"}
+                                </TableCell>
                                 <TableCell className="whitespace-nowrap">
                                   <ExpenseSourceLink
                                     sourceType={d.sourceType}
@@ -430,6 +515,21 @@ export default function WaterExpensesPage() {
                                 <TableCell className="text-right">
                                   {d.status === "Draft" && <Button size="sm" variant="ghost" onClick={() => doAction(d, "submit")}>Submit</Button>}
                                   {(d.status === "Draft" || d.status === "Submitted") && <Button size="sm" variant="ghost" onClick={() => doAction(d, "approve")}><CheckCircle2 className="h-4 w-4 text-green-600" /></Button>}
+                                  {/* Payable only when it still owes something and
+                                      names a supplier — the same conditions
+                                      fnwaterpayables applies. */}
+                                  {canPayBill && d.status === "Approved" && d.balance > 0 && d.supplierId && !d.sourceType && (
+                                    <Button size="sm" variant="ghost" title="Record a payment against this bill"
+                                      onClick={() => setPayFor(d)}>
+                                      <Banknote className="h-4 w-4 text-emerald-600" />
+                                    </Button>
+                                  )}
+                                  {d.amountPaid > 0 && (
+                                    <Button size="sm" variant="ghost" title="Payments applied to this bill"
+                                      onClick={() => setHistoryFor(d)}>
+                                      <History className="h-4 w-4" />
+                                    </Button>
+                                  )}
                                   {d.status !== "Cancelled" && d.status !== "Rejected" && <Button size="sm" variant="ghost" onClick={() => setCancelTarget(d)}><XCircle className="h-4 w-4 text-rose-500" /></Button>}
                                 </TableCell>
                               </TableRow>
@@ -443,8 +543,14 @@ export default function WaterExpensesPage() {
                               <TableCell className="whitespace-nowrap">{unifiedDate(e).split("T")[0]}</TableCell>
                               <TableCell>{d.expenseCategory}</TableCell>
                               <TableCell className="max-w-sm whitespace-normal break-words align-top">{d.description ?? "—"}</TableCell>
-                              <TableCell className="text-right tabular-nums">{d.amount.toFixed(2)}</TableCell>
                               <TableCell className="whitespace-nowrap">{d.driverName ?? "—"}</TableCell>
+                              <TableCell className="text-right tabular-nums">{d.amount.toFixed(2)}</TableCell>
+                              {/* A delivery expense is settled out of route cash on
+                                  the return itself, so it is never an open payable. */}
+                              <TableCell className="text-right tabular-nums text-slate-600">{d.amount.toFixed(2)}</TableCell>
+                              <TableCell className="text-right tabular-nums text-slate-400">0.00</TableCell>
+                              <TableCell><Badge className="bg-emerald-100 text-emerald-800">Paid</Badge></TableCell>
+                              <TableCell>—</TableCell>
                               <TableCell>—</TableCell>
                               <TableCell className="whitespace-nowrap">
                                 {d.waterVehicleLoadingId ? (
@@ -521,6 +627,46 @@ export default function WaterExpensesPage() {
                     <SelectItem value="Mixed">Mixed</SelectItem>
                   </SelectContent>
                 </Select>
+              </FormField>
+              <FormField label="Payment status *">
+                <Select
+                  value={paymentState}
+                  onValueChange={(v) => {
+                    const next = v as WaterPaymentState
+                    setPaymentState(next)
+                    // Water encodes unpaid as Credit, so keep the two in step
+                    // rather than letting the user save a contradiction.
+                    if (next === "Unpaid") {
+                      setForm((f) => ({ ...f, paymentMethod: "Credit", waterCashAccountId: null }))
+                    } else if (form.paymentMethod === "Credit") {
+                      setForm((f) => ({ ...f, paymentMethod: "Cash" }))
+                    }
+                  }}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Paid">Paid</SelectItem>
+                    <SelectItem value="PartiallyPaid">Partially paid</SelectItem>
+                    <SelectItem value="Unpaid">Unpaid</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FormField>
+              <FormField label={`Amount paid${paymentState === "PartiallyPaid" ? " *" : ""}`}>
+                <NumberInput
+                  min={0} step="0.01"
+                  value={paymentState === "Paid" ? form.amount : paymentState === "Unpaid" ? 0 : amountPaid}
+                  onChange={(e) => setAmountPaid(e.target.value)}
+                  // For Paid and Unpaid the number follows from the status;
+                  // letting it be typed would invite the two to disagree.
+                  disabled={paymentState !== "PartiallyPaid"}
+                />
+              </FormField>
+              <FormField label="Due date">
+                <Input
+                  type="date" value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  disabled={paymentState === "Paid"}
+                />
               </FormField>
               <FormField label={`Cash account${form.paymentMethod !== "Credit" ? " *" : ""}`} full>
                 <Select value={String(form.waterCashAccountId ?? "")} onValueChange={(v) => setForm({ ...form, waterCashAccountId: v ? Number(v) : null })}>
@@ -611,6 +757,73 @@ export default function WaterExpensesPage() {
         allowEmpty
         onSubmit={confirmCancel}
       />
+
+      {/* An expense is a payable document since migration 240, so paying one and
+          reading its payment history reuse the Supplier Balances components
+          rather than growing a second implementation here. */}
+      {payFor && (
+        <RecordPaymentDialog
+          open={!!payFor}
+          onOpenChange={(open) => { if (!open) setPayFor(null) }}
+          module="water"
+          side="supplier"
+          // Only the id and the name are read; the rollup fields belong to the
+          // balances page and are neither known nor needed from a single bill.
+          party={{
+            partyId: payFor.supplierId!,
+            partyName: payFor.supplierName ?? payFor.paidTo ?? "Supplier",
+            paymentTermsDays: 0,
+            totalBalance: payFor.balance,
+            openDocumentCount: 1,
+            overdueAmount: isWaterExpenseOverdue(payFor) ? payFor.balance : 0,
+            totalInvoiced: payFor.amount,
+            totalPaid: payFor.amountPaid,
+          }}
+          singleDocument={{
+            documentType: "Expense",
+            documentId: payFor.waterExpenseId,
+            reference: `E${payFor.waterExpenseId}`,
+            documentDate: payFor.expenseDate,
+            label: payFor.description ?? payFor.categoryName ?? "Expense",
+            totalAmount: payFor.amount,
+            amountPaid: payFor.amountPaid,
+            balance: payFor.balance,
+            dueDate: payFor.dueDate ?? null,
+            ageDays: Math.max(
+              Math.floor((Date.now() - new Date(payFor.expenseDate).getTime()) / 86_400_000),
+              0,
+            ),
+            status: payFor.paymentStatus ?? "Unpaid",
+            isOverdue: isWaterExpenseOverdue(payFor),
+            cashAccountId: payFor.waterCashAccountId ?? null,
+          } satisfies OpenDocumentRow}
+          cashAccounts={accounts
+            .filter((a) => a.isActive)
+            .map<CashAccountOption>((a) => ({
+              id: a.waterCashAccountId,
+              name: a.accountName,
+              currentBalance: a.currentBalance,
+              allowNegativeBalance: a.allowNegativeBalance,
+            }))}
+          sourceType="ExpenseEntry"
+          onPosted={() => { setPayFor(null); void load() }}
+        />
+      )}
+
+      {historyFor && (
+        <PaymentHistoryDialog
+          open={!!historyFor}
+          onOpenChange={(open) => { if (!open) setHistoryFor(null) }}
+          module="water"
+          side="supplier"
+          partyId={historyFor.supplierId ?? null}
+          partyName={historyFor.supplierName ?? historyFor.paidTo ?? null}
+          documentType="Expense"
+          documentId={historyFor.waterExpenseId}
+          canReverse={canReverseBill}
+          onReversed={() => { void load() }}
+        />
+      )}
     </div>
   )
 }

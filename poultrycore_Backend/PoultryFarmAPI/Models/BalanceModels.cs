@@ -27,6 +27,10 @@ namespace PoultryFarmAPIWeb.Models
         public const string FlockBatch = "FlockBatch";
         /// <summary>Generic module's single purchase document. Unused by poultry.</summary>
         public const string Purchase = "Purchase";
+        /// <summary>An expense that names a supplier and is not yet fully paid
+        /// (migration 238). Unlike a purchase, paying one books NO new expense --
+        /// the expense being settled is already the cost.</summary>
+        public const string Expense = "Expense";
     }
 
     public static class PaymentSourceTypes

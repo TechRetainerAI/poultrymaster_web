@@ -35,7 +35,6 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -60,7 +59,7 @@ import { getBalanceSummary, type BalanceSummary } from "@/lib/api/balances"
 import {
   getCashFlow, flowGroupLabel, type CashFlowRow, type CashFlowSummary,
 } from "@/lib/api/cash-flow"
-import { cashFlowBuckets, categoryLabel, withRunningBalance } from "@/lib/cash/cash-flow"
+import { cashFlowBuckets, categoryLabel, sourceTypeLabel, withRunningBalance } from "@/lib/cash/cash-flow"
 import { buildCashFlowAnalysis } from "@/lib/cash/cash-flow-analysis"
 import {
   createCashAdjustment, updateCashAdjustment, deleteCashAdjustment,
@@ -96,14 +95,19 @@ export default function WaterCashFlowPage() {
   const [dateFrom, setDateFrom] = useState(DEFAULT.from)
   const [dateTo, setDateTo] = useState(DEFAULT.to)
   const [search, setSearch] = useState("")
+  // Drives the CATEGORY column (the accounting classification).
   const [flowFilter, setFlowFilter] = useState("ALL")
-  const [categoryFilter, setCategoryFilter] = useState("ALL")
+  const [typeFilter, setTypeFilter] = useState("ALL")
   const [sortKey, setSortKey] = useState<string>("date")
   const [sortDir, setSortDir] = useState<SortDirection>("desc")
 
   const [rows, setRows] = useState<CashFlowRow[]>([])
   const [summary, setSummary] = useState<CashFlowSummary>(EMPTY_SUMMARY)
   const [prevSummary, setPrevSummary] = useState<CashFlowSummary>(EMPTY_SUMMARY)
+  // Cash at hand is deliberately NOT period-bound: the question "how much do we
+  // hold" has nothing to do with which dates are in the filter. Fetched with no
+  // range, so it is every movement ever recorded.
+  const [allTime, setAllTime] = useState<CashFlowSummary>(EMPTY_SUMMARY)
   const [customers, setCustomers] = useState<BalanceSummary | null>(null)
   const [suppliers, setSuppliers] = useState<BalanceSummary | null>(null)
   const [accounts, setAccounts] = useState<{ accountId: number; accountName: string; isActive: boolean }[]>([])
@@ -130,9 +134,10 @@ export default function WaterCashFlowPage() {
 
   const load = useCallback(async () => {
     setError("")
-    const [cur, prev, cust, supp, accts] = await Promise.allSettled([
+    const [cur, prev, all, cust, supp, accts] = await Promise.allSettled([
       getCashFlow("Water", { fromDate: dateFrom, toDate: dateTo }),
       getCashFlow("Water", { fromDate: previousRange.from, toDate: previousRange.to }),
+      getCashFlow("Water"),
       getBalanceSummary("water", "customer"),
       getBalanceSummary("water", "supplier"),
       // Only so the adjustment dialog can offer accounts. No figure on this page
@@ -150,6 +155,7 @@ export default function WaterCashFlowPage() {
     }
 
     setPrevSummary(prev.status === "fulfilled" ? prev.value.summary : EMPTY_SUMMARY)
+    setAllTime(all.status === "fulfilled" ? all.value.summary : EMPTY_SUMMARY)
     setCustomers(cust.status === "fulfilled" ? cust.value : null)
     setSuppliers(supp.status === "fulfilled" ? supp.value : null)
     setAccounts(
@@ -197,7 +203,7 @@ export default function WaterCashFlowPage() {
       operatingOut: summary.operatingOut,
       financingIn: summary.financingIn,
       financingOut: summary.financingOut,
-      cashAtHand: summary.closingCash,
+      cashAtHand: allTime.closingCash,
       offLedgerIn: 0, offLedgerOut: 0, transferVolume: 0,
       movementCount: summary.movementCount,
       daysInPeriod: previousRange.days,
@@ -207,7 +213,7 @@ export default function WaterCashFlowPage() {
       moneyInByCategory: inBuckets.map((b) => ({ label: b.label, amount: b.amount, sharePercent: b.percent })),
       moneyOutByCategory: outBuckets.map((b) => ({ label: b.label, amount: b.amount, sharePercent: b.percent })),
     }, gh),
-    [summary, prevSummary, previousRange.days, inBuckets, outBuckets, gh],
+    [summary, prevSummary, allTime, previousRange.days, inBuckets, outBuckets, gh],
   )
 
   const insights = useMemo(
@@ -260,7 +266,7 @@ export default function WaterCashFlowPage() {
     </>
   ), [])
 
-  const categoryOptions = useMemo(() => {
+  const typeOptions = useMemo(() => {
     const seen = new Set<string>()
     for (const r of rows) seen.add(categoryLabel(r.category))
     return [...seen].sort((a, b) => a.localeCompare(b))
@@ -270,7 +276,7 @@ export default function WaterCashFlowPage() {
   const history = useMemo(() => {
     const filtered = rows
       .filter((r) => flowFilter === "ALL" || r.flowGroup === flowFilter)
-      .filter((r) => categoryFilter === "ALL" || categoryLabel(r.category) === categoryFilter)
+      .filter((r) => typeFilter === "ALL" || categoryLabel(r.category) === typeFilter)
 
     // Accumulated oldest-first BEFORE the display sort — a running balance
     // computed over a user-sorted list is arithmetic nonsense.
@@ -279,8 +285,8 @@ export default function WaterCashFlowPage() {
     return sortData(withRunning, sortKey, sortDir, (item: any, key: string) => {
       switch (key) {
         case "date": return new Date(item.transactionDate)
-        case "flow": return flowGroupLabel(item.flowGroup)
-        case "category": return categoryLabel(item.category)
+        case "type": return categoryLabel(item.category)
+        case "category": return flowGroupLabel(item.flowGroup)
         case "description": return item.description ?? ""
         case "in": return item.amount > 0 ? item.amount : 0
         case "out": return item.amount < 0 ? -item.amount : 0
@@ -288,7 +294,7 @@ export default function WaterCashFlowPage() {
         default: return item[key]
       }
     })
-  }, [rows, flowFilter, categoryFilter, sortKey, sortDir, summary.openingCash])
+  }, [rows, flowFilter, typeFilter, sortKey, sortDir, summary.openingCash])
 
   const visible = useMemo(
     () => filterByDateAndSearch(history, {
@@ -390,9 +396,13 @@ export default function WaterCashFlowPage() {
                 <Tile label="Money Out" value={gh(summary.moneyOut)} note="For selected period"
                       tone="text-rose-700" icon={<TrendingDown className="h-3.5 w-3.5" />}
                       tip="Approved expenses paid during the selected period. Credit purchases are not counted until they are paid." />
-                <Tile label="Closing Cash" value={gh(summary.closingCash)} note="End of period"
-                      tone={summary.closingCash < 0 ? "text-rose-700" : undefined}
-                      tip="Opening Cash plus Money In minus Money Out. This is what your records say you should hold — it is not read from your cash accounts, and comparing the two is what reconciliation is for." />
+                {/* The one tile on this row that ignores the date filter. The
+                    period's own closing figure is still printed in the identity
+                    line below, where it belongs — here the question is simply
+                    how much the business holds. */}
+                <Tile label="Cash at Hand" value={gh(allTime.closingCash)} note="All time"
+                      tone={allTime.closingCash < 0 ? "text-rose-700" : undefined}
+                      tip="Every movement ever recorded, in minus out — NOT limited to the selected period. This is what your records say you should be holding across all cash accounts; it is not read from the accounts themselves, and comparing the two is what reconciliation is for." />
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -401,11 +411,11 @@ export default function WaterCashFlowPage() {
                       note="For selected period"
                       tone={summary.netCashFlow >= 0 ? "text-emerald-700" : "text-rose-700"}
                       tip="Money In minus Money Out. Positive means the business ended the period with more cash than it started with." />
-                <Tile label="From Trading"
+                <Tile label="Net Cash Flow (Strictly business)"
                       value={`${summary.operatingIn - summary.operatingOut > 0 ? "+" : ""}${gh(summary.operatingIn - summary.operatingOut)}`}
-                      note="Operating only"
+                      note="Excludes adjustments"
                       tone={summary.operatingIn - summary.operatingOut >= 0 ? "text-emerald-700" : "text-rose-700"}
-                      tip="Operating income minus operating spending. Capital — owner money and loans in or out — is excluded, so this is what the business itself earned." />
+                      tip="Operating income minus operating spending, with capital adjustments left out — no owner injections, withdrawals or loans. This is whether the business funded ITSELF: the Net Cash Flow tile beside it can look healthy while this one is negative, which means the shortfall was covered by money put in rather than earned." />
                 <Tile label="Customer Balances"
                       value={customers ? gh(customers.totalBalance) : "—"}
                       note={customers ? `All time · ${customers.partyCount} customers owing` : "All time"}
@@ -440,18 +450,18 @@ export default function WaterCashFlowPage() {
                       <Select value={flowFilter} onValueChange={setFlowFilter}>
                         <SelectTrigger className="h-8 w-[11rem]"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="ALL">All movement</SelectItem>
+                          <SelectItem value="ALL">All categories</SelectItem>
                           <SelectItem value="OperatingIn">Operating income</SelectItem>
-                          <SelectItem value="OperatingOut">Operating spending</SelectItem>
+                          <SelectItem value="OperatingOut">Operating expense</SelectItem>
                           <SelectItem value="FinancingIn">Capital received</SelectItem>
                           <SelectItem value="FinancingOut">Capital withdrawn</SelectItem>
                         </SelectContent>
                       </Select>
-                      <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                        <SelectTrigger className="h-8 w-[11rem]"><SelectValue placeholder="All categories" /></SelectTrigger>
+                      <Select value={typeFilter} onValueChange={setTypeFilter}>
+                        <SelectTrigger className="h-8 w-[11rem]"><SelectValue placeholder="All types" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="ALL">All categories</SelectItem>
-                          {categoryOptions.map((c) => (
+                          <SelectItem value="ALL">All types</SelectItem>
+                          {typeOptions.map((c) => (
                             <SelectItem key={c} value={c}>{c}</SelectItem>
                           ))}
                         </SelectContent>
@@ -474,8 +484,9 @@ export default function WaterCashFlowPage() {
                       primary={(r: any) => `${r.amount < 0 ? "−" : "+"}${gh(Math.abs(r.amount))} · ${categoryLabel(r.category)}`}
                       secondary={(r: any) => `${(r.transactionDate ?? "").split("T")[0]} · ${flowGroupLabel(r.flowGroup)}`}
                       details={(r: any) => [
-                        { label: "Type", value: flowGroupLabel(r.flowGroup) },
-                        { label: "Category", value: categoryLabel(r.category) },
+                        { label: "Type", value: categoryLabel(r.category) },
+                        { label: "Category", value: flowGroupLabel(r.flowGroup) },
+                        { label: "Recorded as", value: sourceTypeLabel(r.sourceType) },
                         { label: "Running cash", value: gh(r.running) },
                         { label: "Description", value: r.description ?? "—" },
                       ]}
@@ -486,7 +497,7 @@ export default function WaterCashFlowPage() {
                               <TableRow>
                                 {([
                                   ["date", "Date", ""],
-                                  ["flow", "Type", ""],
+                                  ["type", "Type", ""],
                                   ["category", "Category", ""],
                                   ["description", "Description", ""],
                                   ["in", "Money In", "text-right [&>div]:justify-end"],
@@ -518,15 +529,19 @@ export default function WaterCashFlowPage() {
                                     <TableCell className="whitespace-nowrap">
                                       {(r.transactionDate ?? "").split("T")[0]}
                                     </TableCell>
+                                    {/* Type is the DETAIL — Feed, Sales, Utilities. */}
                                     <TableCell className="whitespace-nowrap">
-                                      {flowGroupLabel(r.flowGroup)}
-                                      {capital && (
-                                        <Badge variant="outline" className="ml-2 border-0 bg-slate-100 text-slate-600">
-                                          capital
-                                        </Badge>
-                                      )}
+                                      {categoryLabel(r.category)}
                                     </TableCell>
-                                    <TableCell className="text-slate-600">{categoryLabel(r.category)}</TableCell>
+                                    {/* Category is the ACCOUNTING CLASSIFICATION. The
+                                        "capital" badge that used to live on Type is gone:
+                                        this column now says "Capital received" in words. */}
+                                    <TableCell className="whitespace-nowrap text-slate-600">
+                                      {flowGroupLabel(r.flowGroup)}
+                                      <span className="block text-xs text-slate-400">
+                                        {sourceTypeLabel(r.sourceType)}
+                                      </span>
+                                    </TableCell>
                                     <TableCell className="max-w-sm whitespace-normal break-words align-top">
                                       {r.description ?? "—"}
                                     </TableCell>

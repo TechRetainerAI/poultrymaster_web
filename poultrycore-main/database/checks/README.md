@@ -1,7 +1,7 @@
 # Balance / payment-allocation checks
 
 Behavioural tests for the Customer Balances and Supplier Balances payment
-allocation layer (migrations 222–224). They exercise the real stored functions
+allocation layer (migrations 222–224, and 238–239 for expenses as payables). They exercise the real stored functions
 against real data and then **roll everything back**, so they are safe to run
 against dev — and, carefully, against prod.
 
@@ -60,10 +60,29 @@ are actually fine.
 - blocked: overdrawing a cash account, over-allocation, an unknown document
   type, double reversal, a purchase belonging to another supplier
 
+`poultry-expense-payables.test.sql` — 31 checks + 6 negative cases
+- **the no-op claim**: no existing expense becomes a payable, and cash-flow
+  outflow moves by exactly the cash that actually moved
+- the generated `paymentstatus` column across all four states
+- which expenses are payable and which are deliberately not: no supplier means
+  nobody to owe, `NonCash` means no money moved
+- an expense's own due date beating the supplier's payment terms
+- **no second expense row** when a bill is paid — the double-count migration 238
+  exists to prevent
+- one payment settling a bill and a purchase together: one header, two
+  allocations, one CashOut, and the purchase leg still booking its own expense
+  row while the bill leg does not
+- the two cash-flow arms summing rather than doubling
+- reversal restoring both kinds of payable, keeping every row
+- blocked: over-applying, paying a non-cash internal cost, paying a bill with no
+  supplier, paying a settled bill, cutting a bill below what has been paid,
+  paying more than the total
+
 ## The invariant that matters most
 
 `fnbalanceaudit(farmid, 'poultry')` returns **nothing** when healthy. A non-empty
 result means a document's `amountpaid` no longer agrees with its allocations, and
-the balances on screen can no longer be trusted. It is exposed at
+the balances on screen can no longer be trusted. Migration 238 added a fourth arm
+so expenses are watched alongside sales, purchases and flock batches. It is exposed at
 `GET /api/Poultry/balances/audit?farmId=…` and is worth checking after any
 migration that touches sales, purchases or payments.

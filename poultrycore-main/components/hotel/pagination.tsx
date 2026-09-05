@@ -47,7 +47,7 @@ export function Pagination({ total, page, pageSize, onPageChange, onPageSizeChan
   )
 }
 
-export function usePagination<T>(items: T[], initialPageSize = 25) {
+export function usePagination<T>(items: T[], initialPageSize = 10) {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(initialPageSize)
   const totalPages = Math.max(1, Math.ceil(items.length / pageSize))

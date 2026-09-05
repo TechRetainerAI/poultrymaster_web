@@ -237,6 +237,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     // purchases, and the dialog that settles them.
     { href: "/customer-balances", label: "Customer Balances", icon: Users },
     { href: "/supplier-balances", label: "Supplier Balances", icon: Truck },
+    { href: "/supplier-payments", label: "Supplier Payments", icon: Receipt },
     { href: "/expenses", label: "Expenses", icon: DollarSign },
     { href: "/billing", label: "Billing", icon: CreditCard },
   ].filter((item) =>
@@ -322,6 +323,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/water-payments",      label: "Payments",        icon: CreditCard },
     { href: "/water-customer-balances", label: "Customer Balances", icon: Users },
     { href: "/water-supplier-balances", label: "Supplier Balances", icon: Truck },
+    { href: "/water-supplier-payments", label: "Supplier Payments", icon: Receipt },
     { href: "/water-expenses",      label: "Expenses",        icon: Receipt },
     { href: "/water-cash-flow", label: "Cash Flow", icon: Wallet },
     { href: "/water-cash-accounts", label: "Cash accounts",   icon: Wallet },

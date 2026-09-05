@@ -25,7 +25,7 @@ export default function HotelLostFoundPage() {
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const [items, setItems] = useState<any[]>([]); const [rooms, setRooms] = useState<HotelRoom[]>([])
   const [loading, setLoading] = useState(true); const [statusFilter, setStatusFilter] = useState("ALL")
-  const [search, setSearch] = useState(""); const [page, setPage] = useState(1); const pageSize = 20
+  const [search, setSearch] = useState(""); const [page, setPage] = useState(1); const pageSize = 10
   const [open, setOpen] = useState(false); const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({ hotelRoomId: null as number | null, itemDescription: "", foundDate: new Date().toISOString().slice(0, 10), foundBy: "", foundLocation: "", category: "Other", storageLocation: "", notes: "" })
   const [claimOpen, setClaimOpen] = useState(false); const [claimTarget, setClaimTarget] = useState<any>(null); const [claimedBy, setClaimedBy] = useState("")

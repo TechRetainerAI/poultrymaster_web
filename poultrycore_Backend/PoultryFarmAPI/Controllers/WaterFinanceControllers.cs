@@ -346,6 +346,24 @@ namespace PoultryFarmAPIWeb.Controllers
             return CreatedAtAction(nameof(GetById), new { id, farmId = m.FarmId }, created);
         }
 
+        /// <summary>
+        /// Set how much of a bill has been paid, and when it falls due.
+        ///
+        /// Its own endpoint rather than fields on the create/update body, because
+        /// amountPaid has to be able to say "not supplied" separately from "zero"
+        /// — a nullable in a JSON body carries that, a decimal on the expense
+        /// model cannot, and getting it wrong turns a paid bill into a debt.
+        /// </summary>
+        [HttpPost("{id:int}/payment")]
+        public async Task<IActionResult> SetPayment(int id, [FromQuery] string farmId,
+                                                    [FromBody] WaterExpensePaymentRequest body)
+        {
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            await _svc.SetPaymentAsync(id, farmId, body?.AmountPaid, body?.DueDate);
+            var updated = await _svc.GetByIdAsync(id, farmId);
+            return updated is null ? NotFound() : Ok(updated);
+        }
+
         [HttpPost("{id:int}/submit")]
         public async Task<IActionResult> Submit(int id, [FromQuery] string farmId)
         {

@@ -595,6 +595,18 @@ namespace PoultryFarmAPIWeb.Business
         Task       CancelAsync(int id, string farmId, string? cancelledBy, string? reason);
         Task       DeleteAsync(int id, string farmId);
 
+        /// <summary>
+        /// Set how much of a bill has been paid, and when it falls due
+        /// (migration 240).
+        ///
+        /// Separate from InsertAsync/UpdateAsync on purpose: those write fifteen
+        /// columns through an SP body this repo does not contain, and the
+        /// Expenses form calls this straight after saving instead. Passing a null
+        /// amountPaid means "paid in full", the same reading the column itself
+        /// carries.
+        /// </summary>
+        Task       SetPaymentAsync(int id, string farmId, decimal? amountPaid, DateTime? dueDate);
+
         // Per-farm seed (default categories + cash accounts).
         Task<(int categoryCount, int cashAccountCount)> SeedDefaultsAsync(string farmId);
     }
@@ -652,6 +664,18 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@SupplierId", (object?)m.SupplierId ?? DBNull.Value);
             await c.OpenAsync();
             return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        public async Task SetPaymentAsync(int id, string farmId, decimal? amountPaid, DateTime? dueDate)
+        {
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwaterexpense_setpayment(p_farmid => @FarmId::text, p_waterexpenseid => @WaterExpenseId::int, p_amountpaid => @AmountPaid::numeric, p_duedate => @DueDate::date)", c);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@WaterExpenseId", id);
+            cmd.Parameters.AddWithValue("@AmountPaid", (object?)amountPaid ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@DueDate", (object?)dueDate?.Date ?? DBNull.Value);
+            await c.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
         }
 
         public async Task SubmitAsync(int id, string farmId)
@@ -746,6 +770,19 @@ namespace PoultryFarmAPIWeb.Business
             SupplierName                 = HasCol(r, "SupplierName") && !r.IsDBNull(r.GetOrdinal("SupplierName")) ? r.GetString(r.GetOrdinal("SupplierName")) : null,
             SourceType                   = HasCol(r, "SourceType")   && !r.IsDBNull(r.GetOrdinal("SourceType"))   ? r.GetString(r.GetOrdinal("SourceType"))   : null,
             SourceId                     = HasCol(r, "SourceId")     && !r.IsDBNull(r.GetOrdinal("SourceId"))     ? r.GetInt32(r.GetOrdinal("SourceId"))      : (int?)null,
+            // Migration 240. Guarded like the columns above so a deployment that
+            // has not run it yet still maps -- and falls back to the pre-240
+            // reading: a Credit bill owes everything, anything else owes nothing.
+            AmountPaid                   = HasCol(r, "AmountPaid")    && !r.IsDBNull(r.GetOrdinal("AmountPaid"))
+                                               ? r.GetDecimal(r.GetOrdinal("AmountPaid"))
+                                               : (r.GetString(r.GetOrdinal("PaymentMethod")) == "Credit"
+                                                      ? 0m : r.GetDecimal(r.GetOrdinal("Amount"))),
+            Balance                      = HasCol(r, "Balance")       && !r.IsDBNull(r.GetOrdinal("Balance"))
+                                               ? r.GetDecimal(r.GetOrdinal("Balance"))
+                                               : (r.GetString(r.GetOrdinal("PaymentMethod")) == "Credit"
+                                                      ? r.GetDecimal(r.GetOrdinal("Amount")) : 0m),
+            PaymentStatus                = HasCol(r, "PaymentStatus") && !r.IsDBNull(r.GetOrdinal("PaymentStatus")) ? r.GetString(r.GetOrdinal("PaymentStatus")) : null,
+            DueDate                      = HasCol(r, "DueDate")       && !r.IsDBNull(r.GetOrdinal("DueDate"))       ? r.GetDateTime(r.GetOrdinal("DueDate"))     : (DateTime?)null,
             Status                       = r.GetString(r.GetOrdinal("Status")),
             Notes                        = r.IsDBNull(r.GetOrdinal("Notes")) ? null : r.GetString(r.GetOrdinal("Notes")),
             CreatedBy                    = r.IsDBNull(r.GetOrdinal("CreatedBy")) ? null : r.GetString(r.GetOrdinal("CreatedBy")),

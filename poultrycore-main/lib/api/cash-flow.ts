@@ -138,7 +138,7 @@ export async function getCashFlow(
 /** Human label for a flow group. */
 export const FLOW_GROUP_LABELS: Record<string, string> = {
   OperatingIn: "Operating income",
-  OperatingOut: "Operating spending",
+  OperatingOut: "Operating expense",
   FinancingIn: "Capital received",
   FinancingOut: "Capital withdrawn",
 }

@@ -31,6 +31,7 @@ import {
 } from "@/lib/balances/allocate"
 import type { BalanceModule, BalanceSide, OpenDocumentRow, PartyBalanceRow } from "@/lib/api/balances"
 import { listOpenDocuments, recordPayment } from "@/lib/api/balances"
+import { entryTimestamp } from "@/lib/utils/date-key"
 
 const PAYMENT_METHODS = ["Cash", "MoMo", "Bank Transfer", "Cheque", "Card", "Other"] as const
 
@@ -50,11 +51,17 @@ interface Props {
   /** Set to pre-scope the dialog to one row; null opens the full bulk grid. */
   singleDocument?: OpenDocumentRow | null
   cashAccounts: CashAccountOption[]
+  /**
+   * Where the payment was entered from, recorded on the payment header so the
+   * Supplier Payments ledger can say so. Defaults to the balances page, which is
+   * where this dialog is opened from everywhere except the Expenses page.
+   */
+  sourceType?: string
   onPosted: () => void
 }
 
 export function RecordPaymentDialog({
-  open, onOpenChange, module, side, party, singleDocument = null, cashAccounts, onPosted,
+  open, onOpenChange, module, side, party, singleDocument = null, cashAccounts, sourceType, onPosted,
 }: Props) {
   const fmt = useFmt()
   const { toast } = useToast()
@@ -160,15 +167,9 @@ export function RecordPaymentDialog({
   // real clock time (UTC, matching the SP's `now() at time zone 'utc'`
   // default and the /sales payment path, which sends no date at all). A
   // deliberately back-dated one keeps midnight: its true time is unknown.
-  const paymentTimestamp = () => {
-    if (!paymentDate) return null
-    const now = new Date()
-    // Both sides are UTC date keys — the initial value above is built the same
-    // way — so this compares like with like.
-    return paymentDate === now.toISOString().slice(0, 10)
-      ? now.toISOString()
-      : `${paymentDate}T00:00:00.000Z`
-  }
+  // Shared with the cash adjustment dialog: a rule about where a new row sorts
+  // is not something two screens should each decide for themselves.
+  const paymentTimestamp = () => entryTimestamp(paymentDate)
 
   const submit = async () => {
     if (!party) return
@@ -185,7 +186,7 @@ export function RecordPaymentDialog({
         cashAccountId,
         reference: reference.trim() || null,
         notes: notes.trim() || null,
-        sourceType: isCustomer ? "CustomerBalances" : "SupplierBalances",
+        sourceType: sourceType ?? (isCustomer ? "CustomerBalances" : "SupplierBalances"),
         allocations: documents
           .filter((d) => (allocation[docKey(d)] ?? 0) > 0)
           .map((d) => ({

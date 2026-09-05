@@ -153,6 +153,7 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
           // what", not "where is the cash". Mirrors the poultry rail.
           { id: "customer-balances", title: "Customer Balances", icon: Users, href: "/water-customer-balances" },
           { id: "supplier-balances", title: "Supplier Balances", icon: Truck, href: "/water-supplier-balances" },
+          { id: "supplier-payments", title: "Supplier Payments", icon: Receipt, href: "/water-supplier-payments" },
         ],
       },
       {

@@ -42,6 +42,7 @@ import {
   type BalanceFilters, type BalanceModule, type BalanceSide, type BalanceStatusFilter,
   type BalanceSummary, type OpenDocumentRow, type PartyBalanceRow,
 } from "@/lib/api/balances"
+import { formatDocumentAge } from "@/lib/balances/allocate"
 import { RecordPaymentDialog, type CashAccountOption } from "./record-payment-dialog"
 import { StatementDialog } from "./statement-dialog"
 import { PaymentHistoryDialog } from "./payment-history-dialog"
@@ -678,7 +679,7 @@ export function BalancesPage({
                                             <TableCell className="whitespace-nowrap text-slate-500">
                                               {d.dueDate ? new Date(d.dueDate).toLocaleDateString() : "—"}
                                             </TableCell>
-                                            <TableCell className="text-right">{d.ageDays}d</TableCell>
+                                            <TableCell className="text-right whitespace-nowrap">{formatDocumentAge(d.ageDays)}</TableCell>
                                             <TableCell>
                                               {d.isOverdue
                                                 ? <Badge variant="destructive" className="gap-1"><AlertTriangle className="h-3 w-3" /> Overdue</Badge>
