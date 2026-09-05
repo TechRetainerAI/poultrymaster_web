@@ -16,7 +16,7 @@ import { Loader2, ScrollText, Plus, CheckCircle2 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
-import { listShiftHandovers, createShiftHandover, acknowledgeShiftHandover } from "@/lib/api/hotel"
+import { listShiftHandovers, createShiftHandover, acknowledgeShiftHandover, listHotelStaff } from "@/lib/api/hotel"
 
 const SHIFT_TYPES = ["Morning", "Afternoon", "Night"]
 const STATUS_COLORS: Record<string, string> = { Draft: "bg-slate-100 text-slate-700", Submitted: "bg-blue-100 text-blue-700", Acknowledged: "bg-emerald-100 text-emerald-700" }
@@ -25,13 +25,13 @@ export default function HotelShiftHandoverPage() {
   const router = useRouter(); const { toast } = useToast(); const logout = useLogout()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const username = useAuthStore((s) => s.username) ?? ""
-  const [items, setItems] = useState<any[]>([]); const [loading, setLoading] = useState(true)
+  const [items, setItems] = useState<any[]>([]); const [staff, setStaff] = useState<any[]>([]); const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false); const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({ shiftDate: new Date().toISOString().slice(0, 10), shiftType: "Night", handoverBy: "", keyMessages: "", pendingItems: "", vipGuests: "", incidents: "", cashBalance: 0 })
+  const [form, setForm] = useState({ shiftDate: new Date().toISOString().slice(0, 10), shiftType: "Night", handoverBy: "", handoverTo: "", keyMessages: "", pendingItems: "", vipGuests: "", incidents: "", cashBalance: 0 })
   const [ackTarget, setAckTarget] = useState<any>(null)
 
   useEffect(() => { if (!activeFarmType) return; if (activeFarmType !== "Hotel") { router.replace("/dashboard"); return }; load() }, [activeFarmType, router])
-  async function load() { setLoading(true); try { setItems(await listShiftHandovers()) } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) } finally { setLoading(false) } }
+  async function load() { setLoading(true); try { const [h, st] = await Promise.all([listShiftHandovers(), listHotelStaff().catch(() => [])]); setItems(h); setStaff(st.filter((s: any) => s.isActive ?? s.isactive)) } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) } finally { setLoading(false) } }
 
   async function handleSave() {
     if (!form.handoverBy.trim()) { toast({ title: "Handover by is required", variant: "destructive" }); return }
@@ -50,7 +50,7 @@ export default function HotelShiftHandoverPage() {
     <div className="flex h-screen bg-slate-50"><DashboardSidebar onLogout={logout} /><div className="flex-1 flex flex-col min-w-0 overflow-hidden"><DashboardHeader />
       <main className="flex-1 overflow-auto p-4 md:p-6">
         <div className="flex items-center justify-between mb-6"><div className="flex items-center gap-3"><ScrollText className="h-6 w-6 text-violet-600" /><h1 className="text-2xl font-bold">Shift Handover</h1></div>
-          <Button onClick={() => { setForm({ shiftDate: new Date().toISOString().slice(0, 10), shiftType: "Night", handoverBy: username, keyMessages: "", pendingItems: "", vipGuests: "", incidents: "", cashBalance: 0 }); setOpen(true) }} className="bg-violet-600 hover:bg-violet-700"><Plus className="h-4 w-4 mr-1" /> New Handover</Button></div>
+          <Button onClick={() => { setForm({ shiftDate: new Date().toISOString().slice(0, 10), shiftType: "Night", handoverBy: username, handoverTo: "", keyMessages: "", pendingItems: "", vipGuests: "", incidents: "", cashBalance: 0 }); setOpen(true) }} className="bg-violet-600 hover:bg-violet-700"><Plus className="h-4 w-4 mr-1" /> New Handover</Button></div>
 
         {loading ? <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-violet-600" /></div> : (
           <div className="space-y-4">
@@ -67,7 +67,7 @@ export default function HotelShiftHandoverPage() {
                     </div>
                     <div className="text-sm text-slate-500">
                       By: <strong>{h.handoverby}</strong>
-                      {h.receivedby && <span> → <strong>{h.receivedby}</strong></span>}
+                      {(h.handoverto || h.receivedby) && <span> → <strong>{h.handoverto || h.receivedby}</strong></span>}
                     </div>
                   </div>
                   <div className="grid md:grid-cols-2 gap-4 text-sm">
@@ -95,7 +95,24 @@ export default function HotelShiftHandoverPage() {
               <FormField label="Shift"><Select value={form.shiftType} onValueChange={(v) => setForm({ ...form, shiftType: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{SHIFT_TYPES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></FormField>
             </FormSection>
             <FormSection title="Handover Details" color="amber" columns={1}>
-              <FormField label="Handover By *"><Input value={form.handoverBy} onChange={(e) => setForm({ ...form, handoverBy: e.target.value })} placeholder="Your name" /></FormField>
+              <FormField label="Handover By *">
+                <Select value={form.handoverBy || "__none__"} onValueChange={(v) => setForm({ ...form, handoverBy: v === "__none__" ? "" : v })}>
+                  <SelectTrigger><SelectValue placeholder="Select staff" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Select staff</SelectItem>
+                    {staff.map((s: any) => { const fn = s.firstName ?? s.firstname ?? ""; const ln = s.lastName ?? s.lastname ?? ""; const role = s.role ?? ""; const id = s.hotelStaffId ?? s.hotelstaffid; return <SelectItem key={id} value={`${fn} ${ln}`}>{fn} {ln} — {role}</SelectItem> })}
+                  </SelectContent>
+                </Select>
+              </FormField>
+              <FormField label="Handover To *">
+                <Select value={form.handoverTo || "__none__"} onValueChange={(v) => setForm({ ...form, handoverTo: v === "__none__" ? "" : v })}>
+                  <SelectTrigger><SelectValue placeholder="Select incoming staff" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Select staff</SelectItem>
+                    {staff.filter((s: any) => { const fn = s.firstName ?? s.firstname ?? ""; const ln = s.lastName ?? s.lastname ?? ""; return `${fn} ${ln}` !== form.handoverBy }).map((s: any) => { const fn = s.firstName ?? s.firstname ?? ""; const ln = s.lastName ?? s.lastname ?? ""; const role = s.role ?? ""; const id = s.hotelStaffId ?? s.hotelstaffid; return <SelectItem key={id} value={`${fn} ${ln}`}>{fn} {ln} — {role}</SelectItem> })}
+                  </SelectContent>
+                </Select>
+              </FormField>
               <FormField label="Key Messages"><Textarea value={form.keyMessages} onChange={(e) => setForm({ ...form, keyMessages: e.target.value })} placeholder="Important things the next shift needs to know" rows={3} /></FormField>
               <FormField label="Pending Items"><Textarea value={form.pendingItems} onChange={(e) => setForm({ ...form, pendingItems: e.target.value })} placeholder="Tasks not completed that need follow-up" rows={2} /></FormField>
               <FormField label="VIP Guests"><Textarea value={form.vipGuests} onChange={(e) => setForm({ ...form, vipGuests: e.target.value })} placeholder="VIP arrivals/departures, special treatment" rows={2} /></FormField>

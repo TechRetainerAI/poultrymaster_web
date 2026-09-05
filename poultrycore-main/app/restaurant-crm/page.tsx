@@ -171,37 +171,40 @@ export default function RestaurantCRMPage() {
                         <Button className="bg-rose-600 hover:bg-rose-700" onClick={() => openCustDialog()}><Plus className="h-4 w-4 mr-2" /> Add Customer</Button>
                       </div>
                     ) : (
-                      <div className="space-y-2">
-                        {filtered.map(c => {
-                          const seg = SEGMENTS.find(s => s.v === c.segment)
-                          return (
-                            <div key={c.customerId} className="group flex items-center gap-4 p-4 border rounded-xl hover:border-rose-200 transition-all">
-                              <div className={`h-10 w-10 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 ${seg?.color || "bg-gray-100"}`}>{c.name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2)}</div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <h4 className="font-semibold text-gray-900">{c.name}</h4>
-                                  <Badge className={`text-[10px] h-5 ${seg?.color} hover:${seg?.color}`}>{c.segment}</Badge>
-                                </div>
-                                <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                                  {c.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{c.phone}</span>}
-                                  {c.email && <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{c.email}</span>}
-                                  <span>{c.totalVisits} visits</span>
-                                  {c.dietaryPreferences && <span>🥗 {c.dietaryPreferences}</span>}
-                                  {c.allergies && <span>⚠️ {c.allergies}</span>}
-                                </div>
-                              </div>
-                              <div className="text-right flex-shrink-0 min-w-[80px]">
-                                <div className="font-bold text-gray-900">{c.totalSpent.toFixed(0)}</div>
-                                <div className="text-xs text-muted-foreground">lifetime</div>
-                              </div>
-                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openCustDialog(c)}><Edit2 className="h-3.5 w-3.5" /></Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => delCust(c.customerId)}><Trash2 className="h-3.5 w-3.5 text-red-500" /></Button>
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 border-b">
+                          <tr>
+                            <th className="text-left p-3">Name</th>
+                            <th className="text-left p-3">Segment</th>
+                            <th className="text-left p-3">Phone</th>
+                            <th className="text-left p-3">Email</th>
+                            <th className="text-right p-3">Visits</th>
+                            <th className="text-left p-3">Dietary</th>
+                            <th className="text-right p-3">Lifetime Spent</th>
+                            <th className="text-right p-3">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filtered.map(c => {
+                            const seg = SEGMENTS.find(s => s.v === c.segment)
+                            return (
+                              <tr key={c.customerId} className="border-b hover:bg-rose-50 transition-colors">
+                                <td className="p-3 font-semibold text-gray-900">{c.name}</td>
+                                <td className="p-3"><Badge className={`text-[10px] h-5 ${seg?.color} hover:${seg?.color}`}>{c.segment}</Badge></td>
+                                <td className="p-3 text-muted-foreground">{c.phone || "—"}</td>
+                                <td className="p-3 text-muted-foreground text-xs">{c.email || "—"}</td>
+                                <td className="p-3 text-right">{c.totalVisits}</td>
+                                <td className="p-3 text-xs">{c.dietaryPreferences || "—"}{c.allergies ? ` ⚠️ ${c.allergies}` : ""}</td>
+                                <td className="p-3 text-right font-bold">{c.totalSpent.toFixed(2)}</td>
+                                <td className="p-3 text-right">
+                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openCustDialog(c)}><Edit2 className="h-3.5 w-3.5" /></Button>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => delCust(c.customerId)}><Trash2 className="h-3.5 w-3.5 text-red-500" /></Button>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
                     )}
                   </CardContent>
                 </Card>
@@ -339,8 +342,40 @@ export default function RestaurantCRMPage() {
               <div className="space-y-1.5"><Label>Type</Label><Select value={campForm.campaignType} onValueChange={v => setCampForm({ ...campForm, campaignType: v })}><SelectTrigger className="h-10"><SelectValue /></SelectTrigger><SelectContent>{["Birthday", "WinBack", "Promotion", "Announcement"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-1.5"><Label>Target</Label><Select value={campForm.targetSegment || "All"} onValueChange={v => setCampForm({ ...campForm, targetSegment: v })}><SelectTrigger className="h-10"><SelectValue /></SelectTrigger><SelectContent>{["All", "New", "Regular", "VIP", "Lapsed"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
             </div>
-            <div className="space-y-1.5"><Label>Channel</Label><Select value={campForm.channel || "SMS"} onValueChange={v => setCampForm({ ...campForm, channel: v })}><SelectTrigger className="h-10"><SelectValue /></SelectTrigger><SelectContent>{["SMS", "Email", "Push"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></div>
-            <div className="space-y-1.5"><Label>Message</Label><Textarea className="min-h-[80px]" value={campForm.message || ""} onChange={e => setCampForm({ ...campForm, message: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>Channel</Label><Select value={campForm.channel || "Email"} onValueChange={v => setCampForm({ ...campForm, channel: v })}><SelectTrigger className="h-10"><SelectValue /></SelectTrigger><SelectContent>{["Email", "Push"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-1.5">
+              <Label>Template</Label>
+              <Select onValueChange={v => {
+                if (v === "__none__") return
+                const templates: Record<string, string> = {
+                  birthday: "Dear {first_name},\n\nHappy Birthday! 🎂 We'd love to celebrate with you. Enjoy a special treat on your next visit — it's on us!\n\nWarmest wishes,\n{restaurant_name}",
+                  winback: "Dear {first_name},\n\nWe miss you! It's been a while since your last visit. Come back and enjoy 10% off your next meal.\n\nWe'd love to see you again!\n{restaurant_name}",
+                  promotion: "Dear {first_name},\n\nGreat news! We have a special offer just for you. Visit us this week and enjoy our latest dishes at amazing prices.\n\nSee you soon!\n{restaurant_name}",
+                  announcement: "Dear {first_name},\n\nWe have exciting news to share! We've updated our menu with new dishes we think you'll love.\n\nCome check them out!\n{restaurant_name}",
+                  thankyou: "Dear {first_name},\n\nThank you for being a valued guest! Your loyalty means the world to us. We look forward to serving you again soon.\n\nWith gratitude,\n{restaurant_name}",
+                  loyalty: "Dear {first_name},\n\nYou've been earning points with every visit! Check your loyalty balance and redeem your rewards on your next visit.\n\nThank you for choosing us!\n{restaurant_name}",
+                  holiday: "Dear {first_name},\n\nHappy Holidays! 🎉 Join us for a special holiday menu and festive atmosphere. Make a reservation today!\n\nBest wishes,\n{restaurant_name}",
+                }
+                setCampForm({ ...campForm, message: templates[v] || "" })
+              }}>
+                <SelectTrigger className="h-10"><SelectValue placeholder="Pick a template (optional)" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Write custom message</SelectItem>
+                  <SelectItem value="birthday">Birthday Greeting</SelectItem>
+                  <SelectItem value="winback">Win-Back / We Miss You</SelectItem>
+                  <SelectItem value="promotion">Promotion / Offer</SelectItem>
+                  <SelectItem value="announcement">Announcement / New Menu</SelectItem>
+                  <SelectItem value="thankyou">Thank You / Appreciation</SelectItem>
+                  <SelectItem value="loyalty">Loyalty Points Reminder</SelectItem>
+                  <SelectItem value="holiday">Holiday / Seasonal</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Message</Label>
+              <Textarea className="min-h-[100px]" value={campForm.message || ""} onChange={e => setCampForm({ ...campForm, message: e.target.value })} />
+              <p className="text-xs text-muted-foreground">Tokens: <code className="bg-gray-100 px-1 rounded">{"{first_name}"}</code> <code className="bg-gray-100 px-1 rounded">{"{restaurant_name}"}</code> — replaced with real values when sent.</p>
+            </div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setCampDialogOpen(false)}>Cancel</Button><Button onClick={saveCamp} className="bg-rose-600 hover:bg-rose-700">Create</Button></DialogFooter>
         </DialogContent>

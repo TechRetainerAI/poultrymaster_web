@@ -91,6 +91,45 @@ export interface RestaurantProfileInput {
 
 // ----- Menu Categories -----
 
+// ----- Suppliers (per-farm) -----
+
+export interface RestaurantSupplier {
+  restaurantsupplierid: number
+  farmid: string
+  name: string
+  contactname?: string | null
+  phone?: string | null
+  email?: string | null
+  address?: string | null
+  category?: string | null
+  notes?: string | null
+  isactive: boolean
+}
+
+export async function listRestaurantSuppliers(): Promise<RestaurantSupplier[]> {
+  return jget<RestaurantSupplier[]>("/Restaurant/setup/suppliers")
+}
+
+export async function createRestaurantSupplier(input: { name: string; contactName?: string; phone?: string; email?: string; address?: string; category?: string; notes?: string }): Promise<any> {
+  return jsend<any>("/Restaurant/setup/suppliers", "POST", { ...input, farmId: activeFarmId() })
+}
+
+// ----- Menu Category Types (system-wide lookup) -----
+
+export interface MenuCategoryType {
+  restaurantMenuCategoryTypeId: number
+  code: string
+  description: string
+  sortOrder: number
+  isActive: boolean
+}
+
+export async function listMenuCategoryTypes(): Promise<MenuCategoryType[]> {
+  return jget<MenuCategoryType[]>("/Hotel/setup/menu-category-types")
+}
+
+// ----- Menu Categories -----
+
 export interface MenuCategory {
   menuCategoryId: number
   farmId: string

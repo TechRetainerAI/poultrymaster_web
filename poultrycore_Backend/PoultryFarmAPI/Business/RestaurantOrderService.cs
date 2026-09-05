@@ -71,15 +71,32 @@ namespace PoultryFarmAPIWeb.Business
         public async Task UpdateOrderStatusAsync(int id, string farmId, string status, string? reason = null)
         {
             using var conn = new NpgsqlConnection(_cs);
-            using var cmd = new NpgsqlCommand(
-                "SELECT sprestaurant_order_update_status(p_id => @Id::int, p_farmid => @FarmId::text, " +
-                "p_status => @Status::text, p_reason => @Reason::text)", conn);
-            cmd.Parameters.AddWithValue("@Id", id);
-            cmd.Parameters.AddWithValue("@FarmId", farmId);
-            cmd.Parameters.AddWithValue("@Status", status);
-            cmd.Parameters.AddWithValue("@Reason", (object?)reason ?? DBNull.Value);
             await conn.OpenAsync();
-            await cmd.ExecuteNonQueryAsync();
+
+            using (var cmd = new NpgsqlCommand(
+                "SELECT sprestaurant_order_update_status(p_id => @Id::int, p_farmid => @FarmId::text, " +
+                "p_status => @Status::text, p_reason => @Reason::text)", conn))
+            {
+                cmd.Parameters.AddWithValue("@Id", id);
+                cmd.Parameters.AddWithValue("@FarmId", farmId);
+                cmd.Parameters.AddWithValue("@Status", status);
+                cmd.Parameters.AddWithValue("@Reason", (object?)reason ?? DBNull.Value);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // Auto-deduct ingredient stock from recipes when order is completed
+            if (status == "Completed" || status == "Served")
+            {
+                try
+                {
+                    using var deduct = new NpgsqlCommand(
+                        "SELECT sprestaurant_recipe_deduct_order(p_orderid => @OrderId::int, p_farmid => @FarmId::text)", conn);
+                    deduct.Parameters.AddWithValue("@OrderId", id);
+                    deduct.Parameters.AddWithValue("@FarmId", farmId);
+                    await deduct.ExecuteScalarAsync();
+                }
+                catch { /* Recipe deduction is best-effort — don't fail the status update */ }
+            }
         }
 
         public async Task RecalcOrderAsync(int orderId, string farmId, decimal taxRate, decimal serviceChargeRate)

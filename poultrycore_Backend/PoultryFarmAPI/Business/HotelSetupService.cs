@@ -80,6 +80,282 @@ namespace PoultryFarmAPIWeb.Business
         };
 
         // =====================================================================
+        // ROOM CATEGORIES (system-wide lookup)
+        // =====================================================================
+
+        public async Task<List<HotelRoomCategoryModel>> ListRoomCategoriesAsync()
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sphotel_roomcategory_list()", conn);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            var list = new List<HotelRoomCategoryModel>();
+            while (await r.ReadAsync())
+            {
+                list.Add(new HotelRoomCategoryModel
+                {
+                    HotelRoomCategoryId = r.GetInt32(r.GetOrdinal("HotelRoomCategoryId")),
+                    Code        = r.GetString(r.GetOrdinal("Code")),
+                    Description = r.GetString(r.GetOrdinal("Description")),
+                    SortOrder   = r.GetInt32(r.GetOrdinal("SortOrder")),
+                    IsActive    = r.GetBoolean(r.GetOrdinal("IsActive")),
+                });
+            }
+            return list;
+        }
+
+        // =====================================================================
+        // BED TYPES (system-wide lookup)
+        // =====================================================================
+
+        public async Task<List<HotelBedTypeModel>> ListBedTypesAsync()
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sphotel_bedtype_list()", conn);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            var list = new List<HotelBedTypeModel>();
+            while (await r.ReadAsync())
+            {
+                list.Add(new HotelBedTypeModel
+                {
+                    HotelBedTypeId = r.GetInt32(r.GetOrdinal("HotelBedTypeId")),
+                    Code        = r.GetString(r.GetOrdinal("Code")),
+                    Description = r.GetString(r.GetOrdinal("Description")),
+                    SortOrder   = r.GetInt32(r.GetOrdinal("SortOrder")),
+                    IsActive    = r.GetBoolean(r.GetOrdinal("IsActive")),
+                });
+            }
+            return list;
+        }
+
+        // =====================================================================
+        // RESTAURANT MENU CATEGORY TYPES (system-wide lookup)
+        // =====================================================================
+
+        public async Task<List<RestaurantMenuCategoryTypeModel>> ListMenuCategoryTypesAsync()
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sprestaurant_menucategorytype_list()", conn);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            var list = new List<RestaurantMenuCategoryTypeModel>();
+            while (await r.ReadAsync())
+            {
+                list.Add(new RestaurantMenuCategoryTypeModel
+                {
+                    RestaurantMenuCategoryTypeId = r.GetInt32(r.GetOrdinal("RestaurantMenuCategoryTypeId")),
+                    Code        = r.GetString(r.GetOrdinal("Code")),
+                    Description = r.GetString(r.GetOrdinal("Description")),
+                    SortOrder   = r.GetInt32(r.GetOrdinal("SortOrder")),
+                    IsActive    = r.GetBoolean(r.GetOrdinal("IsActive")),
+                });
+            }
+            return list;
+        }
+
+        // =====================================================================
+        // SUPPLY CATEGORIES (system-wide lookup)
+        // =====================================================================
+
+        public async Task<List<HotelSupplyCategoryModel>> ListSupplyCategoriesAsync()
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sphotel_supplycategory_list()", conn);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            var list = new List<HotelSupplyCategoryModel>();
+            while (await r.ReadAsync())
+            {
+                list.Add(new HotelSupplyCategoryModel
+                {
+                    HotelSupplyCategoryId = r.GetInt32(r.GetOrdinal("HotelSupplyCategoryId")),
+                    Code        = r.GetString(r.GetOrdinal("Code")),
+                    Description = r.GetString(r.GetOrdinal("Description")),
+                    SortOrder   = r.GetInt32(r.GetOrdinal("SortOrder")),
+                    IsActive    = r.GetBoolean(r.GetOrdinal("IsActive")),
+                });
+            }
+            return list;
+        }
+
+        // =====================================================================
+        // SUPPLY ITEMS (system-wide lookup)
+        // =====================================================================
+
+        public async Task<List<HotelSupplyItemModel>> ListSupplyItemsAsync()
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sphotel_supplyitem_list()", conn);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            var list = new List<HotelSupplyItemModel>();
+            while (await r.ReadAsync())
+            {
+                list.Add(new HotelSupplyItemModel
+                {
+                    HotelSupplyItemId = r.GetInt32(r.GetOrdinal("HotelSupplyItemId")),
+                    Code        = r.GetString(r.GetOrdinal("Code")),
+                    Description = r.GetString(r.GetOrdinal("Description")),
+                    Category    = r.IsDBNull(r.GetOrdinal("Category")) ? null : r.GetString(r.GetOrdinal("Category")),
+                    SortOrder   = r.GetInt32(r.GetOrdinal("SortOrder")),
+                    IsActive    = r.GetBoolean(r.GetOrdinal("IsActive")),
+                });
+            }
+            return list;
+        }
+
+        // =====================================================================
+        // MAINTENANCE ASSETS (system-wide lookup)
+        // =====================================================================
+
+        public async Task<List<HotelMaintenanceAssetModel>> ListMaintenanceAssetsAsync()
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sphotel_maintenanceasset_list()", conn);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            var list = new List<HotelMaintenanceAssetModel>();
+            while (await r.ReadAsync())
+            {
+                list.Add(new HotelMaintenanceAssetModel
+                {
+                    HotelMaintenanceAssetId = r.GetInt32(r.GetOrdinal("HotelMaintenanceAssetId")),
+                    Code        = r.GetString(r.GetOrdinal("Code")),
+                    Description = r.GetString(r.GetOrdinal("Description")),
+                    SortOrder   = r.GetInt32(r.GetOrdinal("SortOrder")),
+                    IsActive    = r.GetBoolean(r.GetOrdinal("IsActive")),
+                });
+            }
+            return list;
+        }
+
+        // =====================================================================
+        // TABLE LOCATIONS (system-wide lookup)
+        // =====================================================================
+
+        public async Task<List<HotelTableLocationModel>> ListTableLocationsAsync()
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sphotel_tablelocation_list()", conn);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            var list = new List<HotelTableLocationModel>();
+            while (await r.ReadAsync())
+            {
+                list.Add(new HotelTableLocationModel
+                {
+                    HotelTableLocationId = r.GetInt32(r.GetOrdinal("HotelTableLocationId")),
+                    Code        = r.GetString(r.GetOrdinal("Code")),
+                    Description = r.GetString(r.GetOrdinal("Description")),
+                    SortOrder   = r.GetInt32(r.GetOrdinal("SortOrder")),
+                    IsActive    = r.GetBoolean(r.GetOrdinal("IsActive")),
+                });
+            }
+            return list;
+        }
+
+        // =====================================================================
+        // HK TASK TYPES (system-wide lookup)
+        // =====================================================================
+
+        public async Task<List<HotelHKTaskTypeModel>> ListHKTaskTypesAsync()
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sphotel_hktasktype_list()", conn);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            var list = new List<HotelHKTaskTypeModel>();
+            while (await r.ReadAsync())
+            {
+                list.Add(new HotelHKTaskTypeModel
+                {
+                    HotelHKTaskTypeId = r.GetInt32(r.GetOrdinal("HotelHKTaskTypeId")),
+                    Code        = r.GetString(r.GetOrdinal("Code")),
+                    Description = r.GetString(r.GetOrdinal("Description")),
+                    SortOrder   = r.GetInt32(r.GetOrdinal("SortOrder")),
+                    IsActive    = r.GetBoolean(r.GetOrdinal("IsActive")),
+                });
+            }
+            return list;
+        }
+
+        // =====================================================================
+        // GUEST REQUEST TYPES (system-wide lookup)
+        // =====================================================================
+
+        public async Task<List<HotelRequestTypeModel>> ListRequestTypesAsync()
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sphotel_requesttype_list()", conn);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            var list = new List<HotelRequestTypeModel>();
+            while (await r.ReadAsync())
+            {
+                list.Add(new HotelRequestTypeModel
+                {
+                    HotelRequestTypeId = r.GetInt32(r.GetOrdinal("HotelRequestTypeId")),
+                    Code        = r.GetString(r.GetOrdinal("Code")),
+                    Description = r.GetString(r.GetOrdinal("Description")),
+                    SortOrder   = r.GetInt32(r.GetOrdinal("SortOrder")),
+                    IsActive    = r.GetBoolean(r.GetOrdinal("IsActive")),
+                });
+            }
+            return list;
+        }
+
+        // =====================================================================
+        // COMMUNICATION SUBJECTS (system-wide lookup)
+        // =====================================================================
+
+        public async Task<List<HotelCommSubjectModel>> ListCommSubjectsAsync()
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sphotel_commsubject_list()", conn);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            var list = new List<HotelCommSubjectModel>();
+            while (await r.ReadAsync())
+            {
+                list.Add(new HotelCommSubjectModel
+                {
+                    HotelCommSubjectId = r.GetInt32(r.GetOrdinal("HotelCommSubjectId")),
+                    Code        = r.GetString(r.GetOrdinal("Code")),
+                    Description = r.GetString(r.GetOrdinal("Description")),
+                    SortOrder   = r.GetInt32(r.GetOrdinal("SortOrder")),
+                    IsActive    = r.GetBoolean(r.GetOrdinal("IsActive")),
+                });
+            }
+            return list;
+        }
+
+        // =====================================================================
+        // ID TYPES (system-wide lookup)
+        // =====================================================================
+
+        public async Task<List<HotelIdTypeModel>> ListIdTypesAsync()
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sphotel_idtype_list()", conn);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            var list = new List<HotelIdTypeModel>();
+            while (await r.ReadAsync())
+            {
+                list.Add(new HotelIdTypeModel
+                {
+                    HotelIdTypeId = r.GetInt32(r.GetOrdinal("HotelIdTypeId")),
+                    Code        = r.GetString(r.GetOrdinal("Code")),
+                    Description = r.GetString(r.GetOrdinal("Description")),
+                    SortOrder   = r.GetInt32(r.GetOrdinal("SortOrder")),
+                    IsActive    = r.GetBoolean(r.GetOrdinal("IsActive")),
+                });
+            }
+            return list;
+        }
+
+        // =====================================================================
         // ROOM TYPES
         // =====================================================================
 
@@ -112,7 +388,8 @@ namespace PoultryFarmAPIWeb.Business
             using var cmd = new NpgsqlCommand(
                 "SELECT * FROM sphotel_roomtype_insert(p_farmid => @FarmId::text, p_name => @Name::text, " +
                 "p_description => @Description::text, p_baserate => @BaseRate::numeric, p_maxoccupancy => @MaxOccupancy::int, " +
-                "p_bedtype => @BedType::text, p_imageurl => @ImageUrl::text, p_isactive => @IsActive::boolean, p_sortorder => @SortOrder::int)", conn);
+                "p_bedtype => @BedType::text, p_imageurl => @ImageUrl::text, p_isactive => @IsActive::boolean, p_sortorder => @SortOrder::int, " +
+                "p_hotelroomcategoryid => @CategoryId::int, p_hotelbedtypeid => @BedTypeId::int)", conn);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@Name", m.Name);
             cmd.Parameters.AddWithValue("@Description", (object?)m.Description ?? DBNull.Value);
@@ -122,6 +399,8 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@ImageUrl", (object?)m.ImageUrl ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@IsActive", m.IsActive);
             cmd.Parameters.AddWithValue("@SortOrder", m.SortOrder);
+            cmd.Parameters.AddWithValue("@CategoryId", (object?)m.HotelRoomCategoryId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@BedTypeId", (object?)m.HotelBedTypeId ?? DBNull.Value);
             await conn.OpenAsync();
             return Convert.ToInt32(await cmd.ExecuteScalarAsync());
         }
@@ -132,7 +411,8 @@ namespace PoultryFarmAPIWeb.Business
             using var cmd = new NpgsqlCommand(
                 "SELECT sphotel_roomtype_update(p_hotelroomtypeid => @Id::int, p_farmid => @FarmId::text, p_name => @Name::text, " +
                 "p_description => @Description::text, p_baserate => @BaseRate::numeric, p_maxoccupancy => @MaxOccupancy::int, " +
-                "p_bedtype => @BedType::text, p_imageurl => @ImageUrl::text, p_isactive => @IsActive::boolean, p_sortorder => @SortOrder::int)", conn);
+                "p_bedtype => @BedType::text, p_imageurl => @ImageUrl::text, p_isactive => @IsActive::boolean, p_sortorder => @SortOrder::int, " +
+                "p_hotelroomcategoryid => @CategoryId::int, p_hotelbedtypeid => @BedTypeId::int)", conn);
             cmd.Parameters.AddWithValue("@Id", m.HotelRoomTypeId);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@Name", m.Name);
@@ -143,6 +423,8 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@ImageUrl", (object?)m.ImageUrl ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@IsActive", m.IsActive);
             cmd.Parameters.AddWithValue("@SortOrder", m.SortOrder);
+            cmd.Parameters.AddWithValue("@CategoryId", (object?)m.HotelRoomCategoryId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@BedTypeId", (object?)m.HotelBedTypeId ?? DBNull.Value);
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
         }
@@ -171,6 +453,12 @@ namespace PoultryFarmAPIWeb.Business
             SortOrder       = r.GetInt32(r.GetOrdinal("SortOrder")),
             CreatedAt       = r.GetDateTime(r.GetOrdinal("CreatedAt")),
             UpdatedAt       = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
+            HotelRoomCategoryId = r.IsDBNull(r.GetOrdinal("HotelRoomCategoryId")) ? null : r.GetInt32(r.GetOrdinal("HotelRoomCategoryId")),
+            CategoryCode    = r.IsDBNull(r.GetOrdinal("CategoryCode")) ? null : r.GetString(r.GetOrdinal("CategoryCode")),
+            CategoryName    = r.IsDBNull(r.GetOrdinal("CategoryName")) ? null : r.GetString(r.GetOrdinal("CategoryName")),
+            HotelBedTypeId  = r.IsDBNull(r.GetOrdinal("HotelBedTypeId")) ? null : r.GetInt32(r.GetOrdinal("HotelBedTypeId")),
+            BedTypeCode     = r.IsDBNull(r.GetOrdinal("BedTypeCode")) ? null : r.GetString(r.GetOrdinal("BedTypeCode")),
+            BedTypeName     = r.IsDBNull(r.GetOrdinal("BedTypeName")) ? null : r.GetString(r.GetOrdinal("BedTypeName")),
         };
 
         // =====================================================================

@@ -141,7 +141,7 @@ export default function RestaurantGiftCardsPage() {
       setSaving(true)
       const res = await redeemGiftCard(redeemCard.cardNumber, Number(redeemAmount), redeemOrderId ? Number(redeemOrderId) : undefined)
       if (res.success) {
-        toast({ title: "Redeemed", description: `${res.message} - New balance: $${res.newBalance.toFixed(2)}` })
+        toast({ title: "Redeemed", description: `${res.message} - New balance: ${res.newBalance.toFixed(2)}` })
         setRedeemOpen(false)
         setRedeemCard(null); setRedeemAmount(""); setRedeemOrderId("")
         fetchData()
@@ -161,7 +161,7 @@ export default function RestaurantGiftCardsPage() {
     try {
       setSaving(true)
       await reloadGiftCard(reloadCard.cardNumber, Number(reloadAmount))
-      toast({ title: "Reloaded", description: `$${Number(reloadAmount).toFixed(2)} added to ${reloadCard.cardNumber}` })
+      toast({ title: "Reloaded", description: `${Number(reloadAmount).toFixed(2)} added to ${reloadCard.cardNumber}` })
       setReloadOpen(false)
       setReloadCard(null); setReloadAmount("")
       fetchData()
