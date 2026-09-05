@@ -15,6 +15,12 @@
 // balance it moved from and to -- because expanding a row to read one line is
 // friction for the common case. A payment across several sales shows the count
 // and expands.
+//
+// ONE ROW PER SALE WHERE A SALE WAS PART-PAID. Listing every instalment as its
+// own row put the same sale on screen two and three times over, and the trail
+// under the newest one then repeated it again. So only the newest payment for
+// a sale keeps a row; the earlier ones are folded into its trail, which now
+// carries their Reverse action -- nothing is lost with the row.
 
 import { Fragment, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -89,6 +95,10 @@ export function PaymentsReceivedPage({
   const [rows, setRows] = useState<PaymentHistoryRow[]>([])
   const [loading, setLoading] = useState(true)
   const [allocations, setAllocations] = useState<Record<string, PaymentAllocationRow[]>>({})
+  // Every payment made against one sale, keyed by sale id. A sale part-paid
+  // three times is three separate one-sale payments, and the interesting thing
+  // is the trail they form -- which no single row can show.
+  const [saleTrails, setSaleTrails] = useState<Record<number, PaymentHistoryRow[]>>({})
   const [expanded, setExpanded] = useState<string | null>(null)
   const [reverseTarget, setReverseTarget] = useState<PaymentHistoryRow | null>(null)
   const [reason, setReason] = useState("")
@@ -114,6 +124,9 @@ export function PaymentsReceivedPage({
       // Allocations are keyed by payment, so a reload has to drop the cache or
       // a reversed payment would keep showing its pre-reversal allocation.
       setAllocations({})
+      // Same for the trails: a reversal posted from inside one would otherwise
+      // keep showing that payment as posted.
+      setSaleTrails({})
     } catch (e: any) {
       toast({ title: "Could not load payments", description: e?.message ?? String(e), variant: "destructive" })
     } finally {
@@ -154,7 +167,50 @@ export function PaymentsReceivedPage({
     })
   }, [rows, search, status, method, source, appliedTo])
 
-  const pg = usePagination(filtered)
+  // How many payments each sale has taken. Counted over every loaded row and
+  // not the filtered ones, so a sale still says it was paid three times while a
+  // filter hides two of them -- the trail is fetched unfiltered and shows all
+  // three, so this count has to agree with the trail, not with the table.
+  const payCountBySale = useMemo(() => {
+    const m = new Map<number, number>()
+    for (const r of rows) {
+      if (r.allocationCount === 1 && r.saleId != null) m.set(r.saleId, (m.get(r.saleId) ?? 0) + 1)
+    }
+    return m
+  }, [rows])
+
+  // One row per part-paid sale. `filtered` is newest-first, so the first row a
+  // sale reaches here is its newest surviving payment: that one keeps the row
+  // and carries the trail, the rest fold into it. Folding runs before
+  // pagination, so pages stay a full size, and it follows the filters -- if the
+  // newest payment is filtered out the next one takes over the row, rather than
+  // the sale disappearing from the ledger.
+  const { visible, carriers, folded } = useMemo(() => {
+    const carriers = new Map<number, string>()
+    const visible: PaymentHistoryRow[] = []
+    let folded = 0
+    for (const r of filtered) {
+      const saleId = r.allocationCount === 1 ? r.saleId : null
+      if (saleId == null || (payCountBySale.get(saleId) ?? 0) < 2) { visible.push(r); continue }
+      if (carriers.has(saleId)) { folded++; continue }
+      carriers.set(saleId, r.paymentId)
+      visible.push(r)
+    }
+    return { visible, carriers, folded }
+  }, [filtered, payCountBySale])
+
+  const pg = usePagination(visible)
+
+  /** How many times this row's sale was paid, once that is more than once. */
+  const payCount = (row: PaymentHistoryRow) => {
+    if (row.allocationCount !== 1 || row.saleId == null) return null
+    const n = payCountBySale.get(row.saleId) ?? 0
+    return n > 1 ? n : null
+  }
+
+  /** The row carrying a part-paid sale's trail is the only one that opens it. */
+  const hasTrail = (row: PaymentHistoryRow) =>
+    row.saleId != null && carriers.get(row.saleId) === row.paymentId
 
   const totals = useMemo(() => {
     const posted = filtered.filter((r) => (r.status ?? "Posted") !== "Reversed")
@@ -188,10 +244,24 @@ export function PaymentsReceivedPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pg.pageItems])
 
+  const fetchTrail = async (saleId: number) => {
+    if (saleTrails[saleId]) return
+    try {
+      // No date range: the trail is the sale's whole life, not this period's
+      // slice of it.
+      const list = await listPayments(module, "customer", { documentId: saleId })
+      setSaleTrails((prev) => (prev[saleId] ? prev : { ...prev, [saleId]: list }))
+    } catch {
+      // Silent, like the allocation fetch: the row still says everything it
+      // said before, and a toast per row would bury the page.
+    }
+  }
+
   const toggle = async (row: PaymentHistoryRow) => {
     if (expanded === row.paymentId) { setExpanded(null); return }
     setExpanded(row.paymentId)
-    await fetchAllocation(row.paymentId)
+    if (row.allocationCount > 1) await fetchAllocation(row.paymentId)
+    else if (row.saleId != null) await fetchTrail(row.saleId)
   }
 
   const doReverse = async () => {
@@ -311,6 +381,87 @@ export function PaymentsReceivedPage({
     </div>
   )
 
+  // The sale's payment trail: what it was worth, and what each payment left
+  // owing. The row being expanded is marked, so you can see where you are in it.
+  const trailTable = (saleId: number, currentPaymentId: string) => {
+    const list = saleTrails[saleId]
+    if (!list) return (
+      <span className="flex items-center gap-2 text-sm text-slate-500">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading the sale's payments…
+      </span>
+    )
+    const ordered = [...list].sort((a, b) => (a.paymentDate ?? "").localeCompare(b.paymentDate ?? ""))
+    return (
+      <div className="rounded-lg border border-indigo-300 bg-white p-2 shadow-sm">
+        <div className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-indigo-800">
+          Sale #{saleId} · paid {ordered.length} times
+        </div>
+        <Table className="w-full table-fixed [&_td]:whitespace-normal [&_th]:whitespace-normal">
+          <colgroup>
+            <col className="w-[13%]" /><col className="w-[14%]" /><col className="w-[12%]" />
+            <col className="w-[16%]" /><col className="w-[15%]" /><col className="w-[16%]" />
+            <col className="w-[14%]" />
+          </colgroup>
+          <TableHeader>
+            <TableRow className="border-b border-indigo-300 bg-indigo-200/70 hover:bg-indigo-200/70 [&_th]:font-semibold [&_th]:text-indigo-900">
+              <TableHead>Date</TableHead>
+              <TableHead>Payment</TableHead>
+              <TableHead>Method</TableHead>
+              <TableHead className="text-right">Balance before</TableHead>
+              <TableHead className="text-right">Applied</TableHead>
+              <TableHead className="text-right">Balance after</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {ordered.map((pmt) => {
+              const isThis = pmt.paymentId === currentPaymentId
+              const rev = (pmt.status ?? "Posted") === "Reversed"
+              return (
+                <TableRow key={pmt.paymentId} className={cn(isThis && "bg-indigo-50 font-medium", rev && "text-slate-400")}>
+                  <TableCell className="whitespace-nowrap!">{dateOf(pmt.paymentDate)}</TableCell>
+                  <TableCell className="whitespace-nowrap!">{paymentRef(pmt)}</TableCell>
+                  <TableCell>{pmt.paymentMethod ?? "—"}</TableCell>
+                  <TableCell className="whitespace-nowrap! text-right text-slate-500">{money(pmt.balanceBefore)}</TableCell>
+                  {/* A bulk payment reaches this trail because it covered this
+                      sale among others. Its totalAmount is the WHOLE payment,
+                      so showing it here would credit this one sale with all of
+                      it -- say what it is instead, and let its own row expand
+                      for the split. */}
+                  <TableCell className="whitespace-nowrap! text-right font-semibold text-emerald-700">
+                    {pmt.allocationCount > 1
+                      ? <span className="font-normal text-slate-500">across {pmt.allocationCount} sales</span>
+                      : money(pmt.amountApplied ?? pmt.totalAmount)}
+                  </TableCell>
+                  <TableCell
+                    className={cn(
+                      "whitespace-nowrap! text-right font-medium",
+                      pmt.balanceAfter == null ? "" : pmt.balanceAfter <= 0 ? "text-emerald-700" : "text-amber-700",
+                    )}
+                  >
+                    {money(pmt.balanceAfter)}
+                  </TableCell>
+                  {/* The folded instalments have no row of their own any more,
+                      so this is the only place left to reverse one. */}
+                  <TableCell className="text-right">
+                    {rev
+                      ? <span className="text-xs text-slate-400">Reversed</span>
+                      : canReverse && (
+                          <Button variant="ghost" size="sm" className="h-7 px-2"
+                                  onClick={() => { setReverseTarget(pmt); setReason("") }}>
+                            <Undo2 className="mr-1 h-3.5 w-3.5" /> Reverse
+                          </Button>
+                        )}
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </Table>
+      </div>
+    )
+  }
+
   const statusBadge = (row: PaymentHistoryRow) =>
     (row.status ?? "Posted") === "Reversed"
       ? <Badge variant="outline" className="text-slate-500">Reversed</Badge>
@@ -343,7 +494,8 @@ export function PaymentsReceivedPage({
           </h1>
           <p className="mb-4 text-sm text-slate-500">
             One row per payment the customer actually made. A payment spread over several sales is one payment
-            here — open it to see how much each sale received.
+            here — open it to see how much each sale received. A sale that was part-paid keeps one row too,
+            with its earlier payments inside it.
           </p>
 
           <ListFilters
@@ -406,6 +558,14 @@ export function PaymentsReceivedPage({
             <div className="rounded-lg border bg-white p-3">
               <div className="text-xs text-slate-500">Payments</div>
               <div className="text-xl font-bold tabular-nums">{totals.count.toLocaleString()}</div>
+              {/* This counts payments, and part-paid sales are shown as one
+                  row, so the two disagree. Say by how much rather than let a
+                  payment look like it went missing from the table. */}
+              {folded > 0 && (
+                <div className="mt-0.5 text-[11px] text-slate-500">
+                  {folded} inside a sale&apos;s trail
+                </div>
+              )}
             </div>
             <div className="rounded-lg border bg-white p-3">
               <div className="text-xs text-slate-500">Total received</div>
@@ -435,13 +595,23 @@ export function PaymentsReceivedPage({
                       const isReversed = (row.status ?? "Posted") === "Reversed"
                       const isOpen = expanded === row.paymentId
                       const multi = row.allocationCount > 1
+                      const openable = multi || hasTrail(row)
+                      const times = payCount(row)
                       const one = single(row)
                       return (
                         <div key={row.paymentId} className={cn("p-3", isReversed && "text-slate-400")}>
+                          {/* Same rule as the table: there is something to open
+                              when the payment covers several sales, or when its
+                              sale has been paid more than once. A one-sale,
+                              one-payment card already shows everything below. */}
                           <button
                             type="button"
-                            onClick={() => toggle(row)}
-                            className="flex w-full items-start justify-between gap-3 text-left"
+                            onClick={() => { if (openable) void toggle(row) }}
+                            aria-expanded={openable ? isOpen : undefined}
+                            className={cn(
+                              "flex w-full items-start justify-between gap-3 text-left",
+                              !openable && "cursor-default",
+                            )}
                           >
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-2">
@@ -456,9 +626,9 @@ export function PaymentsReceivedPage({
                                 {multi ? `${row.allocationCount} sales` : "1 sale"}
                               </div>
                             </div>
-                            {isOpen
+                            {openable && (isOpen
                               ? <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-                              : <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />}
+                              : <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />)}
                           </button>
 
                           <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-500">
@@ -470,7 +640,10 @@ export function PaymentsReceivedPage({
 
                           {!multi && one && (
                             <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 rounded-md bg-slate-50 p-2 text-xs">
-                              <span className="text-slate-500">Sale {saleLink(one.saleId)}</span>
+                              <span className="text-slate-500">
+                                Sale {saleLink(one.saleId)}
+                                {times && <span className="ml-1 text-slate-400">(paid {times} times)</span>}
+                              </span>
                               <span className="text-right text-slate-500">Total {fmt(one.saleTotal ?? 0)}</span>
                               <span className="tabular-nums text-slate-500">Before {fmt(one.before ?? 0)}</span>
                               <span className="text-right tabular-nums text-slate-500">After {fmt(one.after ?? 0)}</span>
@@ -491,7 +664,73 @@ export function PaymentsReceivedPage({
                             </Button>
                           )}
 
-                          {isOpen && (
+                          {/* A sale paid more than once opens its trail instead
+                              of an allocation -- one payment per line, oldest
+                              first, with the one you opened marked. */}
+                          {isOpen && !multi && row.saleId != null && (
+                            <div className="mt-2 space-y-2 rounded-md bg-indigo-50 p-2">
+                              {!saleTrails[row.saleId] ? (
+                                <span className="flex items-center gap-2 text-sm text-slate-500">
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading the sale&apos;s payments…
+                                </span>
+                              ) : (
+                                <>
+                                  <div className="px-1 text-[11px] font-semibold uppercase tracking-wide text-indigo-800">
+                                    Sale #{row.saleId} · paid {saleTrails[row.saleId].length} times
+                                  </div>
+                                  {[...saleTrails[row.saleId]]
+                                    .sort((a, b) => (a.paymentDate ?? "").localeCompare(b.paymentDate ?? ""))
+                                    .map((pmt) => (
+                                      <div
+                                        key={pmt.paymentId}
+                                        className={cn(
+                                          "rounded-md border bg-white p-2.5 text-xs",
+                                          pmt.paymentId === row.paymentId
+                                            ? "border-indigo-400"
+                                            : "border-slate-200",
+                                        )}
+                                      >
+                                        <div className="flex items-start justify-between gap-2">
+                                          <span className="min-w-0 truncate font-medium text-slate-900">
+                                            {paymentRef(pmt)}
+                                            <span className="ml-1.5 font-normal text-slate-500">{dateOf(pmt.paymentDate)}</span>
+                                          </span>
+                                          <span className="shrink-0 font-semibold tabular-nums text-emerald-700">
+                                            {pmt.allocationCount > 1
+                                              ? <span className="font-normal text-slate-500">across {pmt.allocationCount} sales</span>
+                                              : fmt(pmt.amountApplied ?? pmt.totalAmount)}
+                                          </span>
+                                        </div>
+                                        <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1 text-slate-500">
+                                          <span className="tabular-nums">Before {money(pmt.balanceBefore)}</span>
+                                          <span
+                                            className={cn(
+                                              "text-right tabular-nums",
+                                              pmt.balanceAfter == null ? "" : pmt.balanceAfter <= 0 ? "text-emerald-700" : "text-amber-700",
+                                            )}
+                                          >
+                                            After {money(pmt.balanceAfter)}
+                                          </span>
+                                        </div>
+                                        {/* As in the table: a folded payment has
+                                            no row of its own, so its Reverse
+                                            lives here. */}
+                                        {(pmt.status ?? "Posted") === "Reversed"
+                                          ? <div className="mt-1.5 text-[11px] text-slate-400">Reversed</div>
+                                          : canReverse && (
+                                              <Button variant="outline" size="sm" className="mt-2 h-8 w-full bg-white"
+                                                      onClick={() => { setReverseTarget(pmt); setReason("") }}>
+                                                <Undo2 className="mr-1.5 h-3.5 w-3.5" /> Reverse
+                                              </Button>
+                                            )}
+                                      </div>
+                                    ))}
+                                </>
+                              )}
+                            </div>
+                          )}
+
+                          {isOpen && multi && (
                             <div className="mt-2 space-y-2 rounded-md bg-slate-50 p-2">
                               {!allocations[row.paymentId] ? (
                                 <span className="flex items-center gap-2 text-sm text-slate-500">
@@ -558,15 +797,22 @@ export function PaymentsReceivedPage({
                           const isOpen = expanded === row.paymentId
                           const multi = row.allocationCount > 1
                           const one = single(row)
+                          const times = payCount(row)
                           return (
                             <Fragment key={row.paymentId}>
                               <TableRow className={isReversed ? "text-slate-400" : undefined}>
                                 <TableCell>
-                                  {/* Even a one-sale payment opens, so the full
-                                      allocation row is reachable everywhere. */}
-                                  <button type="button" onClick={() => toggle(row)} aria-label="Show allocation">
-                                    {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                                  </button>
+                                  {/* Only a payment across several sales has
+                                      anything to open. A one-sale payment
+                                      already shows its sale, total, before,
+                                      applied and after ON this row, so an
+                                      expander there just repeats the row back
+                                      at you. */}
+                                  {(multi || hasTrail(row)) && (
+                                    <button type="button" onClick={() => toggle(row)} aria-label="Show allocation">
+                                      {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                    </button>
+                                  )}
                                 </TableCell>
                                 <TableCell className="whitespace-nowrap!">{dateOf(row.paymentDate)}</TableCell>
                                 <TableCell className="whitespace-nowrap! font-medium text-slate-700" title={row.paymentId}>
@@ -579,12 +825,38 @@ export function PaymentsReceivedPage({
                                 <TableCell className="whitespace-nowrap!">
                                   {multi
                                     ? <span className="font-medium text-slate-700">{row.allocationCount} sales</span>
-                                    : one ? saleLink(one.saleId) : <span className="text-slate-400">—</span>}
+                                    : one ? (
+                                        <>
+                                          {saleLink(one.saleId)}
+                                          {/* The earlier instalments no longer
+                                              have rows of their own, so this
+                                              says the sale was part-paid and the
+                                              chevron opens the whole trail. */}
+                                          {times && (
+                                            <span className="ml-1.5 text-xs text-slate-500">
+                                              paid {times} times
+                                            </span>
+                                          )}
+                                        </>
+                                      )
+                                    : <span className="text-slate-400">—</span>}
                                 </TableCell>
                                 <TableCell className="whitespace-nowrap! text-right">{money(one?.saleTotal)}</TableCell>
                                 <TableCell className="whitespace-nowrap! text-right text-slate-500">{money(one?.before)}</TableCell>
-                                <TableCell className="whitespace-nowrap! text-right font-medium">{money(one?.applied)}</TableCell>
-                                <TableCell className="whitespace-nowrap! text-right">{money(one?.after)}</TableCell>
+                                <TableCell className="whitespace-nowrap! text-right font-semibold text-emerald-700">{money(one?.applied)}</TableCell>
+                                {/* The expander used to carry a Paid / Part paid badge for the
+                                    sale. It is the same fact as this number, so it
+                                    is said here instead: green when the sale ended
+                                    settled, amber when something is still owed. */}
+                                <TableCell
+                                  className={cn(
+                                    "whitespace-nowrap! text-right font-medium",
+                                    one == null || one.after == null ? ""
+                                      : one.after <= 0 ? "text-emerald-700" : "text-amber-700",
+                                  )}
+                                >
+                                  {money(one?.after)}
+                                </TableCell>
                                 <TableCell>{row.paymentMethod ?? "—"}</TableCell>
                                 <TableCell className="text-xs text-slate-500" title={row.sourceType ?? undefined}>
                                   {sourceLabel(row.sourceType)}
@@ -613,11 +885,13 @@ export function PaymentsReceivedPage({
                                 <TableRow>
                                   <TableCell />
                                   <TableCell colSpan={13} className="py-2">
-                                    {!allocations[row.paymentId] ? (
-                                      <span className="flex items-center gap-2 text-sm text-slate-500">
-                                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading allocation…
-                                      </span>
-                                    ) : allocationTable(allocations[row.paymentId])}
+                                    {multi
+                                      ? (!allocations[row.paymentId] ? (
+                                          <span className="flex items-center gap-2 text-sm text-slate-500">
+                                            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading allocation…
+                                          </span>
+                                        ) : allocationTable(allocations[row.paymentId]))
+                                      : row.saleId != null && trailTable(row.saleId, row.paymentId)}
                                   </TableCell>
                                 </TableRow>
                               )}
