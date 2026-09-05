@@ -109,6 +109,36 @@ export default function RestaurantGiftCardsPage() {
       setSaving(true)
       const result = await createGiftCard(issueForm)
       toast({ title: "Card Issued", description: `Card ${result.cardNumber} created successfully` })
+
+      // Email gift card to recipient
+      if (issueForm.recipientEmail?.trim()) {
+        try {
+          const { farmApiUrl, getAuthHeaders } = await import("@/lib/api/config")
+          const emailBody = `
+<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif">
+<div style="max-width:500px;margin:0 auto;padding:24px">
+  <div style="background:linear-gradient(135deg,#e11d48,#be123c);color:white;padding:30px;border-radius:16px 16px 0 0;text-align:center">
+    <h1 style="margin:0;font-size:24px">You've Received a Gift Card!</h1>
+  </div>
+  <div style="background:white;padding:24px;border-radius:0 0 16px 16px;box-shadow:0 2px 8px rgba(0,0,0,.1)">
+    <p>Dear ${issueForm.recipientName || "Friend"},</p>
+    ${issueForm.purchaserName ? `<p><strong>${issueForm.purchaserName}</strong> has sent you a gift card!</p>` : "<p>Someone special has sent you a gift card!</p>"}
+    ${issueForm.message ? `<div style="background:#fdf2f8;padding:16px;border-radius:12px;border-left:4px solid #e11d48;margin:16px 0;font-style:italic;color:#64748b">"${issueForm.message}"</div>` : ""}
+    <div style="background:#fdf2f8;border:2px dashed #e11d48;border-radius:16px;padding:24px;margin:20px 0;text-align:center">
+      <p style="color:#64748b;font-size:12px;margin:0 0 8px;text-transform:uppercase;letter-spacing:1px">Your Gift Card</p>
+      <p style="font-size:32px;font-weight:800;color:#e11d48;margin:0">${Number(issueForm.amount).toFixed(2)}</p>
+      <p style="font-family:monospace;font-size:18px;font-weight:700;color:#1e293b;margin:12px 0 0;letter-spacing:2px">${result.cardNumber}</p>
+    </div>
+    <p style="text-align:center;color:#64748b;font-size:13px">Present this card number when making a purchase. Enjoy!</p>
+  </div>
+</div></body></html>`
+          const url = farmApiUrl("/Email/send-html")
+          await fetch(url, { method: "POST", headers: getAuthHeaders(), body: JSON.stringify({ to: issueForm.recipientEmail, subject: `You've Received a Gift Card — ${result.cardNumber}`, body: emailBody }) })
+          toast({ title: "Email sent", description: `Gift card emailed to ${issueForm.recipientEmail}` })
+        } catch { /* email is best-effort */ }
+      }
+
       setIssueOpen(false)
       setIssueForm({ cardType: "Digital", amount: 0, purchaserName: "", purchaserPhone: "", recipientName: "", recipientEmail: "", message: "", expiryDate: "" })
       fetchData()

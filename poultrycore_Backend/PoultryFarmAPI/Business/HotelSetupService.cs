@@ -155,6 +155,32 @@ namespace PoultryFarmAPIWeb.Business
         }
 
         // =====================================================================
+        // RESTAURANT MENU ITEM NAMES (system-wide lookup)
+        // =====================================================================
+
+        public async Task<List<RestaurantMenuItemNameModel>> ListMenuItemNamesAsync()
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sprestaurant_menuitemname_list()", conn);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            var list = new List<RestaurantMenuItemNameModel>();
+            while (await r.ReadAsync())
+            {
+                list.Add(new RestaurantMenuItemNameModel
+                {
+                    RestaurantMenuItemNameId = r.GetInt32(r.GetOrdinal("RestaurantMenuItemNameId")),
+                    Code        = r.GetString(r.GetOrdinal("Code")),
+                    Description = r.GetString(r.GetOrdinal("Description")),
+                    Category    = r.IsDBNull(r.GetOrdinal("Category")) ? null : r.GetString(r.GetOrdinal("Category")),
+                    SortOrder   = r.GetInt32(r.GetOrdinal("SortOrder")),
+                    IsActive    = r.GetBoolean(r.GetOrdinal("IsActive")),
+                });
+            }
+            return list;
+        }
+
+        // =====================================================================
         // SUPPLY CATEGORIES (system-wide lookup)
         // =====================================================================
 

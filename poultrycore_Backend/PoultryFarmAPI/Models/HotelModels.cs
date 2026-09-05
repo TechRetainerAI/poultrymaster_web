@@ -153,6 +153,20 @@ namespace PoultryFarmAPIWeb.Models
         public bool IsActive { get; set; } = true;
     }
 
+    public class RestaurantMenuItemNameModel
+    {
+        [Key]
+        public int RestaurantMenuItemNameId { get; set; }
+        [Required][StringLength(10)]
+        public string Code { get; set; } = string.Empty;
+        [Required][StringLength(150)]
+        public string Description { get; set; } = string.Empty;
+        [StringLength(100)]
+        public string? Category { get; set; }
+        public int SortOrder { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+
     public class HotelSupplyCategoryModel
     {
         [Key]

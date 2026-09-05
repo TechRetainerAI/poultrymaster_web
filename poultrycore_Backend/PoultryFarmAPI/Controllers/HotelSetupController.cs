@@ -56,6 +56,12 @@ namespace PoultryFarmAPIWeb.Controllers
             return Ok(await _svc.ListMenuCategoryTypesAsync());
         }
 
+        [HttpGet("menu-item-names")]
+        public async Task<IActionResult> ListMenuItemNames()
+        {
+            return Ok(await _svc.ListMenuItemNamesAsync());
+        }
+
         // =====================================================================
         // SUPPLY CATEGORIES & ITEMS (system-wide lookup)
         // =====================================================================

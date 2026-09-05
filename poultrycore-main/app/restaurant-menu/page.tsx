@@ -21,8 +21,8 @@ import {
   listMenuItems, createMenuItem, updateMenuItem, deleteMenuItem, toggleMenuItemAvailability,
   listCombos, createCombo, updateCombo, deleteCombo,
   listComboItems, addComboItem, removeComboItem,
-  listMenuCategoryTypes, listIngredients, listRecipe, upsertRecipe, deleteRecipe,
-  type MenuCategory, type MenuCategoryInput, type MenuCategoryType,
+  listMenuCategoryTypes, listMenuItemNames, listIngredients, listRecipe, upsertRecipe, deleteRecipe,
+  type MenuCategory, type MenuCategoryInput, type MenuCategoryType, type MenuItemName,
   type MenuItem, type MenuItemInput, type Ingredient, type Recipe,
   type Combo, type ComboInput, type ComboItem, type ComboItemInput,
 } from "@/lib/api/restaurant"
@@ -46,6 +46,8 @@ export default function RestaurantMenuPage() {
 
   const [categories, setCategories] = useState<MenuCategory[]>([])
   const [categoryTypes, setCategoryTypes] = useState<MenuCategoryType[]>([])
+  const [menuItemNames, setMenuItemNames] = useState<MenuItemName[]>([])
+  const [itemNameSelection, setItemNameSelection] = useState("")
   const [allIngredients, setAllIngredients] = useState<Ingredient[]>([])
   const [itemRecipe, setItemRecipe] = useState<Recipe[]>([])
   const [recipeAddIng, setRecipeAddIng] = useState(0)
@@ -79,8 +81,8 @@ export default function RestaurantMenuPage() {
   async function loadAll() {
     setLoading(true)
     try {
-      const [cats, itms, cmbs, ctypes, ings] = await Promise.all([listMenuCategories(), listMenuItems(), listCombos(), listMenuCategoryTypes().catch(() => []), listIngredients().catch(() => [])])
-      setCategories(cats); setItems(itms); setCombos(cmbs); setCategoryTypes(ctypes); setAllIngredients(ings)
+      const [cats, itms, cmbs, ctypes, mins, ings] = await Promise.all([listMenuCategories(), listMenuItems(), listCombos(), listMenuCategoryTypes().catch(() => []), listMenuItemNames().catch(() => []), listIngredients().catch(() => [])])
+      setCategories(cats); setItems(itms); setCombos(cmbs); setCategoryTypes(ctypes); setMenuItemNames(mins); setAllIngredients(ings)
     } catch (e: any) { toast({ title: "Failed to load", description: e?.message, variant: "destructive" }) }
     finally { setLoading(false) }
   }
@@ -111,6 +113,7 @@ export default function RestaurantMenuPage() {
       setItemRecipe([])
     }
     setRecipeAddIng(0); setRecipeAddQty(1); setRecipeAddUnit("kg"); setRecipeAddWaste(0)
+    setItemNameSelection("")
     setItemDialogOpen(true)
   }
   async function saveItem() {
@@ -511,7 +514,22 @@ export default function RestaurantMenuPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label>Item Name <span className="text-rose-500">*</span></Label>
-                  <Input value={itemForm.name} onChange={e => setItemForm({ ...itemForm, name: e.target.value })} placeholder="e.g. Grilled Chicken" className="h-10" />
+                  <Select value={itemNameSelection || "__none__"} onValueChange={v => {
+                    const sel = v === "__none__" ? "" : v
+                    setItemNameSelection(sel)
+                    if (sel && sel !== "Other") setItemForm({ ...itemForm, name: sel })
+                    else if (sel === "Other") setItemForm({ ...itemForm, name: "" })
+                  }}>
+                    <SelectTrigger className="h-10"><SelectValue placeholder="Select or type a name" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Select item</SelectItem>
+                      {menuItemNames.map(n => <SelectItem key={n.restaurantMenuItemNameId} value={n.description}>{n.description}{n.category ? ` (${n.category})` : ""}</SelectItem>)}
+                      <SelectItem value="Other">Other (type custom name)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {(itemNameSelection === "Other" || itemEditing) && (
+                    <Input value={itemForm.name} onChange={e => setItemForm({ ...itemForm, name: e.target.value })} placeholder="Type item name" className="h-10 mt-1.5" />
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label>Category</Label>
@@ -529,13 +547,26 @@ export default function RestaurantMenuPage() {
                 <textarea className="w-full min-h-[60px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2" value={itemForm.description || ""} onChange={e => setItemForm({ ...itemForm, description: e.target.value })} placeholder="Describe this dish..." />
               </div>
               <div className="mt-3 space-y-1.5">
-                <Label>Image URL (optional)</Label>
-                <Input value={itemForm.imageUrl || ""} onChange={e => setItemForm({ ...itemForm, imageUrl: e.target.value })} placeholder="https://example.com/photo.jpg" className="h-10" />
-                {itemForm.imageUrl && (
-                  <div className="mt-2 rounded-lg overflow-hidden border w-24 h-24">
-                    <img src={itemForm.imageUrl} alt="Preview" className="w-full h-full object-cover" onError={e => (e.currentTarget.style.display = "none")} />
-                  </div>
-                )}
+                <Label>Image (optional)</Label>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 px-4 py-2 border rounded-lg cursor-pointer hover:bg-rose-50 transition-colors text-sm">
+                    <Package className="h-4 w-4 text-rose-600" /> Choose Photo
+                    <input type="file" accept="image/*" className="hidden" onChange={e => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        const reader = new FileReader()
+                        reader.onload = () => setItemForm({ ...itemForm, imageUrl: reader.result as string })
+                        reader.readAsDataURL(file)
+                      }
+                    }} />
+                  </label>
+                  {itemForm.imageUrl && (
+                    <div className="relative w-16 h-16 rounded-lg overflow-hidden border">
+                      <img src={itemForm.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                      <button type="button" onClick={() => setItemForm({ ...itemForm, imageUrl: "" })} className="absolute top-0 right-0 bg-red-500 text-white rounded-bl-lg p-0.5"><Trash2 className="h-3 w-3" /></button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 

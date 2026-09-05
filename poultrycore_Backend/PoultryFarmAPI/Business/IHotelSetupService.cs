@@ -19,6 +19,7 @@ namespace PoultryFarmAPIWeb.Business
 
         // Restaurant Menu Category Types (system-wide lookup)
         Task<List<RestaurantMenuCategoryTypeModel>> ListMenuCategoryTypesAsync();
+        Task<List<RestaurantMenuItemNameModel>> ListMenuItemNamesAsync();
 
         // Supply Categories & Items (system-wide lookup)
         Task<List<HotelSupplyCategoryModel>> ListSupplyCategoriesAsync();

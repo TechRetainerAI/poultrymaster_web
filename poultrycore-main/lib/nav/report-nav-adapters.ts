@@ -9,6 +9,7 @@
 import { WATER_REPORT_GROUPS, waterReportHref } from "@/lib/reports/water-reports-config"
 import { POULTRY_REPORT_MENU_GROUPS } from "@/lib/reports/poultry-reports-config"
 import { HOTEL_REPORT_GROUPS } from "@/lib/reports/hotel-reports-config"
+import { RESTAURANT_REPORT_GROUPS } from "@/lib/reports/restaurant-reports-config"
 import type { MegaMenuGroup } from "./nav-model"
 
 /**
@@ -59,5 +60,19 @@ export const HOTEL_REPORT_NAV_GROUPS: MegaMenuGroup[] = HOTEL_REPORT_GROUPS.map(
     title: r.title,
     icon: r.icon,
     href: `/hotel-reports/${r.slug}`,
+  })),
+}))
+
+/**
+ * Restaurant reports: same pattern. Links to /restaurant-reports with tab hash.
+ */
+export const RESTAURANT_REPORT_NAV_GROUPS: MegaMenuGroup[] = RESTAURANT_REPORT_GROUPS.map((g) => ({
+  key: g.key,
+  label: g.label,
+  items: g.reports.map((r) => ({
+    id: `${g.key}:${r.slug}`,
+    title: r.title,
+    icon: r.icon,
+    href: `/restaurant-reports?tab=${r.slug}`,
   })),
 }))

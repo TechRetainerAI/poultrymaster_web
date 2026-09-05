@@ -128,6 +128,19 @@ export async function listMenuCategoryTypes(): Promise<MenuCategoryType[]> {
   return jget<MenuCategoryType[]>("/Hotel/setup/menu-category-types")
 }
 
+export interface MenuItemName {
+  restaurantMenuItemNameId: number
+  code: string
+  description: string
+  category?: string | null
+  sortOrder: number
+  isActive: boolean
+}
+
+export async function listMenuItemNames(): Promise<MenuItemName[]> {
+  return jget<MenuItemName[]>("/Hotel/setup/menu-item-names")
+}
+
 // ----- Menu Categories -----
 
 export interface MenuCategory {
