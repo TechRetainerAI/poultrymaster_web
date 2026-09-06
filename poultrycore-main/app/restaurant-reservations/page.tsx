@@ -75,7 +75,10 @@ export default function RestaurantReservationsPage() {
   async function saveRes() {
     if (!resForm.guestName.trim()) { toast({ title: "Guest name required", variant: "destructive" }); return }
     try { if (resEditing) await updateReservation(resEditing.reservationId, resForm); else await createReservation(resForm)
-      toast({ title: resEditing ? "Updated" : "Reservation created" }); setResDialogOpen(false); loadReservations()
+      toast({ title: resEditing ? "Updated" : "Reservation created" }); setResDialogOpen(false)
+      // Switch to the reservation's date so it's visible, then reload
+      if (resForm.reservationDate && resForm.reservationDate !== selectedDate) setSelectedDate(resForm.reservationDate)
+      else await loadReservations()
     } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
   }
   async function changeResStatus(id: number, s: string) { try { await updateReservationStatus(id, s); toast({ title: `${s}` }); loadReservations() } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) } }

@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Npgsql;
 using PoultryFarmAPIWeb.Helpers;
+using System.Security.Cryptography;
 
 namespace PoultryFarmAPIWeb.Controllers
 {
@@ -15,7 +17,14 @@ namespace PoultryFarmAPIWeb.Controllers
     public class HotelOperationsController : ControllerBase
     {
         private readonly string _cs;
-        public HotelOperationsController(IConfiguration config) => _cs = config.GetConnectionString("PoultryConn") ?? "";
+        private readonly Business.IEmailService _email;
+        private readonly ILogger<HotelOperationsController> _logger;
+        public HotelOperationsController(IConfiguration config, Business.IEmailService email, ILogger<HotelOperationsController> logger)
+        {
+            _cs = config.GetConnectionString("PoultryConn") ?? "";
+            _email = email;
+            _logger = logger;
+        }
 
         // ======================= STAFF =======================
         [HttpGet("staff")]
@@ -33,16 +42,230 @@ namespace PoultryFarmAPIWeb.Controllers
         {
             var auth = HotelAuthHelper.VerifyFarmOwnership(User, req.FarmId); if (auth != null) return auth;
             string hire = string.IsNullOrEmpty(req.HireDate) ? DateTime.UtcNow.ToString("yyyy-MM-dd") : req.HireDate;
+
+            // --- 1. Generate username & password ---
+            string baseUsername = $"{req.FirstName.Trim().ToLower()}.{req.LastName.Trim().ToLower()}".Replace(" ", "");
+            string username = baseUsername;
+            string password = GeneratePassword();
+            string? userId = null;
+
+            // --- 2. Create user account if email is provided ---
+            if (!string.IsNullOrWhiteSpace(req.Email))
+            {
+                using var connU = new NpgsqlConnection(_cs); await connU.OpenAsync();
+
+                // Ensure unique username
+                int suffix = 1;
+                while (true)
+                {
+                    using var chk = new NpgsqlCommand("SELECT COUNT(*) FROM aspnetusers WHERE normalizedusername=@u", connU);
+                    chk.Parameters.AddWithValue("@u", username.ToUpper());
+                    var cnt = Convert.ToInt32(await chk.ExecuteScalarAsync());
+                    if (cnt == 0) break;
+                    username = $"{baseUsername}{suffix++}";
+                }
+
+                // Hash password using Identity's hasher
+                var hasher = new PasswordHasher<object>();
+                string passwordHash = hasher.HashPassword(new object(), password);
+                userId = Guid.NewGuid().ToString();
+
+                // Build department-based feature permissions
+                string featurePerms = BuildDepartmentPermissions(req.Department);
+
+                // Get farm name
+                string farmName = "";
+                using (var fn = new NpgsqlCommand("SELECT hotelname FROM hotelprofiles WHERE farmid=@f LIMIT 1", connU))
+                {
+                    fn.Parameters.AddWithValue("@f", req.FarmId);
+                    var fnResult = await fn.ExecuteScalarAsync();
+                    farmName = fnResult?.ToString() ?? "";
+                }
+
+                // Insert user into aspnetusers
+                using (var ins = new NpgsqlCommand(@"
+                    INSERT INTO aspnetusers (id, username, normalizedusername, email, normalizedemail, emailconfirmed,
+                        passwordhash, securitystamp, concurrencystamp, phonenumber, phonenumberconfirmed,
+                        twofactorenabled, lockoutenabled, accessfailedcount,
+                        firstname, lastname, farmid, farmname, isstaff, isadmin, issubscriber, featurepermissions)
+                    VALUES (@id, @u, @nu, @e, @ne, true, @ph, @ss, @cs, @p, false, false, true, 0,
+                        @fn, @ln, @fid, @fname, true, false, false, @fp)", connU))
+                {
+                    ins.Parameters.AddWithValue("@id", userId);
+                    ins.Parameters.AddWithValue("@u", username);
+                    ins.Parameters.AddWithValue("@nu", username.ToUpper());
+                    ins.Parameters.AddWithValue("@e", req.Email);
+                    ins.Parameters.AddWithValue("@ne", req.Email.ToUpper());
+                    ins.Parameters.AddWithValue("@ph", passwordHash);
+                    ins.Parameters.AddWithValue("@ss", Guid.NewGuid().ToString());
+                    ins.Parameters.AddWithValue("@cs", Guid.NewGuid().ToString());
+                    ins.Parameters.AddWithValue("@p", (object?)req.Phone ?? DBNull.Value);
+                    ins.Parameters.AddWithValue("@fn", req.FirstName);
+                    ins.Parameters.AddWithValue("@ln", req.LastName);
+                    ins.Parameters.AddWithValue("@fid", req.FarmId);
+                    ins.Parameters.AddWithValue("@fname", farmName);
+                    ins.Parameters.AddWithValue("@fp", featurePerms);
+                    await ins.ExecuteNonQueryAsync();
+                }
+
+                // Assign Staff role
+                using (var role = new NpgsqlCommand(
+                    "INSERT INTO aspnetuserroles (userid, roleid) VALUES (@uid, @rid) ON CONFLICT DO NOTHING", connU))
+                {
+                    role.Parameters.AddWithValue("@uid", userId);
+                    role.Parameters.AddWithValue("@rid", "a9ce449e-e523-4fa3-a33a-6cf03be781b8"); // Staff role ID
+                    await role.ExecuteNonQueryAsync();
+                }
+
+                // Link user to farm
+                using (var uf = new NpgsqlCommand(
+                    "INSERT INTO userfarms (userid, farmid, role, createdat) VALUES (@uid, @fid, 'Staff', NOW()) ON CONFLICT DO NOTHING", connU))
+                {
+                    uf.Parameters.AddWithValue("@uid", userId);
+                    uf.Parameters.AddWithValue("@fid", req.FarmId);
+                    await uf.ExecuteNonQueryAsync();
+                }
+            }
+
+            // --- 3. Create hotel staff record ---
             using var conn = new NpgsqlConnection(_cs); await conn.OpenAsync();
-            using var cmd = new NpgsqlCommand("INSERT INTO hotelstaff(farmid,firstname,lastname,email,phone,role,department,salaryamount,hiredate,isactive) VALUES(@f,@fn,@ln,@e,@p,@r,@d,@s,@h::date,@a) RETURNING *", conn);
+            using var cmd = new NpgsqlCommand(
+                "INSERT INTO hotelstaff(farmid,firstname,lastname,email,phone,role,department,salaryamount,hiredate,isactive,userid) " +
+                "VALUES(@f,@fn,@ln,@e,@p,@r,@d,@s,@h::date,@a,@uid) RETURNING *", conn);
             cmd.Parameters.AddWithValue("@f", req.FarmId); cmd.Parameters.AddWithValue("@fn", req.FirstName);
             cmd.Parameters.AddWithValue("@ln", req.LastName); cmd.Parameters.AddWithValue("@e", (object?)req.Email ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@p", (object?)req.Phone ?? DBNull.Value); cmd.Parameters.AddWithValue("@r", req.Role);
             cmd.Parameters.AddWithValue("@d", req.Department); cmd.Parameters.AddWithValue("@s", req.SalaryAmount);
             cmd.Parameters.AddWithValue("@h", hire); cmd.Parameters.AddWithValue("@a", req.IsActive);
+            cmd.Parameters.AddWithValue("@uid", (object?)userId ?? DBNull.Value);
             using var r = await cmd.ExecuteReaderAsync();
-            return await r.ReadAsync() ? Ok(ReadRow(r)) : StatusCode(500);
+            if (!await r.ReadAsync()) return StatusCode(500);
+            var row = ReadRow(r);
+            r.Close();
+
+            // --- 4. Send welcome email with credentials ---
+            if (!string.IsNullOrWhiteSpace(req.Email) && userId != null)
+            {
+                var emailUsername = username;
+                var emailPassword = password;
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        string hotelName = "Hotel";
+                        using var conn2 = new NpgsqlConnection(_cs); await conn2.OpenAsync();
+                        using var hcmd = new NpgsqlCommand("SELECT hotelname FROM hotelprofiles WHERE farmid=@f LIMIT 1", conn2);
+                        hcmd.Parameters.AddWithValue("@f", req.FarmId);
+                        var hResult = await hcmd.ExecuteScalarAsync();
+                        if (hResult != null && hResult != DBNull.Value) hotelName = hResult.ToString()!;
+
+                        var subject = $"Welcome to {hotelName} — Your Login Credentials";
+                        var body = $@"
+<!DOCTYPE html><html><head><meta charset='utf-8'></head>
+<body style='margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif'>
+<div style='max-width:600px;margin:0 auto;padding:24px'>
+    <div style='background:#7c3aed;color:white;padding:20px 24px;border-radius:12px 12px 0 0;text-align:center'>
+        <h1 style='margin:0;font-size:22px'>{hotelName}</h1>
+    </div>
+    <div style='background:white;padding:24px;border-radius:0 0 12px 12px;box-shadow:0 1px 3px rgba(0,0,0,.1)'>
+        <h2 style='color:#7c3aed;margin:0 0 16px'>Welcome to the Team!</h2>
+        <p>Dear {req.FirstName} {req.LastName},</p>
+        <p>You have been added as a staff member at <strong>{hotelName}</strong>. Here are your details:</p>
+        <table style='width:100%;border-collapse:collapse;margin:16px 0'>
+            <tr><td style='padding:8px;border-bottom:1px solid #e2e8f0;color:#64748b'>Role</td><td style='padding:8px;border-bottom:1px solid #e2e8f0;font-weight:600'>{req.Role}</td></tr>
+            <tr><td style='padding:8px;border-bottom:1px solid #e2e8f0;color:#64748b'>Department</td><td style='padding:8px;border-bottom:1px solid #e2e8f0;font-weight:600'>{req.Department}</td></tr>
+            <tr><td style='padding:8px;border-bottom:1px solid #e2e8f0;color:#64748b'>Start Date</td><td style='padding:8px;border-bottom:1px solid #e2e8f0;font-weight:600'>{hire}</td></tr>
+        </table>
+        <div style='background:#f8fafc;border:2px solid #7c3aed;border-radius:12px;padding:20px;margin:20px 0;text-align:center'>
+            <p style='color:#64748b;font-size:12px;margin:0 0 12px;text-transform:uppercase;letter-spacing:1px'>Your Login Credentials</p>
+            <table style='margin:0 auto;border-collapse:collapse'>
+                <tr><td style='padding:6px 16px;color:#64748b;text-align:right'>Username:</td><td style='padding:6px 16px;font-weight:700;font-size:18px;color:#7c3aed;font-family:monospace'>{emailUsername}</td></tr>
+                <tr><td style='padding:6px 16px;color:#64748b;text-align:right'>Password:</td><td style='padding:6px 16px;font-weight:700;font-size:18px;color:#7c3aed;font-family:monospace'>{emailPassword}</td></tr>
+            </table>
+            <p style='color:#dc2626;font-size:11px;margin:12px 0 0;font-weight:600'>Please change your password after your first login.</p>
+        </div>
+        <p style='color:#64748b;font-size:13px'>You can access the system based on your department ({req.Department}). If you need additional access, contact your administrator.</p>
+        <p>We're excited to have you on board!</p>
+    </div>
+    <p style='text-align:center;color:#94a3b8;font-size:12px;margin-top:16px'>
+        This is an automated email from {hotelName}. Please do not reply.
+    </p>
+</div></body></html>";
+
+                        await _email.SendAsync(new[] { req.Email }, subject, body);
+                        _logger.LogInformation("Welcome email with credentials sent to {Name} ({Username})", $"{req.FirstName} {req.LastName}", emailUsername);
+                    }
+                    catch (Exception ex) { _logger.LogWarning(ex, "Failed to send welcome email to staff {Email}", req.Email); }
+                });
+            }
+
+            return Ok(row);
         }
+
+        private static string GeneratePassword()
+        {
+            const string upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+            const string lower = "abcdefghjkmnpqrstuvwxyz";
+            const string digits = "23456789";
+            const string special = "!@#$%&*";
+            var rng = RandomNumberGenerator.Create();
+            var bytes = new byte[12];
+            rng.GetBytes(bytes);
+            var chars = new char[12];
+            chars[0] = upper[bytes[0] % upper.Length];
+            chars[1] = lower[bytes[1] % lower.Length];
+            chars[2] = digits[bytes[2] % digits.Length];
+            chars[3] = special[bytes[3] % special.Length];
+            var all = upper + lower + digits + special;
+            for (int i = 4; i < 12; i++) chars[i] = all[bytes[i] % all.Length];
+            // Shuffle
+            for (int i = chars.Length - 1; i > 0; i--)
+            {
+                var b = new byte[1]; rng.GetBytes(b);
+                int j = b[0] % (i + 1);
+                (chars[i], chars[j]) = (chars[j], chars[i]);
+            }
+            return new string(chars);
+        }
+
+        private static string BuildDepartmentPermissions(string department)
+        {
+            var dept = (department ?? "").ToLower();
+            // Base: everything off
+            bool canSales = false, canExpenses = false, canCash = false, canEmployees = false;
+            bool canReports = false, canFinancial = false, canCustomers = false, canActivity = false, canSettings = false;
+
+            // Department-based access
+            if (dept.Contains("front desk") || dept.Contains("reception"))
+            {
+                canCustomers = true; canSales = true; canReports = true;
+            }
+            else if (dept.Contains("housekeeping"))
+            {
+                // Minimal access — just their tasks
+            }
+            else if (dept.Contains("restaurant") || dept.Contains("kitchen") || dept.Contains("bar"))
+            {
+                canSales = true;
+            }
+            else if (dept.Contains("finance") || dept.Contains("accounting"))
+            {
+                canSales = true; canExpenses = true; canCash = true; canFinancial = true; canReports = true;
+            }
+            else if (dept.Contains("management") || dept.Contains("admin"))
+            {
+                canSales = true; canExpenses = true; canCash = true; canEmployees = true;
+                canReports = true; canFinancial = true; canCustomers = true; canActivity = true; canSettings = true;
+            }
+            else if (dept.Contains("maintenance") || dept.Contains("security"))
+            {
+                // Minimal access
+            }
+
+            return $"{{\"canEnterSales\":{B(canSales)},\"canEnterExpenses\":{B(canExpenses)},\"canViewCashLedger\":{B(canCash)},\"canSeeEmployees\":{B(canEmployees)},\"canViewReports\":{B(canReports)},\"canViewFinancial\":{B(canFinancial)},\"canViewCustomers\":{B(canCustomers)},\"canViewActivityLog\":{B(canActivity)},\"canViewSettings\":{B(canSettings)}}}";
+        }
+
+        private static string B(bool v) => v ? "true" : "false";
 
         [HttpPut("staff/{id}")]
         public async Task<IActionResult> UpdateStaff(int id, [FromBody] UpdateStaffRequest req)

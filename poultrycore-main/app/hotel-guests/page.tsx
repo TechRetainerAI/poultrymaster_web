@@ -10,16 +10,17 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2, Plus, Search, Users, Star, Edit2, Trash2, Eye, Award, Gift, TrendingUp } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import {
   listHotelGuests, createHotelGuest, updateHotelGuest, deleteHotelGuest, searchHotelGuests,
-  listHotelBookings, listHotelPayments,
+  listHotelBookings, listHotelPayments, listHotelIdTypes,
   getLoyaltyByGuest, enrollLoyalty, addLoyaltyPoints, listLoyaltyTransactions,
   type HotelGuest, type HotelGuestInput, type HotelBooking, type HotelPayment,
-  type HotelLoyaltyMember, type HotelLoyaltyTransaction,
+  type HotelLoyaltyMember, type HotelLoyaltyTransaction, type HotelIdType,
 } from "@/lib/api/hotel"
 
 export default function HotelGuestsPage() {
@@ -31,6 +32,7 @@ export default function HotelGuestsPage() {
   const [guests, setGuests] = useState<HotelGuest[]>([])
   const [bookings, setBookings] = useState<HotelBooking[]>([])
   const [payments, setPayments] = useState<HotelPayment[]>([])
+  const [idTypes, setIdTypes] = useState<HotelIdType[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [filterVIP, setFilterVIP] = useState(false)
@@ -40,6 +42,8 @@ export default function HotelGuestsPage() {
   const [editing, setEditing] = useState<HotelGuest | null>(null)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState<HotelGuestInput>({ firstName: "", lastName: "", email: "", phone: "", idType: "", idNumber: "", nationality: "", address: "", isVIP: false })
+  const [idTypeSelection, setIdTypeSelection] = useState("")
+  const [customIdType, setCustomIdType] = useState("")
 
   // Profile dialog
   const [profileGuest, setProfileGuest] = useState<HotelGuest | null>(null)
@@ -60,12 +64,13 @@ export default function HotelGuestsPage() {
   async function loadGuests() {
     setLoading(true)
     try {
-      const [g, b, p] = await Promise.all([
+      const [g, b, p, idt] = await Promise.all([
         searchQuery ? searchHotelGuests(searchQuery) : listHotelGuests(),
         listHotelBookings().catch(() => []),
         listHotelPayments().catch(() => []),
+        listHotelIdTypes().catch(() => []),
       ])
-      setGuests(g); setBookings(b); setPayments(p)
+      setGuests(g); setBookings(b); setPayments(p); setIdTypes(idt)
     } catch (e: any) {
       toast({ title: "Failed to load guests", description: e?.message, variant: "destructive" })
     } finally { setLoading(false) }
@@ -74,12 +79,17 @@ export default function HotelGuestsPage() {
   function openCreate() {
     setEditing(null)
     setForm({ firstName: "", lastName: "", email: "", phone: "", idType: "", idNumber: "", nationality: "", address: "", isVIP: false })
+    setIdTypeSelection(""); setCustomIdType("")
     setDialogOpen(true)
   }
 
   function openEdit(g: HotelGuest) {
     setEditing(g)
-    setForm({ firstName: g.firstName, lastName: g.lastName, email: g.email ?? "", phone: g.phone ?? "", idType: g.idType ?? "", idNumber: g.idNumber ?? "", nationality: g.nationality ?? "", address: g.address ?? "", isVIP: g.isVIP })
+    const existingIdType = g.idType ?? ""
+    const isKnown = idTypes.some(t => t.description === existingIdType)
+    setForm({ firstName: g.firstName, lastName: g.lastName, email: g.email ?? "", phone: g.phone ?? "", idType: existingIdType, idNumber: g.idNumber ?? "", nationality: g.nationality ?? "", address: g.address ?? "", isVIP: g.isVIP })
+    setIdTypeSelection(isKnown ? existingIdType : (existingIdType ? "Other" : ""))
+    setCustomIdType(isKnown ? "" : existingIdType)
     setDialogOpen(true)
   }
 
@@ -372,9 +382,25 @@ export default function HotelGuestsPage() {
                   <div><Label>Email</Label><Input value={form.email ?? ""} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div><Label>ID Type</Label><Input value={form.idType ?? ""} onChange={(e) => setForm({ ...form, idType: e.target.value })} placeholder="Passport, National ID" /></div>
+                  <div><Label>ID Type</Label>
+                    <Select value={idTypeSelection || "__none__"} onValueChange={(v) => {
+                      const sel = v === "__none__" ? "" : v
+                      setIdTypeSelection(sel)
+                      if (sel !== "Other") { setCustomIdType(""); setForm({ ...form, idType: sel }) }
+                      else { setForm({ ...form, idType: customIdType || "" }) }
+                    }}>
+                      <SelectTrigger><SelectValue placeholder="Select ID type" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">None</SelectItem>
+                        {idTypes.map((t) => <SelectItem key={t.hotelIdTypeId} value={t.description}>{t.description}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div><Label>ID Number</Label><Input value={form.idNumber ?? ""} onChange={(e) => setForm({ ...form, idNumber: e.target.value })} /></div>
                 </div>
+                {idTypeSelection === "Other" && (
+                  <div><Label>Specify ID Type *</Label><Input value={customIdType} onChange={(e) => { setCustomIdType(e.target.value); setForm({ ...form, idType: e.target.value }) }} placeholder="e.g. Company Badge, Travel Document" /></div>
+                )}
                 <div className="grid grid-cols-2 gap-4">
                   <div><Label>Nationality</Label><Input value={form.nationality ?? ""} onChange={(e) => setForm({ ...form, nationality: e.target.value })} /></div>
                   <div className="flex items-end gap-2"><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={form.isVIP ?? false} onChange={(e) => setForm({ ...form, isVIP: e.target.checked })} className="rounded" /><Star className="h-4 w-4 text-amber-500" /><span className="text-sm">VIP Guest</span></label></div>

@@ -310,7 +310,7 @@ export default function RestaurantDashboardPage() {
                 ) : (
                   <div className="space-y-2">
                     {activeOrders.slice(0, 8).map(o => (
-                      <div key={o.orderId} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 transition-colors">
+                      <Link key={o.orderId} href={`/restaurant-orders?highlight=${o.orderId}`} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer group">
                         <div className="flex items-center gap-3">
                           <span className="font-mono font-bold text-sm text-gray-900">{o.orderNumber}</span>
                           <Badge variant="outline" className="text-[10px] h-5">{o.orderType}</Badge>
@@ -322,8 +322,9 @@ export default function RestaurantDashboardPage() {
                           {o.tableNumber && <span className="text-xs text-muted-foreground">Table {o.tableNumber}</span>}
                           <span className="font-medium text-sm">{o.totalAmount.toFixed(2)}</span>
                           <span className="text-xs text-muted-foreground">{new Date(o.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                          <span className="text-xs text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity">View →</span>
                         </div>
-                      </div>
+                      </Link>
                     ))}
                   </div>
                 )}

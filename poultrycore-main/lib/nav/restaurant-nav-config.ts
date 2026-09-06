@@ -48,7 +48,7 @@ export function buildRestaurantNavConfig(): RestaurantNavConfig {
         key: "floor",
         label: "Floor & Tables",
         items: [
-          { id: "floor-plan",   title: "Floor Plan & Tables", icon: MapPin,       href: "/restaurant-floor-plan",   visible: true },
+          { id: "floor-plan",   title: "Restaurant Areas",    icon: MapPin,       href: "/restaurant-floor-plan",   visible: true },
           { id: "reservations", title: "Reservations & Waitlist", icon: CalendarDays, href: "/restaurant-reservations", visible: true },
         ],
       },

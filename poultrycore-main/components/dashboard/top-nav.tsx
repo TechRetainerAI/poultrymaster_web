@@ -12,7 +12,7 @@ import { Droplets, ShoppingBag, PackageMinus,
 } from "lucide-react"
 import { navPathActive, type NavAccent, type NavGroup, type NavItem } from "@/lib/nav/nav-model"
 import { NAV_SURFACE } from "./nav/nav-surface"
-import { WATER_REPORT_NAV_GROUPS, POULTRY_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
+import { WATER_REPORT_NAV_GROUPS, POULTRY_REPORT_NAV_GROUPS, HOTEL_REPORT_NAV_GROUPS, RESTAURANT_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
 import { buildWaterNavConfig } from "@/lib/nav/water-nav-config"
 import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
 import { buildHotelNavConfig } from "@/lib/nav/hotel-nav-config"
@@ -345,9 +345,11 @@ function HotelTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
         <NavMegaMenu
           label="Reports" icon={BarChart3}
           title="Reports"
-          blurb="Revenue, occupancy and audit reports."
-          groups={nav.reports}
-          columns={1} widthRem={14} layout="grid" accent="violet"
+          blurb="Revenue, occupancy, operations and audit reports."
+          viewAll={{ href: "/hotel-reports", label: "View all reports →" }}
+          triggerActiveHrefs={["/hotel-reports"]}
+          groups={HOTEL_REPORT_NAV_GROUPS}
+          columns={4} widthRem={58} accent="violet"
         />
 
         <NavMegaMenu
@@ -409,10 +411,20 @@ function RestaurantTopNav() {
 
         <NavMegaMenu
           label="Inventory" icon={Package}
-          title="Inventory & Reports"
-          blurb="Ingredients, stock tracking, reports, and expense management."
+          title="Inventory"
+          blurb="Ingredients, stock tracking, and expense management."
           groups={nav.inventoryReports}
           columns={1} widthRem={18} layout="grid" accent="rose"
+        />
+
+        <NavMegaMenu
+          label="Reports" icon={BarChart3}
+          title="Reports"
+          blurb="Sales, menu performance, operations and periodic reports."
+          viewAll={{ href: "/restaurant-reports", label: "View all reports →" }}
+          triggerActiveHrefs={["/restaurant-reports"]}
+          groups={RESTAURANT_REPORT_NAV_GROUPS}
+          columns={4} widthRem={58} accent="rose"
         />
 
         <NavMegaMenu

@@ -21,8 +21,9 @@ import {
   listMenuItems, createMenuItem, updateMenuItem, deleteMenuItem, toggleMenuItemAvailability,
   listCombos, createCombo, updateCombo, deleteCombo,
   listComboItems, addComboItem, removeComboItem,
-  type MenuCategory, type MenuCategoryInput,
-  type MenuItem, type MenuItemInput,
+  listMenuCategoryTypes, listMenuItemNames, listIngredients, listRecipe, upsertRecipe, deleteRecipe,
+  type MenuCategory, type MenuCategoryInput, type MenuCategoryType, type MenuItemName,
+  type MenuItem, type MenuItemInput, type Ingredient, type Recipe,
   type Combo, type ComboInput, type ComboItem, type ComboItemInput,
 } from "@/lib/api/restaurant"
 
@@ -44,6 +45,15 @@ export default function RestaurantMenuPage() {
   const [filterCat, setFilterCat] = useState<number | null>(null)
 
   const [categories, setCategories] = useState<MenuCategory[]>([])
+  const [categoryTypes, setCategoryTypes] = useState<MenuCategoryType[]>([])
+  const [menuItemNames, setMenuItemNames] = useState<MenuItemName[]>([])
+  const [itemNameSelection, setItemNameSelection] = useState("")
+  const [allIngredients, setAllIngredients] = useState<Ingredient[]>([])
+  const [itemRecipe, setItemRecipe] = useState<Recipe[]>([])
+  const [recipeAddIng, setRecipeAddIng] = useState(0)
+  const [recipeAddQty, setRecipeAddQty] = useState(1)
+  const [recipeAddUnit, setRecipeAddUnit] = useState("kg")
+  const [recipeAddWaste, setRecipeAddWaste] = useState(0)
   const [catDialogOpen, setCatDialogOpen] = useState(false)
   const [catEditing, setCatEditing] = useState<MenuCategory | null>(null)
   const [catForm, setCatForm] = useState<MenuCategoryInput>({ name: "" })
@@ -71,8 +81,8 @@ export default function RestaurantMenuPage() {
   async function loadAll() {
     setLoading(true)
     try {
-      const [cats, itms, cmbs] = await Promise.all([listMenuCategories(), listMenuItems(), listCombos()])
-      setCategories(cats); setItems(itms); setCombos(cmbs)
+      const [cats, itms, cmbs, ctypes, mins, ings] = await Promise.all([listMenuCategories(), listMenuItems(), listCombos(), listMenuCategoryTypes().catch(() => []), listMenuItemNames().catch(() => []), listIngredients().catch(() => [])])
+      setCategories(cats); setItems(itms); setCombos(cmbs); setCategoryTypes(ctypes); setMenuItemNames(mins); setAllIngredients(ings)
     } catch (e: any) { toast({ title: "Failed to load", description: e?.message, variant: "destructive" }) }
     finally { setLoading(false) }
   }
@@ -85,6 +95,8 @@ export default function RestaurantMenuPage() {
   }
   async function saveCat() {
     if (!catForm.name.trim()) { toast({ title: "Category name required", variant: "destructive" }); return }
+    const dup = categories.find(c => c.name.toLowerCase() === catForm.name.trim().toLowerCase() && (!catEditing || c.menuCategoryId !== catEditing.menuCategoryId))
+    if (dup) { toast({ title: "Duplicate name", description: `A category named "${catForm.name}" already exists.`, variant: "destructive" }); return }
     try { if (catEditing) await updateMenuCategory(catEditing.menuCategoryId, catForm); else await createMenuCategory(catForm)
       toast({ title: catEditing ? "Category updated" : "Category created" }); setCatDialogOpen(false); setCategories(await listMenuCategories())
     } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
@@ -93,8 +105,15 @@ export default function RestaurantMenuPage() {
 
   // Items
   function openItemDialog(i?: MenuItem) {
-    if (i) { setItemEditing(i); setItemForm({ name: i.name, menuCategoryId: i.menuCategoryId, description: i.description, price: i.price, costPrice: i.costPrice, imageUrl: i.imageUrl, prepTime: i.prepTime, calories: i.calories, allergens: i.allergens, spicyLevel: i.spicyLevel, isVegetarian: i.isVegetarian, isVegan: i.isVegan, isGlutenFree: i.isGlutenFree, isHalal: i.isHalal, isKosher: i.isKosher, isAvailable: i.isAvailable, isActive: i.isActive, sortOrder: i.sortOrder, sku: i.sku, barcode: i.barcode }) }
-    else { setItemEditing(null); setItemForm({ name: "", price: 0, costPrice: 0, isAvailable: true, isActive: true }) }
+    if (i) {
+      setItemEditing(i); setItemForm({ name: i.name, menuCategoryId: i.menuCategoryId, description: i.description, price: i.price, costPrice: i.costPrice, imageUrl: i.imageUrl, prepTime: i.prepTime, calories: i.calories, allergens: i.allergens, spicyLevel: i.spicyLevel, isVegetarian: i.isVegetarian, isVegan: i.isVegan, isGlutenFree: i.isGlutenFree, isHalal: i.isHalal, isKosher: i.isKosher, isAvailable: i.isAvailable, isActive: i.isActive, sortOrder: i.sortOrder, sku: i.sku, barcode: i.barcode })
+      listRecipe(i.menuItemId).then(setItemRecipe).catch(() => setItemRecipe([]))
+    } else {
+      setItemEditing(null); setItemForm({ name: "", price: 0, costPrice: 0, isAvailable: true, isActive: true })
+      setItemRecipe([])
+    }
+    setRecipeAddIng(0); setRecipeAddQty(1); setRecipeAddUnit("kg"); setRecipeAddWaste(0)
+    setItemNameSelection("")
     setItemDialogOpen(true)
   }
   async function saveItem() {
@@ -237,6 +256,12 @@ export default function RestaurantMenuPage() {
                             <div key={i.menuItemId} className={`group flex items-center gap-4 p-4 border rounded-xl transition-all hover:shadow-sm ${
                               !i.isAvailable ? "bg-red-50/50 border-red-200" : "hover:border-rose-200"
                             }`}>
+                              {/* Image */}
+                              {i.imageUrl && (
+                                <div className="w-14 h-14 rounded-lg overflow-hidden border flex-shrink-0">
+                                  <img src={i.imageUrl} alt={i.name} className="w-full h-full object-cover" onError={e => (e.currentTarget.style.display = "none")} />
+                                </div>
+                              )}
                               {/* Item info */}
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
@@ -432,8 +457,22 @@ export default function RestaurantMenuPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
+              <Label>Category Type <span className="text-rose-500">*</span></Label>
+              <Select onValueChange={v => {
+                if (v === "__none__") return
+                setCatForm({ ...catForm, name: v })
+              }}>
+                <SelectTrigger className="h-10"><SelectValue placeholder="Select a category type" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Select type</SelectItem>
+                  {categoryTypes.map(t => <SelectItem key={t.restaurantMenuCategoryTypeId} value={t.description}>{t.description}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
               <Label>Category Name <span className="text-rose-500">*</span></Label>
-              <Input value={catForm.name} onChange={e => setCatForm({ ...catForm, name: e.target.value })} placeholder="e.g. Appetizers, Main Course, Desserts" className="h-10" />
+              <Input value={catForm.name} onChange={e => setCatForm({ ...catForm, name: e.target.value })} placeholder="Auto-filled from type, but editable" className="h-10" />
+              <p className="text-xs text-muted-foreground">Auto-filled from the type above. Edit to customise (e.g. &quot;House Appetizers&quot;).</p>
             </div>
             <div className="space-y-1.5">
               <Label>Description</Label>
@@ -475,7 +514,22 @@ export default function RestaurantMenuPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label>Item Name <span className="text-rose-500">*</span></Label>
-                  <Input value={itemForm.name} onChange={e => setItemForm({ ...itemForm, name: e.target.value })} placeholder="e.g. Grilled Chicken" className="h-10" />
+                  <Select value={itemNameSelection || "__none__"} onValueChange={v => {
+                    const sel = v === "__none__" ? "" : v
+                    setItemNameSelection(sel)
+                    if (sel && sel !== "Other") setItemForm({ ...itemForm, name: sel })
+                    else if (sel === "Other") setItemForm({ ...itemForm, name: "" })
+                  }}>
+                    <SelectTrigger className="h-10"><SelectValue placeholder="Select or type a name" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Select item</SelectItem>
+                      {menuItemNames.map(n => <SelectItem key={n.restaurantMenuItemNameId} value={n.description}>{n.description}{n.category ? ` (${n.category})` : ""}</SelectItem>)}
+                      <SelectItem value="Other">Other (type custom name)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {(itemNameSelection === "Other" || itemEditing) && (
+                    <Input value={itemForm.name} onChange={e => setItemForm({ ...itemForm, name: e.target.value })} placeholder="Type item name" className="h-10 mt-1.5" />
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label>Category</Label>
@@ -491,6 +545,28 @@ export default function RestaurantMenuPage() {
               <div className="mt-3 space-y-1.5">
                 <Label>Description</Label>
                 <textarea className="w-full min-h-[60px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2" value={itemForm.description || ""} onChange={e => setItemForm({ ...itemForm, description: e.target.value })} placeholder="Describe this dish..." />
+              </div>
+              <div className="mt-3 space-y-1.5">
+                <Label>Image (optional)</Label>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 px-4 py-2 border rounded-lg cursor-pointer hover:bg-rose-50 transition-colors text-sm">
+                    <Package className="h-4 w-4 text-rose-600" /> Choose Photo
+                    <input type="file" accept="image/*" className="hidden" onChange={e => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        const reader = new FileReader()
+                        reader.onload = () => setItemForm({ ...itemForm, imageUrl: reader.result as string })
+                        reader.readAsDataURL(file)
+                      }
+                    }} />
+                  </label>
+                  {itemForm.imageUrl && (
+                    <div className="relative w-16 h-16 rounded-lg overflow-hidden border">
+                      <img src={itemForm.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                      <button type="button" onClick={() => setItemForm({ ...itemForm, imageUrl: "" })} className="absolute top-0 right-0 bg-red-500 text-white rounded-bl-lg p-0.5"><Trash2 className="h-3 w-3" /></button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -568,6 +644,67 @@ export default function RestaurantMenuPage() {
                 })}
               </div>
             </div>
+            {/* Recipe / Ingredients */}
+            {itemEditing && (
+              <div>
+                <h4 className="text-sm font-medium text-gray-500 mb-3 flex items-center gap-1.5">
+                  <Package className="h-3.5 w-3.5" /> Recipe / Ingredients
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    Cost: {itemRecipe.reduce((s, r) => s + (r.lineCost || r.quantity * r.costPerUnit), 0).toFixed(2)}
+                  </span>
+                </h4>
+                {itemRecipe.length > 0 && (
+                  <table className="w-full text-xs mb-3">
+                    <thead className="bg-gray-50 border-b"><tr><th className="text-left p-2">Ingredient</th><th className="text-right p-2">Qty</th><th className="text-left p-2">Unit</th><th className="text-right p-2">Waste %</th><th className="text-right p-2">Cost</th><th className="p-2"></th></tr></thead>
+                    <tbody>
+                      {itemRecipe.map(r => (
+                        <tr key={r.recipeId} className="border-b">
+                          <td className="p-2 font-medium">{r.ingredientName}</td>
+                          <td className="p-2 text-right">{r.quantity}</td>
+                          <td className="p-2">{r.unit}</td>
+                          <td className="p-2 text-right">{r.wastePercent}%</td>
+                          <td className="p-2 text-right font-semibold">{(r.lineCost || r.quantity * r.costPerUnit).toFixed(2)}</td>
+                          <td className="p-2"><Button variant="ghost" size="icon" className="h-6 w-6 text-red-500" onClick={async () => { await deleteRecipe(r.recipeId); setItemRecipe(await listRecipe(itemEditing.menuItemId)) }}><Trash2 className="h-3 w-3" /></Button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+                <div className="flex gap-2 items-end flex-wrap">
+                  <div className="flex-1 min-w-[140px]">
+                    <Label className="text-xs">Ingredient</Label>
+                    <Select value={recipeAddIng ? String(recipeAddIng) : "0"} onValueChange={v => {
+                      setRecipeAddIng(Number(v))
+                      const ing = allIngredients.find(i => i.ingredientId === Number(v))
+                      if (ing) setRecipeAddUnit(ing.unit)
+                    }}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Select" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0">Select ingredient</SelectItem>
+                        {allIngredients.filter(i => !itemRecipe.find(r => r.ingredientId === i.ingredientId)).map(i => (
+                          <SelectItem key={i.ingredientId} value={String(i.ingredientId)}>{i.name} ({i.unit})</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="w-20"><Label className="text-xs">Qty</Label><Input type="number" step="0.01" className="h-9" value={recipeAddQty} onChange={e => setRecipeAddQty(Number(e.target.value))} /></div>
+                  <div className="w-20"><Label className="text-xs">Unit</Label><Input className="h-9" value={recipeAddUnit} onChange={e => setRecipeAddUnit(e.target.value)} /></div>
+                  <div className="w-20"><Label className="text-xs">Waste %</Label><Input type="number" className="h-9" value={recipeAddWaste} onChange={e => setRecipeAddWaste(Number(e.target.value))} /></div>
+                  <Button size="sm" className="h-9 bg-rose-600 hover:bg-rose-700" disabled={!recipeAddIng} onClick={async () => {
+                    await upsertRecipe(itemEditing.menuItemId, recipeAddIng, recipeAddQty, recipeAddUnit, recipeAddWaste)
+                    setItemRecipe(await listRecipe(itemEditing.menuItemId))
+                    setRecipeAddIng(0); setRecipeAddQty(1); setRecipeAddWaste(0)
+                    toast({ title: "Ingredient added to recipe" })
+                  }}><Plus className="h-4 w-4" /></Button>
+                </div>
+                {itemRecipe.length === 0 && <p className="text-xs text-muted-foreground mt-2">No ingredients defined. Add ingredients to auto-deduct stock when orders are completed.</p>}
+              </div>
+            )}
+            {!itemEditing && (
+              <div className="bg-gray-50 rounded-lg p-3 text-xs text-muted-foreground">
+                <Package className="h-4 w-4 inline mr-1" /> Save the item first, then edit it to define the recipe/ingredients.
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setItemDialogOpen(false)}>Cancel</Button>

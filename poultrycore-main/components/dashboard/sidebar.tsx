@@ -471,7 +471,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/restaurant-kds",    label: "Kitchen Display", icon: Activity },
   ])
   const restaurantDiningItems = gateRestaurant([
-    { href: "/restaurant-floor-plan",   label: "Floor Plan & Tables",   icon: Building2 },
+    { href: "/restaurant-floor-plan",   label: "Restaurant Areas",      icon: Building2 },
     { href: "/restaurant-reservations", label: "Reservations & Waitlist", icon: CalendarDays },
   ])
   const restaurantDeliveryOnlineItems = gateRestaurant([
@@ -485,6 +485,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/restaurant-loyalty",     label: "Loyalty & Rewards",  icon: CreditCard },
     { href: "/restaurant-events",      label: "Events & Catering",  icon: CalendarDays },
     { href: "/restaurant-gift-cards",  label: "Gift Cards",         icon: CreditCard },
+    { href: "/restaurant-payments",    label: "Income & Expenses",  icon: Wallet },
     { href: "/restaurant-expenses",    label: "Expenses",           icon: DollarSign },
     { href: "/restaurant-notifications", label: "Notifications",    icon: Bell },
   ])

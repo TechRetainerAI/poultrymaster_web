@@ -37,6 +37,118 @@ namespace PoultryFarmAPIWeb.Controllers
         }
 
         // =====================================================================
+        // ROOM CATEGORIES (system-wide lookup)
+        // =====================================================================
+
+        [HttpGet("room-categories")]
+        public async Task<IActionResult> ListRoomCategories()
+        {
+            return Ok(await _svc.ListRoomCategoriesAsync());
+        }
+
+        // =====================================================================
+        // RESTAURANT MENU CATEGORY TYPES (system-wide lookup)
+        // =====================================================================
+
+        [HttpGet("menu-category-types")]
+        public async Task<IActionResult> ListMenuCategoryTypes()
+        {
+            return Ok(await _svc.ListMenuCategoryTypesAsync());
+        }
+
+        [HttpGet("menu-item-names")]
+        public async Task<IActionResult> ListMenuItemNames()
+        {
+            return Ok(await _svc.ListMenuItemNamesAsync());
+        }
+
+        // =====================================================================
+        // SUPPLY CATEGORIES & ITEMS (system-wide lookup)
+        // =====================================================================
+
+        [HttpGet("supply-categories")]
+        public async Task<IActionResult> ListSupplyCategories()
+        {
+            return Ok(await _svc.ListSupplyCategoriesAsync());
+        }
+
+        [HttpGet("supply-items")]
+        public async Task<IActionResult> ListSupplyItems()
+        {
+            return Ok(await _svc.ListSupplyItemsAsync());
+        }
+
+        // =====================================================================
+        // MAINTENANCE ASSETS (system-wide lookup)
+        // =====================================================================
+
+        [HttpGet("maintenance-assets")]
+        public async Task<IActionResult> ListMaintenanceAssets()
+        {
+            return Ok(await _svc.ListMaintenanceAssetsAsync());
+        }
+
+        // =====================================================================
+        // TABLE LOCATIONS (system-wide lookup)
+        // =====================================================================
+
+        [HttpGet("table-locations")]
+        public async Task<IActionResult> ListTableLocations()
+        {
+            return Ok(await _svc.ListTableLocationsAsync());
+        }
+
+        // =====================================================================
+        // HK TASK TYPES (system-wide lookup)
+        // =====================================================================
+
+        [HttpGet("hk-task-types")]
+        public async Task<IActionResult> ListHKTaskTypes()
+        {
+            return Ok(await _svc.ListHKTaskTypesAsync());
+        }
+
+        // =====================================================================
+        // GUEST REQUEST TYPES (system-wide lookup)
+        // =====================================================================
+
+        [HttpGet("request-types")]
+        public async Task<IActionResult> ListRequestTypes()
+        {
+            return Ok(await _svc.ListRequestTypesAsync());
+        }
+
+        // =====================================================================
+        // COMMUNICATION SUBJECTS (system-wide lookup)
+        // =====================================================================
+
+        [HttpGet("comm-subjects")]
+        public async Task<IActionResult> ListCommSubjects()
+        {
+            return Ok(await _svc.ListCommSubjectsAsync());
+        }
+
+        // =====================================================================
+        // ID TYPES (system-wide lookup)
+        // =====================================================================
+
+        [HttpGet("id-types")]
+        public async Task<IActionResult> ListIdTypes()
+        {
+            return Ok(await _svc.ListIdTypesAsync());
+        }
+
+        // =====================================================================
+        // BED TYPES (system-wide lookup)
+        // =====================================================================
+
+        [HttpGet("bed-types")]
+        public async Task<IActionResult> ListBedTypes()
+        {
+            return Ok(await _svc.ListBedTypesAsync());
+        }
+
+        // =====================================================================
         // ROOM TYPES
         // =====================================================================
 

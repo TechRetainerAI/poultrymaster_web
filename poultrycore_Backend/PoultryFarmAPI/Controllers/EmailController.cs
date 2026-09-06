@@ -176,5 +176,34 @@ namespace PoultryFarmAPIWeb.Controllers
                 return StatusCode(500, new { success = false, message = "Failed to send email. Check API logs." });
             }
         }
+
+        // POST: api/Email/send-html
+        // Generic HTML email — used for gift cards, notifications, etc.
+        [HttpPost("send-html")]
+        public async Task<IActionResult> SendHtml([FromBody] SendHtmlEmailRequest req)
+        {
+            if (req is null || string.IsNullOrWhiteSpace(req.To) || !req.To.Contains('@'))
+                return Ok(new { success = false, message = "A valid recipient email is required." });
+            if (string.IsNullOrWhiteSpace(req.Subject))
+                return Ok(new { success = false, message = "Subject is required." });
+            try
+            {
+                var email = HttpContext.RequestServices.GetRequiredService<Business.IEmailService>();
+                await email.SendAsync(new[] { req.To }, req.Subject, req.Body ?? "", isHtml: true);
+                return Ok(new { success = true, message = $"Email sent to {req.To}." });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "send-html failed for {To}", req.To);
+                return Ok(new { success = false, message = ex.Message });
+            }
+        }
+    }
+
+    public class SendHtmlEmailRequest
+    {
+        public string To { get; set; } = "";
+        public string Subject { get; set; } = "";
+        public string? Body { get; set; }
     }
 }

@@ -79,6 +79,105 @@ export interface HotelProfileInput {
   description?: string | null
 }
 
+// ----- Room Categories (system-wide lookup) -----
+
+export interface HotelRoomCategory {
+  hotelRoomCategoryId: number
+  code: string
+  description: string
+  sortOrder: number
+  isActive: boolean
+}
+
+// ----- Supply Categories & Items (system-wide lookup) -----
+
+export interface HotelSupplyCategory {
+  hotelSupplyCategoryId: number
+  code: string
+  description: string
+  sortOrder: number
+  isActive: boolean
+}
+
+export interface HotelSupplyItem {
+  hotelSupplyItemId: number
+  code: string
+  description: string
+  category?: string | null
+  sortOrder: number
+  isActive: boolean
+}
+
+// ----- Maintenance Assets (system-wide lookup) -----
+
+export interface HotelMaintenanceAsset {
+  hotelMaintenanceAssetId: number
+  code: string
+  description: string
+  sortOrder: number
+  isActive: boolean
+}
+
+// ----- Table Locations (system-wide lookup) -----
+
+export interface HotelTableLocation {
+  hotelTableLocationId: number
+  code: string
+  description: string
+  sortOrder: number
+  isActive: boolean
+}
+
+// ----- HK Task Types (system-wide lookup) -----
+
+export interface HotelHKTaskType {
+  hotelHKTaskTypeId: number
+  code: string
+  description: string
+  sortOrder: number
+  isActive: boolean
+}
+
+// ----- Guest Request Types (system-wide lookup) -----
+
+export interface HotelRequestType {
+  hotelRequestTypeId: number
+  code: string
+  description: string
+  sortOrder: number
+  isActive: boolean
+}
+
+// ----- Communication Subjects (system-wide lookup) -----
+
+export interface HotelCommSubject {
+  hotelCommSubjectId: number
+  code: string
+  description: string
+  sortOrder: number
+  isActive: boolean
+}
+
+// ----- ID Types (system-wide lookup) -----
+
+export interface HotelIdType {
+  hotelIdTypeId: number
+  code: string
+  description: string
+  sortOrder: number
+  isActive: boolean
+}
+
+// ----- Bed Types (system-wide lookup) -----
+
+export interface HotelBedType {
+  hotelBedTypeId: number
+  code: string
+  description: string
+  sortOrder: number
+  isActive: boolean
+}
+
 // ----- Room Types -----
 
 export interface HotelRoomType {
@@ -94,6 +193,12 @@ export interface HotelRoomType {
   sortOrder: number
   createdAt: string
   updatedAt?: string | null
+  hotelRoomCategoryId?: number | null
+  categoryCode?: string | null
+  categoryName?: string | null
+  hotelBedTypeId?: number | null
+  bedTypeCode?: string | null
+  bedTypeName?: string | null
 }
 
 export interface HotelRoomTypeInput {
@@ -105,6 +210,8 @@ export interface HotelRoomTypeInput {
   imageUrl?: string | null
   isActive?: boolean
   sortOrder?: number
+  hotelRoomCategoryId?: number | null
+  hotelBedTypeId?: number | null
 }
 
 // ----- Floors -----
@@ -207,6 +314,64 @@ export async function getHotelProfile(): Promise<HotelProfile> {
 export async function upsertHotelProfile(input: HotelProfileInput): Promise<HotelProfile> {
   const farmId = activeFarmId()
   return jsend<HotelProfile>("/Hotel/setup/profile", "POST", { ...input, farmId })
+}
+
+// ----- Room Categories -----
+
+export async function listHotelRoomCategories(): Promise<HotelRoomCategory[]> {
+  return jget<HotelRoomCategory[]>("/Hotel/setup/room-categories")
+}
+
+// ----- Supply Categories & Items -----
+
+export async function listHotelSupplyCategories(): Promise<HotelSupplyCategory[]> {
+  return jget<HotelSupplyCategory[]>("/Hotel/setup/supply-categories")
+}
+
+export async function listHotelSupplyItems(): Promise<HotelSupplyItem[]> {
+  return jget<HotelSupplyItem[]>("/Hotel/setup/supply-items")
+}
+
+// ----- Maintenance Assets -----
+
+export async function listHotelMaintenanceAssets(): Promise<HotelMaintenanceAsset[]> {
+  return jget<HotelMaintenanceAsset[]>("/Hotel/setup/maintenance-assets")
+}
+
+// ----- Table Locations -----
+
+export async function listHotelTableLocations(): Promise<HotelTableLocation[]> {
+  return jget<HotelTableLocation[]>("/Hotel/setup/table-locations")
+}
+
+// ----- HK Task Types -----
+
+export async function listHotelHKTaskTypes(): Promise<HotelHKTaskType[]> {
+  return jget<HotelHKTaskType[]>("/Hotel/setup/hk-task-types")
+}
+
+// ----- Guest Request Types -----
+
+export async function listHotelRequestTypes(): Promise<HotelRequestType[]> {
+  return jget<HotelRequestType[]>("/Hotel/setup/request-types")
+}
+
+// ----- Communication Subjects -----
+
+export async function listHotelCommSubjects(): Promise<HotelCommSubject[]> {
+  return jget<HotelCommSubject[]>("/Hotel/setup/comm-subjects")
+}
+
+// ----- ID Types -----
+
+export async function listHotelIdTypes(): Promise<HotelIdType[]> {
+  return jget<HotelIdType[]>("/Hotel/setup/id-types")
+}
+
+// ----- Bed Types -----
+
+export async function listHotelBedTypes(): Promise<HotelBedType[]> {
+  return jget<HotelBedType[]>("/Hotel/setup/bed-types")
 }
 
 // ----- Room Types -----
@@ -729,5 +894,5 @@ export async function updateHKScheduleStatus(id: number, status: string): Promis
 
 // Shift Handovers
 export async function listShiftHandovers(): Promise<any[]> { return jget<any[]>("/Hotel/shift-handovers") }
-export async function createShiftHandover(input: { shiftDate?: string; shiftType: string; handoverBy: string; keyMessages?: string; pendingItems?: string; vipGuests?: string; incidents?: string; cashBalance?: number }): Promise<any> { return jsend<any>("/Hotel/shift-handovers", "POST", { ...input, farmId: activeFarmId() }) }
+export async function createShiftHandover(input: { shiftDate?: string; shiftType: string; handoverBy: string; handoverTo?: string; keyMessages?: string; pendingItems?: string; vipGuests?: string; incidents?: string; cashBalance?: number }): Promise<any> { return jsend<any>("/Hotel/shift-handovers", "POST", { ...input, farmId: activeFarmId() }) }
 export async function acknowledgeShiftHandover(id: number, receivedBy: string): Promise<any> { return jsend<any>(`/Hotel/shift-handovers/${id}/acknowledge`, "POST", { farmId: activeFarmId(), receivedBy }) }
