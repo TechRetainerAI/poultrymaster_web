@@ -141,6 +141,9 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
       },
     ],
 
+    // Three columns split by direction of the money: what comes IN (Sales),
+    // what goes OUT (Expenses), and where the cash itself sits (Money).
+    // Mirrors the poultry rail.
     salesMoney: [
       {
         key: "sales",
@@ -148,25 +151,32 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
         items: [
           { id: "sales",    title: "Sales",    icon: ShoppingCart, href: "/water-sales" },
           { id: "payments", title: "Payments", icon: CreditCard,   href: "/water-payments" },
-          // The two collection/payment control centres. They sit under Sales
-          // rather than Money because the question they answer is "who owes
-          // what", not "where is the cash". Mirrors the poultry rail.
+          // "Who owes us what" — the collections control centre, so it belongs
+          // with the money coming in rather than with the cash accounts.
           { id: "customer-balances", title: "Customer Balances", icon: Users, href: "/water-customer-balances" },
-          { id: "supplier-balances", title: "Supplier Balances", icon: Truck, href: "/water-supplier-balances" },
+        ],
+      },
+      {
+        key: "expenses",
+        label: "Expenses",
+        items: [
+          { id: "expenses",      title: "Expenses",        icon: Receipt,  href: "/water-expenses" },
+          // Payroll is money going out, so it sits with the other outflows
+          // rather than with the staff master data in Setup > People.
+          { id: "payroll",       title: "Payroll",         icon: Banknote, href: "/water-payroll" },
+          // The payables mirror of the two Sales rows: what we owe, and what
+          // we've paid against it.
           { id: "supplier-payments", title: "Supplier Payments", icon: Receipt, href: "/water-supplier-payments" },
+          { id: "supplier-balances", title: "Supplier Balances", icon: Truck, href: "/water-supplier-balances" },
         ],
       },
       {
         key: "money",
         label: "Money",
         items: [
-          { id: "expenses",      title: "Expenses",        icon: Receipt,  href: "/water-expenses" },
           { id: "cash-flow",     title: "Cash Flow",       icon: Wallet,   href: "/water-cash-flow" },
           { id: "cash-accounts", title: "Cash accounts",   icon: Wallet,   href: "/water-cash-accounts" },
           { id: "cash-reconciliation", title: "Reconcile cash", icon: Scale, href: "/water-cash-reconciliation" },
-          // Payroll is money going out, so it sits with the other outflows
-          // rather than with the staff master data in Setup > People.
-          { id: "payroll",       title: "Payroll",         icon: Banknote, href: "/water-payroll" },
         ],
       },
     ],
