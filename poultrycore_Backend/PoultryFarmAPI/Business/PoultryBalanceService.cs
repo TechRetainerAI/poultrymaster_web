@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
@@ -337,7 +337,13 @@ namespace PoultryFarmAPIWeb.Business
             },
             r => new PaymentHistoryRow
             {
-                PaymentId = r.GetGuid(r.GetOrdinal("paymentgroupid")).ToString(),
+                // Guarded, not GetGuid: `paymentgroupid` is nullable with no default,
+                // and a writer that forgets it used to throw here -- which took the
+                // WHOLE ledger down over one bad row. Migration 245 stops the nulls
+                // arriving; this stops one that slipped through being fatal. The row
+                // still shows its amount, date and customer; it just cannot be
+                // grouped, expanded or reversed until its group id is repaired.
+                PaymentId = GuidN(r, "paymentgroupid") ?? string.Empty,
                 PaymentNumber = Str(r, "paymentnumber"),
                 PartyId = IntN(r, "customerid"),
                 PartyName = Str(r, "customername"),

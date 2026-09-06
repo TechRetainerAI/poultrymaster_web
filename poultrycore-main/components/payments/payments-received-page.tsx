@@ -398,19 +398,19 @@ export function PaymentsReceivedPage({
         </div>
         <Table className="w-full table-fixed [&_td]:whitespace-normal [&_th]:whitespace-normal">
           <colgroup>
-            <col className="w-[13%]" /><col className="w-[14%]" /><col className="w-[12%]" />
-            <col className="w-[16%]" /><col className="w-[15%]" /><col className="w-[16%]" />
-            <col className="w-[14%]" />
+            <col className="w-[15%]" /><col className="w-[17%]" /><col className="w-[14%]" />
+            <col className="w-[14%]" /><col className="w-[15%]" /><col className="w-[15%]" />
+            <col className="w-[10%]" />
           </colgroup>
           <TableHeader>
             <TableRow className="border-b border-indigo-300 bg-indigo-200/70 hover:bg-indigo-200/70 [&_th]:font-semibold [&_th]:text-indigo-900">
               <TableHead>Date</TableHead>
               <TableHead>Payment</TableHead>
               <TableHead>Method</TableHead>
-              <TableHead className="text-right">Balance before</TableHead>
               <TableHead className="text-right">Applied</TableHead>
-              <TableHead className="text-right">Balance after</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead className="text-right">Before</TableHead>
+              <TableHead className="text-right">After</TableHead>
+              <TableHead className="w-10 text-right"><span className="sr-only">Actions</span></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -422,7 +422,10 @@ export function PaymentsReceivedPage({
                   <TableCell className="whitespace-nowrap!">{dateOf(pmt.paymentDate)}</TableCell>
                   <TableCell className="whitespace-nowrap!">{paymentRef(pmt)}</TableCell>
                   <TableCell>{pmt.paymentMethod ?? "—"}</TableCell>
-                  <TableCell className="whitespace-nowrap! text-right text-slate-500">{money(pmt.balanceBefore)}</TableCell>
+                  {/* Applied first, then where it left the sale -- the same
+                      order and the same arrow as the ledger row above, so the
+                      panel reads as a continuation of it rather than a second
+                      table with its own conventions. */}
                   {/* A bulk payment reaches this trail because it covered this
                       sale among others. Its totalAmount is the WHOLE payment,
                       so showing it here would credit this one sale with all of
@@ -432,6 +435,9 @@ export function PaymentsReceivedPage({
                     {pmt.allocationCount > 1
                       ? <span className="font-normal text-slate-500">across {pmt.allocationCount} sales</span>
                       : money(pmt.amountApplied ?? pmt.totalAmount)}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap! text-right text-slate-500">
+                    {money(pmt.balanceBefore)}
                   </TableCell>
                   <TableCell
                     className={cn(
@@ -445,11 +451,12 @@ export function PaymentsReceivedPage({
                       so this is the only place left to reverse one. */}
                   <TableCell className="text-right">
                     {rev
-                      ? <span className="text-xs text-slate-400">Reversed</span>
+                      ? <span className="text-xs text-slate-400">Rev.</span>
                       : canReverse && (
-                          <Button variant="ghost" size="sm" className="h-7 px-2"
-                                  onClick={() => { setReverseTarget(pmt); setReason("") }}>
-                            <Undo2 className="mr-1 h-3.5 w-3.5" /> Reverse
+                          <Button variant="ghost" size="icon" className="h-7 w-7"
+                                  onClick={() => { setReverseTarget(pmt); setReason("") }}
+                                  aria-label="Reverse payment" title="Reverse payment">
+                            <Undo2 className="h-3.5 w-3.5" />
                           </Button>
                         )}
                   </TableCell>
@@ -781,14 +788,19 @@ export function PaymentsReceivedPage({
                               there is no single balance to report -- and opens
                               for the full breakdown. */}
                           <TableHead>Sale</TableHead>
-                          <TableHead className="text-right">Sale total</TableHead>
+                          {/* Before and After stay two labelled columns: they
+                              are the pair people scan the ledger for, and a
+                              merged "600.00 -> 0.00" cell made them read as one
+                              number with an arrow in it. The width came out of
+                              Sale total, Applied and Source instead -- Applied
+                              because on a one-sale payment it is the Amount
+                              column repeated, and on a multi-sale one it was
+                              always an em dash. */}
                           <TableHead className="text-right">Before</TableHead>
-                          <TableHead className="text-right">Applied</TableHead>
                           <TableHead className="text-right">After</TableHead>
                           <TableHead>Method</TableHead>
-                          <TableHead>Source</TableHead>
                           <TableHead>Status</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
+                          <TableHead className="w-10 text-right"><span className="sr-only">Actions</span></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -837,17 +849,25 @@ export function PaymentsReceivedPage({
                                               paid {times} times
                                             </span>
                                           )}
+                                          {/* The sale's total, under the sale
+                                              it belongs to rather than in a
+                                              column of its own. */}
+                                          {one.saleTotal != null && (
+                                            <span className="block text-xs tabular-nums text-slate-400">
+                                              of {fmt(one.saleTotal)}
+                                            </span>
+                                          )}
                                         </>
                                       )
                                     : <span className="text-slate-400">—</span>}
                                 </TableCell>
-                                <TableCell className="whitespace-nowrap! text-right">{money(one?.saleTotal)}</TableCell>
-                                <TableCell className="whitespace-nowrap! text-right text-slate-500">{money(one?.before)}</TableCell>
-                                <TableCell className="whitespace-nowrap! text-right font-semibold text-emerald-700">{money(one?.applied)}</TableCell>
-                                {/* The expander used to carry a Paid / Part paid badge for the
-                                    sale. It is the same fact as this number, so it
-                                    is said here instead: green when the sale ended
-                                    settled, amber when something is still owed. */}
+                                <TableCell className="whitespace-nowrap! text-right text-slate-500">
+                                  {money(one?.before)}
+                                </TableCell>
+                                {/* After carries the colour, because it is the
+                                    one that answers the question the ledger is
+                                    scanned for: green when the sale ended
+                                    settled, amber while something is owed. */}
                                 <TableCell
                                   className={cn(
                                     "whitespace-nowrap! text-right font-medium",
@@ -857,15 +877,22 @@ export function PaymentsReceivedPage({
                                 >
                                   {money(one?.after)}
                                 </TableCell>
-                                <TableCell>{row.paymentMethod ?? "—"}</TableCell>
-                                <TableCell className="text-xs text-slate-500" title={row.sourceType ?? undefined}>
-                                  {sourceLabel(row.sourceType)}
+                                {/* Where it was taken, under how it was taken:
+                                    two facts about the same act, and neither
+                                    earns a column of its own at this width. */}
+                                <TableCell className="whitespace-nowrap!">
+                                  {row.paymentMethod ?? "—"}
+                                  <span className="block text-xs text-slate-400" title={row.sourceType ?? undefined}>
+                                    {sourceLabel(row.sourceType)}
+                                  </span>
                                 </TableCell>
                                 <TableCell>{statusBadge(row)}</TableCell>
                                 <TableCell className="text-right">
                                   {canReverse && !isReversed && (
-                                    <Button variant="ghost" size="sm" onClick={() => { setReverseTarget(row); setReason("") }}>
-                                      <Undo2 className="mr-1.5 h-3.5 w-3.5" /> Reverse
+                                    <Button variant="ghost" size="icon" className="h-8 w-8"
+                                            onClick={() => { setReverseTarget(row); setReason("") }}
+                                            aria-label="Reverse payment" title="Reverse payment">
+                                      <Undo2 className="h-3.5 w-3.5" />
                                     </Button>
                                   )}
                                 </TableCell>
@@ -874,7 +901,7 @@ export function PaymentsReceivedPage({
                               {isReversed && row.reversalReason && (
                                 <TableRow>
                                   <TableCell />
-                                  <TableCell colSpan={13} className="py-1 text-xs text-slate-500">
+                                  <TableCell colSpan={10} className="py-1 text-xs text-slate-500">
                                     Reversed{row.reversedBy ? ` by ${row.reversedBy}` : ""}
                                     {row.reversedAt ? ` on ${dateOf(row.reversedAt)}` : ""}: {row.reversalReason}
                                   </TableCell>
@@ -884,7 +911,7 @@ export function PaymentsReceivedPage({
                               {isOpen && (
                                 <TableRow>
                                   <TableCell />
-                                  <TableCell colSpan={13} className="py-2">
+                                  <TableCell colSpan={10} className="py-2">
                                     {multi
                                       ? (!allocations[row.paymentId] ? (
                                           <span className="flex items-center gap-2 text-sm text-slate-500">
