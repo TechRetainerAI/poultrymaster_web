@@ -106,7 +106,6 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     production: true,
     analytics: true,
     inventory: true,
-    financial: true,
   })
 
   // Close mobile sidebar when route changes
@@ -226,25 +225,45 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   ]
 
   const TEMP_SHOW_PAYMENTS_LINK = true
-  const financialItems = [
+  // The financial allow-list is default-deny and keyed on href, so it has to
+  // follow each row into whichever of the three groups below it lands in.
+  const gateFinancial = (items: SidebarItem[]) =>
+    items.filter((item) =>
+      isFinancialNavItemVisible(item.href, permissions.featureAccess, permissions.isAdmin, {
+        tempShowPayments: TEMP_SHOW_PAYMENTS_LINK,
+      })
+    )
+
+  // The old single "Financial" group, split three ways by direction of the
+  // money: what comes IN, what goes OUT, and where the cash itself sits. Same
+  // rows, same gates, same split as the top nav's three columns
+  // (lib/nav/poultry-nav-config.ts) — the two surfaces must not disagree.
+  const poultrySalesItems = gateFinancial([
+    { href: "/sales", label: "Sales", icon: ShoppingCart },
+    { href: "/poultry-payments", label: "Payments received", icon: Wallet },
+    // "Who owes us what" — the collections control centre.
+    { href: "/customer-balances", label: "Customer Balances", icon: Users },
+  ])
+  const poultryExpenseItems = [
+    ...gateFinancial([{ href: "/expenses", label: "Expenses", icon: DollarSign }]),
+    // Payroll is money going out, so it sits with the other outflows here
+    // rather than under People, which is now staff master data only. It is
+    // ungated, exactly as it was in the People group.
+    { href: "/poultry-payroll", label: "Payroll", icon: Banknote },
+    // The payables mirror of the two Sales rows: what we owe, and what we've
+    // paid against it.
+    ...gateFinancial([
+      { href: "/supplier-payments", label: "Supplier Payments", icon: Receipt },
+      { href: "/supplier-balances", label: "Supplier Balances", icon: Truck },
+    ]),
+  ]
+  const poultryMoneyItems = gateFinancial([
     { href: "/cash-flow", label: "Cash Flow", icon: Wallet },
     { href: "/cash", label: "Cash", icon: History },
     { href: "/poultry-cash-accounts", label: "Cash Account", icon: Wallet },
     { href: "/poultry-cash-reconciliation", label: "Reconcile cash", icon: Scale },
-    { href: "/sales", label: "Sales", icon: ShoppingCart },
-    { href: "/poultry-payments", label: "Payments received", icon: Wallet },
-    // The collection / payment control centres: what is owed, on which sales or
-    // purchases, and the dialog that settles them.
-    { href: "/customer-balances", label: "Customer Balances", icon: Users },
-    { href: "/supplier-balances", label: "Supplier Balances", icon: Truck },
-    { href: "/supplier-payments", label: "Supplier Payments", icon: Receipt },
-    { href: "/expenses", label: "Expenses", icon: DollarSign },
     { href: "/billing", label: "Billing", icon: CreditCard },
-  ].filter((item) =>
-    isFinancialNavItemVisible(item.href, permissions.featureAccess, permissions.isAdmin, {
-      tempShowPayments: TEMP_SHOW_PAYMENTS_LINK,
-    })
-  )
+  ])
 
   // Finance — the two trading parties every receivable and payable hangs off.
   // They're master data rather than part of the day's selling flow, so they get
@@ -260,12 +279,14 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     })
   )
 
-  // Poultry People (Staff + Payroll). Staff is admin/employee-gated like Water's.
+  // Poultry People. Staff is admin/employee-gated like Water's. Payroll moved
+  // to Financial > Expenses with the other outflows, so this is staff master
+  // data only — and, being gated, the group now disappears for a staff member
+  // without the Employees permission rather than showing a lone Payroll row.
   const poultryPeopleItems = [
     ...((permissions.isAdmin || permissions.featureAccess.canSeeEmployees)
       ? [{ href: "/poultry-staff", label: "Staff", icon: UserCog }]
       : []),
-    { href: "/poultry-payroll", label: "Payroll", icon: Banknote },
   ]
 
   // Water company nav items (shown when activeFarmType === "Water")
@@ -318,15 +339,26 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/water-loss-records",      label: "Damages & loss",           icon: AlertTriangle },
     { href: "/water-production-losses", label: "Production losses",        icon: AlertTriangle },
   ])
-  const waterSalesMoneyItems = gateWater([
-    { href: "/water-sales",         label: "Sales",           icon: ShoppingCart },
-    { href: "/water-payments",      label: "Payments",        icon: CreditCard },
+  // The old single "Sales & money" group, split three ways by direction of the
+  // money: what comes IN, what goes OUT, and where the cash itself sits. Same
+  // rows, same gates, same split as the top nav's three columns
+  // (lib/nav/water-nav-config.ts) — the two surfaces must not disagree.
+  const waterSalesItems = gateWater([
+    { href: "/water-sales",             label: "Sales",             icon: ShoppingCart },
+    { href: "/water-payments",          label: "Payments",          icon: CreditCard },
     { href: "/water-customer-balances", label: "Customer Balances", icon: Users },
-    { href: "/water-supplier-balances", label: "Supplier Balances", icon: Truck },
+  ])
+  const waterExpenseItems = gateWater([
+    { href: "/water-expenses",          label: "Expenses",          icon: Receipt },
+    // Payroll is money going out, so it sits with the other outflows here
+    // rather than under People, which is now staff master data only.
+    { href: "/water-payroll",           label: "Payroll",           icon: Banknote },
     { href: "/water-supplier-payments", label: "Supplier Payments", icon: Receipt },
-    { href: "/water-expenses",      label: "Expenses",        icon: Receipt },
-    { href: "/water-cash-flow", label: "Cash Flow", icon: Wallet },
-    { href: "/water-cash-accounts", label: "Cash accounts",   icon: Wallet },
+    { href: "/water-supplier-balances", label: "Supplier Balances", icon: Truck },
+  ])
+  const waterMoneyItems = gateWater([
+    { href: "/water-cash-flow",           label: "Cash Flow",      icon: Wallet },
+    { href: "/water-cash-accounts",       label: "Cash accounts",  icon: Wallet },
     { href: "/water-cash-reconciliation", label: "Reconcile cash", icon: Scale },
   ])
   // Finance — Customers (was in Sales & money) and Suppliers (was buried in
@@ -342,9 +374,10 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   // /employees page redirects water users to the dashboard. Admin-gated.
   // The /water-staff gate now lives in the route map alongside every other
   // water route rather than being spelled out here.
+  // Payroll moved to Sales & money > Expenses with the other outflows, so this
+  // is staff master data only.
   const waterPeopleItems = gateWater([
     { href: "/water-staff", label: "Staff", icon: UserCog },
-    { href: "/water-payroll", label: "Payroll", icon: Banknote },
   ])
   // Analytics sits beside Reports rather than inside it, mirroring the poultry
   // rail's own Analytics group: a report prints a period, an analytic is
@@ -731,7 +764,14 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
             <div className="border-t border-slate-800 mx-2" />
 
-            {renderGroup("Sales & money", waterSalesMoneyItems, "waterSalesMoney")}
+            {/* Sales & money, split three ways — see waterSalesItems. Rendered
+                as three adjacent groups with no divider between them so they
+                still read as one Sales & money block. */}
+            {renderGroup("Sales", waterSalesItems, "waterSales")}
+
+            {renderGroup("Expenses", waterExpenseItems, "waterExpenses")}
+
+            {renderGroup("Money", waterMoneyItems, "waterMoney")}
 
             <div className="border-t border-slate-800 mx-2" />
 
@@ -856,8 +896,14 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
             {/* Divider */}
             <div className="border-t border-slate-800 mx-2" />
 
-            {/* Financial */}
-            {financialItems.length > 0 && renderGroup("Financial", financialItems, "financial")}
+            {/* Financial, split three ways — see poultrySalesItems. Rendered as
+                three adjacent groups with no divider between them so they still
+                read as one Financial block. */}
+            {renderGroup("Sales", poultrySalesItems, "poultrySales")}
+
+            {renderGroup("Expenses", poultryExpenseItems, "poultryExpenses")}
+
+            {renderGroup("Money", poultryMoneyItems, "poultryMoney")}
 
             {/* Divider */}
             <div className="border-t border-slate-800 mx-2" />

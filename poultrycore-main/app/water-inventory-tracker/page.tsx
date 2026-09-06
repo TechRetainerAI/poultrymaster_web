@@ -391,6 +391,7 @@ function WaterInventoryTrackerPageInner() {
                       {/* Mobile opens on scorecards (expanded by default);
                           "View table format" flips to the wide ledger table. */}
                       <MobileCardList
+                        striped
                         defaultOpen
                         items={pageRows}
                         getKey={(row) => row.stockTxnId}
@@ -399,10 +400,12 @@ function WaterInventoryTrackerPageInner() {
                         trailing={(row) => (
                           <span className="text-sm font-semibold tabular-nums text-slate-900">{qty(row.runningBase)}</span>
                         )}
+                        highlights={(row) => [
+                          { label: "In", value: row.inQty > 0 ? qty(row.inQty) : "—", accent: "emerald" },
+                          { label: "Out", value: row.outQty > 0 ? qty(row.outQty) : "—", accent: "rose" },
+                          { label: "Balance", value: qty(row.runningBase), accent: "violet", wide: true },
+                        ]}
                         details={(row) => [
-                          { label: "In", value: <span className="text-emerald-600 tabular-nums">{row.inQty > 0 ? qty(row.inQty) : "—"}</span> },
-                          { label: "Out", value: <span className="text-red-600 tabular-nums">{row.outQty > 0 ? qty(row.outQty) : "—"}</span> },
-                          { label: "Balance", value: <span className="tabular-nums">{qty(row.runningBase)}</span> },
                           { label: "Description", value: row.description },
                         ]}
                         desktopTable={

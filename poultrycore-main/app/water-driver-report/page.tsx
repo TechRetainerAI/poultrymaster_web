@@ -169,6 +169,7 @@ export default function WaterDriverCollectionReportPage() {
               <Card className="mb-4">
                 <CardContent className="p-0">
                   <MobileCardList
+                    striped
                     items={report.totals}
                     defaultOpen
                     getKey={(t) => t.waterDriverId ?? `none-${t.driverName}`}
@@ -180,14 +181,16 @@ export default function WaterDriverCollectionReportPage() {
                         <span>Cash {gh(t.cashCollected)}</span>
                       </>
                     )}
+                    highlights={(t) => [
+                      { label: `Cash${cur}`, value: gh(t.cashCollected), accent: "emerald" },
+                      { label: `Shortage${cur}`, value: gh(t.shortage), accent: t.shortage > 0 ? "rose" : "slate" },
+                    ]}
                     details={(t) => [
                       { label: "Runs", value: t.deliveryRuns },
                       { label: "Reconciled", value: t.reconciledRuns },
-                      { label: `Cash${cur}`, value: gh(t.cashCollected) },
                       { label: `MoMo${cur}`, value: gh(t.moMoCollected) },
                       { label: `Bank${cur}`, value: gh(t.bankCollected) },
                       { label: `Credit${cur}`, value: gh(t.creditSales) },
-                      { label: `Shortage${cur}`, value: <span className={t.shortage > 0 ? "text-rose-600 font-semibold" : ""}>{gh(t.shortage)}</span> },
                       { label: `Overage${cur}`, value: <span className={t.overage > 0 ? "text-emerald-600 font-semibold" : ""}>{gh(t.overage)}</span> },
                     ]}
                     desktopTable={
@@ -236,6 +239,7 @@ export default function WaterDriverCollectionReportPage() {
                 <CardContent className="p-0">
                   <div className="px-4 pt-4 font-medium text-slate-800">Deliveries</div>
                   <MobileCardList
+                    striped
                     items={pgDetail.pageItems}
                     pagination={pgDetail.paginationProps}
                     defaultOpen
@@ -248,14 +252,16 @@ export default function WaterDriverCollectionReportPage() {
                         <span>{gh(r.salesValue)}</span>
                       </>
                     )}
+                    highlights={(r) => [
+                      { label: "Loaded (bags)", value: r.bagsLoaded, accent: "blue" },
+                      { label: "Sold (bags)", value: r.bagsSold, accent: "emerald" },
+                      { label: `Expected${cur}`, value: gh(r.expectedCash), accent: "violet", wide: true },
+                    ]}
                     details={(r) => [
                       { label: "Driver", value: r.driverName ?? "Unassigned" },
                       { label: "Product", value: r.productName ?? `Product #${r.waterProductId}` },
-                      { label: "Loaded (bags)", value: r.bagsLoaded },
-                      { label: "Sold (bags)", value: r.bagsSold },
                       { label: "Returned (bags)", value: r.bagsReturned },
                       { label: "Damaged (bags)", value: r.bagsDamaged },
-                      { label: `Expected${cur}`, value: gh(r.expectedCash) },
                       { label: `Sales${cur}`, value: gh(r.salesValue) },
                     ]}
                     desktopTable={

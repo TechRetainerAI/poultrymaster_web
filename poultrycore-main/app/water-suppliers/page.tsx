@@ -152,6 +152,7 @@ export default function WaterSuppliersPage() {
                 </div>
               ) : (
                 <MobileCardList
+                  striped
                   defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}

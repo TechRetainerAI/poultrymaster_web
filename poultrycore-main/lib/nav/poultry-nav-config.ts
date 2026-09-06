@@ -5,8 +5,8 @@
  * into a handful of wide grouped panels, so related things sit side by side
  * instead of being spread across menus that all look alike.
  *
- * Rail: Dashboard | Quick Links | Operations | Sales & Money | Analytics |
- *       Reports | Setup                                        -> System
+ * Rail: Dashboard | Quick Links | Operations | Sales, Expenses & Money |
+ *       Analytics | Reports | Setup                             -> System
  *
  * NOTE: components/dashboard/sidebar.tsx and mobile-bottom-nav.tsx still carry
  * their own copies of the poultry nav. Changing an item here does NOT change
@@ -128,6 +128,8 @@ export function buildPoultryNavConfig(
       },
     ],
 
+    // Three columns split by direction of the money: what comes IN (Sales),
+    // what goes OUT (Expenses), and where the cash itself sits (Money).
     salesMoney: [
       {
         key: "sales",
@@ -135,13 +137,24 @@ export function buildPoultryNavConfig(
         items: [
           { id: "sales",    title: "Sales",             icon: ShoppingCart, href: "/sales",            visible: money("/sales") },
           { id: "payments", title: "Payments",          icon: Wallet,       href: "/poultry-payments", visible: money("/poultry-payments") },
-          // The two collection/payment control centres. They sit under Sales
-          // rather than Money because the question they answer is "who owes
-          // what", not "where is the cash".
+          // "Who owes us what" — the collections control centre, so it belongs
+          // with the money coming in rather than with the cash accounts.
           { id: "customer-balances", title: "Customer Balances", icon: Users, href: "/customer-balances", visible: money("/customer-balances") },
-          { id: "supplier-balances", title: "Supplier Balances", icon: Truck, href: "/supplier-balances", visible: money("/supplier-balances") },
+        ],
+      },
+      {
+        key: "expenses",
+        label: "Expenses",
+        items: [
+          { id: "expenses",      title: "Expenses",     icon: DollarSign, href: "/expenses",               visible: money("/expenses") },
+          // Payroll is money going out, so it sits with the other outflows
+          // rather than with staff master data in Setup > People. It is also the
+          // one ungated row here, which keeps this column from ever vanishing.
+          { id: "payroll",       title: "Payroll",      icon: Banknote,   href: "/poultry-payroll" },
+          // The payables mirror of the two Sales rows: what we owe, and what
+          // we've paid against it.
           { id: "supplier-payments", title: "Supplier Payments", icon: Receipt, href: "/supplier-payments", visible: money("/supplier-payments") },
-          { id: "billing",  title: "Billing",           icon: CreditCard,   href: "/billing",          visible: money("/billing") },
+          { id: "supplier-balances", title: "Supplier Balances", icon: Truck, href: "/supplier-balances", visible: money("/supplier-balances") },
         ],
       },
       {
@@ -155,11 +168,7 @@ export function buildPoultryNavConfig(
           { id: "cash",          title: "Cash",         icon: History,   href: "/cash",                   visible: money("/cash") },
           { id: "cash-accounts", title: "Cash Account", icon: Wallet,     href: "/poultry-cash-accounts",  visible: money("/poultry-cash-accounts") },
           { id: "cash-reconciliation", title: "Reconcile cash", icon: Scale, href: "/poultry-cash-reconciliation", visible: money("/poultry-cash-reconciliation") },
-          { id: "expenses",      title: "Expenses",     icon: DollarSign, href: "/expenses",               visible: money("/expenses") },
-          // Payroll is money going out, so it sits with the other outflows
-          // rather than with staff master data in Setup > People. It is also the
-          // one ungated row here, which keeps this column from ever vanishing.
-          { id: "payroll",       title: "Payroll",      icon: Banknote,   href: "/poultry-payroll" },
+          { id: "billing",  title: "Billing",           icon: CreditCard,   href: "/billing",          visible: money("/billing") },
         ],
       },
     ],

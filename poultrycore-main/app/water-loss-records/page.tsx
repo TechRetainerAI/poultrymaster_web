@@ -226,6 +226,7 @@ export default function WaterLossRecordsPage() {
                 <div className="p-8 text-center text-slate-500">No losses recorded yet.</div>
               ) : (
                 <MobileCardList
+                  striped
                   defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
@@ -237,12 +238,14 @@ export default function WaterLossRecordsPage() {
                       <Badge className={STATUS_COLOR[l.status ?? "Pending"] ?? ""}>{l.status ?? "Pending"}</Badge>
                     </>
                   )}
+                  highlights={(l) => [
+                    { label: "Bags", value: l.quantityBags ?? 0, accent: "rose" },
+                    { label: "Sachets", value: l.quantitySachets ?? 0, accent: "rose" },
+                    { label: "Value", value: gh(l.estimatedValue ?? 0), accent: "violet", wide: true },
+                  ]}
                   details={(l) => [
                     { label: "Date", value: l.lossDate.split("T")[0] },
                     { label: "Type", value: l.lossType },
-                    { label: "Bags", value: l.quantityBags ?? 0 },
-                    { label: "Sachets", value: l.quantitySachets ?? 0 },
-                    { label: "Value", value: gh(l.estimatedValue ?? 0) },
                     { label: "Status", value: l.status ?? "Pending" },
                     { label: "Reason", value: l.reason ?? "—" },
                   ]}

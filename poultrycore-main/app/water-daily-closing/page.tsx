@@ -260,6 +260,7 @@ export default function WaterDailyClosingPage() {
                 <div className="p-8 text-center text-slate-500">No daily closings yet. Start today's above.</div>
               ) : (
                 <MobileCardList
+                  striped
                   defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
@@ -271,13 +272,15 @@ export default function WaterDailyClosingPage() {
                       <Badge className={STATUS_COLORS[c.status] ?? ""}>{c.status}</Badge>
                     </>
                   )}
+                  highlights={(c) => [
+                    { label: "Bags produced", value: c.bagsProduced ?? 0, accent: "emerald" },
+                    { label: "Bags sold", value: c.bagsSold ?? 0, accent: "blue" },
+                    { label: "Cash at hand", value: gh(c.cashAtHand), accent: "violet", wide: true },
+                  ]}
                   details={(c) => [
                     { label: "Date", value: c.closingDate.split("T")[0] },
-                    { label: "Bags produced", value: c.bagsProduced ?? 0 },
-                    { label: "Bags sold", value: c.bagsSold ?? 0 },
                     { label: "Income", value: gh(c.totalIncome) },
                     { label: "Expenses", value: gh(c.totalExpenses) },
-                    { label: "Cash at hand", value: gh(c.cashAtHand) },
                     { label: "Status", value: c.status },
                   ]}
                   actions={(c) => (

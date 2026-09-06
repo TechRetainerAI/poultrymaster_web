@@ -133,8 +133,8 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
   // (Quick Links / Delivery / Production / Inventory / Sales & Money / People /
   // Reports / Admin · Setup), which made users hunt for items. Related groups
   // now share one wide panel each — the pattern Reports already used — so the
-  // rail is Dashboard | Quick Links | Operations | Sales & Money | Reports |
-  // Setup. Contents live in lib/nav/water-nav-config.ts.
+  // rail is Dashboard | Quick Links | Operations | Sales, Expenses & Money |
+  // Reports | Setup. Contents live in lib/nav/water-nav-config.ts.
   //
   // The sidebar and mobile nav keep their own copies of the water nav and were
   // deliberately left alone in this pass.
@@ -188,21 +188,23 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
         />
 
         <NavMegaMenu
-          label="Sales & Money" icon={Wallet}
-          title="Sales & Money"
+          /* Named after all three columns now that Expenses is one of them —
+             "Sales & Money" read as if the outflows lived somewhere else. */
+          label="Sales, Expenses & Money" icon={Wallet}
+          title="Sales, Expenses & Money"
           blurb="Orders, collections, expenses and cash."
           groups={nav.salesMoney}
-          /* Same treatment as the poultry rail: columns sized to their OWN
-             content (fitColumns), not to an equal share. This was 24rem with
-             equal columns, sized for "Reconcile cash" alone -- which predates
-             the two Balances rows and truncated them to "Customer Bala...".
-             Measured in Geist-Medium (the active row's weight): Sales' longest
-             is "Customer Balances" 132px, Money's is "Reconcile cash" 102px.
-             Each column needs ~40px more for the icon, gap and row padding, so
-             the two are ~180px and ~148px. 24rem = 384px covers 180 + 148 + the
-             16px grid gap + 32px of panel padding, with slack for font
-             rendering -- the same width, but no longer wasted on equal columns. */
-          columns={2} widthRem={24} layout="grid" fitColumns
+          /* Same treatment as the poultry rail: three columns sized to their
+             OWN content (fitColumns), not to an equal share -- equal columns
+             would widen all three to "Customer Balances" and hang the
+             difference off the right edge as dead space. Measured in
+             Geist-Medium (the active row's weight): Sales' longest is
+             "Customer Balances" 132px, Expenses' is "Supplier Payments" 130px,
+             Money's is "Reconcile cash" 102px. Each column needs ~40px more for
+             the icon, gap and row padding, so the three are ~180, ~178 and
+             ~148px. 35rem = 560px covers those plus 2x16px grid gaps and 32px
+             of panel padding, with slack for font rendering. */
+          columns={3} widthRem={35} layout="grid" fitColumns
         />
 
         {/* Analytics is a menu, not a destination — there is no landing page,
@@ -510,20 +512,24 @@ export function TopNavigation() {
           />
 
           <NavMegaMenu
-            label="Sales & Money" icon={Wallet}
-            title="Sales & Money"
+            /* Named after all three columns now that Expenses is one of them —
+               "Sales & Money" read as if the outflows lived somewhere else. */
+            label="Sales, Expenses & Money" icon={Wallet}
+            title="Sales, Expenses & Money"
             blurb="Orders, collections, expenses, cash flow and payroll."
             groups={nav.salesMoney}
-            /* Two columns sized to their OWN content (fitColumns), not to an equal
-               share: Sales' longest label is "Customer Balances" and Money's is
-               "Reconcile cash", and equal columns would widen BOTH to the former
-               and hang the difference off the right edge as dead space.
+            /* Three columns sized to their OWN content (fitColumns), not to an
+               equal share: Sales' longest label is "Customer Balances",
+               Expenses' is "Supplier Payments" and Money's is "Reconcile cash",
+               and equal columns would widen ALL THREE to the first and hang the
+               difference off the right edge as dead space.
                Measured in Geist-Medium (the active row's weight): Customer
-               Balances 132px, Reconcile cash 102px. Each column needs ~40px more
-               for the icon, gap and row padding, so the two are ~180px and
-               ~148px. 24rem = 384px covers 180 + 148 + the 16px grid gap + 32px
-               of panel padding, with slack for font rendering. */
-            columns={2} widthRem={24} layout="grid" fitColumns accent="orange"
+               Balances 132px, Supplier Payments 130px, Reconcile cash 102px.
+               Each column needs ~40px more for the icon, gap and row padding, so
+               the three are ~180, ~178 and ~148px. 35rem = 560px covers those
+               plus 2x16px grid gaps + 32px of panel padding, with slack for font
+               rendering. */
+            columns={3} widthRem={35} layout="grid" fitColumns accent="orange"
           />
 
           <NavMegaMenu
@@ -568,7 +574,7 @@ export function TopNavigation() {
 
           <div className="ml-auto flex items-center gap-1">
             {/* Billing, Terms and Help Center used to be pinned here; they now
-                live in Sales & Money and System respectively. */}
+                live in Sales, Expenses & Money and System respectively. */}
             <NavMegaMenu
               label="System" icon={User}
               title="System"

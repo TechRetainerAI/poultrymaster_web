@@ -217,6 +217,7 @@ export default function WaterPayrollPage() {
                 <div className="p-8 text-center text-slate-500">No payroll runs yet.</div>
               ) : (
                 <MobileCardList
+                  striped
                   defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
@@ -228,10 +229,12 @@ export default function WaterPayrollPage() {
                       <Badge className={STATUS_COLORS[r.status] ?? ""}>{r.status}</Badge>
                     </>
                   )}
+                  highlights={(r) => [
+                    { label: "Gross", value: r.totalGrossPay.toFixed(2), accent: "blue" },
+                    { label: "Net", value: r.totalNetPay.toFixed(2), accent: "emerald" },
+                  ]}
                   details={(r) => [
                     { label: "Period", value: `${r.periodStart.split("T")[0]} → ${r.periodEnd.split("T")[0]}` },
-                    { label: "Gross", value: r.totalGrossPay.toFixed(2) },
-                    { label: "Net", value: r.totalNetPay.toFixed(2) },
                     { label: "Cash account", value: r.cashAccountName ?? "—" },
                     { label: "Status", value: r.status },
                   ]}

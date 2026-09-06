@@ -223,6 +223,7 @@ export default function WaterProductsPage() {
                 </div>
               ) : (
                 <MobileCardList
+                  striped
                   defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
@@ -240,12 +241,14 @@ export default function WaterProductsPage() {
                       </span>
                     </>
                   )}
+                  highlights={(p) => [
+                    { label: "Price", value: p.unitPrice.toFixed(2), accent: "emerald" },
+                    { label: "Stock", value: p.stockOnHand, accent: "blue" },
+                  ]}
                   details={(p) => [
                     { label: "SKU", value: p.sku ?? "—" },
                     { label: "Size", value: p.sizeMl ? `${p.sizeMl} ml` : "—" },
                     { label: "Unit", value: p.unit ?? "—" },
-                    { label: "Price", value: p.unitPrice.toFixed(2) },
-                    { label: "Stock", value: p.stockOnHand },
                   ]}
                   actions={(p) => (
                     <div className="flex w-full flex-col gap-2">

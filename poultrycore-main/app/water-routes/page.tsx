@@ -126,6 +126,7 @@ export default function WaterRoutesPage() {
                 <div className="p-8 text-center text-slate-500">No routes yet.</div>
               ) : (
                 <MobileCardList
+                  striped
                   defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
@@ -136,11 +137,13 @@ export default function WaterRoutesPage() {
                       <span>{r.areaCovered ?? "—"}</span>
                     </>
                   )}
+                  highlights={(r) => [
+                    { label: "Expected customers", value: r.expectedCustomers ?? "—", accent: "blue" },
+                    { label: "Expected bags", value: r.expectedBagsSold ?? "—", accent: "emerald" },
+                  ]}
                   details={(r) => [
                     { label: "Area", value: r.areaCovered ?? "—" },
                     { label: "Default vehicle", value: vehicles.find(v => v.waterVehicleId === r.defaultVehicleId)?.vehicleName ?? "—" },
-                    { label: "Expected customers", value: r.expectedCustomers ?? "—" },
-                    { label: "Expected bags", value: r.expectedBagsSold ?? "—" },
                   ]}
                   actions={(r) => (
                     <>

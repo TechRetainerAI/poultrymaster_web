@@ -277,6 +277,7 @@ export default function WaterDailyProductionPage() {
               {/* Mobile opens on scorecards (expanded by default); "View table
                   format" flips to the wide table — same pattern as poultry. */}
               <MobileCardList
+                striped
                 defaultOpen
                 items={pg.pageItems}
                 pagination={pg.paginationProps}
@@ -293,12 +294,14 @@ export default function WaterDailyProductionPage() {
                     {WATER_DAILY_PRODUCTION_STATUS_LABELS[r.status] ?? r.status}
                   </Badge>
                 )}
+                highlights={(r) => [
+                  { label: "Bags", value: (r.bagsProduced || 0).toLocaleString(), accent: "blue" },
+                  { label: "Good", value: (r.goodBags || 0).toLocaleString(), accent: "emerald" },
+                  { label: "All-in cost", value: gh(r.allInCost || 0), accent: "violet", wide: true },
+                ]}
                 details={(r) => [
                   { label: "Machines", value: waterMachineScopeLabel(r) },
-                  { label: "Bags", value: (r.bagsProduced || 0).toLocaleString() },
-                  { label: "Good", value: (r.goodBags || 0).toLocaleString() },
                   { label: "Rejected", value: (r.rejectedSachets || 0).toLocaleString() },
-                  { label: "All-in cost", value: gh(r.allInCost || 0) },
                   { label: "Cost/bag", value: gh(r.costPerBag || 0) },
                 ]}
                 actions={(r) => <>{renderActions(r)}</>}

@@ -467,6 +467,7 @@ export default function WaterInternalUsePage() {
                 </div>
               ) : (
                 <MobileCardList
+                  striped
                   defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
@@ -478,12 +479,14 @@ export default function WaterInternalUsePage() {
                       <Badge variant="outline" className={cn("border-0", STATUS_BADGE[r.status])}>{r.status}</Badge>
                     </>
                   )}
+                  highlights={(r) => [
+                    { label: "Quantity", value: describeQty(r), accent: "blue" },
+                    { label: "Cost", value: gh(r.totalCostValue ?? 0), accent: "violet" },
+                  ]}
                   details={(r) => [
                     { label: "Date", value: (r.usageDate || "").split("T")[0] },
                     { label: "Reason", value: INTERNAL_USE_CATEGORY_LABELS[r.category] ?? r.category },
                     { label: "Product", value: r.items?.[0]?.productName ?? "—" },
-                    { label: "Quantity", value: describeQty(r) },
-                    { label: "Cost", value: gh(r.totalCostValue ?? 0) },
                     { label: "Recipient", value: r.recipientName ?? "—" },
                   ]}
                   actions={(r) => rowActions(r)}

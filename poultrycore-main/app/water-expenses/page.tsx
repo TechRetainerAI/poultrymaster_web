@@ -391,6 +391,7 @@ export default function WaterExpensesPage() {
                 <div className="p-8 text-center text-slate-500">No expenses {statusFilter !== "ALL" && `with status "${statusFilter}"`} yet.</div>
               ) : (
                 <MobileCardList
+                  striped
                   defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
@@ -406,10 +407,12 @@ export default function WaterExpensesPage() {
                       <Badge variant="outline" className="text-[10px]">{e.kind === "Direct" ? "Direct" : "Delivery"}</Badge>
                     </>
                   )}
+                  highlights={(e) => [
+                    { label: "Amount", value: e.row.amount.toFixed(2), accent: "rose", wide: true },
+                  ]}
                   details={(e) => e.kind === "Direct" ? [
                     { label: "Date", value: e.row.expenseDate.split("T")[0] },
                     { label: "Category", value: e.row.categoryName ?? "—" },
-                    { label: "Amount", value: e.row.amount.toFixed(2) },
                     { label: "Paid to", value: paidToLabel(e.row) },
                     { label: "Source",  value: <ExpenseSourceLink sourceType={e.row.sourceType} sourceId={e.row.sourceId} linkedWaterProductionBatchId={e.row.linkedWaterProductionBatchId} /> },
                     { label: "Method", value: e.row.paymentMethod },
@@ -418,7 +421,6 @@ export default function WaterExpensesPage() {
                   ] : [
                     { label: "Date", value: unifiedDate(e).split("T")[0] },
                     { label: "Category", value: e.row.expenseCategory },
-                    { label: "Amount", value: e.row.amount.toFixed(2) },
                     { label: "Paid to", value: e.row.driverName ?? "—" },
                     {
                       label: "Source",

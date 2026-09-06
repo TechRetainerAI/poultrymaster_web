@@ -477,17 +477,20 @@ export default function WaterCashFlowPage() {
                     </p>
                   ) : (
                     <MobileCardList
+                      striped
                       defaultOpen
                       items={pg.pageItems}
                       pagination={pg.paginationProps}
                       getKey={(r: any) => `${r.rowSource}-${r.id}`}
                       primary={(r: any) => `${r.amount < 0 ? "−" : "+"}${gh(Math.abs(r.amount))} · ${categoryLabel(r.category)}`}
                       secondary={(r: any) => `${(r.transactionDate ?? "").split("T")[0]} · ${flowGroupLabel(r.flowGroup)}`}
+                      highlights={(r: any) => [
+                        { label: "Running cash", value: gh(r.running), accent: "violet", wide: true },
+                      ]}
                       details={(r: any) => [
                         { label: "Type", value: categoryLabel(r.category) },
                         { label: "Category", value: flowGroupLabel(r.flowGroup) },
                         { label: "Recorded as", value: sourceTypeLabel(r.sourceType) },
-                        { label: "Running cash", value: gh(r.running) },
                         { label: "Description", value: r.description ?? "—" },
                       ]}
                       desktopTable={

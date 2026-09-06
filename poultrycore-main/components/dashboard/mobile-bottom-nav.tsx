@@ -75,7 +75,8 @@ interface NavItem {
  * one flat grid meant reading every label to find anything.
  *
  * It now mirrors the DESKTOP TOP NAV: the same sections in the same order
- * (Quick Links, Operations, Sales & Money, Analytics, Reports, Setup, System),
+ * (Quick Links, Operations, Sales/Expenses/Money, Analytics, Reports, Setup,
+ * System),
  * each holding the same column groups. For Poultry the contents are read
  * straight out of lib/nav/poultry-nav-config.ts — the very config the top nav
  * renders — so the two cannot drift apart.
@@ -196,7 +197,8 @@ export function MobileBottomNav() {
           { href: "/water-sales",              label: "Sales",      icon: ShoppingCart },
         ] as NavItem[]),
         // Same groups, same order as the desktop water sidebar.
-        moreGroups: asSections([
+        moreGroups: compactSections([
+          ...asSections([
           { title: "Quick Links", items: gateWater([
             { href: "/water-daily-closing",  label: "Daily Closing",  icon: FileText },
             { href: "/water-driver-returns", label: "Deliveries",     icon: Truck },
@@ -222,22 +224,38 @@ export function MobileBottomNav() {
             { href: "/water-loss-records",      label: "Damages & loss",           icon: AlertTriangle },
             { href: "/water-production-losses", label: "Production losses",        icon: AlertTriangle },
           ] as NavItem[]) },
-          { title: "Sales & Money", items: gateWater([
-            { href: "/water-payments",            label: "Payments",          icon: CreditCard },
-            { href: "/water-customer-balances",   label: "Customer Balances", icon: Users },
-            { href: "/water-supplier-balances",   label: "Supplier Balances", icon: Truck },
-            { href: "/water-expenses",            label: "Expenses",          icon: Receipt },
-            { href: "/water-cash-flow",           label: "Cash Flow",         icon: Wallet },
-            { href: "/water-cash-accounts",       label: "Cash accounts",     icon: Wallet },
-            { href: "/water-cash-reconciliation", label: "Reconcile cash",    icon: Scale },
-          ] as NavItem[]) },
+          ]),
+          // Sales & Money is the one section with sub-headings: the same three
+          // columns the desktop rail shows (Sales / Expenses / Money), split by
+          // direction of the money. `asSections` flattens a group into one
+          // unnamed list, so this section is spelled out as its own NavSection.
+          { title: "Sales, Expenses & Money", groups: compactGroups([
+            { title: "Sales", items: gateWater([
+              { href: "/water-sales",             label: "Sales",             icon: ShoppingCart },
+              { href: "/water-payments",          label: "Payments",          icon: CreditCard },
+              { href: "/water-customer-balances", label: "Customer Balances", icon: Users },
+            ] as NavItem[]) },
+            { title: "Expenses", items: gateWater([
+              { href: "/water-expenses",          label: "Expenses",          icon: Receipt },
+              { href: "/water-payroll",           label: "Payroll",           icon: Banknote },
+              { href: "/water-supplier-payments", label: "Supplier Payments", icon: Receipt },
+              { href: "/water-supplier-balances", label: "Supplier Balances", icon: Truck },
+            ] as NavItem[]) },
+            { title: "Money", items: gateWater([
+              { href: "/water-cash-flow",           label: "Cash Flow",      icon: Wallet },
+              { href: "/water-cash-accounts",       label: "Cash accounts",  icon: Wallet },
+              { href: "/water-cash-reconciliation", label: "Reconcile cash", icon: Scale },
+            ] as NavItem[]) },
+          ]) },
+          ...asSections([
           { title: "Finance", items: gateWater([
             { href: "/water-customers", label: "Customers", icon: Users },
             { href: "/water-suppliers", label: "Suppliers", icon: Truck },
           ] as NavItem[]) },
+          // Payroll moved to Sales & Money > Expenses with the other outflows,
+          // so People is staff master data only.
           { title: "People", items: gateWater([
             { href: "/water-staff",   label: "Staff",   icon: Users2 },
-            { href: "/water-payroll", label: "Payroll", icon: Banknote },
           ] as NavItem[]) },
           { title: "Analytics & Reports", items: gateWater([
             { href: "/water-inventory-tracker", label: "Inventory tracker", icon: History },
@@ -256,6 +274,7 @@ export function MobileBottomNav() {
               ? [{ href: "/audit-logs", label: "Activity Log", icon: Activity }] : []),
             { href: "/terms", label: "Terms & Conditions", icon: FileText },
           ] as NavItem[] },
+          ]),
         ]),
       }
     }
@@ -419,13 +438,13 @@ export function MobileBottomNav() {
     })
     // Read the DESKTOP TOP NAV's own config rather than keeping a third copy of
     // the poultry nav. Same sections, same order, same permission gates as the
-    // rail: Quick Links | Operations | Sales & Money | Analytics | Reports |
-    // Setup, then System.
+    // rail: Quick Links | Operations | Sales, Expenses & Money | Analytics |
+    // Reports | Setup, then System.
     const nav = buildPoultryNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount })
     const filteredPoultryMore = compactSections([
       { title: "Quick Links", groups: [{ title: "", items: nav.quickLinks.items }] },
       { title: "Operations",    groups: fromMegaMenu(nav.operations) },
-      { title: "Sales & Money", groups: fromMegaMenu(nav.salesMoney) },
+      { title: "Sales, Expenses & Money", groups: fromMegaMenu(nav.salesMoney) },
       { title: "Analytics",     groups: fromMegaMenu(nav.analytics) },
       // The rail hides the whole Reports menu behind canViewReports.
       ...(permissions.featureAccess.canViewReports
