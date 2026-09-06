@@ -192,6 +192,7 @@ export default function WaterMaintenancePage() {
                 <div className="p-8 text-center text-slate-500">No maintenance logs yet.</div>
               ) : (
                 <MobileCardList
+                  striped
                   defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
@@ -203,11 +204,13 @@ export default function WaterMaintenancePage() {
                       <Badge className={STATUS_COLORS[l.status] ?? ""}>{l.status}</Badge>
                     </>
                   )}
+                  highlights={(l) => [
+                    { label: "Repair cost", value: l.repairCost.toFixed(2), accent: "rose", wide: true },
+                  ]}
                   details={(l) => [
                     { label: "Date", value: l.issueDate.split("T")[0] },
                     { label: "Asset", value: `${l.assetType} ${l.assetLabel ?? ""}` },
                     { label: "Technician", value: l.technicianName ?? "—" },
-                    { label: "Cost", value: l.repairCost.toFixed(2) },
                     { label: "Status", value: l.status },
                     { label: "Issue", value: l.issueDescription },
                   ]}

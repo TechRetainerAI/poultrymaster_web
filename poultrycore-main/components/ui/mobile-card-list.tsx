@@ -42,12 +42,35 @@ import { cn } from "@/lib/utils"
 
 type DetailField = { label: string; value: ReactNode }
 
+/**
+ * Tinted headline tiles, the look the /poultry-daily-closing cards use: the
+ * one or two numbers that matter sit above the fold in their own coloured
+ * panel, so a collapsed card still answers "how much?" at a glance.
+ */
+type HighlightAccent = "emerald" | "blue" | "violet" | "amber" | "rose" | "slate"
+type HighlightField = { label: string; value: ReactNode; accent?: HighlightAccent; /** Span both columns. */ wide?: boolean }
+
+const HIGHLIGHT_TONES: Record<HighlightAccent, { tile: string; label: string; value: string }> = {
+  emerald: { tile: "bg-emerald-100 border-emerald-300", label: "text-emerald-900", value: "text-emerald-800" },
+  blue: { tile: "bg-blue-100 border-blue-300", label: "text-blue-900", value: "text-blue-800" },
+  violet: { tile: "bg-violet-100 border-violet-300", label: "text-violet-900", value: "text-violet-900" },
+  amber: { tile: "bg-amber-100 border-amber-300", label: "text-amber-900", value: "text-amber-800" },
+  rose: { tile: "bg-rose-100 border-rose-300", label: "text-rose-900", value: "text-rose-700" },
+  slate: { tile: "bg-slate-100 border-slate-300", label: "text-slate-600", value: "text-slate-900" },
+}
+
 export interface MobileCardListProps<T> {
   items: T[]
   getKey: (item: T) => string | number
   primary: (item: T) => ReactNode
   secondary?: (item: T) => ReactNode
   details?: (item: T) => DetailField[]
+  /**
+   * Coloured headline tiles rendered under `secondary`, visible whether the
+   * card is open or shut. Use for the item's money / count figures; leave the
+   * descriptive fields to `details`.
+   */
+  highlights?: (item: T) => HighlightField[]
   actions?: (item: T) => ReactNode
   desktopTable: ReactNode
   emptyState?: ReactNode
@@ -58,6 +81,12 @@ export interface MobileCardListProps<T> {
   /** Start cards expanded but KEEP the "view table format" toggle available. */
   defaultOpen?: boolean
   /**
+   * Tint alternate cards amber, the way the /poultry-daily-closing list does.
+   * On a phone the stripe is what separates one record from the next once the
+   * cards carry coloured tiles of their own.
+   */
+  striped?: boolean
+  /**
    * Spread usePagination()'s `paginationProps` here and pass the PAGE SLICE
    * (`pg.pageItems`) as both `items` and the array the `desktopTable` maps
    * over — the footer then sits below the cards and the table alike.
@@ -66,7 +95,7 @@ export interface MobileCardListProps<T> {
 }
 
 export function MobileCardList<T>({
-  items, getKey, primary, secondary, details, actions, desktopTable, emptyState, trailing, alwaysExpanded = false, defaultOpen = false, pagination,
+  items, getKey, primary, secondary, details, highlights, actions, desktopTable, emptyState, trailing, alwaysExpanded = false, defaultOpen = false, striped = false, pagination,
 }: MobileCardListProps<T>) {
   const [showTable, setShowTable] = useState(false)
 
@@ -94,31 +123,52 @@ export function MobileCardList<T>({
       <div className="lg:hidden">
         {!showTable ? (
           <div className="space-y-2 p-3">
-            {items.map((item) => (
+            {items.map((item, idx) => {
+              const stripe = striped && idx % 2 === 0
+              return (
               <Collapsible
                 key={getKey(item)}
                 defaultOpen={alwaysExpanded || defaultOpen}
-                className="group rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden"
+                className={cn("group rounded-lg border shadow-sm overflow-hidden",
+                  stripe ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}
               >
-                <div className="p-3 active:bg-slate-50/80 transition-colors">
+                <div className={cn("p-3 transition-colors", stripe ? "active:bg-black/10" : "active:bg-slate-50/80")}>
                   <CollapsibleTrigger asChild>
-                    <div className="flex items-start justify-between gap-3 cursor-pointer">
-                      <div className="min-w-0 flex-1">
-                        <div className="font-semibold text-slate-900 break-words">{primary(item)}</div>
-                        {secondary && (
-                          <div className="mt-1 flex items-center gap-2 text-sm text-slate-600 break-words">
-                            {secondary(item)}
-                          </div>
-                        )}
+                    <div className="cursor-pointer">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-slate-900 break-words">{primary(item)}</div>
+                          {secondary && (
+                            <div className="mt-1 flex items-center gap-2 text-sm text-slate-600 break-words">
+                              {secondary(item)}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {trailing?.(item)}
+                          <ChevronDown className="h-5 w-5 text-slate-400 transition-transform group-data-[state=open]:rotate-180" />
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {trailing?.(item)}
-                        <ChevronDown className="h-5 w-5 text-slate-400 transition-transform group-data-[state=open]:rotate-180" />
-                      </div>
+                      {/* Full card width — the tiles sit below the header row
+                          rather than beside the chevron, so they line up edge
+                          to edge like the daily-closing cards. */}
+                      {highlights && (
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          {highlights(item).map((h, i) => {
+                            const tone = HIGHLIGHT_TONES[h.accent ?? "slate"]
+                            return (
+                              <div key={i} className={cn("rounded-lg border px-3 py-2 shadow-sm", tone.tile, h.wide && "col-span-2")}>
+                                <p className={cn("text-[11px] font-semibold uppercase tracking-wide", tone.label)}>{h.label}</p>
+                                <p className={cn("text-xl font-extrabold leading-tight tabular-nums break-words", tone.value)}>{h.value}</p>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
-                    <div className="mt-4 pt-4 border-t border-slate-100 space-y-2 text-sm">
+                    <div className={cn("mt-4 pt-4 border-t space-y-2 text-sm", stripe ? "border-slate-200/70" : "border-slate-100")}>
                       {details && (
                         <div className="grid grid-cols-2 gap-2">
                           {details(item).map((d, i) => (
@@ -138,7 +188,8 @@ export function MobileCardList<T>({
                   </CollapsibleContent>
                 </div>
               </Collapsible>
-            ))}
+              )
+            })}
 
             {!alwaysExpanded && (
             <div className="px-1 pt-2">

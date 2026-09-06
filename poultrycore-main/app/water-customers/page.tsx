@@ -152,6 +152,7 @@ export default function WaterCustomersPage() {
                 <div className="p-8 text-center text-slate-500">No customers yet.</div>
               ) : (
                 <MobileCardList
+                  striped
                   defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
@@ -173,18 +174,13 @@ export default function WaterCustomersPage() {
                       <span>{c.city ?? "—"}</span>
                     </>
                   )}
+                  highlights={(c) => [
+                    { label: "Outstanding", value: c.outstandingBalance.toFixed(2), accent: c.outstandingBalance > 0 ? "rose" : "emerald", wide: true },
+                  ]}
                   details={(c) => [
                     { label: "Phone", value: c.contactPhone ?? "—" },
                     { label: "Email", value: c.contactEmail ?? "—" },
                     { label: "City", value: c.city ?? "—" },
-                    {
-                      label: "Outstanding",
-                      value: (
-                        <span className={c.outstandingBalance > 0 ? "text-rose-600" : "text-slate-500"}>
-                          {c.outstandingBalance.toFixed(2)}
-                        </span>
-                      ),
-                    },
                   ]}
                   actions={(c) => (
                     <>

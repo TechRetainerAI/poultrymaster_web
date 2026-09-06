@@ -326,6 +326,7 @@ function WaterSalesPageInner() {
                 <div className="p-8 text-center text-slate-500">No sales yet.</div>
               ) : (
                 <MobileCardList
+                  striped
                   defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
@@ -342,19 +343,14 @@ function WaterSalesPageInner() {
                       </span>
                     </>
                   )}
+                  highlights={(s) => [
+                    { label: "Total", value: s.totalAmount.toFixed(2), accent: "blue" },
+                    { label: "Paid", value: s.amountPaid.toFixed(2), accent: "emerald" },
+                    { label: "Balance", value: s.balance.toFixed(2), accent: s.balance > 0 ? "rose" : "slate", wide: true },
+                  ]}
                   details={(s) => [
                     { label: "Date", value: new Date(s.saleDate).toLocaleString() },
                     { label: "Customer", value: s.customerName ?? "Walk-in" },
-                    { label: "Total", value: s.totalAmount.toFixed(2) },
-                    { label: "Paid", value: s.amountPaid.toFixed(2) },
-                    {
-                      label: "Balance",
-                      value: (
-                        <span className={s.balance > 0 ? "text-rose-600" : "text-slate-500"}>
-                          {s.balance.toFixed(2)}
-                        </span>
-                      ),
-                    },
                     { label: "Method", value: <MethodBadge method={s.paymentMethod} /> },
                     { label: "Status", value: <StatusBadge status={s.status} /> },
                     { label: "Source", value: isFromDelivery(s) ? `Delivery #${s.sourceId ?? "—"}` : "Direct sale" },

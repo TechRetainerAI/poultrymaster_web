@@ -1090,6 +1090,7 @@ export default function WaterDriverReturnsPage() {
                     <div className="p-8 text-center text-slate-500">No driver returns recorded yet.</div>
                   ) : (
                     <MobileCardList
+                      striped
                       defaultOpen
                       items={pgReturns.pageItems}
                       pagination={pgReturns.paginationProps}
@@ -1103,6 +1104,10 @@ export default function WaterDriverReturnsPage() {
                           {(r.shortageAmount ?? 0) > 0 && <span className="text-rose-600">· Short {gh(r.shortageAmount ?? 0)}</span>}
                         </>
                       )}
+                      highlights={(r) => [
+                        { label: `Cash${cur}`, value: gh(r.cashCollected), accent: "emerald" },
+                        { label: `Shortage${cur}`, value: gh(r.shortageAmount ?? 0), accent: (r.shortageAmount ?? 0) > 0 ? "rose" : "slate" },
+                      ]}
                       details={(r) => [
                         { label: "Delivery #", value: r.waterVehicleLoadingId },
                         { label: "Date", value: r.returnDate.split("T")[0] },
@@ -1113,10 +1118,8 @@ export default function WaterDriverReturnsPage() {
                         { label: "Sold (bags)", value: r.bagsSold },
                         { label: "Returned (bags)", value: r.bagsReturned },
                         { label: "Damaged (bags)", value: r.bagsDamaged },
-                        { label: `Cash${cur}`, value: gh(r.cashCollected) },
                         { label: `MoMo${cur}`, value: gh(r.moMoCollected) },
                         { label: `Credit${cur}`, value: gh(r.creditSalesAmount) },
-                        { label: `Shortage${cur}`, value: <span className={(r.shortageAmount ?? 0) > 0 ? "text-rose-600" : ""}>{gh(r.shortageAmount ?? 0)}</span> },
                       ]}
                       actions={(r) => (
                         <>
@@ -2605,6 +2608,7 @@ function DeliveriesTable({
   const pg = usePagination(rows)
   return (
     <MobileCardList
+      striped
       defaultOpen
       items={pg.pageItems}
       pagination={pg.paginationProps}
@@ -2620,13 +2624,15 @@ function DeliveriesTable({
           <Badge className={LOAD_STATUS[l.status] ?? ""}>{l.status}</Badge>
         </>
       )}
+      highlights={(l) => [
+        { label: "Loaded (bags)", value: l.bagsLoaded, accent: "blue" },
+        { label: `Expected${cur}`, value: gh(l.expectedCash ?? 0), accent: "emerald" },
+      ]}
       details={(l) => [
         { label: "Date", value: l.loadDate.split("T")[0] },
         { label: "Driver", value: l.driverName ?? "—" },
         { label: "Vehicle", value: l.vehicleName ?? "—" },
         { label: "Route", value: l.routeName ?? "—" },
-        { label: "Loaded (bags)", value: l.bagsLoaded },
-        { label: `Expected${cur}`, value: gh(l.expectedCash ?? 0) },
         { label: "Status", value: l.status },
       ]}
       actions={(l) => (

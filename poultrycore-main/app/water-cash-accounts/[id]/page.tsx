@@ -240,11 +240,17 @@ export default function WaterCashAccountDetailPage() {
                     <div className="p-8 text-center text-slate-500">No transactions match your filters.</div>
                   ) : (
                     <MobileCardList
+                      striped
                       items={pg.pageItems}
                       pagination={pg.paginationProps}
                       getKey={(r) => r.waterCashTransactionId}
                       primary={(r) => `${r.amount < 0 ? "−" : "+"}${gh(Math.abs(r.amount))} · ${r.transactionType}`}
                       secondary={(r) => (<><span>{r.transactionDate.split("T")[0]}</span><span>· Bal {gh(r.running)}</span></>)}
+                      highlights={(r) => [
+                        { label: "Money in", value: r.amount > 0 ? gh(r.amount) : "—", accent: "emerald" },
+                        { label: "Money out", value: r.amount < 0 ? gh(Math.abs(r.amount)) : "—", accent: "rose" },
+                        { label: "Running balance", value: gh(r.running), accent: "violet", wide: true },
+                      ]}
                       details={(r) => [
                         { label: "Date", value: r.transactionDate.split("T")[0] },
                         { label: "Type", value: r.transactionType },
@@ -252,9 +258,6 @@ export default function WaterCashAccountDetailPage() {
                         // here as on Cash Flow. Printing the raw sourceType was
                         // the reason those labels had to stay unfriendly.
                         { label: "Source", value: categoryLabel(r.sourceType) },
-                        { label: "Money in", value: r.amount > 0 ? gh(r.amount) : "—" },
-                        { label: "Money out", value: r.amount < 0 ? gh(Math.abs(r.amount)) : "—" },
-                        { label: "Running balance", value: gh(r.running) },
                         { label: "Description", value: r.description ?? "—" },
                       ]}
                       desktopTable={

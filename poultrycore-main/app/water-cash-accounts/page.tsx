@@ -270,6 +270,7 @@ export default function WaterCashAccountsPage() {
                 </div>
               ) : (
                 <MobileCardList
+                  striped
                   defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
@@ -281,10 +282,14 @@ export default function WaterCashAccountsPage() {
                       {a.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="outline">Inactive</Badge>}
                     </>
                   )}
+                  highlights={(a) => [
+                    { label: "Opening", value: fmt(a.openingBalance), accent: "blue" },
+                    // An overdrawn account reads red rather than green — the sign of the
+                    // balance is the thing you scan a card for.
+                    { label: "Current", value: fmt(a.currentBalance), accent: a.currentBalance < 0 ? "rose" : "emerald" },
+                  ]}
                   details={(a) => [
                     { label: "Type", value: a.accountType },
-                    { label: "Opening", value: fmt(a.openingBalance) },
-                    { label: "Current", value: <span className={a.currentBalance < 0 ? "text-rose-600 font-semibold" : "font-semibold"}>{fmt(a.currentBalance)}</span> },
                     { label: "Status", value: a.isActive ? "Active" : "Inactive" },
                   ]}
                   actions={(a) => (
@@ -373,6 +378,7 @@ export default function WaterCashAccountsPage() {
               <CardContent className="p-4">
                 <div className="mb-2 font-medium text-slate-700">Recent transfers</div>
                 <MobileCardList
+                  striped
                   defaultOpen
                   items={transfers.slice(0, 8)}
                   getKey={(t) => t.waterCashTransferId}
@@ -383,11 +389,13 @@ export default function WaterCashAccountsPage() {
                       <Badge variant="outline">{t.status}</Badge>
                     </>
                   )}
+                  highlights={(t) => [
+                    { label: "Amount", value: fmt(t.amount), accent: "violet", wide: true },
+                  ]}
                   details={(t) => [
                     { label: "Date", value: t.transferDate.split("T")[0] },
                     { label: "From", value: t.fromAccountName },
                     { label: "To", value: t.toAccountName },
-                    { label: "Amount", value: fmt(t.amount) },
                     { label: "Status", value: t.status },
                   ]}
                   actions={(t) => (

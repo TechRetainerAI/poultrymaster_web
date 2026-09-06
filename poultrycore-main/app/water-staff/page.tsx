@@ -233,6 +233,7 @@ export default function WaterStaffPage() {
                 <div className="p-8 text-center text-slate-500">No staff yet.</div>
               ) : (
                 <MobileCardList
+                  striped
                   defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
@@ -244,10 +245,12 @@ export default function WaterStaffPage() {
                       {s.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="outline">Inactive</Badge>}
                     </>
                   )}
+                  highlights={(s) => [
+                    { label: "Base pay", value: s.basePay.toFixed(2), accent: "emerald", wide: true },
+                  ]}
                   details={(s) => [
                     { label: "Role", value: s.role },
                     { label: "Salary type", value: s.salaryType },
-                    { label: "Base pay", value: s.basePay.toFixed(2) },
                     { label: "Phone", value: s.phoneNumber ?? "—" },
                     { label: "Status", value: s.isActive ? "Active" : "Inactive" },
                   ]}

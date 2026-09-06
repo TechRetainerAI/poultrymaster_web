@@ -495,6 +495,7 @@ export default function WaterProductionBatchesPage() {
                 <div className="p-8 text-center text-slate-500">No production records yet.</div>
               ) : (
                 <MobileCardList
+                  striped
                   defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
@@ -508,17 +509,18 @@ export default function WaterProductionBatchesPage() {
                       <Badge className={STATUS_COLORS[b.status] ?? ""}>{b.status}</Badge>
                     </>
                   )}
+                  highlights={(b) => [
+                    { label: "Produced bags", value: b.bagsProduced.toLocaleString(), accent: "blue" },
+                    { label: "Good bags", value: (b.goodBags ?? (b.bagsProduced - (b.damagedBags ?? 0))).toLocaleString(), accent: "emerald" },
+                    { label: "Total cost", value: fmtGhc(b.allInCost ?? ((b.totalProductionCost ?? 0) + (b.rawMaterialCost ?? 0))), accent: "violet", wide: true },
+                  ]}
                   details={(b) => {
-                    const totalCost = b.allInCost ?? ((b.totalProductionCost ?? 0) + (b.rawMaterialCost ?? 0))
-                    const cpb       = b.costPerBag ?? 0
+                    const cpb = b.costPerBag ?? 0
                     return [
                       { label: "Date", value: b.productionDate ? b.productionDate.split("T")[0] : "—" },
                       { label: "Shift", value: b.shift ?? "—" },
                       { label: "Machine", value: b.machineScope === "AllMachines" ? "All Machines / Combined" : (b.machineName ?? "—") },
-                      { label: "Produced bags", value: b.bagsProduced.toLocaleString() },
-                      { label: "Good bags", value: (b.goodBags ?? (b.bagsProduced - (b.damagedBags ?? 0))).toLocaleString() },
                       { label: "Damaged", value: b.damagedBags ?? 0 },
-                      { label: "Total cost", value: fmtGhc(totalCost) },
                       { label: "Cost/bag", value: fmtGhc(cpb) },
                     ]
                   }}

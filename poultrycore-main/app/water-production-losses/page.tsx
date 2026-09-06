@@ -124,6 +124,7 @@ export default function WaterProductionLossesPage() {
                 <div className="p-8 text-center text-slate-500">No production losses recorded yet.</div>
               ) : (
                 <MobileCardList
+                  striped
                   defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
@@ -135,13 +136,15 @@ export default function WaterProductionLossesPage() {
                       <Badge className={STATUS_COLORS[l.status] ?? ""}>{l.status}</Badge>
                     </>
                   )}
+                  highlights={(l) => [
+                    { label: "Bags lost", value: l.bagsLost.toLocaleString(), accent: "rose" },
+                    { label: "Sachets lost", value: l.sachetsLost.toLocaleString(), accent: "rose" },
+                    { label: "Total value", value: gh(l.totalValue), accent: "violet", wide: true },
+                  ]}
                   details={(l) => [
                     { label: "Type", value: l.lossType },
-                    { label: "Bags lost", value: l.bagsLost.toLocaleString() },
-                    { label: "Sachets lost", value: l.sachetsLost.toLocaleString() },
                     { label: "Bags value", value: gh(l.bagsLossValue) },
                     { label: "Sachets value", value: gh(l.sachetsLossValue) },
-                    { label: "Total value", value: gh(l.totalValue) },
                   ]}
                   actions={(l) => (
                     <>

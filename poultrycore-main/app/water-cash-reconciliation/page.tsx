@@ -439,6 +439,7 @@ function WaterCashReconciliationPageInner() {
                           {/* Mobile opens on scorecards (expanded by default);
                               "View table format" flips to the wide table. */}
                           <MobileCardList
+                            striped
                             defaultOpen
                             items={counts}
                             getKey={(c) => c.waterCashReconciliationId}
@@ -447,18 +448,13 @@ function WaterCashReconciliationPageInner() {
                             trailing={(c) => (
                               <Badge variant="outline" className={cn("border-0", COUNT_BADGE[c.status])}>{c.status}</Badge>
                             )}
+                            highlights={(c) => [
+                              { label: "System", value: gh(c.systemBalance), accent: "blue" },
+                              { label: "Actual balance", value: c.actualBalance != null ? gh(c.actualBalance) : "—", accent: "emerald" },
+                              { label: "Difference", value: c.difference === 0 ? "Balanced" : gh(c.difference),
+                                accent: c.difference === 0 ? "slate" : c.difference > 0 ? "emerald" : "rose", wide: true },
+                            ]}
                             details={(c) => [
-                              { label: "System", value: gh(c.systemBalance) },
-                              { label: "Actual balance", value: c.actualBalance != null ? gh(c.actualBalance) : "—" },
-                              {
-                                label: "Difference",
-                                value: (
-                                  <span className={cn(c.difference === 0 ? "text-slate-500"
-                                                      : c.difference > 0 ? "text-emerald-700" : "text-rose-700")}>
-                                    {c.difference === 0 ? "Balanced" : gh(c.difference)}
-                                  </span>
-                                ),
-                              },
                               { label: "Reason", value: c.reason ?? "—" },
                             ]}
                             actions={(c) => countActions(c, "card")}

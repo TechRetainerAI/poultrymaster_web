@@ -188,6 +188,7 @@ export default function WaterStockPage() {
                 <div className="p-8 text-center text-slate-500">No stock movement recorded yet.</div>
               ) : (
                 <MobileCardList
+                  striped
                   defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
@@ -204,18 +205,13 @@ export default function WaterStockPage() {
                       </span>
                     </>
                   )}
+                  highlights={(t) => [
+                    { label: "Qty", value: t.quantity > 0 ? `+${t.quantity}` : t.quantity, accent: t.quantity < 0 ? "rose" : "emerald" },
+                    { label: "Unit cost", value: t.unitCost?.toFixed(2) ?? "—", accent: "blue" },
+                  ]}
                   details={(t) => [
                     { label: "Date", value: new Date(t.createdDate).toLocaleString() },
                     { label: "Type", value: t.txnType },
-                    {
-                      label: "Qty",
-                      value: (
-                        <span className={t.quantity < 0 ? "text-rose-600" : "text-emerald-600"}>
-                          {t.quantity > 0 ? `+${t.quantity}` : t.quantity}
-                        </span>
-                      ),
-                    },
-                    { label: "Unit cost", value: t.unitCost?.toFixed(2) ?? "—" },
                     { label: "Source", value: isManualTxn(t.txnType)
                         ? <Badge className="bg-blue-100 text-blue-700">Manual</Badge>
                         : <Badge variant="outline">System</Badge> },

@@ -157,6 +157,7 @@ export default function WaterMachinesPage() {
                 <div className="p-8 text-center text-slate-500">No machines yet.</div>
               ) : (
                 <MobileCardList
+                  striped
                   defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
@@ -168,11 +169,13 @@ export default function WaterMachinesPage() {
                       <Badge className={STATUS_COLOR[m.status] ?? ""}>{m.status}</Badge>
                     </>
                   )}
+                  highlights={(m) => [
+                    { label: "Capacity/hr", value: m.capacityPerHour ?? "—", accent: "blue" },
+                    { label: "Next maintenance", value: m.nextMaintenanceDate ? m.nextMaintenanceDate.split("T")[0] : "—", accent: "violet" },
+                  ]}
                   details={(m) => [
                     { label: "Number", value: m.machineNumber ?? "—" },
                     { label: "Type", value: m.machineType ?? "—" },
-                    { label: "Capacity/hr", value: m.capacityPerHour ?? "—" },
-                    { label: "Next maint.", value: m.nextMaintenanceDate ? m.nextMaintenanceDate.split("T")[0] : "—" },
                     { label: "Status", value: m.status },
                   ]}
                   actions={(m) => (

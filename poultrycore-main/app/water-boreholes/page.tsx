@@ -147,6 +147,7 @@ export default function WaterBoreholesPage() {
                 <div className="p-8 text-center text-slate-500">No boreholes yet.</div>
               ) : (
                 <MobileCardList
+                  striped
                   defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
@@ -158,11 +159,13 @@ export default function WaterBoreholesPage() {
                       <Badge className={STATUS_COLOR[b.status] ?? ""}>{b.status}</Badge>
                     </>
                   )}
+                  highlights={(b) => [
+                    { label: "Next maintenance", value: b.nextMaintenanceDate ? b.nextMaintenanceDate.split("T")[0] : "—", accent: "blue" },
+                    { label: "Quality test due", value: b.waterQualityTestDueDate ? b.waterQualityTestDueDate.split("T")[0] : "—", accent: "violet" },
+                  ]}
                   details={(b) => [
                     { label: "Location", value: b.location ?? "—" },
                     { label: "Treatment", value: b.waterTreatmentMethod ?? "—" },
-                    { label: "Next maint.", value: b.nextMaintenanceDate ? b.nextMaintenanceDate.split("T")[0] : "—" },
-                    { label: "Quality test due", value: b.waterQualityTestDueDate ? b.waterQualityTestDueDate.split("T")[0] : "—" },
                     { label: "Status", value: b.status },
                   ]}
                   actions={(b) => (

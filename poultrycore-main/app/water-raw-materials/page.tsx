@@ -465,6 +465,7 @@ function WaterRawMaterialsPageInner() {
                     <div className="p-8 text-center text-slate-500">No raw material items yet.</div>
                   ) : (
                     <MobileCardList
+                      striped
                       items={pgItems.pageItems}
                       pagination={pgItems.paginationProps}
                       defaultOpen
@@ -476,14 +477,17 @@ function WaterRawMaterialsPageInner() {
                           {it.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="outline">Inactive</Badge>}
                         </>
                       )}
+                      highlights={(it) => [
+                        { label: "Current", value: it.currentQuantity ?? 0,
+                          accent: (it.currentQuantity ?? 0) <= (it.minimumStockAlert ?? 0) ? "rose" : "emerald" },
+                        { label: "Min alert", value: it.minimumStockAlert ?? 0, accent: "blue" },
+                      ]}
                       details={(it) => {
                         const low = (it.currentQuantity ?? 0) <= (it.minimumStockAlert ?? 0)
                         return [
                           { label: "Category", value: it.category },
                           { label: "Purchase Unit", value: it.purchaseUnitOfMeasure ?? "—" },
                           { label: "Production Unit", value: it.unitOfMeasure ?? "—" },
-                          { label: "Current", value: <span className={low ? "text-rose-600 font-semibold" : ""}>{it.currentQuantity ?? 0}</span> },
-                          { label: "Min alert", value: it.minimumStockAlert ?? 0 },
                           { label: "Status", value: it.isActive ? "Active" : "Inactive" },
                         ]
                       }}
@@ -561,6 +565,7 @@ function WaterRawMaterialsPageInner() {
                     </div>
                   ) : (
                     <MobileCardList
+                      striped
                       items={pgUsage.pageItems}
                       pagination={pgUsage.paginationProps}
                       defaultOpen
@@ -573,12 +578,14 @@ function WaterRawMaterialsPageInner() {
                           <span>{Number(u.quantityUsed ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} {u.unitOfMeasure ?? ""}</span>
                         </>
                       )}
+                      highlights={(u) => [
+                        { label: "Qty used", value: Number(u.quantityUsed ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 }), accent: "blue" },
+                        { label: "Cost", value: u.totalCost ? gh(Number(u.totalCost)) : "—", accent: "violet" },
+                      ]}
                       details={(u) => [
                         { label: "Date", value: u.usedDate.split("T")[0] },
                         { label: "Material", value: u.itemName ?? "—" },
-                        { label: "Qty used", value: Number(u.quantityUsed ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 }) },
                         { label: "Unit", value: u.unitOfMeasure ?? "—" },
-                        { label: "Cost", value: u.totalCost ? gh(Number(u.totalCost)) : "—" },
                         { label: "Source batch", value: u.batchNumber ?? "—" },
                         { label: "Finished product", value: u.finishedProductName ?? "—" },
                       ]}
@@ -650,6 +657,7 @@ function WaterRawMaterialsPageInner() {
                     </div>
                   ) : (
                     <MobileCardList
+                      striped
                       items={pgPurchases.pageItems}
                       pagination={pgPurchases.paginationProps}
                       defaultOpen
@@ -662,6 +670,10 @@ function WaterRawMaterialsPageInner() {
                           <span>{gh(p.totalCost ?? p.quantity * p.unitCost)}</span>
                         </>
                       )}
+                      highlights={(p) => [
+                        { label: "Total", value: gh(p.totalCost ?? p.quantity * p.unitCost), accent: "violet" },
+                        { label: "Balance", value: gh(p.balance ?? 0), accent: (p.balance ?? 0) > 0 ? "rose" : "emerald" },
+                      ]}
                       details={(p) => [
                         { label: "Date", value: p.purchaseDate.split("T")[0] },
                         { label: "Item", value: p.itemName ?? items.find(i => i.waterRawMaterialItemId === p.waterRawMaterialItemId)?.itemName ?? "—" },
@@ -669,9 +681,7 @@ function WaterRawMaterialsPageInner() {
                         { label: "Purchase Qty", value: p.quantity },
                         { label: "Production Level Qty", value: p.productionQuantity != null ? `${p.productionQuantity.toLocaleString()} ${p.productionUnit ?? ""}`.trim() : "—" },
                         { label: "Unit Price", value: gh(p.unitCost) },
-                        { label: "Total", value: gh(p.totalCost ?? p.quantity * p.unitCost) },
                         { label: "Method", value: p.paymentMethod ?? "—" },
-                        { label: "Balance", value: <span className={(p.balance ?? 0) > 0 ? "text-rose-600" : ""}>{gh(p.balance ?? 0)}</span> },
                         // Migration 116: show the persisted production-unit conversion.
                         { label: "Production", value: p.productionUnit
                             ? `${(p.productionQuantity ?? 0).toLocaleString()} ${p.productionUnit}${p.productionUnitCost ? ` @ ${gh(p.productionUnitCost)}` : ""}`
