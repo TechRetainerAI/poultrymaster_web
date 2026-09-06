@@ -155,6 +155,20 @@ namespace PoultryFarmAPIWeb.Models
         public decimal? AmountPaid { get; set; }
 
         public DateTime? DueDate { get; set; }
+
+        /// <summary>
+        /// How it was actually settled. Migration 246 records this money as a
+        /// real supplier payment, and a payment needs a method of its own — the
+        /// bill's own method is often 'Credit', which by definition means it was
+        /// NOT paid. Unset falls back to the bill's method.
+        /// </summary>
+        public string? PaymentMethod { get; set; }
+
+        /// <summary>
+        /// Which account the money left. Unset falls back to the account already
+        /// stamped on the bill.
+        /// </summary>
+        public int? CashAccountId { get; set; }
     }
 
     // ====================================================================

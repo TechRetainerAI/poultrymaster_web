@@ -36,9 +36,14 @@ namespace PoultryFarmAPIWeb.Business
             try
             {
                 using var conn = new NpgsqlConnection(_connectionString);
-                using var cmd = new NpgsqlCommand("SELECT * FROM spexpense_insert(p_expensedate => @ExpenseDate::timestamp, p_category => @Category::text, p_description => @Description::text, p_amount => @Amount::numeric, p_paymentmethod => @PaymentMethod::text, p_supplier => @Supplier::text, p_flockid => @FlockId::int, p_userid => @UserId::text, p_farmid => @FarmId::uuid, p_attachmentimage => @AttachmentImage::bytea, p_attachmentcontenttype => @AttachmentContentType::text, p_supplierid => @SupplierId::int, p_amountpaid => @AmountPaid::numeric, p_duedate => @DueDate::date)", conn);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spexpense_insert(p_expensedate => @ExpenseDate::timestamp, p_category => @Category::text, p_description => @Description::text, p_amount => @Amount::numeric, p_paymentmethod => @PaymentMethod::text, p_supplier => @Supplier::text, p_flockid => @FlockId::int, p_userid => @UserId::text, p_farmid => @FarmId::uuid, p_attachmentimage => @AttachmentImage::bytea, p_attachmentcontenttype => @AttachmentContentType::text, p_supplierid => @SupplierId::int, p_amountpaid => @AmountPaid::numeric, p_duedate => @DueDate::date, p_cashaccountid => @CashAccountId::int)", conn);
                 cmd.Parameters.AddWithValue("@SupplierId", (object?)model.SupplierId ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@AmountPaid", (object?)model.AmountPaid ?? DBNull.Value);
+                // Migration 245: money paid at entry is recorded as a real supplier
+                // payment, and that payment posts the CashOut. Without the account it
+                // would post none -- and the expense's own cash line already resolves
+                // to "paid minus allocations", i.e. zero -- so the cash would vanish.
+                cmd.Parameters.AddWithValue("@CashAccountId", (object?)model.PoultryCashAccountId ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@DueDate", (object?)model.DueDate?.Date ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@ExpenseDate", model.ExpenseDate);
                 cmd.Parameters.AddWithValue("@Category", model.Category);
@@ -114,9 +119,14 @@ namespace PoultryFarmAPIWeb.Business
             try
             {
                 using var conn = new NpgsqlConnection(_connectionString);
-                using var cmd = new NpgsqlCommand("SELECT * FROM spexpense_update(p_expenseid => @ExpenseId::int, p_expensedate => @ExpenseDate::timestamp, p_category => @Category::text, p_description => @Description::text, p_amount => @Amount::numeric, p_paymentmethod => @PaymentMethod::text, p_supplier => @Supplier::text, p_flockid => @FlockId::int, p_userid => @UserId::text, p_farmid => @FarmId::uuid, p_attachmentimageset => @AttachmentImageSet::boolean, p_attachmentimage => @AttachmentImage::bytea, p_attachmentcontenttype => @AttachmentContentType::text, p_supplierid => @SupplierId::int, p_amountpaid => @AmountPaid::numeric, p_duedate => @DueDate::date)", conn);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spexpense_update(p_expenseid => @ExpenseId::int, p_expensedate => @ExpenseDate::timestamp, p_category => @Category::text, p_description => @Description::text, p_amount => @Amount::numeric, p_paymentmethod => @PaymentMethod::text, p_supplier => @Supplier::text, p_flockid => @FlockId::int, p_userid => @UserId::text, p_farmid => @FarmId::uuid, p_attachmentimageset => @AttachmentImageSet::boolean, p_attachmentimage => @AttachmentImage::bytea, p_attachmentcontenttype => @AttachmentContentType::text, p_supplierid => @SupplierId::int, p_amountpaid => @AmountPaid::numeric, p_duedate => @DueDate::date, p_cashaccountid => @CashAccountId::int)", conn);
                 cmd.Parameters.AddWithValue("@SupplierId", (object?)model.SupplierId ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@AmountPaid", (object?)model.AmountPaid ?? DBNull.Value);
+                // Migration 245: money paid at entry is recorded as a real supplier
+                // payment, and that payment posts the CashOut. Without the account it
+                // would post none -- and the expense's own cash line already resolves
+                // to "paid minus allocations", i.e. zero -- so the cash would vanish.
+                cmd.Parameters.AddWithValue("@CashAccountId", (object?)model.PoultryCashAccountId ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@DueDate", (object?)model.DueDate?.Date ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@ExpenseId", model.ExpenseId);
                 cmd.Parameters.AddWithValue("@ExpenseDate", model.ExpenseDate);

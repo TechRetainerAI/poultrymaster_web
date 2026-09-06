@@ -359,7 +359,8 @@ namespace PoultryFarmAPIWeb.Controllers
                                                     [FromBody] WaterExpensePaymentRequest body)
         {
             if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
-            await _svc.SetPaymentAsync(id, farmId, body?.AmountPaid, body?.DueDate);
+            await _svc.SetPaymentAsync(id, farmId, body?.AmountPaid, body?.DueDate,
+                                       body?.PaymentMethod, body?.CashAccountId);
             var updated = await _svc.GetByIdAsync(id, farmId);
             return updated is null ? NotFound() : Ok(updated);
         }
