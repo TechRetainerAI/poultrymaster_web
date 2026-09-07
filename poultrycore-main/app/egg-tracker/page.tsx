@@ -554,10 +554,15 @@ export default function EggTrackerPage() {
                   </CardHeader>
                   <CardContent>
                     <div className={cn("flex gap-4", isMobile ? "flex-col" : "items-start justify-between")}>
-                      {/* Three across from tablet up: five tiles sit 3 + 2
-                          instead of leaving a lone one on its own row. */}
-                      <div className={cn("grid gap-4", isMobile ? "grid-cols-1" : "grid-cols-3")}>
-                        <div>
+                      {/* All five figures on one line, so the whole picture —
+                          what is on hand, what was produced, what was sold, and
+                          the in/out either side of it — reads across without
+                          the eye dropping to a second row. flex-1 + min-w-0
+                          lets the five columns share whatever width is left
+                          after "Last ledger event" on the right, and shrink
+                          rather than push it off the card. */}
+                      <div className={cn("grid gap-4 min-w-0", isMobile ? "grid-cols-1" : "grid-cols-5 flex-1")}>
+                        <div className="min-w-0">
                           <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Eggs on hand</div>
                           <div className="mt-1 flex items-center gap-2 flex-wrap">
                             <span
@@ -581,26 +586,25 @@ export default function EggTrackerPage() {
                             </Button>
                           </div>
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total eggs produced</div>
                           <div className="mt-1 text-2xl font-bold text-sky-700 tabular-nums">
                             {totalEggsProducedLedger.toLocaleString()}
                           </div>
-                          <div className="text-xs text-slate-500">collected from production records</div>
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Egg sales (units)</div>
                           <div className="mt-1 text-2xl font-bold text-amber-800 tabular-nums">
                             {totalEggsSoldLedger.toLocaleString()}
                           </div>
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total eggs in</div>
                           <div className="mt-1 text-2xl font-bold text-emerald-600 tabular-nums">
                             {totalEggsInLedger.toLocaleString()}
                           </div>
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total eggs out</div>
                           <div className="mt-1 text-2xl font-bold text-red-600 tabular-nums">
                             {totalEggsOutLedger.toLocaleString()}
