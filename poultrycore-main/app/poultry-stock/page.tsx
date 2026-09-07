@@ -18,10 +18,10 @@ import { Badge } from "@/components/ui/badge"
 import { FieldCard } from "@/components/ui/field-card"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
-import { Plus, Loader2 } from "lucide-react"
+import { Plus, Loader2, Download } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
-import { useFmt } from "@/lib/currency"
+import { useCurrency, useFmt } from "@/lib/currency"
 import {
   listPoultryProducts, listPoultryStockTransactions, addPoultryStockTransaction,
   listPoultryRawMaterialPurchases, listPoultryRawMaterialUsageHistory,
@@ -32,6 +32,7 @@ import {
 import { RecalculateStockButton } from "@/components/poultry/recalculate-stock-button"
 import { SetProductStockButton } from "@/components/inventory/set-product-stock-button"
 import { ReconcileProductStockButton } from "@/components/inventory/reconcile-product-stock-button"
+import { exportTableToPdf, type PdfExportOptions } from "@/lib/utils/pdf-export"
 
 // Doc 5: movement types with sign. Positive = increase, negative = decrease.
 // Manual movements only. 'Production' and 'Sale' are RESERVED for the posting
@@ -76,6 +77,7 @@ export default function PoultryStockPage() {
   const { toast } = useToast()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const gh = useFmt()
+  const { code: currencyCode } = useCurrency()
   const [products, setProducts] = useState<PoultryProduct[]>([])
   const [rawItems, setRawItems] = useState<PoultryRawMaterialItem[]>([])
   const [txns, setTxns] = useState<PoultryStockTransaction[]>([])
@@ -146,6 +148,83 @@ export default function PoultryStockPage() {
   const sortedMoves = useMemo(() => sortData(filteredMoves, sort.key, sort.direction), [filteredMoves, sort])
   const pg = usePagination(sortedMoves)
 
+  // ------------------------------------------------------------- PDF export
+  //
+  // Exports `sortedMoves`: every row the filters leave, in the order the table
+  // is sorted, NOT just the page on screen. A PDF of page 1 of 9 is a trap —
+  // it looks like the whole ledger.
+  const buildPdfOpts = (): PdfExportOptions => {
+    const filtersUsed = [
+      itemFilter !== "all" ? { label: "Item", value: itemFilter } : null,
+      parentTypeFilter !== "all" ? { label: "Parent type", value: parentTypeFilter } : null,
+      movementFilter !== "all" ? { label: "Movement", value: movementFilter } : null,
+      search.trim() ? { label: "Search", value: search.trim() } : null,
+    ].filter((f): f is { label: string; value: string } => f !== null)
+
+    // In and out are reported separately: a net figure across raw materials,
+    // supplies and finished products would be adding kilograms to eggs.
+    const totalIn = sortedMoves.reduce((sum, m) => sum + (m.qty > 0 ? m.qty : 0), 0)
+    const totalOut = sortedMoves.reduce((sum, m) => sum + (m.qty < 0 ? -m.qty : 0), 0)
+
+    return {
+      title: "Stock Movements",
+      filename: "poultry-stock-movements",
+      orientation: "landscape",
+      fromDate: dateFrom || undefined,
+      toDate: dateTo || undefined,
+      filtersUsed: filtersUsed.length > 0 ? filtersUsed : undefined,
+      // Lets the letterhead read "Showing: 73 of 412 stock movements" instead
+      // of a bare count that says nothing about what was left out.
+      recordLabel: "stock movements",
+      totalBeforeFilters: moves.length,
+      currencyLabel: currencyCode,
+      columns: [
+        { header: "Date" },
+        { header: "Item" },
+        { header: "Parent Type" },
+        { header: "Movement" },
+        { header: "Qty", align: "right" },
+        { header: "Unit Price", align: "right" },
+        { header: "Total Value", align: "right" },
+        { header: "Source" },
+        { header: "Note" },
+      ],
+      rows: sortedMoves.map((m) => [
+        (m.date || "").split("T")[0],
+        m.item,
+        m.parentType,
+        m.movementType,
+        // Keep the sign the table shows: "+120" and "-40" are the whole point
+        // of a movements list.
+        `${m.qty > 0 ? "+" : ""}${m.qty.toLocaleString()}`,
+        m.unitCost != null ? gh(m.unitCost) : "—",
+        m.total != null ? gh(m.total) : "—",
+        m.source,
+        m.note ?? "—",
+      ]),
+      summaryLines: [
+        `Movements: ${sortedMoves.length.toLocaleString()}`,
+        `Total in: +${totalIn.toLocaleString()}`,
+        `Total out: -${totalOut.toLocaleString()}`,
+      ],
+      // Orange, matching /poultry-inventory — the two pages report on the same
+      // stock and should not print in different colours.
+      headFillColor: [234, 88, 12],
+    }
+  }
+
+  const handleExportPdf = async () => {
+    if (sortedMoves.length === 0) {
+      toast({ title: "Nothing to export", description: "No stock movements match the current filters.", variant: "destructive" })
+      return
+    }
+    try {
+      await exportTableToPdf(buildPdfOpts())
+    } catch {
+      toast({ title: "PDF export failed", description: "Could not generate the PDF. Please try again.", variant: "destructive" })
+    }
+  }
+
   async function save() {
     if (!form.target) { toast({ title: "Pick an item", variant: "destructive" }); return }
     if (form.quantity <= 0) { toast({ title: "Quantity must be greater than 0", variant: "destructive" }); return }
@@ -178,6 +257,9 @@ export default function PoultryStockPage() {
               <RecalculateStockButton className={TOOLBAR_BTN} items={rawItems} onDone={load} />
               <ReconcileProductStockButton className={TOOLBAR_BTN} products={products.map((p) => ({ id: p.poultryProductId, name: p.name }))} reconcile={reconcilePoultryProductStock} onDone={load} />
               <SetProductStockButton className={TOOLBAR_BTN} products={products.map((p) => ({ id: p.poultryProductId, name: p.name, currentStock: p.stockOnHand, disabledReason: (p.isBirdProduct || p.name === "Birds") ? "Bird stock comes from the birds left in your flocks — correct it in the flock / production records (record mortality, or edit the flock)." : undefined }))} setStock={setPoultryProductStock} onDone={load} />
+              <Button variant="outline" className={TOOLBAR_BTN} onClick={handleExportPdf} disabled={loading}>
+                <Download className="w-4 h-4 mr-1" /> Export PDF
+              </Button>
               <Button className={TOOLBAR_BTN} onClick={() => setOpen(true)}><Plus className="w-4 h-4 mr-1" /> New movement</Button>
             </div>
           </div>

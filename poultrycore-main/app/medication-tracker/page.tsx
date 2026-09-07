@@ -14,7 +14,7 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableFooter, TableHeader, TableRow } from "@/components/ui/table"
-import { TRACKER_PAGE_SIZE_OPTIONS } from "@/components/ui/data-pagination"
+import { TRACKER_PAGE_SIZE_DEFAULT, TRACKER_PAGE_SIZE_OPTIONS } from "@/components/ui/data-pagination"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
@@ -28,7 +28,6 @@ import {
   type PoultryRawMaterialItem, type PoultryRawMaterialPurchase, type PoultryRawMaterialUsage,
 } from "@/lib/api/poultry-inventory"
 
-const LEDGER_PAGE_SIZE_DEFAULT = 15
 
 // One IN or OUT event for a single medication, with the running per-med balance.
 type LedgerRow = {
@@ -59,7 +58,7 @@ export default function MedicationTrackerPage() {
   const [dateTo, setDateTo] = useState("")
   const [sort, setSort] = useState<{ key: string | null; direction: SortDirection }>({ key: "date", direction: "desc" })
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(LEDGER_PAGE_SIZE_DEFAULT)
+  const [pageSize, setPageSize] = useState(TRACKER_PAGE_SIZE_DEFAULT)
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Poultry") { router.replace("/dashboard"); return }

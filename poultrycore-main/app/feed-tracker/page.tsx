@@ -8,7 +8,7 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { TRACKER_PAGE_SIZE_OPTIONS } from "@/components/ui/data-pagination"
+import { TRACKER_PAGE_SIZE_DEFAULT, TRACKER_PAGE_SIZE_OPTIONS } from "@/components/ui/data-pagination"
 import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -41,7 +41,6 @@ import {
   type FeedInventoryAdjustment,
 } from "@/lib/api/feed-inventory-adjustment"
 
-const LEDGER_PAGE_SIZE_DEFAULT = 15
 
 const ADJ_TYPES = [
   { value: "Correction", label: "Correction" },
@@ -73,7 +72,7 @@ export default function FeedTrackerPage() {
   const [ledgerSortKey, setLedgerSortKey] = useState<string | null>("date")
   const [ledgerSortDir, setLedgerSortDir] = useState<SortDirection>("desc")
   const [ledgerPage, setLedgerPage] = useState(1)
-  const [ledgerPageSize, setLedgerPageSize] = useState(LEDGER_PAGE_SIZE_DEFAULT)
+  const [ledgerPageSize, setLedgerPageSize] = useState(TRACKER_PAGE_SIZE_DEFAULT)
 
   const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false)
   const [editingAdjustmentId, setEditingAdjustmentId] = useState<number | null>(null)

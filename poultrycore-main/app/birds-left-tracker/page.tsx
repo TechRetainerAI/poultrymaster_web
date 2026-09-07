@@ -8,7 +8,7 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { TRACKER_PAGE_SIZE_OPTIONS } from "@/components/ui/data-pagination"
+import { TRACKER_PAGE_SIZE_DEFAULT, TRACKER_PAGE_SIZE_OPTIONS } from "@/components/ui/data-pagination"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -29,7 +29,6 @@ import {
 } from "@/lib/utils/birds-left-ledger"
 import { flockCountsTowardBirdTotals } from "@/lib/utils/flock-eligibility"
 
-const LEDGER_PAGE_SIZE_DEFAULT = 20
 
 export default function BirdsLeftTrackerPage() {
   const router = useRouter()
@@ -48,7 +47,7 @@ export default function BirdsLeftTrackerPage() {
   const [ledgerSortKey, setLedgerSortKey] = useState<string | null>("date")
   const [ledgerSortDir, setLedgerSortDir] = useState<SortDirection>("desc")
   const [ledgerPage, setLedgerPage] = useState(1)
-  const [ledgerPageSize, setLedgerPageSize] = useState(LEDGER_PAGE_SIZE_DEFAULT)
+  const [ledgerPageSize, setLedgerPageSize] = useState(TRACKER_PAGE_SIZE_DEFAULT)
 
   const handleLogout = () => {
     localStorage.removeItem("auth_token")

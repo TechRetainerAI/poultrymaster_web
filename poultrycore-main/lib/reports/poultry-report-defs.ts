@@ -77,7 +77,44 @@ export interface ColumnDef {
   cell: (row: any, ctx: FmtCtx) => string
   /** Render the value as a status badge instead of plain text. */
   badge?: boolean
+  /**
+   * This column's cell in the pinned totals row at the foot of the table.
+   *
+   * Opt-in per column, and deliberately a function rather than a "sum this"
+   * flag: plenty of columns must NOT be added up. Summing ages, percentages or
+   * a peak gives a number that looks authoritative and means nothing. A column
+   * with no `total` prints an em dash, which says "not addable" out loud.
+   *
+   * A report shows the totals row as soon as ANY of its columns defines one.
+   */
+  total?: (rows: any[], ctx: FmtCtx) => string
 }
+
+/**
+ * Adds up one numeric field across the report's rows.
+ *
+ * The API sends numerics as numbers or numeric strings, so every value goes
+ * through the same `num()` the cells use — "1,200" arriving as a string must
+ * not silently total to zero.
+ */
+/**
+ * The pinned totals row for a report's table, or null when no column asked for
+ * one. Columns that define no `total` get an em dash rather than a blank cell,
+ * so "we did not add this up" reads as a decision instead of a gap.
+ *
+ * Shared by the table, the PDF and the CSV so the three cannot disagree about
+ * what the totals are.
+ */
+export function reportTotalsRow(columns: ColumnDef[], rows: any[], ctx: FmtCtx): string[] | null {
+  if (rows.length === 0) return null
+  if (!columns.some((c) => c.total)) return null
+  return columns.map((c) => (c.total ? c.total(rows, ctx) : "—"))
+}
+
+export const sumOf = (
+  field: string,
+  format: (n: number, ctx: FmtCtx) => string = (n, ctx) => ctx.num(n),
+) => (rows: any[], ctx: FmtCtx) => format(rows.reduce((t, r) => t + num(r?.[field]), 0), ctx)
 
 /** A single labelled bar in a breakdown section (rendered below the table). */
 export interface BreakdownBar {
@@ -227,18 +264,26 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
       { label: "Avg eggs / flock", value: (s, c) => c.num(s.averageEggsPerFlock) },
       { label: "Avg production %", value: (s, c) => c.pct(s.averageProductionPercent) },
     ],
+    // Totals row: the flock-by-flock columns that genuinely add up.
+    //
+    // Age, peak daily and status are left out on purpose. Ages and peaks do not
+    // sum — the farm's peak is one flock's best day, not the sum of everyone's
+    // best days — and a summed percentage is meaningless. "Avg daily" is the
+    // exception among the derived columns: each flock's eggs-per-day added
+    // together IS the farm's eggs per day. The headline "Avg production %" card
+    // above the table already carries the percentage figure.
     columns: [
-      { header: "Flock", cell: (r, c) => c.text(r.flockName) },
+      { header: "Flock", cell: (r, c) => c.text(r.flockName), total: (rows) => `Total — ${rows.length} flock${rows.length === 1 ? "" : "s"}` },
       { header: "Age (wks)", align: "right", cell: (r, c) => c.num(r.flockAgeWeeks) },
-      { header: "Birds placed", align: "right", cell: (r, c) => c.num(r.birdsPlaced) },
-      { header: "Current birds", align: "right", cell: (r, c) => c.num(r.currentBirds) },
-      { header: "Total eggs", align: "right", cell: (r, c) => c.num(r.totalEggs) },
-      { header: "Avg daily", align: "right", cell: (r, c) => c.num(r.averageDailyEggs) },
+      { header: "Birds placed", align: "right", cell: (r, c) => c.num(r.birdsPlaced), total: sumOf("birdsPlaced") },
+      { header: "Current birds", align: "right", cell: (r, c) => c.num(r.currentBirds), total: sumOf("currentBirds") },
+      { header: "Total eggs", align: "right", cell: (r, c) => c.num(r.totalEggs), total: sumOf("totalEggs") },
+      { header: "Avg daily", align: "right", cell: (r, c) => c.num(r.averageDailyEggs), total: sumOf("averageDailyEggs") },
       { header: "Peak daily", align: "right", cell: (r, c) => c.num(r.peakDailyEggs) },
-      { header: "Broken", align: "right", cell: (r, c) => c.num(r.brokenEggs) },
+      { header: "Broken", align: "right", cell: (r, c) => c.num(r.brokenEggs), total: sumOf("brokenEggs") },
       { header: "Prod. %", align: "right", cell: (r, c) => c.pct(r.productionPercent) },
-      { header: "Feed (kg)", align: "right", cell: (r, c) => c.num(r.feedConsumedKg) },
-      { header: "Deaths", align: "right", cell: (r, c) => c.num(r.deaths) },
+      { header: "Feed (kg)", align: "right", cell: (r, c) => c.num(r.feedConsumedKg), total: sumOf("feedConsumedKg") },
+      { header: "Deaths", align: "right", cell: (r, c) => c.num(r.deaths), total: sumOf("deaths") },
       { header: "Status", cell: (r, c) => c.text(r.status), badge: true },
     ],
   },
