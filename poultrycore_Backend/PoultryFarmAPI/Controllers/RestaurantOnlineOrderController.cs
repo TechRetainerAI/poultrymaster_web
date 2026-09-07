@@ -55,7 +55,9 @@ namespace PoultryFarmAPIWeb.Controllers
         public async Task<IActionResult> GenerateQrCode([FromQuery] string farmId, [FromBody] GenerateQrRequest req)
         {
             var auth = HotelAuthHelper.VerifyFarmOwnership(User, farmId); if (auth != null) return auth;
-            var (id, token) = await _svc.GenerateQrCodeAsync(farmId, req.TableId, req.TableNumber);
+            if (req.CodeType != "Restaurant" && (req.TableId is null || string.IsNullOrWhiteSpace(req.TableNumber)))
+                return BadRequest(new { message = "Pick a table, or generate the restaurant-wide code instead." });
+            var (id, token) = await _svc.GenerateQrCodeAsync(farmId, req.TableId, req.TableNumber, req.CodeType);
             return Ok(new { qrCodeId = id, qrToken = token });
         }
 
@@ -117,12 +119,49 @@ namespace PoultryFarmAPIWeb.Controllers
             var auth = HotelAuthHelper.VerifyFarmOwnership(User, farmId); if (auth != null) return auth;
             return Ok(await _svc.CheckThrottleAsync(farmId));
         }
+
+        // =====================================================================
+        // GUEST ORDER CONFIRMATION
+        // A QR order sits at 'Placed' and is hidden from the kitchen until a
+        // member of staff accepts it here. That gate is the main defence against
+        // prank orders, since anyone who can scan the code can submit one.
+        // =====================================================================
+
+        [HttpGet("pending-orders")]
+        public async Task<IActionResult> PendingOrders([FromQuery] string farmId)
+        {
+            var auth = HotelAuthHelper.VerifyFarmOwnership(User, farmId); if (auth != null) return auth;
+            return Ok(await _svc.ListPendingOnlineOrdersAsync(farmId));
+        }
+
+        [HttpPost("orders/{id}/accept")]
+        public async Task<IActionResult> AcceptOrder(int id, [FromQuery] string farmId)
+        {
+            var auth = HotelAuthHelper.VerifyFarmOwnership(User, farmId); if (auth != null) return auth;
+            var (ok, message) = await _svc.AcceptOnlineOrderAsync(id, farmId, HotelAuthHelper.GetUserName(User));
+            return ok ? Ok(new { message }) : BadRequest(new { message });
+        }
+
+        [HttpPost("orders/{id}/reject")]
+        public async Task<IActionResult> RejectOrder(int id, [FromQuery] string farmId, [FromBody] RejectOrderRequest? req)
+        {
+            var auth = HotelAuthHelper.VerifyFarmOwnership(User, farmId); if (auth != null) return auth;
+            var (ok, message) = await _svc.RejectOnlineOrderAsync(id, farmId, req?.Reason, HotelAuthHelper.GetUserName(User));
+            return ok ? Ok(new { message }) : BadRequest(new { message });
+        }
+    }
+
+    public class RejectOrderRequest
+    {
+        /// <summary>Shown to the guest on their tracking screen, so make it human.</summary>
+        public string? Reason { get; set; }
     }
 
     // =========================================================================
     // PUBLIC ENDPOINTS (no auth — for customers)
     // =========================================================================
     [ApiController]
+    [AllowAnonymous]   // explicit: a guest scanning a table QR has no account
     [Route("api/Restaurant/public")]
     public class RestaurantPublicController : ControllerBase
     {
@@ -158,7 +197,7 @@ namespace PoultryFarmAPIWeb.Controllers
             var result = await _svc.ScanQrCodeAsync(token);
             if (result == null) return NotFound(new { message = "Invalid QR code" });
             if (!result.IsActive) return BadRequest(new { message = "QR code is inactive" });
-            return Ok(new { result.FarmId, result.TableId, result.TableNumber });
+            return Ok(new { result.QrCodeId, result.FarmId, result.TableId, result.TableNumber, result.CodeType });
         }
 
         [HttpPost("{farmId}/validate-promo")]
@@ -171,12 +210,38 @@ namespace PoultryFarmAPIWeb.Controllers
             if (!ModelState.IsValid) return BadRequest(ModelState);
             req.FarmId = farmId;
 
-            // Throttle check
+            // A dine-in order must prove it came from a real scanned table. Without
+            // this, knowing a farm GUID would be enough to order remotely.
+            if (string.Equals(req.OrderType, "DineIn", StringComparison.OrdinalIgnoreCase)
+                && string.IsNullOrWhiteSpace(req.QrToken))
+            {
+                return BadRequest(new { message = "Please scan the QR code on your table to order." });
+            }
+
+            // The pause toggle was only ever honoured by the UI, so a stale tab
+            // could still push orders into a closed kitchen.
+            var settings = await _svc.GetSettingsAsync(farmId);
+            if (settings == null || !settings.IsEnabled)
+                return StatusCode(503, new { message = "This restaurant is not taking online orders." });
+            if (!settings.AcceptingOrders)
+                return StatusCode(503, new { message = string.IsNullOrWhiteSpace(settings.PausedReason)
+                    ? "The restaurant has paused new orders. Please ask a member of staff."
+                    : settings.PausedReason });
+
             var throttle = await _svc.CheckThrottleAsync(farmId);
             if (!throttle.CanAccept) return StatusCode(429, new { message = throttle.Message });
 
-            var (orderId, orderNumber, trackingToken) = await _svc.PlaceOnlineOrderAsync(req);
-            return Ok(new { orderId, orderNumber, trackingToken });
+            try
+            {
+                var (orderId, orderNumber, trackingToken) = await _svc.PlaceOnlineOrderAsync(req);
+                return Ok(new { orderId, orderNumber, trackingToken });
+            }
+            catch (InvalidOperationException ex)
+            {
+                // Unavailable item, dead QR token, per-table limit: all things the
+                // guest can act on, so give them the message rather than a 500.
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [HttpGet("track/{token}")]
@@ -202,6 +267,12 @@ namespace PoultryFarmAPIWeb.Controllers
 
     // Request DTOs
     public class ToggleAcceptingRequest { public bool Accepting { get; set; } public string? Reason { get; set; } }
-    public class GenerateQrRequest { public int TableId { get; set; } public string TableNumber { get; set; } = string.Empty; }
+    public class GenerateQrRequest
+    {
+        /// <summary>"Restaurant" for the whole venue, or "Table". TableId/TableNumber are ignored for a Restaurant code.</summary>
+        public string CodeType { get; set; } = "Table";
+        public int? TableId { get; set; }
+        public string? TableNumber { get; set; }
+    }
     public class ValidatePromoRequest { public string Code { get; set; } = string.Empty; public decimal OrderAmount { get; set; } public string? Channel { get; set; } }
 }

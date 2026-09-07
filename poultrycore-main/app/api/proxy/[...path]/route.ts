@@ -232,7 +232,9 @@ async function handleRequest(
     console.log(
       `[Proxy API] ${isAdminPath ? 'Login/Admin' : 'Farm'} API → ${method} ${targetUrl}`
     )
-    console.log('[Proxy API] Request headers:', Object.fromEntries(headers.entries()))
+    // Deliberately NOT logged: the forwarded header set carries the Authorization
+    // bearer token and the browser's cookies. Dumping it puts live credentials in the
+    // dev terminal and in Cloud Run logs, where anyone with log access can replay them.
 
     // Login/Admin: allow longer (Cloud Run cold start + SQL). Farm: keep shorter.
     const upstreamTimeoutMs = isAdminPath ? 75_000 : 30_000
@@ -270,7 +272,7 @@ async function handleRequest(
     }
     
     console.log('[Proxy API] Response status:', response.status, response.statusText)
-    console.log('[Proxy API] Response headers:', Object.fromEntries(response.headers.entries()))
+    // Response headers are not logged either - upstream may set-cookie.
 
     // Handle 204 No Content - no body to read
     if (response.status === 204) {

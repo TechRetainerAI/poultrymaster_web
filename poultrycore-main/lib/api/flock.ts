@@ -538,7 +538,6 @@ export async function createFlock(flock: FlockInput): Promise<ApiResponse<Flock>
     })
 
     console.log("[v0] Flock create response status:", response.status)
-    console.log("[v0] Flock create response headers:", Object.fromEntries(response.headers.entries()))
 
     if (!response.ok) {
       // Read response body once (can only be read once)
@@ -549,7 +548,6 @@ export async function createFlock(flock: FlockInput): Promise<ApiResponse<Flock>
         const errorText = await response.text()
         console.error("[v0] Flock create error (raw response):", errorText)
         console.error("[v0] Response status:", response.status)
-        console.error("[v0] Response headers:", Object.fromEntries(response.headers.entries()))
         
         // Try to parse as JSON if it looks like JSON
         if (errorText.trim()) {

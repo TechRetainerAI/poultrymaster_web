@@ -114,6 +114,7 @@ namespace PoultryFarmAPIWeb.Business
             while (await r.ReadAsync()) list.Add(new()
             {
                 QrCodeId = r.GetInt32(r.GetOrdinal("qrcodeid")),
+                CodeType = HasColumn(r, "codetype") ? r.GetString(r.GetOrdinal("codetype")) : "Table",
                 FarmId = r.GetString(r.GetOrdinal("farmid")),
                 TableId = r.IsDBNull(r.GetOrdinal("tableid")) ? null : r.GetInt32(r.GetOrdinal("tableid")),
                 TableNumber = r.GetString(r.GetOrdinal("tablenumber")),
@@ -126,13 +127,20 @@ namespace PoultryFarmAPIWeb.Business
             return list;
         }
 
-        public async Task<(int id, string token)> GenerateQrCodeAsync(string farmId, int tableId, string tableNumber)
+        /// <param name="codeType">
+        /// "Restaurant" for one code covering the whole venue - the counter poster a
+        /// guest scans to skip the queue - or "Table" for waiter service. A Restaurant
+        /// code ignores tableId/tableNumber and is reused if one already exists.
+        /// </param>
+        public async Task<(int id, string token)> GenerateQrCodeAsync(
+            string farmId, int? tableId, string? tableNumber, string codeType = "Table")
         {
             using var conn = new NpgsqlConnection(_cs);
-            using var cmd = new NpgsqlCommand("SELECT * FROM sprestaurant_qrcode_generate(p_farmid=>@F::text,p_tableid=>@T::int,p_tablenumber=>@N::text)", conn);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sprestaurant_qrcode_generate(p_farmid=>@F::text,p_tableid=>@T::int,p_tablenumber=>@N::text,p_codetype=>@C::text)", conn);
             cmd.Parameters.Add(new NpgsqlParameter("@F", NpgsqlTypes.NpgsqlDbType.Text) { Value = farmId });
-            cmd.Parameters.AddWithValue("@T", tableId);
-            cmd.Parameters.AddWithValue("@N", tableNumber);
+            cmd.Parameters.AddWithValue("@T", (object?)tableId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@N", (object?)tableNumber ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@C", codeType);
             await conn.OpenAsync();
             using var r = await cmd.ExecuteReaderAsync();
             await r.ReadAsync();
@@ -149,6 +157,21 @@ namespace PoultryFarmAPIWeb.Business
             await cmd.ExecuteNonQueryAsync();
         }
 
+        /// <summary>
+        /// Is this column present in the result set?
+        ///
+        /// Migrations here are applied by hand, so the API and the database can be
+        /// out of step for a while. Anything that reads a column added by a recent
+        /// migration should go through this, or a missing column throws
+        /// IndexOutOfRangeException on every row instead of degrading quietly.
+        /// </summary>
+        private static bool HasColumn(NpgsqlDataReader r, string name)
+        {
+            for (var i = 0; i < r.FieldCount; i++)
+                if (string.Equals(r.GetName(i), name, StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
+        }
+
         public async Task<RestaurantQrCodeModel?> ScanQrCodeAsync(string token)
         {
             using var conn = new NpgsqlConnection(_cs);
@@ -159,10 +182,17 @@ namespace PoultryFarmAPIWeb.Business
             if (!await r.ReadAsync()) return null;
             return new()
             {
+                // Migration 248 added qrcodeid so an order can be bound to the exact
+                // code that was scanned. Read it optionally: reading it unconditionally
+                // made every single scan 500 with "Field not found in row: qrcodeid" on
+                // a database that had not had 248 applied yet, which took the guest
+                // ordering page down entirely rather than degrading.
+                QrCodeId = HasColumn(r, "qrcodeid") ? r.GetInt32(r.GetOrdinal("qrcodeid")) : 0,
                 FarmId = r.GetString(r.GetOrdinal("farmid")),
                 TableId = r.IsDBNull(r.GetOrdinal("tableid")) ? null : r.GetInt32(r.GetOrdinal("tableid")),
                 TableNumber = r.GetString(r.GetOrdinal("tablenumber")),
                 IsActive = r.GetBoolean(r.GetOrdinal("isactive")),
+                CodeType = HasColumn(r, "codetype") ? r.GetString(r.GetOrdinal("codetype")) : "Table",
             };
         }
 
@@ -378,8 +408,12 @@ namespace PoultryFarmAPIWeb.Business
                 IsGlutenFree = r.GetBoolean(r.GetOrdinal("isglutenfree")),
                 IsHalal = r.GetBoolean(r.GetOrdinal("ishalal")),
                 IsKosher = r.GetBoolean(r.GetOrdinal("iskosher")),
-                CategoryId = r.GetInt32(r.GetOrdinal("categoryid")),
-                CategoryName = r.GetString(r.GetOrdinal("categoryname")),
+                // An uncategorised menu item is perfectly legitimate - the category is
+                // a nullable FK - and reading these unguarded made the WHOLE public
+                // menu 500 with "Column 'categoryid' is null" as soon as one item had
+                // no category, so a guest saw nothing at all.
+                CategoryId = r.IsDBNull(r.GetOrdinal("categoryid")) ? null : r.GetInt32(r.GetOrdinal("categoryid")),
+                CategoryName = r.IsDBNull(r.GetOrdinal("categoryname")) ? null : r.GetString(r.GetOrdinal("categoryname")),
             });
             return list;
         }
@@ -407,80 +441,241 @@ namespace PoultryFarmAPIWeb.Business
         // ONLINE ORDER PLACEMENT
         // =====================================================================
 
+        /// <summary>
+        /// Place a guest order from the public (unauthenticated) surface.
+        ///
+        /// Everything the guest device claims about identity or money is treated as
+        /// a suggestion. The QR token decides which restaurant and table the order
+        /// belongs to, the menu table decides prices, and the promo is re-validated
+        /// against the real subtotal. All of it runs in one transaction so a failure
+        /// part-way cannot leave a half-built order behind.
+        ///
+        /// The order lands at status 'Placed', which migration 248 keeps out of the
+        /// kitchen queue until a member of staff accepts it.
+        /// </summary>
         public async Task<(int orderId, string orderNumber, string trackingToken)> PlaceOnlineOrderAsync(OnlineOrderCreateRequest req)
         {
-            using var conn = new NpgsqlConnection(_cs);
-            await conn.OpenAsync();
+            if (req.Items == null || req.Items.Count == 0)
+                throw new InvalidOperationException("Your order is empty.");
 
-            // Create order
-            using var cmd = new NpgsqlCommand(
-                "SELECT * FROM sprestaurant_online_order_insert(p_farmid=>@F::text,p_ordertype=>@a::text," +
-                "p_tableid=>@b::int,p_tablenumber=>@c::text,p_customername=>@d::text,p_customerphone=>@e::text," +
-                "p_covers=>@f::int,p_notes=>@g::text,p_onlinesource=>@h::text,p_deliveryaddress=>@i::text," +
-                "p_deliveryfee=>@j::numeric,p_promocodeid=>@k::int,p_promocode=>@l::text,p_promodiscount=>@m::numeric)", conn);
-            cmd.Parameters.AddWithValue("@F", req.FarmId);
-            cmd.Parameters.AddWithValue("@a", req.OrderType);
-            cmd.Parameters.AddWithValue("@b", (object?)req.TableId ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@c", (object?)req.TableNumber ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@d", (object?)req.CustomerName ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@e", (object?)req.CustomerPhone ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@f", req.Covers);
-            cmd.Parameters.AddWithValue("@g", (object?)req.Notes ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@h", (object?)req.OnlineSource ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@i", (object?)req.DeliveryAddress ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@j", req.DeliveryFee);
-            cmd.Parameters.AddWithValue("@k", (object?)req.PromoCodeId ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@l", (object?)req.PromoCode ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@m", req.PromoDiscount);
-            using var r = await cmd.ExecuteReaderAsync();
-            await r.ReadAsync();
-            var orderId = r.GetInt32(r.GetOrdinal("orderid"));
-            var orderNum = r.GetString(r.GetOrdinal("ordernumber"));
-            var token = r.GetString(r.GetOrdinal("trackingtoken"));
-            await r.CloseAsync();
-
-            // Add items
-            if (req.Items != null)
+            // --- Bind the order to a real scanned QR code ------------------------
+            // The body is not trusted for farm or table: whoever holds the token
+            // decides, and the token only exists because staff generated it.
+            int? qrCodeId = null;
+            if (!string.IsNullOrWhiteSpace(req.QrToken))
             {
-                foreach (var item in req.Items)
-                {
-                    using var icmd = new NpgsqlCommand(
-                        "SELECT sprestaurant_orderitem_insert(p_farmid=>@F::text,p_orderid=>@O::int," +
-                        "p_menuitemid=>@M::int,p_comboid=>@C::int,p_itemname=>@N::text," +
-                        "p_quantity=>@Q::int,p_unitprice=>@P::numeric,p_notes=>@No::text," +
-                        "p_seatnumber=>@S::int,p_kdsstation=>@K::text)", conn);
-                    icmd.Parameters.AddWithValue("@F", req.FarmId);
-                    icmd.Parameters.AddWithValue("@O", orderId);
-                    icmd.Parameters.AddWithValue("@M", item.MenuItemId);
-                    icmd.Parameters.AddWithValue("@C", DBNull.Value);
-                    icmd.Parameters.AddWithValue("@N", item.ItemName);
-                    icmd.Parameters.AddWithValue("@Q", item.Quantity);
-                    icmd.Parameters.AddWithValue("@P", item.UnitPrice);
-                    icmd.Parameters.AddWithValue("@No", (object?)item.Notes ?? DBNull.Value);
-                    icmd.Parameters.AddWithValue("@S", DBNull.Value);
-                    icmd.Parameters.AddWithValue("@K", DBNull.Value);
-                    var itemId = Convert.ToInt32(await icmd.ExecuteScalarAsync());
+                var qr = await ScanQrCodeAsync(req.QrToken!);
+                if (qr == null)
+                    throw new InvalidOperationException("That QR code is not recognised. Please ask a member of staff.");
+                if (!qr.IsActive)
+                    throw new InvalidOperationException("That QR code is no longer active. Please ask a member of staff.");
 
-                    if (item.Modifiers != null)
-                    {
-                        foreach (var mod in item.Modifiers)
-                        {
-                            using var mcmd = new NpgsqlCommand(
-                                "SELECT sprestaurant_orderitemmod_insert(p_farmid=>@F::text,p_orderitemid=>@OI::int," +
-                                "p_modifierid=>@MI::int,p_modifiername=>@MN::text,p_priceadjustment=>@PA::numeric,p_quantity=>@Q::int)", conn);
-                            mcmd.Parameters.AddWithValue("@F", req.FarmId);
-                            mcmd.Parameters.AddWithValue("@OI", itemId);
-                            mcmd.Parameters.AddWithValue("@MI", (object?)mod.ModifierId ?? DBNull.Value);
-                            mcmd.Parameters.AddWithValue("@MN", mod.ModifierName);
-                            mcmd.Parameters.AddWithValue("@PA", mod.PriceAdjustment);
-                            mcmd.Parameters.AddWithValue("@Q", mod.Quantity);
-                            await mcmd.ExecuteScalarAsync();
-                        }
-                    }
-                }
+                qrCodeId = qr.QrCodeId;
+                req.FarmId = qr.FarmId;
+                req.TableId = qr.TableId;
+                req.TableNumber = qr.TableNumber;
+
+                var throttle = await CheckQrThrottleAsync(qr.QrCodeId, qr.FarmId);
+                if (!throttle.CanAccept)
+                    throw new InvalidOperationException(throttle.Message);
             }
 
-            return (orderId, orderNum, token);
+            using var conn = new NpgsqlConnection(_cs);
+            await conn.OpenAsync();
+            using var tx = await conn.BeginTransactionAsync();
+            try
+            {
+                // --- Order header ------------------------------------------------
+                int orderId;
+                string orderNum, token;
+                // Parameter names are spelled out rather than single letters on purpose:
+                // Npgsql matches them CASE-INSENSITIVELY, so the previous "@F" (farmId)
+                // and "@f" (covers) were the same parameter. The farm id landed in the
+                // covers slot and every order died with
+                // "invalid input syntax for type integer".
+                using (var cmd = new NpgsqlCommand(
+                    "SELECT * FROM sprestaurant_online_order_insert(p_farmid=>@farmId::text,p_ordertype=>@orderType::text," +
+                    "p_tableid=>@tableId::int,p_tablenumber=>@tableNumber::text,p_customername=>@customerName::text,p_customerphone=>@customerPhone::text," +
+                    "p_covers=>@covers::int,p_notes=>@notes::text,p_onlinesource=>@onlineSource::text,p_deliveryaddress=>@deliveryAddress::text," +
+                    "p_deliveryfee=>@deliveryFee::numeric,p_promocodeid=>@promoCodeId::int,p_promocode=>@promoCode::text,p_promodiscount=>@promoDiscount::numeric," +
+                    "p_qrcodeid=>@qrCodeId::int,p_guestpaymentintent=>@payIntent::text,p_guestpaymentamount=>@payAmount::numeric)", conn, tx))
+                {
+                    cmd.Parameters.AddWithValue("@farmId", req.FarmId);
+                    cmd.Parameters.AddWithValue("@orderType", req.OrderType);
+                    cmd.Parameters.AddWithValue("@tableId", (object?)req.TableId ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@tableNumber", (object?)req.TableNumber ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@customerName", req.CustomerName);
+                    cmd.Parameters.AddWithValue("@customerPhone", req.CustomerPhone);
+                    cmd.Parameters.AddWithValue("@covers", req.Covers);
+                    cmd.Parameters.AddWithValue("@notes", (object?)req.Notes ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@onlineSource", (object?)req.OnlineSource ?? (qrCodeId.HasValue ? "QR" : "Web"));
+                    cmd.Parameters.AddWithValue("@deliveryAddress", (object?)req.DeliveryAddress ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@deliveryFee", req.DeliveryFee);
+                    // Promo id and discount are resolved during finalize, never taken from the body.
+                    cmd.Parameters.AddWithValue("@promoCodeId", DBNull.Value);
+                    cmd.Parameters.AddWithValue("@promoCode", (object?)req.PromoCode ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@promoDiscount", 0m);
+                    cmd.Parameters.AddWithValue("@qrCodeId", (object?)qrCodeId ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@payIntent", (object?)req.GuestPaymentIntent ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@payAmount", (object?)req.GuestPaymentAmount ?? DBNull.Value);
+
+                    using var r = await cmd.ExecuteReaderAsync();
+                    if (!await r.ReadAsync())
+                        throw new InvalidOperationException("Could not create the order.");
+                    orderId = r.GetInt32(r.GetOrdinal("orderid"));
+                    orderNum = r.GetString(r.GetOrdinal("ordernumber"));
+                    token = r.GetString(r.GetOrdinal("trackingtoken"));
+                }
+
+                // --- Items -------------------------------------------------------
+                // Name and price come from the menu inside the proc. item.ItemName and
+                // item.UnitPrice are deliberately NOT passed: they used to be written
+                // verbatim, which let a guest set their own prices.
+                foreach (var item in req.Items)
+                {
+                    int itemId;
+                    using (var icmd = new NpgsqlCommand(
+                        "SELECT sprestaurant_online_orderitem_insert(p_farmid=>@F::text,p_orderid=>@O::int," +
+                        "p_menuitemid=>@M::int,p_quantity=>@Q::int,p_notes=>@No::text)", conn, tx))
+                    {
+                        icmd.Parameters.AddWithValue("@F", req.FarmId);
+                        icmd.Parameters.AddWithValue("@O", orderId);
+                        icmd.Parameters.AddWithValue("@M", item.MenuItemId);
+                        icmd.Parameters.AddWithValue("@Q", item.Quantity);
+                        icmd.Parameters.AddWithValue("@No", (object?)item.Notes ?? DBNull.Value);
+                        itemId = Convert.ToInt32(await icmd.ExecuteScalarAsync());
+                    }
+
+                    if (item.Modifiers == null) continue;
+                    foreach (var mod in item.Modifiers)
+                    {
+                        using var mcmd = new NpgsqlCommand(
+                            "SELECT sprestaurant_orderitemmod_insert(p_farmid=>@F::text,p_orderitemid=>@OI::int," +
+                            "p_modifierid=>@MI::int,p_modifiername=>@MN::text,p_priceadjustment=>@PA::numeric,p_quantity=>@Q::int)", conn, tx);
+                        mcmd.Parameters.AddWithValue("@F", req.FarmId);
+                        mcmd.Parameters.AddWithValue("@OI", itemId);
+                        mcmd.Parameters.AddWithValue("@MI", (object?)mod.ModifierId ?? DBNull.Value);
+                        mcmd.Parameters.AddWithValue("@MN", mod.ModifierName);
+                        mcmd.Parameters.AddWithValue("@PA", mod.PriceAdjustment);
+                        mcmd.Parameters.AddWithValue("@Q", mod.Quantity);
+                        await mcmd.ExecuteScalarAsync();
+                    }
+                }
+
+                // --- Totals ------------------------------------------------------
+                // Tax and service rates are 0 to match what the POS does today
+                // (recalcOrder(orderId, 0, 0)), so a guest total equals the POS total
+                // for the same basket. Without this call totalamount stayed at 0.
+                using (var fcmd = new NpgsqlCommand(
+                    "SELECT * FROM sprestaurant_online_order_finalize(p_orderid=>@O::int,p_farmid=>@F::text," +
+                    "p_ordertype=>@T::text,p_promocode=>@P::text,p_channel=>@C::text," +
+                    "p_taxrate=>0::numeric,p_servicechargerate=>0::numeric)", conn, tx))
+                {
+                    fcmd.Parameters.AddWithValue("@O", orderId);
+                    fcmd.Parameters.AddWithValue("@F", req.FarmId);
+                    fcmd.Parameters.AddWithValue("@T", req.OrderType);
+                    fcmd.Parameters.AddWithValue("@P", (object?)req.PromoCode ?? DBNull.Value);
+                    fcmd.Parameters.AddWithValue("@C", qrCodeId.HasValue ? "QR" : "Online");
+                    await fcmd.ExecuteScalarAsync();
+                }
+
+                await tx.CommitAsync();
+                return (orderId, orderNum, token);
+            }
+            catch
+            {
+                await tx.RollbackAsync();
+                throw;
+            }
+        }
+
+        /// <summary>Per-table rate limit, so one seat cannot flood the staff tray.</summary>
+        public async Task<ThrottleCheckResult> CheckQrThrottleAsync(int qrCodeId, string farmId)
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM sprestaurant_online_order_qr_throttle(p_qrcodeid=>@Q::int,p_farmid=>@F::text)", conn);
+            cmd.Parameters.AddWithValue("@Q", qrCodeId);
+            cmd.Parameters.Add(new NpgsqlParameter("@F", NpgsqlTypes.NpgsqlDbType.Text) { Value = farmId });
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            if (!await r.ReadAsync()) return new() { CanAccept = true };
+            return new()
+            {
+                CanAccept = r.GetBoolean(r.GetOrdinal("can_accept")),
+                CurrentCount = r.GetInt32(r.GetOrdinal("current_count")),
+                MaxPerSlot = r.GetInt32(r.GetOrdinal("max_per_slot")),
+                Message = r.IsDBNull(r.GetOrdinal("message")) ? "" : r.GetString(r.GetOrdinal("message")),
+            };
+        }
+
+        // =====================================================================
+        // STAFF CONFIRMATION
+        // =====================================================================
+
+        public async Task<List<PendingOnlineOrderModel>> ListPendingOnlineOrdersAsync(string farmId)
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM sprestaurant_online_order_pending_list(p_farmid=>@F::text)", conn);
+            cmd.Parameters.Add(new NpgsqlParameter("@F", NpgsqlTypes.NpgsqlDbType.Text) { Value = farmId });
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            var list = new List<PendingOnlineOrderModel>();
+            while (await r.ReadAsync())
+            {
+                list.Add(new()
+                {
+                    OrderId = r.GetInt32(r.GetOrdinal("orderid")),
+                    OrderNumber = r.GetString(r.GetOrdinal("ordernumber")),
+                    OrderType = r.GetString(r.GetOrdinal("ordertype")),
+                    OnlineSource = r.IsDBNull(r.GetOrdinal("onlinesource")) ? null : r.GetString(r.GetOrdinal("onlinesource")),
+                    TableId = r.IsDBNull(r.GetOrdinal("tableid")) ? null : r.GetInt32(r.GetOrdinal("tableid")),
+                    TableNumber = r.IsDBNull(r.GetOrdinal("tablenumber")) ? null : r.GetString(r.GetOrdinal("tablenumber")),
+                    CustomerName = r.IsDBNull(r.GetOrdinal("customername")) ? null : r.GetString(r.GetOrdinal("customername")),
+                    CustomerPhone = r.IsDBNull(r.GetOrdinal("customerphone")) ? null : r.GetString(r.GetOrdinal("customerphone")),
+                    GuestPaymentIntent = r.IsDBNull(r.GetOrdinal("guestpaymentintent")) ? null : r.GetString(r.GetOrdinal("guestpaymentintent")),
+                    GuestPaymentAmount = r.IsDBNull(r.GetOrdinal("guestpaymentamount")) ? null : r.GetDecimal(r.GetOrdinal("guestpaymentamount")),
+                    Notes = r.IsDBNull(r.GetOrdinal("notes")) ? null : r.GetString(r.GetOrdinal("notes")),
+                    TotalAmount = r.IsDBNull(r.GetOrdinal("totalamount")) ? 0 : r.GetDecimal(r.GetOrdinal("totalamount")),
+                    ItemCount = r.GetInt64(r.GetOrdinal("itemcount")),
+                    ItemSummary = r.IsDBNull(r.GetOrdinal("itemsummary")) ? null : r.GetString(r.GetOrdinal("itemsummary")),
+                    CreatedAt = r.GetDateTime(r.GetOrdinal("createdat")),
+                    WaitingMinutes = r.GetDouble(r.GetOrdinal("waitingminutes")),
+                });
+            }
+            return list;
+        }
+
+        /// <summary>Staff accepted: the order may now reach the kitchen and take the table.</summary>
+        public async Task<(bool ok, string message)> AcceptOnlineOrderAsync(int orderId, string farmId, string confirmedBy)
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM sprestaurant_online_order_accept(p_orderid=>@O::int,p_farmid=>@F::text,p_confirmedby=>@B::text)", conn);
+            cmd.Parameters.AddWithValue("@O", orderId);
+            cmd.Parameters.Add(new NpgsqlParameter("@F", NpgsqlTypes.NpgsqlDbType.Text) { Value = farmId });
+            cmd.Parameters.AddWithValue("@B", (object?)confirmedBy ?? DBNull.Value);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            if (!await r.ReadAsync()) return (false, "Order not found.");
+            return (r.GetBoolean(r.GetOrdinal("ok")), r.GetString(r.GetOrdinal("message")));
+        }
+
+        /// <summary>Staff rejected: order and every item cancelled, table untouched, promo returned.</summary>
+        public async Task<(bool ok, string message)> RejectOnlineOrderAsync(int orderId, string farmId, string? reason, string by)
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM sprestaurant_online_order_reject(p_orderid=>@O::int,p_farmid=>@F::text,p_reason=>@R::text,p_by=>@B::text)", conn);
+            cmd.Parameters.AddWithValue("@O", orderId);
+            cmd.Parameters.Add(new NpgsqlParameter("@F", NpgsqlTypes.NpgsqlDbType.Text) { Value = farmId });
+            cmd.Parameters.AddWithValue("@R", (object?)reason ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@B", (object?)by ?? DBNull.Value);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            if (!await r.ReadAsync()) return (false, "Order not found.");
+            return (r.GetBoolean(r.GetOrdinal("ok")), r.GetString(r.GetOrdinal("message")));
         }
 
         public async Task<OrderTrackingModel?> TrackOrderAsync(string trackingToken)

@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, Plus, Trash2, Edit2, Globe, QrCode, Tag, Power, PowerOff, Copy } from "lucide-react"
+import { Loader2, Plus, Trash2, Edit2, Globe, QrCode, Tag, Power, PowerOff, Copy, Printer, Download } from "lucide-react"
 import { PageSkeleton } from "@/components/restaurant/skeleton-loaders"
 import { Badge } from "@/components/ui/badge"
 import { useAuthStore } from "@/lib/store/auth-store"
@@ -20,9 +20,13 @@ import {
   getOnlineSettings, upsertOnlineSettings, toggleAcceptingOrders,
   listQrCodes, generateQrCode, deleteQrCode,
   listPromoCodes, createPromoCode, updatePromoCode, deletePromoCode,
-  listTables,
-  type OnlineOrderingSettings, type QrCode as QrCodeType, type PromoCode, type PromoCodeInput, type RestaurantTable,
+  getRestaurantProfile,
+  type OnlineOrderingSettings, type QrCode as QrCodeType, type PromoCode, type PromoCodeInput,
 } from "@/lib/api/restaurant"
+import { QrTableCard } from "@/components/restaurant/qr-table-card"
+import { buildQrOrderUrl } from "@/lib/utils/qr-order-url"
+import { QRCodeCanvas } from "qrcode.react"
+import { createRoot } from "react-dom/client"
 
 export default function RestaurantOnlineOrdersPage() {
   const router = useRouter()
@@ -48,8 +52,43 @@ export default function RestaurantOnlineOrdersPage() {
   })
   const [qrCodes, setQrCodes] = useState<QrCodeType[]>([])
   const [promoCodes, setPromoCodes] = useState<PromoCode[]>([])
-  const [tables, setTables] = useState<RestaurantTable[]>([])
+  const [profileName, setProfileName] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  /**
+   * Save one table's QR as a PNG.
+   *
+   * The card on screen is an SVG, which is what you want for print but not what
+   * people expect from a "download" button — they paste these into WhatsApp and
+   * word processors. So render a throwaway canvas off-screen at print resolution,
+   * pull the data URL out of it, and drop it again.
+   */
+  async function downloadQrPng(q: QrCodeType) {
+    const url = buildQrOrderUrl(q.qrToken, settings.publicBaseUrl)
+    if (!url) { toast({ title: "Could not build the link", variant: "destructive" }); return }
+
+    const host = document.createElement("div")
+    host.style.cssText = "position:fixed;left:-10000px;top:0"
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    try {
+      root.render(<QRCodeCanvas value={url} size={1024} level="M" marginSize={2} />)
+      // Let React commit and the canvas paint before reading it back.
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(null))))
+      const canvas = host.querySelector("canvas")
+      if (!canvas) throw new Error("Could not render the QR code.")
+      const a = document.createElement("a")
+      a.href = canvas.toDataURL("image/png")
+      a.download = q.codeType === "Restaurant" ? "restaurant-qr.png" : `table-${q.tableNumber}-qr.png`
+      a.click()
+      toast({ title: `Saved table ${q.tableNumber} QR` })
+    } catch (e: any) {
+      toast({ title: "Download failed", description: e?.message, variant: "destructive" })
+    } finally {
+      root.unmount()
+      host.remove()
+    }
+  }
 
   // Promo dialog
   const [promoDialogOpen, setPromoDialogOpen] = useState(false)
@@ -65,16 +104,17 @@ export default function RestaurantOnlineOrdersPage() {
   async function loadAll() {
     setLoading(true)
     try {
-      const [s, qr, pc, tb] = await Promise.all([
+      const [s, qr, pc, prof] = await Promise.all([
         getOnlineSettings().catch(() => null),
         listQrCodes().catch(() => []),
         listPromoCodes().catch(() => []),
-        listTables(),
+        // Only used to title the printed card, so never let it fail the page.
+        getRestaurantProfile().catch(() => null),
       ])
       if (s) setSettings(prev => ({ ...prev, ...s }))
       setQrCodes(qr)
       setPromoCodes(pc)
-      setTables(tb)
+      setProfileName(prof?.restaurantName ?? null)
     } catch (e: any) {
       toast({ title: "Failed to load", description: e?.message, variant: "destructive" })
     } finally { setLoading(false) }
@@ -101,10 +141,11 @@ export default function RestaurantOnlineOrdersPage() {
     }
   }
 
-  async function genQr(table: RestaurantTable) {
+  /** The counter poster: one code for the venue, for guests skipping the queue. */
+  async function genRestaurantQr() {
     try {
-      await generateQrCode(table.tableId, table.tableNumber)
-      toast({ title: `QR code generated for Table ${table.tableNumber}` })
+      await generateQrCode(null, null, "Restaurant")
+      toast({ title: "Restaurant QR code ready", description: "Print it and put it where the queue forms." })
       setQrCodes(await listQrCodes())
     } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
   }
@@ -219,33 +260,80 @@ export default function RestaurantOnlineOrdersPage() {
               {/* QR Codes */}
               <TabsContent value="qr">
                 <Card>
-                  <CardHeader><CardTitle className="flex items-center gap-2"><QrCode className="h-5 w-5" /> QR Codes for Tables</CardTitle></CardHeader>
+                  <CardHeader className="flex flex-row items-start justify-between gap-3">
+                    <CardTitle className="flex items-center gap-2"><QrCode className="h-5 w-5" /> Restaurant QR Code</CardTitle>
+                    {qrCodes.length > 0 && (
+                      <Button variant="outline" size="sm" onClick={() => window.open("/restaurant-qr-print", "_blank")}>
+                        <Printer className="h-4 w-4 mr-1.5" /> Print
+                      </Button>
+                    )}
+                  </CardHeader>
                   <CardContent>
-                    <div className="mb-4">
-                      <p className="text-sm text-muted-foreground mb-2">Generate QR codes for tables. Customers scan to browse the menu and place orders from their phone.</p>
-                      <div className="flex flex-wrap gap-2">
-                        {tables.filter(t => !qrCodes.some(q => q.tableId === t.tableId)).map(t => (
-                          <Button key={t.tableId} variant="outline" size="sm" onClick={() => genQr(t)}>
-                            <Plus className="h-3 w-3 mr-1" /> Table {t.tableNumber}
+                    <div className="mb-5 rounded-xl border border-rose-200 bg-rose-50/50 p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="max-w-xl">
+                          <div className="font-medium text-gray-900">Restaurant QR code</div>
+                          <p className="mt-0.5 text-sm text-muted-foreground">
+                            One code for the whole restaurant. Put it where the queue forms — a guest
+                            scans it, sees your full menu, orders on their phone and skips the line.
+                            This is the one most restaurants want.
+                          </p>
+                        </div>
+                        {qrCodes.some(q => q.codeType === "Restaurant") ? (
+                          <Badge variant="secondary" className="mt-1">Created</Badge>
+                        ) : (
+                          <Button size="sm" onClick={genRestaurantQr}>
+                            <Plus className="h-4 w-4 mr-1.5" /> Create it
                           </Button>
-                        ))}
+                        )}
                       </div>
                     </div>
+
                     {qrCodes.length === 0 ? (
                       <p className="text-muted-foreground text-sm">No QR codes generated yet.</p>
                     ) : (
-                      <div className="space-y-2">
+                      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                         {qrCodes.map(q => (
-                          <div key={q.qrCodeId} className="flex items-center justify-between p-3 border rounded-lg">
-                            <div>
-                              <span className="font-medium">Table {q.tableNumber}</span>
-                              <div className="text-xs text-muted-foreground font-mono">{q.qrToken}</div>
-                              <div className="text-xs text-muted-foreground">Scans: {q.scanCount} {q.lastScannedAt && `| Last: ${new Date(q.lastScannedAt).toLocaleString()}`}</div>
-                            </div>
-                            <div className="flex gap-2 items-center">
+                          <div key={q.qrCodeId} className="flex flex-col items-center gap-3 rounded-xl border p-4">
+                            {/* The scannable card itself, shown exactly as it prints. */}
+                            <QrTableCard
+                              token={q.qrToken}
+                              tableNumber={q.tableNumber}
+                              codeType={q.codeType ?? "Table"}
+                              restaurantName={profileName}
+                              publicBaseUrl={settings.publicBaseUrl}
+                              className={q.isActive ? "" : "opacity-40"}
+                            />
+
+                            <div className="flex items-center gap-2">
+                              {q.codeType === "Restaurant" && <Badge className="bg-rose-600">Whole restaurant</Badge>}
                               <Badge variant={q.isActive ? "default" : "secondary"}>{q.isActive ? "Active" : "Inactive"}</Badge>
-                              <Button variant="ghost" size="icon" onClick={() => { navigator.clipboard.writeText(q.qrToken); toast({ title: "Token copied" }) }}><Copy className="h-4 w-4" /></Button>
-                              <Button variant="ghost" size="icon" onClick={() => delQr(q.qrCodeId)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                              <span className="text-xs text-muted-foreground">
+                                {q.scanCount} scan{q.scanCount === 1 ? "" : "s"}
+                                {q.lastScannedAt && ` · last ${new Date(q.lastScannedAt).toLocaleDateString()}`}
+                              </span>
+                            </div>
+
+                            <div className="flex flex-wrap justify-center gap-1.5">
+                              {/* Copy the full URL, not the bare token: the token on its
+                                  own is not something anyone can paste anywhere useful. */}
+                              <Button variant="outline" size="sm" onClick={() => {
+                                const url = buildQrOrderUrl(q.qrToken, settings.publicBaseUrl)
+                                if (!url) { toast({ title: "Could not build the link", variant: "destructive" }); return }
+                                navigator.clipboard.writeText(url)
+                                toast({ title: "Ordering link copied" })
+                              }}>
+                                <Copy className="h-3.5 w-3.5 mr-1" /> Copy link
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={() => downloadQrPng(q)}>
+                                <Download className="h-3.5 w-3.5 mr-1" /> PNG
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={() => window.open(`/restaurant-qr-print?table=${q.qrCodeId}`, "_blank")}>
+                                <Printer className="h-3.5 w-3.5 mr-1" /> Print
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => delQr(q.qrCodeId)}>
+                                <Trash2 className="h-3.5 w-3.5 text-red-500" />
+                              </Button>
                             </div>
                           </div>
                         ))}

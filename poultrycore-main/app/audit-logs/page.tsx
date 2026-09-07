@@ -102,12 +102,10 @@ export default function AuditLogsPage() {
          
          // Ensure apiClient has the token
          const token = localStorage.getItem("auth_token")
-         console.log("Token exists:", !!token)
-         
+
          if (token) {
            const { apiClient } = await import('@/lib/api/client')
            apiClient.setToken(token)
-           console.log("Synced token with apiClient")
          }
          
          // Use the active farm from the auth store (reactive to company switches)

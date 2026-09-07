@@ -36,6 +36,13 @@ namespace PoultryFarmAPIWeb.Filters
         private static readonly string[] Exempt =
         {
             "iam", "chat", "email", "test", "weatherforecast", "announcements",
+            // Guest QR ordering. These endpoints are deliberately anonymous — the
+            // person scanning a table's QR code has no account and never will.
+            // Without this the IAM filter treats every one of them as an
+            // "anonymous request" and 401s the whole ordering flow the moment
+            // Iam:Enforced is switched on. Access is bounded instead by the QR
+            // token, the per-table throttle, and the staff confirmation gate.
+            "restaurant/public",
         };
 
         /// <summary>
@@ -235,11 +242,22 @@ namespace PoultryFarmAPIWeb.Filters
             return string.Join('/', segments).ToLowerInvariant();
         }
 
+        /// <summary>
+        /// Matches a whole route segment prefix, not just the first segment.
+        ///
+        /// This used to compare only <c>route.Split('/')[0]</c>, which meant a
+        /// multi-segment entry such as "restaurant/public" could never match
+        /// anything — it silently did nothing, so exempting one branch of a
+        /// controller family was impossible. Comparing on segment boundaries
+        /// keeps that from becoming an accidental wildcard: "restaurant/public"
+        /// exempts "restaurant/public/menu" but never "restaurant/publicity".
+        /// </summary>
         public static bool IsExempt(string normalizedRoute)
         {
             if (string.IsNullOrEmpty(normalizedRoute)) return true;
-            var first = normalizedRoute.Split('/')[0];
-            return Exempt.Contains(first, StringComparer.OrdinalIgnoreCase);
+            return Exempt.Any(e =>
+                normalizedRoute.Equals(e, StringComparison.OrdinalIgnoreCase) ||
+                normalizedRoute.StartsWith(e + "/", StringComparison.OrdinalIgnoreCase));
         }
 
         /// <summary>
