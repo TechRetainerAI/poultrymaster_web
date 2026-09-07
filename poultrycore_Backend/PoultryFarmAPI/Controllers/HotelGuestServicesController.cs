@@ -17,7 +17,7 @@ namespace PoultryFarmAPIWeb.Controllers
     public class CreateHKScheduleRequest { public string FarmId { get; set; } = ""; public string ScheduleDate { get; set; } = ""; public int HotelRoomId { get; set; } public string? AssignedTo { get; set; } public string TaskType { get; set; } = "Daily"; public string Priority { get; set; } = "Normal"; public string? Notes { get; set; } }
     public class BulkHKScheduleRequest { public string FarmId { get; set; } = ""; public string ScheduleDate { get; set; } = ""; public string TaskType { get; set; } = "Daily"; public string? AssignedTo { get; set; } }
     public class UpdateHKScheduleStatusReq { public string FarmId { get; set; } = ""; public string Status { get; set; } = ""; }
-    public class CreateShiftHandoverRequest { public string FarmId { get; set; } = ""; public string? ShiftDate { get; set; } public string ShiftType { get; set; } = "Night"; public string HandoverBy { get; set; } = ""; public string? KeyMessages { get; set; } public string? PendingItems { get; set; } public string? VipGuests { get; set; } public string? Incidents { get; set; } public decimal? CashBalance { get; set; } }
+    public class CreateShiftHandoverRequest { public string FarmId { get; set; } = ""; public string? ShiftDate { get; set; } public string ShiftType { get; set; } = "Night"; public string HandoverBy { get; set; } = ""; public string? HandoverTo { get; set; } public string? KeyMessages { get; set; } public string? PendingItems { get; set; } public string? VipGuests { get; set; } public string? Incidents { get; set; } public decimal? CashBalance { get; set; } }
     public class AcknowledgeHandoverRequest { public string FarmId { get; set; } = ""; public string ReceivedBy { get; set; } = ""; }
 
     [ApiController][Authorize][Route("api/Hotel")]
@@ -433,9 +433,10 @@ namespace PoultryFarmAPIWeb.Controllers
             var auth = HotelAuthHelper.VerifyFarmOwnership(User, req.FarmId); if (auth != null) return auth;
             string date = string.IsNullOrEmpty(req.ShiftDate) ? DateTime.UtcNow.ToString("yyyy-MM-dd") : req.ShiftDate;
             using var conn = new NpgsqlConnection(_cs); await conn.OpenAsync();
-            using var cmd = new NpgsqlCommand("INSERT INTO hotelshifthandovers(farmid,shiftdate,shifttype,handoverby,keymessages,pendingitems,vipguests,incidents,cashbalance,status) VALUES(@f,@d::date,@st,@hb,@km,@pi,@vg,@inc,@cb,'Submitted') RETURNING *", conn);
+            using var cmd = new NpgsqlCommand("INSERT INTO hotelshifthandovers(farmid,shiftdate,shifttype,handoverby,handoverto,keymessages,pendingitems,vipguests,incidents,cashbalance,status) VALUES(@f,@d::date,@st,@hb,@ht,@km,@pi,@vg,@inc,@cb,'Submitted') RETURNING *", conn);
             cmd.Parameters.AddWithValue("@f", req.FarmId); cmd.Parameters.AddWithValue("@d", date);
             cmd.Parameters.AddWithValue("@st", req.ShiftType); cmd.Parameters.AddWithValue("@hb", req.HandoverBy);
+            cmd.Parameters.AddWithValue("@ht", (object?)req.HandoverTo ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@km", (object?)req.KeyMessages ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@pi", (object?)req.PendingItems ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@vg", (object?)req.VipGuests ?? DBNull.Value);

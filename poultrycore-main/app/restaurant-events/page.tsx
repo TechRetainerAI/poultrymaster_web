@@ -149,7 +149,7 @@ export default function RestaurantEventsPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <StatCard label="Total Events" value={events.length} icon={PartyPopper} color="rose" />
               <StatCard label="Upcoming" value={upcoming.length} icon={CalendarDays} color="blue" />
-              <StatCard label="Total Revenue" value={`$${totalRevenue.toLocaleString("en-US", { minimumFractionDigits: 2 })}`} icon={DollarSign} color="green" />
+              <StatCard label="Total Revenue" value={`${totalRevenue.toLocaleString("en-US", { minimumFractionDigits: 2 })}`} icon={DollarSign} color="green" />
               <StatCard label="Avg Guests" value={avgGuests} icon={Users} color="amber" />
             </div>
 
@@ -261,12 +261,12 @@ export default function RestaurantEventsPage() {
                             )}
                             {ev.totalAmount != null && ev.totalAmount > 0 && (
                               <span className="text-green-700 font-semibold">
-                                Total: ${ev.totalAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                                Total: {ev.totalAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
                               </span>
                             )}
                             {ev.depositAmount != null && ev.depositAmount > 0 && (
                               <span className="text-amber-700">
-                                Deposit: ${ev.depositAmount.toFixed(2)}
+                                Deposit: {ev.depositAmount.toFixed(2)}
                                 {ev.depositPaid ? " (Paid)" : " (Unpaid)"}
                               </span>
                             )}

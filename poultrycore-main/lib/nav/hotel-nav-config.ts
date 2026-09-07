@@ -39,9 +39,10 @@ export function buildHotelNavConfig({ permissions }: HotelNavDeps): HotelNavConf
     quickLinks: {
       label: "Quick Links",
       items: [
-        { href: "/hotel-daily-closing", label: "Daily Closing", icon: FileText },
-        { href: "/hotel-night-audit",   label: "Night Audit",   icon: Shield },
-        { href: "/hotel-bookings",      label: "Bookings",      icon: FileText },
+        { href: "/hotel-daily-closing",  label: "Daily Closing",  icon: FileText },
+        { href: "/hotel-night-audit",    label: "Night Audit",    icon: Shield },
+        { href: "/hotel-shift-handover", label: "Shift Handover", icon: ScrollText },
+        { href: "/hotel-bookings",       label: "Bookings",       icon: FileText },
       ],
     },
 
@@ -114,18 +115,7 @@ export function buildHotelNavConfig({ permissions }: HotelNavDeps): HotelNavConf
       },
     ],
 
-    reports: [
-      {
-        key: "reports",
-        label: "Reports",
-        items: [
-          { id: "reports",       title: "Reports",       icon: BarChart3, href: "/hotel-reports",       visible: vis("/hotel-reports") },
-          { id: "daily-closing", title: "Daily Closing", icon: FileText,  href: "/hotel-daily-closing", visible: vis("/hotel-daily-closing") },
-          { id: "night-audit",      title: "Night Audit",      icon: Shield,     href: "/hotel-night-audit",      visible: vis("/hotel-night-audit") },
-          { id: "shift-handover",   title: "Shift Handover",   icon: ScrollText, href: "/hotel-shift-handover",   visible: true },
-        ],
-      },
-    ],
+    reports: [],
 
     setup: [
       {

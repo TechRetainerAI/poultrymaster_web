@@ -408,19 +408,23 @@ export function MobileBottomNav() {
           { href: "/restaurant-orders",   label: "Orders",  icon: FileText },
           { href: "/restaurant-kds",      label: "Kitchen", icon: Factory },
         ] as NavItem[],
-        moreItems: [
-          // Menu
-          { href: "/restaurant-menu",          label: "Menu Items",              icon: ShoppingBag },
-          // Dining
-          { href: "/restaurant-floor-plan",    label: "Floor Plan & Tables",    icon: Building2 },
-          { href: "/restaurant-reservations",  label: "Reservations & Waitlist", icon: CalendarDays },
-          // Delivery & Online
-          { href: "/restaurant-online-orders", label: "Online Settings",        icon: ShoppingBag },
-          { href: "/restaurant-delivery",      label: "Drivers & Dispatch",     icon: Truck },
-          // Setup
-          { href: "/restaurant-setup",         label: "Restaurant Setup",       icon: Settings },
-          { href: "/profile",                  label: "Account",                icon: User },
-        ] as NavItem[],
+        moreGroups: asSections([
+          { title: "Menu", items: [
+            { href: "/restaurant-menu",          label: "Menu Items",              icon: ShoppingBag },
+          ] as NavItem[] },
+          { title: "Dining", items: [
+            { href: "/restaurant-floor-plan",    label: "Floor Plan & Tables",     icon: Building2 },
+            { href: "/restaurant-reservations",  label: "Reservations & Waitlist", icon: CalendarDays },
+          ] as NavItem[] },
+          { title: "Delivery & Online", items: [
+            { href: "/restaurant-online-orders", label: "Online Settings",         icon: ShoppingBag },
+            { href: "/restaurant-delivery",      label: "Drivers & Dispatch",      icon: Truck },
+          ] as NavItem[] },
+          { title: "Setup", items: [
+            { href: "/restaurant-setup",         label: "Restaurant Setup",        icon: Settings },
+            { href: "/profile",                  label: "Account",                 icon: User },
+          ] as NavItem[] },
+        ]),
       }
     }
 

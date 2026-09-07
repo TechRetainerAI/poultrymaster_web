@@ -16,8 +16,8 @@ import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import {
   listRestaurantOrders, listRestaurantTables, listMenuItems, createRestaurantOrder,
-  updateRestaurantOrderStatus, listHotelBookings,
-  type HotelRestaurantOrder, type HotelRestaurantTable, type HotelMenuItem, type HotelBooking,
+  updateRestaurantOrderStatus, listHotelBookings, listHotelStaff, addStayCharge,
+  type HotelRestaurantOrder, type HotelRestaurantTable, type HotelMenuItem, type HotelBooking, type HotelStaff,
 } from "@/lib/api/hotel"
 
 const STATUS_COLOR: Record<string, string> = { Available: "bg-emerald-100 text-emerald-700", Occupied: "bg-violet-100 text-violet-700", Reserved: "bg-blue-100 text-blue-700" }
@@ -30,12 +30,13 @@ export default function HotelRestaurantPage() {
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const [tables, setTables] = useState<HotelRestaurantTable[]>([]); const [orders, setOrders] = useState<HotelRestaurantOrder[]>([])
   const [menuItems, setMenuItems] = useState<HotelMenuItem[]>([]); const [bookings, setBookings] = useState<HotelBooking[]>([])
+  const [restaurantStaff, setRestaurantStaff] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filterOrderStatus, setFilterOrderStatus] = useState("active")
 
   // POS dialog
   const [posOpen, setPosOpen] = useState(false); const [saving, setSaving] = useState(false)
-  const [posForm, setPosForm] = useState({ tableNumber: "", serverName: "", hotelBookingId: null as number | null })
+  const [posForm, setPosForm] = useState({ tableNumber: "", serverName: "", hotelBookingId: null as number | null, customerType: "walkin" as "walkin" | "guest", customerName: "", paymentMethod: "Cash", chargeToRoom: false, amountReceived: "" })
   const [cart, setCart] = useState<CartItem[]>([])
   const [menuFilter, setMenuFilter] = useState("all")
 
@@ -43,8 +44,9 @@ export default function HotelRestaurantPage() {
   async function load() {
     setLoading(true)
     try {
-      const [t, o, m, b] = await Promise.all([listRestaurantTables(), listRestaurantOrders(), listMenuItems(), listHotelBookings()])
+      const [t, o, m, b, st] = await Promise.all([listRestaurantTables(), listRestaurantOrders(), listMenuItems(), listHotelBookings(), listHotelStaff().catch(() => [])])
       setTables(t); setOrders(o); setMenuItems(m); setBookings(b.filter(x => x.status === "CheckedIn"))
+      setRestaurantStaff(st.filter((s: any) => (s.isActive ?? s.isactive) && (s.department ?? "").toLowerCase().includes("restaurant")))
     } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
     finally { setLoading(false) }
   }
@@ -64,6 +66,62 @@ export default function HotelRestaurantPage() {
 
   const cartTotal = cart.reduce((s, c) => s + Number(c.menuItem.price) * c.quantity, 0)
 
+  function printReceipt(orderCart: CartItem[], total: number) {
+    const isGuest = posForm.customerType === "guest" && posForm.hotelBookingId
+    const chargeToRoom = isGuest && posForm.chargeToRoom
+    const booking = isGuest ? bookings.find(b => b.hotelBookingId === posForm.hotelBookingId) : null
+    const customerName = isGuest ? `${booking?.guestFirstName ?? ""} ${booking?.guestLastName ?? ""}`.trim() : (posForm.customerName || "Walk-in Customer")
+    const table = posForm.tableNumber && posForm.tableNumber !== "__none__" ? posForm.tableNumber : "Takeaway"
+    const server = posForm.serverName || "—"
+    const payMethod = chargeToRoom ? "Charged to Room" : posForm.paymentMethod
+    const amtReceived = Number(posForm.amountReceived) || 0
+    const change = posForm.paymentMethod === "Cash" && !chargeToRoom && amtReceived > total ? amtReceived - total : 0
+    const now = new Date()
+
+    const itemRows = orderCart.map(c =>
+      `<tr><td style="padding:4px 0">${c.menuItem.name}</td><td style="text-align:center;padding:4px 8px">${c.quantity}</td><td style="text-align:right;padding:4px 0">${Number(c.menuItem.price).toFixed(2)}</td><td style="text-align:right;padding:4px 0;font-weight:600">${(Number(c.menuItem.price) * c.quantity).toFixed(2)}</td></tr>`
+    ).join("")
+
+    const w = window.open("", "_blank")
+    if (!w) return
+    w.document.write(`<!DOCTYPE html><html><head><style>
+      body { font-family: 'Courier New', monospace; margin: 0; padding: 20px; width: 280px; font-size: 12px; color: #1e293b; }
+      .center { text-align: center; }
+      .bold { font-weight: 700; }
+      .divider { border-top: 1px dashed #94a3b8; margin: 8px 0; }
+      table { width: 100%; border-collapse: collapse; }
+      .total-row td { font-size: 14px; font-weight: 700; padding-top: 8px; }
+      @media print { body { margin: 0; padding: 10px; } }
+    </style></head><body>
+      <div class="center bold" style="font-size:16px;margin-bottom:4px">RESTAURANT</div>
+      <div class="center" style="font-size:10px;color:#64748b">${now.toLocaleDateString()} ${now.toLocaleTimeString()}</div>
+      <div class="divider"></div>
+      <table>
+        <tr><td>Customer:</td><td style="text-align:right" class="bold">${customerName}</td></tr>
+        <tr><td>Table:</td><td style="text-align:right">${table}</td></tr>
+        <tr><td>Server:</td><td style="text-align:right">${server}</td></tr>
+        ${booking ? `<tr><td>Room:</td><td style="text-align:right">${booking.roomNumber ?? "—"}</td></tr>` : ""}
+      </table>
+      <div class="divider"></div>
+      <table>
+        <tr style="font-size:10px;color:#64748b"><th style="text-align:left">Item</th><th style="text-align:center">Qty</th><th style="text-align:right">Price</th><th style="text-align:right">Total</th></tr>
+        ${itemRows}
+      </table>
+      <div class="divider"></div>
+      <table>
+        <tr class="total-row"><td>TOTAL</td><td style="text-align:right">${total.toFixed(2)}</td></tr>
+        <tr><td>Payment:</td><td style="text-align:right" class="bold">${payMethod}</td></tr>
+        ${posForm.paymentMethod === "Cash" && !chargeToRoom && amtReceived > 0 ? `<tr><td>Received:</td><td style="text-align:right">${amtReceived.toFixed(2)}</td></tr>` : ""}
+        ${change > 0 ? `<tr><td>Change:</td><td style="text-align:right" class="bold">${change.toFixed(2)}</td></tr>` : ""}
+        ${chargeToRoom ? `<tr><td colspan="2" style="text-align:center;padding-top:8px;font-size:10px;color:#7c3aed">Added to Room ${booking?.roomNumber ?? ""} folio</td></tr>` : ""}
+      </table>
+      <div class="divider"></div>
+      <div class="center" style="font-size:10px;color:#94a3b8;margin-top:8px">Thank you for dining with us!</div>
+    </body></html>`)
+    w.document.close()
+    w.print()
+  }
+
   async function handleCreateOrder() {
     setSaving(true)
     try {
@@ -74,7 +132,22 @@ export default function HotelRestaurantPage() {
         hotelBookingId: posForm.hotelBookingId ?? undefined,
         items: cart.map(c => ({ menuItemId: c.menuItem.hotelMenuItemId ?? c.menuItem.hotelmenuitemid, quantity: c.quantity, unitPrice: Number(c.menuItem.price) }))
       })
-      toast({ title: `Order created — ${cartTotal.toFixed(2)}` })
+
+      // If charging to room, post each item as a stay charge on the guest's folio
+      if (posForm.customerType === "guest" && posForm.chargeToRoom && posForm.hotelBookingId) {
+        for (const c of cart) {
+          await addStayCharge({
+            hotelBookingId: posForm.hotelBookingId,
+            chargeType: "Restaurant",
+            description: `${c.menuItem.name}${c.quantity > 1 ? ` x${c.quantity}` : ""}`,
+            quantity: c.quantity,
+            unitPrice: Number(c.menuItem.price),
+          })
+        }
+      }
+
+      printReceipt(cart, cartTotal)
+      toast({ title: posForm.chargeToRoom ? `Charged to room — ${cartTotal.toFixed(2)}` : `Order created — ${cartTotal.toFixed(2)}` })
       setPosOpen(false); setCart([]); await load()
     } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
     finally { setSaving(false) }
@@ -96,7 +169,7 @@ export default function HotelRestaurantPage() {
       <main className="flex-1 overflow-auto p-4 md:p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3"><ShoppingCart className="h-6 w-6 text-violet-600" /><h1 className="text-2xl font-bold">Restaurant & Bar</h1></div>
-          <Button onClick={() => { setPosForm({ tableNumber: "", serverName: "", hotelBookingId: null }); setCart([]); setMenuFilter("all"); setPosOpen(true) }} className="bg-violet-600 hover:bg-violet-700"><Plus className="h-4 w-4 mr-1" /> New Order (POS)</Button>
+          <Button onClick={() => { setPosForm({ tableNumber: "", serverName: "", hotelBookingId: null, customerType: "walkin", customerName: "", paymentMethod: "Cash", chargeToRoom: false, amountReceived: "" }); setCart([]); setMenuFilter("all"); setPosOpen(true) }} className="bg-violet-600 hover:bg-violet-700"><Plus className="h-4 w-4 mr-1" /> New Order (POS)</Button>
         </div>
 
         {/* Summary */}
@@ -188,17 +261,37 @@ export default function HotelRestaurantPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div><Label className="text-xs">Server</Label><Input className="h-9" value={posForm.serverName} onChange={(e) => setPosForm({...posForm, serverName: e.target.value})} placeholder="Server name" /></div>
-                    <div><Label className="text-xs">Room Guest (optional)</Label>
+                  <div><Label className="text-xs">Server</Label>
+                    <Select value={posForm.serverName || "__none__"} onValueChange={(v) => setPosForm({...posForm, serverName: v === "__none__" ? "" : v})}>
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Select server" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">No server</SelectItem>
+                        {restaurantStaff.map((s: any) => {
+                          const fn = s.firstName ?? s.firstname ?? ""
+                          const ln = s.lastName ?? s.lastname ?? ""
+                          const role = s.role ?? ""
+                          const id = s.hotelStaffId ?? s.hotelstaffid
+                          return <SelectItem key={id} value={`${fn} ${ln}`}>{fn} {ln}{role ? ` — ${role}` : ""}</SelectItem>
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label className="text-xs">Customer</Label>
+                    <div className="flex gap-1 mb-2">
+                      <Button type="button" variant={posForm.customerType === "walkin" ? "default" : "outline"} size="sm" className={posForm.customerType === "walkin" ? "bg-violet-600 text-xs flex-1" : "text-xs flex-1"} onClick={() => setPosForm({...posForm, customerType: "walkin", hotelBookingId: null})}>Walk-in</Button>
+                      <Button type="button" variant={posForm.customerType === "guest" ? "default" : "outline"} size="sm" className={posForm.customerType === "guest" ? "bg-violet-600 text-xs flex-1" : "text-xs flex-1"} onClick={() => setPosForm({...posForm, customerType: "guest", customerName: ""})}>Hotel Guest</Button>
+                    </div>
+                    {posForm.customerType === "walkin" ? (
+                      <Input className="h-9" value={posForm.customerName} onChange={(e) => setPosForm({...posForm, customerName: e.target.value})} placeholder="Customer name (optional)" />
+                    ) : (
                       <Select value={posForm.hotelBookingId ? String(posForm.hotelBookingId) : "__none__"} onValueChange={(v) => setPosForm({...posForm, hotelBookingId: v === "__none__" ? null : Number(v)})}>
-                        <SelectTrigger className="h-9"><SelectValue placeholder="Not linked" /></SelectTrigger>
+                        <SelectTrigger className="h-9"><SelectValue placeholder="Select guest" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="__none__">Not linked to room</SelectItem>
+                          <SelectItem value="__none__">Select guest</SelectItem>
                           {bookings.map(b => <SelectItem key={b.hotelBookingId} value={String(b.hotelBookingId)}>Room {b.roomNumber} — {b.guestFirstName} {b.guestLastName}</SelectItem>)}
                         </SelectContent>
                       </Select>
-                    </div>
+                    )}
                   </div>
                 </div>
 
@@ -226,13 +319,79 @@ export default function HotelRestaurantPage() {
                     <span className="text-violet-700">{cartTotal.toFixed(2)}</span>
                   </div>
                 </div>
+
+                {/* Payment Section */}
+                {cart.length > 0 && (
+                  <div className="border rounded-lg p-3 mt-3">
+                    <h4 className="font-semibold text-sm mb-2">Payment</h4>
+                    {posForm.customerType === "guest" && posForm.hotelBookingId ? (
+                      <>
+                        <div className="flex gap-2 mb-2">
+                          <Button type="button" variant={posForm.chargeToRoom ? "default" : "outline"} size="sm" className={`flex-1 text-xs ${posForm.chargeToRoom ? "bg-violet-600" : ""}`} onClick={() => setPosForm({...posForm, chargeToRoom: true})}>Charge to Room</Button>
+                          <Button type="button" variant={!posForm.chargeToRoom ? "default" : "outline"} size="sm" className={`flex-1 text-xs ${!posForm.chargeToRoom ? "bg-violet-600" : ""}`} onClick={() => setPosForm({...posForm, chargeToRoom: false})}>Pay Now</Button>
+                        </div>
+                        {posForm.chargeToRoom ? (
+                          <div className="bg-violet-50 rounded-lg p-2 text-xs text-violet-700 text-center">
+                            {cartTotal.toFixed(2)} will be added to the guest&apos;s room folio
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <Select value={posForm.paymentMethod} onValueChange={(v) => setPosForm({...posForm, paymentMethod: v})}>
+                              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Cash">Cash</SelectItem>
+                                <SelectItem value="Card">Card</SelectItem>
+                                <SelectItem value="Mobile Money">Mobile Money</SelectItem>
+                                <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            {posForm.paymentMethod === "Cash" && (
+                              <div>
+                                <Input className="h-9" type="number" step="0.01" placeholder="Amount received" value={posForm.amountReceived} onChange={(e) => setPosForm({...posForm, amountReceived: e.target.value})} />
+                                {Number(posForm.amountReceived) > 0 && Number(posForm.amountReceived) >= cartTotal && (
+                                  <div className="text-xs text-emerald-700 font-semibold mt-1">Change: {(Number(posForm.amountReceived) - cartTotal).toFixed(2)}</div>
+                                )}
+                                {Number(posForm.amountReceived) > 0 && Number(posForm.amountReceived) < cartTotal && (
+                                  <div className="text-xs text-red-600 font-semibold mt-1">Short: {(cartTotal - Number(posForm.amountReceived)).toFixed(2)}</div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="space-y-2">
+                        <Select value={posForm.paymentMethod} onValueChange={(v) => setPosForm({...posForm, paymentMethod: v})}>
+                          <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Cash">Cash</SelectItem>
+                            <SelectItem value="Card">Card</SelectItem>
+                            <SelectItem value="Mobile Money">Mobile Money</SelectItem>
+                            <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {posForm.paymentMethod === "Cash" && (
+                          <div>
+                            <Input className="h-9" type="number" step="0.01" placeholder="Amount received" value={posForm.amountReceived} onChange={(e) => setPosForm({...posForm, amountReceived: e.target.value})} />
+                            {Number(posForm.amountReceived) > 0 && Number(posForm.amountReceived) >= cartTotal && (
+                              <div className="text-xs text-emerald-700 font-semibold mt-1">Change: {(Number(posForm.amountReceived) - cartTotal).toFixed(2)}</div>
+                            )}
+                            {Number(posForm.amountReceived) > 0 && Number(posForm.amountReceived) < cartTotal && (
+                              <div className="text-xs text-red-600 font-semibold mt-1">Short: {(cartTotal - Number(posForm.amountReceived)).toFixed(2)}</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setPosOpen(false)}>Cancel</Button>
               <Button onClick={handleCreateOrder} disabled={saving || cart.length === 0} className="bg-violet-600 hover:bg-violet-700">
                 {saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-                Place Order — {cartTotal.toFixed(2)}
+                {posForm.customerType === "guest" && posForm.chargeToRoom ? `Charge to Room — ${cartTotal.toFixed(2)}` : `Pay & Place Order — ${cartTotal.toFixed(2)}`}
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -20,8 +20,9 @@ import {
   listIngredients, createIngredient, updateIngredient, deleteIngredient,
   adjustIngredientStock, getLowStock, getInventoryValue,
   listWaste, logWaste, getWasteSummary,
+  listRestaurantSuppliers,
   type Ingredient, type IngredientInput, type WasteLog, type WasteInput,
-  type WasteSummary, type InventoryValue,
+  type WasteSummary, type InventoryValue, type RestaurantSupplier,
 } from "@/lib/api/restaurant"
 
 const CATEGORIES = ["Proteins", "Dairy", "Produce", "Dry Goods", "Spices", "Beverages", "Frozen", "Oils & Fats", "Bakery", "Sauces", "Other"]
@@ -37,6 +38,7 @@ export default function RestaurantInventoryPage() {
   const [loading, setLoading] = useState(true)
   const [ingredients, setIngredients] = useState<Ingredient[]>([])
   const [lowStock, setLowStock] = useState<Ingredient[]>([])
+  const [suppliers, setSuppliers] = useState<RestaurantSupplier[]>([])
   const [wasteLog, setWasteLog] = useState<WasteLog[]>([])
   const [wasteSummary, setWasteSummary] = useState<WasteSummary[]>([])
   const [invValue, setInvValue] = useState<InventoryValue[]>([])
@@ -68,12 +70,12 @@ export default function RestaurantInventoryPage() {
   async function loadAll() {
     setLoading(true)
     try {
-      const [ing, low, wl, ws, iv] = await Promise.all([
+      const [ing, low, wl, ws, iv, sup] = await Promise.all([
         listIngredients(), getLowStock().catch(() => []),
         listWaste().catch(() => []), getWasteSummary().catch(() => []),
-        getInventoryValue().catch(() => []),
+        getInventoryValue().catch(() => []), listRestaurantSuppliers().catch(() => []),
       ])
-      setIngredients(ing); setLowStock(low); setWasteLog(wl); setWasteSummary(ws); setInvValue(iv)
+      setIngredients(ing); setLowStock(low); setWasteLog(wl); setWasteSummary(ws); setInvValue(iv); setSuppliers(sup)
     } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
     finally { setLoading(false) }
   }
@@ -330,7 +332,15 @@ export default function RestaurantInventoryPage() {
                   <SelectTrigger className="h-10"><SelectValue placeholder="Select" /></SelectTrigger>
                   <SelectContent>{STORAGE_AREAS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                 </Select></div>
-              <div className="space-y-1.5"><Label>Supplier</Label><Input value={ingForm.supplierName || ""} onChange={e => setIngForm({ ...ingForm, supplierName: e.target.value })} className="h-10" /></div>
+              <div className="space-y-1.5"><Label>Supplier</Label>
+                <Select value={ingForm.supplierName || "__none__"} onValueChange={v => setIngForm({ ...ingForm, supplierName: v === "__none__" ? "" : v })}>
+                  <SelectTrigger className="h-10"><SelectValue placeholder="Select supplier" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">None</SelectItem>
+                    {suppliers.map((s: any) => <SelectItem key={s.restaurantsupplierid} value={s.name}>{s.name}{s.category ? ` (${s.category})` : ""}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setIngDialogOpen(false)}>Cancel</Button><Button onClick={saveIng} className="bg-rose-600 hover:bg-rose-700">{ingEditing ? "Update" : "Add Ingredient"}</Button></DialogFooter>
@@ -353,7 +363,24 @@ export default function RestaurantInventoryPage() {
                 </SelectContent>
               </Select></div>
             <div className="space-y-1.5"><Label>Quantity</Label><Input type="number" step="0.01" value={adjustQty} onChange={e => setAdjustQty(parseFloat(e.target.value) || 0)} className="h-10" /></div>
-            <div className="space-y-1.5"><Label>Reason</Label><Input value={adjustReason} onChange={e => setAdjustReason(e.target.value)} placeholder="e.g. Supplier delivery, count correction" className="h-10" /></div>
+            {adjustType === "TransferOut" && (
+              <div className="space-y-1.5"><Label>Destination *</Label>
+                <Select value={adjustReason || "__none__"} onValueChange={v => setAdjustReason(v === "__none__" ? "" : v)}>
+                  <SelectTrigger className="h-10"><SelectValue placeholder="Where is it going?" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Select destination</SelectItem>
+                    {suppliers.map((s: any) => <SelectItem key={s.restaurantsupplierid} value={`To: ${s.name}`}>{s.name}</SelectItem>)}
+                    <SelectItem value="To: Another branch">Another branch</SelectItem>
+                    <SelectItem value="To: Donation">Donation</SelectItem>
+                    <SelectItem value="To: Return to supplier">Return to supplier</SelectItem>
+                    <SelectItem value="To: Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {adjustType !== "TransferOut" && (
+              <div className="space-y-1.5"><Label>Reason</Label><Input value={adjustReason} onChange={e => setAdjustReason(e.target.value)} placeholder="e.g. Supplier delivery, count correction" className="h-10" /></div>
+            )}
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setAdjustDialogOpen(false)}>Cancel</Button><Button onClick={handleAdjust} className="bg-rose-600 hover:bg-rose-700">Apply</Button></DialogFooter>
         </DialogContent>

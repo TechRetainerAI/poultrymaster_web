@@ -14,7 +14,7 @@ import { Loader2, Wrench, Plus } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
-import { listMaintenanceRequests, createMaintenanceRequest, updateMaintenanceStatus, listHotelRooms, type HotelMaintenanceRequest, type HotelRoom } from "@/lib/api/hotel"
+import { listMaintenanceRequests, createMaintenanceRequest, updateMaintenanceStatus, listHotelRooms, listHotelMaintenanceAssets, type HotelMaintenanceRequest, type HotelRoom, type HotelMaintenanceAsset } from "@/lib/api/hotel"
 
 const PRIORITY_COLOR: Record<string, string> = { Low: "bg-slate-100 text-slate-700", Normal: "bg-blue-100 text-blue-700", High: "bg-amber-100 text-amber-700", Critical: "bg-red-100 text-red-700" }
 const STATUS_COLOR: Record<string, string> = { Open: "bg-blue-100 text-blue-700", Assigned: "bg-amber-100 text-amber-700", InProgress: "bg-violet-100 text-violet-700", Completed: "bg-emerald-100 text-emerald-700", Cancelled: "bg-slate-100 text-slate-700" }
@@ -24,13 +24,16 @@ export default function HotelMaintenancePage() {
   const router = useRouter(); const { toast } = useToast(); const logout = useLogout()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const [items, setItems] = useState<HotelMaintenanceRequest[]>([]); const [rooms, setRooms] = useState<HotelRoom[]>([])
+  const [assets, setAssets] = useState<HotelMaintenanceAsset[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false); const [saving, setSaving] = useState(false)
   const [filterStatus, setFilterStatus] = useState("all"); const [filterPriority, setFilterPriority] = useState("all")
   const [form, setForm] = useState({ hotelRoomId: null as number | null, assetDescription: "", issueDescription: "", priority: "Normal", estimatedCost: 0 })
+  const [assetSelection, setAssetSelection] = useState("")
+  const [customAsset, setCustomAsset] = useState("")
 
   useEffect(() => { if (!activeFarmType) return; if (activeFarmType !== "Hotel") { router.replace("/dashboard"); return }; load() }, [activeFarmType, router])
-  async function load() { setLoading(true); try { const [m, r] = await Promise.all([listMaintenanceRequests(), listHotelRooms()]); setItems(m); setRooms(r) } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) } finally { setLoading(false) } }
+  async function load() { setLoading(true); try { const [m, r, a] = await Promise.all([listMaintenanceRequests(), listHotelRooms(), listHotelMaintenanceAssets().catch(() => [])]); setItems(m); setRooms(r); setAssets(a) } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) } finally { setLoading(false) } }
 
   async function handleSave() {
     if (!form.issueDescription.trim()) { toast({ title: "Issue description required", variant: "destructive" }); return }
@@ -57,7 +60,7 @@ export default function HotelMaintenancePage() {
       <main className="flex-1 overflow-auto p-4 md:p-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3"><Wrench className="h-6 w-6 text-violet-600" /><h1 className="text-2xl font-bold">Maintenance</h1>{openCount > 0 && <Badge className="bg-red-100 text-red-700">{openCount} open</Badge>}</div>
-          <Button onClick={() => { setForm({ hotelRoomId: null, assetDescription: "", issueDescription: "", priority: "Normal", estimatedCost: 0 }); setDialogOpen(true) }} className="bg-violet-600 hover:bg-violet-700"><Plus className="h-4 w-4 mr-1" /> New Request</Button>
+          <Button onClick={() => { setForm({ hotelRoomId: null, assetDescription: "", issueDescription: "", priority: "Normal", estimatedCost: 0 }); setAssetSelection(""); setCustomAsset(""); setDialogOpen(true) }} className="bg-violet-600 hover:bg-violet-700"><Plus className="h-4 w-4 mr-1" /> New Request</Button>
         </div>
 
         {/* Filters */}
@@ -103,7 +106,23 @@ export default function HotelMaintenancePage() {
                 </SelectContent>
               </Select>
             </div>
-            <div><Label>Asset / Area *</Label><Input value={form.assetDescription} onChange={(e) => setForm({...form, assetDescription: e.target.value})} placeholder="e.g. Air Conditioner, Bathroom pipe, Elevator" /></div>
+            <div><Label>Asset / Area *</Label>
+              <Select value={assetSelection || "__none__"} onValueChange={(v) => {
+                const sel = v === "__none__" ? "" : v
+                setAssetSelection(sel)
+                if (sel !== "Other") { setCustomAsset(""); setForm({...form, assetDescription: sel}) }
+                else { setForm({...form, assetDescription: customAsset || ""}) }
+              }}>
+                <SelectTrigger><SelectValue placeholder="Select asset/area" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Select asset/area</SelectItem>
+                  {assets.map(a => <SelectItem key={a.hotelMaintenanceAssetId} value={a.description}>{a.description}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {assetSelection === "Other" && (
+              <div><Label>Specify Asset / Area</Label><Input value={customAsset} onChange={(e) => { setCustomAsset(e.target.value); setForm({...form, assetDescription: e.target.value}) }} placeholder="e.g. Sauna heater, Parking gate" /></div>
+            )}
             <div><Label>Issue Description *</Label><Input value={form.issueDescription} onChange={(e) => setForm({...form, issueDescription: e.target.value})} placeholder="Describe the problem in detail" /></div>
             <div className="grid grid-cols-2 gap-4">
               <div><Label>Priority</Label><Select value={form.priority} onValueChange={(v) => setForm({...form, priority: v})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Low">Low</SelectItem><SelectItem value="Normal">Normal</SelectItem><SelectItem value="High">High</SelectItem><SelectItem value="Critical">Critical</SelectItem></SelectContent></Select></div>

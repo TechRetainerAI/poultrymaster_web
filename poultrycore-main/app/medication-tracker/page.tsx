@@ -13,7 +13,8 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableFooter, TableHeader, TableRow } from "@/components/ui/table"
+import { TRACKER_PAGE_SIZE_OPTIONS } from "@/components/ui/data-pagination"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
@@ -27,7 +28,7 @@ import {
   type PoultryRawMaterialItem, type PoultryRawMaterialPurchase, type PoultryRawMaterialUsage,
 } from "@/lib/api/poultry-inventory"
 
-const LEDGER_PAGE_SIZE = 15
+const LEDGER_PAGE_SIZE_DEFAULT = 15
 
 // One IN or OUT event for a single medication, with the running per-med balance.
 type LedgerRow = {
@@ -58,6 +59,7 @@ export default function MedicationTrackerPage() {
   const [dateTo, setDateTo] = useState("")
   const [sort, setSort] = useState<{ key: string | null; direction: SortDirection }>({ key: "date", direction: "desc" })
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(LEDGER_PAGE_SIZE_DEFAULT)
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Poultry") { router.replace("/dashboard"); return }
@@ -146,9 +148,42 @@ export default function MedicationTrackerPage() {
     return (r as any)[k]
   }), [filteredLedger, sort])
 
-  const totalPages = Math.max(1, Math.ceil(sortedLedger.length / LEDGER_PAGE_SIZE))
+  // Column totals over the whole filtered set (not just the visible page).
+  // Medications are measured in different units — ml, tablets, kg — so adding
+  // In/Out across a mixed list would produce a number that means nothing. Sum
+  // only when every row left after filtering shares one unit; otherwise say so
+  // and let the medication filter narrow it down.
+  const ledgerUnits = useMemo(
+    () => Array.from(new Set(sortedLedger.map((r) => (r.unit || "").trim()).filter(Boolean))),
+    [sortedLedger]
+  )
+  const ledgerUnitLabel = ledgerUnits.length === 1 ? ledgerUnits[0] : null
+  const ledgerMixedUnits = ledgerUnits.length > 1
+  const ledgerInTotal = useMemo(
+    () => sortedLedger.reduce((s, r) => s + (Number(r.inQty) || 0), 0),
+    [sortedLedger]
+  )
+  const ledgerOutTotal = useMemo(
+    () => sortedLedger.reduce((s, r) => s + (Number(r.outQty) || 0), 0),
+    [sortedLedger]
+  )
+  const ledgerFiltersActive =
+    medFilter !== "all" || typeFilter !== "all" || search.trim() !== "" || dateFrom !== "" || dateTo !== ""
+
+  // Same guard for the per-medication summary above.
+  const byMedUnits = useMemo(
+    () => Array.from(new Set(sortedByMed.map((b) => (b.unit || "").trim()).filter((u) => u && u !== "—"))),
+    [sortedByMed]
+  )
+  const byMedUnitLabel = byMedUnits.length === 1 ? byMedUnits[0] : null
+  const byMedMixedUnits = byMedUnits.length > 1
+  const byMedInTotal = useMemo(() => sortedByMed.reduce((s, b) => s + (Number(b.totalIn) || 0), 0), [sortedByMed])
+  const byMedOutTotal = useMemo(() => sortedByMed.reduce((s, b) => s + (Number(b.totalOut) || 0), 0), [sortedByMed])
+  const byMedLeftTotal = useMemo(() => sortedByMed.reduce((s, b) => s + (Number(b.left) || 0), 0), [sortedByMed])
+
+  const totalPages = Math.max(1, Math.ceil(sortedLedger.length / pageSize))
   const safePage = Math.min(page, totalPages)
-  const pageRows = useMemo(() => sortedLedger.slice((safePage - 1) * LEDGER_PAGE_SIZE, safePage * LEDGER_PAGE_SIZE), [sortedLedger, safePage])
+  const pageRows = useMemo(() => sortedLedger.slice((safePage - 1) * pageSize, safePage * pageSize), [sortedLedger, safePage, pageSize])
   useEffect(() => { setPage(1) }, [medFilter, typeFilter, search, dateFrom, dateTo, sort])
 
   const onSort = (k: string) => setSort((s) => toggleSort(k, s.key, s.direction))
@@ -231,6 +266,31 @@ export default function MedicationTrackerPage() {
                       </TableRow>
                     ))}
                   </TableBody>
+                  <TableFooter>
+                    <TableRow className="bg-slate-50 hover:bg-slate-50">
+                      <TableCell className="font-medium text-slate-700">
+                        Total
+                        <span className="ml-2 font-normal text-slate-500">
+                          ({sortedByMed.length.toLocaleString()} {sortedByMed.length === 1 ? "medication" : "medications"})
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-slate-500">{byMedMixedUnits ? "mixed" : byMedUnitLabel ?? ""}</TableCell>
+                      <TableCell className="text-right font-bold text-emerald-700 tabular-nums">
+                        {byMedMixedUnits ? <span className="font-normal text-slate-400">—</span> : fmt(byMedInTotal)}
+                      </TableCell>
+                      <TableCell className="text-right font-bold text-red-700 tabular-nums">
+                        {byMedMixedUnits ? <span className="font-normal text-slate-400">—</span> : fmt(byMedOutTotal)}
+                      </TableCell>
+                      <TableCell className="text-right font-bold tabular-nums">
+                        {byMedMixedUnits ? <span className="font-normal text-slate-400">—</span> : `${fmt(byMedLeftTotal)} ${byMedUnitLabel ?? ""}`}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {byMedMixedUnits && (
+                          <span className="text-xs font-normal text-slate-500">mixed units</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  </TableFooter>
                 </Table></div>
               </CardContent></Card>
 
@@ -284,11 +344,37 @@ export default function MedicationTrackerPage() {
                         </TableRow>
                       ))}
                     </TableBody>
+                    <TableFooter>
+                      <TableRow className="bg-slate-50 hover:bg-slate-50">
+                        <TableCell colSpan={4} className="font-medium text-slate-700">
+                          {ledgerFiltersActive ? "Filtered total" : "Total"}
+                          <span className="ml-2 font-normal text-slate-500">
+                            ({sortedLedger.length.toLocaleString()} {sortedLedger.length === 1 ? "row" : "rows"}
+                            {ledgerMixedUnits ? " · mixed units" : ledgerUnitLabel ? ` · ${ledgerUnitLabel}` : ""})
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right font-bold text-emerald-700 tabular-nums">
+                          {ledgerMixedUnits ? <span className="font-normal text-slate-400">—</span> : fmt(ledgerInTotal)}
+                        </TableCell>
+                        <TableCell className="text-right font-bold text-red-700 tabular-nums">
+                          {ledgerMixedUnits ? <span className="font-normal text-slate-400">—</span> : fmt(ledgerOutTotal)}
+                        </TableCell>
+                        <TableCell />
+                      </TableRow>
+                    </TableFooter>
                   </Table></div>
                 )}
                 {sortedLedger.length > 0 && (
                   <div className="flex flex-col gap-2 border-t px-2 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4 bg-slate-50/80 mt-2">
-                    <p className="text-xs text-slate-600 text-center sm:text-left">Showing {(safePage - 1) * LEDGER_PAGE_SIZE + 1}-{Math.min(safePage * LEDGER_PAGE_SIZE, sortedLedger.length)} of {sortedLedger.length}</p>
+                    <div className="flex flex-col items-center gap-2 sm:flex-row sm:gap-3">
+                      <p className="text-xs text-slate-600 text-center sm:text-left">Showing {(safePage - 1) * pageSize + 1}-{Math.min(safePage * pageSize, sortedLedger.length)} of {sortedLedger.length}</p>
+                      <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1) }}>
+                        <SelectTrigger className="h-8 w-[110px]" aria-label="Rows per page"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {TRACKER_PAGE_SIZE_OPTIONS.map((n) => <SelectItem key={n} value={String(n)}>{n} / page</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <div className="flex items-center justify-center gap-2">
                       <Button variant="outline" size="sm" disabled={safePage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Previous</Button>
                       <span className="text-xs text-slate-600 whitespace-nowrap">Page {safePage} of {totalPages}</span>

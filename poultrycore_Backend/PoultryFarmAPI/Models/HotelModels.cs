@@ -61,6 +61,42 @@ namespace PoultryFarmAPIWeb.Models
         public DateTime? UpdatedAt { get; set; }
     }
 
+    public class HotelRoomCategoryModel
+    {
+        [Key]
+        public int HotelRoomCategoryId { get; set; }
+
+        [Required]
+        [StringLength(10)]
+        public string Code { get; set; } = string.Empty;
+
+        [Required]
+        [StringLength(100)]
+        public string Description { get; set; } = string.Empty;
+
+        public int SortOrder { get; set; }
+
+        public bool IsActive { get; set; } = true;
+    }
+
+    public class HotelBedTypeModel
+    {
+        [Key]
+        public int HotelBedTypeId { get; set; }
+
+        [Required]
+        [StringLength(10)]
+        public string Code { get; set; } = string.Empty;
+
+        [Required]
+        [StringLength(100)]
+        public string Description { get; set; } = string.Empty;
+
+        public int SortOrder { get; set; }
+
+        public bool IsActive { get; set; } = true;
+    }
+
     public class HotelRoomTypeModel
     {
         [Key]
@@ -93,6 +129,164 @@ namespace PoultryFarmAPIWeb.Models
 
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
+
+        // Room category (lookup)
+        public int? HotelRoomCategoryId { get; set; }
+        public string? CategoryCode { get; set; }
+        public string? CategoryName { get; set; }
+
+        // Bed type (lookup)
+        public int? HotelBedTypeId { get; set; }
+        public string? BedTypeCode { get; set; }
+        public string? BedTypeName { get; set; }
+    }
+
+    public class RestaurantMenuCategoryTypeModel
+    {
+        [Key]
+        public int RestaurantMenuCategoryTypeId { get; set; }
+        [Required][StringLength(10)]
+        public string Code { get; set; } = string.Empty;
+        [Required][StringLength(100)]
+        public string Description { get; set; } = string.Empty;
+        public int SortOrder { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+
+    public class RestaurantMenuItemNameModel
+    {
+        [Key]
+        public int RestaurantMenuItemNameId { get; set; }
+        [Required][StringLength(10)]
+        public string Code { get; set; } = string.Empty;
+        [Required][StringLength(150)]
+        public string Description { get; set; } = string.Empty;
+        [StringLength(100)]
+        public string? Category { get; set; }
+        public int SortOrder { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+
+    public class HotelSupplyCategoryModel
+    {
+        [Key]
+        public int HotelSupplyCategoryId { get; set; }
+        [Required][StringLength(10)]
+        public string Code { get; set; } = string.Empty;
+        [Required][StringLength(100)]
+        public string Description { get; set; } = string.Empty;
+        public int SortOrder { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+
+    public class HotelSupplyItemModel
+    {
+        [Key]
+        public int HotelSupplyItemId { get; set; }
+        [Required][StringLength(10)]
+        public string Code { get; set; } = string.Empty;
+        [Required][StringLength(100)]
+        public string Description { get; set; } = string.Empty;
+        [StringLength(50)]
+        public string? Category { get; set; }
+        public int SortOrder { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+
+    public class HotelMaintenanceAssetModel
+    {
+        [Key]
+        public int HotelMaintenanceAssetId { get; set; }
+        [Required][StringLength(10)]
+        public string Code { get; set; } = string.Empty;
+        [Required][StringLength(100)]
+        public string Description { get; set; } = string.Empty;
+        public int SortOrder { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+
+    public class HotelTableLocationModel
+    {
+        [Key]
+        public int HotelTableLocationId { get; set; }
+        [Required][StringLength(10)]
+        public string Code { get; set; } = string.Empty;
+        [Required][StringLength(100)]
+        public string Description { get; set; } = string.Empty;
+        public int SortOrder { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+
+    public class HotelHKTaskTypeModel
+    {
+        [Key]
+        public int HotelHKTaskTypeId { get; set; }
+
+        [Required]
+        [StringLength(10)]
+        public string Code { get; set; } = string.Empty;
+
+        [Required]
+        [StringLength(100)]
+        public string Description { get; set; } = string.Empty;
+
+        public int SortOrder { get; set; }
+
+        public bool IsActive { get; set; } = true;
+    }
+
+    public class HotelRequestTypeModel
+    {
+        [Key]
+        public int HotelRequestTypeId { get; set; }
+
+        [Required]
+        [StringLength(10)]
+        public string Code { get; set; } = string.Empty;
+
+        [Required]
+        [StringLength(100)]
+        public string Description { get; set; } = string.Empty;
+
+        public int SortOrder { get; set; }
+
+        public bool IsActive { get; set; } = true;
+    }
+
+    public class HotelCommSubjectModel
+    {
+        [Key]
+        public int HotelCommSubjectId { get; set; }
+
+        [Required]
+        [StringLength(10)]
+        public string Code { get; set; } = string.Empty;
+
+        [Required]
+        [StringLength(100)]
+        public string Description { get; set; } = string.Empty;
+
+        public int SortOrder { get; set; }
+
+        public bool IsActive { get; set; } = true;
+    }
+
+    public class HotelIdTypeModel
+    {
+        [Key]
+        public int HotelIdTypeId { get; set; }
+
+        [Required]
+        [StringLength(10)]
+        public string Code { get; set; } = string.Empty;
+
+        [Required]
+        [StringLength(100)]
+        public string Description { get; set; } = string.Empty;
+
+        public int SortOrder { get; set; }
+
+        public bool IsActive { get; set; } = true;
     }
 
     public class HotelFloorModel

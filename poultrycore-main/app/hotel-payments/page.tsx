@@ -62,6 +62,28 @@ export default function HotelPaymentsPage() {
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}><DialogContent><DialogHeader><DialogTitle>Record Payment</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div><Label>Booking *</Label><Select value={String(form.hotelBookingId)} onValueChange={(v) => setForm({...form, hotelBookingId: Number(v)})}><SelectTrigger><SelectValue placeholder="Select booking" /></SelectTrigger><SelectContent>{bookings.map(b => <SelectItem key={b.hotelBookingId} value={String(b.hotelBookingId)}>{b.bookingRef} — {b.guestFirstName} {b.guestLastName}</SelectItem>)}</SelectContent></Select></div>
+
+            {/* Guest details auto-populated from selected booking */}
+            {form.hotelBookingId > 0 && (() => {
+              const bk = bookings.find(b => b.hotelBookingId === form.hotelBookingId)
+              if (!bk) return null
+              const nights = Math.max(1, Math.ceil((new Date(bk.checkOutDate).getTime() - new Date(bk.checkInDate).getTime()) / 86400000))
+              return (
+                <Card className="border-violet-100 bg-violet-50/30">
+                  <CardContent className="p-3 text-sm">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div><span className="text-slate-500">Guest</span><div className="font-semibold">{bk.guestFirstName} {bk.guestLastName}</div></div>
+                      <div><span className="text-slate-500">Booking Ref</span><div className="font-mono font-semibold">{bk.bookingRef}</div></div>
+                      <div><span className="text-slate-500">Room</span><div className="font-semibold">{bk.roomNumber ?? "—"} ({bk.roomTypeName ?? "—"})</div></div>
+                      <div><span className="text-slate-500">Status</span><div><Badge variant="outline" className={bk.status === "CheckedIn" ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700"}>{bk.status}</Badge></div></div>
+                      <div><span className="text-slate-500">Dates</span><div>{bk.checkInDate?.slice(0, 10)} → {bk.checkOutDate?.slice(0, 10)} ({nights} night{nights > 1 ? "s" : ""})</div></div>
+                      <div><span className="text-slate-500">Total Amount</span><div className="font-bold text-violet-700">{Number(bk.totalAmount ?? 0).toFixed(2)}</div></div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })()}
+
             <div className="grid grid-cols-2 gap-4"><div><Label>Amount *</Label><Input type="number" step="0.01" value={form.amount} onChange={(e) => setForm({...form, amount: Number(e.target.value)})} /></div><div><Label>Method</Label><Select value={form.paymentMethod} onValueChange={(v) => setForm({...form, paymentMethod: v})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Cash">Cash</SelectItem><SelectItem value="Card">Card</SelectItem><SelectItem value="MobileMoney">Mobile Money</SelectItem><SelectItem value="BankTransfer">Bank Transfer</SelectItem></SelectContent></Select></div></div>
             <div><Label>Reference</Label><Input value={form.reference} onChange={(e) => setForm({...form, reference: e.target.value})} placeholder="Transaction ID" /></div>
           </div>

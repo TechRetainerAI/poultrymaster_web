@@ -605,7 +605,8 @@ namespace PoultryFarmAPIWeb.Business
         /// amountPaid means "paid in full", the same reading the column itself
         /// carries.
         /// </summary>
-        Task       SetPaymentAsync(int id, string farmId, decimal? amountPaid, DateTime? dueDate);
+        Task       SetPaymentAsync(int id, string farmId, decimal? amountPaid, DateTime? dueDate,
+                                       string? paymentMethod = null, int? cashAccountId = null);
 
         // Per-farm seed (default categories + cash accounts).
         Task<(int categoryCount, int cashAccountCount)> SeedDefaultsAsync(string farmId);
@@ -666,14 +667,22 @@ namespace PoultryFarmAPIWeb.Business
             return Convert.ToInt32(await cmd.ExecuteScalarAsync());
         }
 
-        public async Task SetPaymentAsync(int id, string farmId, decimal? amountPaid, DateTime? dueDate)
+        // Migration 246: this is where money paid on a bill at entry becomes a real
+        // supplier payment, so it reaches the Supplier Payments ledger. The method
+        // and account travel with it because the payment posts the CashOut -- a
+        // payment without an account posts none, and the bill's own cash line has
+        // already resolved to "paid minus allocations".
+        public async Task SetPaymentAsync(int id, string farmId, decimal? amountPaid, DateTime? dueDate,
+                                          string? paymentMethod = null, int? cashAccountId = null)
         {
             using var c = new NpgsqlConnection(_cs);
-            using var cmd = new NpgsqlCommand("SELECT * FROM spwaterexpense_setpayment(p_farmid => @FarmId::text, p_waterexpenseid => @WaterExpenseId::int, p_amountpaid => @AmountPaid::numeric, p_duedate => @DueDate::date)", c);
+            using var cmd = new NpgsqlCommand("SELECT * FROM spwaterexpense_setpayment(p_farmid => @FarmId::text, p_waterexpenseid => @WaterExpenseId::int, p_amountpaid => @AmountPaid::numeric, p_duedate => @DueDate::date, p_paymentmethod => @PaymentMethod::text, p_cashaccountid => @CashAccountId::int)", c);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             cmd.Parameters.AddWithValue("@WaterExpenseId", id);
             cmd.Parameters.AddWithValue("@AmountPaid", (object?)amountPaid ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@DueDate", (object?)dueDate?.Date ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@PaymentMethod", (object?)paymentMethod ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@CashAccountId", (object?)cashAccountId ?? DBNull.Value);
             await c.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
         }

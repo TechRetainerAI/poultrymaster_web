@@ -7,7 +7,8 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { TRACKER_PAGE_SIZE_OPTIONS } from "@/components/ui/data-pagination"
 import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
@@ -40,7 +41,7 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { toLocalDateKey } from "@/lib/utils/date-key"
 import { buildEggStockLedger, type EggLedgerRow } from "@/lib/utils/egg-ledger"
 
-const LEDGER_PAGE_SIZE = 15
+const LEDGER_PAGE_SIZE_DEFAULT = 15
 
 const ADJ_TYPES = [
   { value: "Correction", label: "Correction" },
@@ -59,6 +60,12 @@ export default function EggTrackerPage() {
   const [sales, setSales] = useState<Sale[]>([])
   const [eggAdjustments, setEggAdjustments] = useState<EggInventoryAdjustment[]>([])
   const [eggStockMoves, setEggStockMoves] = useState<PoultryStockTransaction[]>([])
+  // Authoritative "Eggs on hand": the server-side ledger sum that
+  // /poultry-inventory shows as "In stock" (sppoultryproduct_getall). Read, never
+  // recomputed here — see buildEggStockLedger.
+  // null = products did not load, so there is no authoritative figure this pass;
+  // the ledger falls back to the derived balance rather than reporting a false 0.
+  const [eggStockOnHand, setEggStockOnHand] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [refreshing, setRefreshing] = useState(false)
@@ -81,6 +88,7 @@ export default function EggTrackerPage() {
   const [ledgerSortKey, setLedgerSortKey] = useState<string | null>("date")
   const [ledgerSortDir, setLedgerSortDir] = useState<SortDirection>("desc")
   const [ledgerPage, setLedgerPage] = useState(1)
+  const [ledgerPageSize, setLedgerPageSize] = useState(LEDGER_PAGE_SIZE_DEFAULT)
 
   const handleLogout = () => {
     localStorage.removeItem("auth_token")
@@ -139,12 +147,18 @@ export default function EggTrackerPage() {
     // Stock-ledger moves for the egg product (driver load-outs, deliveries, Set
     // stock / Reconcile corrections). Without these the balance below drifts from
     // /poultry-inventory's "In stock", which is the same ledger.
-    const eggProductIds = new Set(
-      productsRes
-        .filter((p) => p.isRawEggProduct || p.name === "Eggs" || p.name === "Chicken Eggs")
-        .map((p) => p.poultryProductId)
+    const eggProducts = productsRes.filter(
+      (p) => p.isRawEggProduct || p.name === "Eggs" || p.name === "Chicken Eggs"
     )
+    const eggProductIds = new Set(eggProducts.map((p) => p.poultryProductId))
     setEggStockMoves(stockRes.filter((t) => eggProductIds.has(t.poultryProductId)))
+    // The same number /poultry-inventory prints, straight from the server's
+    // ledger sum — so the two pages cannot disagree.
+    setEggStockOnHand(
+      eggProducts.length > 0
+        ? eggProducts.reduce((s, p) => s + (Number(p.stockOnHand) || 0), 0)
+        : null
+    )
     setLoading(false)
     setRefreshing(false)
   }, [])
@@ -178,13 +192,22 @@ export default function EggTrackerPage() {
         txnType: t.txnType,
         quantity: t.quantity,
         note: t.note,
+        relatedId: t.relatedId,
       })),
     [eggStockMoves]
   )
 
   const eggStockLedger = useMemo(
-    () => buildEggStockLedger(eggProductions, sales, flocks, adjustmentLedgerInput, stockMoveLedgerInput),
-    [eggProductions, sales, flocks, adjustmentLedgerInput, stockMoveLedgerInput]
+    () =>
+      buildEggStockLedger(
+        eggProductions,
+        sales,
+        flocks,
+        adjustmentLedgerInput,
+        stockMoveLedgerInput,
+        eggStockOnHand ?? undefined
+      ),
+    [eggProductions, sales, flocks, adjustmentLedgerInput, stockMoveLedgerInput, eggStockOnHand]
   )
   const { rows: eggLedgerAllRows, currentEggsAtHand, lastUpdatedIso } = eggStockLedger
 
@@ -195,6 +218,17 @@ export default function EggTrackerPage() {
 
   const totalEggsSoldLedger = useMemo(
     () => eggLedgerAllRows.filter((r) => r.type === "Sale").reduce((sum, r) => sum + r.out, 0),
+    [eggLedgerAllRows]
+  )
+
+  // Headline totals: every movement, ignoring the table filters, so they stay
+  // put while you narrow the list below. in − out is "Eggs on hand".
+  const totalEggsInLedger = useMemo(
+    () => eggLedgerAllRows.reduce((sum, r) => sum + r.in, 0),
+    [eggLedgerAllRows]
+  )
+  const totalEggsOutLedger = useMemo(
+    () => eggLedgerAllRows.reduce((sum, r) => sum + r.out, 0),
     [eggLedgerAllRows]
   )
 
@@ -223,15 +257,32 @@ export default function EggTrackerPage() {
     [filteredEggLedgerRows, ledgerSortKey, ledgerSortDir]
   )
 
-  const ledgerTotalPages = Math.max(1, Math.ceil(sortedEggLedgerRows.length / LEDGER_PAGE_SIZE))
+  // Column totals for the rows the filters actually left behind — the whole
+  // filtered set, not just the page on screen, so paging doesn't change them.
+  const filteredLedgerInTotal = useMemo(
+    () => sortedEggLedgerRows.reduce((sum, r) => sum + r.in, 0),
+    [sortedEggLedgerRows]
+  )
+  const filteredLedgerOutTotal = useMemo(
+    () => sortedEggLedgerRows.reduce((sum, r) => sum + r.out, 0),
+    [sortedEggLedgerRows]
+  )
+
+  const ledgerFiltersActive =
+    ledgerTypeFilter !== "ALL" ||
+    ledgerDescriptionFilter.trim() !== "" ||
+    ledgerDateFrom !== "" ||
+    ledgerDateTo !== ""
+
+  const ledgerTotalPages = Math.max(1, Math.ceil(sortedEggLedgerRows.length / ledgerPageSize))
   const ledgerSafePage = Math.min(ledgerPage, ledgerTotalPages)
   const paginatedEggLedgerRows = useMemo(
     () =>
       sortedEggLedgerRows.slice(
-        (ledgerSafePage - 1) * LEDGER_PAGE_SIZE,
-        ledgerSafePage * LEDGER_PAGE_SIZE
+        (ledgerSafePage - 1) * ledgerPageSize,
+        ledgerSafePage * ledgerPageSize
       ),
-    [sortedEggLedgerRows, ledgerSafePage]
+    [sortedEggLedgerRows, ledgerSafePage, ledgerPageSize]
   )
 
   useEffect(() => {
@@ -519,6 +570,18 @@ export default function EggTrackerPage() {
                             {totalEggsSoldLedger.toLocaleString()}
                           </div>
                         </div>
+                        <div>
+                          <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total eggs in</div>
+                          <div className="mt-1 text-2xl font-bold text-emerald-600 tabular-nums">
+                            {totalEggsInLedger.toLocaleString()}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total eggs out</div>
+                          <div className="mt-1 text-2xl font-bold text-red-600 tabular-nums">
+                            {totalEggsOutLedger.toLocaleString()}
+                          </div>
+                        </div>
                       </div>
                       <div className="text-sm text-slate-500 shrink-0">
                         Last ledger event:{" "}
@@ -677,16 +740,54 @@ export default function EggTrackerPage() {
                               )
                             })}
                           </TableBody>
+                          <TableFooter>
+                            <TableRow className="bg-slate-50 hover:bg-slate-50">
+                              <TableCell colSpan={3} className="font-medium text-slate-700">
+                                {ledgerFiltersActive ? "Filtered total" : "Total"}
+                                <span className="ml-2 font-normal text-slate-500">
+                                  ({sortedEggLedgerRows.length.toLocaleString()}{" "}
+                                  {sortedEggLedgerRows.length === 1 ? "row" : "rows"})
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right font-bold text-emerald-700 tabular-nums">
+                                {filteredLedgerInTotal.toLocaleString()}
+                              </TableCell>
+                              <TableCell className="text-right font-bold text-red-700 tabular-nums">
+                                {filteredLedgerOutTotal.toLocaleString()}
+                              </TableCell>
+                              <TableCell />
+                            </TableRow>
+                          </TableFooter>
                         </Table>
                       </div>
                     )}
                     {sortedEggLedgerRows.length > 0 && (
                       <div className="flex flex-col gap-2 border-t px-2 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4 bg-slate-50/80">
-                        <p className="text-xs text-slate-600 text-center sm:text-left">
-                          Showing {(ledgerSafePage - 1) * LEDGER_PAGE_SIZE + 1}-
-                          {Math.min(ledgerSafePage * LEDGER_PAGE_SIZE, sortedEggLedgerRows.length)} of{" "}
-                          {sortedEggLedgerRows.length}
-                        </p>
+                        <div className="flex flex-col items-center gap-2 sm:flex-row sm:gap-3">
+                          <p className="text-xs text-slate-600 text-center sm:text-left">
+                            Showing {(ledgerSafePage - 1) * ledgerPageSize + 1}-
+                            {Math.min(ledgerSafePage * ledgerPageSize, sortedEggLedgerRows.length)} of{" "}
+                            {sortedEggLedgerRows.length}
+                          </p>
+                          <Select
+                            value={String(ledgerPageSize)}
+                            onValueChange={(v) => {
+                              setLedgerPageSize(Number(v))
+                              setLedgerPage(1)
+                            }}
+                          >
+                            <SelectTrigger className="h-8 w-[110px]" aria-label="Rows per page">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {TRACKER_PAGE_SIZE_OPTIONS.map((n) => (
+                                <SelectItem key={n} value={String(n)}>
+                                  {n} / page
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                         <div className="flex items-center justify-center gap-2">
                           <Button
                             type="button"

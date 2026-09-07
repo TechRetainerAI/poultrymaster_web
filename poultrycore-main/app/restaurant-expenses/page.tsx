@@ -163,8 +163,8 @@ export default function RestaurantExpensesPage() {
 
             {/* Stats Row */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard label="Today's Total" value={`$${todayTotal.toFixed(2)}`} icon={TrendingDown} color="red" />
-              <StatCard label="This Month" value={`$${monthTotal.toFixed(2)}`} icon={DollarSign} color="amber" />
+              <StatCard label="Today's Total" value={`${todayTotal.toFixed(2)}`} icon={TrendingDown} color="red" />
+              <StatCard label="This Month" value={`${monthTotal.toFixed(2)}`} icon={DollarSign} color="amber" />
               <StatCard label="Total Records" value={expenses.length} icon={Receipt} color="blue" />
               <StatCard label="Top Category" value={topCategory} icon={Tag} color="purple" />
             </div>
@@ -216,34 +216,37 @@ export default function RestaurantExpensesPage() {
                   </Card>
                 ) : (
                   <Card>
-                    <CardContent className="p-0 divide-y">
-                      {expenses.map((exp) => (
-                        <div key={exp.expenseId} className="flex items-center gap-4 px-4 py-3 hover:bg-gray-50 transition-colors">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-medium text-gray-900 truncate">{exp.description}</span>
-                              {exp.categoryName && (
-                                <Badge variant="secondary" className="text-xs bg-rose-50 text-rose-700 border-rose-200">
-                                  {exp.categoryName}
-                                </Badge>
-                              )}
-                              {exp.paymentMethod && (
-                                <Badge variant="outline" className="text-xs">{exp.paymentMethod}</Badge>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                              <span>{exp.expenseDate?.split("T")[0]}</span>
-                              {exp.supplierName && <span>Supplier: {exp.supplierName}</span>}
-                            </div>
-                          </div>
-                          <span className="text-lg font-bold text-red-600 whitespace-nowrap">
-                            ${(exp.amount ?? 0).toFixed(2)}
-                          </span>
-                          <Button variant="ghost" size="icon" className="text-gray-400 hover:text-red-600" onClick={() => handleDeleteExpense(exp.expenseId)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
+                    <CardContent className="p-0">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 border-b">
+                          <tr>
+                            <th className="text-left p-3">Date</th>
+                            <th className="text-left p-3">Description</th>
+                            <th className="text-left p-3">Category</th>
+                            <th className="text-left p-3">Supplier</th>
+                            <th className="text-left p-3">Payment</th>
+                            <th className="text-right p-3">Amount</th>
+                            <th className="text-right p-3">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {expenses.map((exp) => (
+                            <tr key={exp.expenseId} className="border-b hover:bg-rose-50 transition-colors">
+                              <td className="p-3 text-xs text-muted-foreground">{exp.expenseDate?.split("T")[0]}</td>
+                              <td className="p-3 font-medium text-gray-900">{exp.description}</td>
+                              <td className="p-3">{exp.categoryName ? <Badge variant="secondary" className="text-xs bg-rose-50 text-rose-700 border-rose-200">{exp.categoryName}</Badge> : "—"}</td>
+                              <td className="p-3 text-xs">{exp.supplierName || "—"}</td>
+                              <td className="p-3">{exp.paymentMethod ? <Badge variant="outline" className="text-xs">{exp.paymentMethod}</Badge> : "—"}</td>
+                              <td className="p-3 text-right font-bold text-red-600">{(exp.amount ?? 0).toFixed(2)}</td>
+                              <td className="p-3 text-right">
+                                <Button variant="ghost" size="icon" className="text-gray-400 hover:text-red-600" onClick={() => handleDeleteExpense(exp.expenseId)}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </CardContent>
                   </Card>
                 )}
