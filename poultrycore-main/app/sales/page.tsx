@@ -20,6 +20,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Plus, Edit, Trash2, ShoppingCart, DollarSign, TrendingUp, Package, FileText, Printer, Loader2, Info, Search, Filter, ChevronDown, ChevronUp, Mail, Wallet, History } from "lucide-react"
 import { getSales, createSale, updateSale, deleteSale, getFlocks, getCustomers, createCustomer, type Sale, type SaleInput } from "@/lib/api"
 import { listPoultryCashAccounts, recordPoultryPayment, type PoultryCashAccount } from "@/lib/api/poultry-finance"
+import { listPoultryProducts, type PoultryProduct } from "@/lib/api/poultry-inventory"
 import { useToast } from "@/hooks/use-toast"
 import { getUserContext } from "@/lib/utils/user-context"
 import Link from "next/link"
@@ -105,6 +106,91 @@ function saleLineTotal(
 function eggCratesEquivalent(quantity: number | undefined, eggsPerCrate = 30): string {
   const qty = Number(quantity) || 0
   return eggsPerCrate > 0 ? (qty / eggsPerCrate).toFixed(2) : "0.00"
+}
+
+/**
+ * The finished product a sale comes out of, or null when nothing tracks it.
+ *
+ * These are the SAME rules the server sorts sales by (spSale_Insert /
+ * sppoultryeggstock_syncforsale, migrations 134 and 139): a product mentioning
+ * "egg" draws on the egg stock, a bird-like one that is not eggs draws on the
+ * birds. Matching differently here would warn about one product's stock while
+ * the save moved another's. Manure and most "Other" sales track no stock at
+ * all, so they match nothing and are never checked — unless the farm happens to
+ * carry a product of that exact name.
+ *
+ * Where the two figures come from (sppoultryproduct_getall): eggs are the stock
+ * ledger's balance, complete since migration 204; birds are the birds left
+ * across active flocks, which is why a bird sale does not move that number.
+ */
+function saleStockProduct(products: PoultryProduct[], product: string | null | undefined): PoultryProduct | null {
+  const name = (product ?? "").trim().toLowerCase()
+  if (!name) return null
+  if (name.includes("egg")) {
+    return products.find((p) => p.isRawEggProduct) ?? products.find((p) => p.name.toLowerCase().includes("egg")) ?? null
+  }
+  if (/bird|chick|cockerel/.test(name)) {
+    return products.find((p) => p.isBirdProduct) ?? products.find((p) => p.name.toLowerCase().includes("bird")) ?? null
+  }
+  return products.find((p) => p.name.trim().toLowerCase() === name) ?? null
+}
+
+/** What to call the units of a stock figure: "eggs", "birds", or the product's own unit. */
+function stockUnitLabel(product: PoultryProduct | null): string {
+  if (!product) return "units"
+  if (product.isRawEggProduct) return "eggs"
+  if (product.isBirdProduct) return "birds"
+  return (product.unit || "units").toLowerCase()
+}
+
+/**
+ * The stock line under Quantity, and — when the sale is bigger than the stock —
+ * the block that refuses it until the seller says to sell it anyway.
+ *
+ * Deliberately a checkbox and not a confirm dialog: the shortfall is visible
+ * while the quantity is still being typed, so lowering it is one edit away, and
+ * overriding is a decision recorded on the form rather than a habit of clicking
+ * through a prompt.
+ */
+function StockCheckNotice({
+  available, unitLabel, shortfall, override, onOverrideChange, idPrefix,
+}: {
+  available: number | null
+  unitLabel: string
+  shortfall: number
+  override: boolean
+  onOverrideChange: (v: boolean) => void
+  idPrefix: string
+}) {
+  if (available == null) return null
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs text-slate-500">
+        In stock: <b className="tabular-nums text-slate-700">{available.toLocaleString()}</b> {unitLabel}
+      </p>
+      {shortfall > 0 && (
+        <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700">
+          <p className="font-medium">
+            Only {available.toLocaleString()} {unitLabel} in stock — this sale is{" "}
+            {shortfall.toLocaleString()} more than you have.
+          </p>
+          <label htmlFor={`${idPrefix}-override-stock`} className="mt-2 flex items-start gap-2 font-normal">
+            <input
+              id={`${idPrefix}-override-stock`}
+              type="checkbox"
+              checked={override}
+              onChange={(e) => onOverrideChange(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-red-400"
+            />
+            <span>
+              Sell it anyway. Stock goes negative until the missing production, or a stock
+              correction, is recorded.
+            </span>
+          </label>
+        </div>
+      )}
+    </div>
+  )
 }
 
 /**
@@ -208,9 +294,48 @@ export default function SalesPage() {
   const [crates, setCrates] = useState(0)
   const [looseEggs, setLooseEggs] = useState(0)
   const [overrideAmount, setOverrideAmount] = useState<number | undefined>(undefined)
+  // Finished products carry the stock a sale draws on (eggs, birds).
+  const [poultryProducts, setPoultryProducts] = useState<PoultryProduct[]>([])
+  // Ticked to record a sale bigger than the stock. Per-dialog-session: cleared
+  // whenever the form is reset or an edit is opened, so an override is always a
+  // deliberate answer to the shortfall on screen and never a leftover from the
+  // last sale.
+  const [overrideStock, setOverrideStock] = useState(false)
 
   // Check if current product is eggs (for crates input)
   const isEggsProduct = (formData.product ?? "").toLowerCase().includes("egg")
+
+  // ------------------------------------------------------------ stock check
+  const stockProduct = useMemo(
+    () => saleStockProduct(poultryProducts, formData.product),
+    [poultryProducts, formData.product],
+  )
+
+  /**
+   * Stock available to THIS sale.
+   *
+   * An egg sale already sits in the egg ledger as a negative row, so editing one
+   * has to add its own quantity back or a sale of everything on hand could never
+   * be re-saved. Bird stock is derived from the flocks and never carried the
+   * sale in the first place, so it is taken as it stands.
+   */
+  const availableStock = useMemo(() => {
+    if (!stockProduct) return null
+    const editedIsSameEggStock =
+      editingSale != null &&
+      stockProduct.isRawEggProduct &&
+      (editingSale.product ?? "").toLowerCase().includes("egg")
+    const addBack = editedIsSameEggStock ? Number(editingSale?.quantity) || 0 : 0
+    return (Number(stockProduct.stockOnHand) || 0) + addBack
+  }, [stockProduct, editingSale])
+
+  const stockShortfall = useMemo(() => {
+    if (availableStock == null) return 0
+    const wanted = Number(formData.quantity) || 0
+    return wanted > availableStock ? wanted - availableStock : 0
+  }, [availableStock, formData.quantity])
+
+  const stockUnits = stockUnitLabel(stockProduct)
 
   useEffect(() => {
     loadSales()
@@ -218,6 +343,7 @@ export default function SalesPage() {
     loadCustomers()
     // Cash accounts so a sale can be received into one (posts a cash-in when paid).
     listPoultryCashAccounts().then((a) => setCashAccounts(a.filter((x) => x.isActive))).catch(() => setCashAccounts([]))
+    loadPoultryProducts()
 
     // Deep link from Customer Balances -> Open sale.
     if (typeof window !== 'undefined') {
@@ -270,6 +396,20 @@ export default function SalesPage() {
     }
   }
   
+  // Finished products, for the stock a sale is checked against. A failure here
+  // leaves the list empty, which reads as "nothing tracks this product" and lets
+  // sales through — the check must never be what stops the day's trading.
+  // Reloaded after every save and delete, since each one moves the stock it
+  // just checked against.
+  const loadPoultryProducts = async () => {
+    try {
+      const list = await listPoultryProducts()
+      setPoultryProducts(Array.isArray(list) ? list : [])
+    } catch {
+      setPoultryProducts([])
+    }
+  }
+
   const loadCustomers = async () => {
     const { userId, farmId } = getUserContext()
     if (userId && farmId) {
@@ -392,6 +532,7 @@ export default function SalesPage() {
         setIsCreateDialogOpen(false)
         resetForm()
         loadSales()
+        loadPoultryProducts()
       } else {
         toast({
           title: "Error",
@@ -457,6 +598,7 @@ export default function SalesPage() {
         setEditingSale(null)
         resetForm()
         loadSales()
+        loadPoultryProducts()
       } else {
         toast({
           title: "Error",
@@ -491,6 +633,7 @@ export default function SalesPage() {
           description: "The sale record has been successfully deleted.",
         })
         loadSales()
+        loadPoultryProducts()
       } else {
         toast({
           title: "Delete failed",
@@ -545,6 +688,7 @@ export default function SalesPage() {
     setShowNewCustomerInput(false)
     setOtherCustomerName("")
     setOverrideAmount(undefined)
+    setOverrideStock(false)
     setCrates(0)
     setLooseEggs(0)
   }
@@ -636,6 +780,14 @@ export default function SalesPage() {
     else if (!Number.isFinite(quantity) || quantity <= 0) message = "Enter how many units were sold — use a number greater than zero."
     else if (!Number.isFinite(unitPrice) || unitPrice <= 0) message = "Enter the price per unit — it must be greater than zero."
     else if (!paymentMethod) message = "Select how the customer paid (cash, mobile money, bank, etc.)."
+    // Selling more than the farm has is refused, not warned about — but the
+    // override on the form lifts it, because a real sale that the records have
+    // not caught up with still has to be recordable.
+    else if (stockShortfall > 0 && !overrideStock) {
+      message =
+        `Only ${(availableStock ?? 0).toLocaleString()} ${stockUnits} in stock — this sale is ` +
+        `${stockShortfall.toLocaleString()} more. Lower the quantity, or tick "Sell it anyway" to record it regardless.`
+    }
 
     if (message) {
       toastFormGuide(toast, message)
@@ -706,6 +858,7 @@ export default function SalesPage() {
     setProductSelection(selection)
     setProductOther(selection === "Other" ? sale.product : "")
     setShowNewCustomerInput(false)
+    setOverrideStock(false)
     // Reverse-calculate crates and loose eggs from quantity for egg products
     const isEgg = (sale.product ?? "").toLowerCase().includes("egg")
     if (isEgg && sale.quantity > 0) {
@@ -1206,6 +1359,14 @@ export default function SalesPage() {
                           {(Number(formData.quantity) || 0).toLocaleString()} eggs total, from the crates and loose eggs above
                         </p>
                       )}
+                      <StockCheckNotice
+                        available={availableStock}
+                        unitLabel={stockUnits}
+                        shortfall={stockShortfall}
+                        override={overrideStock}
+                        onOverrideChange={setOverrideStock}
+                        idPrefix="create"
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="unitPrice">{isEggsProduct ? "Unit Price Per Crate *" : "Unit Price *"}</Label>
@@ -2065,6 +2226,14 @@ export default function SalesPage() {
                               {(Number(formData.quantity) || 0).toLocaleString()} eggs total, from the crates and loose eggs above
                             </p>
                           )}
+                          <StockCheckNotice
+                            available={availableStock}
+                            unitLabel={stockUnits}
+                            shortfall={stockShortfall}
+                            override={overrideStock}
+                            onOverrideChange={setOverrideStock}
+                            idPrefix="edit"
+                          />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="edit-unitPrice">{isEggsProduct ? "Unit Price Per Crate *" : "Unit Price *"}</Label>

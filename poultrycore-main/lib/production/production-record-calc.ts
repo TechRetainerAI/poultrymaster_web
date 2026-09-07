@@ -38,6 +38,26 @@ export function netSellableEggs(totalPicked: number, losses: number): number {
 }
 
 /**
+ * More eggs picked than there are birds left to lay them.
+ *
+ * A hen lays at most one egg a day, so this is nearly always a typo in the
+ * crates — nearly, because a pick can cover more than one day, or eggs held
+ * over from yesterday can be counted today. So callers WARN on it and still
+ * save; it is not a validation failure.
+ *
+ * `birdsLeft` is nullable on purpose: pass null when the form has no bird count
+ * to compare against yet (the batch form's box is empty, the single-flock form
+ * is still seeding from the flock) and this says nothing rather than crying
+ * over a half-filled form. Both production forms call it.
+ */
+export function eggsExceedBirdsLeft(totalEggs: number, birdsLeft: number | null | undefined): boolean {
+  const eggs = Number.isFinite(totalEggs) ? totalEggs : 0
+  if (eggs <= 0) return false
+  if (birdsLeft == null || !Number.isFinite(birdsLeft)) return false
+  return eggs > birdsLeft
+}
+
+/**
  * Birds left is ALWAYS birds − deaths.
  *
  * Deliberately not clamped: a negative result is what the form's validation

@@ -52,9 +52,9 @@ import { FeedLines, computeFeedLines, emptyFeedLine, type FeedLineDraft } from "
 import { EGG_GRADE_OPTIONS, EGG_GRADE_SELECT_VALUE_NONE, eggGradeFromApi, eggGradeToApi } from "@/lib/constants/egg-grade"
 import { FormSectionCard, CalcField, NumField } from "./production-record-fields"
 import {
-  cratesEquivalent, effectiveFeedKg as calcEffectiveFeedKg, flockAge as calcFlockAge,
-  netSellableEggs as calcNetSellable, pickTotal, totalCostOfProduction as calcTotalCost,
-  totalLosses as calcTotalLosses,
+  cratesEquivalent, effectiveFeedKg as calcEffectiveFeedKg, eggsExceedBirdsLeft,
+  flockAge as calcFlockAge, netSellableEggs as calcNetSellable, pickTotal,
+  totalCostOfProduction as calcTotalCost, totalLosses as calcTotalLosses,
 } from "@/lib/production/production-record-calc"
 
 // Doc §4a: classify a raw-material item as Feed or Medication by its category.
@@ -232,6 +232,17 @@ export function BatchProductionRecordForm({
   const lostEggs = parseInt(form.lostEggs) || 0
   const totalLosses = calcTotalLosses({ broken: brokenEggs, meaty: meatyEggs, soft: softEggs, lost: lostEggs })
   const netSellableEggs = calcNetSellable(totalEggs, totalLosses)
+
+  // Advisory only, exactly as on the single-flock form: a hen lays at most one
+  // egg a day, so batch totals above the birds left in the batch are nearly
+  // always a typo — but a pick can span days or carry eggs over, so both save
+  // paths (Draft and Pending Allocation) still go through. "Birds left" here is
+  // typed by hand, so an empty box means there is nothing to compare against.
+  const birdsLeftEntered = form.birdsLeft === "" ? null : parseInt(form.birdsLeft) || 0
+  const eggsOverBirds = eggsExceedBirdsLeft(totalEggs, birdsLeftEntered)
+  const eggsOverBirdsMessage = eggsOverBirds
+    ? `${totalEggs.toLocaleString()} eggs against ${(birdsLeftEntered ?? 0).toLocaleString()} bird${birdsLeftEntered === 1 ? "" : "s"} left — more than one egg per bird. Check the crates and the birds left, or save anyway if that is right.`
+    : ""
 
   // Age comes from the specific batch's start date, and only for a single batch —
   // a mixed scope has no one age, which is why the payload sends "Mixed".
@@ -413,6 +424,12 @@ export function BatchProductionRecordForm({
         toast({ title: "Saved as draft", description: "This batch production record has been saved as a draft." })
       }
 
+      // Allowed, so it never blocked the save — but said once after the fact so
+      // an entry that went in on a typo does not pass silently.
+      if (eggsOverBirds) {
+        toast({ title: "Check the egg count", description: eggsOverBirdsMessage, variant: "warning" })
+      }
+
       setDirty(false)
       onSaved?.(status)
     } catch (err: any) {
@@ -424,7 +441,8 @@ export function BatchProductionRecordForm({
   }, [batchSelectionType, includedFlocksList, isSpecific, ageWeeks, ageDays, selectedBirdBatchId,
       batchName, form, picks, firstTotal, secondTotal, thirdTotal, fourthTotal, totalEggs,
       effectiveFeedKg, totalFeedCost, totalMedicationCost, totalCostOfProduction,
-      feedComputed.rows, medComputed.rows, isEdit, recordId])
+      feedComputed.rows, medComputed.rows, isEdit, recordId,
+      eggsOverBirds, eggsOverBirdsMessage])
 
   // The modal footer owns the two save buttons, so hand it the same function
   // this form's own footer calls — one save path, two entry points.
@@ -581,6 +599,12 @@ export function BatchProductionRecordForm({
             </b>
           </span>
         </div>
+        {eggsOverBirds && (
+          <div className="mt-2 flex items-start gap-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{eggsOverBirdsMessage}</span>
+          </div>
+        )}
       </FormSectionCard>
 
       {/* --------------------------------------- Egg Losses/Quality */}

@@ -60,7 +60,7 @@ import { toastFormGuide } from "@/lib/utils/validation-toast"
 import { FormSectionCard, CalcField, NumField } from "./production-record-fields"
 import {
   EGGS_PER_CRATE, birdsLeft as calcBirdsLeft, cratesEquivalent, effectiveFeedKg as calcEffectiveFeedKg,
-  flockAge as calcFlockAge, netSellableEggs as calcNetSellable, pickTotal, resolveAge,
+  eggsExceedBirdsLeft, flockAge as calcFlockAge, netSellableEggs as calcNetSellable, pickTotal, resolveAge,
   totalCostOfProduction as calcTotalCost, totalLosses as calcTotalLosses,
 } from "@/lib/production/production-record-calc"
 
@@ -273,6 +273,17 @@ export function ProductionRecordForm({
   const mortalityNum = parseInt(form.mortality) || 0
   const birdsLeft = calcBirdsLeft(numBirdsNum, mortalityNum)
 
+  // Advisory only. A hen lays at most one egg a day, so picking more eggs than
+  // there are birds left is nearly always a typo — but a pick can cover more
+  // than one day, or carry eggs over, so the save goes through either way. Same
+  // sentence under the picks and in the toast on save, so the two cannot drift.
+  // No bird count yet means nothing to compare against — the eggs are typed
+  // before the birds on this form, so comparing early would cry every time.
+  const eggsOverBirds = eggsExceedBirdsLeft(total, numBirdsNum > 0 ? birdsLeft : null)
+  const eggsOverBirdsMessage = eggsOverBirds
+    ? `${total.toLocaleString()} eggs against ${birdsLeft.toLocaleString()} bird${birdsLeft === 1 ? "" : "s"} left — more than one egg per bird. Check the crates and the bird count, or save anyway if that is right.`
+    : ""
+
   // ------------------------------------------------------------------- age
   const [manualAge, setManualAge] = useState(false)
   const [manualWeeks, setManualWeeks] = useState("")
@@ -310,13 +321,29 @@ export function ProductionRecordForm({
 
   // "Number of birds" is seeded from the flock's last record.
   //
-  // In edit mode this only ever reports the hint: the fill below is guarded on
-  // an EMPTY box, and an edit always arrives with the saved figure in it. So
-  // changing flock here surfaces that flock's last count for comparison without
-  // silently rewriting a number the user already saved.
+  // The count in the box always belongs to ONE flock, and this ref remembers
+  // which. Switching flock (or batch, which switches flock underneath) makes
+  // the figure in the box another flock's number, so it is replaced outright —
+  // not just filled when empty, which used to leave the old flock's count (and
+  // therefore the wrong "Birds left") sitting under the new flock. Hydration
+  // sets the ref too, so simply opening an edit is not treated as a switch and
+  // the saved figure survives.
+  const seededForFlockRef = useRef<string | null>(null)
+
   useEffect(() => {
     const run = async () => {
       if (!form.flockId || !form.date) { setPreviousBirdsLeft(null); return }
+      const flockSwitched = seededForFlockRef.current !== form.flockId
+      // Empty box: fill it. Switched flock: overwrite the stale count, and
+      // clear it when the new flock has nothing to seed from.
+      const applySeed = (value: number | null) => {
+        seededForFlockRef.current = form.flockId
+        if (flockSwitched) {
+          setForm((prev) => ({ ...prev, numBirds: value == null ? "" : String(value) }))
+        } else if (!form.numBirds && value != null && value > 0) {
+          setForm((prev) => ({ ...prev, numBirds: String(value) }))
+        }
+      }
       try {
         const { userId, farmId } = getUserContext()
         if (!userId || !farmId) return
@@ -331,16 +358,15 @@ export function ProductionRecordForm({
         if (mostRecent) {
           const lastBirdsLeft = getBirdsLeftFromRecord(mostRecent)
           setPreviousBirdsLeft(lastBirdsLeft)
-          if (!form.numBirds && lastBirdsLeft > 0) {
-            setForm((prev) => ({ ...prev, numBirds: String(lastBirdsLeft) }))
-          }
+          applySeed(lastBirdsLeft)
         } else {
           const flock = allFlocks.find((f) => f.flockId === flockIdNum)
           if (flock) {
             setPreviousBirdsLeft(flock.quantity || 0)
-            if (!form.numBirds) setForm((prev) => ({ ...prev, numBirds: String(flock.quantity || 0) }))
+            applySeed(flock.quantity || 0)
           } else {
             setPreviousBirdsLeft(null)
+            applySeed(null)
           }
         }
       } catch {
@@ -358,6 +384,9 @@ export function ProductionRecordForm({
     const r0 = rec as any
     const dateStr = new Date(rec.date).toISOString().split("T")[0]
     setLoadedRecord(rec)
+    // The saved bird count belongs to the record's own flock — mark it seeded
+    // so the seeding effect leaves it alone until the user changes flock.
+    seededForFlockRef.current = r0.flockId != null ? String(r0.flockId) : ""
     setForm({
       flockId: r0.flockId != null ? String(r0.flockId) : "",
       date: dateStr,
@@ -602,6 +631,13 @@ export function ProductionRecordForm({
       // flock + date — overwrote other records' rows for the same day and
       // created rows with no source link. The trigger is the writer.
 
+      // More eggs than birds is allowed, so it never blocked the save — but it
+      // is said once more here, after the fact, so an entry that went in on a
+      // typo does not pass silently.
+      if (eggsOverBirds) {
+        toast({ title: "Saved — check the egg count", description: eggsOverBirdsMessage, variant: "warning" })
+      }
+
       setDirty(false)
       onSaved?.(savedId)
     } catch (err: any) {
@@ -736,6 +772,12 @@ export function ProductionRecordForm({
             </b>
           </span>
         </div>
+        {eggsOverBirds && (
+          <div className="mt-2 flex items-start gap-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{eggsOverBirdsMessage}</span>
+          </div>
+        )}
       </FormSectionCard>
 
       {/* ------------------------------------------ Egg Losses/Quality */}
