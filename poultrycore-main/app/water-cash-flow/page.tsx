@@ -125,6 +125,20 @@ export default function WaterCashFlowPage() {
   const previousRange = useMemo(() => {
     const from = new Date(dateFrom)
     const to = new Date(dateTo)
+
+    // Both filters can be EMPTY: ListFilters' Clear button sets them to "" and
+    // clearing a native date input emits "" too. new Date("") is an Invalid
+    // Date, and toISOString() on one THROWS RangeError rather than returning
+    // anything odd -- which crashed this whole page during render.
+    //
+    // With no bounded window there is no "period before" it, so say so instead
+    // of inventing one. days is 0, not NaN, on purpose: buildCashFlowAnalysis
+    // guards on `daysInPeriod <= 0`, and NaN slips straight through that into a
+    // NaN runway figure.
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+      return { from: null, to: null, days: 0 }
+    }
+
     const days = Math.max(1, Math.round((to.getTime() - from.getTime()) / 86_400_000) + 1)
     const prevTo = new Date(from.getTime() - 86_400_000)
     const prevFrom = new Date(prevTo.getTime() - (days - 1) * 86_400_000)
@@ -136,7 +150,12 @@ export default function WaterCashFlowPage() {
     setError("")
     const [cur, prev, all, cust, supp, accts] = await Promise.allSettled([
       getCashFlow("Water", { fromDate: dateFrom, toDate: dateTo }),
-      getCashFlow("Water", { fromDate: previousRange.from, toDate: previousRange.to }),
+      // No previous window to compare against when the range is cleared.
+      // Skipped rather than sent with empty dates, which the client treats as
+      // "all time" -- comparing this period against all of history.
+      previousRange.from && previousRange.to
+        ? getCashFlow("Water", { fromDate: previousRange.from, toDate: previousRange.to })
+        : Promise.resolve(null),
       getCashFlow("Water"),
       getBalanceSummary("water", "customer"),
       getBalanceSummary("water", "supplier"),
@@ -154,7 +173,10 @@ export default function WaterCashFlowPage() {
       setSummary(EMPTY_SUMMARY)
     }
 
-    setPrevSummary(prev.status === "fulfilled" ? prev.value.summary : EMPTY_SUMMARY)
+    // EMPTY_SUMMARY when there was no previous period: the analysis treats
+    // all-zero previous figures as "nothing to compare" and omits the
+    // comparison, rather than reporting growth against zero.
+    setPrevSummary(prev.status === "fulfilled" ? (prev.value?.summary ?? EMPTY_SUMMARY) : EMPTY_SUMMARY)
     setAllTime(all.status === "fulfilled" ? all.value.summary : EMPTY_SUMMARY)
     setCustomers(cust.status === "fulfilled" ? cust.value : null)
     setSuppliers(supp.status === "fulfilled" ? supp.value : null)

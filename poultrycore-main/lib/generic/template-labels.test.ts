@@ -28,18 +28,54 @@ describe("templateLabels", () => {
   })
 
   it("renames the documents where the industry renames them", () => {
-    // A school does not send invoices, it sends fee notes.
-    expect(templateLabels("School").invoice).toBe("Fee Note")
+    // Section 4 of the spec, verbatim: a school sends fee bills, a gym sends
+    // membership bills, a cleaning firm sends service bills.
+    expect(templateLabels("School").invoice).toBe("Fee Bill")
+    expect(templateLabels("Gym").invoice).toBe("Membership Bill")
+    expect(templateLabels("CleaningService").invoice).toBe("Service Bill")
+    expect(templateLabels("SecurityService").invoice).toBe("Service Bill")
+    expect(templateLabels("MembershipBusiness").invoice).toBe("Bill")
     expect(templateLabels("School").customerBalance).toBe("Outstanding Fees")
     expect(templateLabels("Gym").customerBalance).toBe("Member Balances")
     // Everyone else keeps the plain word.
     expect(templateLabels("SaaS").invoice).toBe("Invoice")
+    expect(templateLabels("Agency").invoice).toBe("Invoice")
+  })
+
+  it("names the money coming in the way the industry names it", () => {
+    expect(templateLabels("SaaS").payment).toBe("Subscription Payment")
+    expect(templateLabels("Gym").payment).toBe("Membership Payment")
+    expect(templateLabels("School").payment).toBe("Fee Payment")
+    expect(templateLabels("CleaningService").payment).toBe("Client Payment")
+    expect(templateLabels("MembershipBusiness").payment).toBe("Member Payment")
+    expect(templateLabels("Other").payment).toBe("Payment")
+  })
+
+  it("names a late payer the way the industry names one", () => {
+    expect(templateLabels("Gym").overdueCustomer).toBe("Overdue Member")
+    // A school chases the parent, not the child, so the label names both.
+    expect(templateLabels("School").overdueCustomer).toBe("Overdue Student / Parent")
+    expect(templateLabels("Agency").overdueCustomer).toBe("Overdue Client")
+    expect(templateLabels("SaaS").overdueCustomer).toBe("Overdue Customer")
+  })
+
+  it("calls a plan what the industry calls one", () => {
+    expect(templateLabels("SaaS").plan).toBe("Subscription Plan")
+    expect(templateLabels("Gym").plan).toBe("Membership Plan")
+    expect(templateLabels("School").plan).toBe("Fee Plan")
+    expect(templateLabels("CleaningService").plan).toBe("Service Package")
+    expect(templateLabels("SecurityService").plan).toBe("Security Service Package")
+    expect(templateLabels("Agency").plan).toBe("Retainer Package")
   })
 
   it("pluralises without producing 'Service Contracts s'", () => {
     expect(templateLabels("CleaningService").subscriptionPlural).toBe("Service Contracts")
-    expect(templateLabels("School").invoicePlural).toBe("Fee Notes")
+    expect(templateLabels("SecurityService").subscriptionPlural).toBe("Security Contracts")
+    expect(templateLabels("School").invoicePlural).toBe("Fee Bills")
     expect(templateLabels("Gym").customerPlural).toBe("Members")
+    // The slash form pluralises correctly on the last word, which is the
+    // wording the spec's own menu uses. Pinned so an edit cannot break it.
+    expect(templateLabels("Other").planPlural).toBe("Service / Plans")
   })
 
   it("falls back to neutral labels for a company with no template", () => {

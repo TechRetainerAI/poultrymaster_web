@@ -71,6 +71,36 @@ namespace PoultryFarmAPIWeb.Controllers
         }
 
         /// <summary>
+        /// Company policy and defaults (migration 251). Never 404s: a company
+        /// with no settings row reads the declared defaults, and reading them
+        /// does not create a row.
+        /// </summary>
+        [HttpGet("business-settings")]
+        public async Task<ActionResult<GenericBusinessSettings>> GetBusinessSettings(string farmId)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            return Ok(await _svc.GetBusinessSettings(farmId));
+        }
+
+        /// <summary>
+        /// Saves the whole settings object and returns what was stored, so the
+        /// page renders what the database actually holds rather than what it
+        /// hoped it sent.
+        /// </summary>
+        [HttpPut("business-settings")]
+        public async Task<ActionResult<GenericBusinessSettings>> SaveBusinessSettings(
+            string farmId, [FromBody] GenericBusinessSettings s)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+
+            s.FarmId = farmId;
+            return Ok(await _svc.SaveBusinessSettings(s));
+        }
+
+        /// <summary>
         /// Applies a business + industry template: stamps the profile and seeds
         /// this industry's categories, cash accounts and starter plans. Safe to
         /// call again -- every seed is ON CONFLICT DO NOTHING.

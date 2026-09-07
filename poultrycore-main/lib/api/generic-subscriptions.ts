@@ -30,6 +30,65 @@ export interface GenericModuleSettings {
   enableCustomerBalances: boolean
   enableStaffPayments: boolean
   enableCashAccounts: boolean
+  /**
+   * 251. Both default true — Recurring Expenses shipped ungated in 249 and
+   * Supplier Balances was shown to anyone with Purchases on, so no company
+   * loses a menu item to this migration. Supplier Balances is deliberately
+   * INDEPENDENT of enablePurchases: a service business owes vendors through
+   * expenses, which is exactly what 248's payables arm reads.
+   */
+  enableRecurringExpenses: boolean
+  enableSupplierBalances: boolean
+}
+
+/**
+ * Company policy and defaults (migration 251).
+ *
+ * Not every field here is read by something yet. The ones that are:
+ * the billing defaults (the new-subscription form), autoPostInvoices (the
+ * billing run) and the show* flags (the subscription dashboard). The rest are
+ * stored so the shape is complete and no follow-up migration is needed, and
+ * they are deliberately NOT on the settings page — a switch that changes
+ * nothing is worse than no switch, because someone will set it and believe it.
+ * Each carries a COMMENT in 251 naming what will read it.
+ */
+export interface GenericBusinessSettings {
+  farmId: string
+
+  // billing
+  defaultBillingFrequency: string
+  defaultPaymentDueDays: number
+  defaultGracePeriodDays: number
+  autoGenerateInvoices: boolean
+  /** The billing run approves what it raises, instead of leaving it Draft. */
+  autoPostInvoices: boolean
+  autoMarkOverdueInvoices: boolean
+  allowOverpayments: boolean
+  allowCustomerCredits: boolean
+  defaultRevenueCategoryId?: number | null
+  defaultCashAccountForPayments?: number | null
+
+  // expenses
+  defaultExpenseCashAccountId?: number | null
+  requireReceiptAboveAmount?: number | null
+  requireApprovalAboveAmount?: number | null
+  allowUnpaidExpenses: boolean
+  allowPartialExpensePayments: boolean
+
+  // cash
+  requireCashAccountForEveryPayment: boolean
+  allowNegativeCashAccounts: boolean
+  requireReconciliationWarning: boolean
+  reconciliationReminderFrequency: string
+
+  // dashboard cards
+  showMrr: boolean
+  showBurnRate: boolean
+  showBreakEvenCustomers: boolean
+  showCustomerBalances: boolean
+  showSupplierBalances: boolean
+  showCalculatedCashAtHand: boolean
+  showInventoryCards: boolean
 }
 
 export interface GenericServicePlan {
@@ -202,6 +261,23 @@ export async function getBusinessTemplate(): Promise<GenericBusinessTemplateInfo
 
 export async function getModuleSettings(): Promise<GenericModuleSettings> {
   return getJson<GenericModuleSettings>(`${farmBase()}/module-settings`)
+}
+
+/** Never 404s: a company with no row reads the declared defaults. */
+export async function getBusinessSettings(): Promise<GenericBusinessSettings> {
+  return getJson<GenericBusinessSettings>(`${farmBase()}/business-settings`)
+}
+
+/**
+ * Saves the WHOLE settings object and returns what the database stored — so a
+ * page renders what is actually saved rather than what it hoped it sent.
+ * Partial saves are possible in SQL and deliberately not offered here: half a
+ * screen silently not saving is worse than one extra round trip.
+ */
+export async function saveBusinessSettings(
+  s: GenericBusinessSettings,
+): Promise<GenericBusinessSettings | null> {
+  return sendJson<GenericBusinessSettings>("PUT", `${farmBase()}/business-settings`, s)
 }
 
 export async function saveModuleSettings(

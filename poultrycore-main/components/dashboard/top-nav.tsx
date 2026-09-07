@@ -6,6 +6,7 @@ import { useMemo } from "react"
 import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
 import { usePermissions } from "@/hooks/use-permissions"
+import { useGenericModules } from "@/hooks/use-generic-modules"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useAlertsStore } from "@/lib/store/alerts-store"
 import { Droplets, ShoppingBag, PackageMinus,
@@ -39,6 +40,10 @@ import {
   Factory,
   Heart,
   LineChart,
+  Repeat,
+  CalendarClock,
+  Receipt,
+  Scale,
 } from "lucide-react"
 
 function NavDropdown({ group, accent = "sky" }: { group: NavGroup; accent?: NavAccent }) {
@@ -267,13 +272,34 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
 // Generic sidebar groups (Catalog / Sales / Purchasing / Money / Admin); less
 // important items live in a More dropdown so the rail stays one line wide.
 function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePermissions> }) {
+  // Only the NEW items are gated. Everything already on this rail stays put.
+  const { showNew, showExisting, labels } = useGenericModules()
+
+  const subscriptionGroup: NavGroup = {
+    label: "Subscriptions",
+    items: [
+      { href: "/generic-service-plans", label: labels.planPlural,         icon: Repeat },
+      { href: "/generic-subscriptions", label: labels.subscriptionPlural, icon: CalendarClock },
+      { href: "/generic-billing-runs",  label: "Billing runs",            icon: Receipt },
+      ...(showNew("enableInvoices")
+        ? [{ href: "/generic-invoices", label: labels.invoicePlural, icon: FileText }]
+        : []),
+    ],
+  }
+
   const moreGroup: NavGroup = {
     label: "More",
     items: [
+      ...(showNew("enableCustomerBalances")
+        ? [{ href: "/generic-customer-balances", label: labels.customerBalance, icon: Scale }]
+        : []),
       // Generic has no Operations mega-menu, so Internal Use rides here beside
-      // the other stock pages rather than getting a menu of its own.
-      { href: "/generic-internal-use",       label: "Internal Use",       icon: PackageMinus },
-      { href: "/generic-customer-payments",  label: "Customer payments",  icon: CreditCard },
+      // the other stock pages rather than getting a menu of its own -- and it
+      // goes when the stock modules go.
+      ...(showExisting("enableInternalUse")
+        ? [{ href: "/generic-internal-use", label: "Internal Use", icon: PackageMinus }]
+        : []),
+      { href: "/generic-customer-payments",  label: labels.paymentPlural, icon: CreditCard },
       { href: "/generic-supplier-payments",  label: "Supplier payments",  icon: CreditCard },
       { href: "/generic-cash",               label: "Cash & Accounts",    icon: Wallet },
       { href: "/generic-cash-transfers",     label: "Cash transfers",     icon: Activity },
@@ -292,13 +318,22 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
       <div className="flex items-center gap-1 px-4 pt-1.5 pb-2.5 nav-rail-scroll">
         <NavLink item={{ href: "/generic-dashboard",          label: "Dashboard",         icon: Home }} accent="emerald" />
         <div className="h-5 w-px bg-white/30 mx-1" />
-        <NavLink item={{ href: "/generic-products",           label: "Products",          icon: ShoppingBag }} accent="emerald" />
-        <NavLink item={{ href: "/generic-stock-adjustments",  label: "Stock adjustments", icon: Boxes }} accent="emerald" />
+        {/* The stock rail is optional (spec section 5): a SaaS company, a gym
+            and a school have no products to sell and no stock to buy. */}
+        {showExisting("enableProducts") && (
+          <NavLink item={{ href: "/generic-products", label: "Products", icon: ShoppingBag }} accent="emerald" />
+        )}
+        {showExisting("enableStockAdjustments") && (
+          <NavLink item={{ href: "/generic-stock-adjustments", label: "Stock adjustments", icon: Boxes }} accent="emerald" />
+        )}
         <NavLink item={{ href: "/generic-sales",              label: "Sales",             icon: ShoppingCart }} accent="emerald" />
-        <NavLink item={{ href: "/generic-customers",          label: "Customers",         icon: Users }} accent="emerald" />
+        <NavLink item={{ href: "/generic-customers",          label: labels.customerPlural, icon: Users }} accent="emerald" />
         <NavLink item={{ href: "/generic-suppliers",          label: "Suppliers",         icon: Truck }} accent="emerald" />
-        <NavLink item={{ href: "/generic-purchases",          label: "Purchases",         icon: Package }} accent="emerald" />
+        {showExisting("enablePurchases") && (
+          <NavLink item={{ href: "/generic-purchases", label: "Purchases", icon: Package }} accent="emerald" />
+        )}
         <NavLink item={{ href: "/generic-expenses",           label: "Expenses",          icon: DollarSign }} accent="emerald" />
+        {showNew("enableSubscriptions") && <NavDropdown group={subscriptionGroup} accent="emerald" />}
         <NavDropdown group={moreGroup} accent="emerald" />
         <div className="ml-auto flex items-center gap-1">
           <NavLink item={{ href: "/companies", label: "Companies", icon: Building2 }} accent="emerald" />

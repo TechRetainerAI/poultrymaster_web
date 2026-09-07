@@ -12,16 +12,29 @@ import { forceReauth } from "./session-expiry"
 
 export type BalanceModule = "poultry" | "water" | "generic"
 
-/** Route prefix per module. Generic nests the farm id in the path. */
+/**
+ * Route prefix per module. Generic nests the farm id in the path, and then one
+ * more segment: api/generic-company/{farmId}/customer-payments already exists
+ * and means something else there (a Draft/Approved payment document), so the
+ * balance endpoints live under /balances rather than colliding with it.
+ */
 function prefix(module: BalanceModule, farmId: string): string {
   switch (module) {
     case "water":
       return "/Water"
     case "generic":
-      return `/generic-company/${encodeURIComponent(farmId)}`
+      return `/generic-company/${encodeURIComponent(farmId)}/balances`
     default:
       return "/Poultry"
   }
+}
+
+/**
+ * The audit route. Poultry and Water hang it off a bare module prefix, so they
+ * need the extra "balances" segment; Generic's prefix already ends in it.
+ */
+function auditPath(module: BalanceModule): string {
+  return module === "generic" ? "audit" : "balances/audit"
 }
 
 function activeFarmId(): string {
@@ -338,7 +351,7 @@ export async function getStatement(
 
 export async function auditBalances(module: BalanceModule): Promise<BalanceAuditRow[]> {
   const farmId = activeFarmId()
-  return jget<BalanceAuditRow[]>(`${prefix(module, farmId)}/balances/audit${qs({ farmId })}`)
+  return jget<BalanceAuditRow[]>(`${prefix(module, farmId)}/${auditPath(module)}${qs({ farmId })}`)
 }
 
 // ---------------------------------------------------------------------- writes

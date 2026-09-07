@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
 import { usePermissions } from "@/hooks/use-permissions"
+import { useGenericModules } from "@/hooks/use-generic-modules"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
 import { filterWaterNavItems } from "@/lib/utils/water-nav-access"
 import { useAuthStore } from "@/lib/store/auth-store"
@@ -54,6 +55,8 @@ import {
   Clock,
   Search,
   ChevronDown,
+  Repeat,
+  CalendarClock,
 } from "lucide-react"
 import {
   Sheet,
@@ -156,6 +159,9 @@ export function MobileBottomNav() {
   const pathname = usePathname()
   const permissions = usePermissions()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
+  // Only the NEW Generic items are gated on this; everything already in the
+  // sheet stays where it is.
+  const genericModules = useGenericModules()
   // buildPoultryNavConfig wants these for its Alerts action row. That row has
   // no href so it is filtered out of the sheet, but the config still asks.
   const openAlerts = useAlertsStore((st) => st.open)
@@ -286,20 +292,51 @@ export function MobileBottomNav() {
         palette: { inactive: "text-emerald-100/90 hover:text-white", activeText: "text-white" },
         activeBg: "bg-emerald-100 text-emerald-800",
         accent: "emerald" as const,
-        mainTabs: [
-          { href: "/generic-dashboard", label: "Home",      icon: Home },
-          { href: "/generic-products",  label: "Products",  icon: ShoppingBag },
-          { href: "/generic-sales",     label: "Sales",     icon: ShoppingCart },
-          { href: "/generic-purchases", label: "Purchases", icon: Package },
-        ] as NavItem[],
+        // Four tabs, and which four depends on the business. A gym owner's
+        // thumb should not land on Products and Purchases -- they have no
+        // stock. A shop's should.
+        mainTabs: (genericModules.showExisting("enableProducts")
+          ? [
+              { href: "/generic-dashboard", label: "Home",      icon: Home },
+              { href: "/generic-products",  label: "Products",  icon: ShoppingBag },
+              { href: "/generic-sales",     label: "Sales",     icon: ShoppingCart },
+              { href: "/generic-purchases", label: "Purchases", icon: Package },
+            ]
+          : [
+              { href: "/generic-dashboard",     label: "Home",                                    icon: Home },
+              { href: "/generic-subscriptions", label: genericModules.labels.subscriptionPlural,  icon: CalendarClock },
+              { href: "/generic-customers",     label: genericModules.labels.customerPlural,      icon: Users },
+              { href: "/generic-expenses",      label: "Expenses",                                icon: DollarSign },
+            ]) as NavItem[],
         moreGroups: asSections([
-          { title: "Inventory", items: [
-            { href: "/generic-inventory",         label: "Inventory",         icon: Boxes },
-            { href: "/generic-stock-adjustments", label: "Stock adjustments", icon: Boxes },
-            { href: "/generic-internal-use",      label: "Internal Use",      icon: PackageMinus },
-          ] as NavItem[] },
+          ...(genericModules.showNew("enableSubscriptions")
+            ? [{ title: "Subscriptions", items: [
+                { href: "/generic-service-plans", label: genericModules.labels.planPlural,         icon: Repeat },
+                { href: "/generic-subscriptions", label: genericModules.labels.subscriptionPlural, icon: CalendarClock },
+                { href: "/generic-billing-runs",  label: "Billing runs",                           icon: Receipt },
+              ] as NavItem[] }]
+            : []),
+          // The optional stock modules (spec section 5). The whole section
+          // disappears for a company that has none of them on.
+          ...((): { title: string; items: NavItem[] }[] => {
+            const items: NavItem[] = [
+              ...(genericModules.showExisting("enableInventory")
+                ? [{ href: "/generic-inventory", label: "Inventory", icon: Boxes }] : []),
+              ...(genericModules.showExisting("enableStockAdjustments")
+                ? [{ href: "/generic-stock-adjustments", label: "Stock adjustments", icon: Boxes }] : []),
+              ...(genericModules.showExisting("enableInternalUse")
+                ? [{ href: "/generic-internal-use", label: "Internal Use", icon: PackageMinus }] : []),
+            ]
+            return items.length ? [{ title: "Inventory", items }] : []
+          })(),
           { title: "Sales & Money", items: [
-            { href: "/generic-customer-payments", label: "Customer payments", icon: CreditCard },
+            ...(genericModules.showNew("enableInvoices")
+              ? [{ href: "/generic-invoices", label: genericModules.labels.invoicePlural, icon: FileText }]
+              : []),
+            ...(genericModules.showNew("enableCustomerBalances")
+              ? [{ href: "/generic-customer-balances", label: genericModules.labels.customerBalance, icon: Scale }]
+              : []),
+            { href: "/generic-customer-payments", label: genericModules.labels.paymentPlural, icon: CreditCard },
             { href: "/generic-supplier-payments", label: "Supplier payments", icon: CreditCard },
             { href: "/generic-expenses",          label: "Expenses",          icon: DollarSign },
             { href: "/generic-cash",              label: "Cash & Accounts",   icon: Wallet },
@@ -307,7 +344,7 @@ export function MobileBottomNav() {
             { href: "/generic-daily-closings",    label: "Daily Closing",     icon: FileText },
           ] as NavItem[] },
           { title: "Finance", items: [
-            { href: "/generic-customers", label: "Customers", icon: Users },
+            { href: "/generic-customers", label: genericModules.labels.customerPlural, icon: Users },
             { href: "/generic-suppliers", label: "Suppliers", icon: Truck },
           ] as NavItem[] },
           { title: "People", items: [

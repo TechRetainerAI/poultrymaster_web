@@ -41,6 +41,17 @@ namespace PoultryFarmAPIWeb.Business
             return r.IsDBNull(i) ? null : Convert.ToInt32(r.GetValue(i));
         }
 
+        /// <summary>
+        /// A nullable money column. Distinct from Dec, which reads NULL as 0:
+        /// on a threshold setting, "no threshold" and "a threshold of zero" are
+        /// opposite instructions.
+        /// </summary>
+        protected static decimal? DecN(NpgsqlDataReader r, string col)
+        {
+            var i = r.GetOrdinal(col);
+            return r.IsDBNull(i) ? null : r.GetDecimal(i);
+        }
+
         protected static DateTime Date(NpgsqlDataReader r, string col)
         {
             var i = r.GetOrdinal(col);
@@ -102,6 +113,39 @@ namespace PoultryFarmAPIWeb.Business
             EnableCustomerBalances = Bool(r, "enablecustomerbalances"),
             EnableStaffPayments = Bool(r, "enablestaffpayments"),
             EnableCashAccounts = Bool(r, "enablecashaccounts"),
+            EnableRecurringExpenses = Bool(r, "enablerecurringexpenses"),
+            EnableSupplierBalances = Bool(r, "enablesupplierbalances"),
+        };
+
+        private static GenericBusinessSettings ReadSettings(NpgsqlDataReader r) => new()
+        {
+            FarmId = Str(r, "farmid") ?? string.Empty,
+            DefaultBillingFrequency = Str(r, "defaultbillingfrequency") ?? "Monthly",
+            DefaultPaymentDueDays = Int(r, "defaultpaymentduedays"),
+            DefaultGracePeriodDays = Int(r, "defaultgraceperioddays"),
+            AutoGenerateInvoices = Bool(r, "autogenerateinvoices"),
+            AutoPostInvoices = Bool(r, "autopostinvoices"),
+            AutoMarkOverdueInvoices = Bool(r, "automarkoverdueinvoices"),
+            AllowOverpayments = Bool(r, "allowoverpayments"),
+            AllowCustomerCredits = Bool(r, "allowcustomercredits"),
+            DefaultRevenueCategoryId = IntN(r, "defaultrevenuecategoryid"),
+            DefaultCashAccountForPayments = IntN(r, "defaultcashaccountforpayments"),
+            DefaultExpenseCashAccountId = IntN(r, "defaultexpensecashaccountid"),
+            RequireReceiptAboveAmount = DecN(r, "requirereceiptaboveamount"),
+            RequireApprovalAboveAmount = DecN(r, "requireapprovalaboveamount"),
+            AllowUnpaidExpenses = Bool(r, "allowunpaidexpenses"),
+            AllowPartialExpensePayments = Bool(r, "allowpartialexpensepayments"),
+            RequireCashAccountForEveryPayment = Bool(r, "requirecashaccountforeverypayment"),
+            AllowNegativeCashAccounts = Bool(r, "allownegativecashaccounts"),
+            RequireReconciliationWarning = Bool(r, "requirereconciliationwarning"),
+            ReconciliationReminderFrequency = Str(r, "reconciliationreminderfrequency") ?? "Monthly",
+            ShowMrr = Bool(r, "showmrr"),
+            ShowBurnRate = Bool(r, "showburnrate"),
+            ShowBreakEvenCustomers = Bool(r, "showbreakevencustomers"),
+            ShowCustomerBalances = Bool(r, "showcustomerbalances"),
+            ShowSupplierBalances = Bool(r, "showsupplierbalances"),
+            ShowCalculatedCashAtHand = Bool(r, "showcalculatedcashathand"),
+            ShowInventoryCards = Bool(r, "showinventorycards"),
         };
 
         /// <summary>
@@ -136,26 +180,131 @@ namespace PoultryFarmAPIWeb.Business
             return rows.FirstOrDefault() ?? new GenericModuleSettings { FarmId = farmId };
         }
 
+        /// <summary>
+        /// Writes the toggles, then RE-READS them.
+        ///
+        /// The upsert returns void, so "SELECT * FROM ...upsert(...)" yields one
+        /// row holding a single null column named after the function. Mapping
+        /// that as a settings row threw, which is why saving module settings
+        /// used to fail with a 500 AFTER having successfully written. Reading
+        /// the row back is also the only way the caller learns the defaults for
+        /// anything it did not send.
+        /// </summary>
         public async Task<GenericModuleSettings> SaveModuleSettings(GenericModuleSettings s)
         {
+            using (var conn = new NpgsqlConnection(ConnectionString))
+            using (var cmd = new NpgsqlCommand(
+                "SELECT spgenericmodulesettings_upsert(p_farmid => @FarmId::text, p_enableproducts => @Products::boolean, p_enableinventory => @Inventory::boolean, p_enablestockadjustments => @StockAdj::boolean, p_enableinternaluse => @InternalUse::boolean, p_enablepurchases => @Purchases::boolean, p_enablesubscriptions => @Subscriptions::boolean, p_enableinvoices => @Invoices::boolean, p_enablecustomerbalances => @CustomerBalances::boolean, p_enablestaffpayments => @StaffPayments::boolean, p_enablecashaccounts => @CashAccounts::boolean, p_enablerecurringexpenses => @RecurringExpenses::boolean, p_enablesupplierbalances => @SupplierBalances::boolean)", conn))
+            {
+                cmd.Parameters.AddWithValue("@FarmId", s.FarmId);
+                cmd.Parameters.AddWithValue("@Products", s.EnableProducts);
+                cmd.Parameters.AddWithValue("@Inventory", s.EnableInventory);
+                cmd.Parameters.AddWithValue("@StockAdj", s.EnableStockAdjustments);
+                cmd.Parameters.AddWithValue("@InternalUse", s.EnableInternalUse);
+                cmd.Parameters.AddWithValue("@Purchases", s.EnablePurchases);
+                cmd.Parameters.AddWithValue("@Subscriptions", s.EnableSubscriptions);
+                cmd.Parameters.AddWithValue("@Invoices", s.EnableInvoices);
+                cmd.Parameters.AddWithValue("@CustomerBalances", s.EnableCustomerBalances);
+                cmd.Parameters.AddWithValue("@StaffPayments", s.EnableStaffPayments);
+                cmd.Parameters.AddWithValue("@CashAccounts", s.EnableCashAccounts);
+                cmd.Parameters.AddWithValue("@RecurringExpenses", s.EnableRecurringExpenses);
+                cmd.Parameters.AddWithValue("@SupplierBalances", s.EnableSupplierBalances);
+                await conn.OpenAsync();
+                await cmd.ExecuteNonQueryAsync();
+            }
+            return await GetModuleSettings(s.FarmId);
+        }
+
+        /// <summary>
+        /// Never returns null: the SP synthesises the declared defaults for a
+        /// company with no row, and reading does not create one.
+        /// </summary>
+        public async Task<GenericBusinessSettings> GetBusinessSettings(string farmId)
+        {
             var rows = await Query(
-                "SELECT * FROM spgenericmodulesettings_upsert(p_farmid => @FarmId::text, p_enableproducts => @Products::boolean, p_enableinventory => @Inventory::boolean, p_enablestockadjustments => @StockAdj::boolean, p_enableinternaluse => @InternalUse::boolean, p_enablepurchases => @Purchases::boolean, p_enablesubscriptions => @Subscriptions::boolean, p_enableinvoices => @Invoices::boolean, p_enablecustomerbalances => @CustomerBalances::boolean, p_enablestaffpayments => @StaffPayments::boolean, p_enablecashaccounts => @CashAccounts::boolean)",
-                cmd =>
-                {
-                    cmd.Parameters.AddWithValue("@FarmId", s.FarmId);
-                    cmd.Parameters.AddWithValue("@Products", s.EnableProducts);
-                    cmd.Parameters.AddWithValue("@Inventory", s.EnableInventory);
-                    cmd.Parameters.AddWithValue("@StockAdj", s.EnableStockAdjustments);
-                    cmd.Parameters.AddWithValue("@InternalUse", s.EnableInternalUse);
-                    cmd.Parameters.AddWithValue("@Purchases", s.EnablePurchases);
-                    cmd.Parameters.AddWithValue("@Subscriptions", s.EnableSubscriptions);
-                    cmd.Parameters.AddWithValue("@Invoices", s.EnableInvoices);
-                    cmd.Parameters.AddWithValue("@CustomerBalances", s.EnableCustomerBalances);
-                    cmd.Parameters.AddWithValue("@StaffPayments", s.EnableStaffPayments);
-                    cmd.Parameters.AddWithValue("@CashAccounts", s.EnableCashAccounts);
-                },
-                Read);
-            return rows.FirstOrDefault() ?? s;
+                "SELECT * FROM spgenericbusinesssettings_get(p_farmid => @FarmId::text)",
+                cmd => cmd.Parameters.AddWithValue("@FarmId", farmId),
+                ReadSettings);
+            return rows.FirstOrDefault() ?? new GenericBusinessSettings { FarmId = farmId };
+        }
+
+        /// <summary>
+        /// Saves the WHOLE settings object.
+        ///
+        /// The SP reads a NULL argument as "leave this one alone", so a partial
+        /// save is possible from SQL; the API deliberately does not offer that.
+        /// A PUT carries the settings a person just looked at, and half a screen
+        /// silently not saving is worse than one extra round trip. The three
+        /// set* flags go TRUE for the same reason: on a whole-object save, a
+        /// null id means the person cleared it.
+        /// </summary>
+        public async Task<GenericBusinessSettings> SaveBusinessSettings(GenericBusinessSettings s)
+        {
+            using (var conn = new NpgsqlConnection(ConnectionString))
+            using (var cmd = new NpgsqlCommand(
+                "SELECT spgenericbusinesssettings_upsert("
+                + "p_farmid => @FarmId::text,"
+                + "p_defaultbillingfrequency => @Freq::text,"
+                + "p_defaultpaymentduedays => @DueDays::integer,"
+                + "p_defaultgraceperioddays => @Grace::integer,"
+                + "p_autogenerateinvoices => @AutoGen::boolean,"
+                + "p_autopostinvoices => @AutoPost::boolean,"
+                + "p_automarkoverdueinvoices => @AutoOverdue::boolean,"
+                + "p_allowoverpayments => @Overpay::boolean,"
+                + "p_allowcustomercredits => @Credits::boolean,"
+                + "p_defaultrevenuecategoryid => @RevCat::integer,"
+                + "p_defaultcashaccountforpayments => @PayAcct::integer,"
+                + "p_defaultexpensecashaccountid => @ExpAcct::integer,"
+                + "p_requirereceiptaboveamount => @Receipt::numeric,"
+                + "p_requireapprovalaboveamount => @Approval::numeric,"
+                + "p_allowunpaidexpenses => @Unpaid::boolean,"
+                + "p_allowpartialexpensepayments => @Partial::boolean,"
+                + "p_requirecashaccountforeverypayment => @NeedAcct::boolean,"
+                + "p_allownegativecashaccounts => @NegCash::boolean,"
+                + "p_requirereconciliationwarning => @RecWarn::boolean,"
+                + "p_reconciliationreminderfrequency => @RecFreq::text,"
+                + "p_showmrr => @ShowMrr::boolean,"
+                + "p_showburnrate => @ShowBurn::boolean,"
+                + "p_showbreakevencustomers => @ShowBreakEven::boolean,"
+                + "p_showcustomerbalances => @ShowCustBal::boolean,"
+                + "p_showsupplierbalances => @ShowSuppBal::boolean,"
+                + "p_showcalculatedcashathand => @ShowCash::boolean,"
+                + "p_showinventorycards => @ShowStock::boolean,"
+                + "p_setrevenuecategory => TRUE,"
+                + "p_setpaymentcashaccount => TRUE,"
+                + "p_setexpensecashaccount => TRUE)", conn))
+            {
+                cmd.Parameters.AddWithValue("@FarmId", s.FarmId);
+                cmd.Parameters.AddWithValue("@Freq", Db(s.DefaultBillingFrequency));
+                cmd.Parameters.AddWithValue("@DueDays", s.DefaultPaymentDueDays);
+                cmd.Parameters.AddWithValue("@Grace", s.DefaultGracePeriodDays);
+                cmd.Parameters.AddWithValue("@AutoGen", s.AutoGenerateInvoices);
+                cmd.Parameters.AddWithValue("@AutoPost", s.AutoPostInvoices);
+                cmd.Parameters.AddWithValue("@AutoOverdue", s.AutoMarkOverdueInvoices);
+                cmd.Parameters.AddWithValue("@Overpay", s.AllowOverpayments);
+                cmd.Parameters.AddWithValue("@Credits", s.AllowCustomerCredits);
+                cmd.Parameters.AddWithValue("@RevCat", Db(s.DefaultRevenueCategoryId));
+                cmd.Parameters.AddWithValue("@PayAcct", Db(s.DefaultCashAccountForPayments));
+                cmd.Parameters.AddWithValue("@ExpAcct", Db(s.DefaultExpenseCashAccountId));
+                cmd.Parameters.AddWithValue("@Receipt", Db(s.RequireReceiptAboveAmount));
+                cmd.Parameters.AddWithValue("@Approval", Db(s.RequireApprovalAboveAmount));
+                cmd.Parameters.AddWithValue("@Unpaid", s.AllowUnpaidExpenses);
+                cmd.Parameters.AddWithValue("@Partial", s.AllowPartialExpensePayments);
+                cmd.Parameters.AddWithValue("@NeedAcct", s.RequireCashAccountForEveryPayment);
+                cmd.Parameters.AddWithValue("@NegCash", s.AllowNegativeCashAccounts);
+                cmd.Parameters.AddWithValue("@RecWarn", s.RequireReconciliationWarning);
+                cmd.Parameters.AddWithValue("@RecFreq", Db(s.ReconciliationReminderFrequency));
+                cmd.Parameters.AddWithValue("@ShowMrr", s.ShowMrr);
+                cmd.Parameters.AddWithValue("@ShowBurn", s.ShowBurnRate);
+                cmd.Parameters.AddWithValue("@ShowBreakEven", s.ShowBreakEvenCustomers);
+                cmd.Parameters.AddWithValue("@ShowCustBal", s.ShowCustomerBalances);
+                cmd.Parameters.AddWithValue("@ShowSuppBal", s.ShowSupplierBalances);
+                cmd.Parameters.AddWithValue("@ShowCash", s.ShowCalculatedCashAtHand);
+                cmd.Parameters.AddWithValue("@ShowStock", s.ShowInventoryCards);
+                await conn.OpenAsync();
+                await cmd.ExecuteNonQueryAsync();
+            }
+            return await GetBusinessSettings(s.FarmId);
         }
 
         /// <summary>

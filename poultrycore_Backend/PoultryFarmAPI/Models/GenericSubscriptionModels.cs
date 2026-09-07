@@ -77,6 +77,59 @@ namespace PoultryFarmAPIWeb.Models
         public bool EnableCustomerBalances { get; set; }
         public bool EnableStaffPayments { get; set; }
         public bool EnableCashAccounts { get; set; }
+        // 251. Both default TRUE: Recurring Expenses shipped ungated in 249 and
+        // Supplier Balances was shown to anyone with Purchases on, so a company
+        // that has never opened the settings page loses no menu item.
+        public bool EnableRecurringExpenses { get; set; } = true;
+        public bool EnableSupplierBalances { get; set; } = true;
+    }
+
+    /// <summary>
+    /// Company-level settings for a Generic business (migration 251).
+    ///
+    /// Not every field is read by something yet -- the migration's column
+    /// comments say which, and the settings page shows only the ones that are.
+    /// They exist here because the DTO has to round-trip whatever the table
+    /// holds; a save that dropped the unread fields would blank them.
+    /// </summary>
+    public class GenericBusinessSettings
+    {
+        public string FarmId { get; set; } = string.Empty;
+
+        // ---- subscription / billing ----------------------------------------
+        public string DefaultBillingFrequency { get; set; } = "Monthly";
+        public int DefaultPaymentDueDays { get; set; }
+        public int DefaultGracePeriodDays { get; set; }
+        public bool AutoGenerateInvoices { get; set; } = true;
+        /// <summary>The billing run approves what it raises. FALSE since 243.</summary>
+        public bool AutoPostInvoices { get; set; }
+        public bool AutoMarkOverdueInvoices { get; set; } = true;
+        public bool AllowOverpayments { get; set; }
+        public bool AllowCustomerCredits { get; set; }
+        public int? DefaultRevenueCategoryId { get; set; }
+        public int? DefaultCashAccountForPayments { get; set; }
+
+        // ---- expenses -------------------------------------------------------
+        public int? DefaultExpenseCashAccountId { get; set; }
+        public decimal? RequireReceiptAboveAmount { get; set; }
+        public decimal? RequireApprovalAboveAmount { get; set; }
+        public bool AllowUnpaidExpenses { get; set; } = true;
+        public bool AllowPartialExpensePayments { get; set; } = true;
+
+        // ---- cash -----------------------------------------------------------
+        public bool RequireCashAccountForEveryPayment { get; set; } = true;
+        public bool AllowNegativeCashAccounts { get; set; }
+        public bool RequireReconciliationWarning { get; set; } = true;
+        public string ReconciliationReminderFrequency { get; set; } = "Monthly";
+
+        // ---- dashboard cards ------------------------------------------------
+        public bool ShowMrr { get; set; } = true;
+        public bool ShowBurnRate { get; set; } = true;
+        public bool ShowBreakEvenCustomers { get; set; } = true;
+        public bool ShowCustomerBalances { get; set; } = true;
+        public bool ShowSupplierBalances { get; set; } = true;
+        public bool ShowCalculatedCashAtHand { get; set; } = true;
+        public bool ShowInventoryCards { get; set; }
     }
 
     /// <summary>

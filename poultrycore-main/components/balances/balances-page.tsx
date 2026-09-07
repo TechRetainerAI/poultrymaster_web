@@ -60,10 +60,28 @@ export interface BalancesPageProps {
   documentHref: (doc: OpenDocumentRow) => string | null
   /** IAM keys gating this page. */
   permissions: { view: string; pay: string; reverse: string; statement: string }
+  /**
+   * What this company calls the party and the document it owes on.
+   *
+   * Optional, and every field defaults to the wording this page has always
+   * used, so the Poultry and Water twins are untouched. A Generic company on
+   * an industry template passes its own -- a gym's page says "Member Balances"
+   * and "Every membership bill is fully paid", because those are the words its
+   * owner uses. See lib/generic/template-labels.
+   */
+  wording?: {
+    /** "customer" / "member" / "student". Lower case; the page capitalises. */
+    party?: string
+    partyPlural?: string
+    /** The page title, spelled out: "Member Balances", "Outstanding Fees". */
+    title?: string
+    /** "sale" / "membership bill" / "fee bill". Lower case. */
+    document?: string
+  }
 }
 
 export function BalancesPage({
-  module, side, companyType, loadCashAccounts, partyHref, documentHref, permissions,
+  module, side, companyType, loadCashAccounts, partyHref, documentHref, permissions, wording,
 }: BalancesPageProps) {
   const fmt = useFmt()
   const router = useRouter()
@@ -73,8 +91,13 @@ export function BalancesPage({
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
 
   const isCustomer = side === "customer"
-  const partyWord = isCustomer ? "customer" : "supplier"
-  const docWord = isCustomer ? "sale" : "purchase"
+  // Defaults are exactly what this page said before wording existed, so a
+  // caller that passes nothing -- Poultry, Water, and Generic's supplier side
+  // -- reads identically.
+  const partyWord = wording?.party ?? (isCustomer ? "customer" : "supplier")
+  const partyWordPlural = wording?.partyPlural ?? `${partyWord}s`
+  const docWord = wording?.document ?? (isCustomer ? "sale" : "purchase")
+  const pageTitle = wording?.title ?? (isCustomer ? "Customer Balances" : "Supplier Balances")
 
   const [rows, setRows] = useState<PartyBalanceRow[]>([])
   const [summary, setSummary] = useState<BalanceSummary | null>(null)
@@ -281,7 +304,7 @@ export function BalancesPage({
         <main className="flex-1 overflow-auto p-4 md:p-6">
           <h1 className="mb-1 flex items-center gap-2 text-2xl font-semibold text-slate-900">
             {isCustomer ? <Users className="h-6 w-6 text-sky-600" /> : <Wallet className="h-6 w-6 text-amber-600" />}
-            {isCustomer ? "Customer Balances" : "Supplier Balances"}
+            {pageTitle}
           </h1>
           <p className="mb-4 text-sm text-slate-500">
             {isCustomer
@@ -327,7 +350,7 @@ export function BalancesPage({
                   <Select value={partyFilter} onValueChange={setPartyFilter}>
                     <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All {partyWord}s</SelectItem>
+                      <SelectItem value="all">All {partyWordPlural}</SelectItem>
                       {partyOptions.map((p) => (
                         <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
                       ))}

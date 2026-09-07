@@ -270,6 +270,20 @@ builder.Services.AddScoped<IGenericCustomerService>(sp => new GenericCustomerSer
 builder.Services.AddScoped<IGenericSaleService>(sp => new GenericSaleService(connectionString));
 builder.Services.AddScoped<IGenericCashTransactionService>(sp => new GenericCashTransactionService(connectionString));
 
+// Phase 5: business templates, service plans, subscriptions, billing runs and
+// Customer Balances (migrations 242-244). Billing is user-triggered on purpose:
+// there is no scheduler anywhere in this API.
+builder.Services.AddScoped<IGenericBusinessTemplateService>(sp => new GenericBusinessTemplateService(connectionString));
+builder.Services.AddScoped<IGenericSubscriptionService>(sp => new GenericSubscriptionService(connectionString));
+builder.Services.AddScoped<IGenericBillingService>(sp => new GenericBillingService(connectionString));
+builder.Services.AddScoped<IGenericBalanceService>(sp => new GenericBalanceService(connectionString));
+// Phase 6: the money-out side (migration 249) -- recurring expenses, staff
+// and contractor payments, and owner contributions and draws.
+builder.Services.AddScoped<IGenericMoneyOutService>(sp => new GenericMoneyOutService(connectionString));
+// Phase 7: the read side (migration 250) -- the subscription dashboard and the
+// reports that were not already answerable from an existing function.
+builder.Services.AddScoped<IGenericSubscriptionReportService>(sp => new GenericSubscriptionReportService(connectionString));
+
 // Phase 4: Suppliers + Purchases + Expenses + Cash Transfers (the money-out
 // side). Purchase_Approve mirrors Sale_Approve; Expense_Approve branches on
 // PaymentMethod (Credit → supplier ledger vs cash account → CashOut);

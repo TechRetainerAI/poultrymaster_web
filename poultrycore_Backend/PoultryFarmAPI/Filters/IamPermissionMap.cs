@@ -202,6 +202,29 @@ namespace PoultryFarmAPIWeb.Filters
             ["generic-company/staff"] = "generic.staff",
             ["generic-company/staff-attendance"] = "generic.attendance",
             ["generic-company/payroll-runs"] = "generic.payroll",
+            ["generic-company/service-plans"] = "generic.subscription-plans",
+            ["generic-company/subscriptions"] = "generic.subscriptions",
+            ["generic-company/billing-runs"] = "generic.billing-runs",
+            ["generic-company/invoices"] = "generic.invoices",
+            ["generic-company/recurring-expenses"] = "generic.recurring-expenses",
+            ["generic-company/staff-payments"] = "generic.staff-payments",
+            ["generic-company/owner-entries"] = "generic.owner-entries",
+            ["generic-company/module-settings"] = "office.organization",
+            ["generic-company/business-settings"] = "office.organization",
+            ["generic-company/business-template"] = "office.organization",
+            // The balance endpoints sit one segment down from the older
+            // customer-payments document routes, which already exist and mean
+            // something else. Both prefixes are mapped so neither lands in the
+            // unmapped bucket -- the bare "generic-company" entry above would
+            // otherwise catch them and call them office.companies.
+            ["generic-company/balances"] = "generic.customer-balances",
+            ["generic-company/balances/customer-balances"] = "generic.customer-balances",
+            ["generic-company/balances/customer-payments"] = "generic.customer-payments",
+            ["generic-company/balances/customers"] = "generic.customer-statements",
+            ["generic-company/balances/supplier-balances"] = "generic.supplier-balances",
+            ["generic-company/balances/supplier-payments"] = "generic.supplier-payments",
+            ["generic-company/balances/suppliers"] = "generic.supplier-statements",
+            ["generic-company/customer-payments"] = "generic.customer-payments",
             ["business-categories"] = "office.organization",
 
             // ---- Business office ----------------------------------------------

@@ -8,6 +8,7 @@
 // about what that button will do rather than a countdown.
 
 import { useEffect, useMemo, useState } from "react"
+import { useGenericModules } from "@/hooks/use-generic-modules"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -64,6 +65,7 @@ export default function GenericSubscriptionsPage() {
   const { toast } = useToast()
   const fmt = useFmt()
 
+  const { businessSettings: companySettings } = useGenericModules()
   const [rows, setRows] = useState<GenericSubscription[]>([])
   const [plans, setPlans] = useState<GenericServicePlan[]>([])
   const [customers, setCustomers] = useState<GenericCustomer[]>([])
@@ -80,20 +82,34 @@ export default function GenericSubscriptionsPage() {
 
   const labels = templateLabels(industry)
 
+  // The company's defaults (251), not hardcoded ones. A school opens this form
+  // on Termly and 0 days; an agency on Monthly and 14. Falls back to the old
+  // hardcoded values while the settings load or if they fail, so the form is
+  // never blocked on them.
   const EMPTY = {
     genericCustomerId: "",
     genericServiceId: "",
     startDate: today(),
     endDate: "",
-    billingFrequency: "Monthly" as BillingFrequency | string,
+    billingFrequency: (companySettings?.defaultBillingFrequency ?? "Monthly") as BillingFrequency | string,
     billingAmount: "0",
     discountAmount: "0",
     taxAmount: "0",
-    paymentDueDays: "0",
-    autoGenerateInvoice: true,
+    paymentDueDays: String(companySettings?.defaultPaymentDueDays ?? 0),
+    autoGenerateInvoice: companySettings?.autoGenerateInvoices ?? true,
     notes: "",
   }
   const [form, setForm] = useState(EMPTY)
+
+  // The settings arrive after the first render, so a form the user has not
+  // opened yet has to pick them up. Only while it is untouched and closed --
+  // resetting a half-typed form under someone's hands would be worse than
+  // showing them a stale default.
+  useEffect(() => {
+    if (!companySettings || open) return
+    setForm((f) => (f.genericCustomerId === "" && f.genericServiceId === "" ? EMPTY : f))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companySettings, open])
 
   const load = async () => {
     setLoading(true)

@@ -22,6 +22,7 @@ import { Check, CreditCard, Loader2, Plus, X } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
+import { useGenericModules } from "@/hooks/use-generic-modules"
 import {
   approveCustomerPayment, cancelCustomerPayment, createCustomerPayment, getCashAccounts, getCustomerPayments, getCustomers,
   type GenericCashAccount, type GenericCustomer, type GenericCustomerPayment,
@@ -44,6 +45,8 @@ function badgeClass(s: string) {
 }
 
 function GenericCustomerPaymentsPageInner() {
+  // "Membership Payment" for a gym, "Fee Payment" for a school.
+  const { labels } = useGenericModules()
   const router = useRouter()
   const sp = useSearchParams()
   const status = sp.get("status") || "All"
@@ -102,7 +105,7 @@ function GenericCustomerPaymentsPageInner() {
   )
 
   const onSave = async () => {
-    if (!form.genericCustomerId) { toast({ title: "Pick a customer", variant: "destructive" }); return }
+    if (!form.genericCustomerId) { toast({ title: `Pick a ${labels.customer.toLowerCase()}`, variant: "destructive" }); return }
     const amount = Number(form.amount)
     if (!(amount > 0)) { toast({ title: "Amount must be greater than zero", variant: "destructive" }); return }
     setSaving(true)
@@ -116,7 +119,7 @@ function GenericCustomerPaymentsPageInner() {
         notes: form.notes || null,
       })
       if (created) {
-        toast({ title: "Customer payment created as Draft. Approve to update ledger + cash." })
+        toast({ title: `${labels.payment} created as Draft. Approve to update ledger + cash.` })
         setOpen(false)
         setForm({ genericCustomerId: "", amount: "0", paymentMethod: "Cash", genericCashAccountId: form.genericCashAccountId, paymentDate: new Date().toISOString().slice(0, 10), notes: "" })
         await load()
@@ -145,24 +148,24 @@ function GenericCustomerPaymentsPageInner() {
           <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
             <div>
               <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
-                <CreditCard className="h-6 w-6 text-emerald-600" /> Customer payments
+                <CreditCard className="h-6 w-6 text-emerald-600" /> {labels.paymentPlural}
               </h1>
-              <p className="text-sm text-slate-500">{rows.length} payment(s) – money coming in from customers.</p>
+              <p className="text-sm text-slate-500">{rows.length} payment(s) – money coming in from {labels.customerPlural.toLowerCase()}.</p>
             </div>
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild><Button className="w-full sm:w-auto h-11 sm:h-10"><Plus className="h-4 w-4 mr-1" />Record payment</Button></DialogTrigger>
               <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
-                    <CreditCard className="w-5 h-5 text-blue-600" /> New customer payment
+                    <CreditCard className="w-5 h-5 text-blue-600" /> New {labels.payment.toLowerCase()}
                   </DialogTitle>
-                  <DialogDescription>Creates a Draft payment. Approval credits the customer&apos;s ledger and adds cash.</DialogDescription>
+                  <DialogDescription>Creates a Draft payment. Approval credits the {labels.customer.toLowerCase()}&apos;s ledger and adds cash.</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
-                  <FormSection title="Customer" color="indigo" columns={1}>
-                    <FormField label="Customer *">
+                  <FormSection title={labels.customer} color="indigo" columns={1}>
+                    <FormField label={`${labels.customer} *`}>
                       <Select value={form.genericCustomerId} onValueChange={(v) => setForm((f) => ({ ...f, genericCustomerId: v }))}>
-                        <SelectTrigger><SelectValue placeholder="Pick customer..." /></SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder={`Pick ${labels.customer.toLowerCase()}...`} /></SelectTrigger>
                         <SelectContent>{customers.map((c) => <SelectItem key={c.genericCustomerId} value={String(c.genericCustomerId)}>{c.customerName}{c.currentBalance > 0 ? ` – owes ${fmt(c.currentBalance)}` : ""}</SelectItem>)}</SelectContent>
                       </Select>
                     </FormField>
@@ -219,7 +222,7 @@ function GenericCustomerPaymentsPageInner() {
           {loading ? (
             <div className="flex items-center gap-2 text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading...</div>
           ) : rows.length === 0 ? (
-            <Card><CardContent className="py-8 text-center text-slate-500">No customer payments yet.</CardContent></Card>
+            <Card><CardContent className="py-8 text-center text-slate-500">No {labels.paymentPlural.toLowerCase()} yet.</CardContent></Card>
           ) : (
             <>
             <ListFilters

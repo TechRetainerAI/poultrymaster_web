@@ -14,8 +14,14 @@
 
 import { BalancesPage } from "@/components/balances/balances-page"
 import { getCashAccounts } from "@/lib/api/generic"
+import { useGenericModules } from "@/hooks/use-generic-modules"
 
 export default function GenericCustomerBalancesPage() {
+  // The shared page speaks "customer" and "sale" by default. A gym's owner
+  // reads "member" and "membership bill" instead -- same table, same API, same
+  // permissions, different words.
+  const { labels } = useGenericModules()
+
   return (
     <BalancesPage
       module="generic"
@@ -43,6 +49,12 @@ export default function GenericCustomerBalancesPage() {
         pay: "generic.customer-payments.create",
         reverse: "generic.customer-payments.reverse",
         statement: "generic.customer-statements.view",
+      }}
+      wording={{
+        party: labels.customer.toLowerCase(),
+        partyPlural: labels.customerPlural.toLowerCase(),
+        title: labels.customerBalance,
+        document: labels.invoice.toLowerCase(),
       }}
     />
   )

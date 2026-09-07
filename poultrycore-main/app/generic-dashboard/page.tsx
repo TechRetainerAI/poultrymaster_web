@@ -16,6 +16,8 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { getDashboard, type GenericDashboard } from "@/lib/api/generic"
+import { useGenericModules } from "@/hooks/use-generic-modules"
+import { GenericSubscriptionDashboard } from "@/components/generic/subscription-dashboard"
 
 function fmtMoney(n: number) {
   return new Intl.NumberFormat(undefined, { style: "currency", currency: "GHS", maximumFractionDigits: 2 }).format(n)
@@ -30,6 +32,13 @@ export default function GenericDashboardPage() {
   const [data, setData] = useState<GenericDashboard | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // A subscription business gets a different dashboard, not the same one with
+  // different numbers -- see components/generic/subscription-dashboard.tsx.
+  // Until the template has loaded neither is fetched: firing the retail
+  // dashboard and then throwing it away is a wasted round trip on every visit.
+  const modules = useGenericModules()
+  const showSubscription = modules.isSubscriptionBusiness
+
   useEffect(() => {
     // activeFarmType is null on first render before Zustand persist rehydrates.
     // Firing the API call during that window pulls farmId from localStorage —
@@ -41,6 +50,7 @@ export default function GenericDashboardPage() {
       router.replace("/dashboard")
       return
     }
+    if (modules.isLoading || showSubscription) return
     let cancelled = false
     ;(async () => {
       try {
@@ -55,7 +65,7 @@ export default function GenericDashboardPage() {
       }
     })()
     return () => { cancelled = true }
-  }, [activeFarmType, router, toast])
+  }, [activeFarmType, router, toast, modules.isLoading, showSubscription])
 
   const today = data?.today
   const week  = data?.week
@@ -69,6 +79,10 @@ export default function GenericDashboardPage() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <DashboardHeader />
         <main className="flex-1 overflow-auto p-4 md:p-6">
+          {showSubscription ? (
+            <GenericSubscriptionDashboard companyName={activeFarmName} />
+          ) : (
+          <>
           <div className="mb-6 flex items-end justify-between flex-wrap gap-2">
             <div>
               <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
@@ -219,6 +233,8 @@ export default function GenericDashboardPage() {
                 )}
               </div>
             </>
+          )}
+          </>
           )}
         </main>
       </div>

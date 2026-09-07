@@ -4,6 +4,11 @@
 // all run the SAME module bundle -- the difference is vocabulary, not
 // behaviour, which is why this is a lookup table and not ten copies of a page.
 //
+// The table below is section 4 of the spec, line for line. Where the spec names
+// a label ("Membership Bill", "Fee Bill", "Subscription Payment") that name is
+// used verbatim rather than a near-enough approximation, because the point of the feature
+// is that the owner reads their own words.
+//
 // Deliberately a typed map rather than a database table. Labels never vary from
 // one gym to the next, a map is unit-testable, and putting them in SQL would
 // mean a round trip before the sidebar can render its own menu items.
@@ -40,16 +45,25 @@ export interface TemplateLabels {
   /** What a customer being on a plan is called. */
   subscription: string
   subscriptionPlural: string
+  /** What the bill is called. A school sends fee bills, a gym membership bills. */
   invoice: string
   invoicePlural: string
+  /** What money coming in is called. */
   payment: string
+  paymentPlural: string
   /** The Customer Balances page title. */
   customerBalance: string
+  /** How a late payer is described: "Overdue Member", "Overdue Student / Parent". */
+  overdueCustomer: string
 }
 
 /**
  * Plural by adding "s" unless the label says otherwise. Every label below that
  * does not pluralise that way spells its plural out.
+ *
+ * Note "Service / Plan" + "s" is "Service / Plans", which is the wording the
+ * spec's own menu uses -- the slash form pluralises correctly by accident, and
+ * the test pins it so a future edit cannot quietly break it.
  */
 function labels(
   customer: string,
@@ -67,35 +81,78 @@ function labels(
     invoice: "Invoice",
     invoicePlural: "Invoices",
     payment: "Payment",
+    paymentPlural: "Payments",
     customerBalance: `${customer} Balances`,
+    overdueCustomer: `Overdue ${customer}`,
     ...overrides,
   }
 }
 
 const LABELS: Record<IndustryTemplate, TemplateLabels> = {
-  SaaS: labels("Customer", "Plan", "Subscription"),
+  // A SaaS company keeps the plain words, except that its plans are
+  // subscription plans and the money coming in is a subscription payment.
+  SaaS: labels("Customer", "Subscription Plan", "Subscription", {
+    payment: "Subscription Payment",
+    paymentPlural: "Subscription Payments",
+  }),
+
   Gym: labels("Member", "Membership Plan", "Membership", {
+    invoice: "Membership Bill",
+    invoicePlural: "Membership Bills",
+    payment: "Membership Payment",
+    paymentPlural: "Membership Payments",
     customerBalance: "Member Balances",
   }),
-  School: labels("Student", "Fee Structure", "Enrolment", {
-    // A school bills a term, and calls the bill a fee note.
-    invoice: "Fee Note",
-    invoicePlural: "Fee Notes",
+
+  // A school bills a term, and the person who pays is usually not the person
+  // enrolled -- which is why the overdue label names both.
+  School: labels("Student", "Fee Plan", "Enrollment", {
+    invoice: "Fee Bill",
+    invoicePlural: "Fee Bills",
+    payment: "Fee Payment",
+    paymentPlural: "Fee Payments",
     customerBalance: "Outstanding Fees",
+    overdueCustomer: "Overdue Student / Parent",
   }),
+
   CleaningService: labels("Client", "Service Package", "Service Contract", {
     subscriptionPlural: "Service Contracts",
+    invoice: "Service Bill",
+    invoicePlural: "Service Bills",
+    payment: "Client Payment",
+    paymentPlural: "Client Payments",
   }),
-  SecurityService: labels("Client", "Service Package", "Service Contract", {
-    subscriptionPlural: "Service Contracts",
+
+  SecurityService: labels("Client", "Security Service Package", "Security Contract", {
+    subscriptionPlural: "Security Contracts",
+    invoice: "Service Bill",
+    invoicePlural: "Service Bills",
+    payment: "Client Payment",
+    paymentPlural: "Client Payments",
   }),
-  Agency: labels("Client", "Retainer Package", "Retainer"),
-  RetainerBusiness: labels("Client", "Retainer Package", "Retainer"),
+
+  Agency: labels("Client", "Retainer Package", "Support Retainer", {
+    payment: "Client Payment",
+    paymentPlural: "Client Payments",
+  }),
+
+  RetainerBusiness: labels("Client", "Retainer Package", "Retainer", {
+    payment: "Client Payment",
+    paymentPlural: "Client Payments",
+  }),
+
   MembershipBusiness: labels("Member", "Membership Plan", "Membership", {
+    invoice: "Bill",
+    invoicePlural: "Bills",
+    payment: "Member Payment",
+    paymentPlural: "Member Payments",
     customerBalance: "Member Balances",
   }),
-  Retail: labels("Customer", "Plan", "Subscription"),
-  Other: labels("Customer", "Plan", "Subscription"),
+
+  // A shop and an unclassified business both keep the neutral words. "Service /
+  // Plan" is the spec's own wording for a business that may have either.
+  Retail: labels("Customer", "Service / Plan", "Subscription"),
+  Other: labels("Customer", "Service / Plan", "Subscription / Contract"),
 }
 
 /** The default every Generic company that predates templates keeps. */

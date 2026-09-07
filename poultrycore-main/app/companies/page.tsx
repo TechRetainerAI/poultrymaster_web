@@ -17,6 +17,8 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { getMyCompanies, createCompany, sendCompanyWelcomeEmail, switchCompany, type Company, type CompanyType } from "@/lib/api/companies"
+import { BUSINESS_TYPES, findBusinessType, needsTemplate } from "@/lib/companies/business-types"
+import { useRouter } from "next/navigation"
 
 export default function CompaniesPage() {
   const { toast } = useToast()
@@ -29,12 +31,18 @@ export default function CompaniesPage() {
   const [companies, setLocal] = useState<Company[]>([])
   const pg = usePagination(companies)
   const [loading, setLoading] = useState(true)
+  const router = useRouter()
 
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState<{ name: string; type: CompanyType; email: string; phoneNumber: string }>({
-    name: "", type: "Water", email: "", phoneNumber: "",
+  // The dropdown offers BUSINESSES, not company types. Several of them map to
+  // the same CompanyType ("Generic") and differ only by template, so the form
+  // holds the business-type id and derives the rest from it.
+  const [form, setForm] = useState<{ name: string; businessTypeId: string; email: string; phoneNumber: string }>({
+    name: "", businessTypeId: "water", email: "", phoneNumber: "",
   })
+  const chosen = findBusinessType(form.businessTypeId)
+  const companyType: CompanyType = chosen?.companyType ?? "Generic"
 
   async function load() {
     setLoading(true)
@@ -51,18 +59,32 @@ export default function CompaniesPage() {
     if (!form.name.trim()) return toast({ title: "Name required", variant: "destructive" })
     setSaving(true)
     try {
-      await createCompany({ name: form.name, type: form.type, email: form.email || undefined, phoneNumber: form.phoneNumber || undefined })
+      const created = await createCompany({ name: form.name, type: companyType, email: form.email || undefined, phoneNumber: form.phoneNumber || undefined })
       toast({ title: `Created ${form.name}` })
       // Email a confirmation to the company email, falling back to the owner's
       // account email so the creator always gets it.
       const to = (form.email.trim() || userEmail || "").trim()
       if (to) {
-        const r = await sendCompanyWelcomeEmail({ email: to, companyName: form.name, companyType: form.type })
+        const r = await sendCompanyWelcomeEmail({ email: to, companyName: form.name, companyType })
         if (r.success) toast({ title: "Confirmation emailed", description: `Sent to ${to}.` })
         else toast({ title: "Couldn't email confirmation", description: r.message || "Email was not sent.", variant: "destructive" })
       }
-      setOpen(false); setForm({ name: "", type: "Water", email: "", phoneNumber: "" })
+      setOpen(false); setForm({ name: "", businessTypeId: "water", email: "", phoneNumber: "" })
       await load()
+
+      // A business type that carries a template needs setting up before it is
+      // useful, so switch into the new company and hand over to the wizard.
+      // Switching first is what makes the wizard's requests target it.
+      if (needsTemplate(chosen) && created?.farmId) {
+        try {
+          const res = await switchCompany(created.farmId)
+          setActiveCompany(res.farmId, res.farmName, companyType, res.accessToken.token)
+          router.push(`/generic-setup/wizard?industry=${encodeURIComponent(chosen!.industryTemplate!)}`)
+        } catch {
+          // Switching failed — the company still exists and the owner can pick
+          // it from this list, so say nothing louder than the create toast.
+        }
+      }
     } catch (e: any) { toast({ title: "Create failed", description: e?.message, variant: "destructive" }) }
     finally { setSaving(false) }
   }
@@ -151,16 +173,19 @@ export default function CompaniesPage() {
           <DialogHeader><DialogTitle>Create new company</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div><Label>Type</Label>
-              <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v as CompanyType })}>
+              <Select value={form.businessTypeId} onValueChange={(v) => setForm({ ...form, businessTypeId: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Water">Water (sachet / bottled water)</SelectItem>
-                  <SelectItem value="Poultry">Poultry farm</SelectItem>
-                  <SelectItem value="Generic">Generic (shop / salon / pharmacy / any small business)</SelectItem>
-                  <SelectItem value="Hotel">Hotel (rooms, bookings, front desk)</SelectItem>
-                  <SelectItem value="Restaurant">Restaurant (POS, menu, kitchen, delivery)</SelectItem>
+                  {BUSINESS_TYPES.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.label} — {t.description}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              {needsTemplate(chosen) && (
+                <p className="text-xs text-slate-500 mt-1">
+                  We&apos;ll set up the right menus and starter categories for this, and you can change any of it later.
+                </p>
+              )}
             </div>
             <div><Label>Company name *</Label>
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Cool Spring Water Co." /></div>

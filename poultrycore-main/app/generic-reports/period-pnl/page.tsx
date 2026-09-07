@@ -14,6 +14,8 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { getPeriodPnL, type GenericPeriodPnL } from "@/lib/api/generic"
+import { getIncomeSplit, type GenericIncomeSplit } from "@/lib/api/generic-reports"
+import { useGenericModules } from "@/hooks/use-generic-modules"
 import { PeriodSelect } from "@/components/ui/period-select"
 import { rangeToPeriod } from "@/lib/date-ranges"
 
@@ -34,13 +36,26 @@ export default function PeriodPnLPage() {
   const logout = useLogout()
   const { toast } = useToast()
 
+  const { labels, isSubscriptionBusiness } = useGenericModules()
+
   const [range, setRange] = useState(defaultMonthRange())
   const [data, setData] = useState<GenericPeriodPnL | null>(null)
+  // Which part of the income recurs. The TOTALS still come from the P&L
+  // function -- this only splits the income line, so the two can never
+  // disagree about what income was.
+  const [split, setSplit] = useState<GenericIncomeSplit | null>(null)
   const [loading, setLoading] = useState(false)
 
   const load = async () => {
     setLoading(true)
-    try { setData(await getPeriodPnL(range.fromDate, range.toDate)) }
+    try {
+      const [pnl, sp] = await Promise.all([
+        getPeriodPnL(range.fromDate, range.toDate),
+        getIncomeSplit(range.fromDate, range.toDate).catch(() => null),
+      ])
+      setData(pnl)
+      setSplit(sp)
+    }
     catch (e: any) { toast({ title: "Could not load report", description: e?.message ?? String(e), variant: "destructive" }) }
     finally { setLoading(false) }
   }
@@ -91,6 +106,25 @@ export default function PeriodPnLPage() {
               <Stat title="Profit margin"       value={`${data.profitMarginPct.toFixed(1)}%`} />
               <Stat title="Purchases paid"      value={fmt(data.totalPurchasesPaid)} />
               <Stat title="Sales count"         value={data.salesCount.toString()}   />
+            </div>
+          )}
+
+          {/* Where the income came from. Only worth the space for a business
+              that bills on a schedule -- a shop has no recurring line. */}
+          {!loading && data && split && isSubscriptionBusiness && (
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+              <Stat
+                title={`${labels.subscription} income`}
+                value={fmt(split.subscriptionIncome)}
+                accent="emerald"
+              />
+              <Stat title="Other income" value={fmt(split.otherIncome)} />
+              <Stat
+                title="Recurring share"
+                value={split.totalIncome > 0
+                  ? `${((split.subscriptionIncome * 100) / split.totalIncome).toFixed(1)}%`
+                  : "—"}
+              />
             </div>
           )}
         </main>

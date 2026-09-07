@@ -19,8 +19,9 @@ namespace PoultryFarmAPIWeb.Controllers
     /// endpoints live one segment down, and lib/api/balances.ts points the
     /// generic module at that prefix.
     ///
-    /// Customer side only. GenericExpenses has no AmountPaid/Balance columns at
-    /// all, so the supplier mirror needs its own migration first.
+    /// Both sides. Migration 248 gave GenericExpenses the AmountPaid/DueDate/
+    /// PaymentStatus columns it never had and joined it to GenericPurchases behind
+    /// one fngenericpayables union, so the payable half finally exists.
     /// </summary>
     [ApiController]
     [Route("api/generic-company/{farmId}/balances")]
@@ -151,6 +152,116 @@ namespace PoultryFarmAPIWeb.Controllers
             var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
             if (guard is not null) return guard;
             return Ok(await _svc.GetCustomerStatement(farmId, customerId, from, to));
+        }
+
+        // ------------------------------------------------------ supplier balances
+
+        [HttpGet("supplier-balances")]
+        public async Task<ActionResult<IEnumerable<PartyBalanceRow>>> GetSupplierBalances(
+            string farmId, [FromQuery] DateTime? from, [FromQuery] DateTime? to,
+            [FromQuery] int? supplierId, [FromQuery] string? status,
+            [FromQuery] decimal? minBalance, [FromQuery] string? search)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+
+            return Ok(await _svc.GetSupplierBalances(new BalanceQuery
+            {
+                FarmId = farmId,
+                From = from,
+                To = to,
+                PartyId = supplierId,
+                Status = status,
+                MinBalance = minBalance,
+                Search = search,
+            }));
+        }
+
+        [HttpGet("supplier-balances/summary")]
+        public async Task<ActionResult<BalanceSummary>> GetSupplierSummary(string farmId)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            return Ok(await _svc.GetSupplierSummary(farmId));
+        }
+
+        /// <summary>
+        /// The unpaid bills behind a supplier's balance -- purchases AND expenses,
+        /// which is why every row carries its document type. Named open-purchases
+        /// to match the poultry and water routes the shared page already calls.
+        /// </summary>
+        [HttpGet("supplier-balances/{supplierId:int}/open-purchases")]
+        public async Task<ActionResult<IEnumerable<OpenDocumentRow>>> GetOpenBills(
+            string farmId, int supplierId,
+            [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] string? status)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            return Ok(await _svc.GetOpenBills(farmId, supplierId, from, to, status));
+        }
+
+        [HttpGet("supplier-payments")]
+        public async Task<ActionResult<IEnumerable<PaymentHistoryRow>>> GetSupplierPayments(
+            string farmId, [FromQuery] int? supplierId, [FromQuery] string? documentType,
+            [FromQuery] int? documentId, [FromQuery] DateTime? from, [FromQuery] DateTime? to)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            return Ok(await _svc.GetSupplierPayments(farmId, supplierId, documentType, documentId, from, to));
+        }
+
+        [HttpGet("supplier-payments/{paymentId:int}")]
+        public async Task<ActionResult> GetSupplierPayment(string farmId, int paymentId)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+
+            var payments = await _svc.GetSupplierPayments(farmId, null, null, null, null, null);
+            var payment = payments.FirstOrDefault(p => p.PaymentId == paymentId.ToString());
+            if (payment is null) return NotFound();
+
+            var allocations = await _svc.GetSupplierPaymentAllocations(farmId, paymentId);
+            return Ok(new { payment, allocations });
+        }
+
+        /// <summary>
+        /// One payment spread across any mix of purchases and expenses, and one
+        /// SQL call, so it either lands completely or not at all.
+        /// </summary>
+        [HttpPost("supplier-payments")]
+        public async Task<ActionResult> RecordSupplierPayment(string farmId, [FromBody] RecordPaymentRequest r)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+
+            r.FarmId = farmId;
+            if (r.PartyId is null or 0) return BadRequest("A supplier is required to make a payment.");
+            if (r.Allocations.Count == 0) return BadRequest("Select at least one bill to apply this payment to.");
+
+            var paymentId = await _svc.RecordSupplierPayment(r);
+            return Ok(new { paymentId });
+        }
+
+        [HttpPost("supplier-payments/{paymentId:int}/reverse")]
+        public async Task<IActionResult> ReverseSupplierPayment(
+            string farmId, int paymentId, [FromBody] ReversePaymentRequest r)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+
+            r.FarmId = farmId;
+            await _svc.ReverseSupplierPayment(farmId, paymentId, r.Reason, r.ReversedBy);
+            return NoContent();
+        }
+
+        [HttpGet("suppliers/{supplierId:int}/statement")]
+        public async Task<ActionResult<IEnumerable<StatementLine>>> GetSupplierStatement(
+            string farmId, int supplierId, [FromQuery] DateTime? from, [FromQuery] DateTime? to)
+        {
+            var guard = await GenericFarmGuard.EnsureAsync(_companies, farmId, this);
+            if (guard is not null) return guard;
+            return Ok(await _svc.GetSupplierStatement(farmId, supplierId, from, to));
         }
 
         // ----------------------------------------------------------------- audit

@@ -10,6 +10,13 @@ namespace PoultryFarmAPIWeb.Business
         Task<GenericBusinessTemplateInfo> GetTemplate(string farmId);
         Task<GenericModuleSettings> GetModuleSettings(string farmId);
         Task<GenericModuleSettings> SaveModuleSettings(GenericModuleSettings s);
+
+        /// <summary>Company policy and defaults (migration 251). Never null.</summary>
+        Task<GenericBusinessSettings> GetBusinessSettings(string farmId);
+
+        /// <summary>Saves the whole settings object and returns what was stored.</summary>
+        Task<GenericBusinessSettings> SaveBusinessSettings(GenericBusinessSettings s);
+
         Task ApplyTemplate(ApplyBusinessTemplateRequest r);
     }
 

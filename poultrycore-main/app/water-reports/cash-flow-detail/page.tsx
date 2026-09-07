@@ -63,6 +63,16 @@ export default function WaterCashFlowDetailReportPage() {
   const previousRange = useMemo(() => {
     const from = new Date(fromDate)
     const to = new Date(toDate)
+
+    // Clearing either native date input emits "" (report-shell.tsx:298), and
+    // new Date("") is an Invalid Date whose toISOString() THROWS RangeError.
+    // With no bounded window there is no period before it. days is 0 rather
+    // than NaN because buildCashFlowAnalysis guards on `daysInPeriod <= 0`,
+    // which NaN slips straight through into a NaN runway figure.
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+      return { from: null, to: null, days: 0 }
+    }
+
     const days = Math.max(1, Math.round((to.getTime() - from.getTime()) / 86_400_000) + 1)
     const prevTo = new Date(from.getTime() - 86_400_000)
     const prevFrom = new Date(prevTo.getTime() - (days - 1) * 86_400_000)
@@ -76,7 +86,9 @@ export default function WaterCashFlowDetailReportPage() {
     // one. The period's own figures are what the page exists to show.
     const [cur, prev] = await Promise.allSettled([
       getCashFlow("Water", { fromDate, toDate }),
-      getCashFlow("Water", { fromDate: previousRange.from, toDate: previousRange.to }),
+      previousRange.from && previousRange.to
+        ? getCashFlow("Water", { fromDate: previousRange.from, toDate: previousRange.to })
+        : Promise.resolve(null),
     ])
 
     if (cur.status === "fulfilled") {
@@ -86,7 +98,7 @@ export default function WaterCashFlowDetailReportPage() {
       setError(cur.reason?.message ?? String(cur.reason))
       setRows([]); setSummary(EMPTY_SUMMARY)
     }
-    setPrevSummary(prev.status === "fulfilled" ? prev.value.summary : EMPTY_SUMMARY)
+    setPrevSummary(prev.status === "fulfilled" ? (prev.value?.summary ?? EMPTY_SUMMARY) : EMPTY_SUMMARY)
     setBusy(false)
   }, [fromDate, toDate, previousRange.from, previousRange.to])
 

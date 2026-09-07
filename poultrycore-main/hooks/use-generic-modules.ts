@@ -16,13 +16,18 @@
 import { useEffect, useState } from "react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import {
-  getModuleSettings, getBusinessTemplate, type GenericModuleSettings,
+  getModuleSettings, getBusinessTemplate, getBusinessSettings,
+  type GenericModuleSettings, type GenericBusinessSettings,
 } from "@/lib/api/generic-subscriptions"
-import { templateLabels, type TemplateLabels } from "@/lib/generic/template-labels"
+import { hasSubscriptions, templateLabels, type TemplateLabels } from "@/lib/generic/template-labels"
 
 interface Cached {
   settings: GenericModuleSettings | null
   industry: string | null
+  /** The MODULE BUNDLE -- "SubscriptionServiceBusiness" and friends. */
+  business: string | null
+  /** Company policy and defaults (251). Null while loading or on failure. */
+  businessSettings: GenericBusinessSettings | null
 }
 
 // Module-level, not React state: three components mount at once and must not
@@ -38,13 +43,18 @@ async function load(farmId: string): Promise<Cached> {
   if (running) return running
 
   const p = (async () => {
-    const [settings, template] = await Promise.all([
+    // Three requests, one round of them, cached per farm -- the sidebar, the
+    // top nav, the mobile bar and the dashboard all ask on the same render.
+    const [settings, template, businessSettings] = await Promise.all([
       getModuleSettings().catch(() => null),
       getBusinessTemplate().catch(() => null),
+      getBusinessSettings().catch(() => null),
     ])
     const value: Cached = {
       settings,
       industry: template?.genericIndustryTemplate ?? null,
+      business: template?.genericBusinessTemplate ?? null,
+      businessSettings,
     }
     cache.set(farmId, value)
     inflight.delete(farmId)
@@ -69,6 +79,18 @@ export function invalidateGenericModules(farmId?: string) {
 export interface GenericModulesResult {
   settings: GenericModuleSettings | null
   industry: string | null
+  /** Which bundle this company runs. Null for a company that predates templates. */
+  business: string | null
+  /** True when this company bills on a schedule -- it gets the subscription dashboard. */
+  isSubscriptionBusiness: boolean
+  /** Company policy and defaults. Null while loading and on failure. */
+  businessSettings: GenericBusinessSettings | null
+  /**
+   * Whether to show a dashboard card. TRUE while loading and on failure: these
+   * gate cards a company already sees, and a card that flickers out is worse
+   * than one shown a moment early.
+   */
+  showCard: (key: keyof GenericBusinessSettings) => boolean
   labels: TemplateLabels
   isLoading: boolean
   /**
@@ -77,6 +99,14 @@ export interface GenericModulesResult {
    * this, because retro-fitting gates would take away access people have today.
    */
   showNew: (key: keyof GenericModuleSettings) => boolean
+  /**
+   * Whether to show a nav item that is ALREADY visible to everyone today and
+   * has just been given a toggle. TRUE while loading and on failure, which is
+   * the opposite of showNew and for the opposite reason: hiding a menu item
+   * someone has been using because a settings request failed is a regression,
+   * where a new item appearing a moment late is not.
+   */
+  showExisting: (key: keyof GenericModuleSettings) => boolean
 }
 
 export function useGenericModules(): GenericModulesResult {
@@ -85,13 +115,15 @@ export function useGenericModules(): GenericModulesResult {
   const isGeneric = activeFarmType === "Generic"
 
   const [state, setState] = useState<Cached>(() =>
-    activeFarmId ? cache.get(activeFarmId) ?? { settings: null, industry: null } : { settings: null, industry: null },
+    activeFarmId
+      ? cache.get(activeFarmId) ?? { settings: null, industry: null, business: null, businessSettings: null }
+      : { settings: null, industry: null, business: null, businessSettings: null },
   )
   const [isLoading, setIsLoading] = useState(isGeneric && !cache.get(activeFarmId ?? ""))
 
   useEffect(() => {
     if (!isGeneric || !activeFarmId) {
-      setState({ settings: null, industry: null })
+      setState({ settings: null, industry: null, business: null, businessSettings: null })
       setIsLoading(false)
       return
     }
@@ -112,8 +144,23 @@ export function useGenericModules(): GenericModulesResult {
   return {
     settings: state.settings,
     industry: state.industry,
+    business: state.business,
+    // Falls back to the subscriptions toggle for a company templated before
+    // genericbusinesstemplate was stamped: if it has subscriptions on, the
+    // subscription dashboard is the one it wants.
+    isSubscriptionBusiness:
+      hasSubscriptions(state.business) || Boolean(state.settings?.enableSubscriptions),
     labels: templateLabels(state.industry),
+    businessSettings: state.businessSettings,
     isLoading,
     showNew: (key) => Boolean(state.settings?.[key]),
+    showExisting: (key) => {
+      const v = state.settings?.[key]
+      return v === undefined || v === null ? true : Boolean(v)
+    },
+    showCard: (key) => {
+      const v = state.businessSettings?.[key]
+      return v === undefined || v === null ? true : Boolean(v)
+    },
   }
 }
