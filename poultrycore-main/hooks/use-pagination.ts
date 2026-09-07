@@ -44,7 +44,7 @@ export interface PaginationResult<T> {
   }
 }
 
-export function usePagination<T>(items: T[], initialPageSize = 5): PaginationResult<T> {
+export function usePagination<T>(items: T[], initialPageSize = 10): PaginationResult<T> {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(initialPageSize)
 

@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Loader2, BarChart3, RefreshCw } from "lucide-react"
 import { DataPagination } from "@/components/ui/data-pagination"
+import { ReportTableCards } from "@/components/reports/report-shell"
 import { usePagination } from "@/hooks/use-pagination"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
@@ -148,6 +149,16 @@ export default function WaterReportsPage() {
                 <Card>
                   <CardContent className="p-0">
                     {routes.length === 0 ? <div className="p-8 text-center text-slate-500">No route data.</div> : (
+                      <ReportTableCards
+                        columns={[
+                          { header: "Route" }, { header: "Loaded", align: "right" }, { header: "Sold", align: "right" },
+                          { header: "Revenue", align: "right" }, { header: "Shortages", align: "right" }, { header: "Net", align: "right" },
+                        ]}
+                        rows={routes.map((r) => [
+                          r.routeName, r.totalBagsLoaded, r.totalBagsSold,
+                          gh(r.totalRevenue), gh(r.totalShortages), gh(r.netRouteIncome),
+                        ])}
+                      >
                       <div className="overflow-x-auto">
                       <Table>
                         <TableHeader><TableRow><TableHead>Route</TableHead><TableHead className="text-right">Loaded</TableHead><TableHead className="text-right">Sold</TableHead><TableHead className="text-right">Revenue</TableHead><TableHead className="text-right">Shortages</TableHead><TableHead className="text-right">Net</TableHead></TableRow></TableHeader>
@@ -165,8 +176,9 @@ export default function WaterReportsPage() {
                         </TableBody>
                       </Table>
                       </div>
+                      <DataPagination {...pgRoutes.paginationProps} className="px-4 pb-4" />
+                      </ReportTableCards>
                     )}
-                    <DataPagination {...pgRoutes.paginationProps} className="px-4 pb-4" />
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -175,6 +187,16 @@ export default function WaterReportsPage() {
                 <Card>
                   <CardContent className="p-0">
                     {drivers.length === 0 ? <div className="p-8 text-center text-slate-500">No driver data.</div> : (
+                      <ReportTableCards
+                        columns={[
+                          { header: "Driver" }, { header: "Loaded", align: "right" }, { header: "Sold", align: "right" },
+                          { header: "Expected", align: "right" }, { header: "Accounted", align: "right" }, { header: "Shortages", align: "right" },
+                        ]}
+                        rows={drivers.map((d) => [
+                          d.driverName, d.totalBagsLoaded, d.totalBagsSold,
+                          gh(d.expectedRevenue), gh(d.actualAccountedFor), gh(d.totalShortages),
+                        ])}
+                      >
                       <div className="overflow-x-auto">
                       <Table>
                         <TableHeader><TableRow><TableHead>Driver</TableHead><TableHead className="text-right">Loaded</TableHead><TableHead className="text-right">Sold</TableHead><TableHead className="text-right">Expected</TableHead><TableHead className="text-right">Accounted</TableHead><TableHead className="text-right">Shortages</TableHead></TableRow></TableHeader>
@@ -192,8 +214,9 @@ export default function WaterReportsPage() {
                         </TableBody>
                       </Table>
                       </div>
+                      <DataPagination {...pgDrivers.paginationProps} className="px-4 pb-4" />
+                      </ReportTableCards>
                     )}
-                    <DataPagination {...pgDrivers.paginationProps} className="px-4 pb-4" />
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -202,6 +225,16 @@ export default function WaterReportsPage() {
                 <Card>
                   <CardContent className="p-0">
                     {variance.length === 0 ? <div className="p-8 text-center text-slate-500">No usage data.</div> : (
+                      <ReportTableCards
+                        columns={[
+                          { header: "Item" }, { header: "Category" }, { header: "Expected", align: "right" },
+                          { header: "Actual", align: "right" }, { header: "Variance", align: "right" }, { header: "Usage count", align: "right" },
+                        ]}
+                        rows={variance.map((v) => [
+                          v.itemName, v.category, v.totalExpected,
+                          v.totalActual, v.totalVariance, v.usageCount,
+                        ])}
+                      >
                       <div className="overflow-x-auto">
                       <Table>
                         <TableHeader><TableRow><TableHead>Item</TableHead><TableHead>Category</TableHead><TableHead className="text-right">Expected</TableHead><TableHead className="text-right">Actual</TableHead><TableHead className="text-right">Variance</TableHead><TableHead className="text-right">Usage count</TableHead></TableRow></TableHeader>
@@ -219,8 +252,9 @@ export default function WaterReportsPage() {
                         </TableBody>
                       </Table>
                       </div>
+                      <DataPagination {...pgVariance.paginationProps} className="px-4 pb-4" />
+                      </ReportTableCards>
                     )}
-                    <DataPagination {...pgVariance.paginationProps} className="px-4 pb-4" />
                   </CardContent>
                 </Card>
               </TabsContent>

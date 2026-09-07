@@ -52,6 +52,12 @@ export function isFinancialNavItemVisible(
   if (href === "/supplier-balances") {
     return isAdmin || f.canViewFinancial || f.canEnterExpenses || f.canViewCustomers
   }
+  // Supplier Payments is the same audience as Supplier Balances -- it is the
+  // paid side of the same ledger. Reversing is gated separately, inside the
+  // page, on poultry.supplier-payments.reverse.
+  if (href === "/supplier-payments") {
+    return isAdmin || f.canViewFinancial || f.canEnterExpenses || f.canViewCustomers
+  }
   if (href === "/billing") {
     return options?.tempShowPayments === true || isAdmin || f.canViewFinancial
   }

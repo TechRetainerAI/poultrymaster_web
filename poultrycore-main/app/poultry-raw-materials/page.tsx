@@ -852,7 +852,10 @@ function PoultryRawMaterialsPageInner() {
 // Toolbar buttons sit two-up on a phone. They need to wrap and grow: the Button
 // base is `whitespace-nowrap` at a fixed h-9, so a long label would spill out of
 // a half-width cell rather than wrap inside it.
-const TOOLBAR_BTN = "w-full h-auto min-h-9 whitespace-normal py-2 leading-tight sm:w-auto sm:h-9 sm:whitespace-nowrap"
+// Full width on mobile, but the LABEL never wraps -- "Recalculate stock" was
+// breaking onto a second line and making the button twice as tall as its
+// neighbours. Height stays fixed; only the button width is responsive.
+const TOOLBAR_BTN = "w-full h-9 whitespace-nowrap sm:w-auto"
 
 export default function PoultryRawMaterialsPage() {
   // useSearchParams needs a Suspense boundary during prerender.

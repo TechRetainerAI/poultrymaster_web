@@ -25,7 +25,7 @@ export default function RootLayout({
   const enableVercelAnalytics = process.env.NEXT_PUBLIC_ENABLE_ANALYTICS === 'true'
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
         <QueryProvider>
           <StoreHydration />

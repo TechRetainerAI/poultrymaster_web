@@ -105,7 +105,7 @@ export function CompanySwitcher({ fullWidth = false }: { fullWidth?: boolean } =
     try {
       const res = await switchCompany(c.farmId)
       setActiveCompany(res.farmId, res.farmName, c.type, res.accessToken.token)
-      toast({ title: `Switched to ${c.name}`, description: c.type === "Water" ? "Water company" : `${c.type} company` })
+      toast({ title: `Switched to ${c.name}`, description: c.type === "Water" ? "Water company" : `${c.type} company`, duration: 2000 })
       setOpen(false)
       // Land on the most useful page for the new type. Falling through to
       // /dashboard for Generic was the bug behind "I switched to Generic but

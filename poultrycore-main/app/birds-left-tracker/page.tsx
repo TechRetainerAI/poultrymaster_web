@@ -7,7 +7,8 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { TRACKER_PAGE_SIZE_OPTIONS } from "@/components/ui/data-pagination"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -28,7 +29,7 @@ import {
 } from "@/lib/utils/birds-left-ledger"
 import { flockCountsTowardBirdTotals } from "@/lib/utils/flock-eligibility"
 
-const LEDGER_PAGE_SIZE = 20
+const LEDGER_PAGE_SIZE_DEFAULT = 20
 
 export default function BirdsLeftTrackerPage() {
   const router = useRouter()
@@ -47,6 +48,7 @@ export default function BirdsLeftTrackerPage() {
   const [ledgerSortKey, setLedgerSortKey] = useState<string | null>("date")
   const [ledgerSortDir, setLedgerSortDir] = useState<SortDirection>("desc")
   const [ledgerPage, setLedgerPage] = useState(1)
+  const [ledgerPageSize, setLedgerPageSize] = useState(LEDGER_PAGE_SIZE_DEFAULT)
 
   const handleLogout = () => {
     localStorage.removeItem("auth_token")
@@ -138,11 +140,40 @@ export default function BirdsLeftTrackerPage() {
     [filteredLedger, ledgerSortKey, ledgerSortDir],
   )
 
-  const ledgerTotalPages = Math.max(1, Math.ceil(sortedLedger.length / LEDGER_PAGE_SIZE))
+  // Column totals across the filtered set, not just the visible page. The Qty
+  // column carries its direction in `type` rather than the sign, so the two
+  // directions are summed separately and the footer shows the net.
+  const ledgerInTotal = useMemo(
+    () => sortedLedger.filter((r) => r.type === "IN").reduce((s, r) => s + (Number(r.quantity) || 0), 0),
+    [sortedLedger]
+  )
+  const ledgerOutTotal = useMemo(
+    () => sortedLedger.filter((r) => r.type === "OUT").reduce((s, r) => s + (Number(r.quantity) || 0), 0),
+    [sortedLedger]
+  )
+  const ledgerFiltersActive =
+    flockFilter !== "ALL" || typeFilter !== "ALL" || ledgerDateFrom !== "" || ledgerDateTo !== ""
+
+  // "By flock" column totals.
+  const flockTotals = useMemo(
+    () =>
+      summaries.reduce(
+        (acc, r) => ({
+          placedIn: acc.placedIn + (Number(r.placedIn) || 0),
+          mortalityOut: acc.mortalityOut + (Number(r.totalMortalityOut) || 0),
+          salesOut: acc.salesOut + (Number(r.totalBirdSalesOut) || 0),
+          left: acc.left + (Number(r.birdsLeftCalculated) || 0),
+        }),
+        { placedIn: 0, mortalityOut: 0, salesOut: 0, left: 0 }
+      ),
+    [summaries]
+  )
+
+  const ledgerTotalPages = Math.max(1, Math.ceil(sortedLedger.length / ledgerPageSize))
   const ledgerSafePage = Math.min(ledgerPage, ledgerTotalPages)
   const paginatedLedger = sortedLedger.slice(
-    (ledgerSafePage - 1) * LEDGER_PAGE_SIZE,
-    ledgerSafePage * LEDGER_PAGE_SIZE,
+    (ledgerSafePage - 1) * ledgerPageSize,
+    ledgerSafePage * ledgerPageSize,
   )
 
   useEffect(() => {
@@ -281,6 +312,31 @@ export default function BirdsLeftTrackerPage() {
                           ))
                         )}
                       </TableBody>
+                      {summaries.length > 0 && (
+                        <TableFooter>
+                          <TableRow className="bg-slate-50 hover:bg-slate-50">
+                            <TableCell className="font-medium text-slate-700">
+                              Total
+                              <span className="ml-2 font-normal text-slate-500">
+                                ({summaries.length.toLocaleString()} {summaries.length === 1 ? "flock" : "flocks"})
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums font-bold">
+                              {flockTotals.placedIn.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums font-bold text-red-700">
+                              {flockTotals.mortalityOut.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums font-bold text-amber-800">
+                              {flockTotals.salesOut.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums font-bold text-sky-800">
+                              {flockTotals.left.toLocaleString()}
+                            </TableCell>
+                            <TableCell />
+                          </TableRow>
+                        </TableFooter>
+                      )}
                     </Table>
                   </CardContent>
                 </Card>
@@ -393,13 +449,52 @@ export default function BirdsLeftTrackerPage() {
                             </TableRow>
                           ))}
                         </TableBody>
+                        <TableFooter>
+                          <TableRow className="bg-slate-50 hover:bg-slate-50">
+                            <TableCell colSpan={4} className="font-medium text-slate-700">
+                              {ledgerFiltersActive ? "Filtered total" : "Total"}
+                              <span className="ml-2 font-normal text-slate-500">
+                                ({sortedLedger.length.toLocaleString()} {sortedLedger.length === 1 ? "row" : "rows"})
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums font-bold">
+                              {ledgerInTotal - ledgerOutTotal >= 0 ? "+" : "−"}
+                              {Math.abs(ledgerInTotal - ledgerOutTotal).toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-sm text-slate-600 whitespace-nowrap">
+                              <span className="text-emerald-700">+{ledgerInTotal.toLocaleString()} in</span>
+                              {" · "}
+                              <span className="text-red-700">−{ledgerOutTotal.toLocaleString()} out</span>
+                            </TableCell>
+                          </TableRow>
+                        </TableFooter>
                       </Table>
                     )}
-                    {sortedLedger.length > LEDGER_PAGE_SIZE && (
+                    {sortedLedger.length > 0 && (
                       <div className="flex items-center justify-between gap-2 pt-4 border-t mt-4">
-                        <span className="text-xs text-slate-600">
-                          Page {ledgerSafePage} of {ledgerTotalPages} ({sortedLedger.length} rows)
-                        </span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs text-slate-600">
+                            Page {ledgerSafePage} of {ledgerTotalPages} ({sortedLedger.length} rows)
+                          </span>
+                          <Select
+                            value={String(ledgerPageSize)}
+                            onValueChange={(v) => {
+                              setLedgerPageSize(Number(v))
+                              setLedgerPage(1)
+                            }}
+                          >
+                            <SelectTrigger className="h-8 w-[110px]" aria-label="Rows per page">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {TRACKER_PAGE_SIZE_OPTIONS.map((n) => (
+                                <SelectItem key={n} value={String(n)}>
+                                  {n} / page
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                         <div className="flex gap-2">
                           <Button
                             type="button"

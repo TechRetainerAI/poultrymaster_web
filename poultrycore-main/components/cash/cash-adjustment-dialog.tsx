@@ -35,6 +35,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Loader2, Plus } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { entryTimestamp } from "@/lib/utils/date-key"
 
 /** Same vocabulary the /cash page uses. Stored as text, so keep these stable. */
 export const ADJUSTMENT_TYPES = [
@@ -148,7 +149,10 @@ export function CashAdjustmentDialog({
       await onSubmit({
         accountId: linked ? Number(accountId) : null,
         adjustmentType: type,
-        adjustmentDate: when,
+        // Recorded now, so it carries the real clock time and sorts above
+        // everything already entered today. A back-dated one stays at
+        // midnight. Same rule the payment dialogs use.
+        adjustmentDate: entryTimestamp(when) ?? when,
         amount: signed,
         description: description.trim(),
       })

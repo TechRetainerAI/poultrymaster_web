@@ -668,7 +668,7 @@ export default function FeedUsagePage() {
                       {currentUsages.map((usage, idx) => {
                         const flockName = allFlocks.find(f => f.flockId === usage.flockId)?.name || `Flock #${usage.flockId}`
                         return (
-                        <Collapsible key={usage.feedUsageId} className={cn("group rounded-xl border shadow-sm overflow-hidden", idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}>
+                        <Collapsible key={usage.feedUsageId} defaultOpen className={cn("group rounded-xl border shadow-sm overflow-hidden", idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}>
                           <div className={cn("p-4 active:bg-slate-50/80 transition-colors", idx % 2 === 1 && "bg-slate-50/20")}>
                             <CollapsibleTrigger asChild>
                               <div className="flex items-start justify-between gap-3 cursor-pointer">

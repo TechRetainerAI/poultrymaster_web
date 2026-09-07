@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ReportShell, SumTile } from "@/components/reports/report-shell"
+import { ReportShell, SumTile, ReportTableCards } from "@/components/reports/report-shell"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
 import { listWaterCustomers, listWaterSales, listWaterPaymentsBySale } from "@/lib/api/water"
@@ -85,6 +85,27 @@ export default function CustomerHistoryReportPage() {
 
   const selectedCustomer = customers.find(c => String(c.waterCustomerId) === customerId)
 
+  // One description of the history table, shared by the PDF and the phone
+  // scorecards so the two cannot drift apart.
+  const historyColumns = [
+    { header: "Sale date" },
+    { header: "Sale #" },
+    { header: "Total", align: "right" as const },
+    { header: "Paid", align: "right" as const },
+    { header: "Balance", align: "right" as const },
+    { header: "Status" },
+    { header: "Payments" },
+  ]
+  const historyRows = sales.map((r) => [
+    r.date,
+    r.saleId,
+    fmtMoney(r.total),
+    fmtMoney(r.paid),
+    fmtMoney(r.balance),
+    r.status,
+    r.payments.length === 0 ? "—" : r.payments.map((p) => `${p.date} · ${p.method} · ${fmtMoney(p.amount)}`).join("; "),
+  ])
+
   return (
     <ReportShell
       title="Customer Sales History"
@@ -96,6 +117,9 @@ export default function CustomerHistoryReportPage() {
       filterSummary={{
         Customer: selectedCustomer?.name,
       }}
+      // The "pick a customer" prompt and the selected-customer line have to
+      // survive at every width, so only the table itself is carded (below).
+      mobileCards={false}
       pdf={{
         title: "Customer Sales History",
         filename: "water-customer-history",
@@ -106,24 +130,8 @@ export default function CustomerHistoryReportPage() {
           `Paid: ${fmtMoney(totals.paid)}`,
           `Balance: ${fmtMoney(totals.balance)}`,
         ] : undefined,
-        columns: [
-          { header: "Sale date" },
-          { header: "Sale #" },
-          { header: "Total", align: "right" },
-          { header: "Paid", align: "right" },
-          { header: "Balance", align: "right" },
-          { header: "Status" },
-          { header: "Payments" },
-        ],
-        rows: sales.map((r) => [
-          r.date,
-          r.saleId,
-          fmtMoney(r.total),
-          fmtMoney(r.paid),
-          fmtMoney(r.balance),
-          r.status,
-          r.payments.length === 0 ? "—" : r.payments.map((p) => `${p.date} · ${p.method} · ${fmtMoney(p.amount)}`).join("; "),
-        ]),
+        columns: historyColumns,
+        rows: historyRows,
       }}
       filters={(
         <div>
@@ -150,6 +158,7 @@ export default function CustomerHistoryReportPage() {
       ) : (
         <>
           <div className="mb-2 text-sm text-slate-600">Customer: <span className="font-medium">{selectedCustomer?.name ?? "—"}</span></div>
+          <ReportTableCards columns={historyColumns} rows={historyRows}>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -184,9 +193,10 @@ export default function CustomerHistoryReportPage() {
               </TableBody>
             </Table>
           </div>
+          <DataPagination {...pg.paginationProps} />
+          </ReportTableCards>
         </>
       )}
-      <DataPagination {...pg.paginationProps} />
     </ReportShell>
   )
 }

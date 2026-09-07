@@ -242,7 +242,7 @@ export interface PoultryCashMovementReportSummary {
   endingBalance: number | null; netCashMovement: number
 }
 export interface PoultryCashMovementReportRow {
-  date: string; cashAccount: string | null; sourceType: string; reference: string | null
+  date: string; flowGroup: string; category: string; sourceType: string; reference: string | null
   description: string | null; inflow: number; outflow: number; balanceAfter: number | null
   createdBy: string | null; status: string | null
 }

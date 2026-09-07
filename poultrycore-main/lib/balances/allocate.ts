@@ -175,6 +175,24 @@ export function balanceAfter(doc: AllocatableDocument, allocation: AllocationMap
   return fromPesewas(toPesewas(doc.balance) - applied)
 }
 
+/**
+ * An age that reads like an age.
+ *
+ * Opening balances are carried in as documents dated 1/1/2000, so their real age
+ * renders as "9742d" — a number nobody can act on, and one that makes a genuinely
+ * overdue 45-day bill sitting beside it look trivial. Anything older than five
+ * years is called what it is instead.
+ *
+ * Five years, not one, because a real bill CAN go a year unpaid and that fact
+ * should stay visible; nothing legitimately goes five.
+ */
+const OPENING_BALANCE_AGE_DAYS = 5 * 365
+
+export function formatDocumentAge(ageDays: number): string {
+  if (ageDays >= OPENING_BALANCE_AGE_DAYS) return "Opening balance"
+  return `${Math.max(ageDays, 0)}d`
+}
+
 /** Aging bucket for a document, from its age in days. Matches the SQL's buckets. */
 export function agingBucket(ageDays: number): "Current" | "1-30" | "31-60" | "61-90" | "90+" {
   if (ageDays <= 0) return "Current"

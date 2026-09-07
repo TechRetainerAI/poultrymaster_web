@@ -844,6 +844,7 @@ export default function BatchProductionRecordsPage() {
                         paginatedRecords.map((r, idx) => (
                           <Collapsible
                             key={r.id}
+                            defaultOpen
                             className={cn("group w-full rounded-xl border shadow-sm overflow-hidden", idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}
                           >
                             <div className={cn("px-2.5 py-3 transition-colors", idx % 2 === 1 && "active:bg-black/5", idx % 2 === 0 && "active:bg-black/10")}>

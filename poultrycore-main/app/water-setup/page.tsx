@@ -152,6 +152,7 @@ function SetupSection<T>({ tab }: { tab: SetupTab<T> }) {
           /* #20: cards on mobile, table on desktop (was table-only). The generic
              column config drives both, so every setup tab gets cards at once. */
           <MobileCardList
+            striped
             items={pg.pageItems}
             pagination={pg.paginationProps}
             getKey={(item) => tab.idOf(item)}

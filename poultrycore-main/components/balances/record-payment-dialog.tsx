@@ -31,6 +31,7 @@ import {
 } from "@/lib/balances/allocate"
 import type { BalanceModule, BalanceSide, OpenDocumentRow, PartyBalanceRow } from "@/lib/api/balances"
 import { listOpenDocuments, recordPayment } from "@/lib/api/balances"
+import { entryTimestamp } from "@/lib/utils/date-key"
 
 const PAYMENT_METHODS = ["Cash", "MoMo", "Bank Transfer", "Cheque", "Card", "Other"] as const
 
@@ -50,11 +51,17 @@ interface Props {
   /** Set to pre-scope the dialog to one row; null opens the full bulk grid. */
   singleDocument?: OpenDocumentRow | null
   cashAccounts: CashAccountOption[]
+  /**
+   * Where the payment was entered from, recorded on the payment header so the
+   * Supplier Payments ledger can say so. Defaults to the balances page, which is
+   * where this dialog is opened from everywhere except the Expenses page.
+   */
+  sourceType?: string
   onPosted: () => void
 }
 
 export function RecordPaymentDialog({
-  open, onOpenChange, module, side, party, singleDocument = null, cashAccounts, onPosted,
+  open, onOpenChange, module, side, party, singleDocument = null, cashAccounts, sourceType, onPosted,
 }: Props) {
   const fmt = useFmt()
   const { toast } = useToast()
@@ -160,15 +167,9 @@ export function RecordPaymentDialog({
   // real clock time (UTC, matching the SP's `now() at time zone 'utc'`
   // default and the /sales payment path, which sends no date at all). A
   // deliberately back-dated one keeps midnight: its true time is unknown.
-  const paymentTimestamp = () => {
-    if (!paymentDate) return null
-    const now = new Date()
-    // Both sides are UTC date keys — the initial value above is built the same
-    // way — so this compares like with like.
-    return paymentDate === now.toISOString().slice(0, 10)
-      ? now.toISOString()
-      : `${paymentDate}T00:00:00.000Z`
-  }
+  // Shared with the cash adjustment dialog: a rule about where a new row sorts
+  // is not something two screens should each decide for themselves.
+  const paymentTimestamp = () => entryTimestamp(paymentDate)
 
   const submit = async () => {
     if (!party) return
@@ -185,7 +186,7 @@ export function RecordPaymentDialog({
         cashAccountId,
         reference: reference.trim() || null,
         notes: notes.trim() || null,
-        sourceType: isCustomer ? "CustomerBalances" : "SupplierBalances",
+        sourceType: sourceType ?? (isCustomer ? "CustomerBalances" : "SupplierBalances"),
         allocations: documents
           .filter((d) => (allocation[docKey(d)] ?? 0) > 0)
           .map((d) => ({
@@ -216,7 +217,14 @@ export function RecordPaymentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
+      {/* The width MUST carry the sm: prefix. An unprefixed `max-w-4xl` does
+          not override the `sm:max-w-2xl` in ui/dialog.tsx -- tailwind-merge
+          only drops a class conflicting under the SAME modifier -- so this
+          dialog was silently pinned to 672px and the allocation table below was
+          squeezing seven columns into it. The paired `w-[95vw] max-w-[95vw]`
+          puts the mobile gutter back, which the unprefixed value had also
+          taken. Same shape as the statement and history dialogs beside it. */}
+      <DialogContent className="w-[95vw] max-w-[95vw] max-h-[92vh] overflow-y-auto p-4 sm:max-w-4xl sm:p-6">
         <DialogHeader>
           <DialogTitle>
             {isCustomer
@@ -315,6 +323,11 @@ export function RecordPaymentDialog({
               <TableHeader>
                 <TableRow>
                   <TableHead>{isCustomer ? "Sale" : "Purchase"}</TableHead>
+                  {/* What the document was for, in its own column. Stacked
+                      under the reference it read as part of the number --
+                      "S2222 Fresh Eggs" -- and made the row two lines tall for
+                      a value that is really a second field. */}
+                  <TableHead>Item</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                   <TableHead className="text-right">Paid</TableHead>
@@ -329,9 +342,11 @@ export function RecordPaymentDialog({
                   const over = validation.overAllocated[key]
                   return (
                     <TableRow key={key} className={over ? "bg-red-50" : undefined}>
-                      <TableCell className="font-medium">
+                      <TableCell className="whitespace-nowrap font-medium">
                         {d.reference ?? d.documentId}
-                        {d.label ? <span className="block text-xs text-slate-500">{d.label}</span> : null}
+                      </TableCell>
+                      <TableCell className="text-slate-600">
+                        {d.label ?? <span className="text-slate-400">—</span>}
                       </TableCell>
                       <TableCell className="whitespace-nowrap">
                         {new Date(d.documentDate).toLocaleDateString()}

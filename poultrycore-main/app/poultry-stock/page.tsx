@@ -34,9 +34,19 @@ import { SetProductStockButton } from "@/components/inventory/set-product-stock-
 import { ReconcileProductStockButton } from "@/components/inventory/reconcile-product-stock-button"
 
 // Doc 5: movement types with sign. Positive = increase, negative = decrease.
+// Manual movements only. 'Production' and 'Sale' are RESERVED for the posting
+// paths that own them (production records and the sales module), which write the
+// ledger row together with its source record and set RelatedId.
+//
+// 'Sale' used to be offered here. A hand-posted -1,000 'Sale' with no Sale row
+// behind it is invisible to /egg-tracker — its sales come from the Sale table,
+// and its stock-move pass skips txnType 'Sale' to avoid double-counting real
+// sales — while /poultry-inventory counts it, because that page reads the ledger
+// directly. That single row is why the two pages disagreed by exactly 1,000.
+// A manual reduction belongs under Decrease, Damage/Loss or Adjustment.
 const MOVEMENTS: { value: string; sign: 1 | -1 }[] = [
   { value: "Increase", sign: 1 }, { value: "Adjustment", sign: 1 },
-  { value: "Decrease", sign: -1 }, { value: "Sale", sign: -1 }, { value: "Damage/Loss", sign: -1 },
+  { value: "Decrease", sign: -1 }, { value: "Damage/Loss", sign: -1 },
 ]
 const MOVE_COLORS: Record<string, string> = {
   Increase: "bg-green-100 text-green-700", Restock: "bg-green-100 text-green-700", Production: "bg-emerald-100 text-emerald-700",
@@ -56,7 +66,10 @@ function sourceFor(txnType: string, relatedId?: number | null): string {
 // Toolbar buttons sit two-up on a phone. They need to wrap and grow: the Button
 // base is `whitespace-nowrap` at a fixed h-9, and "Recalculate product stock"
 // wants ~220px against a ~170px half-width cell, so it would spill instead.
-const TOOLBAR_BTN = "w-full h-auto min-h-9 whitespace-normal py-2 leading-tight sm:w-auto sm:h-9 sm:whitespace-nowrap"
+// Full width on mobile, but the LABEL never wraps -- "Recalculate stock" was
+// breaking onto a second line and making the button twice as tall as its
+// neighbours. Height stays fixed; only the button width is responsive.
+const TOOLBAR_BTN = "w-full h-9 whitespace-nowrap sm:w-auto"
 
 export default function PoultryStockPage() {
   const router = useRouter()

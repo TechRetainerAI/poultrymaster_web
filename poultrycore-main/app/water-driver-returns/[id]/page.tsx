@@ -189,14 +189,17 @@ export default function WaterDeliveryRunDetailsPage() {
                   <Empty>No item rows. Legacy single-product loading.</Empty>
                 ) : (
                   <MobileCardList alwaysExpanded
+                    striped
                     items={items}
                     getKey={(it) => it.waterVehicleLoadingItemId}
                     primary={(it) => it.productName ?? `Product #${it.waterProductId}`}
                     secondary={(it) => <span>{it.bagsLoaded} bags · {gh(it.expectedAmount ?? it.bagsLoaded * it.unitPrice)}</span>}
+                    highlights={(it) => [
+                      { label: "Loaded (bags)", value: it.bagsLoaded, accent: "blue" },
+                      { label: `Expected${cur}`, value: gh(it.expectedAmount ?? it.bagsLoaded * it.unitPrice), accent: "emerald" },
+                    ]}
                     details={(it) => [
-                      { label: "Loaded (bags)", value: it.bagsLoaded },
                       { label: `Unit price${cur}`, value: gh(it.unitPrice) },
-                      { label: `Expected${cur}`, value: gh(it.expectedAmount ?? it.bagsLoaded * it.unitPrice) },
                     ]}
                     desktopTable={
                       <Table>
@@ -249,17 +252,20 @@ export default function WaterDeliveryRunDetailsPage() {
                     </div>
                     {retItems.length > 0 ? (
                       <MobileCardList alwaysExpanded
+                        striped
                         items={retItems}
                         getKey={(ri) => ri.waterDriverReturnItemId}
                         primary={(ri) => ri.productName ?? `Product #${ri.waterProductId}`}
                         secondary={(ri) => <span>Sold {ri.bagsSold} · {gh(ri.expectedSales ?? ri.bagsSold * ri.unitPrice)}</span>}
+                        highlights={(ri) => [
+                          { label: "Sold", value: ri.bagsSold, accent: "emerald" },
+                          { label: "Returned", value: ri.bagsReturned, accent: "blue" },
+                          { label: `Sales${cur}`, value: gh(ri.expectedSales ?? ri.bagsSold * ri.unitPrice), accent: "violet", wide: true },
+                        ]}
                         details={(ri) => [
                           { label: "Loaded", value: ri.bagsLoaded },
-                          { label: "Sold", value: ri.bagsSold },
-                          { label: "Returned", value: ri.bagsReturned },
                           { label: "Damaged", value: ri.bagsDamaged },
                           { label: `Unit price${cur}`, value: gh(ri.unitPrice) },
-                          { label: `Sales${cur}`, value: gh(ri.expectedSales ?? ri.bagsSold * ri.unitPrice) },
                         ]}
                         desktopTable={
                           <Table>
@@ -372,6 +378,7 @@ export default function WaterDeliveryRunDetailsPage() {
                       <Empty>No delivery expenses logged.</Empty>
                     ) : (
                       <MobileCardList alwaysExpanded
+                        striped
                         items={expenses}
                         getKey={(e) => e.waterDeliveryExpenseId}
                         primary={(e) => e.expenseCategory}
@@ -381,8 +388,10 @@ export default function WaterDeliveryRunDetailsPage() {
                             <Badge className={e.isApproved ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}>{e.isApproved ? "Approved" : "Pending"}</Badge>
                           </>
                         )}
+                        highlights={(e) => [
+                          { label: `Amount${cur}`, value: gh(e.amount), accent: "rose", wide: true },
+                        ]}
                         details={(e) => [
-                          { label: `Amount${cur}`, value: gh(e.amount) },
                           { label: "Description", value: e.description ?? "—" },
                           { label: "Status", value: e.isApproved ? "Approved" : "Pending" },
                         ]}

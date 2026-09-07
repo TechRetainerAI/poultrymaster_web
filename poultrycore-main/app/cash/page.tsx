@@ -33,6 +33,7 @@ import { toastFormGuide } from "@/lib/utils/validation-toast"
 import { SortableHeader, type SortDirection, sortData } from "@/components/ui/sortable-header"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
+import { entryTimestamp } from "@/lib/utils/date-key"
 
 const ADJUSTMENT_TYPES = [
   { value: "OpeningBalance", label: "Opening Balance" },
@@ -124,7 +125,10 @@ export default function CashPage() {
     }
 
     const inputBase = {
-      adjustmentDate: adjustmentForm.adjustmentDate || new Date().toISOString().split("T")[0],
+      // Recorded now → real clock time, so it sorts above everything already
+      // entered today. Back-dated → midnight. Same rule the payment and
+      // adjustment dialogs use.
+      adjustmentDate: entryTimestamp(adjustmentForm.adjustmentDate) ?? new Date().toISOString(),
       adjustmentType: adjustmentForm.adjustmentType,
       amount: adjustmentForm.adjustmentType === "Withdrawal" ? -Math.abs(amount) : Math.abs(amount),
       description: adjustmentForm.description || undefined,
@@ -315,7 +319,7 @@ export default function CashPage() {
       const input: CashAdjustmentInput = {
         userId,
         farmId,
-        adjustmentDate: new Date().toISOString().split("T")[0],
+        adjustmentDate: new Date().toISOString(),
         adjustmentType: parsed.type as any,
         amount: parsed.type === "Withdrawal" ? -parsed.amount : parsed.amount,
         description: text,
@@ -391,7 +395,7 @@ export default function CashPage() {
       sortData(filteredTransactions, sortKey, sortDirection, (item, key) => {
         switch (key) {
           case "date":
-            return new Date(item.date)
+            return item.sortKey ?? item.date
           case "type":
             return item.type || ""
           case "description":
@@ -614,7 +618,7 @@ export default function CashPage() {
                         rendered one page, so the pager underneath governed only
                         the desktop view and a phone got everything at once. */}
                     {pg.pageItems.map((t, idx) => (
-                      <Collapsible key={idx} className={cn("group rounded-xl border shadow-sm overflow-hidden", idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}>
+                      <Collapsible key={idx} defaultOpen className={cn("group rounded-xl border shadow-sm overflow-hidden", idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}>
                         <div className={cn("p-4 active:bg-slate-50/80 transition-colors", idx % 2 === 1 && "bg-slate-50/20")}>
                           <CollapsibleTrigger asChild>
                             <div className="flex items-start justify-between gap-3 cursor-pointer">

@@ -9,11 +9,13 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
-import { Plus, Loader2, Eye, Pencil, Trash2, FlaskConical, Factory } from "lucide-react"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { Plus, Loader2, Eye, Pencil, Trash2, FlaskConical, Factory, ChevronDown, ChevronUp } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
@@ -42,6 +44,9 @@ export default function PoultryFeedProductionPage() {
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<"all" | FeedProductionStatus>("all")
   const [deleteTarget, setDeleteTarget] = useState<FeedProductionBatch | null>(null)
+  const isMobile = useIsMobile()
+  // Mobile opens on scorecards; "View table format" flips to the wide table.
+  const [showTableMobile, setShowTableMobile] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -123,6 +128,98 @@ export default function PoultryFeedProductionPage() {
                   </Select>
                 } /></div>
 
+                {isMobile && !showTableMobile ? (
+                  filtered.length === 0 ? (
+                    <div className="py-12 text-center text-slate-400">No feed production batches yet.</div>
+                  ) : (
+                  <div className="space-y-3">
+                    {pg.pageItems.map((b, idx) => {
+                      const badge = STATUS_BADGE[b.status]
+                      const editable = (b.status === "Draft" || b.status === "Reversed") && canManage
+                      return (
+                        <Collapsible
+                          key={b.poultryFeedProductionBatchId}
+                          defaultOpen
+                          className={cn("group w-full rounded-xl border shadow-sm overflow-hidden",
+                            idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}
+                        >
+                          <div className={cn("px-2.5 py-3 transition-colors", idx % 2 === 0 ? "active:bg-black/10" : "active:bg-black/5")}>
+                            <CollapsibleTrigger asChild>
+                              <div className="relative cursor-pointer">
+                                <ChevronDown className="absolute right-0 top-0 h-4 w-4 text-slate-400 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
+                                <div className="min-w-0">
+                                  <div className="pr-6">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <span className="font-semibold text-slate-900">{b.batchNumber}</span>
+                                      <Badge variant={badge.variant} className={badge.className}>{b.status}</Badge>
+                                    </div>
+                                    <div className="mt-0.5 truncate text-xs text-slate-500">
+                                      {b.productionDate ? new Date(b.productionDate).toLocaleDateString() : "—"}
+                                      {b.finishedFeedItemName ? ` • ${b.finishedFeedItemName}` : ""}
+                                    </div>
+                                  </div>
+                                  <div className="mt-3 grid grid-cols-2 gap-2">
+                                    <div className={cn("rounded-lg bg-emerald-100 border border-emerald-300 px-3 py-2 shadow-sm", !showCost && "col-span-2")}>
+                                      <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-900">Produced</p>
+                                      <p className="text-xl font-extrabold leading-tight text-emerald-800">
+                                        {b.quantityProduced.toLocaleString()}{b.outputUnit ? ` ${b.outputUnit}` : ""}
+                                      </p>
+                                    </div>
+                                    {showCost && (
+                                      <div className="rounded-lg bg-violet-100 border border-violet-300 px-3 py-2 shadow-sm">
+                                        <p className="text-[11px] font-semibold uppercase tracking-wide text-violet-900">Total cost</p>
+                                        <p className="text-xl font-extrabold leading-tight text-violet-900">{gh(b.totalProductionCost)}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent>
+                              <div className="mt-4 space-y-2 border-t border-slate-200/70 pt-4 text-sm">
+                                {showCost && (
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div><span className="text-slate-500">Ingredients</span> <span className="font-medium tabular-nums">{gh(b.totalIngredientCost)}</span></div>
+                                    <div><span className="text-slate-500">Additional</span> <span className="font-medium tabular-nums">{gh(b.totalAdditionalCost)}</span></div>
+                                    <div className="col-span-2"><span className="text-slate-500">Cost / {b.outputUnit || "unit"}</span> <span className="font-medium tabular-nums">{gh(b.costPerOutputUnit)}</span></div>
+                                  </div>
+                                )}
+                                {/* Two per row: labelled buttons overflow a 375px card on one flex line. */}
+                                <div className="grid grid-cols-2 gap-2 pt-2">
+                                  <Button variant="outline" size="sm" className={cn("h-10 w-full bg-white", !editable && "col-span-2")}
+                                    onClick={(e) => { e.stopPropagation(); router.push(`/poultry-feed-production/${b.poultryFeedProductionBatchId}`) }}>
+                                    <Eye className="h-4 w-4 mr-2" /> Open
+                                  </Button>
+                                  {editable && (
+                                    <Button variant="outline" size="sm" className="h-10 w-full bg-white text-red-600 border-red-200 hover:bg-red-50"
+                                      onClick={(e) => { e.stopPropagation(); setDeleteTarget(b) }}>
+                                      <Trash2 className="h-4 w-4 mr-2" /> Delete
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            </CollapsibleContent>
+                          </div>
+                        </Collapsible>
+                      )
+                    })}
+                    <div className="rounded-lg border bg-slate-50/60 px-4 py-2">
+                      <Button variant="ghost" size="sm" className="w-full text-slate-600" onClick={() => setShowTableMobile(true)}>
+                        View table format <ChevronDown className="h-4 w-4 ml-1" />
+                      </Button>
+                    </div>
+                  </div>
+                  )
+                ) : (
+                <>
+                {isMobile && (
+                  <div className="-mx-4 mb-3 flex items-center justify-between gap-2 border-b bg-slate-50 px-4 py-2">
+                    <span className="text-xs text-slate-600">Table view • Scroll → for more</span>
+                    <Button variant="ghost" size="sm" onClick={() => setShowTableMobile(false)}>
+                      <ChevronUp className="h-4 w-4 mr-1" /> Cards
+                    </Button>
+                  </div>
+                )}
                 <div className="overflow-x-auto">
                   <Table className="min-w-[900px]">
                     <TableHeader>
@@ -174,6 +271,8 @@ export default function PoultryFeedProductionPage() {
                     </TableBody>
                   </Table>
                 </div>
+                </>
+                )}
                 <DataPagination {...pg.paginationProps} />
               </CardContent></Card>
             </>

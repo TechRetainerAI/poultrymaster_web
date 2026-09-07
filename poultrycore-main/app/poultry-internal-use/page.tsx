@@ -475,6 +475,7 @@ export default function PoultryInternalUsePage() {
                 <MobileCardList
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
+                  defaultOpen
                   getKey={(r) => r.poultryInternalUsageId}
                   primary={(r) => `${POULTRY_INTERNAL_USE_CATEGORY_LABELS[r.category] ?? r.category} · ${gh(r.totalCostValue ?? 0)}`}
                   secondary={(r) => (

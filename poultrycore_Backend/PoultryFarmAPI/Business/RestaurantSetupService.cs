@@ -7,6 +7,7 @@ namespace PoultryFarmAPIWeb.Business
     {
         private readonly string _cs;
         public RestaurantSetupService(string cs) => _cs = cs;
+        public string GetConnectionString() => _cs;
 
         // =====================================================================
         // PROFILE

@@ -20,7 +20,7 @@ import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
-import { Plus, Pencil, Loader2, Wallet, RefreshCw, ArrowLeftRight, Eye, Trash2, Scale } from "lucide-react"
+import { Plus, Pencil, Loader2, Wallet, RefreshCw, ArrowLeftRight, Eye, Trash2, Scale, FileText } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -36,6 +36,30 @@ import { cashByAccount } from "@/lib/cash/cash-flow"
 import { RecordCashAdjustmentDialog } from "@/components/cash/record-cash-adjustment-dialog"
 
 const ACCOUNT_TYPES = [...POULTRY_CASH_ACCOUNT_TYPES]
+
+// Tinted summary tile, same look as the mobile cards on /poultry-daily-closing:
+// a filled panel in the metric's colour rather than a white card, so the four
+// numbers stay readable when they stack two-up on a phone.
+function StatCard({ label, value, accent }: { label: string; value: string | number; accent: "violet" | "emerald" | "amber" | "blue" }) {
+  const tile = accent === "emerald" ? "bg-emerald-100 border-emerald-300"
+    : accent === "amber" ? "bg-amber-100 border-amber-300"
+    : accent === "blue" ? "bg-blue-100 border-blue-300"
+    : "bg-violet-100 border-violet-300"
+  const labelC = accent === "emerald" ? "text-emerald-900"
+    : accent === "amber" ? "text-amber-900"
+    : accent === "blue" ? "text-blue-900"
+    : "text-violet-900"
+  const valueC = accent === "emerald" ? "text-emerald-800"
+    : accent === "amber" ? "text-amber-800"
+    : accent === "blue" ? "text-blue-800"
+    : "text-violet-900"
+  return (
+    <div className={`rounded-lg border px-3 py-2 shadow-sm ${tile}`}>
+      <p className={`text-[11px] font-semibold uppercase tracking-wide ${labelC}`}>{label}</p>
+      <p className={`text-xl font-extrabold leading-tight tabular-nums ${valueC}`}>{value}</p>
+    </div>
+  )
+}
 
 export default function PoultryCashAccountsPage() {
   // Amounts were rendering as bare numbers with no currency at all.
@@ -229,6 +253,12 @@ export default function PoultryCashAccountsPage() {
               <Button asChild variant="outline" className="flex-1 sm:flex-none whitespace-nowrap">
                 <Link href="/poultry-cash-reconciliation"><Scale className="h-4 w-4 mr-1" /> Reconcile</Link>
               </Button>
+              {/* The printable, emailable version of this page: per-account
+                  opening/in/out/closing for a period, plus drift and
+                  reconciliation status. This screen is the live one. */}
+              <Button asChild variant="outline" className="flex-1 sm:flex-none whitespace-nowrap">
+                <Link href="/poultry/reports/cash-accounts"><FileText className="h-4 w-4 mr-1" /> Cash Account Report</Link>
+              </Button>
               <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={() => setXferDlg(true)}><ArrowLeftRight className="h-4 w-4 mr-1" /> Transfer</Button>
               <Button variant="outline" className="flex-1 sm:flex-none whitespace-nowrap" onClick={createDefault} disabled={saving}><Wallet className="h-4 w-4 mr-1" /> Create default account</Button>
               <Button className="flex-1 sm:flex-none whitespace-nowrap" onClick={openNew}><Plus className="h-4 w-4 mr-1" /> New account</Button>
@@ -244,10 +274,10 @@ export default function PoultryCashAccountsPage() {
           </button>
 
           <div className="mb-3 grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Total cash at hand</div><div className="text-xl font-semibold tabular-nums">{fmt(totalCash)}</div></CardContent></Card>
-            <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Active accounts</div><div className="text-xl font-semibold">{accounts.filter(a => a.isActive).length}</div></CardContent></Card>
-            <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Pending transfers</div><div className="text-xl font-semibold">{transfers.filter(t => t.status === "Draft").length}</div></CardContent></Card>
-            <Card><CardContent className="p-4"><div className="text-xs text-slate-500">Approved transfers</div><div className="text-xl font-semibold">{transfers.filter(t => t.status === "Approved").length}</div></CardContent></Card>
+            <StatCard label="Total cash at hand" value={fmt(totalCash)} accent="violet" />
+            <StatCard label="Active accounts" value={accounts.filter(a => a.isActive).length} accent="emerald" />
+            <StatCard label="Pending transfers" value={transfers.filter(t => t.status === "Draft").length} accent="amber" />
+            <StatCard label="Approved transfers" value={transfers.filter(t => t.status === "Approved").length} accent="blue" />
           </div>
 
           <ListFilters search={search} setSearch={setSearch} searchOnly searchPlaceholder="Search account name or type" />
@@ -263,6 +293,8 @@ export default function PoultryCashAccountsPage() {
                 </div>
               ) : (
                 <MobileCardList
+                  defaultOpen
+                  striped
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
                   getKey={(a) => a.poultryCashAccountId}
@@ -273,19 +305,23 @@ export default function PoultryCashAccountsPage() {
                       {a.isActive ? <Badge className="bg-green-100 text-green-700">Active</Badge> : <Badge variant="outline">Inactive</Badge>}
                     </>
                   )}
+                  highlights={(a) => [
+                    { label: "Opening", value: fmt(a.openingBalance), accent: "blue" },
+                    // An overdrawn account reads red rather than green — the
+                    // sign of the balance is the thing you scan a card for.
+                    { label: "Current", value: fmt(a.currentBalance), accent: a.currentBalance < 0 ? "rose" : "emerald" },
+                  ]}
                   details={(a) => [
                     { label: "Type", value: a.accountType },
-                    { label: "Opening", value: fmt(a.openingBalance) },
-                    { label: "Current", value: <span className={a.currentBalance < 0 ? "text-rose-600 font-semibold" : "font-semibold"}>{fmt(a.currentBalance)}</span> },
                     { label: "Status", value: a.isActive ? "Active" : "Inactive" },
                   ]}
                   actions={(a) => (
                     <>
-                      <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => router.push(`/poultry-cash-accounts/${a.poultryCashAccountId}`)}>
+                      <Button size="sm" variant="outline" className="flex-1 h-10 bg-white" onClick={() => router.push(`/poultry-cash-accounts/${a.poultryCashAccountId}`)}>
                         <Eye className="h-4 w-4 mr-1" /> View details
                       </Button>
-                      <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => openEdit(a)}>Edit</Button>
-                      <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600 border-red-200" onClick={() => setDeleteTarget(a)}><Trash2 className="h-4 w-4 mr-1" /> Delete</Button>
+                      <Button size="sm" variant="outline" className="flex-1 h-10 bg-white" onClick={() => openEdit(a)}>Edit</Button>
+                      <Button size="sm" variant="outline" className="flex-1 h-10 bg-white text-red-600 border-red-200" onClick={() => setDeleteTarget(a)}><Trash2 className="h-4 w-4 mr-1" /> Delete</Button>
                     </>
                   )}
                   desktopTable={
@@ -365,6 +401,7 @@ export default function PoultryCashAccountsPage() {
               <CardContent className="p-4">
                 <div className="mb-2 font-medium text-slate-700">Recent transfers</div>
                 <MobileCardList
+                  defaultOpen
                   items={transfers.slice(0, 8)}
                   getKey={(t) => t.poultryCashTransferId}
                   primary={(t) => `${t.fromAccountName} → ${t.toAccountName}`}

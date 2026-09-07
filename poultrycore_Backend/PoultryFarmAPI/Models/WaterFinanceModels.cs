@@ -109,6 +109,18 @@ namespace PoultryFarmAPIWeb.Models
         public int? SupplierId { get; set; }
         [StringLength(200)] public string? SupplierName { get; set; }
 
+        // Payment state (migration 240). Read-only on this model: they are set
+        // through SetPaymentAsync, or by a supplier payment posting against the
+        // bill, never as a side effect of editing the expense itself.
+        //
+        // AmountPaid comes back RESOLVED -- a bill with nothing recorded reads as
+        // paid in full unless its PaymentMethod is Credit, which is the rule 047
+        // established and migration 236 already relies on.
+        public decimal AmountPaid { get; set; }
+        public decimal Balance { get; set; }
+        [StringLength(20)] public string? PaymentStatus { get; set; }
+        public DateTime? DueDate { get; set; }
+
         // Source link for auto-generated expenses (Payroll, RawMaterialPurchase,
         // ProductionBatch). Drives the clickable Source column on the Expenses page.
         [StringLength(40)]  public string? SourceType { get; set; }
@@ -130,6 +142,33 @@ namespace PoultryFarmAPIWeb.Models
     public class WaterExpenseRejectRequest
     {
         [StringLength(500)] public string? Reason { get; set; }
+    }
+
+    /// <summary>Body for POST api/Water/expenses/{id}/payment (migration 240).</summary>
+    public class WaterExpensePaymentRequest
+    {
+        /// <summary>
+        /// Cash paid so far. NULL means paid in full — the same reading the
+        /// column carries, and the reason this is nullable rather than a plain
+        /// decimal: 0 means the opposite, that the whole bill is still owed.
+        /// </summary>
+        public decimal? AmountPaid { get; set; }
+
+        public DateTime? DueDate { get; set; }
+
+        /// <summary>
+        /// How it was actually settled. Migration 246 records this money as a
+        /// real supplier payment, and a payment needs a method of its own — the
+        /// bill's own method is often 'Credit', which by definition means it was
+        /// NOT paid. Unset falls back to the bill's method.
+        /// </summary>
+        public string? PaymentMethod { get; set; }
+
+        /// <summary>
+        /// Which account the money left. Unset falls back to the account already
+        /// stamped on the bill.
+        /// </summary>
+        public int? CashAccountId { get; set; }
     }
 
     // ====================================================================

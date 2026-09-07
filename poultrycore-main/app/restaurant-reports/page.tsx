@@ -154,11 +154,11 @@ export default function RestaurantReportsPage() {
       }
       case "servers": {
         downloadPdf({
-          title: "Server Performance Report",
-          filename: "server-performance",
+          title: "Waiter Performance Report",
+          filename: "waiter-performance",
           hotelName: hn,
           dateRange: { from: fromDate, to: toDate },
-          headers: ["Server", "Orders", "Covers", "Revenue", "Avg Ticket"],
+          headers: ["Waiter", "Orders", "Covers", "Revenue", "Avg Ticket"],
           rows: serverPerf.map(s => [s.servedBy, s.orderCount, s.totalCovers, s.totalRevenue.toFixed(2), s.avgTicket.toFixed(2)]),
         })
         break
@@ -223,7 +223,7 @@ export default function RestaurantReportsPage() {
                 <TabsTrigger value="items" className="data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700"><UtensilsCrossed className="h-4 w-4 mr-2" />Top Items</TabsTrigger>
                 <TabsTrigger value="foodcost" className="data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700"><Utensils className="h-4 w-4 mr-2" />Food Cost</TabsTrigger>
                 <TabsTrigger value="hours" className="data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700"><Clock className="h-4 w-4 mr-2" />Peak Hours</TabsTrigger>
-                <TabsTrigger value="servers" className="data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700"><Users className="h-4 w-4 mr-2" />Server Performance</TabsTrigger>
+                <TabsTrigger value="servers" className="data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700"><Users className="h-4 w-4 mr-2" />Waiter Performance</TabsTrigger>
               </TabsList>
 
               {/* Overview */}
@@ -506,7 +506,7 @@ export default function RestaurantReportsPage() {
                   <Label className="text-sm">To</Label><Input type="date" className="w-[150px] h-9" value={toDate} onChange={e => setToDate(e.target.value)} />
                   <div className="ml-auto"><Button variant="outline" size="sm" onClick={() => downloadReport("servers")}><Download className="h-4 w-4 mr-2" />Download PDF</Button></div></div>
                 <Card>
-                  <CardHeader className="pb-2"><CardTitle className="text-base">Server / Waiter Performance</CardTitle></CardHeader>
+                  <CardHeader className="pb-2"><CardTitle className="text-base">Waiter Performance</CardTitle></CardHeader>
                   <CardContent>
                     {serverPerf.length === 0 ? <p className="text-sm text-muted-foreground text-center py-8">No data</p> : (
                       <div className="space-y-2">

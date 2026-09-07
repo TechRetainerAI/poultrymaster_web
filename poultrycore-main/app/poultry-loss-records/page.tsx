@@ -14,9 +14,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
-import { Plus, Pencil, Loader2, Trash2, CheckCircle2, Undo2 } from "lucide-react"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { cn } from "@/lib/utils"
+import { Plus, Pencil, Loader2, Trash2, CheckCircle2, Undo2, ChevronDown, ChevronUp } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
@@ -42,6 +45,9 @@ export default function PoultryLossRecordsPage() {
   const [form, setForm] = useState({ ...EMPTY })
   const [saving, setSaving] = useState(false)
   const [delTarget, setDelTarget] = useState<PoultryLossRecord | null>(null)
+  const isMobile = useIsMobile()
+  // Mobile opens on scorecards; "View table format" flips to the wide table.
+  const [showTableMobile, setShowTableMobile] = useState(false)
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Poultry") { router.replace("/dashboard"); return }
@@ -86,7 +92,87 @@ export default function PoultryLossRecordsPage() {
             <Button onClick={openNew}><Plus className="w-4 h-4 mr-1" /> New record</Button>
           </div>
           <Card><CardContent className="p-4">
-            {loading ? <div className="flex items-center gap-2 text-slate-500 p-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div> : (
+            {loading ? <div className="flex items-center gap-2 text-slate-500 p-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
+              : isMobile && !showTableMobile ? (
+              rows.length === 0 ? <div className="py-8 text-center text-slate-500">No loss records yet.</div> : (
+              <div className="space-y-3">
+                {pg.pageItems.map((l, idx) => (
+                  <Collapsible
+                    key={l.poultryLossRecordId}
+                    defaultOpen
+                    className={cn("group w-full rounded-xl border shadow-sm overflow-hidden",
+                      idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}
+                  >
+                    <div className={cn("px-2.5 py-3 transition-colors", idx % 2 === 0 ? "active:bg-black/10" : "active:bg-black/5")}>
+                      <CollapsibleTrigger asChild>
+                        <div className="relative cursor-pointer">
+                          <ChevronDown className="absolute right-0 top-0 h-4 w-4 text-slate-400 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
+                          <div className="min-w-0">
+                            <div className="pr-6">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-semibold text-slate-900">{(l.lossDate || "").split("T")[0]}</span>
+                                {l.status === "Approved"
+                                  ? <Badge className="bg-green-100 text-green-700">Approved</Badge>
+                                  : <Badge className="bg-amber-100 text-amber-700">Pending</Badge>}
+                              </div>
+                              <div className="mt-0.5 truncate text-xs text-slate-500">{l.productName ?? "No product"}</div>
+                            </div>
+                            <div className="mt-3 grid grid-cols-2 gap-2">
+                              <div className="rounded-lg bg-rose-100 border border-rose-300 px-3 py-2 shadow-sm">
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-900">{l.lossType}</p>
+                                <p className="text-xl font-extrabold leading-tight text-rose-800">{l.quantity?.toLocaleString() ?? "—"}</p>
+                              </div>
+                              <div className="rounded-lg bg-violet-100 border border-violet-300 px-3 py-2 shadow-sm">
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-violet-900">Value</p>
+                                <p className="text-xl font-extrabold leading-tight text-violet-900">{l.estimatedValue != null ? gh(l.estimatedValue) : "—"}</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="mt-4 space-y-2 border-t border-slate-200/70 pt-4 text-sm">
+                          {l.reason && <div><span className="text-slate-500">Reason</span> <span className="font-medium">{l.reason}</span></div>}
+                          {/* Two per row: labelled buttons overflow a 375px card on one flex line. */}
+                          <div className="grid grid-cols-2 gap-2 pt-2">
+                            {l.status === "Pending" ? <>
+                              <Button variant="outline" size="sm" className="h-10 w-full bg-white text-green-700 border-green-200 hover:bg-green-50" onClick={(e) => { e.stopPropagation(); void doApprove(l.poultryLossRecordId) }}>
+                                <CheckCircle2 className="h-4 w-4 mr-2" /> Approve
+                              </Button>
+                              <Button variant="outline" size="sm" className="h-10 w-full bg-white" onClick={(e) => { e.stopPropagation(); openEdit(l) }}>
+                                <Pencil className="h-4 w-4 mr-2" /> Edit
+                              </Button>
+                              <Button variant="outline" size="sm" className="col-span-2 h-10 w-full bg-white text-red-600 border-red-200 hover:bg-red-50" onClick={(e) => { e.stopPropagation(); setDelTarget(l) }}>
+                                <Trash2 className="h-4 w-4 mr-2" /> Delete
+                              </Button>
+                            </> : (
+                              <Button variant="outline" size="sm" className="col-span-2 h-10 w-full bg-white text-amber-700 border-amber-200 hover:bg-amber-50" onClick={(e) => { e.stopPropagation(); void doUnapprove(l.poultryLossRecordId) }}>
+                                <Undo2 className="h-4 w-4 mr-2" /> Unapprove
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </CollapsibleContent>
+                    </div>
+                  </Collapsible>
+                ))}
+                <div className="rounded-lg border bg-slate-50/60 px-4 py-2">
+                  <Button variant="ghost" size="sm" className="w-full text-slate-600" onClick={() => setShowTableMobile(true)}>
+                    View table format <ChevronDown className="h-4 w-4 ml-1" />
+                  </Button>
+                </div>
+              </div>
+              )
+              ) : (
+              <>
+              {isMobile && (
+                <div className="-mx-4 mb-3 flex items-center justify-between gap-2 border-b bg-slate-50 px-4 py-2">
+                  <span className="text-xs text-slate-600">Table view • Scroll → for more</span>
+                  <Button variant="ghost" size="sm" onClick={() => setShowTableMobile(false)}>
+                    <ChevronUp className="h-4 w-4 mr-1" /> Cards
+                  </Button>
+                </div>
+              )}
               <div className="overflow-x-auto -mx-4 px-4"><Table className="min-w-[640px]">
                 <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Type</TableHead><TableHead>Product</TableHead><TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Value</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                 <TableBody>
@@ -110,6 +196,7 @@ export default function PoultryLossRecordsPage() {
                     ))}
                 </TableBody>
               </Table></div>
+              </>
             )}
             <DataPagination {...pg.paginationProps} />
           </CardContent></Card>

@@ -84,6 +84,25 @@ namespace PoultryFarmAPIWeb.Controllers
 
             foreach (var e in expenses)
             {
+                // This is a CASH ledger, so two kinds of expense do not belong in it.
+                //
+                // NonCash is internal use (migration 216): stock left the store, no
+                // money left an account. Cash Flow has excluded it since 231; this
+                // page never did, which is why the two disagreed.
+                //
+                // AmountPaid rather than Amount because migration 238 made an
+                // expense part-payable. Before it, every expense was paid in full
+                // and the two were the same number; now a 1,000 bill with 400 paid
+                // must show 400 here, not 1,000. AmountPaid arrives already
+                // resolved from the SP, so a row predating 238 still reads as its
+                // full amount and nothing historical moves.
+                if (string.Equals(e.PaymentMethod, "NonCash", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                // Null only if the row came from a source that never set it;
+                // the legacy reading of that is "paid in full".
+                var paidOut = e.AmountPaid ?? e.Amount;
+                if (paidOut <= 0) continue;   // recorded but not yet paid: no cash moved
+
                 var dateStr = (e.ExpenseDate != default ? e.ExpenseDate : e.CreatedDate).ToString("yyyy-MM-dd");
                 var desc = !string.IsNullOrEmpty(e.Description) ? e.Description : e.Category;
                 if (string.IsNullOrEmpty(desc)) desc = "Expense";
@@ -93,7 +112,7 @@ namespace PoultryFarmAPIWeb.Controllers
                     Type = "Expense",
                     Description = desc,
                     In = 0,
-                    Out = e.Amount,
+                    Out = paidOut,
                     Balance = 0,
                     SortKey = (e.ExpenseDate != default ? e.ExpenseDate : e.CreatedDate).ToString("yyyy-MM-dd HH:mm:ss") + "_e" + e.ExpenseId
                 };

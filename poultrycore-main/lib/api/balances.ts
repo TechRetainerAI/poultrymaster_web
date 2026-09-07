@@ -134,6 +134,12 @@ export interface RecordPaymentRequest {
 export interface PaymentHistoryRow {
   /** uuid on the customer side (a payment group), integer on the supplier side. */
   paymentId: string
+  /**
+   * PAY-0001 — the payment as a person refers to it (migration 240). Absent on
+   * the supplier side and on an API that predates it, so always fall back to
+   * the id rather than rendering an empty cell.
+   */
+  paymentNumber?: string | null
   partyId?: number | null
   partyName?: string | null
   paymentDate: string
@@ -149,6 +155,18 @@ export interface PaymentHistoryRow {
   reversedBy?: string | null
   reversedAt?: string | null
   reversalReason?: string | null
+  /**
+   * The one-sale case, carried on the row (migration 241): a payment that
+   * settled exactly one sale reports which sale and what it did to that sale's
+   * balance, so the ledger needs no second request to show it. All absent when
+   * the payment covers several sales — there is no single balance to report —
+   * and on an API that predates it.
+   */
+  saleId?: number | null
+  saleTotal?: number | null
+  balanceBefore?: number | null
+  amountApplied?: number | null
+  balanceAfter?: number | null
 }
 
 export interface PaymentAllocationRow {
@@ -177,6 +195,15 @@ export interface StatementLine {
   runningBalance: number
   documentType?: string | null
   documentId?: number | null
+  /**
+   * The payment behind a Payment line (migration 242). A payment line is one
+   * payment EVENT, so a payment that settled several sales is a single credit
+   * and `documentId` is null - there is no one sale to name. `paymentId` opens
+   * the allocation behind it. Customer side only.
+   */
+  paymentId?: string | null
+  allocationCount?: number | null
+  sourceType?: string | null
 }
 
 export interface BalanceAuditRow {

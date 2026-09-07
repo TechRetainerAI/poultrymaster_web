@@ -232,6 +232,7 @@ export default function PoultryDriversPage() {
                 <div className="p-8 text-center text-slate-500">No drivers yet. Add one to assign a vehicle.</div>
               ) : (
                 <MobileCardList
+                  defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
                   getKey={(d) => d.poultryDriverId}

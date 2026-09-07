@@ -17,9 +17,11 @@ import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
 import { Badge } from "@/components/ui/badge"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
-import { Plus, Pencil, Loader2, Trash2, FlaskConical, AlertTriangle, CheckCircle2, ArrowLeft } from "lucide-react"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { Plus, Pencil, Loader2, Trash2, FlaskConical, AlertTriangle, CheckCircle2, ArrowLeft, ChevronDown, ChevronUp } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
@@ -70,6 +72,9 @@ export default function PoultryFeedFormulasPage() {
   const [saving, setSaving] = useState(false)
   const savingRef = useRef(false)
   const [deleteTarget, setDeleteTarget] = useState<FeedFormula | null>(null)
+  const isMobile = useIsMobile()
+  // Mobile opens on scorecards; "View table format" flips to the wide table.
+  const [showTableMobile, setShowTableMobile] = useState(false)
 
   const finishedFeedItems = useMemo(() => items.filter((i) => i.isActive && isFinishedFeed(i.category)), [items])
   const ingredientItems = useMemo(() => items.filter((i) => i.isActive && isIngredient(i.category)), [items])
@@ -229,6 +234,95 @@ export default function PoultryFeedFormulasPage() {
           ) : (
             <Card><CardContent className="p-4">
               <div className="mb-3"><ListFilters search={search} setSearch={setSearch} searchOnly searchPlaceholder="Search formula or feed" /></div>
+              {isMobile && !showTableMobile ? (
+                filtered.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400">No feed formulas yet. Create one to speed up feed production.</div>
+                ) : (
+                <div className="space-y-3">
+                  {pg.pageItems.map((f, idx) => {
+                    const usesPct = (f.percentageTotal ?? 0) > 0
+                    const pctGood = !usesPct || Math.abs((f.percentageTotal ?? 0) - 100) < 0.01
+                    return (
+                      <Collapsible
+                        key={f.poultryFeedFormulaId}
+                        defaultOpen
+                        className={cn("group w-full rounded-xl border shadow-sm overflow-hidden",
+                          idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}
+                      >
+                        <div className={cn("px-2.5 py-3 transition-colors", idx % 2 === 0 ? "active:bg-black/10" : "active:bg-black/5")}>
+                          <CollapsibleTrigger asChild>
+                            <div className="relative cursor-pointer">
+                              <ChevronDown className="absolute right-0 top-0 h-4 w-4 text-slate-400 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
+                              <div className="min-w-0">
+                                <div className="pr-6">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="font-semibold text-slate-900">{f.formulaName}</span>
+                                    {f.isActive ? <Badge variant="secondary">Active</Badge> : <Badge variant="outline">Inactive</Badge>}
+                                  </div>
+                                  <div className="mt-0.5 truncate text-xs text-slate-500">{f.finishedFeedItemName ?? "No finished feed"}</div>
+                                </div>
+                                <div className="mt-3 grid grid-cols-2 gap-2">
+                                  <div className="rounded-lg bg-blue-100 border border-blue-300 px-3 py-2 shadow-sm">
+                                    <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-900">Ingredients</p>
+                                    <p className="text-xl font-extrabold leading-tight text-blue-800">{f.lineCount ?? 0}</p>
+                                  </div>
+                                  {/* Amber when the percentages do not add to 100 -- the
+                                      same warning the table shows, kept visible here. */}
+                                  <div className={cn("rounded-lg border px-3 py-2 shadow-sm",
+                                    !usesPct ? "bg-slate-100 border-slate-300"
+                                    : pctGood ? "bg-emerald-100 border-emerald-300" : "bg-amber-100 border-amber-400")}>
+                                    <p className={cn("text-[11px] font-semibold uppercase tracking-wide",
+                                      !usesPct ? "text-slate-700" : pctGood ? "text-emerald-900" : "text-amber-900")}>% Total</p>
+                                    {usesPct ? (
+                                      <p className={cn("flex items-center gap-1 text-xl font-extrabold leading-tight",
+                                        pctGood ? "text-emerald-800" : "text-amber-800")}>
+                                        {pctGood ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertTriangle className="h-4 w-4 shrink-0" />}
+                                        {(f.percentageTotal ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}%
+                                      </p>
+                                    ) : <p className="text-xl font-extrabold leading-tight text-slate-500">fixed</p>}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent>
+                            <div className="mt-4 space-y-2 border-t border-slate-200/70 pt-4 text-sm">
+                              {/* Two per row: labelled buttons overflow a 375px card on one flex line. */}
+                              <div className="grid grid-cols-2 gap-2 pt-2">
+                                <Button variant="outline" size="sm" className={cn("h-10 w-full bg-white", !canManage && "col-span-2")}
+                                  onClick={(e) => { e.stopPropagation(); void openEdit(f) }}>
+                                  <Pencil className="h-4 w-4 mr-2" /> Edit
+                                </Button>
+                                {canManage && (
+                                  <Button variant="outline" size="sm" className="h-10 w-full bg-white text-red-600 border-red-200 hover:bg-red-50"
+                                    onClick={(e) => { e.stopPropagation(); setDeleteTarget(f) }}>
+                                    <Trash2 className="h-4 w-4 mr-2" /> Delete
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          </CollapsibleContent>
+                        </div>
+                      </Collapsible>
+                    )
+                  })}
+                  <div className="rounded-lg border bg-slate-50/60 px-4 py-2">
+                    <Button variant="ghost" size="sm" className="w-full text-slate-600" onClick={() => setShowTableMobile(true)}>
+                      View table format <ChevronDown className="h-4 w-4 ml-1" />
+                    </Button>
+                  </div>
+                </div>
+                )
+              ) : (
+              <>
+              {isMobile && (
+                <div className="-mx-4 mb-3 flex items-center justify-between gap-2 border-b bg-slate-50 px-4 py-2">
+                  <span className="text-xs text-slate-600">Table view • Scroll → for more</span>
+                  <Button variant="ghost" size="sm" onClick={() => setShowTableMobile(false)}>
+                    <ChevronUp className="h-4 w-4 mr-1" /> Cards
+                  </Button>
+                </div>
+              )}
               <div className="overflow-x-auto">
                 <Table className="min-w-[720px]">
                   <TableHeader>
@@ -275,6 +369,8 @@ export default function PoultryFeedFormulasPage() {
                   </TableBody>
                 </Table>
               </div>
+              </>
+              )}
               <DataPagination {...pg.paginationProps} />
             </CardContent></Card>
           )}

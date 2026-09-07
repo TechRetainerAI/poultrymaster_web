@@ -162,6 +162,90 @@ namespace PoultryFarmAPIWeb.Business
             }
         }
 
+        /// <summary>
+        /// A sale entered as PAID is a payment, so record one.
+        ///
+        /// <para>
+        /// Ticking Paid used to set <c>sale.paid = true</c> and stop there: no
+        /// payment event, nothing on Payments Received, an empty payment
+        /// history on the sale, and <c>amountpaid</c> left at 0 while the sale
+        /// read as settled. This closes that -- one customer payment with one
+        /// allocation, sourcetype SaleEntry, exactly as the Pay dialog
+        /// produces.
+        /// </para>
+        ///
+        /// <para>
+        /// ORDERING. The payment is applied to a sale that is still
+        /// OUTSTANDING, because sppoultrycustomerpayment_record refuses to
+        /// allocate against a zero balance ("Sale #x is already fully paid").
+        /// So the flag is cleared first and the payment puts it back:
+        /// sppoultrysale_recompute sets paid = true, amountpaid = the total,
+        /// and reposts the cash as the payment event. Net cash is unchanged --
+        /// migration 239 makes the sale's own cash row the RESIDUAL, which
+        /// becomes zero once the payment covers it.
+        /// </para>
+        ///
+        /// <para>
+        /// It runs in its own transaction and swallows its own failure on
+        /// purpose. If recording the payment cannot complete, the sale is left
+        /// exactly as this method used to leave it -- paid, with no payment row
+        /// -- rather than the caller being told the sale failed when it is
+        /// already saved. The sale is the thing the user asked for; the payment
+        /// event is bookkeeping that the Pay dialog can still add by hand.
+        /// </para>
+        /// </summary>
+        private async Task TryRecordSaleEntryPaymentAsync(SaleModel model, int saleId)
+        {
+            try
+            {
+                using var conn = new NpgsqlConnection(_connectionString);
+                await conn.OpenAsync();
+                using var tx = await conn.BeginTransactionAsync();
+
+                // Clear the flag so the allocation has a balance to apply to.
+                using (var clear = new NpgsqlCommand(
+                    "UPDATE sale SET paid = false WHERE saleid = @SaleId AND farmid = @FarmId", conn, tx))
+                {
+                    clear.Parameters.AddWithValue("@SaleId", saleId);
+                    clear.Parameters.AddWithValue("@FarmId", model.FarmId);
+                    await clear.ExecuteNonQueryAsync();
+                }
+
+                using (var pay = new NpgsqlCommand(
+                    "SELECT sppoultrypayment_record(p_farmid => @FarmId::text, p_saleid => @SaleId::int, " +
+                    "p_amount => @Amount::numeric, p_paymentmethod => @Method::text, " +
+                    "p_paymentdate => @Date::timestamp, p_reference => NULL::text, " +
+                    "p_note => @Note::text, p_createdby => @By::text)", conn, tx))
+                {
+                    pay.Parameters.AddWithValue("@FarmId", model.FarmId);
+                    pay.Parameters.AddWithValue("@SaleId", saleId);
+                    pay.Parameters.AddWithValue("@Amount", model.TotalAmount);
+                    pay.Parameters.AddWithValue("@Method", (object?)model.PaymentMethod ?? DBNull.Value);
+                    pay.Parameters.AddWithValue("@Date", (object?)model.SaleDate ?? DBNull.Value);
+                    pay.Parameters.AddWithValue("@Note", "Paid at point of sale");
+                    pay.Parameters.AddWithValue("@By", (object?)model.UserId ?? DBNull.Value);
+                    await pay.ExecuteNonQueryAsync();
+                }
+
+                await tx.CommitAsync();
+            }
+            catch
+            {
+                // Deliberately swallowed -- see the note above. The sale stands.
+                using var restore = new NpgsqlConnection(_connectionString);
+                try
+                {
+                    await restore.OpenAsync();
+                    using var cmd = new NpgsqlCommand(
+                        "UPDATE sale SET paid = true WHERE saleid = @SaleId AND farmid = @FarmId", restore);
+                    cmd.Parameters.AddWithValue("@SaleId", saleId);
+                    cmd.Parameters.AddWithValue("@FarmId", model.FarmId);
+                    await cmd.ExecuteNonQueryAsync();
+                }
+                catch { /* nothing further to try */ }
+            }
+        }
+
         public async Task<int> Insert(SaleModel model)
         {
             try
@@ -192,7 +276,11 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.CommandText = await PgCallText.ForAsync("spSale_Insert", cmd);
                 var result = await cmd.ExecuteScalarAsync();
                 var newId = Convert.ToInt32(result);
+                // Cash first: this is what writes the chosen account onto the
+                // sale row, and the payment below reads the account from there.
                 await SyncSaleCashAsync(model.FarmId, newId, model.PoultryCashAccountId, model.TotalAmount, model.Paid, model.SaleDescription, model.UserId, model.SaleDate);
+                if (model.Paid && model.TotalAmount > 0)
+                    await TryRecordSaleEntryPaymentAsync(model, newId);
                 return newId;
             }
             catch (Exception ex)

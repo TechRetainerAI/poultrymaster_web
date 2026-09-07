@@ -18,6 +18,7 @@ import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { cn } from "@/lib/utils"
+import { categoryLabel } from "@/lib/cash/cash-flow"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, Loader2, Wallet, RefreshCw, Scale, Trash2 } from "lucide-react"
@@ -239,18 +240,24 @@ export default function WaterCashAccountDetailPage() {
                     <div className="p-8 text-center text-slate-500">No transactions match your filters.</div>
                   ) : (
                     <MobileCardList
+                      striped
                       items={pg.pageItems}
                       pagination={pg.paginationProps}
                       getKey={(r) => r.waterCashTransactionId}
                       primary={(r) => `${r.amount < 0 ? "−" : "+"}${gh(Math.abs(r.amount))} · ${r.transactionType}`}
                       secondary={(r) => (<><span>{r.transactionDate.split("T")[0]}</span><span>· Bal {gh(r.running)}</span></>)}
+                      highlights={(r) => [
+                        { label: "Money in", value: r.amount > 0 ? gh(r.amount) : "—", accent: "emerald" },
+                        { label: "Money out", value: r.amount < 0 ? gh(Math.abs(r.amount)) : "—", accent: "rose" },
+                        { label: "Running balance", value: gh(r.running), accent: "violet", wide: true },
+                      ]}
                       details={(r) => [
                         { label: "Date", value: r.transactionDate.split("T")[0] },
                         { label: "Type", value: r.transactionType },
-                        { label: "Source", value: r.sourceType ?? "—" },
-                        { label: "Money in", value: r.amount > 0 ? gh(r.amount) : "—" },
-                        { label: "Money out", value: r.amount < 0 ? gh(Math.abs(r.amount)) : "—" },
-                        { label: "Running balance", value: gh(r.running) },
+                        // Through the shared vocabulary so a row reads the same
+                        // here as on Cash Flow. Printing the raw sourceType was
+                        // the reason those labels had to stay unfriendly.
+                        { label: "Source", value: categoryLabel(r.sourceType) },
                         { label: "Description", value: r.description ?? "—" },
                       ]}
                       desktopTable={
@@ -273,7 +280,7 @@ export default function WaterCashAccountDetailPage() {
                                 <TableRow key={r.waterCashTransactionId}>
                                   <TableCell className="whitespace-nowrap">{r.transactionDate.split("T")[0]}</TableCell>
                                   <TableCell>{r.transactionType}</TableCell>
-                                  <TableCell>{r.sourceType ?? "—"}</TableCell>
+                                  <TableCell>{categoryLabel(r.sourceType)}</TableCell>
                                   <TableCell className="text-right tabular-nums text-green-700">{r.amount > 0 ? gh(r.amount) : "—"}</TableCell>
                                   <TableCell className="text-right tabular-nums text-rose-600">{r.amount < 0 ? gh(Math.abs(r.amount)) : "—"}</TableCell>
                                   <TableCell className="text-right tabular-nums font-medium">{gh(r.running)}</TableCell>

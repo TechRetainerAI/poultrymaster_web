@@ -1048,6 +1048,7 @@ export default function ProductionRecordsPage() {
                         paginatedRecords.map((r: any, idx: number) => (
                           <Collapsible
                             key={r.id}
+                            defaultOpen
                             className={cn(
                               "group w-full rounded-xl border shadow-sm overflow-hidden",
                               idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200"

@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
@@ -386,6 +387,28 @@ function WaterInventoryTrackerPageInner() {
                           : "No ledger rows match those filters."}
                       </p>
                     ) : (
+                      <>
+                      {/* Mobile opens on scorecards (expanded by default);
+                          "View table format" flips to the wide ledger table. */}
+                      <MobileCardList
+                        striped
+                        defaultOpen
+                        items={pageRows}
+                        getKey={(row) => row.stockTxnId}
+                        primary={(row) => row.date || "—"}
+                        secondary={(row) => <span className="truncate">{row.movementLabel}</span>}
+                        trailing={(row) => (
+                          <span className="text-sm font-semibold tabular-nums text-slate-900">{qty(row.runningBase)}</span>
+                        )}
+                        highlights={(row) => [
+                          { label: "In", value: row.inQty > 0 ? qty(row.inQty) : "—", accent: "emerald" },
+                          { label: "Out", value: row.outQty > 0 ? qty(row.outQty) : "—", accent: "rose" },
+                          { label: "Balance", value: qty(row.runningBase), accent: "violet", wide: true },
+                        ]}
+                        details={(row) => [
+                          { label: "Description", value: row.description },
+                        ]}
+                        desktopTable={
                       <div className="overflow-x-auto table-scroll-wrapper pb-2" style={{ WebkitOverflowScrolling: "touch" }}>
                         <Table className="w-full min-w-[620px]">
                           <TableHeader>
@@ -443,6 +466,21 @@ function WaterInventoryTrackerPageInner() {
                             </TableRow>
                           </TableFooter>
                         </Table>
+                      </div>
+                        }
+                      />
+
+                      {/* The footer totals live in the table, which mobile does
+                          not show, so repeat them as a strip under the cards. */}
+                      <div className="lg:hidden mx-3 mb-2 flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+                        <span className="text-slate-600">
+                          Totals ({sortedRows.length.toLocaleString()}{sortedRows.length === 1 ? " movement" : " movements"})
+                        </span>
+                        <span className="flex items-center gap-3 tabular-nums">
+                          <span className="font-semibold text-emerald-700">In {ledgerTotals.inQty > 0 ? qty(ledgerTotals.inQty) : "—"}</span>
+                          <span className="font-semibold text-red-600">Out {ledgerTotals.outQty > 0 ? qty(ledgerTotals.outQty) : "—"}</span>
+                        </span>
+                      </div>
 
                         <div className="flex items-center justify-center gap-2 pt-3">
                           <Button
@@ -463,7 +501,7 @@ function WaterInventoryTrackerPageInner() {
                             Next
                           </Button>
                         </div>
-                      </div>
+                      </>
                     )}
 
                     {/* Say what the ledger does not contain, rather than letting

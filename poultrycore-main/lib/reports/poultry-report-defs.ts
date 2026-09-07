@@ -10,6 +10,7 @@
 import type { PoultryReportSlug } from "@/lib/api/poultry-reports"
 import { buildCashFlowAnalysis } from "@/lib/cash/cash-flow-analysis"
 import { categoryLabel } from "@/lib/cash/cash-flow"
+import { flowGroupLabel } from "@/lib/api/cash-flow"
 
 export interface FmtCtx {
   money: (n: number | null | undefined) => string
@@ -554,14 +555,20 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
       // collapses back to cash at hand exactly. All time, and it does not move
       // when the date filter does — hence the note, and the position.
       {
-        label: "Cash at hand",
+        // Was "All time - not affected by the date filter", which described the
+        // ledger-derived figure. Since 237 this is the period's closing cash,
+        // measured from the same transactions as the cards beside it.
+        label: "Closing cash",
         value: (s, c) => c.money(s.endingBalance),
-        note: "All time — not affected by the date filter",
+        note: "Not your account balances",
       },
     ],
     columns: [
       { header: "Date", cell: (r, c) => c.date(r.date) },
-      { header: "Account", cell: (r, c) => c.text(r.cashAccount) },
+      // Account went with migration 237 - this report no longer reads cash
+      // accounts. Trading-vs-capital and the category are what it can now say.
+      { header: "Type", cell: (r, c) => c.text(flowGroupLabel(r.flowGroup)) },
+      { header: "Category", cell: (r, c) => c.text(categoryLabel(r.category)) },
       { header: "Source", cell: (r, c) => c.text(r.sourceType) },
       { header: "Reference", cell: (r, c) => c.text(r.reference) },
       { header: "Description", cell: (r, c) => c.text(r.description) },
@@ -580,17 +587,25 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
     title: "Poultry Cash Flow Detail",
     description: "Where cash came from, what it went on, and how the period compares.",
     filters: {},
+    // Reads left to right as the statement: opening + in - out = closing.
     cards: [
+      { label: "Opening cash", value: (s, c) => c.money(s.openingBalance), note: "Start of period" },
       { label: "Money in", value: (s, c) => c.money(s.moneyIn), accent: "green" },
       { label: "Money out", value: (s, c) => c.money(s.moneyOut), accent: "rose" },
-      { label: "Net cash flow", value: (s, c) => c.money(s.netCashFlow), accent: (s) => profitAccent(s.netCashFlow) },
-      { label: "Biggest cost", value: (s, c) => topBucketLabel(s.moneyOutByCategory, c) },
-      // The only as-of-now figure in the row, so it sits last and says so —
-      // the same treatment Cash Movement's card got.
       {
-        label: "Cash at hand",
+        label: "Closing cash",
         value: (s, c) => c.money(s.cashAtHand),
-        note: "All time — not affected by the date filter",
+        // Was labelled "All time" when this read the cash-account ledger. Since
+        // migration 235 it is the period's closing figure, derived from the same
+        // transactions as the two cards before it — so the old note was not just
+        // stale, it described the opposite behaviour.
+        note: "Not your account balances",
+      },
+      {
+        label: "From trading",
+        value: (s, c) => c.money(num(s.operatingIn) - num(s.operatingOut)),
+        accent: (s) => profitAccent(num(s.operatingIn) - num(s.operatingOut)),
+        note: "Operating only, excludes capital",
       },
     ],
     analysis: {
@@ -599,6 +614,8 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
       // claims about somebody's money, so they are tested rather than trusted.
       items: (s, fmt) => buildCashFlowAnalysis({
         moneyIn: num(s.moneyIn), moneyOut: num(s.moneyOut), netCashFlow: num(s.netCashFlow),
+        operatingIn: num(s.operatingIn), operatingOut: num(s.operatingOut),
+        financingIn: num(s.financingIn), financingOut: num(s.financingOut),
         cashAtHand: num(s.cashAtHand),
         offLedgerIn: num(s.offLedgerIn), offLedgerOut: num(s.offLedgerOut),
         transferVolume: num(s.transferVolume),
@@ -625,8 +642,10 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
     ],
     columns: [
       { header: "Date", cell: (r, c) => c.date(r.date) },
+      // Trading vs capital. The old Account column went with migration 235: this
+      // report no longer reads cash accounts, so printing one would be fiction.
+      { header: "Type", cell: (r, c) => c.text(flowGroupLabel(r.flowGroup)) },
       { header: "Category", cell: (r, c) => c.text(categoryLabel(r.category)) },
-      { header: "Account", cell: (r, c) => c.text(r.cashAccount) },
       { header: "Reference", cell: (r, c) => c.text(r.reference) },
       { header: "Description", cell: (r, c) => c.text(r.description) },
       { header: "In", align: "right", cell: (r, c) => (r.inflow ? c.money(r.inflow) : "—") },

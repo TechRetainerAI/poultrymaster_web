@@ -43,7 +43,7 @@ export default function HotelBookingsPage() {
   const [filterStatus, setFilterStatus] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
+  const [pageSize, setPageSize] = useState(10)
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<HotelBooking | null>(null)

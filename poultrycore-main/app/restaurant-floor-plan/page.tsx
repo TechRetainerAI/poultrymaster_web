@@ -70,6 +70,8 @@ export default function RestaurantFloorPlanPage() {
   }
   async function saveFloor() {
     if (!floorForm.name.trim()) { toast({ title: "Name required", variant: "destructive" }); return }
+    const duplicate = floors.find(f => f.name.toLowerCase() === floorForm.name.trim().toLowerCase() && (!floorEditing || f.floorId !== floorEditing.floorId))
+    if (duplicate) { toast({ title: "Duplicate name", description: `An area named "${floorForm.name}" already exists.`, variant: "destructive" }); return }
     try {
       if (floorEditing) await updateFloor(floorEditing.floorId, floorForm); else await createFloor(floorForm)
       toast({ title: floorEditing ? "Updated" : "Created" }); setFloorDialogOpen(false)
@@ -112,8 +114,8 @@ export default function RestaurantFloorPlanPage() {
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-lg bg-rose-100 flex items-center justify-center"><MapPin className="h-5 w-5 text-rose-600" /></div>
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-900">Floor Plan & Tables</h1>
-                  <p className="text-sm text-muted-foreground">{tables.length} tables across {floors.length} areas</p>
+                  <h1 className="text-2xl font-bold text-gray-900">Restaurant Areas</h1>
+                  <p className="text-sm text-muted-foreground">Manage your dining areas and table layout. {tables.length} tables across {floors.length} areas.</p>
                 </div>
               </div>
               <div className="flex gap-2">

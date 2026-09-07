@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
-  agingBucket, autoAllocateOldestFirst, balanceAfter, docKey,
+  agingBucket, autoAllocateOldestFirst, balanceAfter, docKey, formatDocumentAge,
   totalAllocated, totalOpenBalance, validateAllocations,
   type AllocatableDocument,
 } from "./allocate"
@@ -168,5 +168,84 @@ describe("agingBucket", () => {
     expect(agingBucket(31)).toBe("31-60")
     expect(agingBucket(90)).toBe("61-90")
     expect(agingBucket(91)).toBe("90+")
+  })
+})
+
+// Expenses became payable documents in migration 238, so a single payment can
+// now settle a purchase and a bill together. The allocation maths is document
+// -type agnostic by design; these lock that in, because docKey is the only thing
+// keeping an Expense #8 apart from a RawMaterialPurchase #8.
+const MIXED_PAYABLES: AllocatableDocument[] = [
+  { documentType: "Expense", documentId: 8, documentDate: "2026-01-02", balance: 400 },
+  { documentType: "RawMaterialPurchase", documentId: 8, documentDate: "2026-01-20", balance: 600 },
+  { documentType: "Expense", documentId: 30, documentDate: "2026-03-09", balance: 250 },
+]
+
+describe("expenses as payable documents", () => {
+  it("keeps an expense and a purchase with the same id apart", () => {
+    // The bug this prevents: a bare id would collide and one document would
+    // silently absorb the other's allocation.
+    expect(docKey({ documentType: "Expense", documentId: 8 })).not.toBe(
+      docKey({ documentType: "RawMaterialPurchase", documentId: 8 }),
+    )
+    const result = autoAllocateOldestFirst(1000, MIXED_PAYABLES)
+    expect(result["Expense:8"]).toBe(400)
+    expect(result["RawMaterialPurchase:8"]).toBe(600)
+    expect(result["Expense:30"]).toBeUndefined()
+    expect(totalAllocated(result)).toBe(1000)
+  })
+
+  it("spreads one payment oldest-first across bills and purchases alike", () => {
+    const result = autoAllocateOldestFirst(500, MIXED_PAYABLES)
+    expect(result["Expense:8"]).toBe(400)
+    expect(result["RawMaterialPurchase:8"]).toBe(100)
+  })
+
+  it("validates a mixed allocation the same way it validates a single type", () => {
+    const allocation = { "Expense:8": 400, "RawMaterialPurchase:8": 600 }
+    const v = validateAllocations(1000, MIXED_PAYABLES, allocation, {
+      cashAccountRequired: true,
+      cashAccountId: 4,
+    })
+    expect(v.ok).toBe(true)
+    expect(v.allocated).toBe(1000)
+    expect(v.unallocated).toBe(0)
+  })
+
+  it("still refuses to over-apply to an expense line", () => {
+    const v = validateAllocations(900, MIXED_PAYABLES, { "Expense:8": 900 })
+    expect(v.ok).toBe(false)
+    expect(v.overAllocated["Expense:8"]).toBe(500)
+  })
+
+  it("reports the balance an expense would be left with", () => {
+    expect(balanceAfter(MIXED_PAYABLES[0], { "Expense:8": 150 })).toBe(250)
+  })
+
+  it("totals a mixed payables list exactly", () => {
+    expect(totalOpenBalance(MIXED_PAYABLES)).toBe(1250)
+  })
+})
+
+describe("formatDocumentAge", () => {
+  it("reads as days for a real bill", () => {
+    expect(formatDocumentAge(0)).toBe("0d")
+    expect(formatDocumentAge(45)).toBe("45d")
+  })
+
+  it("keeps a year-old debt visible as a number", () => {
+    // A bill CAN go a year unpaid, and that should stay uncomfortable to look at.
+    expect(formatDocumentAge(400)).toBe("400d")
+  })
+
+  it("calls an opening balance what it is instead of 9742d", () => {
+    // Opening balances are carried in dated 1/1/2000. The raw age is noise that
+    // makes a genuinely overdue bill beside it look trivial.
+    expect(formatDocumentAge(9742)).toBe("Opening balance")
+    expect(formatDocumentAge(5 * 365)).toBe("Opening balance")
+  })
+
+  it("never renders a negative age", () => {
+    expect(formatDocumentAge(-3)).toBe("0d")
   })
 })

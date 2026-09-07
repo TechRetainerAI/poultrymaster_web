@@ -134,6 +134,8 @@ export default function WaterVehiclesPage() {
                 <div className="p-8 text-center text-slate-500">No vehicles yet.</div>
               ) : (
                 <MobileCardList
+                  striped
+                  defaultOpen
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
                   getKey={(v) => v.waterVehicleId}
@@ -144,10 +146,12 @@ export default function WaterVehiclesPage() {
                       <Badge className={STATUS_COLOR[v.status] ?? ""}>{v.status}</Badge>
                     </>
                   )}
+                  highlights={(v) => [
+                    { label: "Capacity (bags)", value: v.capacityBags ?? "—", accent: "blue" },
+                    { label: "Reg #", value: v.registrationNumber ?? "—", accent: "slate" },
+                  ]}
                   details={(v) => [
                     { label: "Type", value: v.vehicleType },
-                    { label: "Reg #", value: v.registrationNumber ?? "—" },
-                    { label: "Capacity", value: v.capacityBags ?? "—" },
                     { label: "Fuel", value: v.fuelType ?? "—" },
                     { label: "Status", value: v.status },
                   ]}

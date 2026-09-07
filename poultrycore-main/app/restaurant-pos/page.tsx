@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Minus, Trash2, Search, ShoppingCart, CreditCard, Banknote, X, Check, UtensilsCrossed, Smartphone, Users, Printer, Download } from "lucide-react"
+import { Plus, Minus, Trash2, Search, ShoppingCart, CreditCard, Banknote, X, Check, UtensilsCrossed, Smartphone, Users, Printer, Download, Mail } from "lucide-react"
 import { PageSkeleton } from "@/components/restaurant/skeleton-loaders"
 import { Badge } from "@/components/ui/badge"
 import { useAuthStore } from "@/lib/store/auth-store"
@@ -19,6 +19,7 @@ import {
   listMenuCategories, listMenuItems, listTables, listCustomers,
   createOrder, addOrderItem, recalcOrder, addOrderPayment,
   updateOrderStatus, listOrderItems, getOrder, getReceiptTemplate,
+  createLoyaltyAccount,
   type MenuCategory, type MenuItem, type RestaurantTable,
   type OrderItem, type Order, type Customer, type ReceiptTemplate,
 } from "@/lib/api/restaurant"
@@ -98,6 +99,10 @@ export default function RestaurantPOSPage() {
           modifiers: item.modifiers.map(m => ({ modifierId: m.modifierId, modifierName: m.name, priceAdjustment: m.price, quantity: 1 })) })
       }
       await recalcOrder(orderId, 0, 0)
+      // Auto-enrol customer in loyalty if they have a name
+      if (selectedCustomerId || customerName) {
+        try { await createLoyaltyAccount(customerName || "Guest", undefined, selectedCustomerId || undefined) } catch { /* already enrolled or loyalty disabled */ }
+      }
       toast({ title: `Order ${orderNumber} placed!` })
       const [order, orderItems] = await Promise.all([getOrder(orderId), listOrderItems(orderId)])
       setActiveOrder(order); setActiveOrderItems(orderItems); setCart([]); setTables(await listTables(undefined, "Available"))
@@ -204,6 +209,38 @@ export default function RestaurantPOSPage() {
     doc.text("Powered by PoultryMaster", pageW / 2, y, { align: "center" })
 
     doc.save(`Receipt_${order.orderNumber}.pdf`)
+  }
+
+  async function emailReceipt() {
+    if (!receiptOrder) return
+    const { order } = receiptOrder
+    // Find customer email
+    const cust = customers.find(c => c.customerId === order.customerId)
+    const email = cust?.email
+    if (!email) { toast({ title: "No email", description: "This customer has no email address on file.", variant: "destructive" }); return }
+    try {
+      // Generate PDF blob
+      const doc = new jsPDF({ format: "a5", unit: "mm" })
+      const pageW = doc.internal.pageSize.getWidth()
+      let y = 15
+      doc.setFontSize(16); doc.setFont("helvetica", "bold")
+      doc.text(receiptTemplate?.restaurantName || "Restaurant", pageW / 2, y, { align: "center" }); y += 7
+      doc.setFontSize(9); doc.setFont("helvetica", "normal")
+      doc.text(`Order: ${order.orderNumber} | ${order.orderType}${order.tableNumber ? ` | Table ${order.tableNumber}` : ""}`, pageW / 2, y, { align: "center" }); y += 5
+      doc.text(new Date(order.createdAt).toLocaleString(), pageW / 2, y, { align: "center" }); y += 8
+      autoTable(doc, { startY: y, head: [["Item", "Qty", "Price", "Total"]], body: receiptOrder.items.map(oi => [oi.itemName, oi.quantity, oi.unitPrice.toFixed(2), oi.lineTotal.toFixed(2)]), theme: "grid", headStyles: { fillColor: [190, 18, 60] }, margin: { left: 10, right: 10 }, styles: { fontSize: 8 } })
+      y = (doc as any).lastAutoTable.finalY + 5
+      doc.setFontSize(10)
+      doc.text(`Total: ${order.totalAmount.toFixed(2)}`, pageW - 10, y, { align: "right" }); y += 8
+      doc.setFontSize(9)
+      doc.text("Thank you for dining with us!", pageW / 2, y, { align: "center" })
+      const blob = doc.output("blob")
+      const file = new File([blob], `Receipt_${order.orderNumber}.pdf`, { type: "application/pdf" })
+      // Send via email API
+      const { sendReportEmail } = await import("@/lib/api/email")
+      await sendReportEmail({ file, to: email, subject: `Your Receipt — Order ${order.orderNumber}`, body: `<p>Dear ${cust.name},</p><p>Please find your receipt attached for Order ${order.orderNumber}.</p><p>Thank you for dining with us!</p>` })
+      toast({ title: "Receipt emailed", description: `Sent to ${email}` })
+    } catch (e: any) { toast({ title: "Email failed", description: e?.message, variant: "destructive" }) }
   }
 
   if (loading) return <PageSkeleton />
@@ -489,6 +526,9 @@ export default function RestaurantPOSPage() {
               </div>
               <DialogFooter className="flex gap-2 sm:gap-2">
                 <Button variant="outline" onClick={() => setReceiptDialogOpen(false)}>Close</Button>
+                <Button variant="outline" onClick={emailReceipt}>
+                  <Mail className="h-4 w-4 mr-2" /> Email
+                </Button>
                 <Button variant="outline" onClick={downloadInvoice}>
                   <Download className="h-4 w-4 mr-2" /> Download PDF
                 </Button>

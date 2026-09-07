@@ -12,7 +12,7 @@
 import {
   BarChart3, Receipt, DollarSign, Users, Factory, Boxes, Truck,
   Route as RouteIcon, TrendingDown, FileText, ShoppingCart, ShoppingBag,
-  PiggyBank, History, Layers, Wallet, Gauge, type LucideIcon,
+  PiggyBank, History, Layers, Wallet, Gauge, PieChart, Landmark, type LucideIcon,
 } from "lucide-react"
 
 export type WaterReportStatus = "ready" | "stub"
@@ -49,6 +49,20 @@ export const WATER_REPORT_GROUPS: WaterReportGroup[] = [
       // both, and its bare toDate excluded everything recorded today. The
       // operational page at /water-cash-flow (Sales & Money) replaces it with both
       // fixed. Do not re-add a second Cash Flow here.
+      //
+      // The two below are NOT that report coming back. They read migration 236's
+      // transaction-sourced functions — no ledger, no transfers, end date covers
+      // the whole day — and they are the Water twins of the two cash reports the
+      // poultry rail has carried since 233/237. Movement says what moved; Detail
+      // says what it was for and how the period compares.
+      { slug: "cash-movement",     title: "Cash Movement",          description: "Every cash inflow and outflow, with a running balance.",                          icon: Wallet,       status: "ready" },
+      { slug: "cash-flow-detail",  title: "Cash Flow Detail",       description: "Where cash came from and what it went on, with analysis.",                        icon: PieChart,     status: "ready" },
+      // Sits beside the two above and deliberately disagrees with them. They read
+      // business transactions and say what the company earned and spent; this
+      // reads the cash-account LEDGER and says where the money sits. The two
+      // closing figures are not expected to match — that gap is what
+      // reconciliation exists to explain, and it is not a bug to be fixed.
+      { slug: "cash-accounts",     title: "Cash Account Report",    description: "Per-account opening, in, out and closing, with drift and reconciliation status.",  icon: Landmark,     status: "ready" },
       { slug: "expense-report",    title: "Expense Report",         description: "Expenses grouped by category, source, payment method.",                           icon: Receipt,      status: "ready" },
       { slug: "supplier-activity", title: "Supplier Activity",      description: "Per-supplier purchases, expenses paid, outstanding balance, last activity.",      icon: Receipt,      status: "ready" },
     ],

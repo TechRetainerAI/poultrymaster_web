@@ -200,6 +200,7 @@ export default function WaterInventoryPage() {
                     <div className="p-8 text-center text-slate-500">{q ? "No products match your search." : "No products yet."}</div>
                   ) : (
                     <MobileCardList
+                      striped
                       items={pgProducts.pageItems}
                       pagination={pgProducts.paginationProps}
                       defaultOpen
@@ -209,6 +210,10 @@ export default function WaterInventoryPage() {
                         const st = productStatus(p)
                         return <ToneBadge tone={st.tone} label={st.label} />
                       }}
+                      highlights={(p) => [
+                        { label: "Unit price", value: fmtGhc(p.unitPrice), accent: "blue" },
+                        { label: "Stock (Bags)", value: (p.stockOnHand ?? 0).toLocaleString(), accent: "emerald" },
+                      ]}
                       details={(p) => {
                         // Treat unit "sachet" as sachet-bearing even when the
                         // legacy IsSachetProduct flag wasn't set (#10.2).
@@ -219,8 +224,6 @@ export default function WaterInventoryPage() {
                           { label: "SKU", value: p.sku ?? "—" },
                           { label: "Size", value: p.sizeMl ? `${p.sizeMl} ${p.sizeUnit ?? "ml"}` : "—" },
                           { label: "Unit", value: p.unit ?? "—" },
-                          { label: "Unit price", value: fmtGhc(p.unitPrice) },
-                          { label: "Stock (Bags)", value: (p.stockOnHand ?? 0).toLocaleString() },
                           { label: "Stock (Sachets)", value: sachetCount !== null ? sachetCount.toLocaleString() : "—" },
                         ]
                       }}
@@ -296,6 +299,7 @@ export default function WaterInventoryPage() {
                     <div className="p-8 text-center text-slate-500">{q ? "No raw materials match your search." : "No raw materials yet."}</div>
                   ) : (
                     <MobileCardList
+                      striped
                       items={pgRaw.pageItems}
                       pagination={pgRaw.paginationProps}
                       defaultOpen
@@ -305,11 +309,13 @@ export default function WaterInventoryPage() {
                         const st = rawStatus(r)
                         return <ToneBadge tone={st.tone} label={st.label} />
                       }}
+                      highlights={(r) => [
+                        { label: "Stock", value: (r.currentQuantity ?? 0).toLocaleString(), accent: "emerald" },
+                        { label: "Min alert", value: ((r as any).minimumStockAlert ?? 0).toLocaleString() || "—", accent: "blue" },
+                      ]}
                       details={(r) => [
                         { label: "Category", value: r.category ?? "—" },
                         { label: "Unit", value: (r as any).unitOfMeasure ?? "—" },
-                        { label: "Stock", value: (r.currentQuantity ?? 0).toLocaleString() },
-                        { label: "Min alert", value: ((r as any).minimumStockAlert ?? 0).toLocaleString() || "—" },
                       ]}
                       desktopTable={
                         <div className="overflow-x-auto">

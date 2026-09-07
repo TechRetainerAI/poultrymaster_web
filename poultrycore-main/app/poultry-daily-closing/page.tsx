@@ -14,12 +14,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { useViewMode } from "@/hooks/use-view-mode"
-import { ViewModeToggle } from "@/components/ui/view-mode-toggle"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
-import { Plus, Loader2, CheckCircle2, XCircle, Eye, Trash2, Pencil, RotateCcw, RefreshCw } from "lucide-react"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { cn } from "@/lib/utils"
+import { Plus, Loader2, CheckCircle2, XCircle, Eye, Trash2, Pencil, RotateCcw, RefreshCw, ChevronDown, ChevronUp } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
@@ -48,6 +48,10 @@ export default function PoultryDailyClosingPage() {
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const gh = useFmt()
   const n = (v?: number) => (v ?? 0).toLocaleString()
+  const isMobile = useIsMobile()
+  // Mobile opens on scorecards; "View table format" flips to the wide table
+  // (same pattern as /production-records).
+  const [showTableMobile, setShowTableMobile] = useState(false)
   const [rows, setRows] = useState<PoultryDailyClosing[]>([])
   const pg = usePagination(rows)
   const [loading, setLoading] = useState(true)
@@ -113,11 +117,82 @@ export default function PoultryDailyClosingPage() {
             <div><h1 className="text-2xl font-bold">Daily Closing</h1><p className="text-sm text-slate-500">End-of-day production, sales, cash and stock snapshot.</p></div>
             <Button onClick={() => setNewOpen(true)}><Plus className="w-4 h-4 mr-1" /> New closing</Button>
           </div>
-          {/* Table is the only view here — no scorecard/tabs toggle. */}
+          {/* Mobile defaults to scorecards; "View table format" flips to the table. */}
           {loading ? <div className="flex items-center gap-2 text-slate-500 p-8"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
             : rows.length === 0 ? <Card><CardContent className="p-8 text-center text-slate-500">No closings yet.</CardContent></Card>
-            : (
+            : isMobile && !showTableMobile ? (
+            <div className="space-y-3">
+              {pg.pageItems.map((c, idx) => {
+                const net = (c.totalIncome ?? 0) - (c.totalExpenses ?? 0)
+                return (
+                <Collapsible
+                  key={c.poultryDailyClosingId}
+                  defaultOpen
+                  className={cn("group w-full rounded-xl border shadow-sm overflow-hidden",
+                    idx % 2 === 0 ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}
+                >
+                  <div className={cn("px-2.5 py-3 transition-colors", idx % 2 === 0 ? "active:bg-black/10" : "active:bg-black/5")}>
+                    <CollapsibleTrigger asChild>
+                      <div className="relative cursor-pointer">
+                        <ChevronDown className="absolute right-0 top-0 h-4 w-4 text-slate-400 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
+                        <div className="min-w-0">
+                          <div className="pr-6 flex flex-wrap items-center gap-2">
+                            <span className="font-semibold text-slate-900">{(c.closingDate || "").split("T")[0]}</span>
+                            <Badge className={STATUS_COLORS[c.status] ?? "bg-gray-100"}>{c.status}</Badge>
+                          </div>
+                          <div className="mt-3 grid grid-cols-2 gap-2">
+                            <div className="rounded-lg bg-emerald-100 border border-emerald-300 px-3 py-2 shadow-sm">
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-900">Produced</p>
+                              <p className="text-xl font-extrabold leading-tight text-emerald-800">{n(c.quantityProduced)}</p>
+                            </div>
+                            <div className="rounded-lg bg-blue-100 border border-blue-300 px-3 py-2 shadow-sm">
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-900">Sold</p>
+                              <p className="text-xl font-extrabold leading-tight text-blue-800">{n(c.eggsSold)}</p>
+                            </div>
+                            <div className="col-span-2 rounded-lg bg-violet-100 border border-violet-300 px-3 py-2 shadow-sm">
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-violet-900">Cash at hand</p>
+                              <p className="text-xl font-extrabold leading-tight text-violet-900">{gh(c.cashAtHand)}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="mt-4 pt-4 border-t border-slate-200/70 space-y-2 text-sm">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div><span className="text-slate-500">Income</span> <span className="font-medium text-emerald-700">{gh(c.totalIncome ?? 0)}</span></div>
+                          <div><span className="text-slate-500">Expenses</span> <span className="font-medium text-rose-700">{gh(c.totalExpenses ?? 0)}</span></div>
+                          <div><span className="text-slate-500">Net</span> <span className={cn("font-medium", net < 0 ? "text-rose-700" : "text-emerald-700")}>{gh(net)}</span></div>
+                          <div><span className="text-slate-500">Closing stock</span> <span className="font-medium">{n(c.closingStock)}</span></div>
+                        </div>
+                        <div className="flex gap-2 pt-2">
+                          <Button variant="outline" size="sm" className="h-10 flex-1 bg-white" onClick={(e) => { e.stopPropagation(); void openView(c.poultryDailyClosingId) }}>
+                            <Eye className="h-4 w-4 mr-2" /> Open closing
+                          </Button>
+                        </div>
+                      </div>
+                    </CollapsibleContent>
+                  </div>
+                </Collapsible>
+                )
+              })}
+              <DataPagination {...pg.paginationProps} />
+              <div className="rounded-lg border bg-slate-50/60 px-4 py-2">
+                <Button variant="ghost" size="sm" className="w-full text-slate-600" onClick={() => setShowTableMobile(true)}>
+                  View table format <ChevronDown className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+            ) : (
             <Card><CardContent className="p-4">
+              {isMobile && (
+                <div className="-mx-4 -mt-4 mb-3 flex items-center justify-between gap-2 border-b bg-slate-50 px-4 py-2">
+                  <span className="text-xs text-slate-600">Table view • Scroll → for more</span>
+                  <Button variant="ghost" size="sm" onClick={() => setShowTableMobile(false)}>
+                    <ChevronUp className="h-4 w-4 mr-1" /> Cards
+                  </Button>
+                </div>
+              )}
               <div className="overflow-x-auto">
               <Table>
                 <TableHeader><TableRow>
