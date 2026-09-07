@@ -7,7 +7,8 @@ import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { TRACKER_PAGE_SIZE_OPTIONS } from "@/components/ui/data-pagination"
 import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -40,7 +41,7 @@ import {
   type FeedInventoryAdjustment,
 } from "@/lib/api/feed-inventory-adjustment"
 
-const LEDGER_PAGE_SIZE = 15
+const LEDGER_PAGE_SIZE_DEFAULT = 15
 
 const ADJ_TYPES = [
   { value: "Correction", label: "Correction" },
@@ -72,6 +73,7 @@ export default function FeedTrackerPage() {
   const [ledgerSortKey, setLedgerSortKey] = useState<string | null>("date")
   const [ledgerSortDir, setLedgerSortDir] = useState<SortDirection>("desc")
   const [ledgerPage, setLedgerPage] = useState(1)
+  const [ledgerPageSize, setLedgerPageSize] = useState(LEDGER_PAGE_SIZE_DEFAULT)
 
   const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false)
   const [editingAdjustmentId, setEditingAdjustmentId] = useState<number | null>(null)
@@ -200,15 +202,31 @@ export default function FeedTrackerPage() {
     [filteredFeedLedgerRows, ledgerSortKey, ledgerSortDir]
   )
 
-  const ledgerTotalPages = Math.max(1, Math.ceil(sortedFeedLedgerRows.length / LEDGER_PAGE_SIZE))
+  // Column totals across the whole filtered set, not just the page on screen,
+  // so paging never changes them.
+  const filteredLedgerInTotal = useMemo(
+    () => sortedFeedLedgerRows.reduce((sum, r) => sum + (Number(r.in) || 0), 0),
+    [sortedFeedLedgerRows]
+  )
+  const filteredLedgerOutTotal = useMemo(
+    () => sortedFeedLedgerRows.reduce((sum, r) => sum + (Number(r.out) || 0), 0),
+    [sortedFeedLedgerRows]
+  )
+  const ledgerFiltersActive =
+    ledgerTypeFilter !== "ALL" ||
+    ledgerDescriptionFilter.trim() !== "" ||
+    ledgerDateFrom !== "" ||
+    ledgerDateTo !== ""
+
+  const ledgerTotalPages = Math.max(1, Math.ceil(sortedFeedLedgerRows.length / ledgerPageSize))
   const ledgerSafePage = Math.min(ledgerPage, ledgerTotalPages)
   const paginatedFeedLedgerRows = useMemo(
     () =>
       sortedFeedLedgerRows.slice(
-        (ledgerSafePage - 1) * LEDGER_PAGE_SIZE,
-        ledgerSafePage * LEDGER_PAGE_SIZE
+        (ledgerSafePage - 1) * ledgerPageSize,
+        ledgerSafePage * ledgerPageSize
       ),
-    [sortedFeedLedgerRows, ledgerSafePage]
+    [sortedFeedLedgerRows, ledgerSafePage, ledgerPageSize]
   )
 
   useEffect(() => {
@@ -703,16 +721,55 @@ export default function FeedTrackerPage() {
                               )
                             })}
                           </TableBody>
+                          <TableFooter>
+                            <TableRow className="bg-slate-50 hover:bg-slate-50">
+                              <TableCell colSpan={3} className="font-medium text-slate-700 text-sm">
+                                {ledgerFiltersActive ? "Filtered total" : "Total"}
+                                <span className="ml-2 font-normal text-slate-500">
+                                  ({sortedFeedLedgerRows.length.toLocaleString()}{" "}
+                                  {sortedFeedLedgerRows.length === 1 ? "row" : "rows"})
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right font-bold text-emerald-700 tabular-nums text-sm">
+                                {filteredLedgerInTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                              </TableCell>
+                              <TableCell className="text-right font-bold text-red-700 tabular-nums text-sm">
+                                {filteredLedgerOutTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                              </TableCell>
+                              <TableCell />
+                              <TableCell />
+                            </TableRow>
+                          </TableFooter>
                         </Table>
                       </div>
                     )}
                     {sortedFeedLedgerRows.length > 0 && (
                       <div className="flex flex-col gap-2 border-t px-2 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4 bg-slate-50/80">
-                        <p className="text-xs text-slate-600 text-center sm:text-left">
-                          Showing {(ledgerSafePage - 1) * LEDGER_PAGE_SIZE + 1}-
-                          {Math.min(ledgerSafePage * LEDGER_PAGE_SIZE, sortedFeedLedgerRows.length)} of{" "}
-                          {sortedFeedLedgerRows.length}
-                        </p>
+                        <div className="flex flex-col items-center gap-2 sm:flex-row sm:gap-3">
+                          <p className="text-xs text-slate-600 text-center sm:text-left">
+                            Showing {(ledgerSafePage - 1) * ledgerPageSize + 1}-
+                            {Math.min(ledgerSafePage * ledgerPageSize, sortedFeedLedgerRows.length)} of{" "}
+                            {sortedFeedLedgerRows.length}
+                          </p>
+                          <Select
+                            value={String(ledgerPageSize)}
+                            onValueChange={(v) => {
+                              setLedgerPageSize(Number(v))
+                              setLedgerPage(1)
+                            }}
+                          >
+                            <SelectTrigger className="h-8 w-[110px]" aria-label="Rows per page">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {TRACKER_PAGE_SIZE_OPTIONS.map((n) => (
+                                <SelectItem key={n} value={String(n)}>
+                                  {n} / page
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                         <div className="flex items-center justify-center gap-2">
                           <Button
                             type="button"
