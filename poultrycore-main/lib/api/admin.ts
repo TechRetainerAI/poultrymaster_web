@@ -119,14 +119,7 @@ export async function getEmployees(): Promise<ApiResponse<Employee[]>> {
     const url = buildAdminApiUrl('/Admin/employees')
     console.log("[Admin API] Fetching employees from backend API:", url)
     
-    // Log token presence for debugging
-    if (typeof window !== "undefined") {
-      const token = localStorage.getItem("auth_token")
-      console.log("[Admin API] Token present:", !!token, "Token length:", token?.length)
-    }
-
     const headers = getAuthHeaders()
-    console.log("[Admin API] Request headers:", headers)
 
     const response = await fetch(url, {
       method: "GET",
@@ -374,8 +367,6 @@ export async function createEmployee(employee: CreateEmployeeData): Promise<ApiR
       Accept: "application/json", // Backend returns JSON (EmployeeModel)
     }
 
-    console.log("[Admin API] Request headers:", headers)
-
     const response = await fetch(url, {
       method: "POST",
       headers,
@@ -383,7 +374,6 @@ export async function createEmployee(employee: CreateEmployeeData): Promise<ApiR
     })
 
     console.log("[Admin API] Create response status:", response.status, response.statusText)
-    console.log("[Admin API] Response headers:", [...response.headers.entries()])
     console.log("[Admin API] Response OK:", response.ok)
 
     // Read response body once (can only be read once)

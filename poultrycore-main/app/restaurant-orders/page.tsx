@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { ClipboardList, ChevronRight, RefreshCw, Users, DollarSign, Clock, MapPin } from "lucide-react"
+import { ClipboardList, ChevronRight, RefreshCw, Users, DollarSign, Clock, MapPin, QrCode } from "lucide-react"
 import { PageSkeleton } from "@/components/restaurant/skeleton-loaders"
 import { Badge } from "@/components/ui/badge"
 import { useAuthStore } from "@/lib/store/auth-store"
@@ -56,6 +56,23 @@ export default function RestaurantOrdersPage() {
   }
 
   useEffect(() => { if (!loading) loadOrders() }, [filterStatus, filterType])
+
+  // Refresh in the background so orders arriving from table QR codes show up on
+  // their own. Deliberately silent - no spinner, no toast on failure - because
+  // this fires every 10s and must never interrupt someone mid-task.
+  useEffect(() => {
+    if (activeFarmType !== "Restaurant") return
+    const id = setInterval(() => {
+      const statusParam = filterStatus === "active" || filterStatus === "all" ? undefined : filterStatus
+      const typeParam = filterType === "all" ? undefined : filterType
+      listOrders(statusParam, typeParam)
+        .then(list => setOrders(filterStatus === "active"
+          ? list.filter(o => !["Completed", "Cancelled", "Refunded"].includes(o.status))
+          : list))
+        .catch(() => {})
+    }, 10_000)
+    return () => clearInterval(id)
+  }, [activeFarmType, filterStatus, filterType])
 
   async function openDetail(o: Order) {
     try {
@@ -161,6 +178,11 @@ export default function RestaurantOrdersPage() {
                             {o.tableNumber && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />Table {o.tableNumber}</span>}
                             {o.customerName && <span className="flex items-center gap-1"><Users className="h-3 w-3" />{o.customerName}</span>}
                             <span>{o.itemCount} items</span>
+                            {o.onlineSource && (
+                              <Badge variant="secondary" className="h-5 gap-1 px-1.5 text-[10px]">
+                                <QrCode className="h-3 w-3" />{o.onlineSource}
+                              </Badge>
+                            )}
                           </div>
                         </div>
                         <div className="text-right flex-shrink-0">

@@ -11,7 +11,7 @@ namespace PoultryFarmAPIWeb.Business
 
         // QR Codes
         Task<List<RestaurantQrCodeModel>> ListQrCodesAsync(string farmId);
-        Task<(int id, string token)> GenerateQrCodeAsync(string farmId, int tableId, string tableNumber);
+        Task<(int id, string token)> GenerateQrCodeAsync(string farmId, int? tableId, string? tableNumber, string codeType = "Table");
         Task DeleteQrCodeAsync(int id, string farmId);
         Task<RestaurantQrCodeModel?> ScanQrCodeAsync(string token);
 
@@ -35,5 +35,15 @@ namespace PoultryFarmAPIWeb.Business
         Task<(int orderId, string orderNumber, string trackingToken)> PlaceOnlineOrderAsync(OnlineOrderCreateRequest req);
         Task<OrderTrackingModel?> TrackOrderAsync(string trackingToken);
         Task<ThrottleCheckResult> CheckThrottleAsync(string farmId);
+
+        // --- QR self-ordering (migration 248) --------------------------------
+        /// <summary>Per-table rate limit for one QR code.</summary>
+        Task<ThrottleCheckResult> CheckQrThrottleAsync(int qrCodeId, string farmId);
+        /// <summary>Guest orders awaiting staff confirmation, oldest first.</summary>
+        Task<List<PendingOnlineOrderModel>> ListPendingOnlineOrdersAsync(string farmId);
+        /// <summary>Confirm a guest order so the kitchen can see it.</summary>
+        Task<(bool ok, string message)> AcceptOnlineOrderAsync(int orderId, string farmId, string confirmedBy);
+        /// <summary>Reject a guest order; cancels the order and all its items.</summary>
+        Task<(bool ok, string message)> RejectOnlineOrderAsync(int orderId, string farmId, string? reason, string by);
     }
 }

@@ -281,12 +281,29 @@ export default function RestaurantPOSPage() {
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                     {filteredItems.map(item => (
                       <button key={item.menuItemId} onClick={() => addToCart(item)}
-                        className="text-left p-3 border rounded-xl hover:border-rose-300 hover:bg-rose-50/50 hover:shadow-sm transition-all group">
-                        <div className="font-medium text-sm text-gray-900 truncate group-hover:text-rose-700">{item.name}</div>
-                        <div className="text-xs text-muted-foreground truncate mt-0.5">{item.categoryName || "Uncategorized"}</div>
-                        <div className="flex items-center justify-between mt-2">
-                          <span className="font-bold text-rose-600">{item.price.toFixed(2)}</span>
-                          {item.prepTime > 0 && <span className="text-[10px] text-muted-foreground">{item.prepTime}m</span>}
+                        className="text-left border rounded-xl overflow-hidden hover:border-rose-300 hover:bg-rose-50/50 hover:shadow-sm transition-all group">
+                        {/* Photo. On a POS the picture is what staff scan for, so it gets
+                            the top of the tile. The icon sits underneath as a permanent
+                            backdrop, so items with no photo -- and images that fail to
+                            decode -- land on the same placeholder and every row in the
+                            grid keeps the same height. */}
+                        <div className="relative aspect-[4/3] w-full bg-gray-100 overflow-hidden">
+                          <div className="absolute inset-0 flex items-center justify-center text-gray-300">
+                            <UtensilsCrossed className="h-7 w-7" />
+                          </div>
+                          {item.imageUrl && (
+                            <img src={item.imageUrl} alt="" loading="lazy"
+                              className="relative w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                              onError={e => (e.currentTarget.style.display = "none")} />
+                          )}
+                        </div>
+                        <div className="p-3">
+                          <div className="font-medium text-sm text-gray-900 truncate group-hover:text-rose-700">{item.name}</div>
+                          <div className="text-xs text-muted-foreground truncate mt-0.5">{item.categoryName || "Uncategorized"}</div>
+                          <div className="flex items-center justify-between mt-2">
+                            <span className="font-bold text-rose-600">{item.price.toFixed(2)}</span>
+                            {item.prepTime > 0 && <span className="text-[10px] text-muted-foreground">{item.prepTime}m</span>}
+                          </div>
                         </div>
                       </button>
                     ))}

@@ -142,7 +142,43 @@ namespace PoultryFarmAPIWeb.Business
             UpdatedAt           = r.IsDBNull(r.GetOrdinal("updatedat")) ? null : r.GetDateTime(r.GetOrdinal("updatedat")),
             CompletedAt         = r.IsDBNull(r.GetOrdinal("completedat")) ? null : r.GetDateTime(r.GetOrdinal("completedat")),
             ItemCount           = hasItemCount ? r.GetInt64(r.GetOrdinal("itemcount")) : 0,
+
+            // Guest/online provenance, returned by the list and get procs from
+            // migration 248 onward. Read defensively by column name: these procs
+            // are also what an un-migrated database will be missing, and a clear
+            // null beats an IndexOutOfRange from the data layer.
+            OnlineSource        = Str(r, "onlinesource"),
+            TrackingToken       = Str(r, "trackingtoken"),
+            QrCodeId            = Int(r, "qrcodeid"),
+            DeliveryAddress     = Str(r, "deliveryaddress"),
+            DeliveryFee         = Dec(r, "deliveryfee"),
+            PromoCode           = Str(r, "promocode"),
+            PromoDiscount       = Dec(r, "promodiscount"),
+            EstimatedReadyTime  = Date(r, "estimatedreadytime"),
+            ConfirmedAt         = Date(r, "confirmedat"),
+            ConfirmedBy         = Str(r, "confirmedby"),
+            GuestPaymentIntent  = Str(r, "guestpaymentintent"),
+            GuestPaymentAmount  = Has(r, "guestpaymentamount") && !r.IsDBNull(r.GetOrdinal("guestpaymentamount"))
+                                    ? r.GetDecimal(r.GetOrdinal("guestpaymentamount")) : null,
         };
+
+        // Column-optional readers. Every restaurant order read goes through
+        // ReadOrder, so if migration 248 has not been applied yet these keep the
+        // POS and the orders list working instead of throwing on every row.
+        private static bool Has(NpgsqlDataReader r, string col)
+        {
+            for (var i = 0; i < r.FieldCount; i++)
+                if (string.Equals(r.GetName(i), col, StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
+        }
+        private static string? Str(NpgsqlDataReader r, string col)
+            => Has(r, col) && !r.IsDBNull(r.GetOrdinal(col)) ? r.GetString(r.GetOrdinal(col)) : null;
+        private static int? Int(NpgsqlDataReader r, string col)
+            => Has(r, col) && !r.IsDBNull(r.GetOrdinal(col)) ? r.GetInt32(r.GetOrdinal(col)) : null;
+        private static decimal Dec(NpgsqlDataReader r, string col)
+            => Has(r, col) && !r.IsDBNull(r.GetOrdinal(col)) ? r.GetDecimal(r.GetOrdinal(col)) : 0m;
+        private static DateTime? Date(NpgsqlDataReader r, string col)
+            => Has(r, col) && !r.IsDBNull(r.GetOrdinal(col)) ? r.GetDateTime(r.GetOrdinal(col)) : null;
 
         // =====================================================================
         // ORDER ITEMS

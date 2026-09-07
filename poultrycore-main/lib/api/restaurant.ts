@@ -696,6 +696,20 @@ export interface Order {
   cancelReason?: string | null; refundReason?: string | null
   createdAt: string; updatedAt?: string | null; completedAt?: string | null
   itemCount: number
+  // Guest/online provenance. Present on the wire from migration 248 onward;
+  // optional so an un-migrated backend simply omits them rather than breaking.
+  onlineSource?: string | null      // 'QR' | 'Web' | 'App'; absent = walk-in POS order
+  trackingToken?: string | null
+  qrCodeId?: number | null
+  deliveryAddress?: string | null
+  deliveryFee?: number
+  promoCode?: string | null
+  promoDiscount?: number
+  estimatedReadyTime?: string | null
+  confirmedAt?: string | null
+  confirmedBy?: string | null
+  guestPaymentIntent?: string | null
+  guestPaymentAmount?: number | null
 }
 export interface OrderCreateInput {
   orderType?: string; tableId?: number | null; tableNumber?: string | null
@@ -1092,6 +1106,10 @@ export interface OnlineOrderingSettings {
   deliveryFeeType: string; deliveryFeeAmount: number; freeDeliveryAbove?: number | null
   maxDeliveryDistanceKm: number; acceptingOrders: boolean; pausedReason?: string | null
   welcomeMessage?: string | null; termsAndConditions?: string | null
+  /** Origin printed into QR codes. Blank = use the browser's current origin. */
+  publicBaseUrl?: string | null
+  /** Per-table rate limit: max orders from one QR within qrSlotDurationMins. */
+  maxOrdersPerQrSlot?: number; qrSlotDurationMins?: number
   createdAt: string; updatedAt?: string | null
 }
 
@@ -1111,18 +1129,28 @@ export async function toggleAcceptingOrders(accepting: boolean, reason?: string)
 
 // ----- QR Codes -----
 
+export type QrCodeType = "Restaurant" | "Table"
+
 export interface QrCode {
   qrCodeId: number; farmId: string; tableId?: number | null; tableNumber: string
+  /** "Restaurant" = one code for the whole venue; "Table" = tied to one table. */
+  codeType?: QrCodeType
   qrToken: string; isActive: boolean; scanCount: number; lastScannedAt?: string | null; createdAt: string
 }
 
 export async function listQrCodes(): Promise<QrCode[]> {
   return jget<QrCode[]>("/Restaurant/online/qr-codes")
 }
-export async function generateQrCode(tableId: number, tableNumber: string): Promise<{ qrCodeId: number; qrToken: string }> {
+export async function generateQrCode(
+  tableId: number | null, tableNumber: string | null, codeType: QrCodeType = "Table",
+): Promise<{ qrCodeId: number; qrToken: string }> {
   const farmId = activeFarmId()
   const url = farmApiUrl(`/Restaurant/online/qr-codes?farmId=${encodeURIComponent(farmId)}`)
-  const res = await fetch(url, { method: "POST", headers: getAuthHeaders(), body: JSON.stringify({ tableId, tableNumber }) })
+  const res = await fetch(url, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ codeType, tableId, tableNumber }),
+  })
   if (!res.ok) throw new Error(await readApiError(res))
   return res.json()
 }
@@ -1177,6 +1205,10 @@ export interface OrderTracking {
   orderId: number; orderNumber: string; orderType: string; status: string
   tableNumber?: string | null; totalAmount: number; paymentStatus: string
   estimatedReadyTime?: string | null; createdAt: string; updatedAt?: string | null
+  /** 'QR' | 'Web' | 'App'. Present means the order still needs staff confirmation while status is 'Placed'. */
+  onlineSource?: string | null
+  cancelReason?: string | null
+  confirmedAt?: string | null
 }
 export interface PromoValidation {
   valid: boolean; promoCodeId: number; discountType: string; discountValue: number
@@ -1201,7 +1233,7 @@ export async function getPublicSettings(farmId: string): Promise<any> {
   if (!res.ok) throw new Error(await readApiError(res))
   return res.json()
 }
-export async function scanQrCode(token: string): Promise<{ farmId: string; tableId: number; tableNumber: string }> {
+export async function scanQrCode(token: string): Promise<{ qrCodeId: number; farmId: string; tableId: number | null; tableNumber: string; codeType?: QrCodeType }> {
   const url = farmApiUrl(`/Restaurant/public/qr/${token}`)
   const res = await fetch(url)
   if (!res.ok) throw new Error(await readApiError(res))
@@ -1219,6 +1251,42 @@ export async function placeOnlineOrder(farmId: string, input: any): Promise<{ or
   if (!res.ok) throw new Error(await readApiError(res))
   return res.json()
 }
+// ----- Guest order confirmation (staff) -----
+//
+// A QR order arrives at status 'Placed' and is deliberately hidden from the
+// kitchen display until someone accepts it here. See migration 248.
+
+export interface PendingOnlineOrder {
+  orderId: number; orderNumber: string; orderType: string
+  onlineSource?: string | null
+  tableId?: number | null; tableNumber?: string | null
+  customerName?: string | null; customerPhone?: string | null
+  guestPaymentIntent?: string | null
+  notes?: string | null
+  totalAmount: number
+  itemCount: number
+  /** e.g. "2 x Jollof Rice, 1 x Grilled Tilapia" - aggregated server-side. */
+  itemSummary?: string | null
+  createdAt: string
+  waitingMinutes: number
+}
+
+export async function listPendingOnlineOrders(): Promise<PendingOnlineOrder[]> {
+  return jget<PendingOnlineOrder[]>("/Restaurant/online/pending-orders")
+}
+
+export async function acceptOnlineOrder(orderId: number): Promise<{ message: string }> {
+  const farmId = activeFarmId()
+  return jsend<{ message: string }>(
+    `/Restaurant/online/orders/${orderId}/accept?farmId=${encodeURIComponent(farmId)}`, "POST")
+}
+
+export async function rejectOnlineOrder(orderId: number, reason?: string): Promise<{ message: string }> {
+  const farmId = activeFarmId()
+  return jsend<{ message: string }>(
+    `/Restaurant/online/orders/${orderId}/reject?farmId=${encodeURIComponent(farmId)}`, "POST", { reason })
+}
+
 export async function trackOrder(token: string): Promise<OrderTracking> {
   const url = farmApiUrl(`/Restaurant/public/track/${token}`)
   const res = await fetch(url)

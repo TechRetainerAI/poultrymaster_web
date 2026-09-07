@@ -16,6 +16,7 @@ import { PageSkeleton } from "@/components/restaurant/skeleton-loaders"
 import { Badge } from "@/components/ui/badge"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
+import { fileToThumbnailDataUrl } from "@/lib/utils/image-downscale"
 import {
   listMenuCategories, createMenuCategory, updateMenuCategory, deleteMenuCategory,
   listMenuItems, createMenuItem, updateMenuItem, deleteMenuItem, toggleMenuItemAvailability,
@@ -551,12 +552,17 @@ export default function RestaurantMenuPage() {
                 <div className="flex items-center gap-3">
                   <label className="flex items-center gap-2 px-4 py-2 border rounded-lg cursor-pointer hover:bg-rose-50 transition-colors text-sm">
                     <Package className="h-4 w-4 text-rose-600" /> Choose Photo
-                    <input type="file" accept="image/*" className="hidden" onChange={e => {
+                    <input type="file" accept="image/*" className="hidden" onChange={async e => {
                       const file = e.target.files?.[0]
-                      if (file) {
-                        const reader = new FileReader()
-                        reader.onload = () => setItemForm({ ...itemForm, imageUrl: reader.result as string })
-                        reader.readAsDataURL(file)
+                      e.target.value = ""   // let the same file be re-picked after an error
+                      if (!file) return
+                      try {
+                        // Downscale before storing: the data URI goes into the row itself,
+                        // and a raw photo is megabytes that every menu list would read back.
+                        const thumbnail = await fileToThumbnailDataUrl(file)
+                        setItemForm(f => ({ ...f, imageUrl: thumbnail }))
+                      } catch (err: any) {
+                        toast({ title: "Couldn't use that image", description: err?.message, variant: "destructive" })
                       }
                     }} />
                   </label>
