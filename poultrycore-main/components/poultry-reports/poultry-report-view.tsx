@@ -26,7 +26,7 @@ import { getFlocks, type Flock } from "@/lib/api/flock"
 import { getCustomers } from "@/lib/api/customer"
 import { defaultReportRange, rangeToPeriod, PERIOD_GROUPS } from "@/lib/date-ranges"
 import { fetchPoultryReport, type PoultryReportResponse, type PoultryReportSlug } from "@/lib/api/poultry-reports"
-import { POULTRY_REPORT_DEFS, type FmtCtx, type Accent } from "@/lib/reports/poultry-report-defs"
+import { POULTRY_REPORT_DEFS, reportTotalsRow, type FmtCtx, type Accent } from "@/lib/reports/poultry-report-defs"
 import {
   PoultryReportFilter, type PoultryReportFilterValue,
 } from "@/components/poultry-reports/poultry-report-filter"
@@ -243,6 +243,9 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
     filtersUsed,
     columns: def.columns.map((c) => ({ header: c.header, align: c.align })),
     rows: rows.map((row) => def.columns.map((c) => c.cell(row, ctx))),
+    // Same totals the table pins at its foot — a printed report that stopped
+    // short of them would send the reader back to the screen to add up.
+    totalsRow: reportTotalsRow(def.columns, rows, ctx) ?? undefined,
   }), [def, slug, farmName, filter, user, currencyLabel, cards, filtersUsed, rows, ctx])
 
   const onPdf = useCallback(async () => {
@@ -259,7 +262,11 @@ export function PoultryReportView({ slug, chrome = "page" }: { slug: PoultryRepo
   const onCsv = useCallback(() => {
     const esc = (v: string) => `"${String(v).replace(/"/g, '""')}"`
     const header = def.columns.map((c) => esc(c.header)).join(",")
-    const body = rows.map((row) => def.columns.map((c) => esc(c.cell(row, ctx))).join(",")).join("\n")
+    const totals = reportTotalsRow(def.columns, rows, ctx)
+    const body = [
+      ...rows.map((row) => def.columns.map((c) => esc(c.cell(row, ctx))).join(",")),
+      ...(totals ? [totals.map(esc).join(",")] : []),
+    ].join("\n")
     const meta = `${esc(def.title)}\n${esc(`Farm: ${farmName ?? "—"}`)},${esc(`Period: ${filter.fromDate} to ${filter.toDate}`)}\n\n`
     const csv = meta + header + "\n" + body
     const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" })

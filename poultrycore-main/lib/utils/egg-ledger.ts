@@ -12,6 +12,18 @@ export interface EggLedgerRow {
   in: number
   out: number
   balance: number
+  /**
+   * Position in the ledger's own ascending order — by date, then by the
+   * within-day sequence a day's movements have to run in (eggs collected, then
+   * the non-saleable ones taken back out, then sales, then adjustments and
+   * stock moves). `balance` is accumulated in exactly this order.
+   *
+   * Sorting the Date column by this rather than by `date` is what lets
+   * "newest first" mean it: three movements all stamped the same day compare
+   * equal on `date`, so the table kept showing them oldest-first — the sale a
+   * farmer had just entered sat under the morning's collection.
+   */
+  seq: number
 }
 
 export function isEggSaleProduct(product: string | undefined | null): boolean {
@@ -252,7 +264,7 @@ export function buildEggStockLedger(
   })
 
   let bal = 0
-  const rows: EggLedgerRow[] = lines.map((line) => {
+  const rows: EggLedgerRow[] = lines.map((line, index) => {
     bal += line.in - line.out
     return {
       sortKey: line.sortKey,
@@ -262,6 +274,7 @@ export function buildEggStockLedger(
       in: line.in,
       out: line.out,
       balance: bal,
+      seq: index,
     }
   })
 
@@ -287,6 +300,9 @@ export function buildEggStockLedger(
       in: unmatchedLedgerDelta > 0 ? unmatchedLedgerDelta : 0,
       out: unmatchedLedgerDelta < 0 ? -unmatchedLedgerDelta : 0,
       balance: authoritative,
+      // Last in the ascending order: it is what the rows above could not
+      // account for, so it can only be read after them.
+      seq: rows.length,
     })
   }
 

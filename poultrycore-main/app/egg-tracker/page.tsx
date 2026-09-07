@@ -8,7 +8,7 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { TRACKER_PAGE_SIZE_OPTIONS } from "@/components/ui/data-pagination"
+import { TRACKER_PAGE_SIZE_DEFAULT, TRACKER_PAGE_SIZE_OPTIONS } from "@/components/ui/data-pagination"
 import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
@@ -41,7 +41,6 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { toLocalDateKey } from "@/lib/utils/date-key"
 import { buildEggStockLedger, type EggLedgerRow } from "@/lib/utils/egg-ledger"
 
-const LEDGER_PAGE_SIZE_DEFAULT = 15
 
 const ADJ_TYPES = [
   { value: "Correction", label: "Correction" },
@@ -88,7 +87,7 @@ export default function EggTrackerPage() {
   const [ledgerSortKey, setLedgerSortKey] = useState<string | null>("date")
   const [ledgerSortDir, setLedgerSortDir] = useState<SortDirection>("desc")
   const [ledgerPage, setLedgerPage] = useState(1)
-  const [ledgerPageSize, setLedgerPageSize] = useState(LEDGER_PAGE_SIZE_DEFAULT)
+  const [ledgerPageSize, setLedgerPageSize] = useState(TRACKER_PAGE_SIZE_DEFAULT)
 
   const handleLogout = () => {
     localStorage.removeItem("auth_token")
@@ -221,6 +220,16 @@ export default function EggTrackerPage() {
     [eggLedgerAllRows]
   )
 
+  // Eggs the flocks actually laid: the ledger's 'Production' rows and nothing
+  // else. Deliberately narrower than "Total eggs in", which also counts
+  // stocktake adjustments, restocks and driver returns — real movements into
+  // stock, but not eggs any hen produced. This is the collected figure, before
+  // the broken / meaty / soft / lost lines take their share back out.
+  const totalEggsProducedLedger = useMemo(
+    () => eggLedgerAllRows.filter((r) => r.type === "Production").reduce((sum, r) => sum + r.in, 0),
+    [eggLedgerAllRows]
+  )
+
   // Headline totals: every movement, ignoring the table filters, so they stay
   // put while you narrow the list below. in − out is "Eggs on hand".
   const totalEggsInLedger = useMemo(
@@ -247,7 +256,13 @@ export default function EggTrackerPage() {
   const sortedEggLedgerRows = useMemo(
     () =>
       sortData(filteredEggLedgerRows, ledgerSortKey, ledgerSortDir, (item: EggLedgerRow, key: string) => {
-        if (key === "date") return new Date(item.date)
+        // Sort on the ledger's own sequence, not the raw date. A day's rows all
+        // carry the same date, so comparing dates left them tied and the table
+        // fell back to insertion order — ascending — even under a descending
+        // sort. `seq` already encodes date-then-within-day order, so descending
+        // now puts the last thing entered at the top of the day, where the
+        // person who just entered it looks for it.
+        if (key === "date") return item.seq
         if (key === "type") return item.type
         if (key === "description") return item.description
         if (key === "in") return Number(item.in) || 0
@@ -539,8 +554,15 @@ export default function EggTrackerPage() {
                   </CardHeader>
                   <CardContent>
                     <div className={cn("flex gap-4", isMobile ? "flex-col" : "items-start justify-between")}>
-                      <div className={cn("grid gap-4", isMobile ? "grid-cols-1" : "grid-cols-2")}>
-                        <div>
+                      {/* All five figures on one line, so the whole picture —
+                          what is on hand, what was produced, what was sold, and
+                          the in/out either side of it — reads across without
+                          the eye dropping to a second row. flex-1 + min-w-0
+                          lets the five columns share whatever width is left
+                          after "Last ledger event" on the right, and shrink
+                          rather than push it off the card. */}
+                      <div className={cn("grid gap-4 min-w-0", isMobile ? "grid-cols-1" : "grid-cols-5 flex-1")}>
+                        <div className="min-w-0">
                           <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Eggs on hand</div>
                           <div className="mt-1 flex items-center gap-2 flex-wrap">
                             <span
@@ -564,19 +586,25 @@ export default function EggTrackerPage() {
                             </Button>
                           </div>
                         </div>
-                        <div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total eggs produced</div>
+                          <div className="mt-1 text-2xl font-bold text-sky-700 tabular-nums">
+                            {totalEggsProducedLedger.toLocaleString()}
+                          </div>
+                        </div>
+                        <div className="min-w-0">
                           <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Egg sales (units)</div>
                           <div className="mt-1 text-2xl font-bold text-amber-800 tabular-nums">
                             {totalEggsSoldLedger.toLocaleString()}
                           </div>
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total eggs in</div>
                           <div className="mt-1 text-2xl font-bold text-emerald-600 tabular-nums">
                             {totalEggsInLedger.toLocaleString()}
                           </div>
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total eggs out</div>
                           <div className="mt-1 text-2xl font-bold text-red-600 tabular-nums">
                             {totalEggsOutLedger.toLocaleString()}

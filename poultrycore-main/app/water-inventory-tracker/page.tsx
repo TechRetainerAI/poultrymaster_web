@@ -42,9 +42,9 @@ import {
 } from "@/lib/api/water"
 import { useFmt } from "@/lib/currency"
 import { PeriodSelect } from "@/components/ui/period-select"
+import { TRACKER_PAGE_SIZE_DEFAULT, TRACKER_PAGE_SIZE_OPTIONS } from "@/components/ui/data-pagination"
 import { defaultReportRange, rangeToPeriod } from "@/lib/date-ranges"
 
-const LEDGER_PAGE_SIZE = 15
 const qty = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 2 })
 
 function WaterInventoryTrackerPageInner() {
@@ -74,6 +74,9 @@ function WaterInventoryTrackerPageInner() {
   const [typeFilter, setTypeFilter] = useState("ALL")
   const [descriptionFilter, setDescriptionFilter] = useState("")
   const [ledgerPage, setLedgerPage] = useState(1)
+  // Rows per page, like the poultry trackers: this ledger was fixed at 15, so a
+  // long month could not be opened out and a short one wasted the screen.
+  const [ledgerPageSize, setLedgerPageSize] = useState(TRACKER_PAGE_SIZE_DEFAULT)
   // Newest first. Sorted on the full createdDate timestamp rather than the
   // yyyy-mm-dd string the column displays, so several movements on the same day
   // still read newest-first instead of falling back to insertion order.
@@ -175,11 +178,11 @@ function WaterInventoryTrackerPageInner() {
     return { inQty, outQty, net: inQty - outQty }
   }, [sortedRows])
 
-  const totalPages = Math.max(1, Math.ceil(sortedRows.length / LEDGER_PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(sortedRows.length / ledgerPageSize))
   const safePage = Math.min(ledgerPage, totalPages)
   const pageRows = useMemo(
-    () => sortedRows.slice((safePage - 1) * LEDGER_PAGE_SIZE, safePage * LEDGER_PAGE_SIZE),
-    [sortedRows, safePage],
+    () => sortedRows.slice((safePage - 1) * ledgerPageSize, safePage * ledgerPageSize),
+    [sortedRows, safePage, ledgerPageSize],
   )
 
   const handleSort = (key: string) => {
@@ -482,7 +485,24 @@ function WaterInventoryTrackerPageInner() {
                         </span>
                       </div>
 
-                        <div className="flex items-center justify-center gap-2 pt-3">
+                        <div className="flex flex-wrap items-center justify-center gap-2 pt-3">
+                          <Select
+                            value={String(ledgerPageSize)}
+                            onValueChange={(v) => {
+                              setLedgerPageSize(Number(v))
+                              // Page 4 of 8 is nowhere once the pages get bigger.
+                              setLedgerPage(1)
+                            }}
+                          >
+                            <SelectTrigger className="h-8 w-[110px]" aria-label="Rows per page">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {TRACKER_PAGE_SIZE_OPTIONS.map((n) => (
+                                <SelectItem key={n} value={String(n)}>{n} / page</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <Button
                             type="button" variant="outline" size="sm"
                             disabled={safePage <= 1}
