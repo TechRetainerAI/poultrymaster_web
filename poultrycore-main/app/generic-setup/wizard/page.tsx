@@ -15,7 +15,7 @@
 // running the wizard twice is safe: the owner gets any new seeds and keeps
 // everything they have already edited.
 
-import { useEffect, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -54,7 +54,7 @@ const MODULE_ROWS: { key: keyof GenericModuleSettings; label: string; hint: stri
   { key: "enableCashAccounts", label: "Cash accounts", hint: "Till, bank and mobile money" },
 ]
 
-export default function GenericSetupWizardPage() {
+function GenericSetupWizardContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
@@ -333,5 +333,14 @@ export default function GenericSetupWizardPage() {
         </main>
       </div>
     </div>
+  )
+}
+
+export default function GenericSetupWizardPage() {
+  // useSearchParams needs a Suspense boundary during prerender.
+  return (
+    <Suspense fallback={null}>
+      <GenericSetupWizardContent />
+    </Suspense>
   )
 }
