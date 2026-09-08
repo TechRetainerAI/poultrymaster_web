@@ -110,7 +110,15 @@ export default function ProductionRecordsPage() {
   // When the farm has the 4th pick switched off in Egg Pick Settings, the
   // column is dropped everywhere this page shows picks — table, mobile cards,
   // CSV and PDF — rather than shown as a run of zeros.
-  const { enableFourthPick } = usePickSettings()
+  const { enableFourthPick, enableFifthPick, enableSixthPick } = usePickSettings()
+  // A column per pick the farm collects. Gated on the setting alone, not on
+  // "some record has one": a column that appeared and vanished as you paged or
+  // filtered would move every column after it.
+  const pickColumns = [
+    { on: enableFourthPick, header: "4th Pick", key: "production4thPick" as const },
+    { on: enableFifthPick, header: "5th Pick", key: "production5thPick" as const },
+    { on: enableSixthPick, header: "6th Pick", key: "production6thPick" as const },
+  ].filter((c) => c.on)
   const { toast } = useToast()
   const [records, setRecords] = useState<ProductionRecord[]>([])
   const [flocks, setFlocks] = useState<Flock[]>([])
@@ -374,6 +382,11 @@ export default function ProductionRecordsPage() {
   const total12PM = useMemo(() => filtered.reduce((s, r) => s + (Number(r.production12PM) || 0), 0), [filtered])
   const total4PM = useMemo(() => filtered.reduce((s, r) => s + (Number(r.production4PM) || 0), 0), [filtered])
   const total4thPick = useMemo(() => filtered.reduce((s, r) => s + (Number((r as any).production4thPick) || 0), 0), [filtered])
+  const total5thPick = useMemo(() => filtered.reduce((s, r) => s + (Number((r as any).production5thPick) || 0), 0), [filtered])
+  const total6thPick = useMemo(() => filtered.reduce((s, r) => s + (Number((r as any).production6thPick) || 0), 0), [filtered])
+  const pickTotalsByKey: Record<string, number> = {
+    production4thPick: total4thPick, production5thPick: total5thPick, production6thPick: total6thPick,
+  }
   const totalBrokens = useMemo(() => filtered.reduce((s, r) => s + (Number((r as any).brokenEggs) || 0), 0), [filtered])
 
   // Farm-wide bird headlines: same definitions as the Flocks page (eligible flocks only; ignores table date/search filters).
@@ -412,6 +425,8 @@ export default function ProductionRecordsPage() {
         case "production12PM": return Number(item.production12PM) || 0
         case "production4PM": return Number(item.production4PM) || 0
         case "production4thPick": return Number(item.production4thPick) || 0
+        case "production5thPick": return Number((item as any).production5thPick) || 0
+        case "production6thPick": return Number((item as any).production6thPick) || 0
         case "brokenEggs": return Number(item.brokenEggs) || 0
         case "totalProduction": return Number(item.totalProduction) || 0
         case "eggGrade": return eggGradeFromApi(item.eggGrade).toLowerCase()
@@ -532,7 +547,7 @@ export default function ProductionRecordsPage() {
   const exportCsv = () => {
     const headers = [
       "Date","FlockId","Batch","Age","1st Pick","2nd Pick","3rd Pick",
-      ...(enableFourthPick ? ["4th Pick"] : []),
+      ...pickColumns.map((c) => c.header),
       "Total","Size","EggPercent","FeedKg","Birds","Deaths","Left","Medication"
     ]
     const rows = filtered.map((r: any) => [
@@ -543,7 +558,7 @@ export default function ProductionRecordsPage() {
       r.production9AM ?? 0,
       r.production12PM ?? 0,
       r.production4PM ?? 0,
-      ...(enableFourthPick ? [r.production4thPick ?? 0] : []),
+      ...pickColumns.map((c) => (r as any)[c.key] ?? 0),
       r.totalProduction ?? 0,
       r.eggGrade ?? "",
       (() => { const b = Number(r.noOfBirds)||0; const t = Number(r.totalProduction)||0; return b? ((t/b)*100).toFixed(1):"" })(),
@@ -587,7 +602,7 @@ export default function ProductionRecordsPage() {
     // Table
     const headers = [
       "Date", "Flock", "Batch", "Age", "1st Pick", "2nd Pick", "3rd Pick",
-      ...(enableFourthPick ? ["4th Pick"] : []),
+      ...pickColumns.map((c) => c.header),
       "Total", "Size", "Egg%", "Feed(kg)", "Birds", "Deaths", "Left", "Medication"
     ]
 
@@ -604,7 +619,7 @@ export default function ProductionRecordsPage() {
         r.production9AM ?? 0,
         r.production12PM ?? 0,
         r.production4PM ?? 0,
-        ...(enableFourthPick ? [r.production4thPick ?? 0] : []),
+        ...pickColumns.map((c) => (r as any)[c.key] ?? 0),
         r.totalProduction ?? 0,
         formatEggGradeLabel(r.eggGrade),
         eggPct,
@@ -620,7 +635,7 @@ export default function ProductionRecordsPage() {
     rows.push([
       "TOTALS", "", "", "",
       total9AM, total12PM, total4PM,
-      ...(enableFourthPick ? [total4thPick] : []),
+      ...pickColumns.map((c) => pickTotalsByKey[c.key]),
       `${totalEggs} (${totalEggsCrates}c+${totalEggsPieces}p)`,
       "",
       "", totalFeed.toFixed(2),
@@ -642,8 +657,10 @@ export default function ProductionRecordsPage() {
         0: { cellWidth: 22 },
         2: { cellWidth: 24 },
         3: { cellWidth: 28 },
-        [enableFourthPick ? 9 : 8]: { cellWidth: 16 },   // Size
-        [enableFourthPick ? 15 : 14]: { cellWidth: 22 }, // Medication
+        // Both sit after the pick columns, so they move by however many picks
+        // the farm has switched on rather than by the 4th alone.
+        [8 + pickColumns.length]: { cellWidth: 16 },   // Size
+        [14 + pickColumns.length]: { cellWidth: 22 }, // Medication
       },
       didParseCell: (data: any) => {
         // Bold the last (totals) row
@@ -1098,9 +1115,9 @@ export default function ProductionRecordsPage() {
                                     <div><span className="text-slate-500">1st Pick</span> <span className="font-medium text-blue-700">{r.production9AM ?? 0}</span></div>
                                     <div><span className="text-slate-500">2nd Pick</span> <span className="font-medium text-orange-700">{r.production12PM ?? 0}</span></div>
                                     <div><span className="text-slate-500">3rd Pick</span> <span className="font-medium text-purple-700">{r.production4PM ?? 0}</span></div>
-                                    {enableFourthPick && (
-                                      <div><span className="text-slate-500">4th Pick</span> <span className="font-medium text-teal-700">{(r as any).production4thPick ?? 0}</span></div>
-                                    )}
+                                    {pickColumns.map((c) => (
+                                      <div key={c.key}><span className="text-slate-500">{c.header}</span> <span className="font-medium text-teal-700">{(r as any)[c.key] ?? 0}</span></div>
+                                    ))}
                                     <div><span className="text-slate-500">Feed</span> <span className="font-medium">{(r.feedKg ?? 0).toFixed ? (r.feedKg ?? 0).toFixed(2) : r.feedKg} kg</span></div>
                                     <div><span className="text-slate-500">Deaths</span> <span className={cn("font-medium", (r.mortality ?? 0) > 0 ? "text-red-600" : "")}>{r.mortality ?? 0}</span></div>
                                     <div><span className="text-slate-500">Age</span> <span className="text-slate-700 truncate">{formatAge(r)}</span></div>
@@ -1155,9 +1172,9 @@ export default function ProductionRecordsPage() {
                           <SortableHeader label="1st Pick" sortKey="production9AM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-blue-100 text-blue-900 font-semibold whitespace-nowrap" />
                           <SortableHeader label="2nd Pick" sortKey="production12PM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-orange-100 text-orange-900 font-semibold whitespace-nowrap" />
                           <SortableHeader label="3rd Pick" sortKey="production4PM" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-purple-100 text-purple-900 font-semibold whitespace-nowrap" />
-                          {enableFourthPick && (
-                            <SortableHeader label="4th Pick" sortKey="production4thPick" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-teal-100 text-teal-900 font-semibold whitespace-nowrap" />
-                          )}
+                          {pickColumns.map((c) => (
+                            <SortableHeader key={c.key} label={c.header} sortKey={c.key} currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-teal-100 text-teal-900 font-semibold whitespace-nowrap" />
+                          ))}
                           <SortableHeader label="Brokens" sortKey="brokenEggs" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2 bg-red-50 text-red-800 font-semibold" />
                           <SortableHeader label="Total" sortKey="totalProduction" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
                           <SortableHeader label="Egg%" sortKey="eggPercent" currentSort={sortKey} currentDirection={sortDirection} onSort={handleSort} className="text-right min-w-[80px] px-3 py-2" />
@@ -1196,9 +1213,9 @@ export default function ProductionRecordsPage() {
                             <TableCell className="text-right px-3 py-2 text-blue-700 bg-blue-50/40 rounded-sm">{r.production9AM ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2 text-orange-700 bg-orange-50/40 rounded-sm">{r.production12PM ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2 text-purple-700 bg-purple-50/40 rounded-sm">{r.production4PM ?? 0}</TableCell>
-                            {enableFourthPick && (
-                              <TableCell className="text-right px-3 py-2 text-teal-700 bg-teal-50/40 rounded-sm">{(r as any).production4thPick ?? 0}</TableCell>
-                            )}
+                            {pickColumns.map((c) => (
+                              <TableCell key={c.key} className="text-right px-3 py-2 text-teal-700 bg-teal-50/40 rounded-sm">{(r as any)[c.key] ?? 0}</TableCell>
+                            ))}
                             <TableCell className="text-right px-3 py-2 text-red-700 bg-red-50/40 rounded-sm">{(r as any).brokenEggs ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2 font-semibold text-slate-900">{r.totalProduction ?? 0}</TableCell>
                             <TableCell className="text-right px-3 py-2">{(() => { const b = Number(r.noOfBirds)||0; const t = Number(r.totalProduction)||0; return b? ((t/b)*100).toFixed(1)+"%":"-" })()}</TableCell>
@@ -1228,9 +1245,12 @@ export default function ProductionRecordsPage() {
                             <TableCell className="text-right font-semibold px-3 py-2 text-blue-800 bg-blue-50 border border-blue-100 rounded">{total9AM.toLocaleString()}<div className="text-xs font-normal text-blue-600">{Math.floor(total9AM / EGGS_PER_CRATE)}c + {total9AM % EGGS_PER_CRATE}p</div></TableCell>
                             <TableCell className="text-right font-semibold px-3 py-2 text-orange-800 bg-orange-50 border border-orange-100 rounded">{total12PM.toLocaleString()}<div className="text-xs font-normal text-orange-600">{Math.floor(total12PM / EGGS_PER_CRATE)}c + {total12PM % EGGS_PER_CRATE}p</div></TableCell>
                             <TableCell className="text-right font-semibold px-3 py-2 text-purple-800 bg-purple-50 border border-purple-100 rounded">{total4PM.toLocaleString()}<div className="text-xs font-normal text-purple-600">{Math.floor(total4PM / EGGS_PER_CRATE)}c + {total4PM % EGGS_PER_CRATE}p</div></TableCell>
-                            {enableFourthPick && (
-                              <TableCell className="text-right font-semibold px-3 py-2 text-teal-800 bg-teal-50 border border-teal-100 rounded">{total4thPick.toLocaleString()}<div className="text-xs font-normal text-teal-600">{Math.floor(total4thPick / EGGS_PER_CRATE)}c + {total4thPick % EGGS_PER_CRATE}p</div></TableCell>
-                            )}
+                            {pickColumns.map((c) => {
+                              const t = pickTotalsByKey[c.key]
+                              return (
+                                <TableCell key={c.key} className="text-right font-semibold px-3 py-2 text-teal-800 bg-teal-50 border border-teal-100 rounded">{t.toLocaleString()}<div className="text-xs font-normal text-teal-600">{Math.floor(t / EGGS_PER_CRATE)}c + {t % EGGS_PER_CRATE}p</div></TableCell>
+                              )
+                            })}
                             <TableCell className="text-right font-semibold px-3 py-2 text-red-700 bg-red-50 border border-red-100 rounded">{totalBrokens.toLocaleString()}<div className="text-xs font-normal text-red-500">{Math.floor(totalBrokens / EGGS_PER_CRATE)}c + {totalBrokens % EGGS_PER_CRATE}p</div></TableCell>
                             <TableCell className="text-right font-semibold px-3 py-2 text-emerald-700">{totalEggs.toLocaleString()}<div className="text-xs font-normal text-slate-500">{totalEggsCrates}c + {totalEggsPieces}p</div></TableCell>
                             {/* Egg% — no meaningful total */}

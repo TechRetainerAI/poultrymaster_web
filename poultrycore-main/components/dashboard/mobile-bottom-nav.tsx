@@ -614,6 +614,19 @@ export function MobileBottomNav() {
               desktop panels. */}
           <SheetContent
             side="bottom"
+            /* Radix focuses the first focusable child when a sheet opens, which
+               here is the search box — so tapping "More" put a keyboard over
+               half the menu before anyone had asked to search. The menu is the
+               point; searching it is the exception. Focus goes to the panel
+               itself instead, which keeps the focus trap and the Escape key
+               working and leaves the field one tap away. */
+            /* -1 so the panel can take that focus programmatically without
+               joining the tab order. */
+            tabIndex={-1}
+            onOpenAutoFocus={(e) => {
+              e.preventDefault()
+              ;(e.currentTarget as HTMLElement | null)?.focus()
+            }}
             className={cn(
               "flex max-h-[85vh] flex-col gap-0 rounded-t-2xl p-0 pb-[env(safe-area-inset-bottom)] text-white",
               surface.panel,

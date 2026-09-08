@@ -17,6 +17,8 @@ export interface AllocRow {
   p2: number
   p3: number
   p4: number
+  p5: number
+  p6: number
   broken: number
   meaty: number
   soft: number
@@ -114,6 +116,8 @@ export function buildBlankRows(
       p2: 0,
       p3: 0,
       p4: 0,
+      p5: 0,
+      p6: 0,
       broken: 0,
       meaty: 0,
       soft: 0,
@@ -153,7 +157,7 @@ export function applyMethod(
     // Blank editable grid — keep birds/age, zero the values.
     return rows.map((r) => ({
       ...r,
-      deaths: 0, p1: 0, p2: 0, p3: 0, p4: 0, broken: 0, meaty: 0, soft: 0, lost: 0,
+      deaths: 0, p1: 0, p2: 0, p3: 0, p4: 0, p5: 0, p6: 0, broken: 0, meaty: 0, soft: 0, lost: 0,
       feedQty: Object.fromEntries(Object.keys(r.feedQty).map((k) => [k, 0])),
       medQty: Object.fromEntries(Object.keys(r.medQty).map((k) => [k, 0])),
     }))
@@ -163,6 +167,8 @@ export function applyMethod(
   const p2 = distributeInteger(batch.secondPickTotal, w)
   const p3 = distributeInteger(batch.thirdPickTotal, w)
   const p4 = distributeInteger(batch.fourthPickTotal, w)
+  const p5 = distributeInteger(batch.fifthPickTotal || 0, w)
+  const p6 = distributeInteger(batch.sixthPickTotal || 0, w)
   const broken = distributeInteger(batch.brokenEggs || 0, w)
   const meaty = distributeInteger(batch.meatyEggs || 0, w)
   const soft = distributeInteger(batch.softEggs || 0, w)
@@ -175,7 +181,7 @@ export function applyMethod(
 
   return rows.map((r, i) => ({
     ...r,
-    deaths: deaths[i], p1: p1[i], p2: p2[i], p3: p3[i], p4: p4[i],
+    deaths: deaths[i], p1: p1[i], p2: p2[i], p3: p3[i], p4: p4[i], p5: p5[i], p6: p6[i],
     broken: broken[i], meaty: meaty[i], soft: soft[i], lost: lost[i],
     feedQty: Object.fromEntries((batch.feeds || []).map((f) => [f.itemId, feedDist[f.itemId][i]])),
     medQty: Object.fromEntries((batch.medications || []).map((m) => [m.itemId, medDist[m.itemId][i]])),
@@ -183,7 +189,7 @@ export function applyMethod(
 }
 
 // ---- Derived per-row values ----
-export const rowTotalEggs = (r: AllocRow) => r.p1 + r.p2 + r.p3 + r.p4
+export const rowTotalEggs = (r: AllocRow) => r.p1 + r.p2 + r.p3 + r.p4 + r.p5 + r.p6
 export const rowBirdsAfter = (r: AllocRow) => Math.max(0, r.birdsBefore - r.deaths)
 export const rowEggPct = (r: AllocRow) => (r.birdsBefore > 0 ? (rowTotalEggs(r) / r.birdsBefore) * 100 : 0)
 export const rowFeedCost = (r: AllocRow, batch: ProductionBatchRecord) =>
@@ -228,6 +234,11 @@ export function buildReconciliation(rows: AllocRow[], batch: ProductionBatchReco
   intLine('p2', '2nd Pick', batch.secondPickTotal, sum((r) => r.p2))
   intLine('p3', '3rd Pick', batch.thirdPickTotal, sum((r) => r.p3))
   intLine('p4', '4th Pick', batch.fourthPickTotal, sum((r) => r.p4))
+  // Reconciled like the rest: posting refuses a batch whose allocated
+  // picks do not add up to the batch's own, and the server checks the same
+  // six (spproductionbatchrecord_post).
+  intLine('p5', '5th Pick', batch.fifthPickTotal || 0, sum((r) => r.p5))
+  intLine('p6', '6th Pick', batch.sixthPickTotal || 0, sum((r) => r.p6))
   intLine('broken', 'Broken', batch.brokenEggs || 0, sum((r) => r.broken))
   intLine('meaty', 'Meaty', batch.meatyEggs || 0, sum((r) => r.meaty))
   intLine('soft', 'Soft', batch.softEggs || 0, sum((r) => r.soft))

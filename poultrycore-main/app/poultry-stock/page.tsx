@@ -213,6 +213,46 @@ export default function PoultryStockPage() {
     }
   }
 
+  /**
+   * CSV of the same rows the PDF prints, for anyone who wants to total or pivot
+   * them rather than read them.
+   *
+   * Built from buildPdfOpts() rather than from `sortedMoves` again, so the two
+   * exports cannot list different columns or a different set of rows: one
+   * definition, two file formats.
+   */
+  const handleExportCsv = () => {
+    if (sortedMoves.length === 0) {
+      toast({ title: "Nothing to export", description: "No stock movements match the current filters.", variant: "destructive" })
+      return
+    }
+    const opts = buildPdfOpts()
+    // Everything is quoted and inner quotes doubled — item names and notes are
+    // free text and routinely contain commas.
+    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`
+    const lines = [
+      opts.columns.map((c) => esc(c.header)).join(","),
+      ...opts.rows.map((row) => row.map(esc).join(",")),
+    ]
+    // The filters the rows were taken under, written under the table rather than
+    // above it, so the header row stays the first line for a spreadsheet.
+    const meta = [
+      "",
+      [esc("Movements"), esc(sortedMoves.length)].join(","),
+      ...(opts.filtersUsed ?? []).map((f) => [esc(f.label), esc(f.value)].join(",")),
+      ...(dateFrom || dateTo ? [[esc("Period"), esc(`${dateFrom || "start"} to ${dateTo || "today"}`)].join(",")] : []),
+    ]
+    // BOM first: Excel reads a UTF-8 CSV as ANSI without it, and mangles every
+    // currency symbol and accented supplier name.
+    const blob = new Blob(["\ufeff" + lines.concat(meta).join("\n")], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `poultry-stock-movements-${new Date().toISOString().split("T")[0]}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const handleExportPdf = async () => {
     if (sortedMoves.length === 0) {
       toast({ title: "Nothing to export", description: "No stock movements match the current filters.", variant: "destructive" })
@@ -259,6 +299,9 @@ export default function PoultryStockPage() {
               <SetProductStockButton className={TOOLBAR_BTN} products={products.map((p) => ({ id: p.poultryProductId, name: p.name, currentStock: p.stockOnHand, disabledReason: (p.isBirdProduct || p.name === "Birds") ? "Bird stock comes from the birds left in your flocks — correct it in the flock / production records (record mortality, or edit the flock)." : undefined }))} setStock={setPoultryProductStock} onDone={load} />
               <Button variant="outline" className={TOOLBAR_BTN} onClick={handleExportPdf} disabled={loading}>
                 <Download className="w-4 h-4 mr-1" /> Export PDF
+              </Button>
+              <Button variant="outline" className={TOOLBAR_BTN} onClick={handleExportCsv} disabled={loading}>
+                <Download className="w-4 h-4 mr-1" /> Export CSV
               </Button>
               <Button className={TOOLBAR_BTN} onClick={() => setOpen(true)}><Plus className="w-4 h-4 mr-1" /> New movement</Button>
             </div>

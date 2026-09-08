@@ -24,7 +24,7 @@ export default function EditEggProductionPage() {
   const router = useRouter()
   const params = useParams()
   const productionId = params.id as string
-  const { labels: pickLabelText, enableFourthPick } = usePickSettings()
+  const { labels: pickLabelText, enableFourthPick, enableFifthPick, enableSixthPick } = usePickSettings()
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -40,6 +40,8 @@ export default function EditEggProductionPage() {
     production12PM: 0,
     production4PM: 0,
     production4thPick: 0,
+    production5thPick: 0,
+    production6thPick: 0,
     brokenEggs: 0,
     notes: "",
     eggGrade: EGG_GRADE_SELECT_VALUE_NONE,
@@ -55,11 +57,17 @@ export default function EditEggProductionPage() {
   const [eveningLoose, setEveningLoose] = useState(0)
   const [fourthCrates, setFourthCrates] = useState(0)
   const [fourthLoose, setFourthLoose] = useState(0)
+  const [fifthCrates, setFifthCrates] = useState(0)
+  const [fifthLoose, setFifthLoose] = useState(0)
+  const [sixthCrates, setSixthCrates] = useState(0)
+  const [sixthLoose, setSixthLoose] = useState(0)
 
   const morningTotal = (morningCrates * EGGS_PER_CRATE) + morningLoose
   const noonTotal = (noonCrates * EGGS_PER_CRATE) + noonLoose
   const eveningTotal = (eveningCrates * EGGS_PER_CRATE) + eveningLoose
   const fourthTotal = (fourthCrates * EGGS_PER_CRATE) + fourthLoose
+  const fifthTotal = (fifthCrates * EGGS_PER_CRATE) + fifthLoose
+  const sixthTotal = (sixthCrates * EGGS_PER_CRATE) + sixthLoose
 
   // Sync crate values into formData
   useEffect(() => {
@@ -75,9 +83,15 @@ export default function EditEggProductionPage() {
     setFormData(prev => ({ ...prev, production4thPick: fourthTotal }))
   }, [fourthTotal])
 
+  useEffect(() => {
+    setFormData(prev => ({ ...prev, production5thPick: fifthTotal, production6thPick: sixthTotal }))
+  }, [fifthTotal, sixthTotal])
+
   const totalProduction = useMemo(() => {
-    return (formData.production9AM || 0) + (formData.production12PM || 0) + (formData.production4PM || 0) + (formData.production4thPick || 0);
-  }, [formData.production9AM, formData.production12PM, formData.production4PM, formData.production4thPick]);
+    return (formData.production9AM || 0) + (formData.production12PM || 0) + (formData.production4PM || 0) + (formData.production4thPick || 0)
+      + (formData.production5thPick || 0) + (formData.production6thPick || 0);
+  }, [formData.production9AM, formData.production12PM, formData.production4PM, formData.production4thPick,
+      formData.production5thPick, formData.production6thPick]);
   const totalCrates = Math.floor(totalProduction / EGGS_PER_CRATE)
   const totalPieces = totalProduction % EGGS_PER_CRATE
 
@@ -230,6 +244,8 @@ export default function EditEggProductionPage() {
               production12PM: formData.production12PM || 0,
               production4PM: formData.production4PM || 0,
               production4thPick: formData.production4thPick || 0,
+              production5thPick: formData.production5thPick || 0,
+              production6thPick: formData.production6thPick || 0,
               totalProduction: totalProduction,
               eggGrade: eggGradeToApi((formData.eggGrade as string) ?? EGG_GRADE_SELECT_VALUE_NONE),
             }
@@ -476,6 +492,52 @@ export default function EditEggProductionPage() {
                     </div>
                   </div>
                   <p className="text-xs text-teal-600">{fourthCrates} crates × {EGGS_PER_CRATE} + {fourthLoose} loose = {fourthTotal.toLocaleString()} eggs</p>
+                </div>
+                )}
+
+                {/* 5th pick — same rule as the 4th: shown when the farm has
+                    enabled it, or when this record already holds eggs for it. */}
+                {(enableFifthPick || fifthTotal > 0) && (
+                <div className="p-3 bg-teal-50 border border-teal-200 rounded-lg space-y-2">
+                  <Label className="text-teal-800 font-semibold">{pickLabelText.fifth} — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Crates</Label>
+                      <NumberInput min="0" value={fifthCrates} onChange={(e) => setFifthCrates(parseInt(e.target.value) || 0)} disabled={loading} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Loose Eggs</Label>
+                      <NumberInput min="0" max="29" value={fifthLoose} onChange={(e) => setFifthLoose(parseInt(e.target.value) || 0)} disabled={loading} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Total</Label>
+                      <div className="h-10 px-3 py-2 bg-white border rounded-md flex items-center font-bold text-teal-700">{fifthTotal.toLocaleString()}</div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-teal-600">{fifthCrates} crates × {EGGS_PER_CRATE} + {fifthLoose} loose = {fifthTotal.toLocaleString()} eggs</p>
+                </div>
+                )}
+
+                {/* 6th pick — same rule as the 4th: shown when the farm has
+                    enabled it, or when this record already holds eggs for it. */}
+                {(enableSixthPick || sixthTotal > 0) && (
+                <div className="p-3 bg-teal-50 border border-teal-200 rounded-lg space-y-2">
+                  <Label className="text-teal-800 font-semibold">{pickLabelText.sixth} — Crates × {EGGS_PER_CRATE} + Loose Eggs</Label>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Crates</Label>
+                      <NumberInput min="0" value={sixthCrates} onChange={(e) => setSixthCrates(parseInt(e.target.value) || 0)} disabled={loading} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Loose Eggs</Label>
+                      <NumberInput min="0" max="29" value={sixthLoose} onChange={(e) => setSixthLoose(parseInt(e.target.value) || 0)} disabled={loading} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Total</Label>
+                      <div className="h-10 px-3 py-2 bg-white border rounded-md flex items-center font-bold text-teal-700">{sixthTotal.toLocaleString()}</div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-teal-600">{sixthCrates} crates × {EGGS_PER_CRATE} + {sixthLoose} loose = {sixthTotal.toLocaleString()} eggs</p>
                 </div>
                 )}
 

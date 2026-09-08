@@ -81,11 +81,17 @@ export interface MobileCardListProps<T> {
   /** Start cards expanded but KEEP the "view table format" toggle available. */
   defaultOpen?: boolean
   /**
-   * Tint alternate cards amber, the way the /poultry-daily-closing list does.
-   * On a phone the stripe is what separates one record from the next once the
-   * cards carry coloured tiles of their own.
+   * Tint alternate cards, the way the /poultry-daily-closing list does. On a
+   * phone the stripe is what separates one record from the next once the cards
+   * carry coloured tiles of their own.
    */
   striped?: boolean
+  /**
+   * Which colour that stripe is. Amber is the original and stays the default so
+   * no existing list changes under it; the tracker pages and the newer poultry
+   * lists use blue.
+   */
+  stripeAccent?: "amber" | "blue"
   /**
    * Spread usePagination()'s `paginationProps` here and pass the PAGE SLICE
    * (`pg.pageItems`) as both `items` and the array the `desktopTable` maps
@@ -94,8 +100,13 @@ export interface MobileCardListProps<T> {
   pagination?: DataPaginationProps
 }
 
+const STRIPE_TONES = {
+  amber: "bg-amber-100 border-amber-300",
+  blue: "bg-blue-100 border-blue-300",
+} as const
+
 export function MobileCardList<T>({
-  items, getKey, primary, secondary, details, highlights, actions, desktopTable, emptyState, trailing, alwaysExpanded = false, defaultOpen = false, striped = false, pagination,
+  items, getKey, primary, secondary, details, highlights, actions, desktopTable, emptyState, trailing, alwaysExpanded = false, defaultOpen = false, striped = false, stripeAccent = "amber", pagination,
 }: MobileCardListProps<T>) {
   const [showTable, setShowTable] = useState(false)
 
@@ -130,7 +141,7 @@ export function MobileCardList<T>({
                 key={getKey(item)}
                 defaultOpen={alwaysExpanded || defaultOpen}
                 className={cn("group rounded-lg border shadow-sm overflow-hidden",
-                  stripe ? "bg-amber-100 border-amber-300" : "bg-white border-slate-200")}
+                  stripe ? STRIPE_TONES[stripeAccent] : "bg-white border-slate-200")}
               >
                 <div className={cn("p-3 transition-colors", stripe ? "active:bg-black/10" : "active:bg-slate-50/80")}>
                   <CollapsibleTrigger asChild>

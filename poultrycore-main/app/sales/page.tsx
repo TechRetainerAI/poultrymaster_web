@@ -1327,10 +1327,23 @@ export default function SalesPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="px-4 pb-3 bg-amber-50">
+                  {/* The stock line belongs with the crates that spend it, not
+                      beside the price. For eggs this card IS the quantity — the
+                      Pricing box below only restates it in crates — so "In stock:
+                      770 eggs" and any shortfall are read where the number is
+                      being typed. */}
+                  <div className="space-y-2 px-4 pb-3 bg-amber-50">
                     <p className="text-xs text-amber-600">
                       Calculation: {crates} crates × 30 + {looseEggs} loose = {((crates * 30) + looseEggs).toLocaleString()} eggs
                     </p>
+                    <StockCheckNotice
+                      available={availableStock}
+                      unitLabel={stockUnits}
+                      shortfall={stockShortfall}
+                      override={overrideStock}
+                      onOverrideChange={setOverrideStock}
+                      idPrefix="create-eggs"
+                    />
                   </div>
                 </div>
               )}
@@ -1359,14 +1372,16 @@ export default function SalesPage() {
                           {(Number(formData.quantity) || 0).toLocaleString()} eggs total, from the crates and loose eggs above
                         </p>
                       )}
-                      <StockCheckNotice
-                        available={availableStock}
-                        unitLabel={stockUnits}
-                        shortfall={stockShortfall}
-                        override={overrideStock}
-                        onOverrideChange={setOverrideStock}
-                        idPrefix="create"
-                      />
+                      {!isEggsProduct && (
+                        <StockCheckNotice
+                          available={availableStock}
+                          unitLabel={stockUnits}
+                          shortfall={stockShortfall}
+                          override={overrideStock}
+                          onOverrideChange={setOverrideStock}
+                          idPrefix="create"
+                        />
+                      )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="unitPrice">{isEggsProduct ? "Unit Price Per Crate *" : "Unit Price *"}</Label>
@@ -2194,10 +2209,18 @@ export default function SalesPage() {
                           </div>
                         </div>
                       </div>
-                      <div className="px-4 pb-3 bg-amber-50">
+                      <div className="space-y-2 px-4 pb-3 bg-amber-50">
                         <p className="text-xs text-amber-600">
                           Calculation: {crates} crates × 30 + {looseEggs} loose = {((crates * 30) + looseEggs).toLocaleString()} eggs
                         </p>
+                        <StockCheckNotice
+                          available={availableStock}
+                          unitLabel={stockUnits}
+                          shortfall={stockShortfall}
+                          override={overrideStock}
+                          onOverrideChange={setOverrideStock}
+                          idPrefix="edit-eggs"
+                        />
                       </div>
                     </div>
                   )}
@@ -2226,14 +2249,16 @@ export default function SalesPage() {
                               {(Number(formData.quantity) || 0).toLocaleString()} eggs total, from the crates and loose eggs above
                             </p>
                           )}
-                          <StockCheckNotice
-                            available={availableStock}
-                            unitLabel={stockUnits}
-                            shortfall={stockShortfall}
-                            override={overrideStock}
-                            onOverrideChange={setOverrideStock}
-                            idPrefix="edit"
-                          />
+                          {!isEggsProduct && (
+                            <StockCheckNotice
+                              available={availableStock}
+                              unitLabel={stockUnits}
+                              shortfall={stockShortfall}
+                              override={overrideStock}
+                              onOverrideChange={setOverrideStock}
+                              idPrefix="edit"
+                            />
+                          )}
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="edit-unitPrice">{isEggsProduct ? "Unit Price Per Crate *" : "Unit Price *"}</Label>

@@ -213,16 +213,23 @@ export default function PoultryPayrollPage() {
               ) : (
                 <MobileCardList
                   defaultOpen
+                  striped
+                  stripeAccent="blue"
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
                   getKey={(r) => r.poultryPayrollRunId}
                   primary={(r) => `${r.periodStart.split("T")[0]} → ${r.periodEnd.split("T")[0]}`}
-                  secondary={(r) => (<><span>Net {gh(r.totalNetPay)}</span><Badge className={STATUS_STYLE[r.status] ?? ""}>{r.status}</Badge></>)}
+                  secondary={(r) => (<><span>{r.cashAccountName ?? "No cash account"}</span><Badge className={STATUS_STYLE[r.status] ?? ""}>{r.status}</Badge></>)}
+                  highlights={(r) => [
+                    // What a run comes down to: what the staff take home, and
+                    // what was held back. Net was a line of the subtitle before,
+                    // where the number a card exists to state read as a caption.
+                    { label: "Net pay", value: gh(r.totalNetPay), accent: "blue" },
+                    { label: "Deductions", value: gh(r.totalDeductions), accent: "rose" },
+                  ]}
                   details={(r) => [
                     { label: "Period", value: `${r.periodStart.split("T")[0]} → ${r.periodEnd.split("T")[0]}` },
                     { label: "Gross", value: gh(r.totalGrossPay) },
-                    { label: "Deductions", value: gh(r.totalDeductions) },
-                    { label: "Net", value: gh(r.totalNetPay) },
                     { label: "Cash account", value: r.cashAccountName ?? "—" },
                     { label: "Status", value: r.status },
                   ]}

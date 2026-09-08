@@ -45,6 +45,27 @@ export interface FeedLedgerRow {
   in: number
   out: number
   balance: number
+  /**
+   * Which feed this row moved, so the Breakdown can group by item as well as by
+   * movement type. Parsing it back out of `description` would work until an
+   * item name contains the separator.
+   *
+   * Undefined on this page's own kg corrections, which are entered against the
+   * farm's feed as a whole rather than against one item.
+   */
+  itemName?: string
+  /**
+   * Position in the ledger's own ascending order — by date, then by the
+   * within-day sequence the movements have to run in (purchases, then usage,
+   * then stock adjustments, then this page's own corrections). `balance` is
+   * accumulated in exactly this order.
+   *
+   * Sorting the Date column by this rather than by `date` is what lets "newest
+   * first" mean it: a day's movements all carry the same date, compare equal on
+   * it, and left to itself the table showed them oldest-first even under a
+   * descending sort.
+   */
+  seq: number
 }
 
 type LineInput = {
@@ -55,6 +76,7 @@ type LineInput = {
   in: number
   out: number
   order: number
+  itemName?: string
 }
 
 /** Manual corrections from Feed tracker (API); kg — positive adds, negative removes. */
@@ -142,6 +164,7 @@ export function buildFeedStockLedger(
     const from = (p.supplierName || "").trim()
     lines.push({
       sortKey: `purchase_${p.poultryRawMaterialPurchaseId}`,
+      itemName: nameOf(p.poultryRawMaterialItemId, p.itemName),
       date: iso(p.purchaseDate),
       type: "Purchase IN",
       description: `${nameOf(p.poultryRawMaterialItemId, p.itemName)} — purchased (${qty}${unitBit(unit)})${from ? ` from ${from}` : ""}`,
@@ -163,6 +186,7 @@ export function buildFeedStockLedger(
       : " — used in production"
     lines.push({
       sortKey: `usage_${u.poultryRawMaterialUsageId}`,
+      itemName: nameOf(u.poultryRawMaterialItemId, u.itemName),
       date: iso(u.usedDate),
       type: "Usage OUT",
       description: `${nameOf(u.poultryRawMaterialItemId, u.itemName)}${via} (${qty}${unitBit(unit)})`,
@@ -181,6 +205,7 @@ export function buildFeedStockLedger(
     const note = (a.note || "").trim()
     lines.push({
       sortKey: `stockadj_${a.poultryRawMaterialAdjustmentId}`,
+      itemName: nameOf(a.poultryRawMaterialItemId, a.itemName),
       date: iso(a.adjustedDate),
       type: "Adjustment",
       description: `${nameOf(a.poultryRawMaterialItemId, a.itemName)} — ${label}${note ? `: ${note}` : ""} (${Math.abs(qty)}${unitBit(unit)})`,
@@ -217,7 +242,7 @@ export function buildFeedStockLedger(
   let bal = 0
   let totalInKg = 0
   let totalOutKg = 0
-  const rows: FeedLedgerRow[] = lines.map((line) => {
+  const rows: FeedLedgerRow[] = lines.map((line, index) => {
     bal += line.in - line.out
     totalInKg += line.in
     totalOutKg += line.out
@@ -229,6 +254,8 @@ export function buildFeedStockLedger(
       in: line.in,
       out: line.out,
       balance: bal,
+      itemName: line.itemName,
+      seq: index,
     }
   })
 

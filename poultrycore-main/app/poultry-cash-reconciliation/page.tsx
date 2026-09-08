@@ -419,7 +419,7 @@ function PoultryCashReconciliationPageInner() {
                                   key={c.poultryCashReconciliationId}
                                   defaultOpen
                                   className={cn("group w-full overflow-hidden rounded-xl border shadow-sm",
-                                    idx % 2 === 0 ? "border-amber-300 bg-amber-100" : "border-slate-200 bg-white")}
+                                    idx % 2 === 0 ? "border-blue-300 bg-blue-100" : "border-slate-200 bg-white")}
                                 >
                                   <div className={cn("px-2.5 py-3 transition-colors", idx % 2 === 0 ? "active:bg-black/10" : "active:bg-black/5")}>
                                     <CollapsibleTrigger asChild>
@@ -438,9 +438,9 @@ function PoultryCashReconciliationPageInner() {
                                               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-700">System</p>
                                               <p className="text-lg font-extrabold leading-tight tabular-nums text-slate-900">{gh(c.systemBalance)}</p>
                                             </div>
-                                            <div className="rounded-lg border border-blue-300 bg-blue-100 px-3 py-2 shadow-sm">
-                                              <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-900">Counted</p>
-                                              <p className="text-lg font-extrabold leading-tight tabular-nums text-blue-800">{c.actualBalance != null ? gh(c.actualBalance) : "—"}</p>
+                                            <div className="rounded-lg border border-violet-300 bg-violet-100 px-3 py-2 shadow-sm">
+                                              <p className="text-[11px] font-semibold uppercase tracking-wide text-violet-900">Counted</p>
+                                              <p className="text-lg font-extrabold leading-tight tabular-nums text-violet-900">{c.actualBalance != null ? gh(c.actualBalance) : "—"}</p>
                                             </div>
                                             {/* The difference is the answer the page exists to give,
                                                 so it gets its own full-width tile rather than a cell. */}

@@ -16,7 +16,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
-import { BarChart3, Copy, RefreshCw, Plus, Pencil, Trash2 } from "lucide-react"
+import { BarChart3, Copy, RefreshCw, Plus, Pencil, Trash2, ChevronDown, ChevronUp } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { getEggProductions, type EggProduction } from "@/lib/api/egg-production"
 import { getFlocks, type Flock } from "@/lib/api/flock"
@@ -40,6 +42,8 @@ import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { toLocalDateKey } from "@/lib/utils/date-key"
 import { buildEggStockLedger, type EggLedgerRow } from "@/lib/utils/egg-ledger"
+import { groupLedgerByType, EGG_MOVE_LABELS } from "@/lib/utils/ledger-breakdown"
+import { FlowBreakdownCard } from "@/components/cash/flow-breakdown-card"
 
 
 const ADJ_TYPES = [
@@ -88,6 +92,10 @@ export default function EggTrackerPage() {
   const [ledgerSortDir, setLedgerSortDir] = useState<SortDirection>("desc")
   const [ledgerPage, setLedgerPage] = useState(1)
   const [ledgerPageSize, setLedgerPageSize] = useState(TRACKER_PAGE_SIZE_DEFAULT)
+  // Phones open on scorecards; "View table format" flips to the six-column
+  // table, the same pair of views /poultry-daily-closing offers. Only ever
+  // consulted on mobile — the desktop layout is the table, always.
+  const [showLedgerTableMobile, setShowLedgerTableMobile] = useState(false)
 
   const handleLogout = () => {
     localStorage.removeItem("auth_token")
@@ -229,6 +237,32 @@ export default function EggTrackerPage() {
     () => eggLedgerAllRows.filter((r) => r.type === "Production").reduce((sum, r) => sum + r.in, 0),
     [eggLedgerAllRows]
   )
+
+  // The "Breakdown" section — the same one the Cash Flow page gives money,
+  // over the same rows the tiles above count, so each card's heading total is
+  // the "Total eggs in" / "Total eggs out" tile broken into its parts.
+  const eggsInBySource = useMemo(
+    () => groupLedgerByType(eggLedgerAllRows, "in", EGG_MOVE_LABELS),
+    [eggLedgerAllRows],
+  )
+  const eggsOutByUse = useMemo(
+    () => groupLedgerByType(eggLedgerAllRows, "out", EGG_MOVE_LABELS),
+    [eggLedgerAllRows],
+  )
+
+  // Corrections, kept apart from the flows they sit between. An adjustment is
+  // somebody reconciling the count after a stocktake, not eggs laid or sold, so
+  // it is worth seeing on its own — a large one is usually the reason the
+  // ledger and the shed agree at all. Matched loosely on the type because two
+  // sources produce them: the egg adjustments on this page ("Adjustment") and
+  // stock-ledger corrections posted from /poultry-stock ("Adjust").
+  const adjustmentTotals = useMemo(() => {
+    const rows = eggLedgerAllRows.filter((r) => /adjust/i.test(r.type))
+    return {
+      in: rows.reduce((sum, r) => sum + r.in, 0),
+      out: rows.reduce((sum, r) => sum + r.out, 0),
+    }
+  }, [eggLedgerAllRows])
 
   // Headline totals: every movement, ignoring the table filters, so they stay
   // put while you narrow the list below. in − out is "Eggs on hand".
@@ -553,73 +587,91 @@ export default function EggTrackerPage() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className={cn("flex gap-4", isMobile ? "flex-col" : "items-start justify-between")}>
-                      {/* All five figures on one line, so the whole picture —
-                          what is on hand, what was produced, what was sold, and
-                          the in/out either side of it — reads across without
-                          the eye dropping to a second row. flex-1 + min-w-0
-                          lets the five columns share whatever width is left
-                          after "Last ledger event" on the right, and shrink
-                          rather than push it off the card. */}
-                      <div className={cn("grid gap-4 min-w-0", isMobile ? "grid-cols-1" : "grid-cols-5 flex-1")}>
-                        <div className="min-w-0">
-                          <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Eggs on hand</div>
-                          <div className="mt-1 flex items-center gap-2 flex-wrap">
-                            <span
-                              className={cn(
-                                "text-2xl font-bold tabular-nums",
-                                currentEggsAtHand < 0 ? "text-red-600" : "text-slate-900"
-                              )}
-                            >
-                              {Math.round(currentEggsAtHand).toLocaleString()}
-                            </span>
-                            <span className="text-sm text-slate-500">eggs</span>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-slate-500 hover:text-slate-700"
-                              onClick={handleCopyEggsAtHand}
-                              aria-label="Copy egg count"
-                            >
-                              <Copy className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total eggs produced</div>
-                          <div className="mt-1 text-2xl font-bold text-sky-700 tabular-nums">
-                            {totalEggsProducedLedger.toLocaleString()}
-                          </div>
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Egg sales (units)</div>
-                          <div className="mt-1 text-2xl font-bold text-amber-800 tabular-nums">
-                            {totalEggsSoldLedger.toLocaleString()}
-                          </div>
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total eggs in</div>
-                          <div className="mt-1 text-2xl font-bold text-emerald-600 tabular-nums">
-                            {totalEggsInLedger.toLocaleString()}
-                          </div>
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total eggs out</div>
-                          <div className="mt-1 text-2xl font-bold text-red-600 tabular-nums">
-                            {totalEggsOutLedger.toLocaleString()}
-                          </div>
+                    {/* Four equal columns, two rows, every tile the same width
+                        and every left edge lined up down the card. Mixed spans
+                        (three-across over four-across) filled the width but left
+                        the two rows staggered against each other, which is what
+                        made it look off.
+                        Four columns needs eight cells for seven figures, so
+                        "Last ledger event" — which used to float to the right of
+                        the whole block — takes the eighth. It reads as the last
+                        thing on the top row, and the grid has no hole in it.
+                        On a phone the same eight cells go two across instead of
+                        one, which halves the scrolling and — because eight
+                        divides by two as well as by four — keeps each pair on
+                        its own line: adjustments in/out, then totals in/out. */}
+                    <div className={cn("grid gap-4 min-w-0", isMobile ? "grid-cols-2" : "grid-cols-4")}>
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Eggs on hand</div>
+                        <div className="mt-1 flex items-center gap-2 flex-wrap">
+                          <span
+                            className={cn(
+                              "text-2xl font-bold tabular-nums",
+                              currentEggsAtHand < 0 ? "text-red-600" : "text-slate-900"
+                            )}
+                          >
+                            {Math.round(currentEggsAtHand).toLocaleString()}
+                          </span>
+                          <span className="text-sm text-slate-500">eggs</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-slate-500 hover:text-slate-700"
+                            onClick={handleCopyEggsAtHand}
+                            aria-label="Copy egg count"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
-                      <div className="text-sm text-slate-500 shrink-0">
-                        Last ledger event:{" "}
-                        {ledgerLastUpdated
-                          ? ledgerLastUpdated.toLocaleDateString("en-GB", {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric",
-                            })
-                          : "—"}
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Egg produced</div>
+                        <div className="mt-1 text-2xl font-bold text-sky-700 tabular-nums">
+                          {totalEggsProducedLedger.toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Egg sales (units)</div>
+                        <div className="mt-1 text-2xl font-bold text-amber-800 tabular-nums">
+                          {totalEggsSoldLedger.toLocaleString()}
+                        </div>
+                      </div>
+                      {/* Same tile shape as the figures around it, and the
+                          table's own date format, so the row reads as one band
+                          rather than four numbers and a caption. It stays in
+                          place on a phone too: at two across it closes the
+                          second line, and moving it to the end would split the
+                          adjustment pair across two lines to do it. */}
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Last ledger event</div>
+                        <div className="mt-1 text-2xl font-bold text-slate-600 tabular-nums">
+                          {ledgerLastUpdated ? formatDateShort(ledgerLastUpdated) : "—"}
+                        </div>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Eggs in (adjustments)</div>
+                        <div className="mt-1 text-2xl font-bold text-emerald-700 tabular-nums">
+                          {adjustmentTotals.in.toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Eggs out (adjustments)</div>
+                        <div className="mt-1 text-2xl font-bold text-rose-600 tabular-nums">
+                          {adjustmentTotals.out.toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total eggs in</div>
+                        <div className="mt-1 text-2xl font-bold text-emerald-600 tabular-nums">
+                          {totalEggsInLedger.toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total eggs out</div>
+                        <div className="mt-1 text-2xl font-bold text-red-600 tabular-nums">
+                          {totalEggsOutLedger.toLocaleString()}
+                        </div>
                       </div>
                     </div>
                     <p className="text-xs text-slate-500 mt-2">
@@ -634,6 +686,44 @@ export default function EggTrackerPage() {
                     )}
                   </CardContent>
                 </Card>
+
+                {/* Straight under the tiles, because it is the tiles it breaks
+                    apart: both cards total the whole ledger, which is what
+                    "Total eggs in" and "Total eggs out" above them count. It sat
+                    below the ledger table at first, where its refusal to follow
+                    the table's filters read as a bug rather than as a decision.
+                    Side by side from lg up: in and out are meant to be read
+                    against each other, and this is a full-width page with the
+                    room for it. The Cash Flow insights dialog stacks the same
+                    two cards because it is a narrow dialog — that reason does
+                    not carry over here. */}
+                {(eggsInBySource.length > 0 || eggsOutByUse.length > 0) && (
+                  <div className="space-y-3">
+                    <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                      Breakdown
+                    </h2>
+                    <div className="grid gap-3 lg:grid-cols-2 items-start">
+                      <FlowBreakdownCard
+                        title="Eggs in by source"
+                        direction="in"
+                        buckets={eggsInBySource}
+                        total={totalEggsInLedger}
+                        fmtMoney={(n) => n.toLocaleString()}
+                        description="Every movement that added eggs to stock — the whole ledger, so it breaks down the totals above rather than the filtered table below."
+                        emptyText="No eggs have come in yet."
+                      />
+                      <FlowBreakdownCard
+                        title="Eggs out by use"
+                        direction="out"
+                        buckets={eggsOutByUse}
+                        total={totalEggsOutLedger}
+                        fmtMoney={(n) => n.toLocaleString()}
+                        description="Every movement that took eggs out of stock — sales, internal use, load-outs and the non-saleable ones."
+                        emptyText="No eggs have gone out yet."
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <Card className="bg-white">
                   <CardHeader>
@@ -673,7 +763,112 @@ export default function EggTrackerPage() {
                       <p className="text-slate-600 py-8 text-center text-sm">
                         No ledger rows yet. Add egg production and egg sales (product name contains &quot;egg&quot;).
                       </p>
+                    ) : isMobile && !showLedgerTableMobile ? (
+                      /* Scorecards, following /poultry-daily-closing: one card
+                         per row, open by default, striped so consecutive rows
+                         are told apart at a glance. Blue here rather than that
+                         page's amber. In and out keep their green and red —
+                         they are the two directions the ledger exists to tell
+                         apart, and painting them blue would spend the meaning
+                         to gain a colour. */
+                      <div className="space-y-3">
+                        {paginatedEggLedgerRows.map((row, idx) => {
+                          const isAdj = row.type === "Adjustment"
+                          return (
+                            <Collapsible
+                              key={row.sortKey}
+                              defaultOpen
+                              className={cn(
+                                "group w-full overflow-hidden rounded-xl border shadow-sm",
+                                idx % 2 === 0 ? "border-blue-300 bg-blue-100" : "border-slate-200 bg-white"
+                              )}
+                            >
+                              <div className={cn("px-2.5 py-3 transition-colors", idx % 2 === 0 ? "active:bg-black/10" : "active:bg-black/5")}>
+                                <CollapsibleTrigger asChild>
+                                  <div className="relative cursor-pointer">
+                                    <ChevronDown className="absolute right-0 top-0 h-4 w-4 shrink-0 text-slate-400 transition-transform group-data-[state=open]:rotate-180" />
+                                    <div className="min-w-0">
+                                      <div className="flex flex-wrap items-center gap-2 pr-6">
+                                        <span className="font-semibold text-slate-900">
+                                          {row.date ? formatDateShort(row.date) : "—"}
+                                        </span>
+                                        <Badge className="bg-blue-200 text-blue-900 hover:bg-blue-200">{row.type}</Badge>
+                                      </div>
+                                      <div className="mt-3 grid grid-cols-2 gap-2">
+                                        <div className="rounded-lg border border-emerald-300 bg-emerald-100 px-3 py-2 shadow-sm">
+                                          <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-900">In</p>
+                                          <p className="text-xl font-extrabold leading-tight text-emerald-800 tabular-nums">
+                                            {row.in > 0 ? row.in.toLocaleString() : "—"}
+                                          </p>
+                                        </div>
+                                        <div className="rounded-lg border border-red-300 bg-red-100 px-3 py-2 shadow-sm">
+                                          <p className="text-[11px] font-semibold uppercase tracking-wide text-red-900">Out</p>
+                                          <p className="text-xl font-extrabold leading-tight text-red-800 tabular-nums">
+                                            {row.out > 0 ? row.out.toLocaleString() : "—"}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent>
+                                  <div className="mt-4 space-y-2 border-t border-slate-200/70 pt-4 text-sm">
+                                    <div>
+                                      <span className="text-slate-500">Description</span>{" "}
+                                      <span className="font-medium text-slate-900">{row.description}</span>
+                                    </div>
+                                    {/* Only adjustments can be edited or removed here; every
+                                        other row belongs to the record that posted it. */}
+                                    {isAdj && (
+                                      <div className="flex gap-2 pt-2">
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-10 flex-1 bg-white"
+                                          onClick={(e) => { e.stopPropagation(); openEditAdjustment(row) }}
+                                        >
+                                          <Pencil className="mr-2 h-4 w-4" /> Edit
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-10 flex-1 bg-white text-red-600"
+                                          onClick={(e) => { e.stopPropagation(); void deleteAdjustment(row) }}
+                                        >
+                                          <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </CollapsibleContent>
+                              </div>
+                            </Collapsible>
+                          )
+                        })}
+                        <div className="rounded-lg border bg-slate-50/60 px-4 py-2">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="w-full text-slate-600"
+                            onClick={() => setShowLedgerTableMobile(true)}
+                          >
+                            View table format <ChevronDown className="ml-1 h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
                     ) : (
+                      <>
+                      {isMobile && (
+                        <div className="-mx-4 -mt-4 mb-3 flex items-center justify-between gap-2 border-b bg-slate-50 px-4 py-2">
+                          <span className="text-xs text-slate-600">Table view • Scroll for more</span>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setShowLedgerTableMobile(false)}>
+                            <ChevronUp className="mr-1 h-4 w-4" /> Cards
+                          </Button>
+                        </div>
+                      )}
                       <div className="overflow-x-auto table-scroll-wrapper pb-2" style={{ WebkitOverflowScrolling: "touch" }}>
                         <Table className="w-full min-w-[520px]">
                           <TableHeader>
@@ -788,6 +983,7 @@ export default function EggTrackerPage() {
                           </TableFooter>
                         </Table>
                       </div>
+                      </>
                     )}
                     {sortedEggLedgerRows.length > 0 && (
                       <div className="flex flex-col gap-2 border-t px-2 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4 bg-slate-50/80">
@@ -843,6 +1039,7 @@ export default function EggTrackerPage() {
                     )}
                   </CardContent>
                 </Card>
+
               </>
             )}
           </div>

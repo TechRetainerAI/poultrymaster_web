@@ -60,6 +60,8 @@ function allocationsToRows(batch: ProductionBatchRecord): AllocRow[] {
     p2: a.secondPickEggs ?? 0,
     p3: a.thirdPickEggs ?? 0,
     p4: a.fourthPickEggs ?? 0,
+    p5: a.fifthPickEggs ?? 0,
+    p6: a.sixthPickEggs ?? 0,
     broken: a.brokenEggs ?? 0,
     meaty: a.meatyEggs ?? 0,
     soft: a.softEggs ?? 0,
@@ -170,6 +172,8 @@ export default function AllocateBatchPage() {
       secondPickEggs: r.p2,
       thirdPickEggs: r.p3,
       fourthPickEggs: r.p4,
+      fifthPickEggs: r.p5,
+      sixthPickEggs: r.p6,
       brokenEggs: r.broken,
       meatyEggs: r.meaty,
       softEggs: r.soft,
@@ -243,6 +247,12 @@ export default function AllocateBatchPage() {
     router.push("/login")
   }
 
+  // A batch that carries no 5th/6th eggs shows no 5th/6th column: this grid
+  // is already wide, and an always-on pair of zero columns would push the
+  // feed and medication columns off screen for every farm that collects
+  // four times a day.
+  const showFifth = (batch?.fifthPickTotal || 0) > 0
+  const showSixth = (batch?.sixthPickTotal || 0) > 0
   const feedCols = batch?.feeds || []
   const medCols = batch?.medications || []
 
@@ -259,6 +269,8 @@ export default function AllocateBatchPage() {
     { kind: "recon", line: reconByKey["p2"] },
     { kind: "recon", line: reconByKey["p3"] },
     { kind: "recon", line: reconByKey["p4"] },
+    ...(showFifth ? [{ kind: "recon", line: reconByKey["p5"] } as FooterCol] : []),
+    ...(showSixth ? [{ kind: "recon", line: reconByKey["p6"] } as FooterCol] : []),
     { kind: "recon", line: reconByKey["broken"] },
     { kind: "recon", line: reconByKey["meaty"] },
     { kind: "recon", line: reconByKey["soft"] },
@@ -380,6 +392,8 @@ export default function AllocateBatchPage() {
                           <TableHead className="text-right">2nd</TableHead>
                           <TableHead className="text-right">3rd</TableHead>
                           <TableHead className="text-right">4th</TableHead>
+                          {showFifth && <TableHead className="text-right">5th</TableHead>}
+                          {showSixth && <TableHead className="text-right">6th</TableHead>}
                           <TableHead className="text-right">Broken</TableHead>
                           <TableHead className="text-right">Meaty</TableHead>
                           <TableHead className="text-right">Soft</TableHead>
@@ -410,6 +424,8 @@ export default function AllocateBatchPage() {
                             <TableCell className="p-1"><NumberInput min="0" value={r.p2} onChange={(e) => patchRow(i, { p2: parseInt(e.target.value) || 0 })} className="w-16 text-right" /></TableCell>
                             <TableCell className="p-1"><NumberInput min="0" value={r.p3} onChange={(e) => patchRow(i, { p3: parseInt(e.target.value) || 0 })} className="w-16 text-right" /></TableCell>
                             <TableCell className="p-1"><NumberInput min="0" value={r.p4} onChange={(e) => patchRow(i, { p4: parseInt(e.target.value) || 0 })} className="w-16 text-right" /></TableCell>
+                            {showFifth && <TableCell className="p-1"><NumberInput min="0" value={r.p5} onChange={(e) => patchRow(i, { p5: parseInt(e.target.value) || 0 })} className="w-16 text-right" /></TableCell>}
+                            {showSixth && <TableCell className="p-1"><NumberInput min="0" value={r.p6} onChange={(e) => patchRow(i, { p6: parseInt(e.target.value) || 0 })} className="w-16 text-right" /></TableCell>}
                             <TableCell className="p-1"><NumberInput min="0" value={r.broken} onChange={(e) => patchRow(i, { broken: parseInt(e.target.value) || 0 })} className="w-16 text-right" /></TableCell>
                             <TableCell className="p-1"><NumberInput min="0" value={r.meaty} onChange={(e) => patchRow(i, { meaty: parseInt(e.target.value) || 0 })} className="w-16 text-right" /></TableCell>
                             <TableCell className="p-1"><NumberInput min="0" value={r.soft} onChange={(e) => patchRow(i, { soft: parseInt(e.target.value) || 0 })} className="w-16 text-right" /></TableCell>

@@ -473,8 +473,12 @@ export function groupByFlow(entries: LedgerEntry[], direction: FlowDirection): F
  * Largest-remainder apportionment, so the percent column sums to exactly 100
  * instead of 99.9. Naive rounding is what makes a breakdown look broken to
  * anyone who adds the column up.
+ *
+ * Exported because the Egg tracker's "Where the eggs moved" breakdown shows the
+ * same shaped column and must round the same way — two implementations would
+ * eventually disagree about whether a column sums to 100.
  */
-function assignPercentages(rows: FlowBucket[], total: number): FlowBucket[] {
+export function assignPercentages(rows: FlowBucket[], total: number): FlowBucket[] {
   if (rows.length === 0 || total <= 0) {
     return rows.map((r) => ({ ...r, percent: 0 }))
   }
