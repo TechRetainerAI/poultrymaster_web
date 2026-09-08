@@ -372,6 +372,9 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/water-cash-flow",           label: "Cash Flow",      icon: Wallet },
     { href: "/water-cash-accounts",       label: "Cash accounts",  icon: Wallet },
     { href: "/water-cash-reconciliation", label: "Reconcile cash", icon: Scale },
+    { href: "/water-cash-transfers",      label: "Cash Transfers", icon: ArrowLeftRight },
+    { href: "/water-owner-money",         label: "Owner Money",    icon: HandCoins },
+    { href: "/water-loans",               label: "Loans",          icon: HandCoins },
   ])
   // Finance — Customers (was in Sales & money) and Suppliers (was buried in
   // Admin / Setup) now sit together: both are master data, and they're the two

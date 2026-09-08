@@ -57,6 +57,8 @@ import {
   ChevronDown,
   Repeat,
   CalendarClock,
+  ArrowLeftRight,
+  HandCoins,
 } from "lucide-react"
 import {
   Sheet,
@@ -251,6 +253,9 @@ export function MobileBottomNav() {
               { href: "/water-cash-flow",           label: "Cash Flow",      icon: Wallet },
               { href: "/water-cash-accounts",       label: "Cash accounts",  icon: Wallet },
               { href: "/water-cash-reconciliation", label: "Reconcile cash", icon: Scale },
+              { href: "/water-cash-transfers",      label: "Cash Transfers", icon: ArrowLeftRight },
+              { href: "/water-owner-money",         label: "Owner Money",    icon: HandCoins },
+              { href: "/water-loans",               label: "Loans",          icon: HandCoins },
             ] as NavItem[]) },
           ]) },
           ...asSections([

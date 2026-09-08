@@ -17,7 +17,7 @@ import {
   Activity, AlertTriangle, Banknote, BarChart3, Bell, Boxes, Box, Building2,
   CalendarDays, Cog, CreditCard, Droplets, FileText, Factory, ListTodo, PackageMinus, Receipt,
   Route as RouteIcon, Settings, ShoppingBag, ShoppingCart, Truck, User, UserCog,
-  Users, Users2, Wallet, Wrench, History, Scale,
+  Users, Users2, Wallet, Wrench, History, Scale, ArrowLeftRight, HandCoins,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isWaterNavItemVisible } from "@/lib/utils/water-nav-access"
@@ -177,6 +177,14 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
           { id: "cash-flow",     title: "Cash Flow",       icon: Wallet,   href: "/water-cash-flow" },
           { id: "cash-accounts", title: "Cash accounts",   icon: Wallet,   href: "/water-cash-accounts" },
           { id: "cash-reconciliation", title: "Reconcile cash", icon: Scale, href: "/water-cash-reconciliation" },
+          // Migration 257. Money between the company's own accounts -- never
+          // company-wide money in or out, which is why it sits here with the
+          // cash pages and not under Sales or Expenses.
+          { id: "cash-transfers", title: "Cash Transfers", icon: ArrowLeftRight, href: "/water-cash-transfers" },
+          // Migration 258. Owner funding in and out -- financing, never trading.
+          { id: "owner-money", title: "Owner Money", icon: HandCoins, href: "/water-owner-money" },
+          // Migration 259. Borrowing and repayments.
+          { id: "loans", title: "Loans", icon: HandCoins, href: "/water-loans" },
         ],
       },
     ],

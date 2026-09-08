@@ -65,6 +65,17 @@ const WATER_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAdmin: 
   // Counting cash is a cash-ledger job; it rides the same flag rather than
   // introducing a permission nobody has been granted yet.
   "/water-cash-reconciliation": (f) => f.canViewCashLedger,
+  // Migration 257. Moving money between the company's own accounts is a
+  // cash-ledger job, so it rides the same flag as the pages above rather than
+  // a fresh permission nobody has been granted. What you can DO on the page --
+  // reversing an approved transfer -- is gated separately inside it.
+  "/water-cash-transfers": (f) => f.canViewCashLedger,
+  // Migrations 258 and 259. Same reasoning again: both are cash-ledger pages,
+  // so they ride canViewCashLedger rather than a fresh permission that nobody
+  // has been granted. Recording a draw or taking out a loan is gated inside
+  // the page, on the keys migration 260 seeds.
+  "/water-owner-money": (f) => f.canViewCashLedger,
+  "/water-loans": (f) => f.canViewCashLedger,
   "/water-payments": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canEnterSales,
   "/water-daily-closing": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canViewCashLedger,
 

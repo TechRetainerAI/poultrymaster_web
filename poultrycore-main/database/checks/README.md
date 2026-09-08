@@ -239,6 +239,81 @@ straight to midnight while every other cash-flow arm carries a real moment.
 - **only the clock moved** -- amount, sign, flow group, row count, money in,
   money out and net all unchanged
 
+`water-cash-transfer-reversal.test.sql` — 30 checks + 6 negative cases
+Covers migration 257, the water twin of 252. Same claims, same order: a transfer
+carrying a number, a reference and its two leg ids; the reversal restoring both
+accounts with all four ledger rows standing; neither the transfer nor its
+reversal moving company-wide cash flow, asserted against the live
+`spwatercashflow_summary`; the four legs summing to zero; the negative-balance
+guard flipping to the destination. Blocked: another company's cash account, the
+same account at both ends, a zero amount, reversing a draft, reversing twice, a
+reversal with no reason.
+
+The farm is looked up rather than hard-coded, and the lookup insists on
+`farms.type = 'Water'`. That is not fussiness: `watercashaccounts` also holds
+rows for a Generic company built on the water rail, and the OLDEST account in
+the table is one of those, so an unfiltered pick quietly tests the wrong rail.
+
+`water-owner-money.test.sql` — 33 checks + 8 negative cases
+Covers migration 258, the water twin of 253 — and the migration that closes a
+gap 236 wrote down and left:
+
+> "Water records owner injections through adjustWaterCashAccount, which writes
+> to the cash LEDGER. This report does not read the ledger, so those movements
+> will NOT appear in Water's financing section. … Giving Water its own capital
+> record is a separate decision."
+
+Same claims as the poultry file, plus one more: **no supplier payment either**,
+because water has its own supplier-payment table that a capital record must not
+touch. Blocked: an invented type, zero and negative amounts, another company's
+cash account, drawing more than is held, reversing spent money, a reversal with
+no reason, reversing twice.
+
+`water-loans.test.sql` — 47 checks + 10 negative cases
+Covers migration 259 on the same worked example as the poultry file: 100,000
+borrowed, 2,000 withheld, 98,000 received, then 10,000 principal + 2,000
+interest + 500 fee. Every poultry claim, and three the water rail needs on its
+own account:
+- **the NonCash clause 259 adds to the cash-flow expense arm actually works.**
+  Water's expense arm was rewritten by 241 to gate on `paidatentry > 0` rather
+  than on payment method, so unlike poultry it had no NonCash clause to inherit.
+  Without the one 259 adds, money out would read 15,000 against 12,500 that
+  left the bank
+- **the expense categories are created on demand.**
+  `waterexpenses.waterexpensecategoryid` is NOT NULL and categories are
+  per-company, so a repayment cannot write its cost without one
+- **a back-dated loan still reports midnight.** 256 had to go back and fix this
+  on poultry; 259 bakes the rule in from the start, so water never needs the
+  follow-up migration
+
+The interest and fee rows carry FOUR sourcetypes where poultry uses two —
+`LoanPaymentInterest` / `LoanPaymentFee` and their two reversals. That is not
+decoration: `waterexpenses` has a unique index on
+`(farmid, sourcetype, sourceid)` that poultry has no equivalent of, saying a
+source document gets at most one auto-written expense. Sharing one sourcetype
+fails on the second row. The checks count them by name so the split is pinned,
+not just the total.
+
+`water-money-permissions.test.sql` — 11 checks
+Covers migration 260, the water twin of 255. It touches no money — 16 IAM keys
+and copies of existing grants — so the claims are about access:
+- **nobody lost any.** Every role that could see water cash can still see all
+  four new pages, and every role that could create can still create
+- **nobody gained any either.** Reversal went only to holders of
+  `water.cash.delete`, not to everyone who can create — widening is as much a
+  bug as losing
+- per-user grants keeping their effect, so a Deny stays a Deny
+- the dangerous flag on `approve` and only on `approve`, and no export key
+  invented for pages that cannot export
+
+One difference from 255 worth knowing about: 260 stores the BARE resource in
+`iampermissions.resource` (`cash-transfers`), matching the other hundred-odd
+rows and the IAM matrix's grouping key. 255 stored the prefixed key
+(`poultry.cash-transfers`) on the poultry side. Nothing is broken by it — each
+value still groups to itself — but the four poultry rows read differently from
+their neighbours, and correcting them belongs in a poultry migration rather than
+in a file named WaterMoneyPermissions.
+
 ## The invariant that matters most
 
 `fnbalanceaudit(farmid, 'poultry')` returns **nothing** when healthy. A non-empty

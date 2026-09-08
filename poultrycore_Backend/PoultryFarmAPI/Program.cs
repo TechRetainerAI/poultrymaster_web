@@ -192,6 +192,14 @@ builder.Services.AddScoped<IWaterCashAccountService>(sp => new WaterCashAccountS
 builder.Services.AddScoped<IWaterCashTransferService>(sp => new WaterCashTransferService(connectionString));
 builder.Services.AddScoped<IWaterCashReconciliationService>(sp => new WaterCashReconciliationService(connectionString));
 builder.Services.AddScoped<IWaterCustomerLedgerService>(sp => new WaterCustomerLedgerService(connectionString));
+// Owner money (258): contributions and draws, kept out of revenue and expense.
+// This is the capital record migration 236 recorded as a KNOWN GAP -- before it,
+// an owner injection could only be typed as a raw cash-account adjustment,
+// which the water cash flow does not read.
+builder.Services.AddScoped<IWaterOwnerMoneyService>(sp => new WaterOwnerMoneyService(connectionString));
+// Loans (259): borrowed money, repayments split into principal, interest and
+// fees, and exactly one cash movement per repayment.
+builder.Services.AddScoped<IWaterLoanService>(sp => new WaterLoanService(connectionString));
 
 // Poultry Cash Accounts (port of the Water cash module). Multi-account cash
 // management + signed ledger + paired transfers. Migrations 128 (schema) + 129 (SPs).

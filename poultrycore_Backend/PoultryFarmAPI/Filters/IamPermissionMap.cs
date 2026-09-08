@@ -167,7 +167,22 @@ namespace PoultryFarmAPIWeb.Filters
             ["water/expenses"] = "water.expenses",
             ["water/expense-categories"] = "water.expenses",
             ["water/cash-accounts"] = "water.cash",
-            ["water/cash-transfers"] = "water.cash",
+            // 260 gave these four their own resources, mirroring what 255 did on
+            // the poultry side. Cash Transfers rode on water.cash until then,
+            // and Owner Money and Loans would have inherited the same mapping
+            // the moment their routes appeared -- which would have meant anyone
+            // who could SEE cash could reverse a transfer, record an owner draw
+            // and take out a loan. 260 also copies every existing water.cash
+            // grant onto the new keys, so nobody lost access in the move.
+            //
+            // KNOWN QUIRK, recorded rather than papered over: ResolveAction
+            // treats /reverse as `approve` but NOT /cancel, so
+            // POST /loans/{id}/cancel resolves to water.loans.CREATE. Same
+            // trade-off, and same open decision, as the poultry note above.
+            ["water/cash-transfers"] = "water.cash-transfers",
+            ["water/owner-money"] = "water.owner-money",
+            ["water/loans"] = "water.loans",
+            ["water/loan-payments"] = "water.loan-payments",
             // Migration 222. Its own resource rather than an action on
             // water.cash: *.cash has no `approve`, and widening a shared
             // resource would hand reconciliation rights to everyone who can
