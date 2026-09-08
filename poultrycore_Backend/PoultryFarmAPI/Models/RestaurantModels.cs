@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace PoultryFarmAPIWeb.Models
 {
@@ -419,6 +419,9 @@ namespace PoultryFarmAPIWeb.Models
         public int? CustomerId { get; set; }
         public string? CustomerName { get; set; }
         public string? CustomerPhone { get; set; }
+
+        /// <summary>Optional guest email; NULL for walk-in POS orders.</summary>
+        public string? CustomerEmail { get; set; }
         public int Covers { get; set; } = 1;
         public decimal Subtotal { get; set; }
         public decimal DiscountAmount { get; set; }
@@ -801,6 +804,23 @@ namespace PoultryFarmAPIWeb.Models
     /// item summary is aggregated in SQL so the tray, which polls every 10s, does
     /// not fan out an item fetch per order.
     /// </summary>
+    /// <summary>
+    /// Outcome of saving an order's guest into the CRM. `Created` distinguishes a
+    /// brand-new record from one matched on phone number, which is the difference
+    /// staff care about: "new customer" versus "this is a regular".
+    /// </summary>
+    public class LinkOrderCustomerResult
+    {
+        public bool Ok { get; set; }
+        public int? CustomerId { get; set; }
+        public bool Created { get; set; }
+        public string? Name { get; set; }
+        public string? Segment { get; set; }
+        public int? TotalVisits { get; set; }
+        public decimal? TotalSpent { get; set; }
+        public string Message { get; set; } = string.Empty;
+    }
+
     public class PendingOnlineOrderModel
     {
         public int OrderId { get; set; }
@@ -811,6 +831,7 @@ namespace PoultryFarmAPIWeb.Models
         public string? TableNumber { get; set; }
         public string? CustomerName { get; set; }
         public string? CustomerPhone { get; set; }
+        public string? CustomerEmail { get; set; }
         public string? GuestPaymentIntent { get; set; }
         public decimal? GuestPaymentAmount { get; set; }
         public string? Notes { get; set; }
@@ -970,6 +991,28 @@ namespace PoultryFarmAPIWeb.Models
         [Required(ErrorMessage = "Please enter your phone number.")]
         [StringLength(32, ErrorMessage = "Phone number is too long.")]
         public string CustomerPhone { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Optional. Deliberately not [Required]: plenty of guests do not have an
+        /// email to hand at a counter, and the phone number is already the contact
+        /// of record. [EmailAddress] still rejects a malformed value, so what is
+        /// stored is either nothing or something plausible - never "asdf".
+        /// Blank input is normalised to NULL inside the insert proc.
+        /// </summary>
+        [EmailAddress(ErrorMessage = "That email address does not look right.")]
+        [StringLength(200, ErrorMessage = "Email address is too long.")]
+        public string? CustomerEmail
+        {
+            get => _customerEmail;
+            // Normalise in the setter, which model binding runs BEFORE validation.
+            // [EmailAddress] treats null as valid but an empty string as INVALID, so
+            // a client that sent "customerEmail": "" for "the guest left it blank"
+            // got a 400 telling them their address looked wrong. Collapsing blank to
+            // null here makes "absent" and "empty" mean the same thing, which is what
+            // an optional field should mean, and matches the NULLIF in migration 249.
+            set => _customerEmail = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        }
+        private string? _customerEmail;
 
         public int Covers { get; set; } = 1;
         [StringLength(1000)] public string? Notes { get; set; }

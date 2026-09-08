@@ -26,7 +26,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog"
 import {
-  Check, X, Clock, Phone, User, Utensils, Volume2, VolumeX, QrCode, Banknote, Inbox,
+  Check, X, Clock, Phone, Mail, User, Utensils, Volume2, VolumeX, QrCode, Banknote, Inbox,
 } from "lucide-react"
 import { PageSkeleton } from "@/components/restaurant/skeleton-loaders"
 import { useAuthStore } from "@/lib/store/auth-store"
@@ -190,6 +190,12 @@ export default function RestaurantPendingOrdersPage() {
                       <a href={`tel:${o.customerPhone}`} className="flex items-center gap-1.5 text-gray-600 hover:text-rose-600">
                         <Phone className="h-3.5 w-3.5 text-gray-400" />
                         {o.customerPhone}
+                      </a>
+                    )}
+                    {o.customerEmail && (
+                      <a href={`mailto:${o.customerEmail}`} className="flex items-center gap-1.5 break-all text-gray-600 hover:text-rose-600">
+                        <Mail className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                        {o.customerEmail}
                       </a>
                     )}
                     {o.guestPaymentIntent && (

@@ -1,4 +1,4 @@
-using Npgsql;
+﻿using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -498,7 +498,8 @@ namespace PoultryFarmAPIWeb.Business
                     "p_tableid=>@tableId::int,p_tablenumber=>@tableNumber::text,p_customername=>@customerName::text,p_customerphone=>@customerPhone::text," +
                     "p_covers=>@covers::int,p_notes=>@notes::text,p_onlinesource=>@onlineSource::text,p_deliveryaddress=>@deliveryAddress::text," +
                     "p_deliveryfee=>@deliveryFee::numeric,p_promocodeid=>@promoCodeId::int,p_promocode=>@promoCode::text,p_promodiscount=>@promoDiscount::numeric," +
-                    "p_qrcodeid=>@qrCodeId::int,p_guestpaymentintent=>@payIntent::text,p_guestpaymentamount=>@payAmount::numeric)", conn, tx))
+                    "p_qrcodeid=>@qrCodeId::int,p_guestpaymentintent=>@payIntent::text,p_guestpaymentamount=>@payAmount::numeric," +
+                    "p_customeremail=>@customerEmail::text)", conn, tx))
                 {
                     cmd.Parameters.AddWithValue("@farmId", req.FarmId);
                     cmd.Parameters.AddWithValue("@orderType", req.OrderType);
@@ -518,6 +519,7 @@ namespace PoultryFarmAPIWeb.Business
                     cmd.Parameters.AddWithValue("@qrCodeId", (object?)qrCodeId ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@payIntent", (object?)req.GuestPaymentIntent ?? DBNull.Value);
                     cmd.Parameters.AddWithValue("@payAmount", (object?)req.GuestPaymentAmount ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@customerEmail", (object?)req.CustomerEmail ?? DBNull.Value);
 
                     using var r = await cmd.ExecuteReaderAsync();
                     if (!await r.ReadAsync())
@@ -634,6 +636,11 @@ namespace PoultryFarmAPIWeb.Business
                     TableNumber = r.IsDBNull(r.GetOrdinal("tablenumber")) ? null : r.GetString(r.GetOrdinal("tablenumber")),
                     CustomerName = r.IsDBNull(r.GetOrdinal("customername")) ? null : r.GetString(r.GetOrdinal("customername")),
                     CustomerPhone = r.IsDBNull(r.GetOrdinal("customerphone")) ? null : r.GetString(r.GetOrdinal("customerphone")),
+                    // Read defensively: migration 249 adds this column, and
+                    // migrations here are applied by hand, so the API can be
+                    // newer than the database. Same reason as `codetype` above.
+                    CustomerEmail = HasColumn(r, "customeremail") && !r.IsDBNull(r.GetOrdinal("customeremail"))
+                        ? r.GetString(r.GetOrdinal("customeremail")) : null,
                     GuestPaymentIntent = r.IsDBNull(r.GetOrdinal("guestpaymentintent")) ? null : r.GetString(r.GetOrdinal("guestpaymentintent")),
                     GuestPaymentAmount = r.IsDBNull(r.GetOrdinal("guestpaymentamount")) ? null : r.GetDecimal(r.GetOrdinal("guestpaymentamount")),
                     Notes = r.IsDBNull(r.GetOrdinal("notes")) ? null : r.GetString(r.GetOrdinal("notes")),
