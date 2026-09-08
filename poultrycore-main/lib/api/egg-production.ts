@@ -10,6 +10,10 @@ export interface EggProduction {
   production12PM: number
   production4PM: number
   production4thPick: number
+  /** 5th and 6th picks (migrations 249/250), for farms collecting more than
+   *  four times a day. Offered on the form only when the farm enables them. */
+  production5thPick: number
+  production6thPick: number
   totalProduction: number
   brokenEggs: number
   /**
@@ -42,6 +46,10 @@ export interface EggProductionInput {
   production12PM: number
   production4PM: number
   production4thPick: number
+  /** 5th and 6th picks (migrations 249/250), for farms collecting more than
+   *  four times a day. Offered on the form only when the farm enables them. */
+  production5thPick: number
+  production6thPick: number
   totalProduction: number
   brokenEggs: number
   notes: string
@@ -73,6 +81,8 @@ function mapEggRow(raw: Record<string, unknown>): EggProduction {
     production12PM: Number(raw.production12PM ?? raw.Production12PM ?? 0),
     production4PM: Number(raw.production4PM ?? raw.Production4PM ?? 0),
     production4thPick: Number(raw.production4thPick ?? raw.Production4thPick ?? 0),
+    production5thPick: Number(raw.production5thPick ?? raw.Production5thPick ?? 0),
+    production6thPick: Number(raw.production6thPick ?? raw.Production6thPick ?? 0),
     totalProduction: Number(raw.totalProduction ?? raw.TotalProduction ?? 0),
     brokenEggs: Number(raw.brokenEggs ?? raw.BrokenEggs ?? 0),
     meatyEggs: Number(raw.meatyEggs ?? raw.MeatyEggs ?? 0),

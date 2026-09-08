@@ -785,13 +785,28 @@ export function PaymentsLedgerPage({
                 <MobileCardList
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
+                  defaultOpen
+                  striped
+                  stripeAccent="blue"
                   getKey={(r) => r.paymentId}
-                  primary={(r) => `SPAY-${r.paymentId} · ${fmt(r.totalAmount)}`}
+                  primary={(r) => `SPAY-${r.paymentId}`}
                   secondary={(r) => (
                     <>
                       {r.partyName ?? "No supplier"} · {new Date(r.paymentDate).toLocaleDateString()}
                     </>
                   )}
+                  highlights={(r) => [
+                    // What was paid, and what it was paid against. The amount
+                    // used to hang off the payment number in the title, where
+                    // the figure the card exists to state read as part of a
+                    // reference code.
+                    { label: "Paid", value: fmt(r.totalAmount), accent: "blue" },
+                    {
+                      label: "Applied to",
+                      value: `${r.allocationCount} item${r.allocationCount === 1 ? "" : "s"}`,
+                      accent: "violet",
+                    },
+                  ]}
                   trailing={(r) =>
                     r.status === "Reversed"
                       ? <Badge variant="outline" className="text-slate-500">Reversed</Badge>
@@ -801,7 +816,6 @@ export function PaymentsLedgerPage({
                     const a = soleAllocation(r)
                     const multi = r.allocationCount > 1
                     return [
-                      { label: "Applied to", value: `${r.allocationCount} item${r.allocationCount === 1 ? "" : "s"}` },
                       { label: "Purchase / Expense #", value: multi ? "Multiple" : (a?.reference ?? "—") },
                       { label: "Payable type", value: multi ? "Multiple" : payableTypeLabel(a?.documentType) },
                       { label: "Balance before", value: multi || !a ? "—" : fmt(a.balanceBefore) },

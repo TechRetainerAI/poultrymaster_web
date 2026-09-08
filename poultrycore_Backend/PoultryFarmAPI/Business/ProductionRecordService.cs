@@ -82,6 +82,23 @@ namespace PoultryFarmAPIWeb.Business
             await cmd.ExecuteNonQueryAsync();
         }
 
+        /// <summary>
+        /// Writes the 5th and 6th picks and recomputes the total (migration 249).
+        /// Guarded by the same procedure probe as the 4th pick, so an API running
+        /// against a database without 249 simply saves the first four picks
+        /// instead of failing the whole record.
+        /// </summary>
+        private static async Task SetExtraPicksAsync(NpgsqlConnection conn, string farmId, int recordId, int fifthPick, int sixthPick, NpgsqlTransaction? tx = null)
+        {
+            if (!await ProcedureExistsAsync(conn, "spProductionRecord_SetExtraPicks", tx)) return;
+            await using var cmd = new NpgsqlCommand("SELECT * FROM spproductionrecord_setextrapicks(p_recordid => @RecordId::int, p_farmid => @FarmId::text, p_production5thpick => @Production5thPick::int, p_production6thpick => @Production6thPick::int)", conn, tx);
+            cmd.Parameters.AddWithValue("@RecordId", recordId);
+            cmd.Parameters.AddWithValue("@FarmId", (object?)farmId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Production5thPick", fifthPick);
+            cmd.Parameters.AddWithValue("@Production6thPick", sixthPick);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
         private static async Task<bool> ProcedureHasEggLossParamsAsync(NpgsqlConnection conn, string procedureName)
         {
             if (SpHasEggLossParamsCache.TryGetValue(procedureName, out var cached))
@@ -336,6 +353,10 @@ namespace PoultryFarmAPIWeb.Business
                 int newId = Convert.ToInt32(await cmd.ExecuteScalarAsync());
                 // Persist the 4th egg pick + recompute the total (migration 152).
                 await SetFourthPickAsync(conn, model.FarmId, newId, model.Production4thPick, tx);
+                // …then the 5th and 6th (migration 249). Both procedures sum all
+                // six picks from the row, so the order here does not change the
+                // total — it is written this way to read in pick order.
+                await SetExtraPicksAsync(conn, model.FarmId, newId, model.Production5thPick, model.Production6thPick, tx);
                 await tx.CommitAsync();
                 return newId;
             }
@@ -397,6 +418,8 @@ namespace PoultryFarmAPIWeb.Business
                 await cmd.ExecuteNonQueryAsync();
                 // Persist the 4th egg pick + recompute the total (migration 152).
                 await SetFourthPickAsync(conn, model.FarmId, model.Id, model.Production4thPick, tx);
+                // …then the 5th and 6th (migration 249).
+                await SetExtraPicksAsync(conn, model.FarmId, model.Id, model.Production5thPick, model.Production6thPick, tx);
                 await tx.CommitAsync();
             }
             catch (Exception ex)
@@ -442,6 +465,8 @@ namespace PoultryFarmAPIWeb.Business
                         Production12PM = reader.GetInt32(reader.GetOrdinal("Production12PM")),
                         Production4PM = reader.GetInt32(reader.GetOrdinal("Production4PM")),
                         Production4thPick = GetNullableIntIfPresent(reader, "Production4thPick") ?? 0,
+                        Production5thPick = GetNullableIntIfPresent(reader, "Production5thPick") ?? 0,
+                        Production6thPick = GetNullableIntIfPresent(reader, "Production6thPick") ?? 0,
                         TotalProduction = totalProd,
                         CreatedAt = reader.GetDateTime(reader.GetOrdinal("CreatedAt")),
                         FlockId = reader.IsDBNull(reader.GetOrdinal("FlockId")) ? (int?)null : reader.GetInt32(reader.GetOrdinal("FlockId")),
@@ -502,6 +527,8 @@ namespace PoultryFarmAPIWeb.Business
                         Production12PM = reader.GetInt32(reader.GetOrdinal("Production12PM")),
                         Production4PM = reader.GetInt32(reader.GetOrdinal("Production4PM")),
                         Production4thPick = GetNullableIntIfPresent(reader, "Production4thPick") ?? 0,
+                        Production5thPick = GetNullableIntIfPresent(reader, "Production5thPick") ?? 0,
+                        Production6thPick = GetNullableIntIfPresent(reader, "Production6thPick") ?? 0,
                         TotalProduction = totalProd,
                         CreatedAt = reader.GetDateTime(reader.GetOrdinal("CreatedAt")),
                         FlockId = reader.IsDBNull(reader.GetOrdinal("FlockId")) ? (int?)null : reader.GetInt32(reader.GetOrdinal("FlockId")),

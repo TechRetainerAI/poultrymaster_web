@@ -35,6 +35,23 @@ namespace PoultryFarmAPIWeb.Models
         [JsonPropertyName("production4thPick")]
         public int Production4thPick { get; set; }
 
+        /// <summary>
+        /// Fifth and sixth egg picks (migration 249), for farms that collect more
+        /// than four times a day. Written by spProductionRecord_SetExtraPicks
+        /// after the insert/update, the same way the 4th pick is. Nullable in the
+        /// DB — a record written before 249 has no 5th pick rather than a 5th
+        /// pick of zero — and treated as 0 in calculations.
+        ///
+        /// Whether either is OFFERED on an entry form is a per-farm setting
+        /// (FarmProductionSettings.EnableFifthPick / EnableSixthPick, migration
+        /// 248); the backend always stores whatever it is given.
+        /// </summary>
+        [JsonPropertyName("production5thPick")]
+        public int Production5thPick { get; set; }
+
+        [JsonPropertyName("production6thPick")]
+        public int Production6thPick { get; set; }
+
         public int TotalProduction { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }

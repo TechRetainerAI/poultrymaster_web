@@ -60,6 +60,10 @@ export interface ProductionRecord {
   production4PM: number
   /** 4th egg pick (migration 152). 1st/2nd/3rd picks reuse the 9AM/12PM/4PM fields. */
   production4thPick?: number
+  /** 5th and 6th picks (migration 249), for farms collecting more than four
+   *  times a day. Offered on the form only when the farm enables them. */
+  production5thPick?: number
+  production6thPick?: number
   brokenEggs: number
   totalProduction: number
   /** Free-text notes for the production entry. */
@@ -112,6 +116,10 @@ export interface ProductionRecordInput {
   production4PM: number
   /** 4th egg pick (migration 152). 1st/2nd/3rd picks reuse the 9AM/12PM/4PM fields. */
   production4thPick?: number
+  /** 5th and 6th picks (migration 249), for farms collecting more than four
+   *  times a day. Offered on the form only when the farm enables them. */
+  production5thPick?: number
+  production6thPick?: number
   brokenEggs: number
   totalProduction: number
   /** Free-text notes for the production entry. */
@@ -318,6 +326,8 @@ export async function createProductionRecord(record: ProductionRecordInput) {
       production12PM: record.production12PM,
       production4PM: record.production4PM,
       production4thPick: record.production4thPick ?? 0,
+      production5thPick: record.production5thPick ?? 0,
+      production6thPick: record.production6thPick ?? 0,
       brokenEggs: record.brokenEggs ?? 0,
       totalProduction: record.totalProduction,
     }
@@ -399,6 +409,8 @@ export async function updateProductionRecord(id: number, record: ProductionRecor
       production12PM: record.production12PM,
       production4PM: record.production4PM,
       production4thPick: record.production4thPick ?? 0,
+      production5thPick: record.production5thPick ?? 0,
+      production6thPick: record.production6thPick ?? 0,
       brokenEggs: record.brokenEggs ?? 0,
       totalProduction: record.totalProduction,
     }

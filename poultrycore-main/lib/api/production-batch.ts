@@ -63,6 +63,9 @@ export interface ProductionBatchAllocation {
   secondPickEggs: number
   thirdPickEggs: number
   fourthPickEggs: number
+  /** This flock's share of the 5th and 6th picks (migration 251). */
+  fifthPickEggs: number
+  sixthPickEggs: number
   brokenEggs?: number | null
   meatyEggs?: number | null
   softEggs?: number | null
@@ -105,6 +108,12 @@ export interface ProductionBatchRecord {
   fourthPickCrates?: number | null
   fourthPickLooseEggs?: number | null
   fourthPickTotal: number
+  fifthPickCrates?: number | null
+  fifthPickLooseEggs?: number | null
+  fifthPickTotal: number
+  sixthPickCrates?: number | null
+  sixthPickLooseEggs?: number | null
+  sixthPickTotal: number
   brokenEggs?: number | null
   meatyEggs?: number | null
   softEggs?: number | null
@@ -155,6 +164,12 @@ export interface ProductionBatchRecordInput {
   fourthPickCrates?: number | null
   fourthPickLooseEggs?: number | null
   fourthPickTotal: number
+  fifthPickCrates?: number | null
+  fifthPickLooseEggs?: number | null
+  fifthPickTotal: number
+  sixthPickCrates?: number | null
+  sixthPickLooseEggs?: number | null
+  sixthPickTotal: number
   brokenEggs?: number | null
   meatyEggs?: number | null
   softEggs?: number | null

@@ -126,7 +126,7 @@ export function BatchProductionRecordForm({
 }: BatchProductionRecordFormProps) {
   const { toast } = useToast()
   const isEdit = mode === "edit"
-  const { labels: pickLabelText, enableFourthPick } = usePickSettings()
+  const { labels: pickLabelText, enableFourthPick, enableFifthPick, enableSixthPick } = usePickSettings()
 
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(isEdit)
@@ -216,6 +216,7 @@ export function BatchProductionRecordForm({
   const [picks, setPicks] = useState({
     firstCrates: 0, firstLoose: 0, secondCrates: 0, secondLoose: 0,
     thirdCrates: 0, thirdLoose: 0, fourthCrates: 0, fourthLoose: 0,
+    fifthCrates: 0, fifthLoose: 0, sixthCrates: 0, sixthLoose: 0,
   })
   const setPick = (p: Partial<typeof picks>) => { setDirty(true); setPicks((prev) => ({ ...prev, ...p })) }
 
@@ -223,7 +224,12 @@ export function BatchProductionRecordForm({
   const secondTotal = pickTotal(picks.secondCrates, picks.secondLoose)
   const thirdTotal = pickTotal(picks.thirdCrates, picks.thirdLoose)
   const fourthTotal = pickTotal(picks.fourthCrates, picks.fourthLoose)
-  const totalEggs = firstTotal + secondTotal + thirdTotal + fourthTotal
+  const fifthTotal = pickTotal(picks.fifthCrates, picks.fifthLoose)
+  const sixthTotal = pickTotal(picks.sixthCrates, picks.sixthLoose)
+  // Every pick counts towards the batch total, including one the farm has
+  // since switched off — the allocation has to balance against what was
+  // actually entered, not against what is currently on offer.
+  const totalEggs = firstTotal + secondTotal + thirdTotal + fourthTotal + fifthTotal + sixthTotal
   const { crates: totalCrates, pieces: totalPieces } = cratesEquivalent(totalEggs)
 
   const brokenEggs = parseInt(form.brokenEggs) || 0
@@ -301,6 +307,8 @@ export function BatchProductionRecordForm({
               secondCrates: r.secondPickCrates ?? 0, secondLoose: r.secondPickLooseEggs ?? 0,
               thirdCrates: r.thirdPickCrates ?? 0, thirdLoose: r.thirdPickLooseEggs ?? 0,
               fourthCrates: r.fourthPickCrates ?? 0, fourthLoose: r.fourthPickLooseEggs ?? 0,
+              fifthCrates: r.fifthPickCrates ?? 0, fifthLoose: r.fifthPickLooseEggs ?? 0,
+              sixthCrates: r.sixthPickCrates ?? 0, sixthLoose: r.sixthPickLooseEggs ?? 0,
             })
             setForm({
               date: (r.productionDate || "").split("T")[0] || today,
@@ -388,6 +396,8 @@ export function BatchProductionRecordForm({
         secondPickCrates: picks.secondCrates, secondPickLooseEggs: picks.secondLoose, secondPickTotal: secondTotal,
         thirdPickCrates: picks.thirdCrates, thirdPickLooseEggs: picks.thirdLoose, thirdPickTotal: thirdTotal,
         fourthPickCrates: picks.fourthCrates, fourthPickLooseEggs: picks.fourthLoose, fourthPickTotal: fourthTotal,
+        fifthPickCrates: picks.fifthCrates, fifthPickLooseEggs: picks.fifthLoose, fifthPickTotal: fifthTotal,
+        sixthPickCrates: picks.sixthCrates, sixthPickLooseEggs: picks.sixthLoose, sixthPickTotal: sixthTotal,
         brokenEggs: form.brokenEggs === "" ? null : parseInt(form.brokenEggs) || 0,
         meatyEggs: form.meatyEggs === "" ? null : parseInt(form.meatyEggs) || 0,
         softEggs: form.softEggs === "" ? null : parseInt(form.softEggs) || 0,
@@ -439,7 +449,7 @@ export function BatchProductionRecordForm({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [batchSelectionType, includedFlocksList, isSpecific, ageWeeks, ageDays, selectedBirdBatchId,
-      batchName, form, picks, firstTotal, secondTotal, thirdTotal, fourthTotal, totalEggs,
+      batchName, form, picks, firstTotal, secondTotal, thirdTotal, fourthTotal, fifthTotal, sixthTotal, totalEggs,
       effectiveFeedKg, totalFeedCost, totalMedicationCost, totalCostOfProduction,
       feedComputed.rows, medComputed.rows, isEdit, recordId,
       eggsOverBirds, eggsOverBirdsMessage])
@@ -463,9 +473,20 @@ export function BatchProductionRecordForm({
       setC: (v: number | string) => setPick({ secondCrates: Number(v) || 0 }), setL: (v: number | string) => setPick({ secondLoose: Number(v) || 0 }), total: secondTotal },
     { key: "third", label: pickLabelText.third, crates: picks.thirdCrates, loose: picks.thirdLoose,
       setC: (v: number | string) => setPick({ thirdCrates: Number(v) || 0 }), setL: (v: number | string) => setPick({ thirdLoose: Number(v) || 0 }), total: thirdTotal },
-    ...(enableFourthPick
+    // Shown when the farm has the pick enabled, or when this batch already
+    // holds eggs for it — hiding an entered pick would leave a batch whose
+    // allocation can never be made to balance.
+    ...(enableFourthPick || fourthTotal > 0
       ? [{ key: "fourth", label: pickLabelText.fourth, crates: picks.fourthCrates, loose: picks.fourthLoose,
            setC: (v: number | string) => setPick({ fourthCrates: Number(v) || 0 }), setL: (v: number | string) => setPick({ fourthLoose: Number(v) || 0 }), total: fourthTotal }]
+      : []),
+    ...(enableFifthPick || fifthTotal > 0
+      ? [{ key: "fifth", label: pickLabelText.fifth, crates: picks.fifthCrates, loose: picks.fifthLoose,
+           setC: (v: number | string) => setPick({ fifthCrates: Number(v) || 0 }), setL: (v: number | string) => setPick({ fifthLoose: Number(v) || 0 }), total: fifthTotal }]
+      : []),
+    ...(enableSixthPick || sixthTotal > 0
+      ? [{ key: "sixth", label: pickLabelText.sixth, crates: picks.sixthCrates, loose: picks.sixthLoose,
+           setC: (v: number | string) => setPick({ sixthCrates: Number(v) || 0 }), setL: (v: number | string) => setPick({ sixthLoose: Number(v) || 0 }), total: sixthTotal }]
       : []),
   ]
 

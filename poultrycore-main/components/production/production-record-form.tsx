@@ -125,7 +125,7 @@ export function ProductionRecordForm({
   const isEdit = mode === "edit"
   const isModal = displayMode === "modal"
 
-  const { labels: pickLabelText, enableFourthPick } = usePickSettings()
+  const { labels: pickLabelText, enableFourthPick, enableFifthPick, enableSixthPick } = usePickSettings()
   const {
     batchOptions, selectedBatchId, setSelectedBatchId,
     allFlocks, flockOptions: flocksForSelect,
@@ -143,7 +143,7 @@ export function ProductionRecordForm({
   const [form, setForm] = useState({
     flockId: initialFlockId != null ? String(initialFlockId) : "",
     date: today,
-    morning: "", noon: "", evening: "", fourth: "",
+    morning: "", noon: "", evening: "", fourth: "", fifth: "", sixth: "",
     brokenEggs: "", meatyEggs: "", softEggs: "", lostEggs: "",
     feedKg: "", feedType: "",
     mortality: "", numBirds: "",
@@ -232,6 +232,8 @@ export function ProductionRecordForm({
     noonCrates: 0, noonLoose: 0,
     eveningCrates: 0, eveningLoose: 0,
     fourthCrates: 0, fourthLoose: 0,
+    fifthCrates: 0, fifthLoose: 0,
+    sixthCrates: 0, sixthLoose: 0,
   })
   const setPick = (p: Partial<typeof picks>) => { setDirty(true); setPicks((prev) => ({ ...prev, ...p })) }
 
@@ -239,6 +241,8 @@ export function ProductionRecordForm({
   const noonTotal = pickTotal(picks.noonCrates, picks.noonLoose)
   const eveningTotal = pickTotal(picks.eveningCrates, picks.eveningLoose)
   const fourthTotal = pickTotal(picks.fourthCrates, picks.fourthLoose)
+  const fifthTotal = pickTotal(picks.fifthCrates, picks.fifthLoose)
+  const sixthTotal = pickTotal(picks.sixthCrates, picks.sixthLoose)
 
   // Crates/loose drive the stored per-pick egg counts. Guarded on change so
   // hydrating an edit (which sets the totals directly) is not overwritten by a
@@ -250,12 +254,16 @@ export function ProductionRecordForm({
       ...prev,
       morning: String(morningTotal), noon: String(noonTotal),
       evening: String(eveningTotal), fourth: String(fourthTotal),
+      fifth: String(fifthTotal), sixth: String(sixthTotal),
     }))
-  }, [morningTotal, noonTotal, eveningTotal, fourthTotal, isEdit])
+  }, [morningTotal, noonTotal, eveningTotal, fourthTotal, fifthTotal, sixthTotal, isEdit])
 
   const total =
     (parseInt(form.morning) || 0) + (parseInt(form.noon) || 0) +
-    (parseInt(form.evening) || 0) + (parseInt(form.fourth) || 0)
+    (parseInt(form.evening) || 0) + (parseInt(form.fourth) || 0) +
+    // A pick the farm has turned off is still summed if a record HOLDS one:
+    // hiding the input must not quietly subtract eggs somebody already counted.
+    (parseInt(form.fifth) || 0) + (parseInt(form.sixth) || 0)
   const { crates: totalCrates, pieces: totalPieces } = cratesEquivalent(total)
 
   const brokenEggs = parseInt(form.brokenEggs) || 0
@@ -394,6 +402,8 @@ export function ProductionRecordForm({
       noon: String(rec.production12PM ?? 0),
       evening: String(rec.production4PM ?? 0),
       fourth: String(r0.production4thPick ?? 0),
+      fifth: String(r0.production5thPick ?? 0),
+      sixth: String(r0.production6thPick ?? 0),
       brokenEggs: String(r0.brokenEggs ?? 0),
       meatyEggs: r0.meatyEggs == null ? "" : String(r0.meatyEggs),
       softEggs: r0.softEggs == null ? "" : String(r0.softEggs),
@@ -417,6 +427,10 @@ export function ProductionRecordForm({
       eveningLoose: (rec.production4PM ?? 0) % EGGS_PER_CRATE,
       fourthCrates: Math.floor((r0.production4thPick ?? 0) / EGGS_PER_CRATE),
       fourthLoose: (r0.production4thPick ?? 0) % EGGS_PER_CRATE,
+      fifthCrates: Math.floor((r0.production5thPick ?? 0) / EGGS_PER_CRATE),
+      fifthLoose: (r0.production5thPick ?? 0) % EGGS_PER_CRATE,
+      sixthCrates: Math.floor((r0.production6thPick ?? 0) / EGGS_PER_CRATE),
+      sixthLoose: (r0.production6thPick ?? 0) % EGGS_PER_CRATE,
     })
 
     // Credit = what this record already consumed, so the edit preview reverses
@@ -594,6 +608,8 @@ export function ProductionRecordForm({
         production12PM: parseInt(form.noon) || 0,
         production4PM: parseInt(form.evening) || 0,
         production4thPick: parseInt(form.fourth) || 0,
+        production5thPick: parseInt(form.fifth) || 0,
+        production6thPick: parseInt(form.sixth) || 0,
         brokenEggs: parseInt(form.brokenEggs) || 0,
         meatyEggs: form.meatyEggs === "" ? null : parseInt(form.meatyEggs) || 0,
         softEggs: form.softEggs === "" ? null : parseInt(form.softEggs) || 0,
@@ -663,9 +679,21 @@ export function ProductionRecordForm({
       setC: (v: number | string) => setPick({ noonCrates: Number(v) || 0 }), setL: (v: number | string) => setPick({ noonLoose: Number(v) || 0 }), total: noonTotal },
     { key: "evening", label: pickLabelText.third, crates: picks.eveningCrates, loose: picks.eveningLoose,
       setC: (v: number | string) => setPick({ eveningCrates: Number(v) || 0 }), setL: (v: number | string) => setPick({ eveningLoose: Number(v) || 0 }), total: eveningTotal },
-    ...(enableFourthPick
+    // Each later pick is shown when the farm has enabled it (Business office →
+    // Egg pick settings) OR when this record already carries eggs for it —
+    // otherwise turning a pick off would hide eggs that are still in the total
+    // and still in the ledger, with no way to correct them.
+    ...(enableFourthPick || fourthTotal > 0
       ? [{ key: "fourth", label: pickLabelText.fourth, crates: picks.fourthCrates, loose: picks.fourthLoose,
            setC: (v: number | string) => setPick({ fourthCrates: Number(v) || 0 }), setL: (v: number | string) => setPick({ fourthLoose: Number(v) || 0 }), total: fourthTotal }]
+      : []),
+    ...(enableFifthPick || fifthTotal > 0
+      ? [{ key: "fifth", label: pickLabelText.fifth, crates: picks.fifthCrates, loose: picks.fifthLoose,
+           setC: (v: number | string) => setPick({ fifthCrates: Number(v) || 0 }), setL: (v: number | string) => setPick({ fifthLoose: Number(v) || 0 }), total: fifthTotal }]
+      : []),
+    ...(enableSixthPick || sixthTotal > 0
+      ? [{ key: "sixth", label: pickLabelText.sixth, crates: picks.sixthCrates, loose: picks.sixthLoose,
+           setC: (v: number | string) => setPick({ sixthCrates: Number(v) || 0 }), setL: (v: number | string) => setPick({ sixthLoose: Number(v) || 0 }), total: sixthTotal }]
       : []),
   ]
 

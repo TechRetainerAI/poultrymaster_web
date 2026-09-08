@@ -19,6 +19,11 @@ namespace PoultryFarmAPIWeb.Models
         public int Production4PM { get; set; }
         [JsonPropertyName("production4thPick")]
         public int Production4thPick { get; set; }
+        // 5th and 6th picks (migrations 249 / 250). This module writes the same
+        // productionrecords rows the Production Records page does, so both have
+        // to carry every pick or one of them would erase the other's.
+        public int Production5thPick { get; set; }
+        public int Production6thPick { get; set; }
         public int TotalProduction { get; set; }
         public int? BrokenEggs { get; set; }
 

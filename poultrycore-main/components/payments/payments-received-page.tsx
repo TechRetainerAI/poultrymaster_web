@@ -596,17 +596,32 @@ export function PaymentsReceivedPage({
                 </div>
               ) : (
                 <>
-                  {/* ---- Phones: one card per payment ------------------------ */}
-                  <div className="divide-y divide-slate-100 lg:hidden">
-                    {pg.pageItems.map((row) => {
+                  {/* ---- Phones: one card per payment ------------------------
+                       Striped cards rather than rows split by hairlines, the
+                       same shape the trackers and /poultry-daily-closing use: on
+                       a phone the tint is what separates one payment from the
+                       next once each carries several lines of its own. */}
+                  <div className="space-y-2 p-3 lg:hidden">
+                    {pg.pageItems.map((row, idx) => {
                       const isReversed = (row.status ?? "Posted") === "Reversed"
                       const isOpen = expanded === row.paymentId
                       const multi = row.allocationCount > 1
                       const openable = multi || hasTrail(row)
                       const times = payCount(row)
                       const one = single(row)
+                      const stripe = idx % 2 === 0
                       return (
-                        <div key={row.paymentId} className={cn("p-3", isReversed && "text-slate-400")}>
+                        <div
+                          key={row.paymentId}
+                          className={cn(
+                            "overflow-hidden rounded-xl border p-3 shadow-sm",
+                            stripe ? "border-blue-300 bg-blue-100" : "border-slate-200 bg-white",
+                            // A reversed payment is greyed the way it always
+                            // was; the stripe stays so the alternation does not
+                            // break where one sits.
+                            isReversed && "text-slate-400",
+                          )}
+                        >
                           {/* Same rule as the table: there is something to open
                               when the payment covers several sales, or when its
                               sale has been paid more than once. A one-sale,
@@ -646,7 +661,7 @@ export function PaymentsReceivedPage({
                           </div>
 
                           {!multi && one && (
-                            <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 rounded-md bg-slate-50 p-2 text-xs">
+                            <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 rounded-md border border-slate-200/70 bg-white/80 p-2 text-xs">
                               <span className="text-slate-500">
                                 Sale {saleLink(one.saleId)}
                                 {times && <span className="ml-1 text-slate-400">(paid {times} times)</span>}
@@ -738,7 +753,7 @@ export function PaymentsReceivedPage({
                           )}
 
                           {isOpen && multi && (
-                            <div className="mt-2 space-y-2 rounded-md bg-slate-50 p-2">
+                            <div className="mt-2 space-y-2 rounded-md border border-slate-200/70 bg-white/80 p-2">
                               {!allocations[row.paymentId] ? (
                                 <span className="flex items-center gap-2 text-sm text-slate-500">
                                   <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading allocation…

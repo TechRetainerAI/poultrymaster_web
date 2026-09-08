@@ -39,9 +39,11 @@ import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { SortableHeader, sortData, type SortDirection } from "@/components/ui/sortable-header"
 import { usePagination } from "@/hooks/use-pagination"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { useIsMobile } from "@/hooks/use-mobile"
 import {
   Wallet, TrendingUp, TrendingDown, Plus, Lightbulb, Info,
-  ExternalLink, Users, Truck, Trash2, Pencil,
+  ExternalLink, Users, Truck, Trash2, Pencil, ChevronDown,
 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useFmt } from "@/lib/currency"
@@ -81,6 +83,7 @@ const CAPITAL_SOURCE = "Adjustment"
 const SOURCE_OWNED_HINT = "Sales and expenses are managed from their own pages."
 
 export default function CashFlowPage() {
+  const isMobile = useIsMobile()
   const router = useRouter()
   const logout = useLogout()
   const gh = useFmt()
@@ -338,8 +341,11 @@ export default function CashFlowPage() {
               <p className="mt-1 text-xs text-slate-500">What the business earned and spent</p>
             </div>
 
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <Button size="sm" variant="outline" className="whitespace-nowrap"
+            {/* Buttons go two-up on a phone rather than wrapping one per line
+                at full width, and the Cash Accounts link keeps its place at the
+                end of the row on a desktop. */}
+            <div className="mt-2 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+              <Button size="sm" variant="outline" className="w-full whitespace-nowrap sm:w-auto"
                       onClick={() => setInsightsOpen(true)} disabled={loading}>
                 <Lightbulb className="h-4 w-4 mr-1" /> Cash Flow Insights
                 {warnings.count > 0 && (
@@ -349,11 +355,11 @@ export default function CashFlowPage() {
                 )}
               </Button>
               {canAdjust && (
-                <Button size="sm" className="whitespace-nowrap" onClick={() => setAdjustOpen(true)}>
+                <Button size="sm" className="w-full whitespace-nowrap sm:w-auto" onClick={() => setAdjustOpen(true)}>
                   <Plus className="h-4 w-4 mr-1" /> Add Adjustment
                 </Button>
               )}
-              <Button asChild size="sm" variant="outline" className="whitespace-nowrap ml-auto">
+              <Button asChild size="sm" variant="outline" className="col-span-2 w-full whitespace-nowrap sm:col-span-1 sm:ml-auto sm:w-auto">
                 <Link href="/poultry-cash-accounts">
                   <ExternalLink className="h-4 w-4 mr-1" /> View Cash Accounts
                 </Link>
@@ -364,17 +370,36 @@ export default function CashFlowPage() {
           {/* Quiet panel, not an alert. It exists because the relationship
               between this page and Cash Accounts is the thing people get wrong,
               and because "closing cash does not match my accounts" is alarming
-              until you know it is by design. */}
-          <div className="mb-3 rounded-lg border border-slate-200 bg-white p-3">
-            <p className="text-sm font-medium text-slate-900">Where your money came from and went.</p>
-            <p className="mt-1 text-xs leading-snug text-slate-600">
-              Built from your sales, expenses and capital records. Operating money is what the
-              business earned and spent; capital is money put in or taken out by owners and lenders.
-              Transfers between your own cash accounts are not cash flow and are excluded — they are
-              managed in <Link href="/poultry-cash-accounts" className="underline">Cash Accounts</Link>.
-              Customer and Supplier Balances show what is still owed either way.
-            </p>
-          </div>
+              until you know it is by design.
+
+              Five lines of explanation is a fair trade for a desktop's space
+              and a bad one for a phone's, where it pushed the figures the page
+              exists to show below the fold. So the heading stays — it is the
+              sentence that answers "what am I looking at?" — and the rest folds
+              behind it on a phone, open by default anywhere wider. It is still
+              one tap away, and it stays put once tapped. */}
+          <Collapsible defaultOpen={!isMobile} className="group mb-3 rounded-lg border border-slate-200 bg-white">
+            <CollapsibleTrigger asChild>
+              <button
+                type="button"
+                className="flex w-full items-start justify-between gap-2 p-3 text-left"
+              >
+                <span className="text-sm font-medium text-slate-900">
+                  Where your money came from and went.
+                </span>
+                <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-slate-400 transition-transform group-data-[state=open]:rotate-180" />
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <p className="px-3 pb-3 text-xs leading-snug text-slate-600">
+                Built from your sales, expenses and capital records. Operating money is what the
+                business earned and spent; capital is money put in or taken out by owners and lenders.
+                Transfers between your own cash accounts are not cash flow and are excluded — they are
+                managed in <Link href="/poultry-cash-accounts" className="underline">Cash Accounts</Link>.
+                Customer and Supplier Balances show what is still owed either way.
+              </p>
+            </CollapsibleContent>
+          </Collapsible>
 
           <ListFilters
             search={search} setSearch={setSearch}
@@ -456,16 +481,19 @@ export default function CashFlowPage() {
 
               <Card>
                 <CardHeader className="pb-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
+                  {/* The two filters sit beside the title on a desktop and take
+                      a full-width line each on a phone, where 11rem apiece plus
+                      the heading did not fit and the pair wrapped raggedly. */}
+                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                     <div>
                       <CardTitle className="text-base">Transaction History</CardTitle>
                       <CardDescription className="text-xs">
                         Every cash movement in the selected period.
                       </CardDescription>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">
                       <Select value={flowFilter} onValueChange={setFlowFilter}>
-                        <SelectTrigger className="h-8 w-[11rem]"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-8 w-full sm:w-[11rem]"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="ALL">All categories</SelectItem>
                           <SelectItem value="OperatingIn">Operating income</SelectItem>
@@ -475,7 +503,7 @@ export default function CashFlowPage() {
                         </SelectContent>
                       </Select>
                       <Select value={typeFilter} onValueChange={setTypeFilter}>
-                        <SelectTrigger className="h-8 w-[11rem]"><SelectValue placeholder="All types" /></SelectTrigger>
+                        <SelectTrigger className="h-8 w-full sm:w-[11rem]"><SelectValue placeholder="All types" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="ALL">All types</SelectItem>
                           {typeOptions.map((c) => (
@@ -486,25 +514,41 @@ export default function CashFlowPage() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent>
+                {/* p-0 like the payroll and internal-use lists: MobileCardList
+                    brings its own p-3, so the default px-6 on top of it made
+                    these cards narrower than the same cards everywhere else. */}
+                <CardContent className="p-0 md:p-2">
                   {visible.length === 0 ? (
-                    <p className="py-8 text-center text-sm text-slate-500">
+                    <p className="px-4 py-8 text-center text-sm text-slate-500">
                       No cash movement in this period. Record a sale, an expense or an adjustment and
                       it appears here.
                     </p>
                   ) : (
                     <MobileCardList
                       defaultOpen
+                      striped
+                      stripeAccent="blue"
                       items={pg.pageItems}
                       pagination={pg.paginationProps}
                       getKey={(r: any) => `${r.rowSource}-${r.id}`}
-                      primary={(r: any) => `${r.amount < 0 ? "−" : "+"}${gh(Math.abs(r.amount))} · ${categoryLabel(r.category)}`}
+                      primary={(r: any) => categoryLabel(r.category)}
                       secondary={(r: any) => `${(r.transactionDate ?? "").split("T")[0]} · ${flowGroupLabel(r.flowGroup)}`}
+                      highlights={(r: any) => [
+                        // The movement, then where it left the balance. The
+                        // amount used to be glued to the category in the title,
+                        // where the sign was easy to miss; the tile carries the
+                        // direction in its colour as well as its sign, the way
+                        // the In / Out columns do on the table.
+                        {
+                          label: r.amount < 0 ? "Money out" : "Money in",
+                          value: `${r.amount < 0 ? "−" : "+"}${gh(Math.abs(r.amount))}`,
+                          accent: r.amount < 0 ? "rose" : "emerald",
+                        },
+                        { label: "Running cash", value: gh(r.running), accent: "blue" },
+                      ]}
                       details={(r: any) => [
-                        { label: "Type", value: categoryLabel(r.category) },
                         { label: "Category", value: flowGroupLabel(r.flowGroup) },
                         { label: "Recorded as", value: sourceTypeLabel(r.sourceType) },
-                        { label: "Running cash", value: gh(r.running) },
                         { label: "Description", value: r.description ?? "—" },
                       ]}
                       desktopTable={

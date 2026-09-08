@@ -242,6 +242,10 @@ export const POULTRY_REPORT_DEFS: Record<PoultryReportSlug, PoultryReportDef> = 
       { header: "2nd Pick", align: "right", cell: (r, c) => c.num(r.middayEggs) },
       { header: "3rd Pick", align: "right", cell: (r, c) => c.num(r.eveningEggs) },
       { header: "4th Pick", align: "right", cell: (r, c) => c.num(r.fourthPickEggs) },
+      // The 5th and 6th are already inside "Total eggs"; without their own
+      // columns the row read as four picks that did not add up to it.
+      { header: "5th Pick", align: "right", cell: (r, c) => c.num(r.fifthPickEggs) },
+      { header: "6th Pick", align: "right", cell: (r, c) => c.num(r.sixthPickEggs) },
       { header: "Total eggs", align: "right", cell: (r, c) => c.num(r.totalEggs) },
       { header: "Broken", align: "right", cell: (r, c) => c.num(r.brokenEggs) },
       { header: "Saleable", align: "right", cell: (r, c) => c.num(r.saleableEggs) },

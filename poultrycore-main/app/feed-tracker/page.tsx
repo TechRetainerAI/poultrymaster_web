@@ -9,6 +9,10 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { TRACKER_PAGE_SIZE_DEFAULT, TRACKER_PAGE_SIZE_OPTIONS } from "@/components/ui/data-pagination"
+import { Badge } from "@/components/ui/badge"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { FlowBreakdownCard } from "@/components/cash/flow-breakdown-card"
+import { groupLedgerBy, groupLedgerByType, FEED_MOVE_LABELS } from "@/lib/utils/ledger-breakdown"
 import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -16,7 +20,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { Label } from "@/components/ui/label"
-import { Wheat, RefreshCw, Copy, Plus, Pencil, Trash2 } from "lucide-react"
+import { Wheat, RefreshCw, Copy, Plus, Pencil, Trash2, ChevronDown, ChevronUp } from "lucide-react"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { getFeedUsages, type FeedUsage } from "@/lib/api/feed-usage"
 import { getFlocks, type Flock } from "@/lib/api/flock"
@@ -73,6 +77,9 @@ export default function FeedTrackerPage() {
   const [ledgerSortDir, setLedgerSortDir] = useState<SortDirection>("desc")
   const [ledgerPage, setLedgerPage] = useState(1)
   const [ledgerPageSize, setLedgerPageSize] = useState(TRACKER_PAGE_SIZE_DEFAULT)
+  // Phones open on scorecards; "View table format" flips to the table, the same
+  // pair of views /poultry-daily-closing and /egg-tracker offer.
+  const [showLedgerTableMobile, setShowLedgerTableMobile] = useState(false)
 
   const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false)
   const [editingAdjustmentId, setEditingAdjustmentId] = useState<number | null>(null)
@@ -190,7 +197,12 @@ export default function FeedTrackerPage() {
   const sortedFeedLedgerRows = useMemo(
     () =>
       sortData(filteredFeedLedgerRows, ledgerSortKey, ledgerSortDir, (item: FeedLedgerRow, key: string) => {
-        if (key === "date") return new Date(item.date)
+        // The ledger's own sequence, not the raw date: a day's rows share a
+        // date, compare equal, and the table then fell back to insertion order
+        // — ascending — even under a descending sort. `seq` already encodes
+        // date-then-within-day order, so descending puts the last movement of
+        // the day at the top, where whoever just entered it looks for it.
+        if (key === "date") return item.seq
         if (key === "type") return item.type
         if (key === "description") return item.description
         if (key === "in") return Number(item.in) || 0
@@ -199,6 +211,49 @@ export default function FeedTrackerPage() {
         return (item as FeedLedgerRow & Record<string, unknown>)[key]
       }),
     [filteredFeedLedgerRows, ledgerSortKey, ledgerSortDir]
+  )
+
+  // The movement figures behind the tiles and the Breakdown. Whole ledger, so
+  // they decompose "Total IN" / "Total OUT" rather than the filtered table.
+  const purchasedInKg = useMemo(
+    () => feedLedgerAllRows.filter((r) => r.type === "Purchase IN").reduce((sum, r) => sum + r.in, 0),
+    [feedLedgerAllRows]
+  )
+  const usedOutKg = useMemo(
+    () => feedLedgerAllRows.filter((r) => r.type === "Usage OUT").reduce((sum, r) => sum + r.out, 0),
+    [feedLedgerAllRows]
+  )
+  // Corrections, kept apart from the flows they sit between: a stocktake or a
+  // reversal is somebody putting the count right, not feed bought or fed out.
+  const adjustmentTotals = useMemo(() => {
+    const rows = feedLedgerAllRows.filter((r) => /adjust/i.test(r.type))
+    return {
+      in: rows.reduce((sum, r) => sum + r.in, 0),
+      out: rows.reduce((sum, r) => sum + r.out, 0),
+    }
+  }, [feedLedgerAllRows])
+
+  const feedInBySource = useMemo(
+    () => groupLedgerByType(feedLedgerAllRows, "in", FEED_MOVE_LABELS),
+    [feedLedgerAllRows]
+  )
+  const feedOutByUse = useMemo(
+    () => groupLedgerByType(feedLedgerAllRows, "out", FEED_MOVE_LABELS),
+    [feedLedgerAllRows]
+  )
+
+  // The same two sides again, grouped by WHICH feed rather than by how it
+  // moved. "Purchase 15,600" says the feed was bought; it does not say whether
+  // that was layer mash or maize, which is the question anyone comparing feeds
+  // is actually asking. Rows with no item are this page's own kg corrections,
+  // entered against the farm's feed as a whole.
+  const feedInByItem = useMemo(
+    () => groupLedgerBy(feedLedgerAllRows, "in", (r) => r.itemName || "Not item-specific"),
+    [feedLedgerAllRows]
+  )
+  const feedOutByItem = useMemo(
+    () => groupLedgerBy(feedLedgerAllRows, "out", (r) => r.itemName || "Not item-specific"),
+    [feedLedgerAllRows]
   )
 
   // Column totals across the whole filtered set, not just the page on screen,
@@ -501,62 +556,87 @@ export default function FeedTrackerPage() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className={cn("flex gap-4 flex-wrap", isMobile ? "flex-col" : "items-start justify-between")}>
-                      <div className={cn("grid gap-4", isMobile ? "grid-cols-1" : "grid-cols-3")}>
-                        <div>
-                          <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                            Feed left / at hand (kg)
-                          </div>
-                          <div className="mt-1 flex items-center gap-2 flex-wrap">
-                            <span
-                              className={cn(
-                                "text-2xl font-bold tabular-nums",
-                                feedKgAtHand < 0 ? "text-red-600" : "text-slate-900"
-                              )}
-                            >
-                              {feedKgAtHand.toLocaleString(undefined, { maximumFractionDigits: 1 })}
-                            </span>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-slate-500 hover:text-slate-700"
-                              onClick={handleCopyFeedAtHand}
-                              aria-label="Copy feed left (kg)"
-                            >
-                              <Copy className="h-4 w-4" />
-                            </Button>
-                          </div>
+                    {/* Four equal columns, two rows, every tile the same width
+                        and every left edge lined up down the card — the same
+                        grid /egg-tracker uses. Eight cells for seven figures, so
+                        "Last ledger event", which used to float to the right of
+                        the whole block, takes the eighth and the grid has no
+                        hole in it. Two across on a phone: eight divides by two
+                        as well as by four, so each pair keeps its own line. */}
+                    <div className={cn("grid gap-4 min-w-0", isMobile ? "grid-cols-2" : "grid-cols-4")}>
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                          Feed left / at hand (kg)
                         </div>
-                        <div>
-                          <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total IN (ledger)</div>
-                          <div className="mt-1 text-2xl font-bold tabular-nums text-emerald-800">
-                            {totalInKg.toLocaleString(undefined, { maximumFractionDigits: 1 })}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total OUT (ledger)</div>
-                          <div className="mt-1 text-2xl font-bold tabular-nums text-slate-800">
-                            {totalOutKg.toLocaleString(undefined, { maximumFractionDigits: 1 })}
-                          </div>
+                        <div className="mt-1 flex items-center gap-2 flex-wrap">
+                          <span
+                            className={cn(
+                              "text-2xl font-bold tabular-nums",
+                              feedKgAtHand < 0 ? "text-red-600" : "text-slate-900"
+                            )}
+                          >
+                            {feedKgAtHand.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-slate-500 hover:text-slate-700"
+                            onClick={handleCopyFeedAtHand}
+                            aria-label="Copy feed left (kg)"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
-                      <div className="text-sm text-slate-500 shrink-0 text-right">
-                        <div>
-                          Last ledger event:{" "}
-                          {ledgerLastUpdated
-                            ? ledgerLastUpdated.toLocaleDateString("en-GB", {
-                                day: "2-digit",
-                                month: "short",
-                                year: "numeric",
-                              })
-                            : "—"}
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Feed purchased (kg)</div>
+                        <div className="mt-1 text-2xl font-bold tabular-nums text-sky-700">
+                          {purchasedInKg.toLocaleString(undefined, { maximumFractionDigits: 1 })}
                         </div>
-                        <div className="text-xs mt-0.5 tabular-nums">
-                          Last updated:{" "}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Feed used (kg)</div>
+                        <div className="mt-1 text-2xl font-bold tabular-nums text-amber-800">
+                          {usedOutKg.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                        </div>
+                      </div>
+                      {/* Same tile shape as the figures around it, and the
+                          table's own date format, so the row reads as one band
+                          rather than three numbers and a caption. */}
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Last ledger event</div>
+                        <div className="mt-1 text-2xl font-bold tabular-nums text-slate-600">
+                          {ledgerLastUpdated ? formatDateShort(ledgerLastUpdated) : "—"}
+                        </div>
+                        <div className="text-xs tabular-nums text-slate-500">
                           {ledgerLastUpdated
                             ? ledgerLastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
                             : "—"}
+                        </div>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Feed in (adjustments)</div>
+                        <div className="mt-1 text-2xl font-bold tabular-nums text-emerald-700">
+                          {adjustmentTotals.in.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                        </div>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Feed out (adjustments)</div>
+                        <div className="mt-1 text-2xl font-bold tabular-nums text-rose-600">
+                          {adjustmentTotals.out.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                        </div>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total IN (ledger)</div>
+                        <div className="mt-1 text-2xl font-bold tabular-nums text-emerald-800">
+                          {totalInKg.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                        </div>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Total OUT (ledger)</div>
+                        <div className="mt-1 text-2xl font-bold tabular-nums text-slate-800">
+                          {totalOutKg.toLocaleString(undefined, { maximumFractionDigits: 1 })}
                         </div>
                       </div>
                     </div>
@@ -573,6 +653,57 @@ export default function FeedTrackerPage() {
                     )}
                   </CardContent>
                 </Card>
+
+                {/* Straight under the tiles, because it is the tiles it breaks
+                    apart: both cards total the whole ledger, which is what
+                    "Total IN" and "Total OUT" above them count. Side by side
+                    from lg up — in and out are meant to be read against each
+                    other, and this is a full-width page with the room. */}
+                {(feedInBySource.length > 0 || feedOutByUse.length > 0) && (
+                  <div className="space-y-3">
+                    <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                      Breakdown
+                    </h2>
+                    <div className="grid items-start gap-3 lg:grid-cols-2">
+                      <FlowBreakdownCard
+                        title="Feed in by source"
+                        direction="in"
+                        buckets={feedInBySource}
+                        total={totalInKg}
+                        fmtMoney={(n) => n.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                        description="Every movement that added feed to stock — the whole ledger, so it breaks down the totals above rather than the filtered table below."
+                        emptyText="No feed has come in yet."
+                      />
+                      <FlowBreakdownCard
+                        title="Feed out by use"
+                        direction="out"
+                        buckets={feedOutByUse}
+                        total={totalOutKg}
+                        fmtMoney={(n) => n.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                        description="Every movement that took feed out of stock — production usage, feed-production batches and corrections."
+                        emptyText="No feed has gone out yet."
+                      />
+                      <FlowBreakdownCard
+                        title="Feed in by item"
+                        direction="in"
+                        buckets={feedInByItem}
+                        total={totalInKg}
+                        fmtMoney={(n) => n.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                        description="The same feed in, by which feed it was — layer mash, maize, concentrate."
+                        emptyText="No feed has come in yet."
+                      />
+                      <FlowBreakdownCard
+                        title="Feed out by item"
+                        direction="out"
+                        buckets={feedOutByItem}
+                        total={totalOutKg}
+                        fmtMoney={(n) => n.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                        description="The same feed out, by which feed it was — what is actually being eaten, and how fast."
+                        emptyText="No feed has gone out yet."
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <Card className="bg-white" id="feed-ledger">
                   <CardHeader>
@@ -614,7 +745,117 @@ export default function FeedTrackerPage() {
                       <p className="text-slate-600 py-8 text-center text-sm">
                         No ledger rows yet. Add <strong>Feed</strong> items on Inventory and record usage on Feed usage.
                       </p>
+                    ) : isMobile && !showLedgerTableMobile ? (
+                      /* Scorecards, following /poultry-daily-closing and
+                         /egg-tracker: one card per row, open by default, striped
+                         so consecutive rows are told apart at a glance. In and
+                         out keep their green and red — they are the two
+                         directions the ledger exists to tell apart. */
+                      <div className="space-y-3">
+                        {paginatedFeedLedgerRows.map((row, idx) => {
+                          const isAdj = row.type === "Adjustment"
+                          return (
+                            <Collapsible
+                              key={row.sortKey}
+                              defaultOpen
+                              className={cn(
+                                "group w-full overflow-hidden rounded-xl border shadow-sm",
+                                idx % 2 === 0 ? "border-blue-300 bg-blue-100" : "border-slate-200 bg-white"
+                              )}
+                            >
+                              <div className={cn("px-2.5 py-3 transition-colors", idx % 2 === 0 ? "active:bg-black/10" : "active:bg-black/5")}>
+                                <CollapsibleTrigger asChild>
+                                  <div className="relative cursor-pointer">
+                                    <ChevronDown className="absolute right-0 top-0 h-4 w-4 shrink-0 text-slate-400 transition-transform group-data-[state=open]:rotate-180" />
+                                    <div className="min-w-0">
+                                      <div className="flex flex-wrap items-center gap-2 pr-6">
+                                        <span className="font-semibold text-slate-900">
+                                          {row.date ? formatDateShort(row.date) : "—"}
+                                        </span>
+                                        <Badge className="bg-blue-200 text-blue-900 hover:bg-blue-200">{row.type}</Badge>
+                                      </div>
+                                      <div className="mt-3 grid grid-cols-2 gap-2">
+                                        <div className="rounded-lg border border-emerald-300 bg-emerald-100 px-3 py-2 shadow-sm">
+                                          <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-900">In (kg)</p>
+                                          <p className="text-xl font-extrabold leading-tight text-emerald-800 tabular-nums">
+                                            {row.in > 0 ? row.in.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "—"}
+                                          </p>
+                                        </div>
+                                        <div className="rounded-lg border border-red-300 bg-red-100 px-3 py-2 shadow-sm">
+                                          <p className="text-[11px] font-semibold uppercase tracking-wide text-red-900">Out (kg)</p>
+                                          <p className="text-xl font-extrabold leading-tight text-red-800 tabular-nums">
+                                            {row.out > 0 ? row.out.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "—"}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent>
+                                  <div className="mt-4 space-y-2 border-t border-slate-200/70 pt-4 text-sm">
+                                    <div>
+                                      <span className="text-slate-500">Description</span>{" "}
+                                      <span className="font-medium text-slate-900">{row.description}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-slate-500">Balance</span>{" "}
+                                      <span className="font-medium tabular-nums text-slate-900">
+                                        {row.balance.toLocaleString(undefined, { maximumFractionDigits: 2 })} kg
+                                      </span>
+                                    </div>
+                                    {/* Only this page's own adjustments can be edited or
+                                        removed; every other row belongs to the record that
+                                        posted it. */}
+                                    {isAdj && (
+                                      <div className="flex gap-2 pt-2">
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-10 flex-1 bg-white"
+                                          onClick={(e) => { e.stopPropagation(); openEditAdjustment(row) }}
+                                        >
+                                          <Pencil className="mr-2 h-4 w-4" /> Edit
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-10 flex-1 bg-white text-red-600"
+                                          onClick={(e) => { e.stopPropagation(); void deleteAdjustment(row) }}
+                                        >
+                                          <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </CollapsibleContent>
+                              </div>
+                            </Collapsible>
+                          )
+                        })}
+                        <div className="rounded-lg border bg-slate-50/60 px-4 py-2">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="w-full text-slate-600"
+                            onClick={() => setShowLedgerTableMobile(true)}
+                          >
+                            View table format <ChevronDown className="ml-1 h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
                     ) : (
+                      <>
+                      {isMobile && (
+                        <div className="-mx-4 -mt-4 mb-3 flex items-center justify-between gap-2 border-b bg-slate-50 px-4 py-2">
+                          <span className="text-xs text-slate-600">Table view - scroll for more</span>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setShowLedgerTableMobile(false)}>
+                            <ChevronUp className="mr-1 h-4 w-4" /> Cards
+                          </Button>
+                        </div>
+                      )}
                       <div className="overflow-x-auto table-scroll-wrapper pb-2" style={{ WebkitOverflowScrolling: "touch" }}>
                         <Table className="w-full min-w-[720px]">
                           <TableHeader>
@@ -741,6 +982,7 @@ export default function FeedTrackerPage() {
                           </TableFooter>
                         </Table>
                       </div>
+                      </>
                     )}
                     {sortedFeedLedgerRows.length > 0 && (
                       <div className="flex flex-col gap-2 border-t px-2 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4 bg-slate-50/80">

@@ -13,7 +13,8 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { Bird, RefreshCw } from "lucide-react"
+import { Bird, RefreshCw, ChevronDown, ChevronUp } from "lucide-react"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { getProductionRecords, type ProductionRecord } from "@/lib/api/production-record"
 import { getFlocks, type Flock } from "@/lib/api/flock"
@@ -48,6 +49,12 @@ export default function BirdsLeftTrackerPage() {
   const [ledgerSortDir, setLedgerSortDir] = useState<SortDirection>("desc")
   const [ledgerPage, setLedgerPage] = useState(1)
   const [ledgerPageSize, setLedgerPageSize] = useState(TRACKER_PAGE_SIZE_DEFAULT)
+  // Phones open on scorecards; "View table format" flips to the table, the same
+  // pair of views /poultry-daily-closing, /egg-tracker and /feed-tracker offer.
+  // The two tables on this page toggle independently — reading one as a table
+  // is no reason to change the other.
+  const [showLedgerTableMobile, setShowLedgerTableMobile] = useState(false)
+  const [showFlockTableMobile, setShowFlockTableMobile] = useState(false)
 
   const handleLogout = () => {
     localStorage.removeItem("auth_token")
@@ -138,6 +145,21 @@ export default function BirdsLeftTrackerPage() {
       }),
     [filteredLedger, ledgerSortKey, ledgerSortDir],
   )
+
+  // Whole-ledger totals for the scorecards above. Deliberately NOT the filtered
+  // figures below: these sit beside "Total birds placed" and "Birds left", which
+  // are farm-wide, and a headline that moved when you filtered the table would
+  // not agree with either of them.
+  const ledgerTotals = useMemo(() => {
+    let inQty = 0
+    let outQty = 0
+    for (const r of ledger) {
+      const qty = Number(r.quantity) || 0
+      if (r.type === "IN") inQty += qty
+      else outQty += qty
+    }
+    return { in: inQty, out: outQty }
+  }, [ledger])
 
   // Column totals across the filtered set, not just the visible page. The Qty
   // column carries its direction in `type` rather than the sign, so the two
@@ -241,7 +263,12 @@ export default function BirdsLeftTrackerPage() {
               </Card>
             ) : (
               <>
-                <div className={cn("grid gap-3", isMobile ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2")}>
+                {/* Four across on a desktop, two on a phone: the two standing
+                    figures and the two movement totals that produce them, all
+                    on one band. placed + in are the same number by
+                    construction — placement is the only IN — and left is
+                    in − out, so the row reads as its own arithmetic. */}
+                <div className={cn("grid gap-3", isMobile ? "grid-cols-2" : "grid-cols-2 lg:grid-cols-4")}>
                   <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
                     <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">
                       Total birds placed (all flocks)
@@ -258,6 +285,22 @@ export default function BirdsLeftTrackerPage() {
                       {totalBirdsLeft.toLocaleString()}
                     </div>
                   </div>
+                  <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                      Total IN (ledger)
+                    </div>
+                    <div className="text-2xl font-bold text-emerald-600 tabular-nums mt-1">
+                      {ledgerTotals.in.toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                    <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                      Total OUT (deaths + bird sales)
+                    </div>
+                    <div className="text-2xl font-bold text-red-600 tabular-nums mt-1">
+                      {ledgerTotals.out.toLocaleString()}
+                    </div>
+                  </div>
                 </div>
 
                 <Card className="bg-white">
@@ -268,6 +311,137 @@ export default function BirdsLeftTrackerPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="overflow-x-auto table-scroll-wrapper pb-2">
+                    {isMobile && !showFlockTableMobile ? (
+                      /* Scorecards, as on the ledger below: one card per flock,
+                         open by default, striped. Placed and Birds left lead
+                         because they are the two figures a flock is judged on;
+                         what took the difference away — deaths, sales — and the
+                         cross-check against the last production log sit inside.
+                       */
+                      <div className="space-y-3">
+                        {summaries.length === 0 ? (
+                          <p className="py-8 text-center text-sm text-slate-500">No flocks yet.</p>
+                        ) : (
+                          <>
+                            {summaries.map((row, idx) => (
+                              <Collapsible
+                                key={row.flockId}
+                                defaultOpen
+                                className={cn(
+                                  "group w-full overflow-hidden rounded-xl border shadow-sm",
+                                  idx % 2 === 0 ? "border-blue-300 bg-blue-100" : "border-slate-200 bg-white"
+                                )}
+                              >
+                                <div className={cn("px-2.5 py-3 transition-colors", idx % 2 === 0 ? "active:bg-black/10" : "active:bg-black/5")}>
+                                  <CollapsibleTrigger asChild>
+                                    <div className="relative cursor-pointer">
+                                      <ChevronDown className="absolute right-0 top-0 h-4 w-4 shrink-0 text-slate-400 transition-transform group-data-[state=open]:rotate-180" />
+                                      <div className="min-w-0">
+                                        <div className="flex flex-wrap items-center gap-2 pr-6">
+                                          <span className="font-semibold text-slate-900">{row.flockName}</span>
+                                        </div>
+                                        <div className="mt-3 grid grid-cols-2 gap-2">
+                                          <div className="rounded-lg border border-emerald-300 bg-emerald-100 px-3 py-2 shadow-sm">
+                                            <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-900">Placed (in)</p>
+                                            <p className="text-xl font-extrabold leading-tight text-emerald-800 tabular-nums">
+                                              {row.placedIn.toLocaleString()}
+                                            </p>
+                                          </div>
+                                          <div className="rounded-lg border border-sky-300 bg-sky-100 px-3 py-2 shadow-sm">
+                                            <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-900">Birds left</p>
+                                            <p className="text-xl font-extrabold leading-tight text-sky-800 tabular-nums">
+                                              {row.birdsLeftCalculated.toLocaleString()}
+                                            </p>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </CollapsibleTrigger>
+                                  <CollapsibleContent>
+                                    <div className="mt-4 grid grid-cols-2 gap-2 border-t border-slate-200/70 pt-4 text-sm">
+                                      <div>
+                                        <span className="text-slate-500">Deaths OUT</span>{" "}
+                                        <span className="font-medium tabular-nums text-red-700">
+                                          {row.totalMortalityOut.toLocaleString()}
+                                        </span>
+                                      </div>
+                                      <div>
+                                        <span className="text-slate-500">Sales OUT</span>{" "}
+                                        <span className="font-medium tabular-nums text-amber-800">
+                                          {row.totalBirdSalesOut.toLocaleString()}
+                                        </span>
+                                      </div>
+                                      <div className="col-span-2">
+                                        <span className="text-slate-500">From last log</span>{" "}
+                                        <span className="font-medium tabular-nums text-slate-700">
+                                          {row.birdsLeftFromLatestLog != null
+                                            ? row.birdsLeftFromLatestLog.toLocaleString()
+                                            : "—"}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </CollapsibleContent>
+                                </div>
+                              </Collapsible>
+                            ))}
+                            {/* The table's footer row, which the cards would
+                                otherwise drop. */}
+                            <div className="rounded-xl border border-slate-300 bg-slate-100 px-3 py-3">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+                                Total — {summaries.length.toLocaleString()}{" "}
+                                {summaries.length === 1 ? "flock" : "flocks"}
+                              </p>
+                              <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                                <div>
+                                  <span className="text-slate-500">Placed</span>{" "}
+                                  <span className="font-bold tabular-nums text-slate-900">
+                                    {flockTotals.placedIn.toLocaleString()}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-slate-500">Birds left</span>{" "}
+                                  <span className="font-bold tabular-nums text-sky-800">
+                                    {flockTotals.left.toLocaleString()}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-slate-500">Deaths</span>{" "}
+                                  <span className="font-bold tabular-nums text-red-700">
+                                    {flockTotals.mortalityOut.toLocaleString()}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-slate-500">Sales</span>{" "}
+                                  <span className="font-bold tabular-nums text-amber-800">
+                                    {flockTotals.salesOut.toLocaleString()}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                        <div className="rounded-lg border bg-slate-50/60 px-4 py-2">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="w-full text-slate-600"
+                            onClick={() => setShowFlockTableMobile(true)}
+                          >
+                            View table format <ChevronDown className="ml-1 h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                    <>
+                    {isMobile && (
+                      <div className="-mx-4 -mt-4 mb-3 flex items-center justify-between gap-2 border-b bg-slate-50 px-4 py-2">
+                        <span className="text-xs text-slate-600">Table view - scroll for more</span>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setShowFlockTableMobile(false)}>
+                          <ChevronUp className="mr-1 h-4 w-4" /> Cards
+                        </Button>
+                      </div>
+                    )}
                     <Table className="w-full min-w-[640px]">
                       <TableHeader>
                         <TableRow>
@@ -337,6 +511,8 @@ export default function BirdsLeftTrackerPage() {
                         </TableFooter>
                       )}
                     </Table>
+                    </>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -395,7 +571,87 @@ export default function BirdsLeftTrackerPage() {
                   <CardContent className="pt-0 overflow-x-auto table-scroll-wrapper pb-2">
                     {paginatedLedger.length === 0 ? (
                       <p className="text-slate-600 py-8 text-center text-sm">No ledger rows match these filters.</p>
+                    ) : isMobile && !showLedgerTableMobile ? (
+                      /* Scorecards, following the other trackers: one card per
+                         row, open by default, striped so consecutive rows are
+                         told apart at a glance. This ledger keeps its direction
+                         in `type` rather than in the sign, so the quantity is
+                         shown under IN or under OUT and the other box reads a
+                         dash — the same two-box shape as the egg and feed
+                         cards, with the same meaning. */
+                      <div className="space-y-3">
+                        {paginatedLedger.map((row, idx) => (
+                          <Collapsible
+                            key={row.id}
+                            defaultOpen
+                            className={cn(
+                              "group w-full overflow-hidden rounded-xl border shadow-sm",
+                              idx % 2 === 0 ? "border-blue-300 bg-blue-100" : "border-slate-200 bg-white"
+                            )}
+                          >
+                            <div className={cn("px-2.5 py-3 transition-colors", idx % 2 === 0 ? "active:bg-black/10" : "active:bg-black/5")}>
+                              <CollapsibleTrigger asChild>
+                                <div className="relative cursor-pointer">
+                                  <ChevronDown className="absolute right-0 top-0 h-4 w-4 shrink-0 text-slate-400 transition-transform group-data-[state=open]:rotate-180" />
+                                  <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2 pr-6">
+                                      <span className="font-semibold text-slate-900">{formatDateShort(row.date)}</span>
+                                      <Badge className="bg-blue-200 text-blue-900 hover:bg-blue-200">{row.category}</Badge>
+                                    </div>
+                                    <div className="mt-3 grid grid-cols-2 gap-2">
+                                      <div className="rounded-lg border border-emerald-300 bg-emerald-100 px-3 py-2 shadow-sm">
+                                        <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-900">In</p>
+                                        <p className="text-xl font-extrabold leading-tight text-emerald-800 tabular-nums">
+                                          {row.type === "IN" ? row.quantity.toLocaleString() : "—"}
+                                        </p>
+                                      </div>
+                                      <div className="rounded-lg border border-red-300 bg-red-100 px-3 py-2 shadow-sm">
+                                        <p className="text-[11px] font-semibold uppercase tracking-wide text-red-900">Out</p>
+                                        <p className="text-xl font-extrabold leading-tight text-red-800 tabular-nums">
+                                          {row.type === "OUT" ? row.quantity.toLocaleString() : "—"}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent>
+                                <div className="mt-4 space-y-2 border-t border-slate-200/70 pt-4 text-sm">
+                                  <div>
+                                    <span className="text-slate-500">Flock</span>{" "}
+                                    <span className="font-medium text-slate-900">{row.flockName}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-slate-500">Description</span>{" "}
+                                    <span className="font-medium text-slate-900">{row.description}</span>
+                                  </div>
+                                </div>
+                              </CollapsibleContent>
+                            </div>
+                          </Collapsible>
+                        ))}
+                        <div className="rounded-lg border bg-slate-50/60 px-4 py-2">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="w-full text-slate-600"
+                            onClick={() => setShowLedgerTableMobile(true)}
+                          >
+                            View table format <ChevronDown className="ml-1 h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
                     ) : (
+                      <>
+                      {isMobile && (
+                        <div className="-mx-4 -mt-4 mb-3 flex items-center justify-between gap-2 border-b bg-slate-50 px-4 py-2">
+                          <span className="text-xs text-slate-600">Table view - scroll for more</span>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setShowLedgerTableMobile(false)}>
+                            <ChevronUp className="mr-1 h-4 w-4" /> Cards
+                          </Button>
+                        </div>
+                      )}
                       <Table className="w-full min-w-[560px]">
                         <TableHeader>
                           <TableRow>
@@ -468,6 +724,7 @@ export default function BirdsLeftTrackerPage() {
                           </TableRow>
                         </TableFooter>
                       </Table>
+                      </>
                     )}
                     {sortedLedger.length > 0 && (
                       <div className="flex items-center justify-between gap-2 pt-4 border-t mt-4">
