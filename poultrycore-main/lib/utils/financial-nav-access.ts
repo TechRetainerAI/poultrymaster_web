@@ -25,6 +25,19 @@ export function isFinancialNavItemVisible(
   // Counting cash is a cash-ledger job; it rides the same flag rather than
   // introducing a permission nobody has been granted yet.
   if (href === "/poultry-cash-reconciliation") return f.canViewCashLedger
+  // Migrations 252-254. This function is an ALLOWLIST -- it ends in `return
+  // false` -- so a Money nav item that is not named here is hidden from
+  // everyone, admins included. All three ride canViewCashLedger, the same flag
+  // as the two lines above and for the same reason: staff are deny-by-default,
+  // so a fresh permission would hide the page from every person who can see the
+  // cash pages today until an admin went and granted it.
+  //
+  // What each page lets you DO is gated separately, inside it, on the keys
+  // migration 255 seeded (poultry.cash-transfers.approve for reversing a
+  // transfer, and so on).
+  if (href === "/poultry-cash-transfers") return f.canViewCashLedger
+  if (href === "/poultry-owner-money") return f.canViewCashLedger
+  if (href === "/poultry-loans") return f.canViewCashLedger
   if (href === "/poultry-payments") return isAdmin || f.canViewFinancial || f.canEnterSales
   if (href === "/customers") {
     return (

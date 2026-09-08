@@ -14,9 +14,9 @@
  */
 
 import {
-  Activity, AlertTriangle, Banknote, BarChart3, Bell, Bird, BookOpen, Box, Boxes,
+  Activity, AlertTriangle, ArrowLeftRight, Banknote, BarChart3, Bell, Bird, BookOpen, Box, Boxes,
   Building2, Clock, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle, History,
-  ListTodo, Package, PackageMinus, Pill, Receipt, Scale, Settings, ShoppingCart, Truck, User, UserCog, Users,
+  HandCoins, ListTodo, Package, PackageMinus, Pill, Receipt, Scale, Settings, ShoppingCart, Truck, User, UserCog, Users,
   Users2, Wallet, Wheat,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
@@ -167,6 +167,12 @@ export function buildPoultryNavConfig(
           // linked to a cash account, which is why their totals differ.
           { id: "cash",          title: "Cash",         icon: History,   href: "/cash",                   visible: money("/cash") },
           { id: "cash-accounts", title: "Cash Account", icon: Wallet,     href: "/poultry-cash-accounts",  visible: money("/poultry-cash-accounts") },
+          // Migrations 252-254, in the order the spec's Money menu lists them:
+          // moving money between our own accounts, the owner's money, then
+          // borrowed money.
+          { id: "cash-transfers", title: "Cash Transfers", icon: ArrowLeftRight, href: "/poultry-cash-transfers", visible: money("/poultry-cash-transfers") },
+          { id: "owner-money",    title: "Owner Money",    icon: Banknote,       href: "/poultry-owner-money",    visible: money("/poultry-owner-money") },
+          { id: "loans",          title: "Loans",          icon: HandCoins,      href: "/poultry-loans",          visible: money("/poultry-loans") },
           { id: "cash-reconciliation", title: "Reconcile cash", icon: Scale, href: "/poultry-cash-reconciliation", visible: money("/poultry-cash-reconciliation") },
           { id: "billing",  title: "Billing",           icon: CreditCard,   href: "/billing",          visible: money("/billing") },
         ],

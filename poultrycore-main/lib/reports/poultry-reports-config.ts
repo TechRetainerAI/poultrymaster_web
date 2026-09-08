@@ -208,6 +208,14 @@ export const POULTRY_REPORT_MENU_GROUPS: PoultryReportMenuGroup[] = [
       // two closing figures are not expected to match -- that gap is what
       // reconciliation exists to explain, and it is not a bug to be fixed.
       { id: "cash-accounts", title: "Cash Account Report", description: "Per-account opening, in, out and closing, with drift and reconciliation status.", icon: Landmark, href: "/poultry/reports/cash-accounts" },
+      // Migrations 252-254. Standalone for the same reason as the one above: it
+      // reads the money modules directly rather than a report endpoint.
+      //
+      // The four reports section 33 of the spec asks for, on one page: they are
+      // read together because "where did the money go" is rarely answered by
+      // only one of them. Every section carries the sentence that stops its
+      // numbers being misread as income or expense.
+      { id: "money-movement", title: "Money Movement", description: "Cash transfers, owner contributions and draws, loans and repayments — none of it revenue or expense, except loan interest and fees.", icon: Wallet, href: "/poultry/reports/money" },
       item("cost-per-egg"),
     ],
   },

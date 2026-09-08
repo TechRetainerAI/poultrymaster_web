@@ -76,7 +76,23 @@ namespace PoultryFarmAPIWeb.Filters
             ["poultry/reports"] = "poultry.reports",
             ["poultry/closing-report"] = "poultry.reports",
             ["poultry/cash-accounts"] = "poultry.cash",
-            ["poultry/cash-transfers"] = "poultry.cash",
+            // 255 gave these three their own resources. They all rode on
+            // poultry.cash until then, which meant anyone who could SEE cash
+            // could reverse a transfer, record an owner draw and take out a
+            // loan. 255 also copies every existing poultry.cash grant onto the
+            // new keys, so nobody lost access in the move.
+            //
+            // KNOWN QUIRK, recorded rather than papered over: ResolveAction
+            // treats /reverse as `approve` but NOT /cancel, so
+            // POST /loans/{id}/cancel resolves to poultry.loans.CREATE. Widening
+            // ApproveSegments would silently re-resolve every other /cancel
+            // route in the API, and an explicit [RequirePermission] would make
+            // this one of the first HARD-enforced endpoints while enforcement is
+            // still in shadow mode. Both are phase-3 calls; .create is seeded.
+            ["poultry/cash-transfers"] = "poultry.cash-transfers",
+            ["poultry/owner-money"] = "poultry.owner-money",
+            ["poultry/loans"] = "poultry.loans",
+            ["poultry/loan-payments"] = "poultry.loan-payments",
             // Migration 223, mirroring 222 on the Water side. Its own resource
             // rather than an action on poultry.cash: *.cash has no `approve`, and
             // widening a shared resource would hand reconciliation rights to

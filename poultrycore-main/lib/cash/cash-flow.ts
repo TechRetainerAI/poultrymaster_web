@@ -221,6 +221,19 @@ const SOURCE_LABELS: Record<string, string> = {
   OpeningBalance: "Opening balance",
   Correction: "Correction",
 
+  // ---- The money modules (migrations 253/254) ------------------------------
+  // These arrive from the new cash-flow arms, not from the legacy adjustment
+  // table, and they are FINANCING: the owner funded the business or the bank
+  // did. Without these entries they would fall through to titleCase and print
+  // "Owner Contribution" and "Loan Repayment" with stray capitals.
+  //
+  // The repayment label says "total" because that is exactly what the row is:
+  // principal, interest and fees together, which is what left the bank. Only
+  // the interest and fees are an expense, and they are counted there instead.
+  OwnerContribution: "Owner contribution",
+  OwnerDraw: "Owner draw",
+  LoanRepayment: "Loan repayment (total paid)",
+
   // ---- Literals already humanised by sppoultrycashflow_detail (233) --------
   // Mapped anyway so one vocabulary covers both the page and the report, even
   // where the mapping is now identity: the map is the list of every label this
@@ -352,6 +365,58 @@ const SOURCE_TYPE_LABELS: Record<string, string> = {
   LoanReceived: "Loan received",
   Withdrawal: "Withdrawal",
   Correction: "Correction",
+
+  // The money modules (253/254). Same words as the category map, so a row reads
+  // the same whichever column you look at.
+  OwnerContribution: "Owner contribution",
+  OwnerDraw: "Owner draw",
+  LoanRepayment: "Loan repayment",
+}
+
+/**
+ * What a CASH-ACCOUNT LEDGER row is, in words.
+ *
+ * Distinct from sourceTypeLabel: that names the document a cash-flow row came
+ * from, this names the movement as the account ledger stores it in
+ * `transactiontype`. The account page printed the raw value for years, which
+ * was tolerable while the vocabulary was CashIn/CashOut and read almost like
+ * English. Migrations 252-254 added OwnerContribution, LoanRepayment and four
+ * *Reversal variants, and "TransferReversalOut" in a column someone is scanning
+ * reads like a database dump.
+ *
+ * The reversal entries say "reversal" rather than reusing the original name,
+ * because on a reconciliation screen the difference between a movement and its
+ * correction is the whole question being asked.
+ */
+const LEDGER_TYPE_LABELS: Record<string, string> = {
+  CashIn: "Money in",
+  CashOut: "Money out",
+
+  TransferIn: "Transfer in",
+  TransferOut: "Transfer out",
+  TransferReversalIn: "Transfer reversal in",
+  TransferReversalOut: "Transfer reversal out",
+
+  AdjustmentIn: "Adjustment in",
+  AdjustmentOut: "Adjustment out",
+
+  OwnerContribution: "Owner contribution",
+  OwnerDraw: "Owner draw",
+  OwnerContributionReversal: "Owner contribution reversed",
+  OwnerDrawReversal: "Owner draw reversed",
+
+  LoanReceived: "Loan received",
+  LoanReceivedReversal: "Loan receipt reversed",
+  LoanRepayment: "Loan repayment",
+  LoanRepaymentReversal: "Loan repayment reversed",
+}
+
+export function ledgerTypeLabel(raw: string | null | undefined): string {
+  const s = (raw ?? "").trim()
+  if (!s) return "—"
+  // Same rule as sourceTypeLabel: a type added to the SQL later degrades to
+  // something readable rather than vanishing from a column.
+  return LEDGER_TYPE_LABELS[s] ?? titleCase(s)
 }
 
 export function sourceTypeLabel(raw: string | null | undefined): string {
