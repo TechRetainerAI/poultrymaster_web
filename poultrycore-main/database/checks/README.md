@@ -144,6 +144,101 @@ Covers migration 251, the module toggles and the company settings:
 - blocked: an unknown billing frequency, an unknown reconciliation frequency, a
   blank company id, negative due days
 
+`poultry-cash-transfer-reversal.test.sql` — 30 checks + 6 negative cases
+Covers migration 252, undoing a poultry cash transfer:
+- a transfer still moving money exactly as before, now carrying a number, a
+  reference and the ids of the two legs approval wrote
+- **the reversal restoring both accounts while all four ledger rows stand** —
+  the originals are never deleted and no balance is edited directly
+- **neither the transfer nor its reversal moving company-wide cash flow**,
+  asserted against the live `sppoultrycashflow_summary` rather than against a
+  re-implementation of it in the test
+- all four legs carrying `sourcetype = 'Transfer'`, which is what keeps the
+  reversal internal: written as an ordinary CashIn/CashOut it would invent
+  money the business never received and never spent
+- the four legs summing to exactly zero
+- **the negative-balance guard flipping to the destination on reversal** — the
+  money leaves the account it landed in, so that is the account that has to
+  afford it
+- blocked: another farm's cash account (which went straight through before
+  252), the same account at both ends, a zero amount, reversing a draft,
+  reversing twice, and a reversal with no reason
+
+`poultry-owner-money.test.sql` — 31 checks + 8 negative cases
+Covers migration 253, owner contributions and draws:
+- **a contribution is not revenue and a draw is not an expense** — the counts of
+  sales, expenses and customer payments are captured before and asserted
+  unchanged after both
+- **exactly ONE cash row per record.** The classic way to get this wrong is a
+  module and a shadow expense both posting cash for the same event
+- the amount stored POSITIVE, with the direction living in the type and the
+  sign applied once, in SQL
+- **Cash Flow actually seeing it** — money in for a contribution, money out for
+  a draw, both filed as financing. Poultry's Cash Flow ignores the cash ledger
+  entirely, so without the arm 253 adds, the money would move and the page that
+  explains where money came from would say nothing
+- a reversal restoring the account, keeping both rows, and removing the record
+  from cash flow altogether rather than showing two legs that cancel
+- the overdraw guard on a draw, and the same guard flipping to the reversal of
+  a contribution the account has since spent
+- blocked: an invented type, zero and negative amounts, another farm's cash
+  account, drawing more than is held, reversing spent money, a reversal with no
+  reason, and reversing twice
+
+`poultry-loans.test.sql` — 43 checks + 10 negative cases
+Covers migration 254 on the spec's own worked example: 100,000 borrowed, 2,000
+withheld, 98,000 received, then a repayment of 10,000 principal + 2,000 interest
++ 500 fee.
+- **cash moves ONCE, for the total.** 12,500 leaves the account -- asserted as
+  the row count, as the number of new ledger rows in the whole farm, and as the
+  balance. The expense rows add none
+- **principal repayment is not an expense.** The P&L's own expense total is read
+  before and after and must rise by 2,500, not 12,500
+- **cash flow shows the full 12,500 out while the P&L shows 2,500 of cost** --
+  both from one event, which is the point of the NonCash marker on the interest
+  and fee rows
+- the NonCash rows never appearing in cash flow's expense arm as well
+- **a lender is not a supplier**: no supplier payment, no allocation, and the
+  interest never turning the lender into a creditor on payables
+- cash in is what ARRIVED while the debt is what was BORROWED, and the withheld
+  fee is not silently expensed on the owner's behalf
+- payoff decided by outstanding principal reaching zero, never by comparing
+  total paid against the original -- those differ by every cedi of interest
+- reversal restoring the debt, reactivating a paid-off loan, clearing the
+  paid-off date, keeping both expense rows and adding two cancelling ones
+- blocked: receiving more than was borrowed, a loan with no lender, another
+  farm's account, principal above the outstanding, a repayment of nothing, a
+  negative part, repaying a draft loan, a reversal with no reason, cancelling a
+  loan with posted repayments, and repaying more than the account holds
+
+`255_PoultryMoneyPermissions.postgres.sql` — no check file; verification is inline
+The only migration in the 252-255 set with no behavioural checks, because it
+touches no money: it seeds 16 IAM keys and copies existing grants onto them.
+Its three verification queries run at the end of the file instead:
+- the 16 catalogue keys exist
+- **no role that could see cash lost sight of transfers**
+- **no role that could see cash lost sight of loans**
+
+Those last two are the point. Cash Transfers, Owner Money and Loans all rode on
+`poultry.cash` until 255, so re-pointing them without copying the 25 role and 26
+user grants would have left every one of those grants covering nothing, and the
+first person to open the page after a deploy refused.
+
+`poultry-cashflow-loan-time.test.sql` — 14 checks
+Covers migration 256: a loan received today sorted below everything else
+received today, because `poultryloans.loandate` is a DATE and 254 cast it
+straight to midnight while every other cash-flow arm carries a real moment.
+- a loan dated TODAY reporting the moment it was recorded, and still filed on
+  today's date
+- **a BACK-DATED loan still reporting midnight.** Using the recording time
+  unconditionally would drag last Tuesday's loan into today, above rows that
+  really did happen after it -- the date the money moved is what a cash flow is
+  about, and the recording time only breaks ties inside that day
+- newest-first actually working: today's loan sorting above the back-dated one
+  and above today's own midnight
+- **only the clock moved** -- amount, sign, flow group, row count, money in,
+  money out and net all unchanged
+
 ## The invariant that matters most
 
 `fnbalanceaudit(farmid, 'poultry')` returns **nothing** when healthy. A non-empty

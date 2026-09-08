@@ -8,14 +8,18 @@
 // allocation. Supplier Balances answers "who do we owe"; this answers "what did
 // we actually pay, out of which account, and against what".
 //
-// The expand/inline rule (spec §32) is deliberate and worth stating:
+// Spec §32 originally put the payable number, total and before/applied/after
+// inline for a single-item payment and expanded only the multi-item ones. That
+// was nineteen columns wide and scrolled sideways on any real screen, so the
+// table now carries only what the page is FOR — what was paid, to whom, against
+// what, out of which account — and every row expands to the rest:
 //
-//   allocationCount === 1  the allocation IS the payment, so its payable number,
-//                          total and before/applied/after sit directly on the
-//                          row. Making the user expand a row to see one line
-//                          would be a click that never tells them anything new.
-//   allocationCount  > 1   there is no single payable to name, so those columns
-//                          read "Multiple" / "—" and the row expands.
+//   allocationCount === 1  the payable is named inline with its type; the panel
+//                          holds its total, the balance before and after, and
+//                          where the payment was entered from.
+//   allocationCount  > 1   the row says how many items, and the panel lists them.
+//
+// Nothing was dropped. The CSV and PDF exports still carry every column.
 //
 // Built on the same module/side props as BalancesPage, so poultry and water are
 // two thin route wrappers rather than two copies of this file.
@@ -39,7 +43,7 @@ import { usePagination } from "@/hooks/use-pagination"
 import { PERIOD_GROUPS, periodToRange, rangeToPeriod } from "@/lib/date-ranges"
 import {
   ChevronDown, ChevronRight, Download, ExternalLink, FileText,
-  Loader2, Receipt, Undo2,
+  Loader2, Receipt, SlidersHorizontal, Undo2,
 } from "lucide-react"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -60,6 +64,24 @@ const SOURCE_FILTERS = [
   "ExpenseEntry",
   "SupplierPaymentsPage",
 ] as const
+
+/**
+ * The screen a payment was entered from, in words. sourcetype is stored as a
+ * component name -- "SupplierBalances", "PurchaseEntry" -- which is fine in the
+ * database and wrong in front of a user.
+ */
+const SOURCE_LABELS: Record<string, string> = {
+  SupplierBalances: "Supplier Balances",
+  PurchaseEntry: "Purchase entry",
+  ExpenseEntry: "Expense entry",
+  SupplierPaymentsPage: "Supplier Payments",
+}
+
+export function sourceLabel(t: string | null | undefined): string {
+  const s = (t ?? "").trim()
+  if (!s) return "—"
+  return SOURCE_LABELS[s] ?? s
+}
 
 const PAYABLE_TYPE_LABELS: Record<string, string> = {
   RawMaterialPurchase: "Purchase",
@@ -124,6 +146,7 @@ export function PaymentsLedgerPage({
   const [payableTypeFilter, setPayableTypeFilter] = useState("all")
   const [minAmount, setMinAmount] = useState("")
   const [maxAmount, setMaxAmount] = useState("")
+  const [showMore, setShowMore] = useState(false)
 
   const canView = can(permissions.view)
   const canReverse = can(permissions.reverse)
@@ -227,6 +250,18 @@ export function PaymentsLedgerPage({
 
   const pg = usePagination(filtered, 10)
 
+  // How many of the folded-away filters are currently narrowing the list. A
+  // filter you cannot see is a filter you will not think of when a payment you
+  // expected is not there, so the toggle wears the number.
+  const moreFiltersActive = useMemo(
+    () =>
+      [methodFilter, accountFilter, sourceFilter, appliedToFilter, payableTypeFilter]
+        .filter((v) => v !== "all").length
+      + [from, to, minAmount.trim(), maxAmount.trim()].filter(Boolean).length,
+    [methodFilter, accountFilter, sourceFilter, appliedToFilter, payableTypeFilter,
+     from, to, minAmount, maxAmount],
+  )
+
   // Fill in the inline allocation columns for the single-item payments on this
   // page. One small request each, once per payment for the life of the page.
   useEffect(() => {
@@ -328,7 +363,7 @@ export function PaymentsLedgerPage({
         r.paymentMethod ?? "—",
         accountName(r.cashAccountId),
         r.reference ?? "—",
-        r.sourceType ?? "—",
+        sourceLabel(r.sourceType),
         r.createdBy ?? "—",
         r.status,
       ]
@@ -374,6 +409,12 @@ export function PaymentsLedgerPage({
     .filter((r) => r.status === "Posted")
     .reduce((s, r) => s + r.totalAmount, 0)
 
+  // The visible table answers the question the page is for: what was paid, to
+  // whom, against what, out of which account. Everything else — the payable's
+  // own total, the balance before and after, which screen it was entered from
+  // and by whom — is audit detail, and it lives one click down rather than in
+  // nineteen columns the user has to scroll sideways through. Nothing is lost:
+  // the expanded panel and both exports still carry all of it.
   const desktopTable = (
     <div className="overflow-x-auto">
       <Table>
@@ -383,19 +424,11 @@ export function PaymentsLedgerPage({
             <TableHead>Date</TableHead>
             <TableHead>Payment #</TableHead>
             <TableHead>Supplier</TableHead>
-            <TableHead>Purchase / Expense #</TableHead>
-            <TableHead>Payable type</TableHead>
-            <TableHead className="text-right">Payable total</TableHead>
-            <TableHead className="text-right">Payment</TableHead>
-            <TableHead className="text-right">Balance before</TableHead>
-            <TableHead className="text-right">Applied</TableHead>
-            <TableHead className="text-right">Balance after</TableHead>
-            <TableHead>Applied to</TableHead>
+            <TableHead>Paid against</TableHead>
+            <TableHead className="text-right">Amount</TableHead>
             <TableHead>Method</TableHead>
             <TableHead>Cash account</TableHead>
             <TableHead>Reference</TableHead>
-            <TableHead>Source</TableHead>
-            <TableHead>Paid by</TableHead>
             <TableHead>Status</TableHead>
             <TableHead />
           </TableRow>
@@ -412,11 +445,12 @@ export function PaymentsLedgerPage({
               <Fragment key={row.paymentId}>
                 <TableRow className={isReversed ? "text-slate-400" : undefined}>
                   <TableCell>
-                    {multi && (
-                      <button type="button" onClick={() => toggle(row)} aria-label="Show allocation">
-                        {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                      </button>
-                    )}
+                    {/* Every row expands now, single-item ones included: the
+                        panel carries the balance figures and the provenance
+                        that used to sit in columns, so the click pays. */}
+                    <button type="button" onClick={() => toggle(row)} aria-label="Show allocation">
+                      {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    </button>
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
                     {new Date(row.paymentDate).toLocaleDateString()}
@@ -436,32 +470,27 @@ export function PaymentsLedgerPage({
                     )}
                   </TableCell>
 
-                  {/* Inline for one item, "Multiple" for many — see the header. */}
+                  {/* One item names it and says what kind; several say how many. */}
                   <TableCell className="whitespace-nowrap">
-                    {multi ? <span className="text-slate-500">Multiple</span> : (a?.reference ?? (a ? `#${a.documentId}` : "—"))}
+                    {multi ? (
+                      <span className="text-slate-500">{row.allocationCount} items</span>
+                    ) : (
+                      <>
+                        {a?.reference ?? (a ? `#${a.documentId}` : "—")}
+                        {a && (
+                          <span className="ml-1.5 text-xs text-slate-500">
+                            {payableTypeLabel(a.documentType)}
+                          </span>
+                        )}
+                      </>
+                    )}
                   </TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    {multi ? <span className="text-slate-500">Multiple</span> : payableTypeLabel(a?.documentType)}
-                  </TableCell>
-                  <TableCell className="text-right">{multi || !a ? "—" : fmt(a.documentTotal)}</TableCell>
                   <TableCell className={`text-right font-semibold ${isReversed ? "line-through" : ""}`}>
                     {fmt(row.totalAmount)}
-                  </TableCell>
-                  <TableCell className="text-right text-slate-500">
-                    {multi || !a ? "—" : fmt(a.balanceBefore)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {multi ? fmt(row.totalAmount) : a ? fmt(a.amountApplied) : "—"}
-                  </TableCell>
-                  <TableCell className="text-right">{multi || !a ? "—" : fmt(a.balanceAfter)}</TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    {row.allocationCount} item{row.allocationCount === 1 ? "" : "s"}
                   </TableCell>
                   <TableCell className="whitespace-nowrap">{row.paymentMethod ?? "—"}</TableCell>
                   <TableCell className="whitespace-nowrap">{accountName(row.cashAccountId)}</TableCell>
                   <TableCell className="whitespace-nowrap">{row.reference ?? "—"}</TableCell>
-                  <TableCell className="whitespace-nowrap text-xs text-slate-500">{row.sourceType ?? "—"}</TableCell>
-                  <TableCell className="whitespace-nowrap text-xs text-slate-500">{row.createdBy ?? "—"}</TableCell>
                   <TableCell>
                     {isReversed
                       ? <Badge variant="outline" className="text-slate-500">Reversed</Badge>
@@ -484,7 +513,7 @@ export function PaymentsLedgerPage({
                 {isReversed && row.reversalReason && (
                   <TableRow>
                     <TableCell />
-                    <TableCell colSpan={18} className="py-1 text-xs text-slate-500">
+                    <TableCell colSpan={10} className="py-1 text-xs text-slate-500">
                       Reversed{row.reversedBy ? ` by ${row.reversedBy}` : ""}
                       {row.reversedAt ? ` on ${new Date(row.reversedAt).toLocaleDateString()}` : ""}: {row.reversalReason}
                     </TableCell>
@@ -494,7 +523,7 @@ export function PaymentsLedgerPage({
                 {reversing === row.paymentId && (
                   <TableRow className="bg-amber-50">
                     <TableCell />
-                    <TableCell colSpan={18} className="py-3">
+                    <TableCell colSpan={10} className="py-3">
                       <div className="flex flex-wrap items-end gap-2">
                         <div className="min-w-[18rem] flex-1 space-y-1.5">
                           <Label htmlFor={`sp-reason-${row.paymentId}`}>Why is this being reversed?</Label>
@@ -517,57 +546,66 @@ export function PaymentsLedgerPage({
                   </TableRow>
                 )}
 
-                {isOpen && multi && (
+                {isOpen && (
                   <TableRow>
                     <TableCell />
-                    <TableCell colSpan={18} className="py-2">
+                    <TableCell colSpan={10} className="py-2">
                       {!allocs ? (
                         <span className="flex items-center gap-2 text-sm text-slate-500">
                           <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading allocation…
                         </span>
                       ) : (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Type</TableHead>
-                              <TableHead>Purchase / Expense #</TableHead>
-                              <TableHead>Item</TableHead>
-                              <TableHead>Date</TableHead>
-                              <TableHead className="text-right">Payable total</TableHead>
-                              <TableHead className="text-right">Balance before</TableHead>
-                              <TableHead className="text-right">Applied</TableHead>
-                              <TableHead className="text-right">Balance after</TableHead>
-                              <TableHead>Status</TableHead>
-                              <TableHead />
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {allocs.map((al) => (
-                              <TableRow key={al.allocationId}>
-                                <TableCell>{payableTypeLabel(al.documentType)}</TableCell>
-                                <TableCell className="font-medium">{al.reference ?? `#${al.documentId}`}</TableCell>
-                                <TableCell className="text-slate-600">{al.label ?? "—"}</TableCell>
-                                <TableCell>{al.documentDate ? new Date(al.documentDate).toLocaleDateString() : "—"}</TableCell>
-                                <TableCell className="text-right">{fmt(al.documentTotal)}</TableCell>
-                                <TableCell className="text-right text-slate-500">{fmt(al.balanceBefore)}</TableCell>
-                                <TableCell className="text-right font-medium">{fmt(al.amountApplied)}</TableCell>
-                                <TableCell className="text-right">{fmt(al.balanceAfter)}</TableCell>
-                                <TableCell>
-                                  {al.status === "Reversed"
-                                    ? <Badge variant="outline" className="text-slate-500">Reversed</Badge>
-                                    : <Badge variant="secondary">Posted</Badge>}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  {documentHref(al) && (
-                                    <Button variant="ghost" size="sm" onClick={() => router.push(documentHref(al)!)}>
-                                      <ExternalLink className="h-3.5 w-3.5" />
-                                    </Button>
-                                  )}
-                                </TableCell>
+                        <div className="space-y-2">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Type</TableHead>
+                                <TableHead>Purchase / Expense #</TableHead>
+                                <TableHead>Item</TableHead>
+                                <TableHead>Date</TableHead>
+                                <TableHead className="text-right">Payable total</TableHead>
+                                <TableHead className="text-right">Balance before</TableHead>
+                                <TableHead className="text-right">Applied</TableHead>
+                                <TableHead className="text-right">Balance after</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead />
                               </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
+                            </TableHeader>
+                            <TableBody>
+                              {allocs.map((al) => (
+                                <TableRow key={al.allocationId}>
+                                  <TableCell>{payableTypeLabel(al.documentType)}</TableCell>
+                                  <TableCell className="font-medium">{al.reference ?? `#${al.documentId}`}</TableCell>
+                                  <TableCell className="text-slate-600">{al.label ?? "—"}</TableCell>
+                                  <TableCell>{al.documentDate ? new Date(al.documentDate).toLocaleDateString() : "—"}</TableCell>
+                                  <TableCell className="text-right">{fmt(al.documentTotal)}</TableCell>
+                                  <TableCell className="text-right text-slate-500">{fmt(al.balanceBefore)}</TableCell>
+                                  <TableCell className="text-right font-medium">{fmt(al.amountApplied)}</TableCell>
+                                  <TableCell className="text-right">{fmt(al.balanceAfter)}</TableCell>
+                                  <TableCell>
+                                    {al.status === "Reversed"
+                                      ? <Badge variant="outline" className="text-slate-500">Reversed</Badge>
+                                      : <Badge variant="secondary">Posted</Badge>}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    {documentHref(al) && (
+                                      <Button variant="ghost" size="sm" onClick={() => router.push(documentHref(al)!)}>
+                                        <ExternalLink className="h-3.5 w-3.5" />
+                                      </Button>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                          {/* Where the payment came from. "SupplierBalances" and
+                              "PurchaseEntry" are screen names, not something a
+                              user should have to read in a column header. */}
+                          <p className="text-xs text-slate-500">
+                            Entered from {sourceLabel(row.sourceType)}
+                            {row.createdBy ? ` by ${row.createdBy}` : ""}
+                          </p>
+                        </div>
                       )}
                     </TableCell>
                   </TableRow>
@@ -617,20 +655,26 @@ export function PaymentsLedgerPage({
             </CardContent></Card>
           </div>
 
+          {/* Thirteen filters in three full-width rows pushed the table below
+              the fold. The four that get used every day stay on one line; the
+              rest fold away behind a toggle that says how many of them are
+              currently narrowing the list, so a hidden filter can never be the
+              silent reason a payment is missing. */}
           <Card className="mb-4">
-            <CardContent className="space-y-4 p-4">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="sp-search">Search</Label>
+            <CardContent className="space-y-3 p-3">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-12">
+                <div className="space-y-1 lg:col-span-4">
+                  <Label htmlFor="sp-search" className="text-xs text-slate-500">Search</Label>
                   <Input
                     id="sp-search" value={search} onChange={(e) => setSearch(e.target.value)}
+                    className="h-8"
                     placeholder="Supplier, payment #, item, reference"
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label>Supplier</Label>
+                <div className="space-y-1 lg:col-span-3">
+                  <Label className="text-xs text-slate-500">Supplier</Label>
                   <Select value={supplierFilter} onValueChange={setSupplierFilter}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger size="sm" className="w-full"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All suppliers</SelectItem>
                       {supplierOptions.map((s) => (
@@ -639,33 +683,8 @@ export function PaymentsLedgerPage({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1.5">
-                  <Label>Payment method</Label>
-                  <Select value={methodFilter} onValueChange={setMethodFilter}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All methods</SelectItem>
-                      {methodOptions.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Cash account</Label>
-                  <Select value={accountFilter} onValueChange={setAccountFilter}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All accounts</SelectItem>
-                      {accounts.map((a) => (
-                        <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="space-y-1.5">
-                  <Label>Period</Label>
+                <div className="space-y-1 lg:col-span-3">
+                  <Label className="text-xs text-slate-500">Period</Label>
                   <Select
                     value={period}
                     onValueChange={(v) => {
@@ -675,7 +694,7 @@ export function PaymentsLedgerPage({
                       setTo(range?.to ?? "")
                     }}
                   >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger size="sm" className="w-full"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All time</SelectItem>
                       <SelectSeparator />
@@ -689,24 +708,10 @@ export function PaymentsLedgerPage({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="sp-from">From</Label>
-                  <Input
-                    id="sp-from" type="date" value={from}
-                    onChange={(e) => { setFrom(e.target.value); setPeriod(rangeToPeriod(e.target.value, to) ?? "custom") }}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="sp-to">To</Label>
-                  <Input
-                    id="sp-to" type="date" value={to}
-                    onChange={(e) => { setTo(e.target.value); setPeriod(rangeToPeriod(from, e.target.value) ?? "custom") }}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Status</Label>
+                <div className="space-y-1 lg:col-span-2">
+                  <Label className="text-xs text-slate-500">Status</Label>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger size="sm" className="w-full"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All statuses</SelectItem>
                       <SelectItem value="Posted">Posted</SelectItem>
@@ -716,59 +721,102 @@ export function PaymentsLedgerPage({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="space-y-1.5">
-                  <Label>Source</Label>
-                  <Select value={sourceFilter} onValueChange={setSourceFilter}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All sources</SelectItem>
-                      {SOURCE_FILTERS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Applied to</Label>
-                  <Select value={appliedToFilter} onValueChange={setAppliedToFilter}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Any number of items</SelectItem>
-                      <SelectItem value="single">A single item</SelectItem>
-                      <SelectItem value="multiple">Several items</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Payable type</Label>
-                  <Select value={payableTypeFilter} onValueChange={setPayableTypeFilter}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All types</SelectItem>
-                      <SelectItem value="RawMaterialPurchase">Purchase</SelectItem>
-                      <SelectItem value="FlockBatch">Flock batch</SelectItem>
-                      <SelectItem value="Expense">Expense</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="sp-min">Min amount</Label>
-                    <Input id="sp-min" type="number" value={minAmount} onChange={(e) => setMinAmount(e.target.value)} placeholder="0" />
+              {showMore && (
+                <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 sm:grid-cols-3 lg:grid-cols-6">
+                  <div className="space-y-1">
+                    <Label htmlFor="sp-from" className="text-xs text-slate-500">From</Label>
+                    <Input
+                      id="sp-from" type="date" value={from} className="h-8"
+                      onChange={(e) => { setFrom(e.target.value); setPeriod(rangeToPeriod(e.target.value, to) ?? "custom") }}
+                    />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="sp-max">Max amount</Label>
-                    <Input id="sp-max" type="number" value={maxAmount} onChange={(e) => setMaxAmount(e.target.value)} placeholder="Any" />
+                  <div className="space-y-1">
+                    <Label htmlFor="sp-to" className="text-xs text-slate-500">To</Label>
+                    <Input
+                      id="sp-to" type="date" value={to} className="h-8"
+                      onChange={(e) => { setTo(e.target.value); setPeriod(rangeToPeriod(from, e.target.value) ?? "custom") }}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-slate-500">Payment method</Label>
+                    <Select value={methodFilter} onValueChange={setMethodFilter}>
+                      <SelectTrigger size="sm" className="w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All methods</SelectItem>
+                        {methodOptions.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-slate-500">Cash account</Label>
+                    <Select value={accountFilter} onValueChange={setAccountFilter}>
+                      <SelectTrigger size="sm" className="w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All accounts</SelectItem>
+                        {accounts.map((a) => (
+                          <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-slate-500">Entered from</Label>
+                    <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                      <SelectTrigger size="sm" className="w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Anywhere</SelectItem>
+                        {SOURCE_FILTERS.map((s) => <SelectItem key={s} value={s}>{sourceLabel(s)}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-slate-500">Payable type</Label>
+                    <Select value={payableTypeFilter} onValueChange={setPayableTypeFilter}>
+                      <SelectTrigger size="sm" className="w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All types</SelectItem>
+                        <SelectItem value="RawMaterialPurchase">Purchase</SelectItem>
+                        <SelectItem value="FlockBatch">Flock batch</SelectItem>
+                        <SelectItem value="Expense">Expense</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1 sm:col-span-2">
+                    <Label className="text-xs text-slate-500">Applied to</Label>
+                    <Select value={appliedToFilter} onValueChange={setAppliedToFilter}>
+                      <SelectTrigger size="sm" className="w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Any number of items</SelectItem>
+                        <SelectItem value="single">A single item</SelectItem>
+                        <SelectItem value="multiple">Several items</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="sp-min" className="text-xs text-slate-500">Min amount</Label>
+                    <Input id="sp-min" type="number" className="h-8" value={minAmount} onChange={(e) => setMinAmount(e.target.value)} placeholder="0" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="sp-max" className="text-xs text-slate-500">Max amount</Label>
+                    <Input id="sp-max" type="number" className="h-8" value={maxAmount} onChange={(e) => setMaxAmount(e.target.value)} placeholder="Any" />
                   </div>
                 </div>
-              </div>
+              )}
 
               <div className="flex flex-wrap items-center gap-2">
-                <Button variant="outline" size="sm" onClick={resetFilters}>Reset filters</Button>
+                <Button variant="outline" size="sm" className="h-8" onClick={() => setShowMore((v) => !v)}>
+                  <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" />
+                  {showMore ? "Fewer filters" : "More filters"}
+                  {moreFiltersActive > 0 && (
+                    <Badge variant="secondary" className="ml-1.5 px-1.5">{moreFiltersActive}</Badge>
+                  )}
+                </Button>
+                <Button variant="outline" size="sm" className="h-8" onClick={resetFilters}>Reset</Button>
                 <div className="flex-1" />
-                <Button variant="outline" size="sm" onClick={onExportCsv} disabled={filtered.length === 0}>
+                <Button variant="outline" size="sm" className="h-8" onClick={onExportCsv} disabled={filtered.length === 0}>
                   <Download className="mr-1.5 h-3.5 w-3.5" /> CSV
                 </Button>
-                <Button variant="outline" size="sm" onClick={onExportPdf} disabled={filtered.length === 0}>
+                <Button variant="outline" size="sm" className="h-8" onClick={onExportPdf} disabled={filtered.length === 0}>
                   <FileText className="mr-1.5 h-3.5 w-3.5" /> PDF
                 </Button>
               </div>
@@ -810,7 +858,7 @@ export function PaymentsLedgerPage({
                       { label: "Method", value: r.paymentMethod ?? "—" },
                       { label: "Cash account", value: accountName(r.cashAccountId) },
                       { label: "Reference", value: r.reference ?? "—" },
-                      { label: "Source", value: r.sourceType ?? "—" },
+                      { label: "Entered from", value: sourceLabel(r.sourceType) },
                       { label: "Paid by", value: r.createdBy ?? "—" },
                     ]
                   }}

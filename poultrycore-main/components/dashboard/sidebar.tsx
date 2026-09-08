@@ -56,6 +56,8 @@ import {
   UtensilsCrossed,
   History,
   Scale,
+  ArrowLeftRight,
+  HandCoins,
   Repeat,
   CalendarClock,
 } from "lucide-react"
@@ -264,6 +266,13 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/cash-flow", label: "Cash Flow", icon: Wallet },
     { href: "/cash", label: "Cash", icon: History },
     { href: "/poultry-cash-accounts", label: "Cash Account", icon: Wallet },
+    // Transfers had a dialog on the Cash Accounts page but nowhere to see or
+    // undo them. The page is where reversal lives (252).
+    { href: "/poultry-cash-transfers", label: "Cash Transfers", icon: ArrowLeftRight },
+    // 253. Funding in and out, kept away from sales and expenses.
+    { href: "/poultry-owner-money", label: "Owner Money", icon: Banknote },
+    // 254. Borrowed money: what is still owed, and what each repayment was for.
+    { href: "/poultry-loans", label: "Loans", icon: HandCoins },
     { href: "/poultry-cash-reconciliation", label: "Reconcile cash", icon: Scale },
     { href: "/billing", label: "Billing", icon: CreditCard },
   ])

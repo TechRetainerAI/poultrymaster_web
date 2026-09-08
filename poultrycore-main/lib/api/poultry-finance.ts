@@ -89,14 +89,29 @@ export interface PoultryCashTransaction {
 export interface PoultryCashTransfer {
   poultryCashTransferId: number
   farmId: string
+  /** TRF-2026-0001. Stamped on insert; older rows were backfilled by 252. */
+  transferNumber?: string | null
   fromPoultryCashAccountId: number
   fromAccountName?: string | null
   toPoultryCashAccountId: number
   toAccountName?: string | null
   transferDate: string
   amount: number
-  status: "Draft" | "Approved" | "Cancelled" | string
+  status: "Draft" | "Approved" | "Cancelled" | "Reversed" | string
+  /** The bank's or wallet's own reference for the movement. */
+  referenceNumber?: string | null
   notes?: string | null
+  createdBy?: string | null
+  approvedBy?: string | null
+  approvedAt?: string | null
+  reversedBy?: string | null
+  reversedAt?: string | null
+  reversalReason?: string | null
+  /** The two ledger rows approval wrote. Null until approved. */
+  outgoingCashTransactionId?: number | null
+  incomingCashTransactionId?: number | null
+  createdAt?: string | null
+  updatedAt?: string | null
 }
 
 export interface PoultryCashAccountInput {
@@ -345,7 +360,7 @@ export const listPoultryCashTransfers = (status?: string) =>
 
 export const createPoultryCashTransfer = (input: {
   fromPoultryCashAccountId: number; toPoultryCashAccountId: number; amount: number
-  transferDate?: string | null; notes?: string | null
+  transferDate?: string | null; notes?: string | null; referenceNumber?: string | null
 }) =>
   jsend<{ poultryCashTransferId: number }>(`/Poultry/cash-transfers`, "POST",
     { ...input, farmId: activeFarmId(), createdBy: currentUserId() || null })
@@ -353,8 +368,253 @@ export const createPoultryCashTransfer = (input: {
 export const approvePoultryCashTransfer = (id: number) =>
   jsend<void>(`/Poultry/cash-transfers/${id}/approve?farmId=${fid()}&approvedBy=${encodeURIComponent(currentUserId() || "")}`, "POST")
 
+// =============================================================================
+// Loans (migration 254)
+//
+// Three rules the server enforces, restated because they are what these shapes
+// are for: repaying principal is not an expense; a repayment moves cash exactly
+// once, for its total; a lender is never a supplier.
+// =============================================================================
+
+export interface PoultryLoan {
+  poultryLoanId: number
+  farmId: string
+  loanNumber?: string | null
+  lenderName: string
+  lenderType: string
+  accountNumber?: string | null
+  loanDate: string
+  /** What is OWED. May exceed amountReceived when the lender withheld a fee. */
+  originalPrincipal: number
+  /** What actually ARRIVED. This, not the principal, is the cash in. */
+  amountReceived: number
+  interestRate?: number | null
+  interestType?: string | null
+  termMonths?: number | null
+  paymentFrequency?: string | null
+  startDate: string
+  endDate?: string | null
+  nextPaymentDate?: string | null
+  poultryCashAccountId?: number | null
+  accountName?: string | null
+  outstandingPrincipal: number
+  totalPrincipalRepaid: number
+  totalInterestPaid: number
+  totalFeesPaid: number
+  status: "Draft" | "Active" | "PaidOff" | "Overdue" | "Cancelled" | "Reversed" | string
+  /** Derived on read — nothing stamps it, because no scheduler exists. */
+  isOverdue: boolean
+  paymentCount: number
+  paidOffDate?: string | null
+  notes?: string | null
+  createdBy?: string | null
+  createdAt?: string | null
+  reversalReason?: string | null
+}
+
+export interface PoultryLoanPayment {
+  poultryLoanPaymentId: number
+  farmId: string
+  poultryLoanId: number
+  loanNumber?: string | null
+  lenderName?: string | null
+  paymentNumber?: string | null
+  paymentDate: string
+  totalAmount: number
+  principalAmount: number
+  interestAmount: number
+  feeAmount: number
+  otherAmount: number
+  poultryCashAccountId: number
+  accountName?: string | null
+  paymentMethod?: string | null
+  referenceNumber?: string | null
+  notes?: string | null
+  status: "Posted" | "Reversed" | string
+  /** The expense rows for the cost of borrowing. Null when that part was zero. */
+  interestExpenseId?: number | null
+  feeExpenseId?: number | null
+  createdBy?: string | null
+  createdAt?: string | null
+  reversedBy?: string | null
+  reversedAt?: string | null
+  reversalReason?: string | null
+}
+
+export interface PoultryLoanSummary {
+  activeLoans: number
+  totalBorrowed: number
+  totalReceived: number
+  outstandingPrincipal: number
+  totalPrincipalRepaid: number
+  totalInterestPaid: number
+  totalFeesPaid: number
+  overdueLoans: number
+  nextPaymentDate?: string | null
+}
+
+export const listPoultryLoans = (status?: string | null) =>
+  jget<PoultryLoan[]>(`/Poultry/loans?farmId=${fid()}${status && status !== "All" ? `&status=${encodeURIComponent(status)}` : ""}`)
+
+export const getPoultryLoanSummary = () =>
+  jget<PoultryLoanSummary>(`/Poultry/loans/summary?farmId=${fid()}`)
+
+export const createPoultryLoan = (input: {
+  lenderName: string
+  originalPrincipal: number
+  startDate: string
+  amountReceived?: number
+  poultryCashAccountId?: number | null
+  lenderType?: string
+  accountNumber?: string | null
+  loanDate?: string | null
+  interestRate?: number | null
+  interestType?: string | null
+  termMonths?: number | null
+  paymentFrequency?: string | null
+  endDate?: string | null
+  nextPaymentDate?: string | null
+  status?: string
+  notes?: string | null
+}) =>
+  jsend<{ poultryLoanId: number }>(`/Poultry/loans`, "POST",
+    { ...input, farmId: activeFarmId(), createdBy: currentUserId() || null })
+
+export const updatePoultryLoan = (id: number, input: Record<string, unknown>) =>
+  jsend<void>(
+    `/Poultry/loans/${id}?farmId=${fid()}&updatedBy=${encodeURIComponent(currentUserId() || "")}`,
+    "PUT", input)
+
+export const cancelPoultryLoan = (id: number, reason: string) =>
+  jsend<void>(
+    `/Poultry/loans/${id}/cancel?farmId=${fid()}&cancelledBy=${encodeURIComponent(currentUserId() || "")}`,
+    "POST", { reason })
+
+export const listPoultryLoanPayments = (loanId?: number | null) =>
+  jget<PoultryLoanPayment[]>(`/Poultry/loan-payments?farmId=${fid()}${loanId ? `&loanId=${loanId}` : ""}`)
+
+/**
+ * One call, one cash movement. The split is sent as its parts and the server
+ * adds them up — a total sent from the browser could disagree with them.
+ */
+export const recordPoultryLoanRepayment = (loanId: number, input: {
+  poultryCashAccountId: number
+  principalAmount: number
+  interestAmount: number
+  feeAmount: number
+  otherAmount?: number
+  paymentDate?: string | null
+  paymentMethod?: string | null
+  referenceNumber?: string | null
+  notes?: string | null
+  nextPaymentDate?: string | null
+}) =>
+  jsend<{ poultryLoanPaymentId: number }>(`/Poultry/loans/${loanId}/record-repayment`, "POST",
+    { ...input, poultryLoanId: loanId, farmId: activeFarmId(), createdBy: currentUserId() || null })
+
+export const reversePoultryLoanPayment = (paymentId: number, reason: string) =>
+  jsend<void>(
+    `/Poultry/loan-payments/${paymentId}/reverse?farmId=${fid()}&reversedBy=${encodeURIComponent(currentUserId() || "")}`,
+    "POST", { reason })
+
+// =============================================================================
+// Owner money (migration 253)
+//
+// What the owner put into the farm and what they took out. Neither is trading:
+// a contribution is not revenue and a draw is not an expense, so nothing here
+// touches sales, expenses or supplier/customer payments.
+// =============================================================================
+
+export type OwnerMoneyType = "Contribution" | "Draw"
+
+export interface PoultryOwnerMoney {
+  poultryOwnerMoneyId: number
+  farmId: string
+  /** OWN-2026-0001 for a contribution, OWD- for a draw. */
+  transactionNumber?: string | null
+  transactionDate: string
+  transactionType: OwnerMoneyType | string
+  /** Always POSITIVE — the direction lives in transactionType. */
+  amount: number
+  poultryCashAccountId: number
+  accountName?: string | null
+  paymentMethod?: string | null
+  ownerUserId?: string | null
+  ownerName?: string | null
+  referenceNumber?: string | null
+  notes?: string | null
+  status: "Posted" | "Reversed" | string
+  poultryCashTransactionId?: number | null
+  reversalCashTransactionId?: number | null
+  createdBy?: string | null
+  createdAt?: string | null
+  reversedBy?: string | null
+  reversedAt?: string | null
+  reversalReason?: string | null
+}
+
+export interface PoultryOwnerMoneySummary {
+  totalContributions: number
+  totalDraws: number
+  /** Contributions less draws, all time. Reversed records count for nothing. */
+  netFunding: number
+  periodContributions: number
+  periodDraws: number
+  contributionCount: number
+  drawCount: number
+}
+
+export const listPoultryOwnerMoney = (opts: {
+  type?: string | null; from?: string | null; to?: string | null; status?: string | null
+} = {}) => {
+  const q = new URLSearchParams({ farmId: fid() })
+  if (opts.type && opts.type !== "All") q.set("type", opts.type)
+  if (opts.status && opts.status !== "All") q.set("status", opts.status)
+  if (opts.from) q.set("from", opts.from)
+  if (opts.to) q.set("to", opts.to)
+  return jget<PoultryOwnerMoney[]>(`/Poultry/owner-money?${q.toString()}`)
+}
+
+export const getPoultryOwnerMoneySummary = (from?: string | null, to?: string | null) => {
+  const q = new URLSearchParams({ farmId: fid() })
+  if (from) q.set("from", from)
+  if (to) q.set("to", to)
+  return jget<PoultryOwnerMoneySummary>(`/Poultry/owner-money/summary?${q.toString()}`)
+}
+
+/** One endpoint for both directions — they differ by a single field. */
+export const recordPoultryOwnerMoney = (input: {
+  transactionType: OwnerMoneyType
+  amount: number
+  poultryCashAccountId: number
+  transactionDate?: string | null
+  paymentMethod?: string | null
+  ownerName?: string | null
+  referenceNumber?: string | null
+  notes?: string | null
+}) =>
+  jsend<{ poultryOwnerMoneyId: number }>(`/Poultry/owner-money`, "POST",
+    { ...input, farmId: activeFarmId(), createdBy: currentUserId() || null })
+
+/** Append-only: one opposite cash row, the original kept, the reason audited. */
+export const reversePoultryOwnerMoney = (id: number, reason: string) =>
+  jsend<void>(
+    `/Poultry/owner-money/${id}/reverse?farmId=${fid()}&reversedBy=${encodeURIComponent(currentUserId() || "")}`,
+    "POST", { reason })
+
+/** Cancels a DRAFT only — a draft moved no money. Use reverse for an approved one. */
 export const cancelPoultryCashTransfer = (id: number) =>
   jsend<void>(`/Poultry/cash-transfers/${id}/cancel?farmId=${fid()}`, "POST")
+
+/**
+ * Undoes an APPROVED transfer: two opposite ledger rows, both balances
+ * restored, the original rows kept. The reason is required and lands in the
+ * audit trail, which is why it travels in the body rather than the query string.
+ */
+export const reversePoultryCashTransfer = (id: number, reason: string) =>
+  jsend<void>(
+    `/Poultry/cash-transfers/${id}/reverse?farmId=${fid()}&reversedBy=${encodeURIComponent(currentUserId() || "")}`,
+    "POST", { reason })
 
 // =============================================================================
 // Staff

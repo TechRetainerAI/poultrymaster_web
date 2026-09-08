@@ -198,6 +198,11 @@ builder.Services.AddScoped<IWaterCustomerLedgerService>(sp => new WaterCustomerL
 builder.Services.AddScoped<IPoultryCashAccountService>(sp => new PoultryCashAccountService(connectionString));
 builder.Services.AddScoped<IPoultryCashReconciliationService>(sp => new PoultryCashReconciliationService(connectionString));
 builder.Services.AddScoped<IPoultryCashTransferService>(sp => new PoultryCashTransferService(connectionString));
+// Owner money (253): contributions and draws, kept out of revenue and expense.
+builder.Services.AddScoped<IPoultryOwnerMoneyService>(sp => new PoultryOwnerMoneyService(connectionString));
+// Loans (254): borrowed money, repayments split into principal, interest and
+// fees, and exactly one cash movement per repayment.
+builder.Services.AddScoped<IPoultryLoanService>(sp => new PoultryLoanService(connectionString));
 
 // Poultry Staff + Attendance + Payroll (port of the Water W6 module). Payroll
 // approve upserts a linked dbo.Expense (Category 'Payroll'); mark-paid posts a
