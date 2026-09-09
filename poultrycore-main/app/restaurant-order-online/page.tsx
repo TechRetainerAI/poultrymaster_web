@@ -527,14 +527,58 @@ function RestaurantOrderOnlineContent() {
       })
       setPastOrders(loadGuestOrders(farmId))
 
-      setTrackingToken(result.trackingToken)
-      setTracking(await trackOrder(result.trackingToken))
+      showTracking(await trackOrder(result.trackingToken), result.trackingToken)
       setCartOpen(false)
       setCart([])
     } catch (e: any) {
       setOrderError(e?.message || "We could not send your order. Please try again or ask a member of staff.")
     } finally { setPlacing(false) }
   }
+
+  /* -- Getting back out of the tracking card ---------------------------- */
+  /**
+   * The tracking card replaces the whole page, and used to be a dead end: no
+   * close, and no history entry either, so Back left the site entirely and the
+   * only way to the menu was a full reload.
+   *
+   * Opening it now pushes a history entry, so the phone's Back gesture — which
+   * is what a guest reaches for first — closes the card instead of leaving. The
+   * card also gets an explicit close button and a dismissable backdrop, because
+   * on a phone the card fills the screen and "tap outside it" is a few pixels of
+   * margin that nobody can be expected to find.
+   */
+  const pushedHistoryRef = useRef(false)
+
+  const showTracking = useCallback((t: OrderTracking, token: string) => {
+    setTrackingToken(token)
+    setTracking(t)
+    try {
+      window.history.pushState({ pmTracking: true }, "")
+      pushedHistoryRef.current = true
+    } catch { /* history is unavailable; the close button still works */ }
+  }, [])
+
+  // Back closes the card rather than the site.
+  useEffect(() => {
+    if (!tracking) return
+    const onPop = () => {
+      pushedHistoryRef.current = false
+      setTracking(null)
+      setTrackingToken("")
+    }
+    window.addEventListener("popstate", onPop)
+    return () => window.removeEventListener("popstate", onPop)
+  }, [tracking])
+
+  /**
+   * Used by the close button and the backdrop. Goes back through history when we
+   * were the ones who added the entry, so the stack stays balanced and a guest
+   * cannot end up pressing Back twice to leave one card.
+   */
+  const dismissTracking = useCallback(() => {
+    if (pushedHistoryRef.current) window.history.back()
+    else { setTracking(null); setTrackingToken("") }
+  }, [])
 
   const refreshTracking = useCallback(async () => {
     if (trackingToken) setTracking(await trackOrder(trackingToken))
@@ -563,11 +607,44 @@ function RestaurantOrderOnlineContent() {
       : TRACKING_STEPS.indexOf(tracking.status)
     const awaitingConfirmation = tracking.status === "Placed"
     const wasRejected = tracking.status === "Cancelled"
+    /**
+     * Only offer a way back when there is something to go back to. Arriving on a
+     * bare `?track=` link never loads the menu — `init` returns before it — and
+     * `OrderTracking` carries no farm id to load it from, so on that one route
+     * the card genuinely is the whole page.
+     */
+    const canReturnToMenu = Boolean(farmId && settings)
 
     return (
       <div className="min-h-[100dvh] bg-[#faf7f6] px-4 py-8">
-        <div className="mx-auto w-full max-w-md">
-          <div className="overflow-hidden rounded-3xl border border-stone-200/80 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04),0_18px_44px_-20px_rgba(0,0,0,0.18)]">
+        {/* Tapping the space around the card returns to the menu. aria-hidden and
+            tabIndex -1: the close button below is the accessible control, and a
+            screen reader should not meet a second nameless one. */}
+        {canReturnToMenu && (
+          <div className="fixed inset-0 z-0" aria-hidden="true" tabIndex={-1} onClick={dismissTracking} />
+        )}
+        <div className="relative z-10 mx-auto w-full max-w-md">
+          {canReturnToMenu && (
+            <button
+              type="button"
+              onClick={dismissTracking}
+              className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-white/80 py-2 pl-2.5 pr-4 text-sm font-semibold text-stone-600 shadow-sm ring-1 ring-stone-200 backdrop-blur transition-colors hover:bg-white hover:text-stone-900 active:scale-95"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Back to menu
+            </button>
+          )}
+          <div className="relative overflow-hidden rounded-3xl border border-stone-200/80 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04),0_18px_44px_-20px_rgba(0,0,0,0.18)]">
+            {canReturnToMenu && (
+              <button
+                type="button"
+                onClick={dismissTracking}
+                aria-label="Close and return to the menu"
+                className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-sm transition-colors hover:bg-white/25 active:scale-95"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
             <div className={`px-6 py-7 text-center text-white ${
               wasRejected ? "bg-gradient-to-br from-stone-600 to-stone-700" : "bg-gradient-to-br from-rose-600 to-rose-700"
             }`}>
@@ -655,6 +732,21 @@ function RestaurantOrderOnlineContent() {
               </dl>
 
               <p className="text-center text-xs text-stone-400">This page updates automatically.</p>
+
+              {/* The way back that a guest will actually see. The header button and
+                  the backdrop both do the same thing, but this is the one sitting
+                  where they finish reading. Their order stays in "My orders", so
+                  leaving this card never loses track of it. */}
+              {canReturnToMenu && (
+                <button
+                  type="button"
+                  onClick={dismissTracking}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-stone-100 py-3.5 text-sm font-semibold text-stone-700 transition-colors hover:bg-stone-200 active:scale-[0.99]"
+                >
+                  <UtensilsCrossed className="h-4 w-4" />
+                  {wasRejected ? "Back to the menu" : "Order something else"}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -996,8 +1088,7 @@ function RestaurantOrderOnlineContent() {
   async function openPastOrder(o: GuestOrderRef) {
     setHistoryOpen(false)
     try {
-      setTrackingToken(o.trackingToken)
-      setTracking(await trackOrder(o.trackingToken))
+      showTracking(await trackOrder(o.trackingToken), o.trackingToken)
     } catch {
       // The token is older than the server's record, or the order was purged.
       setTrackingToken("")

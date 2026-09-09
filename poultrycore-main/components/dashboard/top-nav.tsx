@@ -17,6 +17,7 @@ import { buildWaterNavConfig } from "@/lib/nav/water-nav-config"
 import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
 import { buildHotelNavConfig } from "@/lib/nav/hotel-nav-config"
 import { buildRestaurantNavConfig } from "@/lib/nav/restaurant-nav-config"
+import { useOnlineOrderCounts } from "@/lib/utils/online-order-alerts"
 import { NavMegaMenu } from "./nav/nav-mega-menu"
 import { useNavPopover, NAV_TRIGGER_CLASS, NAV_TRIGGER_ACTIVE } from "./nav/use-nav-popover"
 import {
@@ -377,7 +378,15 @@ function HotelTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
 }
 
 function RestaurantTopNav() {
-  const nav = useMemo(() => buildRestaurantNavConfig(), [])
+  // This component only ever renders for a Restaurant company, so the hook is
+  // told so unconditionally. Nothing outside this function is touched.
+  const activeFarmId = useAuthStore((s) => s.activeFarmId)
+  const { unseen: unseenOnlineOrders, pending: pendingGuestOrders } =
+    useOnlineOrderCounts(activeFarmId, true)
+  const nav = useMemo(
+    () => buildRestaurantNavConfig({ unseenOnlineOrders, pendingGuestOrders }),
+    [unseenOnlineOrders, pendingGuestOrders],
+  )
 
   return (
     <div className="hidden lg:block bg-rose-600 border-b border-rose-700">

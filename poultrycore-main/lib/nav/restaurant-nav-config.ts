@@ -23,7 +23,14 @@ export interface RestaurantNavConfig {
   system: MegaMenuGroup[]
 }
 
-export function buildRestaurantNavConfig(): RestaurantNavConfig {
+export interface RestaurantNavBadges {
+  /** Online orders nobody has had on screen yet. See lib/utils/online-order-alerts.ts. */
+  unseenOnlineOrders?: number
+  /** Online orders still waiting to be accepted or rejected. */
+  pendingGuestOrders?: number
+}
+
+export function buildRestaurantNavConfig(badges: RestaurantNavBadges = {}): RestaurantNavConfig {
   return {
     ordersKitchen: [
       {
@@ -32,8 +39,10 @@ export function buildRestaurantNavConfig(): RestaurantNavConfig {
         items: [
           { id: "pos",    title: "POS / New Order", icon: ShoppingCart,  href: "/restaurant-pos",    visible: true },
           // Guest QR orders wait here for staff to accept them before the kitchen sees them.
-          { id: "pending", title: "New Guest Orders", icon: Inbox,        href: "/restaurant-pending-orders", visible: true },
-          { id: "orders", title: "All Orders",      icon: ClipboardList, href: "/restaurant-orders", visible: true },
+          { id: "pending", title: "New Guest Orders", icon: Inbox,        href: "/restaurant-pending-orders", visible: true,
+            badge: badges.pendingGuestOrders },
+          { id: "orders", title: "All Orders",      icon: ClipboardList, href: "/restaurant-orders", visible: true,
+            badge: badges.unseenOnlineOrders },
         ],
       },
       {

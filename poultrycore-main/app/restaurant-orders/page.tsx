@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { listOrders, getOrder, updateOrderStatus, listOrderItems, linkOrderToCustomer, type Order, type OrderItem } from "@/lib/api/restaurant"
+import { markOnlineOrdersSeen } from "@/lib/utils/online-order-alerts"
 
 const STATUS_BADGES: Record<string, string> = {
   Placed: "bg-blue-500", Confirmed: "bg-indigo-500", Preparing: "bg-amber-500",
@@ -29,6 +30,7 @@ export default function RestaurantOrdersPage() {
   const router = useRouter()
   const { toast } = useToast()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
+  const activeFarmId = useAuthStore((s) => s.activeFarmId)
 
   const [loading, setLoading] = useState(true)
   const [orders, setOrders] = useState<Order[]>([])
@@ -52,13 +54,27 @@ export default function RestaurantOrdersPage() {
     loadOrders()
   }, [activeFarmType, router])
 
+  /**
+   * This screen is where the nav badge is cleared. Marking is done with the
+   * orders that actually reach the page rather than with "now", so an order that
+   * arrived while the list was loading still counts as unseen. A new online
+   * order is always at 'Placed', which the default 'active' filter keeps, so it
+   * can never be marked seen while hidden behind a filter.
+   */
+  function applyOrders(list: Order[]) {
+    const next = filterStatus === "active"
+      ? list.filter(o => !["Completed", "Cancelled", "Refunded"].includes(o.status))
+      : list
+    setOrders(next)
+    if (activeFarmId) markOnlineOrdersSeen(activeFarmId, next)
+  }
+
   async function loadOrders() {
     setLoading(true)
     try {
       const statusParam = filterStatus === "active" || filterStatus === "all" ? undefined : filterStatus
       const typeParam = filterType === "all" ? undefined : filterType
-      const list = await listOrders(statusParam, typeParam)
-      setOrders(filterStatus === "active" ? list.filter(o => !["Completed", "Cancelled", "Refunded"].includes(o.status)) : list)
+      applyOrders(await listOrders(statusParam, typeParam))
     } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
     finally { setLoading(false) }
   }
@@ -73,11 +89,9 @@ export default function RestaurantOrdersPage() {
     const id = setInterval(() => {
       const statusParam = filterStatus === "active" || filterStatus === "all" ? undefined : filterStatus
       const typeParam = filterType === "all" ? undefined : filterType
-      listOrders(statusParam, typeParam)
-        .then(list => setOrders(filterStatus === "active"
-          ? list.filter(o => !["Completed", "Cancelled", "Refunded"].includes(o.status))
-          : list))
-        .catch(() => {})
+      // Same path as the manual load, so an order that arrives while staff are
+      // sitting on this screen is marked seen too and never badges the nav.
+      listOrders(statusParam, typeParam).then(applyOrders).catch(() => {})
     }, 10_000)
     return () => clearInterval(id)
   }, [activeFarmType, filterStatus, filterType])

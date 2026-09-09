@@ -55,11 +55,13 @@ import {
   UtensilsCrossed,
   History,
   Scale,
+  Inbox,
 } from "lucide-react"
 import { InventoryLogo } from "@/components/auth/logo"
 import { useAlertsStore, type AlertItem } from "@/lib/store/alerts-store"
 import { useSidebarStore } from "@/lib/store/sidebar-store"
 import { useAuthStore } from "@/lib/store/auth-store"
+import { useOnlineOrderCounts } from "@/lib/utils/online-order-alerts"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
 import { filterWaterNavItems } from "@/lib/utils/water-nav-access"
@@ -80,6 +82,13 @@ type SidebarItem = {
   isButton?: boolean
   onClick?: () => void
   badge?: number
+  /**
+   * Tint the whole row, not just the count pill, while the badge is above zero.
+   * A red dot on the right of a dark row is easy to miss on a rail this long;
+   * a row that has changed colour is not. Opt-in, because a badge that is
+   * merely informational (Alerts) should not repaint the sidebar.
+   */
+  alertOnBadge?: boolean
 }
 
 export function DashboardSidebar({ onLogout }: SidebarProps) {
@@ -95,11 +104,17 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const alerts = useAlertsStore((s: { alerts: AlertItem[]; open: () => void }) => s.alerts)
   const openAlerts = useAlertsStore((s: { alerts: AlertItem[]; open: () => void }) => s.open)
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
+  const activeFarmId = useAuthStore((s) => s.activeFarmId)
   const clearActiveCompany = useAuthStore((s) => s.clearActiveCompany)
   const isWater = activeFarmType === "Water"
   const isGeneric = activeFarmType === "Generic"
   const isHotel = activeFarmType === "Hotel"
   const isRestaurant = activeFarmType === "Restaurant"
+  // Online orders arrive without anyone touching a till. All Orders carries a
+  // count of the ones nobody has looked at yet; New Guest Orders carries the
+  // ones still waiting to be accepted. Returns zeroes for every other company
+  // type, so it is safe to call here rather than behind a branch.
+  const { unseen: unseenOnline, pending: pendingOnline } = useOnlineOrderCounts(activeFarmId, isRestaurant)
   const { isCollapsed, toggle, isMobileOpen, toggleMobile, setMobileOpen } = useSidebarStore()
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     farm: true,
@@ -498,7 +513,23 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
   const restaurantOrdersItems = gateRestaurant([
     { href: "/restaurant-pos",    label: "POS / New Order", icon: ShoppingCart },
-    { href: "/restaurant-orders", label: "All Orders",      icon: FileText },
+    // Guest QR orders wait here for staff to accept them before the kitchen sees
+    // them. The top-nav menu has always listed this; the sidebar did not, which
+    // left the rail with no route at all to the screen where online orders are
+    // accepted.
+    // A workload count, not a notification: it stays until the orders are
+    // actually accepted or rejected, and is deliberately NOT cleared by opening
+    // the screen the way the All Orders count is.
+    { href: "/restaurant-pending-orders", label: "New Guest Orders", icon: Inbox,
+      badge: pendingOnline || undefined, alertOnBadge: true },
+    // `|| undefined` rather than passing 0: the sidebar guards its pill with
+    // `{badge && badge > 0 && ...}`, and a leading `0 &&` short-circuits to the
+    // NUMBER 0 — which React happily renders as a visible "0". Handing it
+    // undefined instead means nothing is drawn when there is nothing to report.
+    // The same latent bug affects the shared Alerts row; see the note in
+    // plan/plan.md rather than a change here, which would touch four other modules.
+    { href: "/restaurant-orders", label: "All Orders",      icon: FileText,
+      badge: unseenOnline || undefined, alertOnBadge: true },
   ])
   const restaurantKitchenItems = gateRestaurant([
     { href: "/restaurant-kds",    label: "Kitchen Display", icon: Activity },
@@ -560,11 +591,16 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     item: { href: string; label: string; icon: any },
     isButton = false,
     onClick?: () => void,
-    badge?: number
+    badge?: number,
+    alertOnBadge = false
   ) => {
     const isActive =
       pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`))
     const Icon = item.icon
+    // Something has arrived that nobody has looked at. Only ever applied to a
+    // row that asked for it, and never to the row you are already standing on —
+    // the active state is the stronger signal and they would fight each other.
+    const alerting = alertOnBadge && !!badge && badge > 0 && !isActive
 
     const content = (
       <div
@@ -572,11 +608,14 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
           "flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-md transition-colors relative",
           isActive
             ? "bg-slate-700 text-white border-l-[3px] border-blue-400 pl-[13px]"
-            : "text-slate-300 hover:bg-slate-800 hover:text-white border-l-[3px] border-transparent pl-[13px]",
+            : alerting
+              ? "bg-rose-950/50 text-rose-50 hover:bg-rose-900/50 border-l-[3px] border-rose-400 pl-[13px]"
+              : "text-slate-300 hover:bg-slate-800 hover:text-white border-l-[3px] border-transparent pl-[13px]",
           isCollapsed && !isMobile ? "justify-center px-2 pl-2" : ""
         )}
       >
-        <Icon className={cn("h-5 w-5 shrink-0", isActive ? "text-blue-400" : "text-slate-400")} />
+        <Icon className={cn("h-5 w-5 shrink-0",
+          isActive ? "text-blue-400" : alerting ? "text-rose-300" : "text-slate-400")} />
         {(!isCollapsed || isMobile) && (
           <span className="truncate">{item.label}</span>
         )}
@@ -584,6 +623,14 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
           <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 rounded-full bg-red-500 text-white text-[10px] font-bold px-1.5">
             {badge > 99 ? '99+' : badge}
           </span>
+        )}
+        {/* Collapsed rail: no room for the pill, and the tooltip needs a hover to
+            find. A dot on the icon is the only thing that still reads at 56px.
+            Gated on alertOnBadge rather than on badge alone, so this stays off
+            every other company type's rail — Alerts is badged on Poultry, Water,
+            Generic and Hotel, and none of them asked for a dot. */}
+        {alerting && isCollapsed && !isMobile && (
+          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-slate-900" />
         )}
       </div>
     )
@@ -637,7 +684,13 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
       return (
         <div className="space-y-0.5">
           {items.map((item) => (
-            <div key={item.href}>{renderNavItem(item)}</div>
+            // The badge was dropped here while the rail was collapsed, even though
+            // the collapsed tooltip below already renders one. Passed on only for
+            // rows that opted in, so the collapsed rail is unchanged for every
+            // other company type.
+            <div key={item.href}>{renderNavItem(
+              item, item.isButton, item.onClick,
+              item.alertOnBadge ? item.badge : undefined, item.alertOnBadge)}</div>
           ))}
         </div>
       )
@@ -660,7 +713,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         {isOpen && (
           <div className="space-y-0.5 mt-0.5">
             {items.map((item) => (
-              <div key={item.href}>{renderNavItem(item, item.isButton, item.onClick, item.badge)}</div>
+              <div key={item.href}>{renderNavItem(item, item.isButton, item.onClick, item.badge, item.alertOnBadge)}</div>
             ))}
           </div>
         )}
