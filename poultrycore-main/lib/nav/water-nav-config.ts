@@ -15,7 +15,7 @@
 
 import {
   Activity, AlertTriangle, Banknote, BarChart3, Bell, Boxes, Box, Building2,
-  CalendarDays, Cog, CreditCard, Droplets, FileText, Factory, ListTodo, PackageMinus, Receipt,
+  CalendarDays, Cog, Coins, CreditCard, Droplets, FileText, Factory, ListTodo, PackageMinus, Receipt,
   Route as RouteIcon, Settings, ShoppingBag, ShoppingCart, Truck, User, UserCog,
   Users, Users2, Wallet, Wrench, History, Scale, ArrowLeftRight, HandCoins,
 } from "lucide-react"
@@ -168,6 +168,12 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
           // we've paid against it.
           { id: "supplier-payments", title: "Supplier Payments", icon: Receipt, href: "/water-supplier-payments" },
           { id: "supplier-balances", title: "Supplier Balances", icon: Truck, href: "/water-supplier-balances" },
+          // Migrations 283-286. Assets sit in the Expenses column because that
+          // is where a major purchase is recorded from -- a company buying a
+          // borehole pump looks here, not in a separate "capital" menu -- but
+          // they are deliberately NOT expenses, which the page says on every
+          // screen.
+          { id: "assets", title: "Assets", icon: Building2, href: "/water-assets" },
         ],
       },
       {
@@ -196,6 +202,11 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
         items: [
           { id: "setup",         title: "Setup",         icon: Settings,  href: "/water-setup" },
           { id: "company-setup", title: "Company Setup", icon: Settings,  href: "/water-company-setup" },
+          // Migrations 274 and 276. Sits with the other setup rows because it is
+          // configuration, but it is a FINANCE decision -- it changes what the
+          // owner reads as profit -- and its own IAM keys gate what you can do
+          // once inside.
+          { id: "financial-settings", title: "Financial Settings", icon: Coins, href: "/water-financial-settings" },
           { id: "companies",     title: "Companies",     icon: Building2, href: "/companies" },
         ],
       },

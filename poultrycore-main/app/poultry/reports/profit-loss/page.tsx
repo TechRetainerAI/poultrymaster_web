@@ -1,9 +1,13 @@
 "use client"
 
 // Advanced Poultry Report route: /poultry/reports/profit-loss
-// Company-wide Profit & Loss (all sales/expenses; not attributed per flock).
-import { PoultryReportView } from "@/components/poultry-reports/poultry-report-view"
+//
+// Since migration 272 this is a STATEMENT, not a table -- Revenue, Gross
+// Profit, Operating Profit, Net Profit, with Financing & Owner Activity and
+// Capital Investments printed beside it and never inside it -- so it has its
+// own view rather than riding the shared report engine.
+import { PoultryProfitLossView } from "@/components/poultry-reports/poultry-profit-loss-view"
 
 export default function PoultryProfitLossReport() {
-  return <PoultryReportView slug="profit-loss" />
+  return <PoultryProfitLossView />
 }

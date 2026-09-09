@@ -16,7 +16,7 @@
 import {
   Activity, AlertTriangle, ArrowLeftRight, Banknote, BarChart3, Bell, Bird, BookOpen, Box, Boxes,
   Building2, Clock, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle, History,
-  HandCoins, ListTodo, Package, PackageMinus, Pill, Receipt, Scale, Settings, ShoppingCart, Truck, User, UserCog, Users,
+  Coins, HandCoins, ListTodo, Package, PackageMinus, Pill, Receipt, Scale, Settings, ShoppingCart, Truck, User, UserCog, Users,
   Users2, Wallet, Wheat,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
@@ -155,6 +155,11 @@ export function buildPoultryNavConfig(
           // we've paid against it.
           { id: "supplier-payments", title: "Supplier Payments", icon: Receipt, href: "/supplier-payments", visible: money("/supplier-payments") },
           { id: "supplier-balances", title: "Supplier Balances", icon: Truck, href: "/supplier-balances", visible: money("/supplier-balances") },
+          // Migrations 270-273. Assets sit in the Expenses column because that
+          // is where a major purchase is recorded from -- a farm buying a
+          // generator looks here, not in a separate "capital" menu -- but they
+          // are deliberately NOT expenses, which the page says on every screen.
+          { id: "assets", title: "Assets", icon: Building2, href: "/poultry-assets", visible: money("/expenses") },
         ],
       },
       {
@@ -202,6 +207,11 @@ export function buildPoultryNavConfig(
           // only a redirect. Matches Water's "Company Setup" row.
           { id: "farm-setup", title: "Farm Setup",    icon: Settings, href: "/poultry-setup",         visible: featureAccess.canViewSettings },
           { id: "settings",   title: "Company Setup", icon: Settings, href: "/poultry-company-setup", visible: featureAccess.canViewSettings },
+          // Migrations 261-263. Sits with the other setup rows because it is
+          // configuration, but it is a FINANCE decision -- it changes what the
+          // owner reads as profit -- so it rides canViewFinancial rather than
+          // canViewSettings. Its own IAM keys gate what you can do once inside.
+          { id: "financial-settings", title: "Financial Settings", icon: Coins, href: "/poultry-financial-settings", visible: featureAccess.canViewFinancial },
           // Ungated, so this column (and the Setup trigger) always renders.
           { id: "companies",  title: "Companies", icon: Building2, href: "/companies" },
         ],

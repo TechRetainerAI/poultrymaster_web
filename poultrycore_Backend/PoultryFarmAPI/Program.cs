@@ -200,6 +200,15 @@ builder.Services.AddScoped<IWaterOwnerMoneyService>(sp => new WaterOwnerMoneySer
 // Loans (259): borrowed money, repayments split into principal, interest and
 // fees, and exactly one cash movement per repayment.
 builder.Services.AddScoped<IWaterLoanService>(sp => new WaterLoanService(connectionString));
+// Financial settings (274): when inventory costs reach the P&L. Two independent
+// choices, packaging and treatment, resolved against item overrides by the SPs.
+// Also carries the per-item override read/write, which on the water side is its
+// own pair of SPs rather than columns on the item list -- see the service.
+builder.Services.AddScoped<IWaterFinancialSettingsService>(sp => new WaterFinancialSettingsService(connectionString));
+// Asset register + depreciation (283, 284): boreholes, machines, tanks and
+// vehicles the company owns, charged to the P&L over their useful life without
+// ever moving money.
+builder.Services.AddScoped<IWaterCapitalAssetService>(sp => new WaterCapitalAssetService(connectionString));
 
 // Poultry Cash Accounts (port of the Water cash module). Multi-account cash
 // management + signed ledger + paired transfers. Migrations 128 (schema) + 129 (SPs).
@@ -211,6 +220,12 @@ builder.Services.AddScoped<IPoultryOwnerMoneyService>(sp => new PoultryOwnerMone
 // Loans (254): borrowed money, repayments split into principal, interest and
 // fees, and exactly one cash movement per repayment.
 builder.Services.AddScoped<IPoultryLoanService>(sp => new PoultryLoanService(connectionString));
+// Financial settings (261): when inventory costs reach the P&L. Two independent
+// choices, feed and medication, resolved against item overrides by the SPs.
+builder.Services.AddScoped<IPoultryFinancialSettingsService>(sp => new PoultryFinancialSettingsService(connectionString));
+builder.Services.AddScoped<IPoultryInventoryValuationService>(sp => new PoultryInventoryValuationService(connectionString));
+builder.Services.AddScoped<IPoultryCapitalAssetService>(sp => new PoultryCapitalAssetService(connectionString));
+builder.Services.AddScoped<IPoultryProfitLossService>(sp => new PoultryProfitLossService(connectionString));
 
 // Poultry Staff + Attendance + Payroll (port of the Water W6 module). Payroll
 // approve upserts a linked dbo.Expense (Category 'Payroll'); mark-paid posts a

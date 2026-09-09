@@ -36,7 +36,7 @@ namespace PoultryFarmAPIWeb.Business
             try
             {
                 using var conn = new NpgsqlConnection(_connectionString);
-                using var cmd = new NpgsqlCommand("SELECT * FROM spexpense_insert(p_expensedate => @ExpenseDate::timestamp, p_category => @Category::text, p_description => @Description::text, p_amount => @Amount::numeric, p_paymentmethod => @PaymentMethod::text, p_supplier => @Supplier::text, p_flockid => @FlockId::int, p_userid => @UserId::text, p_farmid => @FarmId::uuid, p_attachmentimage => @AttachmentImage::bytea, p_attachmentcontenttype => @AttachmentContentType::text, p_supplierid => @SupplierId::int, p_amountpaid => @AmountPaid::numeric, p_duedate => @DueDate::date, p_cashaccountid => @CashAccountId::int)", conn);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spexpense_insert(p_expensedate => @ExpenseDate::timestamp, p_category => @Category::text, p_description => @Description::text, p_amount => @Amount::numeric, p_paymentmethod => @PaymentMethod::text, p_supplier => @Supplier::text, p_flockid => @FlockId::int, p_userid => @UserId::text, p_farmid => @FarmId::uuid, p_attachmentimage => @AttachmentImage::bytea, p_attachmentcontenttype => @AttachmentContentType::text, p_supplierid => @SupplierId::int, p_amountpaid => @AmountPaid::numeric, p_duedate => @DueDate::date, p_cashaccountid => @CashAccountId::int, p_financialcosttype => @FinancialCostType::text)", conn);
                 cmd.Parameters.AddWithValue("@SupplierId", (object?)model.SupplierId ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@AmountPaid", (object?)model.AmountPaid ?? DBNull.Value);
                 // Migration 245: money paid at entry is recorded as a real supplier
@@ -44,6 +44,10 @@ namespace PoultryFarmAPIWeb.Business
                 // would post none -- and the expense's own cash line already resolves
                 // to "paid minus allocations", i.e. zero -- so the cash would vanish.
                 cmd.Parameters.AddWithValue("@CashAccountId", (object?)model.PoultryCashAccountId ?? DBNull.Value);
+                // 269. Null means "not stated" and the resolver works it out.
+                // 'CapitalAsset' is refused by the SP on purpose: an asset is
+                // recorded on the Assets page so that it can be depreciated.
+                cmd.Parameters.AddWithValue("@FinancialCostType", (object?)model.FinancialCostType ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@DueDate", (object?)model.DueDate?.Date ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@ExpenseDate", model.ExpenseDate);
                 cmd.Parameters.AddWithValue("@Category", model.Category);
@@ -119,7 +123,7 @@ namespace PoultryFarmAPIWeb.Business
             try
             {
                 using var conn = new NpgsqlConnection(_connectionString);
-                using var cmd = new NpgsqlCommand("SELECT * FROM spexpense_update(p_expenseid => @ExpenseId::int, p_expensedate => @ExpenseDate::timestamp, p_category => @Category::text, p_description => @Description::text, p_amount => @Amount::numeric, p_paymentmethod => @PaymentMethod::text, p_supplier => @Supplier::text, p_flockid => @FlockId::int, p_userid => @UserId::text, p_farmid => @FarmId::uuid, p_attachmentimageset => @AttachmentImageSet::boolean, p_attachmentimage => @AttachmentImage::bytea, p_attachmentcontenttype => @AttachmentContentType::text, p_supplierid => @SupplierId::int, p_amountpaid => @AmountPaid::numeric, p_duedate => @DueDate::date, p_cashaccountid => @CashAccountId::int)", conn);
+                using var cmd = new NpgsqlCommand("SELECT * FROM spexpense_update(p_expenseid => @ExpenseId::int, p_expensedate => @ExpenseDate::timestamp, p_category => @Category::text, p_description => @Description::text, p_amount => @Amount::numeric, p_paymentmethod => @PaymentMethod::text, p_supplier => @Supplier::text, p_flockid => @FlockId::int, p_userid => @UserId::text, p_farmid => @FarmId::uuid, p_attachmentimageset => @AttachmentImageSet::boolean, p_attachmentimage => @AttachmentImage::bytea, p_attachmentcontenttype => @AttachmentContentType::text, p_supplierid => @SupplierId::int, p_amountpaid => @AmountPaid::numeric, p_duedate => @DueDate::date, p_cashaccountid => @CashAccountId::int, p_financialcosttype => @FinancialCostType::text, p_setfinancialcosttype => @SetFinancialCostType::boolean)", conn);
                 cmd.Parameters.AddWithValue("@SupplierId", (object?)model.SupplierId ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@AmountPaid", (object?)model.AmountPaid ?? DBNull.Value);
                 // Migration 245: money paid at entry is recorded as a real supplier
@@ -127,6 +131,10 @@ namespace PoultryFarmAPIWeb.Business
                 // would post none -- and the expense's own cash line already resolves
                 // to "paid minus allocations", i.e. zero -- so the cash would vanish.
                 cmd.Parameters.AddWithValue("@CashAccountId", (object?)model.PoultryCashAccountId ?? DBNull.Value);
+                // 269. Like the Phase 1 item override: null is a real value here,
+                // so the caller has to say whether it means the field at all.
+                cmd.Parameters.AddWithValue("@FinancialCostType", (object?)model.FinancialCostType ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@SetFinancialCostType", model.SetFinancialCostType);
                 cmd.Parameters.AddWithValue("@DueDate", (object?)model.DueDate?.Date ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@ExpenseId", model.ExpenseId);
                 cmd.Parameters.AddWithValue("@ExpenseDate", model.ExpenseDate);
@@ -341,6 +349,34 @@ namespace PoultryFarmAPIWeb.Business
             if (TryGetOrdinal(reader, "SourceId", out var ordSrcId) && !reader.IsDBNull(ordSrcId))
                 sourceId = ReadIntFlexible(reader, "SourceId");
 
+            // Financial classification (migrations 269, 270). Guarded the same
+            // way the payment columns are: a database behind on Phase 3 returns
+            // none of these and the page still renders, with the classification
+            // simply absent rather than a 500.
+            string? costType = null;
+            if (TryGetOrdinal(reader, "FinancialCostType", out var ordCt) && !reader.IsDBNull(ordCt))
+                costType = reader.GetString(ordCt);
+            var costTypeStored = TryGetOrdinal(reader, "CostTypeIsStored", out var ordCts)
+                && !reader.IsDBNull(ordCts) && reader.GetBoolean(ordCts);
+            string? plLine = null;
+            if (TryGetOrdinal(reader, "PlLine", out var ordPl) && !reader.IsDBNull(ordPl))
+                plLine = reader.GetString(ordPl);
+            string? plLineLabel = null;
+            if (TryGetOrdinal(reader, "PlLineLabel", out var ordPll) && !reader.IsDBNull(ordPll))
+                plLineLabel = reader.GetString(ordPll);
+            string? plSection = null;
+            if (TryGetOrdinal(reader, "PlSection", out var ordPls) && !reader.IsDBNull(ordPls))
+                plSection = reader.GetString(ordPls);
+            string? sourceLabel = null;
+            if (TryGetOrdinal(reader, "SourceLabel", out var ordSl) && !reader.IsDBNull(ordSl))
+                sourceLabel = reader.GetString(ordSl);
+            int? capitalAssetId = null;
+            if (TryGetOrdinal(reader, "PoultryCapitalAssetId", out var ordCa) && !reader.IsDBNull(ordCa))
+                capitalAssetId = ReadIntFlexible(reader, "PoultryCapitalAssetId");
+            string? capitalAssetName = null;
+            if (TryGetOrdinal(reader, "CapitalAssetName", out var ordCan) && !reader.IsDBNull(ordCan))
+                capitalAssetName = reader.GetString(ordCan);
+
             return new ExpenseModel
             {
                 ExpenseId = ReadIntFlexible(reader, "ExpenseId", "ExpenseID", "Id", "EXPENSEID"),
@@ -363,7 +399,15 @@ namespace PoultryFarmAPIWeb.Business
                 CreatedDate = createdDate,
                 UserId = resolvedUserId,
                 FarmId = ReadFarmIdString(reader),
-                HasAttachmentImage = hasAtt
+                HasAttachmentImage = hasAtt,
+                FinancialCostType = costType,
+                CostTypeIsStored = costTypeStored,
+                PlLine = plLine,
+                PlLineLabel = plLineLabel,
+                PlSection = plSection,
+                SourceLabel = sourceLabel,
+                PoultryCapitalAssetId = capitalAssetId,
+                CapitalAssetName = capitalAssetName,
             };
         }
 

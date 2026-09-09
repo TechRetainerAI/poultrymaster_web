@@ -36,6 +36,7 @@ import { getReportContext } from "@/lib/api"
 import { getProductionRecords, type ProductionRecord } from "@/lib/api/production-record"
 import { getSales, type Sale } from "@/lib/api/sale"
 import { getExpenses, type Expense } from "@/lib/api/expense"
+import { isInProfit } from "@/lib/poultry/financial-classification"
 import { getFlocks } from "@/lib/api/flock"
 import { PoultryReportSummaryCards, PoultryReportExportButtons, type SummaryCard } from "@/components/poultry-reports/poultry-report-ui"
 import { ReportDataTable } from "@/components/poultry-reports/report-data-table"
@@ -187,8 +188,15 @@ export function usePoultryDashboardData() {
     () => filteredSales.reduce((s: number, x: any) => s + Number(x.totalAmount || 0), 0),
     [filteredSales]
   )
+  // 269/270. Capital acquisitions and deferred inventory purchases live in the
+  // same table and are NOT this period's expense -- the P&L excludes them, and a
+  // dashboard that did not would report a different profit from the report it
+  // links to. isInProfit is the same test the server made when it classified the
+  // row, so the two cannot drift.
   const totalExpensesAmount = useMemo(
-    () => filteredExpenses.reduce((s: number, x: any) => s + Number(x.amount || 0), 0),
+    () => filteredExpenses
+      .filter((x: any) => x.plSection == null || isInProfit(x.plSection))
+      .reduce((s: number, x: any) => s + Number(x.amount || 0), 0),
     [filteredExpenses]
   )
   const netProfit = totalRevenue - totalExpensesAmount

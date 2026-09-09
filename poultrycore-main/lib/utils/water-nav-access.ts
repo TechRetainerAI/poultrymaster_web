@@ -95,10 +95,23 @@ const WATER_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAdmin: 
   "/water-staff": (f, isAdmin) => isAdmin || f.canSeeEmployees,
   "/water-payroll": (f) => f.canViewWaterPayroll,
 
+  // --- Assets --------------------------------------------------------------
+  // Migrations 283-286. Read as generously as Expenses, because that is where a
+  // major purchase is entered from and the register is largely a different view
+  // of the same money. What you can DO inside -- record, dispose, reverse, and
+  // above all generate depreciation -- is gated separately on the water.assets
+  // and water.asset-depreciation keys migration 286 seeds.
+  "/water-assets": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canEnterExpenses,
+
   // --- Reports / Setup -----------------------------------------------------
   "/water-reports": (f) => f.canViewReports,
   "/water-setup": (f) => f.canViewWaterSetup,
   "/water-company-setup": (f) => f.canViewWaterSetup,
+  // Migrations 274 and 276. Configuration, but it changes what the owner reads
+  // as profit, so it rides canViewFinancial rather than canViewWaterSetup --
+  // the same call the poultry rail made for its twin. Editing is gated inside
+  // the page on water.financial-settings.edit.
+  "/water-financial-settings": (f, isAdmin) => isAdmin || f.canViewFinancial,
 }
 
 /**

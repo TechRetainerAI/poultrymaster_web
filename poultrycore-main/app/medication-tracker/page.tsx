@@ -23,6 +23,8 @@ import { Pill, RefreshCw, Loader2, AlertTriangle, Boxes } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { useFmt } from "@/lib/currency"
+import { recognizedCostNote } from "@/lib/poultry/cost-recognition"
 import {
   listPoultryRawMaterialItems, listPoultryRawMaterialPurchases, listPoultryRawMaterialUsageHistory,
   type PoultryRawMaterialItem, type PoultryRawMaterialPurchase, type PoultryRawMaterialUsage,
@@ -35,12 +37,18 @@ type LedgerRow = {
   key: string; itemId: number; medication: string; unit: string
   date: string; type: "Purchase" | "Usage"; source: string
   inQty: number; outQty: number; balance: number
+  // Migration 268, OUT rows only. cost is what the stock drawn was worth;
+  // recognized is only the part charged to Profit & Loss at this usage, which is
+  // zero whenever the medication was expensed when it was bought. Both, because
+  // either alone misleads.
+  cost?: number; recognized?: number; reversed?: boolean
 }
 
 export default function MedicationTrackerPage() {
   const router = useRouter()
   const { toast } = useToast()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
+  const gh = useFmt()
 
   const [items, setItems] = useState<PoultryRawMaterialItem[]>([])
   const [purchases, setPurchases] = useState<PoultryRawMaterialPurchase[]>([])
@@ -91,7 +99,11 @@ export default function MedicationTrackerPage() {
   const allLedger = useMemo<LedgerRow[]>(() => {
     const rows: LedgerRow[] = []
     for (const m of meds) {
-      const events = [
+      const events: Array<{
+        date: string; type: "Purchase" | "Usage"; source: string
+        inQty: number; outQty: number; key: string
+        cost?: number; recognized?: number; reversed?: boolean
+      }> = [
         ...purchases.filter((p) => p.poultryRawMaterialItemId === m.poultryRawMaterialItemId).map((p) => ({
           date: p.purchaseDate, type: "Purchase" as const,
           source: p.supplierName ? `Purchase — ${p.supplierName}` : "Purchase",
@@ -101,12 +113,13 @@ export default function MedicationTrackerPage() {
           date: u.usedDate, type: "Usage" as const,
           source: u.varianceReason ? `Production usage — ${u.varianceReason}` : "Production usage",
           inQty: 0, outQty: Math.abs(u.quantityUsed), key: `u${u.poultryRawMaterialUsageId}`,
+          cost: u.operationalCost, recognized: u.recognizedCost, reversed: u.isReversed,
         })),
       ].sort((a, b) => (a.date || "").localeCompare(b.date || ""))
       let run = 0
       for (const e of events) {
         run += e.inQty - e.outQty
-        rows.push({ key: e.key, itemId: m.poultryRawMaterialItemId, medication: m.itemName, unit: m.unitOfMeasure ?? "", date: e.date, type: e.type, source: e.source, inQty: e.inQty, outQty: e.outQty, balance: run })
+        rows.push({ key: e.key, itemId: m.poultryRawMaterialItemId, medication: m.itemName, unit: m.unitOfMeasure ?? "", date: e.date, type: e.type, source: e.source, inQty: e.inQty, outQty: e.outQty, balance: run, cost: e.cost, recognized: e.recognized, reversed: e.reversed })
       }
     }
     return rows
@@ -180,6 +193,11 @@ export default function MedicationTrackerPage() {
   const byMedInTotal = useMemo(() => sortedByMed.reduce((s, b) => s + (Number(b.totalIn) || 0), 0), [sortedByMed])
   const byMedOutTotal = useMemo(() => sortedByMed.reduce((s, b) => s + (Number(b.totalOut) || 0), 0), [sortedByMed])
   const byMedLeftTotal = useMemo(() => sortedByMed.reduce((s, b) => s + (Number(b.left) || 0), 0), [sortedByMed])
+
+  const ledgerRecognizedTotal = useMemo(
+    () => sortedLedger.reduce((s, r) => s + (r.reversed ? 0 : Number(r.recognized) || 0), 0),
+    [sortedLedger]
+  )
 
   const totalPages = Math.max(1, Math.ceil(sortedLedger.length / pageSize))
   const safePage = Math.min(page, totalPages)
@@ -329,6 +347,7 @@ export default function MedicationTrackerPage() {
                       <SortableHeader label="In" sortKey="in" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
                       <SortableHeader label="Out" sortKey="out" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
                       <SortableHeader label="Balance" sortKey="balance" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                      <SortableHeader label="Cost recognised" sortKey="recognized" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
                       </>) })()}
                     </TableRow></TableHeader>
                     <TableBody>
@@ -341,6 +360,28 @@ export default function MedicationTrackerPage() {
                           <TableCell className="text-right text-emerald-700 tabular-nums">{r.inQty > 0 ? fmt(r.inQty) : "—"}</TableCell>
                           <TableCell className="text-right text-red-600 tabular-nums">{r.outQty > 0 ? fmt(r.outQty) : "—"}</TableCell>
                           <TableCell className="text-right font-medium tabular-nums">{fmt(r.balance)} {r.unit}</TableCell>
+                          {/* Read-only. On a farm that expenses medication when
+                              it buys it -- the default -- every row here reads
+                              zero, and the sub-line is what stops that being read
+                              as free medication. */}
+                          <TableCell className="text-right tabular-nums">
+                            {r.type !== "Usage" || r.cost == null ? (
+                              <span className="text-slate-300">—</span>
+                            ) : r.reversed ? (
+                              <span className="text-slate-400">Reversed</span>
+                            ) : (
+                              <span title={recognizedCostNote(r.recognized ?? 0, r.cost ?? 0)}>
+                                <span className={(r.recognized ?? 0) > 0 ? "font-medium text-amber-700" : "text-slate-500"}>
+                                  {gh(r.recognized ?? 0)}
+                                </span>
+                                <span className="block text-[11px] text-slate-500">
+                                  {(r.recognized ?? 0) > 0
+                                    ? `of ${gh(r.cost ?? 0)} stock cost`
+                                    : `${gh(r.cost ?? 0)} expensed at purchase`}
+                                </span>
+                              </span>
+                            )}
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -360,6 +401,9 @@ export default function MedicationTrackerPage() {
                           {ledgerMixedUnits ? <span className="font-normal text-slate-400">—</span> : fmt(ledgerOutTotal)}
                         </TableCell>
                         <TableCell />
+                        <TableCell className="text-right font-bold text-amber-700 tabular-nums">
+                          {gh(ledgerRecognizedTotal)}
+                        </TableCell>
                       </TableRow>
                     </TableFooter>
                   </Table></div>

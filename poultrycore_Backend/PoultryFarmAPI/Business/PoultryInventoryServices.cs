@@ -58,6 +58,12 @@ namespace PoultryFarmAPIWeb.Business
             IsLowStock = HasColumn(r, "IsLowStock") && !r.IsDBNull(r.GetOrdinal("IsLowStock")) && r.GetBoolean(r.GetOrdinal("IsLowStock")),
             Notes = r.IsDBNull(r.GetOrdinal("Notes")) ? null : r.GetString(r.GetOrdinal("Notes")),
             UsageMethod = HasColumn(r, "UsageMethod") && !r.IsDBNull(r.GetOrdinal("UsageMethod")) ? r.GetString(r.GetOrdinal("UsageMethod")) : "FIFO",
+            // 261. Guarded on HasColumn like the two above, so this mapper still
+            // works against a reader from an older SP during a rolling deploy.
+            CostRecognitionOverride = HasColumn(r, "CostRecognitionOverride") && !r.IsDBNull(r.GetOrdinal("CostRecognitionOverride")) ? r.GetString(r.GetOrdinal("CostRecognitionOverride")) : null,
+            EffectiveCostRecognitionMethod = HasColumn(r, "EffectiveCostRecognitionMethod") && !r.IsDBNull(r.GetOrdinal("EffectiveCostRecognitionMethod")) ? r.GetString(r.GetOrdinal("EffectiveCostRecognitionMethod")) : null,
+            CostRecognitionSource = HasColumn(r, "CostRecognitionSource") && !r.IsDBNull(r.GetOrdinal("CostRecognitionSource")) ? r.GetString(r.GetOrdinal("CostRecognitionSource")) : null,
+            CostRecognitionCategoryGroup = HasColumn(r, "CostRecognitionCategoryGroup") && !r.IsDBNull(r.GetOrdinal("CostRecognitionCategoryGroup")) ? r.GetString(r.GetOrdinal("CostRecognitionCategoryGroup")) : null,
             CreatedAt = r.GetDateTime(r.GetOrdinal("CreatedAt")),
             UpdatedAt = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
         };
@@ -90,7 +96,7 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<int> InsertAsync(PoultryRawMaterialItemModel m)
         {
             using var conn = new NpgsqlConnection(_cs);
-            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryrawmaterialitem_insert(p_farmid => @FarmId::text, p_itemname => @ItemName::text, p_category => @Category::text, p_unitofmeasure => @UnitOfMeasure::text, p_minimumstockalert => @MinimumStockAlert::numeric, p_notes => @Notes::text, p_usagemethod => @UsageMethod::text, p_purchaseunitofmeasure => @PurchaseUnitOfMeasure::text)", conn);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryrawmaterialitem_insert(p_farmid => @FarmId::text, p_itemname => @ItemName::text, p_category => @Category::text, p_unitofmeasure => @UnitOfMeasure::text, p_minimumstockalert => @MinimumStockAlert::numeric, p_notes => @Notes::text, p_usagemethod => @UsageMethod::text, p_purchaseunitofmeasure => @PurchaseUnitOfMeasure::text, p_costrecognitionoverride => @CostRecognitionOverride::text)", conn);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@ItemName", m.ItemName);
             cmd.Parameters.AddWithValue("@Category", m.Category);
@@ -99,6 +105,10 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@UsageMethod", string.IsNullOrWhiteSpace(m.UsageMethod) ? "FIFO" : m.UsageMethod);
             cmd.Parameters.AddWithValue("@PurchaseUnitOfMeasure", (object?)m.PurchaseUnitOfMeasure ?? DBNull.Value);
+            // "USE_DEFAULT" and "" both normalise to NULL, so the form can send
+            // its radio value verbatim without inventing a stored method.
+            cmd.Parameters.AddWithValue("@CostRecognitionOverride",
+                (object?)CostRecognitionMethod.NormaliseOverride(m.CostRecognitionOverride) ?? DBNull.Value);
             await conn.OpenAsync();
             return Convert.ToInt32(await cmd.ExecuteScalarAsync());
         }
@@ -106,7 +116,7 @@ namespace PoultryFarmAPIWeb.Business
         public async Task UpdateAsync(PoultryRawMaterialItemModel m)
         {
             using var conn = new NpgsqlConnection(_cs);
-            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryrawmaterialitem_update(p_poultryrawmaterialitemid => @PoultryRawMaterialItemId::int, p_farmid => @FarmId::text, p_itemname => @ItemName::text, p_category => @Category::text, p_unitofmeasure => @UnitOfMeasure::text, p_minimumstockalert => @MinimumStockAlert::numeric, p_isactive => @IsActive::boolean, p_notes => @Notes::text, p_usagemethod => @UsageMethod::text, p_purchaseunitofmeasure => @PurchaseUnitOfMeasure::text)", conn);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultryrawmaterialitem_update(p_poultryrawmaterialitemid => @PoultryRawMaterialItemId::int, p_farmid => @FarmId::text, p_itemname => @ItemName::text, p_category => @Category::text, p_unitofmeasure => @UnitOfMeasure::text, p_minimumstockalert => @MinimumStockAlert::numeric, p_isactive => @IsActive::boolean, p_notes => @Notes::text, p_usagemethod => @UsageMethod::text, p_purchaseunitofmeasure => @PurchaseUnitOfMeasure::text, p_costrecognitionoverride => @CostRecognitionOverride::text, p_setcostrecognitionoverride => @SetCostRecognitionOverride::boolean)", conn);
             cmd.Parameters.AddWithValue("@PoultryRawMaterialItemId", m.PoultryRawMaterialItemId);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@ItemName", m.ItemName);
@@ -117,6 +127,12 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@UsageMethod", string.IsNullOrWhiteSpace(m.UsageMethod) ? "FIFO" : m.UsageMethod);
             cmd.Parameters.AddWithValue("@PurchaseUnitOfMeasure", (object?)m.PurchaseUnitOfMeasure ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@CostRecognitionOverride",
+                (object?)CostRecognitionMethod.NormaliseOverride(m.CostRecognitionOverride) ?? DBNull.Value);
+            // Null means "follow the farm", so it cannot also mean "unchanged".
+            // This flag is what separates the two, and false is the safe answer:
+            // a caller that does not know about overrides leaves them alone.
+            cmd.Parameters.AddWithValue("@SetCostRecognitionOverride", m.SetCostRecognitionOverride);
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
         }
@@ -263,6 +279,14 @@ namespace PoultryFarmAPIWeb.Business
             SourceFeedProductionBatchId = HasColumn(r, "SourceFeedProductionBatchId") && !r.IsDBNull(r.GetOrdinal("SourceFeedProductionBatchId")) ? r.GetInt32(r.GetOrdinal("SourceFeedProductionBatchId")) : (int?)null,
             FeedProductionBatchNumber = HasColumn(r, "FeedProductionBatchNumber") && !r.IsDBNull(r.GetOrdinal("FeedProductionBatchNumber")) ? r.GetString(r.GetOrdinal("FeedProductionBatchNumber")) : null,
             FeedProductionRole = HasColumn(r, "FeedProductionRole") && !r.IsDBNull(r.GetOrdinal("FeedProductionRole")) ? r.GetString(r.GetOrdinal("FeedProductionRole")) : null,
+            // 268. Guarded like the columns above it: a database behind on the
+            // cost-recognition work reports the lot with nothing deferred, which
+            // is exactly what it means there.
+            CostRecognitionMethod = HasColumn(r, "CostRecognitionMethod") && !r.IsDBNull(r.GetOrdinal("CostRecognitionMethod")) ? r.GetString(r.GetOrdinal("CostRecognitionMethod")) : null,
+            DeferredTotalCost = HasColumn(r, "DeferredTotalCost") && !r.IsDBNull(r.GetOrdinal("DeferredTotalCost")) ? r.GetDecimal(r.GetOrdinal("DeferredTotalCost")) : 0m,
+            DeferredRemainingCost = HasColumn(r, "DeferredRemainingCost") && !r.IsDBNull(r.GetOrdinal("DeferredRemainingCost")) ? r.GetDecimal(r.GetOrdinal("DeferredRemainingCost")) : 0m,
+            DeferredUnitCost = HasColumn(r, "DeferredUnitCost") && !r.IsDBNull(r.GetOrdinal("DeferredUnitCost")) ? r.GetDecimal(r.GetOrdinal("DeferredUnitCost")) : (decimal?)null,
+            CostRecognitionStatus = HasColumn(r, "CostRecognitionStatus") && !r.IsDBNull(r.GetOrdinal("CostRecognitionStatus")) ? r.GetString(r.GetOrdinal("CostRecognitionStatus")) : null,
             CreatedBy = r.IsDBNull(r.GetOrdinal("CreatedBy")) ? null : r.GetString(r.GetOrdinal("CreatedBy")),
             CreatedAt = r.GetDateTime(r.GetOrdinal("CreatedAt")),
             UpdatedAt = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
@@ -473,6 +497,14 @@ namespace PoultryFarmAPIWeb.Business
                     PoultryFeedProductionBatchId = HasColumn(r, "PoultryFeedProductionBatchId") && !r.IsDBNull(r.GetOrdinal("PoultryFeedProductionBatchId")) ? r.GetInt32(r.GetOrdinal("PoultryFeedProductionBatchId")) : (int?)null,
                     FeedProductionBatchNumber = HasColumn(r, "FeedProductionBatchNumber") && !r.IsDBNull(r.GetOrdinal("FeedProductionBatchNumber")) ? r.GetString(r.GetOrdinal("FeedProductionBatchNumber")) : null,
                     FeedProductionFeedName = HasColumn(r, "FeedProductionFeedName") && !r.IsDBNull(r.GetOrdinal("FeedProductionFeedName")) ? r.GetString(r.GetOrdinal("FeedProductionFeedName")) : null,
+                    ProductionRecordId = HasColumn(r, "ProductionRecordId") && !r.IsDBNull(r.GetOrdinal("ProductionRecordId")) ? r.GetInt32(r.GetOrdinal("ProductionRecordId")) : (int?)null,
+                    IsReversed = HasColumn(r, "IsReversed") && !r.IsDBNull(r.GetOrdinal("IsReversed")) && r.GetBoolean(r.GetOrdinal("IsReversed")),
+                    ReversedAt = HasColumn(r, "ReversedAt") && !r.IsDBNull(r.GetOrdinal("ReversedAt")) ? r.GetDateTime(r.GetOrdinal("ReversedAt")) : (DateTime?)null,
+                    // 268. Two costs, not one. See the model for why both.
+                    OperationalCost = HasColumn(r, "OperationalCost") && !r.IsDBNull(r.GetOrdinal("OperationalCost")) ? r.GetDecimal(r.GetOrdinal("OperationalCost")) : 0m,
+                    RecognizedCost = HasColumn(r, "RecognizedCost") && !r.IsDBNull(r.GetOrdinal("RecognizedCost")) ? r.GetDecimal(r.GetOrdinal("RecognizedCost")) : 0m,
+                    CostLayerCount = HasColumn(r, "CostLayerCount") && !r.IsDBNull(r.GetOrdinal("CostLayerCount")) ? r.GetInt32(r.GetOrdinal("CostLayerCount")) : 0,
+                    CostRecognitionStatus = HasColumn(r, "CostRecognitionStatus") && !r.IsDBNull(r.GetOrdinal("CostRecognitionStatus")) ? r.GetString(r.GetOrdinal("CostRecognitionStatus")) : null,
                     CreatedBy = r.IsDBNull(r.GetOrdinal("CreatedBy")) ? null : r.GetString(r.GetOrdinal("CreatedBy")),
                     CreatedAt = r.GetDateTime(r.GetOrdinal("CreatedAt")),
                 });

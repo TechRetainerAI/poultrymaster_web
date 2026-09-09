@@ -12,6 +12,19 @@ import { NumberInput } from "@/components/ui/number-input"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  EXPENSE_WHEN_PURCHASED, EXPENSE_WHEN_CONSUMED,
+  effectiveCostRecognition, methodLabel, methodShortLabel, METHOD_HELP,
+  CHANGE_WARNING, DEFERRED_ACTIVE_NOTE, costRecognitionGroup,
+  recognitionTone, RECOGNITION_TONE_CLASS,
+  DEFERRED_INVENTORY_TOOLTIP, EXPENSED_AT_PURCHASE_TOOLTIP, OPERATIONAL_VALUE_TOOLTIP,
+  type CostRecognitionMethod, type CostRecognitionOverride,
+  type FarmCostRecognitionDefaults,
+} from "@/lib/poultry/cost-recognition"
+import {
+  getPoultryFinancialSettings, getPoultryInventoryValuation,
+  type PoultryInventoryValuation,
+} from "@/lib/api/poultry-inventory"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
@@ -48,8 +61,17 @@ const categoryLabel = (c: string) => CATEGORY_LABELS[c] ?? c
 const PAYMENT_METHODS = ["Cash", "MoMo", "Bank", "Credit"]
 const UNITS = RAW_MATERIAL_UNITS
 
-type ItemForm = { itemName: string; category: string; unitOfMeasure: string; purchaseUnitOfMeasure: string; minimumStockAlert: number; isActive: boolean; notes: string | null; usageMethod: RawMaterialUsageMethod }
-const EMPTY_ITEM: ItemForm = { itemName: "", category: "FeedIngredient", unitOfMeasure: "", purchaseUnitOfMeasure: "", minimumStockAlert: 0, isActive: true, notes: null, usageMethod: "FIFO" }
+type ItemForm = { itemName: string; category: string; unitOfMeasure: string; purchaseUnitOfMeasure: string; minimumStockAlert: number; isActive: boolean; notes: string | null; usageMethod: RawMaterialUsageMethod; costRecognitionOverride: CostRecognitionOverride }
+const EMPTY_ITEM: ItemForm = { itemName: "", category: "FeedIngredient", unitOfMeasure: "", purchaseUnitOfMeasure: "", minimumStockAlert: 0, isActive: true, notes: null, usageMethod: "FIFO", costRecognitionOverride: null }
+
+// The three radio values on the item form. "Use farm default" is the ABSENCE of
+// an override, not a third method -- storing it as one would give the same fact
+// two spellings and let them drift.
+const OVERRIDE_CHOICES: { value: CostRecognitionOverride; label: string }[] = [
+  { value: null, label: "Use farm default" },
+  { value: EXPENSE_WHEN_PURCHASED, label: methodLabel(EXPENSE_WHEN_PURCHASED) },
+  { value: EXPENSE_WHEN_CONSUMED, label: methodLabel(EXPENSE_WHEN_CONSUMED) },
+]
 
 // Categories whose stock is actually drawn from a specific batch when recorded
 // as "used" (production-records feed/medication pickers). Only these show the
@@ -94,6 +116,10 @@ function PoultryRawMaterialsPageInner() {
 
   const [items, setItems] = useState<PoultryRawMaterialItem[]>([])
   const [purchases, setPurchases] = useState<PoultryRawMaterialPurchase[]>([])
+  // 267/268. Read-only: what the stock cost, and what of that still has to reach
+  // Profit & Loss. Never blocks the page -- an older API simply leaves it null
+  // and the value columns fall back to a dash.
+  const [valuation, setValuation] = useState<PoultryInventoryValuation | null>(null)
   const [usage, setUsage] = useState<PoultryRawMaterialUsage[]>([])
   const [usageLoaded, setUsageLoaded] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -182,12 +208,24 @@ function PoultryRawMaterialsPageInner() {
   async function load() {
     setLoading(true)
     try {
-      const [is, ps, cas] = await Promise.all([listPoultryRawMaterialItems(), listPoultryRawMaterialPurchases(), listPoultryCashAccounts().catch(() => [])])
+      const [is, ps, cas, val] = await Promise.all([
+        listPoultryRawMaterialItems(), listPoultryRawMaterialPurchases(),
+        listPoultryCashAccounts().catch(() => []),
+        getPoultryInventoryValuation().catch(() => null),
+      ])
       setItems(is); setPurchases(ps); setCashAccounts((cas as PoultryCashAccount[]).filter((a) => a.isActive))
+      setValuation(val)
     } catch (e: any) {
       toast({ title: "Could not load raw materials", description: e?.message ?? String(e), variant: "destructive" })
     } finally { setLoading(false) }
   }
+
+  // Valuation by item, so a row can show its two values without a second call.
+  const valuationByItem = useMemo(() => {
+    const m = new Map<number, NonNullable<typeof valuation>["items"][number]>()
+    for (const v of valuation?.items ?? []) m.set(v.poultryRawMaterialItemId, v)
+    return m
+  }, [valuation])
 
   // The URL is the source of truth for which tab is showing; an unknown or
   // missing ?tab= falls back to Items rather than rendering an empty panel.
@@ -334,20 +372,64 @@ function PoultryRawMaterialsPageInner() {
   // already has purchases/usage recorded changes which batch future usage draws
   // from, without touching anything already recorded.
   const [originalUsageMethod, setOriginalUsageMethod] = useState<RawMaterialUsageMethod | null>(null)
-  function openNewItem() { setEditItemId(null); setItemForm(EMPTY_ITEM); setOriginalUsageMethod(null); setItemOpen(true) }
+  // undefined = "new item, nothing to compare"; null = "was following the farm".
+  // The two have to stay distinguishable or a new item would look like a change.
+  const [originalOverride, setOriginalOverride] = useState<CostRecognitionOverride | undefined>(undefined)
+  function openNewItem() { setEditItemId(null); setItemForm(EMPTY_ITEM); setOriginalUsageMethod(null); setOriginalOverride(undefined); setItemOpen(true) }
   function openEditItem(i: PoultryRawMaterialItem) {
     setEditItemId(i.poultryRawMaterialItemId)
     const usageMethod = i.usageMethod ?? "FIFO"
-    setItemForm({ itemName: i.itemName, category: i.category, unitOfMeasure: i.unitOfMeasure ?? "", purchaseUnitOfMeasure: i.purchaseUnitOfMeasure ?? "", minimumStockAlert: i.minimumStockAlert, isActive: i.isActive, notes: i.notes ?? null, usageMethod })
+    const override = i.costRecognitionOverride ?? null
+    setItemForm({ itemName: i.itemName, category: i.category, unitOfMeasure: i.unitOfMeasure ?? "", purchaseUnitOfMeasure: i.purchaseUnitOfMeasure ?? "", minimumStockAlert: i.minimumStockAlert, isActive: i.isActive, notes: i.notes ?? null, usageMethod, costRecognitionOverride: override })
     setOriginalUsageMethod(usageMethod)
+    setOriginalOverride(override)
     setItemOpen(true)
   }
   const usageMethodChanged = editItemId != null && originalUsageMethod != null && itemForm.usageMethod !== originalUsageMethod
+
+  // The farm's own settings, so the form can say what "use farm default"
+  // actually resolves to for THIS item's category, and what an override would
+  // be overriding. Never used to decide anything -- the server resolves and
+  // stamps the real answer on each purchase.
+  const [farmDefaults, setFarmDefaults] = useState<FarmCostRecognitionDefaults>({
+    feed: EXPENSE_WHEN_PURCHASED, medication: EXPENSE_WHEN_PURCHASED,
+  })
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const s = await getPoultryFinancialSettings()
+        if (!cancelled) setFarmDefaults({
+          feed: s.feedCostRecognitionMethod,
+          medication: s.medicationCostRecognitionMethod,
+        })
+      } catch {
+        // A farm that cannot read its settings still gets a working item form;
+        // the preview just shows today's behaviour, which is what an
+        // unconfigured farm has anyway.
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  const itemCategoryGroup = costRecognitionGroup(itemForm.category)
+  const itemEffective = effectiveCostRecognition(
+    itemForm.costRecognitionOverride, itemForm.category, farmDefaults)
+  const overrideChanged =
+    editItemId != null && originalOverride !== undefined
+    && itemForm.costRecognitionOverride !== originalOverride
   async function saveItem() {
     if (!itemForm.itemName.trim()) { toast({ title: "Item name is required", variant: "destructive" }); return }
     setSavingItem(true)
     // Blank purchase unit → null so the backend defaults it to the production unit.
-    const itemPayload = { ...itemForm, purchaseUnitOfMeasure: itemForm.purchaseUnitOfMeasure.trim() || null }
+    const itemPayload = {
+      ...itemForm,
+      purchaseUnitOfMeasure: itemForm.purchaseUnitOfMeasure.trim() || null,
+      // Null is a real value here ("follow the farm"), so the server cannot
+      // tell it from "unchanged" without being told. This form always knows its
+      // own mind, so it always says yes.
+      setCostRecognitionOverride: true,
+    }
     try {
       if (editItemId) await updatePoultryRawMaterialItem(editItemId, itemPayload)
       else await createPoultryRawMaterialItem(itemPayload)
@@ -485,6 +567,63 @@ function PoultryRawMaterialsPageInner() {
                     <h2 className="text-base font-semibold text-slate-900">Inventory Items</h2>
                     <p className="text-xs text-slate-500">Feed, packaging, medication and other stock-tracked supplies.</p>
                   </div>
+
+                  {/* TWO VALUES, NOT ONE. Stock value is what the stock cost --
+                      what it is worth, whichever way it was recognised. Awaiting
+                      Profit & Loss is only the part still to be expensed, and is
+                      zero on a farm that expenses at purchase. Showing the second
+                      alone would report a full store as worthless, which is why
+                      it is never the headline. */}
+                  {valuation && (
+                    <div className="mb-3 grid gap-2 sm:grid-cols-3">
+                      <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                        <div className="text-[11px] uppercase tracking-wide text-slate-500" title={OPERATIONAL_VALUE_TOOLTIP}>Stock value</div>
+                        <div className="text-base font-semibold text-slate-900">{gh(valuation.summary.operationalValue)}</div>
+                        <div className="text-[11px] text-slate-500">{valuation.summary.itemsWithStock} item(s) in stock</div>
+                      </div>
+                      <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+                        <div className="text-[11px] uppercase tracking-wide text-amber-700" title={DEFERRED_INVENTORY_TOOLTIP}>Awaiting Profit &amp; Loss</div>
+                        <div className="text-base font-semibold text-amber-900">{gh(valuation.summary.deferredValue)}</div>
+                        <div className="text-[11px] text-amber-700">
+                          {valuation.summary.itemsDeferring > 0
+                            ? `${valuation.summary.itemsDeferring} item(s) expense on use`
+                            : "Every item is expensed at purchase"}
+                        </div>
+                      </div>
+                      <div className="rounded-md border border-slate-200 bg-white px-3 py-2">
+                        <div className="text-[11px] uppercase tracking-wide text-slate-500">Cost layers</div>
+                        <div className="text-base font-semibold text-slate-900">{valuation.summary.openLots.toLocaleString()}</div>
+                        <div className="text-[11px] text-slate-500">{valuation.summary.deferredLots.toLocaleString()} still deferring</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* The audit is silent when healthy, so anything here is worth
+                      reading. It is reported, never silently repaired: the drift
+                      has several causes with different right answers. */}
+                  {valuation && valuation.auditFindings.length > 0 && (
+                    <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2">
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                        <div className="text-xs text-amber-900">
+                          <div className="font-medium">
+                            {valuation.auditFindings.length} stock costing issue(s) found
+                          </div>
+                          <ul className="mt-1 space-y-0.5">
+                            {valuation.auditFindings.slice(0, 5).map((f, idx) => (
+                              <li key={idx}>
+                                <span className="font-medium">{f.severity}</span>
+                                {f.itemName ? ` · ${f.itemName}` : ""} — {f.detail}
+                              </li>
+                            ))}
+                          </ul>
+                          {valuation.auditFindings.length > 5 && (
+                            <div className="mt-1">…and {valuation.auditFindings.length - 5} more.</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   <div className="mb-3"><ListFilters search={search} setSearch={setSearch} searchOnly searchPlaceholder="Search item or category" extras={<>
                     <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                       <SelectTrigger className="w-full sm:w-[160px]"><SelectValue placeholder="All categories" /></SelectTrigger>
@@ -511,12 +650,14 @@ function PoultryRawMaterialsPageInner() {
                       <SortableHeader label="In stock" sortKey="currentQuantity" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
                       <SortableHeader label="Min alert" sortKey="minimumStockAlert" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
                       <SortableHeader label="Status" sortKey="isActive" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                      <SortableHeader label="Cost" sortKey="effectiveCostRecognitionMethod" currentSort={cs} currentDirection={cd} onSort={onSort} />
                       </>) })()}
+                      <TableHead className="text-right">Stock value</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow></TableHeader>
                     <TableBody>
                       {filteredItems.length === 0 ? (
-                        <TableRow><TableCell colSpan={8} className="text-center text-slate-500 py-6">No items yet.</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={10} className="text-center text-slate-500 py-6">No items yet.</TableCell></TableRow>
                       ) : pgItems.pageItems.map((i) => (
                         <TableRow key={i.poultryRawMaterialItemId}>
                           <TableCell className="font-medium">{i.itemName}</TableCell>
@@ -529,6 +670,46 @@ function PoultryRawMaterialsPageInner() {
                             {!i.isActive ? <Badge variant="secondary">Inactive</Badge>
                               : i.isLowStock ? <Badge className="bg-amber-100 text-amber-700">Low stock</Badge>
                               : <Badge className="bg-green-100 text-green-700">OK</Badge>}
+                          </TableCell>
+                          {/* Which treatment, and whether it came from this item
+                              or the farm. The distinction is the whole reason
+                              overrides exist, so it is on the row rather than
+                              two clicks away in the edit dialog. */}
+                          <TableCell>
+                            <span className="whitespace-nowrap text-sm">
+                              {methodShortLabel(i.effectiveCostRecognitionMethod)}
+                            </span>
+                            {i.costRecognitionSource === "ItemOverride" && (
+                              <Badge variant="outline" className="ml-1.5 text-[10px] font-normal border-emerald-300 text-emerald-700">
+                                Override
+                              </Badge>
+                            )}
+                          </TableCell>
+                          {/* Physical stock is already two columns to the left.
+                              What is added here is money: what the stock cost,
+                              and -- only where it applies -- what of that has
+                              still to be expensed. An item expensed at purchase
+                              says so in words rather than showing a deferred
+                              value of zero, which reads as "worth nothing". */}
+                          <TableCell className="text-right whitespace-nowrap">
+                            {(() => {
+                              const v = valuationByItem.get(i.poultryRawMaterialItemId)
+                              if (!v) return <span className="text-slate-400">—</span>
+                              return (
+                                <>
+                                  <div className="font-medium" title={OPERATIONAL_VALUE_TOOLTIP}>{gh(v.operationalValue)}</div>
+                                  {v.deferredValue > 0 ? (
+                                    <div className="text-[11px] text-amber-700" title={DEFERRED_INVENTORY_TOOLTIP}>
+                                      {gh(v.deferredValue)} awaiting P&amp;L
+                                    </div>
+                                  ) : (
+                                    <div className="text-[11px] text-slate-500" title={EXPENSED_AT_PURCHASE_TOOLTIP}>
+                                      Already expensed
+                                    </div>
+                                  )}
+                                </>
+                              )
+                            })()}
                           </TableCell>
                           <TableCell className="text-right">
                             <Button variant="ghost" size="sm" onClick={() => openEditItem(i)}><Pencil className="w-4 h-4" /></Button>
@@ -544,7 +725,7 @@ function PoultryRawMaterialsPageInner() {
                       : pgItems.pageItems.map((i) => (
                         <FieldCard key={i.poultryRawMaterialItemId} title={i.itemName}
                           badge={!i.isActive ? <Badge variant="secondary">Inactive</Badge> : i.isLowStock ? <Badge className="bg-amber-100 text-amber-700">Low stock</Badge> : <Badge className="bg-green-100 text-green-700">OK</Badge>}
-                          fields={[["Category", categoryLabel(i.category)], ["Purchase Unit", i.purchaseUnitOfMeasure ?? "—"], ["Production Unit", i.unitOfMeasure ?? "—"], ["In stock", i.currentQuantity.toLocaleString()], ["Min alert", i.minimumStockAlert.toLocaleString()]]}
+                          fields={[["Category", categoryLabel(i.category)], ["Purchase Unit", i.purchaseUnitOfMeasure ?? "—"], ["Production Unit", i.unitOfMeasure ?? "—"], ["In stock", i.currentQuantity.toLocaleString()], ["Min alert", i.minimumStockAlert.toLocaleString()], ["Cost recognised", `${methodShortLabel(i.effectiveCostRecognitionMethod)}${i.costRecognitionSource === "ItemOverride" ? " (override)" : ""}`]]}
                           actions={<>
                             <Button variant="ghost" size="sm" onClick={() => openEditItem(i)}><Pencil className="w-4 h-4" /></Button>
                             <Button variant="ghost" size="sm" onClick={() => setDeleteItemTarget(i)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
@@ -590,11 +771,12 @@ function PoultryRawMaterialsPageInner() {
                       <SortableHeader label="Paid" sortKey="amountPaid" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
                       <SortableHeader label="Balance" sortKey="balance" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
                       </>) })()}
+                      <TableHead className="text-right">Cost treatment</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow></TableHeader>
                     <TableBody>
                       {filteredPurchases.length === 0 ? (
-                        <TableRow><TableCell colSpan={10} className="text-center text-slate-500 py-6">{focusPurchaseId !== null ? `Purchase #${focusPurchaseId} is not in this list.` : "No purchases yet."}</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={11} className="text-center text-slate-500 py-6">{focusPurchaseId !== null ? `Purchase #${focusPurchaseId} is not in this list.` : "No purchases yet."}</TableCell></TableRow>
                       ) : pgPurchases.pageItems.map((p) => (
                         <TableRow key={p.poultryRawMaterialPurchaseId}>
                           <TableCell>{(p.purchaseDate || "").split("T")[0]}</TableCell>
@@ -614,6 +796,27 @@ function PoultryRawMaterialsPageInner() {
                           <TableCell className="text-right">{gh(p.totalCost)}</TableCell>
                           <TableCell className="text-right">{gh(p.amountPaid)}</TableCell>
                           <TableCell className="text-right">{p.balance > 0 ? <span className="text-amber-600 font-medium">{gh(p.balance)}</span> : gh(0)}</TableCell>
+                          {/* The lot's OWN snapshot, not today's farm setting:
+                              changing the setting never restates a purchase
+                              already recorded. The wording comes from the server
+                              so there is one vocabulary for this everywhere. */}
+                          <TableCell className="text-right whitespace-nowrap">
+                            {p.costRecognitionStatus ? (
+                              <>
+                                <Badge
+                                  variant="outline"
+                                  className={cn("text-[10px] font-normal", RECOGNITION_TONE_CLASS[recognitionTone(p.deferredRemainingCost)])}
+                                >
+                                  {p.costRecognitionStatus}
+                                </Badge>
+                                {(p.deferredRemainingCost ?? 0) > 0 && (
+                                  <div className="mt-0.5 text-[11px] text-amber-700" title={DEFERRED_INVENTORY_TOOLTIP}>
+                                    {gh(p.deferredRemainingCost ?? 0)} awaiting P&amp;L
+                                  </div>
+                                )}
+                              </>
+                            ) : <span className="text-slate-400">—</span>}
+                          </TableCell>
                           <TableCell className="text-right">
                             {/* A feed-production lot belongs to its batch: editing or
                                 deleting it here would desync the batch's costing and
@@ -799,6 +1002,68 @@ function PoultryRawMaterialsPageInner() {
               </FormField>
             )}
             <FormField label="Notes"><Textarea rows={3} placeholder="Optional notes about this item" value={itemForm.notes ?? ""} onChange={(e) => setItemForm({ ...itemForm, notes: e.target.value || null })} /></FormField>
+          </FormSection>
+
+          {/* Financial treatment. Deliberately its own section rather than
+              another field in "Item details": when a cost hits Profit & Loss is
+              a different kind of decision from what unit the thing is measured
+              in, and burying it among the units invites people to skip it. */}
+          <FormSection title="Financial treatment" color="emerald">
+            <FormField label="Cost recognition" full>
+              <div className="flex flex-col gap-2">
+                {OVERRIDE_CHOICES.map((o) => {
+                  const selected = itemForm.costRecognitionOverride === o.value
+                  return (
+                    <label
+                      key={o.label}
+                      className={`flex items-start gap-2.5 rounded-md border px-3 py-2 cursor-pointer transition-colors ${
+                        selected ? "border-emerald-600 bg-emerald-50" : "border-slate-200 hover:border-slate-300"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="costRecognitionOverride"
+                        checked={selected}
+                        onChange={() => setItemForm({ ...itemForm, costRecognitionOverride: o.value })}
+                        className="mt-0.5 accent-emerald-600"
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-semibold text-slate-800">{o.label}</span>
+                        <span className="block text-xs text-slate-500">
+                          {o.value === null
+                            ? (itemCategoryGroup === "Unconfigured"
+                                // Being honest about this matters: otherwise a
+                                // user turns the farm setting on, sees this item
+                                // unchanged, and concludes the feature is broken.
+                                ? `${categoryLabel(itemForm.category)} does not follow either farm setting, so this stays on ${methodLabel(EXPENSE_WHEN_PURCHASED).toLowerCase()}.`
+                                : `The farm setting for ${itemCategoryGroup === "Feed" ? "feed & raw materials" : "medication"} — currently ${methodLabel(itemEffective.farmDefault).toLowerCase()}.`)
+                            : METHOD_HELP[o.value]}
+                        </span>
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+
+              <p className="text-xs text-slate-600 mt-2">
+                Effective for this item:{" "}
+                <strong>{methodLabel(itemEffective.method)}</strong>
+                {itemEffective.source === "ItemOverride" ? " (overriding the farm default)" : " (from the farm default)"}
+              </p>
+
+              {overrideChanged && (
+                <div className="mt-2 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-amber-800">{CHANGE_WARNING}</p>
+                </div>
+              )}
+              {itemEffective.method === EXPENSE_WHEN_CONSUMED && (
+                <div className="mt-2 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-amber-800">{DEFERRED_ACTIVE_NOTE}</p>
+                </div>
+              )}
+            </FormField>
           </FormSection>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setItemOpen(false)}>Cancel</Button>

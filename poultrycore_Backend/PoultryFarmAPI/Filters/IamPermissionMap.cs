@@ -93,6 +93,12 @@ namespace PoultryFarmAPIWeb.Filters
             ["poultry/owner-money"] = "poultry.owner-money",
             ["poultry/loans"] = "poultry.loans",
             ["poultry/loan-payments"] = "poultry.loan-payments",
+            // 263. Its own resource rather than an action on office.settings,
+            // where farmproductionsettings sits: choosing when inventory costs
+            // reach Profit & Loss is a finance decision, and the people who
+            // maintain egg-pick times are not necessarily the people who should
+            // be making it. Seeded to whoever already holds poultry.reports.
+            ["poultry/financial-settings"] = "poultry.financial-settings",
             // Migration 223, mirroring 222 on the Water side. Its own resource
             // rather than an action on poultry.cash: *.cash has no `approve`, and
             // widening a shared resource would hand reconciliation rights to
@@ -113,6 +119,18 @@ namespace PoultryFarmAPIWeb.Filters
             ["poultry/raw-material-items"] = "poultry.raw-materials",
             ["poultry/raw-material-adjustments"] = "poultry.raw-materials",
             ["poultry/raw-material-purchases"] = "poultry.raw-materials",
+            // 268. A read-only view of the same stock, valued two ways. It is
+            // the raw materials it values, so it rides their resource rather
+            // than inventing a permission nobody has been granted.
+            ["poultry/inventory-valuation"] = "poultry.raw-materials",
+            // 273. Two resources, not one: recording a vehicle and charging the
+            // P&L for it are different decisions and belong to different people.
+            // The /reverse and /dispose segments resolve to approve and delete
+            // through ResolveAction with no extra wiring here.
+            ["poultry/assets"] = "poultry.assets",
+            ["poultry/asset-depreciation"] = "poultry.asset-depreciation",
+            // The structured P&L and its drilldowns are the reports resource.
+            ["poultry/profit-loss"] = "poultry.reports",
             ["poultry/raw-material-usage"] = "poultry.raw-materials",
             ["poultry/payments"] = "poultry.payments",
             ["poultry/products"] = "poultry.products",
@@ -183,6 +201,18 @@ namespace PoultryFarmAPIWeb.Filters
             ["water/owner-money"] = "water.owner-money",
             ["water/loans"] = "water.loans",
             ["water/loan-payments"] = "water.loan-payments",
+            // 276. Its own resource rather than an action on office.settings,
+            // where water/company and water/farm-settings sit: choosing when
+            // inventory costs reach Profit & Loss is a finance decision, and the
+            // people who maintain machine allocation are not necessarily the
+            // people who should be making it.
+            ["water/financial-settings"] = "water.financial-settings",
+            // 286. Two resources, not one: recording a delivery truck and
+            // charging the P&L for it are different decisions and belong to
+            // different people. The /reverse and /dispose segments resolve to
+            // approve and delete through ResolveAction with no extra wiring here.
+            ["water/assets"] = "water.assets",
+            ["water/asset-depreciation"] = "water.asset-depreciation",
             // Migration 222. Its own resource rather than an action on
             // water.cash: *.cash has no `approve`, and widening a shared
             // resource would hand reconciliation rights to everyone who can

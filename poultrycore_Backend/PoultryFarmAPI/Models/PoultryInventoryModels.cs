@@ -20,6 +20,41 @@ namespace PoultryFarmAPIWeb.Models
         [StringLength(500)] public string? Notes { get; set; }
         /// <summary>Which purchase batch gets drawn from first when this item is consumed: FIFO | LIFO | HIFO.</summary>
         [StringLength(10)] public string UsageMethod { get; set; } = "FIFO";
+
+        // ---- cost recognition (migration 261) --------------------------------
+
+        /// <summary>
+        /// This item's own choice, or null to follow the farm default for its
+        /// category. Null is a real value here -- it is what "use farm default"
+        /// means -- which is why writes carry SetCostRecognitionOverride to say
+        /// whether the field was meant at all.
+        /// </summary>
+        [StringLength(40)] public string? CostRecognitionOverride { get; set; }
+
+        /// <summary>
+        /// Resolved by the server: the override if there is one, else the farm
+        /// default for the category, else EXPENSE_WHEN_PURCHASED. Read-only --
+        /// writing it has no effect, because the resolver decides.
+        /// </summary>
+        public string? EffectiveCostRecognitionMethod { get; set; }
+
+        /// <summary>FarmDefault | ItemOverride. Read-only.</summary>
+        public string? CostRecognitionSource { get; set; }
+
+        /// <summary>
+        /// Feed | Medication | Unconfigured -- which farm setting this item's
+        /// category listens to, if any. Read-only, and what lets the form say
+        /// "the farm default for feed is ..." rather than guessing.
+        /// </summary>
+        public string? CostRecognitionCategoryGroup { get; set; }
+
+        /// <summary>
+        /// Whether this write means to set CostRecognitionOverride at all. False
+        /// leaves the item's existing choice alone, so editing a name or a
+        /// category can never silently clear an override.
+        /// </summary>
+        public bool SetCostRecognitionOverride { get; set; }
+
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
     }
@@ -57,6 +92,39 @@ namespace PoultryFarmAPIWeb.Models
         public string? FeedProductionBatchNumber { get; set; }
         /// <summary>'Produced' (the feed the batch made), 'Purchased' (an ingredient it bought), or null.</summary>
         public string? FeedProductionRole { get; set; }
+
+        // ---- cost recognition (migrations 261-268) ---------------------------
+
+        /// <summary>
+        /// The method SNAPSHOT taken when this lot was created, not today's farm
+        /// setting. Changing the farm default must never restate a lot that has
+        /// already been expensed. Read-only.
+        /// </summary>
+        public string? CostRecognitionMethod { get; set; }
+
+        /// <summary>
+        /// What this lot owed Profit &amp; Loss when it opened: its whole cost on a
+        /// deferred lot, zero on one expensed at purchase. Read-only.
+        /// </summary>
+        public decimal DeferredTotalCost { get; set; }
+
+        /// <summary>What it still owes. Falls pro rata as the stock is drawn. Read-only.</summary>
+        public decimal DeferredRemainingCost { get; set; }
+
+        /// <summary>
+        /// Deferred cost per PRODUCTION unit remaining, so it is directly
+        /// comparable with ProductionUnitCost beside it. Null on an exhausted
+        /// lot -- there is no rate, and zero would be a lie.
+        /// </summary>
+        public decimal? DeferredUnitCost { get; set; }
+
+        /// <summary>
+        /// "Expensed at purchase" | "Deferred - not yet expensed" | "Deferred -
+        /// fully expensed". Said in words so no screen has to read meaning into
+        /// a zero. Read-only.
+        /// </summary>
+        public string? CostRecognitionStatus { get; set; }
+
         public string? CreatedBy { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
@@ -82,6 +150,37 @@ namespace PoultryFarmAPIWeb.Models
         public string? FeedProductionBatchNumber { get; set; }
         /// <summary>The finished feed that batch produced.</summary>
         public string? FeedProductionFeedName { get; set; }
+        /// <summary>The production record this draw belongs to, when it came from one.</summary>
+        public int? ProductionRecordId { get; set; }
+        /// <summary>Reversed draws are KEPT, not deleted (append-only ledger).</summary>
+        public bool IsReversed { get; set; }
+        public DateTime? ReversedAt { get; set; }
+
+        // ---- cost recognition (migration 268) --------------------------------
+
+        /// <summary>
+        /// What the stock drawn was worth. ALWAYS populated, whichever method the
+        /// lots were on -- this is what a farm manager means by "what did that
+        /// feed cost me", and what cost-per-bird is built on.
+        /// </summary>
+        public decimal OperationalCost { get; set; }
+
+        /// <summary>
+        /// Only the part that reached Profit &amp; Loss at THIS consumption. Zero on
+        /// stock already expensed at purchase, which does not mean the feed was
+        /// free -- it means the expense was taken earlier.
+        /// </summary>
+        public decimal RecognizedCost { get; set; }
+
+        /// <summary>How many purchase lots this single draw crossed.</summary>
+        public int CostLayerCount { get; set; }
+
+        /// <summary>
+        /// "Expensed at consumption" | "Already expensed at purchase" |
+        /// "Reversed" | "No cost layers".
+        /// </summary>
+        public string? CostRecognitionStatus { get; set; }
+
         public string? CreatedBy { get; set; }
         public DateTime CreatedAt { get; set; }
     }
