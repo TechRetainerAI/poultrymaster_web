@@ -62,6 +62,9 @@ export interface FeedLedgerRow {
   costLayers?: number
   /** Reversed usages keep their rows; their money must not be totalled twice. */
   reversed?: boolean
+  /** 288. The record to ask for a cost breakdown. Absent on feed-production
+   *  draws and on adjustments, neither of which has a production record. */
+  productionRecordId?: number | null
 }
 
 type LineInput = {
@@ -76,6 +79,7 @@ type LineInput = {
   recognized?: number
   costLayers?: number
   reversed?: boolean
+  productionRecordId?: number | null
 }
 
 /** Manual corrections from Feed tracker (API); kg — positive adds, negative removes. */
@@ -194,6 +198,7 @@ export function buildFeedStockLedger(
       recognized: u.recognizedCost,
       costLayers: u.costLayerCount,
       reversed: u.isReversed,
+      productionRecordId: u.productionRecordId,
     })
   }
 
@@ -258,6 +263,7 @@ export function buildFeedStockLedger(
       recognized: line.recognized,
       costLayers: line.costLayers,
       reversed: line.reversed,
+      productionRecordId: line.productionRecordId,
     }
   })
 

@@ -60,7 +60,7 @@ import {
   Coins,
   HandCoins,
   Repeat,
-  CalendarClock,
+  CalendarClock, TrendingUp,
 } from "lucide-react"
 import { InventoryLogo } from "@/components/auth/logo"
 import { useAlertsStore, type AlertItem } from "@/lib/store/alerts-store"
@@ -265,6 +265,9 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   ]
   const poultryMoneyItems = gateFinancial([
     { href: "/cash-flow", label: "Cash Flow", icon: Wallet },
+    // The same page as Reports > Profit & Loss, surfaced here because it is the
+    // number owners come looking for. Linked, not duplicated.
+    { href: "/poultry/reports/profit-loss", label: "Profit & Loss", icon: TrendingUp },
     { href: "/cash", label: "Cash", icon: History },
     { href: "/poultry-cash-accounts", label: "Cash Account", icon: Wallet },
     // Transfers had a dialog on the Cash Accounts page but nowhere to see or
@@ -275,7 +278,6 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     // 254. Borrowed money: what is still owed, and what each repayment was for.
     { href: "/poultry-loans", label: "Loans", icon: HandCoins },
     { href: "/poultry-cash-reconciliation", label: "Reconcile cash", icon: Scale },
-    { href: "/billing", label: "Billing", icon: CreditCard },
   ])
 
   // Finance — the two trading parties every receivable and payable hangs off.
@@ -374,6 +376,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   ])
   const waterMoneyItems = gateWater([
     { href: "/water-cash-flow",           label: "Cash Flow",      icon: Wallet },
+    { href: "/water-reports/profit-loss", label: "Profit & Loss",  icon: TrendingUp },
     { href: "/water-cash-accounts",       label: "Cash accounts",  icon: Wallet },
     { href: "/water-cash-reconciliation", label: "Reconcile cash", icon: Scale },
     { href: "/water-cash-transfers",      label: "Cash Transfers", icon: ArrowLeftRight },
@@ -619,6 +622,12 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     ...((!isWater && !isGeneric && !isHotel && !isRestaurant) ? [{ href: "/resources", label: "Resources", icon: BookOpen }] : []),
     { href: "#", label: "Alerts", icon: Bell, isButton: true, onClick: openAlerts, badge: alerts.length },
     { href: "/companies", label: "Companies", icon: Building2 },
+    // Subscription billing is the ACCOUNT's own, not the company's trading
+    // money, so it sits beside Companies and Account rather than among Cash
+    // Flow and Loans. Same gate it had in the money group, carried across with
+    // it -- and because systemItems is shared, every company type now has a
+    // link to its own subscription instead of only Poultry.
+    ...gateFinancial([{ href: "/billing", label: "Billing", icon: CreditCard }]),
     ...(permissions.featureAccess.canViewActivityLog
       ? [{ href: "/audit-logs", label: "Activity Log", icon: Activity }] : []),
     // The poultry farm profile. Water, Generic and Hotel have their own setup links

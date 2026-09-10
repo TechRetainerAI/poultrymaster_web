@@ -58,7 +58,7 @@ import {
   Repeat,
   CalendarClock,
   ArrowLeftRight,
-  HandCoins,
+  HandCoins, TrendingUp,
 } from "lucide-react"
 import {
   Sheet,
@@ -251,6 +251,7 @@ export function MobileBottomNav() {
             ] as NavItem[]) },
             { title: "Money", items: gateWater([
               { href: "/water-cash-flow",           label: "Cash Flow",      icon: Wallet },
+              { href: "/water-reports/profit-loss", label: "Profit & Loss",  icon: TrendingUp },
               { href: "/water-cash-accounts",       label: "Cash accounts",  icon: Wallet },
               { href: "/water-cash-reconciliation", label: "Reconcile cash", icon: Scale },
               { href: "/water-cash-transfers",      label: "Cash Transfers", icon: ArrowLeftRight },
@@ -281,6 +282,8 @@ export function MobileBottomNav() {
               ? [{ href: "/employees", label: "Users & Permissions", icon: UserCog }] : []),
             { href: "/profile",   label: "Account",   icon: User },
             { href: "/companies", label: "Companies", icon: Building2 },
+            // The account's own subscription, matching the sidebar and top nav.
+            { href: "/billing",   label: "Billing",   icon: CreditCard },
             ...(permissions.featureAccess.canViewActivityLog
               ? [{ href: "/audit-logs", label: "Activity Log", icon: Activity }] : []),
             { href: "/terms", label: "Terms & Conditions", icon: FileText },
@@ -366,6 +369,8 @@ export function MobileBottomNav() {
               ? [{ href: "/employees", label: "Users & Permissions", icon: UserCog }] : []),
             { href: "/profile",   label: "Account",   icon: User },
             { href: "/companies", label: "Companies", icon: Building2 },
+            // The account's own subscription, matching the sidebar and top nav.
+            { href: "/billing",   label: "Billing",   icon: CreditCard },
             ...(permissions.featureAccess.canViewActivityLog
               ? [{ href: "/audit-logs", label: "Activity Log", icon: Activity }] : []),
             { href: "/terms", label: "Terms & Conditions", icon: FileText },
@@ -432,6 +437,8 @@ export function MobileBottomNav() {
             { href: "/hotel-setup", label: "Setup",     icon: Settings },
             { href: "/profile",     label: "Account",   icon: User },
             { href: "/companies",   label: "Companies", icon: Building2 },
+            // The account's own subscription, not a guest folio (/hotel-billing).
+            { href: "/billing",     label: "Billing",   icon: CreditCard },
           ] as NavItem[] },
         ]),
       }
