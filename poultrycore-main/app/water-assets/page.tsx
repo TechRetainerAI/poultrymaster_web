@@ -531,7 +531,7 @@ function AssetFormDialog({ open, onOpenChange, categories, cashAccounts, supplie
             <Input type="date" value={f.acquisitionDate ?? ""} onChange={(e) => setF({ ...f, acquisitionDate: e.target.value })} />
           </FormField>
           <FormField label="Cost" hint="Leave blank for an asset you will build up cost by cost.">
-            <NumberInput value={f.amount ?? ""} onChange={(v: any) => setF({ ...f, amount: v })} />
+            <NumberInput value={f.amount ?? ""} onChange={(e) => setF({ ...f, amount: e.target.value })} />
           </FormField>
           <SupplierField value={f.supplierId} suppliers={suppliers} onChange={(v) => setF({ ...f, supplierId: v })} />
           <FormField label="Payment method">
@@ -544,7 +544,7 @@ function AssetFormDialog({ open, onOpenChange, categories, cashAccounts, supplie
           </FormField>
           <FormField label="Amount paid now"
                      hint={credit ? "Credit: blank means nothing has been paid." : "Leave blank if paid in full."}>
-            <NumberInput value={f.amountPaid ?? ""} onChange={(v: any) => setF({ ...f, amountPaid: v })} />
+            <NumberInput value={f.amountPaid ?? ""} onChange={(e) => setF({ ...f, amountPaid: e.target.value })} />
           </FormField>
           <FormField label="Paid from">
             <Select value={f.cashAccountId ? String(f.cashAccountId) : ""} onValueChange={(v) => setF({ ...f, cashAccountId: v })}>
@@ -564,10 +564,10 @@ function AssetFormDialog({ open, onOpenChange, categories, cashAccounts, supplie
             <Input type="date" value={f.inServiceDate ?? ""} onChange={(e) => setF({ ...f, inServiceDate: e.target.value })} />
           </FormField>
           <FormField label="Useful life (months)" hint={cat?.defaultUsefulLifeMonths ? `${cat.categoryName} usually ${cat.defaultUsefulLifeMonths} months` : undefined}>
-            <NumberInput value={f.usefulLifeMonths ?? ""} onChange={(v: any) => setF({ ...f, usefulLifeMonths: v })} />
+            <NumberInput value={f.usefulLifeMonths ?? ""} onChange={(e) => setF({ ...f, usefulLifeMonths: e.target.value })} />
           </FormField>
           <FormField label="Residual value" hint="What you expect it to still be worth at the end. Book value never falls below it.">
-            <NumberInput value={f.residualValue ?? 0} onChange={(v: any) => setF({ ...f, residualValue: v })} />
+            <NumberInput value={f.residualValue ?? 0} onChange={(e) => setF({ ...f, residualValue: e.target.value })} />
           </FormField>
           <FormField label="Method"><Input value="Straight line" disabled /></FormField>
         </FormSection>
@@ -606,6 +606,7 @@ function EditDialog({ asset, onClose, categories, onSaved }: {
   categories: WaterAssetCategory[]; onSaved: () => Promise<void> | void
 }) {
   const { toast } = useToast()
+  const gh = useFmt()
   const [f, setF] = useState<any>({})
   const [saving, setSaving] = useState(false)
   useEffect(() => {
@@ -660,6 +661,17 @@ function EditDialog({ asset, onClose, categories, onSaved }: {
           </FormField>
           <FormField label="Location"><Input value={f.location ?? ""} onChange={(e) => setF({ ...f, location: e.target.value })} /></FormField>
           <FormField label="Serial number"><Input value={f.serialNumber ?? ""} onChange={(e) => setF({ ...f, serialNumber: e.target.value })} /></FormField>
+          {/* Read-only: spwatercapitalasset_update takes no acquisition date, so
+              an editable box here would silently discard what you typed. */}
+          <FormField label="Acquired" hint="Set when the asset was recorded and not editable here.">
+            <Input value={(asset?.acquisitionDate ?? "").split("T")[0]} disabled />
+          </FormField>
+          <FormField label="Asset number"><Input value={asset?.assetNumber ?? ""} disabled /></FormField>
+          {/* Description is captured when the asset is recorded; without this
+              field it could never be read back or corrected. */}
+          <FormField label="Description" full>
+            <Textarea rows={2} value={f.description ?? ""} onChange={(e) => setF({ ...f, description: e.target.value })} />
+          </FormField>
           <FormField label="Notes" full>
             <Textarea rows={2} value={f.notes ?? ""} onChange={(e) => setF({ ...f, notes: e.target.value })} />
           </FormField>
@@ -670,10 +682,16 @@ function EditDialog({ asset, onClose, categories, onSaved }: {
             <Input type="date" disabled={locked} value={f.inServiceDate ?? ""} onChange={(e) => setF({ ...f, inServiceDate: e.target.value })} />
           </FormField>
           <FormField label="Useful life (months)">
-            <NumberInput disabled={locked} value={f.usefulLifeMonths ?? ""} onChange={(v: any) => setF({ ...f, usefulLifeMonths: v })} />
+            <NumberInput disabled={locked} value={f.usefulLifeMonths ?? ""} onChange={(e) => setF({ ...f, usefulLifeMonths: e.target.value })} />
           </FormField>
           <FormField label="Residual value">
-            <NumberInput disabled={locked} value={f.residualValue ?? 0} onChange={(v: any) => setF({ ...f, residualValue: v })} />
+            <NumberInput disabled={locked} value={f.residualValue ?? 0} onChange={(e) => setF({ ...f, residualValue: e.target.value })} />
+          </FormField>
+          <FormField label="Method"><Input value="Straight line" disabled /></FormField>
+          {/* Cost is the sum of the asset's cost rows, so it is changed by adding
+              or reversing a cost rather than typed here. Shown for context. */}
+          <FormField label="Original cost" hint="The total of this asset's capitalised costs. Change it with Add cost.">
+            <Input value={gh(asset?.originalCost ?? 0)} disabled />
           </FormField>
         </FormSection>
 
@@ -733,7 +751,7 @@ function AddCostDialog({ asset, onClose, cashAccounts, suppliers, onSaved }: {
 
   return (
     <Dialog open={!!asset} onOpenChange={(o) => { if (!o) onClose() }}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add cost to {asset?.assetName}</DialogTitle>
           <DialogDescription>
@@ -743,7 +761,7 @@ function AddCostDialog({ asset, onClose, cashAccounts, suppliers, onSaved }: {
         </DialogHeader>
         <FormSection title="Cost">
           <FormField label="Date"><Input type="date" value={f.costDate ?? ""} onChange={(e) => setF({ ...f, costDate: e.target.value })} /></FormField>
-          <FormField label="Amount"><NumberInput value={f.amount ?? ""} onChange={(v: any) => setF({ ...f, amount: v })} /></FormField>
+          <FormField label="Amount"><NumberInput value={f.amount ?? ""} onChange={(e) => setF({ ...f, amount: e.target.value })} /></FormField>
           <FormField label="What it was for"><Input value={f.description ?? ""} onChange={(e) => setF({ ...f, description: e.target.value })} placeholder="Submersible pump" /></FormField>
           <FormField label="Cost type"><Input value={f.costCategory ?? ""} onChange={(e) => setF({ ...f, costCategory: e.target.value })} placeholder="Materials / Labour" /></FormField>
           <SupplierField value={f.supplierId} suppliers={suppliers} onChange={(v) => setF({ ...f, supplierId: v })} />
@@ -755,7 +773,7 @@ function AddCostDialog({ asset, onClose, cashAccounts, suppliers, onSaved }: {
               </SelectContent>
             </Select>
           </FormField>
-          <FormField label="Amount paid now" hint="Leave blank if paid in full."><NumberInput value={f.amountPaid ?? ""} onChange={(v: any) => setF({ ...f, amountPaid: v })} /></FormField>
+          <FormField label="Amount paid now" hint="Leave blank if paid in full."><NumberInput value={f.amountPaid ?? ""} onChange={(e) => setF({ ...f, amountPaid: e.target.value })} /></FormField>
           <FormField label="Paid from">
             <Select value={f.cashAccountId ? String(f.cashAccountId) : ""} onValueChange={(v) => setF({ ...f, cashAccountId: v })}>
               <SelectTrigger><SelectValue placeholder="Cash account" /></SelectTrigger>
@@ -765,6 +783,11 @@ function AddCostDialog({ asset, onClose, cashAccounts, suppliers, onSaved }: {
                 ))}
               </SelectContent>
             </Select>
+          </FormField>
+          {/* save() already sends dueDate; without this field it was always null,
+              so a cost left part-paid had no due date on Supplier Balances. */}
+          <FormField label="Balance due date" hint="When the unpaid part falls due.">
+            <Input type="date" value={f.dueDate ?? ""} onChange={(e) => setF({ ...f, dueDate: e.target.value })} />
           </FormField>
         </FormSection>
         {/* The one refusal a user is most likely to hit here. */}
@@ -817,7 +840,7 @@ function DisposeDialog({ asset, onClose, cashAccounts, onSaved }: {
 
   return (
     <Dialog open={!!asset} onOpenChange={(o) => { if (!o) onClose() }}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Dispose of {asset?.assetName}</DialogTitle>
           <DialogDescription>
@@ -827,7 +850,7 @@ function DisposeDialog({ asset, onClose, cashAccounts, onSaved }: {
         </DialogHeader>
         <FormSection title="Disposal">
           <FormField label="Date"><Input type="date" value={f.disposalDate ?? ""} onChange={(e) => setF({ ...f, disposalDate: e.target.value })} /></FormField>
-          <FormField label="Proceeds" hint="Leave blank if nothing was received."><NumberInput value={f.proceeds ?? ""} onChange={(v: any) => setF({ ...f, proceeds: v })} /></FormField>
+          <FormField label="Proceeds" hint="Leave blank if nothing was received."><NumberInput value={f.proceeds ?? ""} onChange={(e) => setF({ ...f, proceeds: e.target.value })} /></FormField>
           <FormField label="Received into">
             <Select value={f.cashAccountId ? String(f.cashAccountId) : ""} onValueChange={(v) => setF({ ...f, cashAccountId: v })}>
               <SelectTrigger><SelectValue placeholder="Cash account" /></SelectTrigger>

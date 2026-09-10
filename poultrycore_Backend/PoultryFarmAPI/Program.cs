@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using System.Configuration;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Configuration;
@@ -224,6 +224,7 @@ builder.Services.AddScoped<IPoultryLoanService>(sp => new PoultryLoanService(con
 // choices, feed and medication, resolved against item overrides by the SPs.
 builder.Services.AddScoped<IPoultryFinancialSettingsService>(sp => new PoultryFinancialSettingsService(connectionString));
 builder.Services.AddScoped<IPoultryInventoryValuationService>(sp => new PoultryInventoryValuationService(connectionString));
+builder.Services.AddScoped<IPoultryDeferredInventoryCostService>(sp => new PoultryDeferredInventoryCostService(connectionString));
 builder.Services.AddScoped<IPoultryCapitalAssetService>(sp => new PoultryCapitalAssetService(connectionString));
 builder.Services.AddScoped<IPoultryProfitLossService>(sp => new PoultryProfitLossService(connectionString));
 

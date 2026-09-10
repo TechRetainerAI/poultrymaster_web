@@ -15,9 +15,9 @@
 
 import {
   Activity, AlertTriangle, ArrowLeftRight, Banknote, BarChart3, Bell, Bird, BookOpen, Box, Boxes,
-  Building2, Clock, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle, History,
+  Building2, Clock, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle, History, Hourglass,
   Coins, HandCoins, ListTodo, Package, PackageMinus, Pill, Receipt, Scale, Settings, ShoppingCart, Truck, User, UserCog, Users,
-  Users2, Wallet, Wheat,
+  Users2, Wallet, Wheat, TrendingUp,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
@@ -155,6 +155,11 @@ export function buildPoultryNavConfig(
           // we've paid against it.
           { id: "supplier-payments", title: "Supplier Payments", icon: Receipt, href: "/supplier-payments", visible: money("/supplier-payments") },
           { id: "supplier-balances", title: "Supplier Balances", icon: Truck, href: "/supplier-balances", visible: money("/supplier-balances") },
+          // Migration 288. Sits with Expenses because that is what it is about:
+          // stock cost that has NOT become an expense yet. It is deliberately
+          // not under Inventory -- an owner asking "why is my feed bill low
+          // this month" looks here, beside the expenses it explains.
+          { id: "deferred-inventory-costs", title: "Deferred Inventory Costs", icon: Hourglass, href: "/poultry-deferred-costs", visible: money("/poultry-deferred-costs") },
           // Migrations 270-273. Assets sit in the Expenses column because that
           // is where a major purchase is recorded from -- a farm buying a
           // generator looks here, not in a separate "capital" menu -- but they
@@ -167,6 +172,10 @@ export function buildPoultryNavConfig(
         label: "Money",
         items: [
           { id: "cash-flow",     title: "Cash Flow",    icon: Wallet,     href: "/cash-flow",              visible: money("/cash-flow") },
+          // The same page as Reports > Profit & Loss. Surfaced beside Cash Flow
+          // because the two answer the pair of questions owners ask together:
+          // what did we earn, and where did the money go.
+          { id: "profit-loss",   title: "Profit & Loss", icon: TrendingUp, href: "/poultry/reports/profit-loss", visible: money("/poultry/reports/profit-loss") },
           // The pre-cash-account page, kept while the two are compared. It
           // counts EVERY sale and expense; Cash Flow counts only what was
           // linked to a cash account, which is why their totals differ.
@@ -179,7 +188,6 @@ export function buildPoultryNavConfig(
           { id: "owner-money",    title: "Owner Money",    icon: Banknote,       href: "/poultry-owner-money",    visible: money("/poultry-owner-money") },
           { id: "loans",          title: "Loans",          icon: HandCoins,      href: "/poultry-loans",          visible: money("/poultry-loans") },
           { id: "cash-reconciliation", title: "Reconcile cash", icon: Scale, href: "/poultry-cash-reconciliation", visible: money("/poultry-cash-reconciliation") },
-          { id: "billing",  title: "Billing",           icon: CreditCard,   href: "/billing",          visible: money("/billing") },
         ],
       },
     ],
@@ -281,6 +289,9 @@ export function buildPoultryNavConfig(
           // /profile. Flip `visible` to bring the row back.
           { id: "profile",     title: "Account",             icon: User,       href: "/profile", visible: false },
           { id: "alerts",      title: "Alerts",              icon: Bell,       onClick: onOpenAlerts, badge: alertCount },
+          // Subscription billing is the account's own, not the company's
+          // trading money. Same gate it had in the Money column.
+          { id: "billing",     title: "Billing",             icon: CreditCard, href: "/billing", visible: money("/billing") },
           { id: "audit-logs",  title: "Activity Log",        icon: Activity,   href: "/audit-logs", visible: featureAccess.canViewActivityLog },
           { id: "resources",   title: "Resources",           icon: BookOpen,   href: "/resources" },
           { id: "help",        title: "Help Center",         icon: HelpCircle, href: "/help" },

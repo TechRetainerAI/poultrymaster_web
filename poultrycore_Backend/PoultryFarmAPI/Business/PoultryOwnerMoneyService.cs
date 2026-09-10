@@ -76,7 +76,8 @@ namespace PoultryFarmAPIWeb.Business
                     TransactionDate = r.GetDateTime(r.GetOrdinal("TransactionDate")),
                     TransactionType = r.GetString(r.GetOrdinal("TransactionType")),
                     Amount = r.GetDecimal(r.GetOrdinal("Amount")),
-                    PoultryCashAccountId = r.GetInt32(r.GetOrdinal("PoultryCashAccountId")),
+                    // Nullable since 287: a Cash-page row has no cash account.
+                    PoultryCashAccountId = IntN(r, "PoultryCashAccountId"),
                     AccountName = Str(r, "AccountName"),
                     PaymentMethod = Str(r, "PaymentMethod"),
                     OwnerUserId = Str(r, "OwnerUserId"),
@@ -91,6 +92,9 @@ namespace PoultryFarmAPIWeb.Business
                     ReversedBy = Str(r, "ReversedBy"),
                     ReversedAt = DateN(r, "ReversedAt"),
                     ReversalReason = Str(r, "ReversalReason"),
+                    // 287. Which table the row came from, and its id there.
+                    Source = Str(r, "Source") ?? "OwnerMoney",
+                    SourceId = r.GetInt32(r.GetOrdinal("SourceId")),
                 });
             }
             return list;
@@ -116,6 +120,8 @@ namespace PoultryFarmAPIWeb.Business
                 PeriodDraws = r.GetDecimal(r.GetOrdinal("PeriodDraws")),
                 ContributionCount = r.GetInt32(r.GetOrdinal("ContributionCount")),
                 DrawCount = r.GetInt32(r.GetOrdinal("DrawCount")),
+                LegacyCount = r.GetInt32(r.GetOrdinal("LegacyCount")),
+                LegacyNet = r.GetDecimal(r.GetOrdinal("LegacyNet")),
             };
         }
 

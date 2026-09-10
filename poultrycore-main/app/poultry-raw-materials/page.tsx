@@ -581,15 +581,33 @@ function PoultryRawMaterialsPageInner() {
                         <div className="text-base font-semibold text-slate-900">{gh(valuation.summary.operationalValue)}</div>
                         <div className="text-[11px] text-slate-500">{valuation.summary.itemsWithStock} item(s) in stock</div>
                       </div>
-                      <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
-                        <div className="text-[11px] uppercase tracking-wide text-amber-700" title={DEFERRED_INVENTORY_TOOLTIP}>Awaiting Profit &amp; Loss</div>
+                      {/* 288. The number is now explainable, so it is a link.
+                          Only when there IS something behind it: a zero on a
+                          farm that expenses at purchase leads to an empty page
+                          and would read as a broken link rather than a correct
+                          zero. */}
+                      <button
+                        type="button"
+                        disabled={valuation.summary.deferredValue <= 0}
+                        onClick={() => router.push("/poultry-deferred-costs")}
+                        className={cn(
+                          "rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-left w-full",
+                          valuation.summary.deferredValue > 0
+                            ? "hover:bg-amber-100 cursor-pointer transition-colors"
+                            : "cursor-default",
+                        )}
+                        title={valuation.summary.deferredValue > 0
+                          ? "See the purchases this is waiting on"
+                          : DEFERRED_INVENTORY_TOOLTIP}
+                      >
+                        <div className="text-[11px] uppercase tracking-wide text-amber-700">Awaiting Profit &amp; Loss</div>
                         <div className="text-base font-semibold text-amber-900">{gh(valuation.summary.deferredValue)}</div>
                         <div className="text-[11px] text-amber-700">
-                          {valuation.summary.itemsDeferring > 0
-                            ? `${valuation.summary.itemsDeferring} item(s) expense on use`
+                          {valuation.summary.deferredValue > 0
+                            ? `${valuation.summary.itemsDeferring} item(s) expense on use · view purchases`
                             : "Every item is expensed at purchase"}
                         </div>
-                      </div>
+                      </button>
                       <div className="rounded-md border border-slate-200 bg-white px-3 py-2">
                         <div className="text-[11px] uppercase tracking-wide text-slate-500">Cost layers</div>
                         <div className="text-base font-semibold text-slate-900">{valuation.summary.openLots.toLocaleString()}</div>
@@ -699,9 +717,21 @@ function PoultryRawMaterialsPageInner() {
                                 <>
                                   <div className="font-medium" title={OPERATIONAL_VALUE_TOOLTIP}>{gh(v.operationalValue)}</div>
                                   {v.deferredValue > 0 ? (
-                                    <div className="text-[11px] text-amber-700" title={DEFERRED_INVENTORY_TOOLTIP}>
+                                    // 288. Opens the deferred page filtered to
+                                    // this item, so the figure lands on the
+                                    // purchases that make it up rather than on
+                                    // the whole farm's list.
+                                    <button
+                                      type="button"
+                                      className="text-[11px] text-amber-700 underline decoration-dotted underline-offset-2 hover:text-amber-900"
+                                      title="See the purchases this is waiting on"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        router.push(`/poultry-deferred-costs?itemId=${i.poultryRawMaterialItemId}`)
+                                      }}
+                                    >
                                       {gh(v.deferredValue)} awaiting P&amp;L
-                                    </div>
+                                    </button>
                                   ) : (
                                     <div className="text-[11px] text-slate-500" title={EXPENSED_AT_PURCHASE_TOOLTIP}>
                                       Already expensed
@@ -810,9 +840,17 @@ function PoultryRawMaterialsPageInner() {
                                   {p.costRecognitionStatus}
                                 </Badge>
                                 {(p.deferredRemainingCost ?? 0) > 0 && (
-                                  <div className="mt-0.5 text-[11px] text-amber-700" title={DEFERRED_INVENTORY_TOOLTIP}>
+                                  <button
+                                    type="button"
+                                    className="mt-0.5 block text-[11px] text-amber-700 underline decoration-dotted underline-offset-2 hover:text-amber-900 ml-auto"
+                                    title="See this purchase's recognition history"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      router.push(`/poultry-deferred-costs?itemId=${p.poultryRawMaterialItemId}`)
+                                    }}
+                                  >
                                     {gh(p.deferredRemainingCost ?? 0)} awaiting P&amp;L
-                                  </div>
+                                  </button>
                                 )}
                               </>
                             ) : <span className="text-slate-400">—</span>}

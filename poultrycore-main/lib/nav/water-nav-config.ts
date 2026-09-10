@@ -17,7 +17,7 @@ import {
   Activity, AlertTriangle, Banknote, BarChart3, Bell, Boxes, Box, Building2,
   CalendarDays, Cog, Coins, CreditCard, Droplets, FileText, Factory, ListTodo, PackageMinus, Receipt,
   Route as RouteIcon, Settings, ShoppingBag, ShoppingCart, Truck, User, UserCog,
-  Users, Users2, Wallet, Wrench, History, Scale, ArrowLeftRight, HandCoins,
+  Users, Users2, Wallet, Wrench, History, Scale, ArrowLeftRight, HandCoins, TrendingUp,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isWaterNavItemVisible } from "@/lib/utils/water-nav-access"
@@ -181,6 +181,8 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
         label: "Money",
         items: [
           { id: "cash-flow",     title: "Cash Flow",       icon: Wallet,   href: "/water-cash-flow" },
+          // The same page as Reports > Profit & Loss, surfaced beside Cash Flow.
+          { id: "profit-loss",   title: "Profit & Loss",   icon: TrendingUp, href: "/water-reports/profit-loss" },
           { id: "cash-accounts", title: "Cash accounts",   icon: Wallet,   href: "/water-cash-accounts" },
           { id: "cash-reconciliation", title: "Reconcile cash", icon: Scale, href: "/water-cash-reconciliation" },
           // Migration 257. Money between the company's own accounts -- never
@@ -268,6 +270,10 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
           // and put "account" back in the System blurb in top-nav.tsx.
           { id: "profile",    title: "Account",            icon: User,     href: "/profile", visible: false },
           { id: "alerts",     title: "Alerts",             icon: Bell,     onClick: onOpenAlerts, badge: alertCount },
+          // The account's own subscription. It was never in the water nav at
+          // all -- only the poultry Money column carried it -- so a water owner
+          // had no way to reach their billing from here.
+          { id: "billing",    title: "Billing",            icon: CreditCard, href: "/billing" },
           { id: "audit-logs", title: "Activity Log",       icon: Activity, href: "/audit-logs", visible: canSeeActivityLog },
           { id: "terms",      title: "Terms & Conditions", icon: ListTodo, href: "/terms" },
         ],

@@ -25,6 +25,7 @@ import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { useFmt } from "@/lib/currency"
 import { recognizedCostNote } from "@/lib/poultry/cost-recognition"
+import { CostBreakdownDialog } from "@/components/poultry/cost-breakdown-dialog"
 import {
   listPoultryRawMaterialItems, listPoultryRawMaterialPurchases, listPoultryRawMaterialUsageHistory,
   type PoultryRawMaterialItem, type PoultryRawMaterialPurchase, type PoultryRawMaterialUsage,
@@ -41,6 +42,8 @@ type LedgerRow = {
   // zero whenever the medication was expensed when it was bought. Both, because
   // either alone misleads.
   cost?: number; recognized?: number; reversed?: boolean
+  /** 288. The record to ask for a cost breakdown; absent on purchase rows. */
+  productionRecordId?: number | null
 }
 
 export default function MedicationTrackerPage() {
@@ -49,6 +52,8 @@ export default function MedicationTrackerPage() {
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const gh = useFmt()
 
+  // 288. Which production record's cost breakdown is open, if any.
+  const [breakdownFor, setBreakdownFor] = useState<number | null>(null)
   const [items, setItems] = useState<PoultryRawMaterialItem[]>([])
   const [purchases, setPurchases] = useState<PoultryRawMaterialPurchase[]>([])
   const [usage, setUsage] = useState<PoultryRawMaterialUsage[]>([])
@@ -102,6 +107,7 @@ export default function MedicationTrackerPage() {
         date: string; type: "Purchase" | "Usage"; source: string
         inQty: number; outQty: number; key: string
         cost?: number; recognized?: number; reversed?: boolean
+        productionRecordId?: number | null
       }> = [
         ...purchases.filter((p) => p.poultryRawMaterialItemId === m.poultryRawMaterialItemId).map((p) => ({
           date: p.purchaseDate, type: "Purchase" as const,
@@ -113,12 +119,13 @@ export default function MedicationTrackerPage() {
           source: u.varianceReason ? `Production usage — ${u.varianceReason}` : "Production usage",
           inQty: 0, outQty: Math.abs(u.quantityUsed), key: `u${u.poultryRawMaterialUsageId}`,
           cost: u.operationalCost, recognized: u.recognizedCost, reversed: u.isReversed,
+          productionRecordId: u.productionRecordId,
         })),
       ].sort((a, b) => (a.date || "").localeCompare(b.date || ""))
       let run = 0
       for (const e of events) {
         run += e.inQty - e.outQty
-        rows.push({ key: e.key, itemId: m.poultryRawMaterialItemId, medication: m.itemName, unit: m.unitOfMeasure ?? "", date: e.date, type: e.type, source: e.source, inQty: e.inQty, outQty: e.outQty, balance: run, cost: e.cost, recognized: e.recognized, reversed: e.reversed })
+        rows.push({ key: e.key, itemId: m.poultryRawMaterialItemId, medication: m.itemName, unit: m.unitOfMeasure ?? "", date: e.date, type: e.type, source: e.source, inQty: e.inQty, outQty: e.outQty, balance: run, cost: e.cost, recognized: e.recognized, reversed: e.reversed, productionRecordId: e.productionRecordId ?? null })
       }
     }
     return rows
@@ -378,6 +385,15 @@ export default function MedicationTrackerPage() {
                                     ? `of ${gh(r.cost ?? 0)} stock cost`
                                     : `${gh(r.cost ?? 0)} expensed at purchase`}
                                 </span>
+                                {r.productionRecordId != null && (
+                                  <button
+                                    type="button"
+                                    className="block text-[11px] text-blue-600 underline decoration-dotted underline-offset-2 hover:text-blue-800 ml-auto"
+                                    onClick={() => setBreakdownFor(r.productionRecordId ?? null)}
+                                  >
+                                    View cost breakdown
+                                  </button>
+                                )}
                               </span>
                             )}
                           </TableCell>
@@ -428,6 +444,12 @@ export default function MedicationTrackerPage() {
               </CardContent></Card>
             </>
           )}
+
+          <CostBreakdownDialog
+            productionRecordId={breakdownFor}
+            title="Medication cost breakdown"
+            onClose={() => setBreakdownFor(null)}
+          />
         </main>
       </div>
     </div>

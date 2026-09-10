@@ -2,6 +2,8 @@
 
 import { Suspense, useEffect, useState, type ReactNode } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { CostBreakdownDialog } from "@/components/poultry/cost-breakdown-dialog"
+import { NO_SECOND_PAYMENT_TOOLTIP } from "@/lib/poultry/cost-recognition"
 import { Button } from "@/components/ui/button"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -141,6 +143,17 @@ function AddExpenseDescription({
   )
 }
 
+/**
+ * Migration 266 writes exactly these two source types for stock consumed, with
+ * sourceId set to the PRODUCTION RECORD. Matching on sourceType rather than on
+ * category or on the NonCash marker is deliberate: internal use (216) is also
+ * NonCash and is a different thing entirely.
+ */
+function isConsumptionExpense(e: any): boolean {
+  const t = e?.sourceType
+  return t === "PoultryFeedConsumption" || t === "PoultryMedicationConsumption"
+}
+
 export default function ExpensesPage() {
   // useSearchParams needs a Suspense boundary during prerender — same wrapper
   // /poultry-raw-materials uses for its ?purchaseId= deep link.
@@ -153,6 +166,9 @@ export default function ExpensesPage() {
 
 function ExpensesPageInner() {
   const router = useRouter()
+  // 288. Which consumption expense's cost breakdown is open. The value is the
+  // PRODUCTION RECORD id (expense.sourceId), not the expense id.
+  const [breakdownFor, setBreakdownFor] = useState<number | null>(null)
   // ?expenseId=N narrows the list to one bill, so a link from the Supplier
   // Payments ledger lands ON the expense that was paid rather than on the whole
   // list with the reader left to find the row. Same trick /poultry-raw-materials
@@ -1512,6 +1528,27 @@ function ExpensesPageInner() {
                                 Open the asset
                               </Link>
                             ) : null}
+                            {/* 288. A consumption expense is stock cost catching
+                                up with the P&L, NOT a new bill -- it moved no
+                                cash and created no payable. Saying so here is
+                                what stops it being read as a second payment for
+                                feed that was already bought. sourceId is the
+                                production record (migration 266). */}
+                            {isConsumptionExpense(expense) ? (
+                              <>
+                                <div className="text-[10px] text-slate-500 mt-0.5"
+                                     title={NO_SECOND_PAYMENT_TOOLTIP}>
+                                  Inventory cost recognition
+                                </div>
+                                {(expense as any).sourceId ? (
+                                  <button type="button"
+                                          className="block text-[10px] text-sky-700 underline decoration-dotted underline-offset-2"
+                                          onClick={() => setBreakdownFor(Number((expense as any).sourceId))}>
+                                    View cost breakdown
+                                  </button>
+                                ) : null}
+                              </>
+                            ) : null}
                           </TableCell>
                           <TableCell className="text-slate-600 min-w-0 wrap-anywhere whitespace-normal align-top overflow-hidden">
                             {expense.supplierName || expense.paidTo || "N/A"}
@@ -1765,6 +1802,12 @@ function ExpensesPageInner() {
           onReversed={() => loadExpenses()}
         />
       )}
+
+      <CostBreakdownDialog
+        productionRecordId={breakdownFor}
+        title="What this expense is made of"
+        onClose={() => setBreakdownFor(null)}
+      />
     </div>
   )
 }

@@ -536,7 +536,12 @@ export interface PoultryOwnerMoney {
   transactionType: OwnerMoneyType | string
   /** Always POSITIVE — the direction lives in transactionType. */
   amount: number
-  poultryCashAccountId: number
+  /**
+   * Null for a row recorded on the Cash / Cash Flow page (migration 287):
+   * cashadjustment has no cash-account column, which is why Cash Flow reports
+   * those movements without one either.
+   */
+  poultryCashAccountId: number | null
   accountName?: string | null
   paymentMethod?: string | null
   ownerUserId?: string | null
@@ -551,6 +556,20 @@ export interface PoultryOwnerMoney {
   reversedBy?: string | null
   reversedAt?: string | null
   reversalReason?: string | null
+  /**
+   * Which record this row is (migration 287).
+   *
+   * `OwnerMoney` — recorded on this page, reversible here.
+   * `CashAdjustment` — an owner injection or withdrawal typed on the Cash or
+   * Cash Flow page. Read-only here: it belongs to the Cash page, which edits
+   * and deletes it.
+   */
+  source: "OwnerMoney" | "CashAdjustment" | string
+  /**
+   * The id WITHIN `source`. For a Cash-page row `poultryOwnerMoneyId` is 0 —
+   * the two id spaces overlap, so key rows on `source` + `sourceId`.
+   */
+  sourceId: number
 }
 
 export interface PoultryOwnerMoneySummary {
@@ -562,6 +581,10 @@ export interface PoultryOwnerMoneySummary {
   periodDraws: number
   contributionCount: number
   drawCount: number
+  /** How many of the above came from the Cash / Cash Flow pages (migration 287). */
+  legacyCount: number
+  /** Contributions less draws, for those Cash-page rows only. */
+  legacyNet: number
 }
 
 export const listPoultryOwnerMoney = (opts: {
