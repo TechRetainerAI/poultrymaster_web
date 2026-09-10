@@ -66,6 +66,23 @@ export interface FeedLedgerRow {
    * descending sort.
    */
   seq: number
+
+  // Money, on the OUT lines only (migration 268). Two figures, because they
+  // answer different questions and a screen showing one alone misleads:
+  //
+  //   cost        what the stock drawn was worth. Always known.
+  //   recognized  only the part charged to Profit & Loss at this usage. Zero on
+  //               stock already expensed at purchase, which does not mean the
+  //               feed was free.
+  //
+  // Undefined on purchase and adjustment lines, and on any row from an API that
+  // predates 268 -- the tracker prints a dash there rather than a zero.
+  cost?: number
+  recognized?: number
+  /** Whether the draw crossed more than one purchase lot. */
+  costLayers?: number
+  /** Reversed usages keep their rows; their money must not be totalled twice. */
+  reversed?: boolean
 }
 
 type LineInput = {
@@ -77,6 +94,10 @@ type LineInput = {
   out: number
   order: number
   itemName?: string
+  cost?: number
+  recognized?: number
+  costLayers?: number
+  reversed?: boolean
 }
 
 /** Manual corrections from Feed tracker (API); kg — positive adds, negative removes. */
@@ -193,6 +214,10 @@ export function buildFeedStockLedger(
       in: 0,
       out: qty,
       order: 1,
+      cost: u.operationalCost,
+      recognized: u.recognizedCost,
+      costLayers: u.costLayerCount,
+      reversed: u.isReversed,
     })
   }
 
@@ -256,6 +281,10 @@ export function buildFeedStockLedger(
       balance: bal,
       itemName: line.itemName,
       seq: index,
+      cost: line.cost,
+      recognized: line.recognized,
+      costLayers: line.costLayers,
+      reversed: line.reversed,
     }
   })
 

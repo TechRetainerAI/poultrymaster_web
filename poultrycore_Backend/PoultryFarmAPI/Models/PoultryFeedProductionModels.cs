@@ -144,6 +144,41 @@ namespace PoultryFarmAPIWeb.Models
         public string? ReversedBy { get; set; }
         public DateTime? ReversedAt { get; set; }
         [StringLength(500)] public string? ReversalReason { get; set; }
+
+        // ---- cost recognition (migration 268) --------------------------------
+        // Detail read only; the list read has no finished-feed lot to look at and
+        // leaves these at their defaults.
+
+        /// <summary>The finished-feed lot's method snapshot. Null until posted.</summary>
+        public string? CostRecognitionMethod { get; set; }
+
+        /// <summary>
+        /// The part of TotalProductionCost carried forward into feed inventory --
+        /// only what the ingredients actually still owed Profit &amp; Loss. Lower
+        /// than TotalProductionCost whenever an ingredient was already expensed
+        /// at purchase, and zero for a batch mixed entirely from expensed stock.
+        /// Additional costs (milling, labour, transport) are never in here: they
+        /// are expenses of their own already.
+        /// </summary>
+        public decimal DeferredProductionCost { get; set; }
+
+        /// <summary>How much of that is still sitting in the feed, unconsumed.</summary>
+        public decimal DeferredRemainingCost { get; set; }
+
+        /// <summary>
+        /// DeferredProductionCost over the quantity PRODUCED -- the rate this
+        /// batch carried forward, and the counterpart of CostPerOutputUnit. It
+        /// does not drift as the feed is eaten.
+        /// </summary>
+        public decimal? DeferredUnitCost { get; set; }
+
+        /// <summary>
+        /// "Not posted" | "Ingredients already expensed at purchase" | "Part of
+        /// the cost already expensed at purchase" | "Cost carried forward to feed
+        /// inventory".
+        /// </summary>
+        public string? CostRecognitionStatus { get; set; }
+
         public List<PoultryFeedProductionBatchLineModel> Lines { get; set; } = new();
         public List<PoultryFeedProductionAdditionalCostModel> AdditionalCosts { get; set; } = new();
     }

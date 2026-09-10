@@ -37,6 +37,8 @@ import { formatDateShort, cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { toLocalDateKey } from "@/lib/utils/date-key"
 import { buildFeedStockLedger, type FeedLedgerRow } from "@/lib/utils/feed-ledger"
+import { useFmt } from "@/lib/currency"
+import { recognizedCostNote } from "@/lib/poultry/cost-recognition"
 import {
   getFeedInventoryAdjustments,
   createFeedInventoryAdjustment,
@@ -66,6 +68,7 @@ export default function FeedTrackerPage() {
   const [flocks, setFlocks] = useState<Flock[]>([])
   const [feedAdjustments, setFeedAdjustments] = useState<FeedInventoryAdjustment[]>([])
   const [loading, setLoading] = useState(true)
+  const gh = useFmt()
   const [error, setError] = useState("")
   const [refreshing, setRefreshing] = useState(false)
 
@@ -271,6 +274,14 @@ export default function FeedTrackerPage() {
     ledgerDescriptionFilter.trim() !== "" ||
     ledgerDateFrom !== "" ||
     ledgerDateTo !== ""
+
+  // Only what actually reached Profit & Loss, and only from live rows: a
+  // reversed usage keeps its row (append-only) and its money has already been
+  // taken back, so counting it again would overstate the feed bill.
+  const filteredLedgerRecognizedTotal = useMemo(
+    () => sortedFeedLedgerRows.reduce((sum, r) => sum + (r.reversed ? 0 : Number(r.recognized) || 0), 0),
+    [sortedFeedLedgerRows]
+  )
 
   const ledgerTotalPages = Math.max(1, Math.ceil(sortedFeedLedgerRows.length / ledgerPageSize))
   const ledgerSafePage = Math.min(ledgerPage, ledgerTotalPages)
@@ -905,6 +916,14 @@ export default function FeedTrackerPage() {
                                 onSort={handleLedgerSort}
                                 className="text-right"
                               />
+                              <SortableHeader
+                                label="Cost recognised"
+                                sortKey="recognized"
+                                currentSort={ledgerSortKey}
+                                currentDirection={ledgerSortDir}
+                                onSort={handleLedgerSort}
+                                className="text-right"
+                              />
                               <TableHead className="text-right w-[100px]">Actions</TableHead>
                             </TableRow>
                           </TableHeader>
@@ -928,6 +947,30 @@ export default function FeedTrackerPage() {
                                   </TableCell>
                                   <TableCell className="text-right font-medium tabular-nums text-sm">
                                     {row.balance.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                                  </TableCell>
+                                  {/* Read-only, and deliberately two facts in one
+                                      cell. A usage that recognised nothing is not
+                                      a usage that cost nothing -- on a farm that
+                                      expenses feed at purchase (the default) every
+                                      row here reads zero, and the sub-line is what
+                                      stops that being read as free feed. */}
+                                  <TableCell className="text-right tabular-nums text-sm">
+                                    {row.cost == null ? (
+                                      <span className="text-slate-300">—</span>
+                                    ) : row.reversed ? (
+                                      <span className="text-slate-400">Reversed</span>
+                                    ) : (
+                                      <span title={recognizedCostNote(row.recognized ?? 0, row.cost ?? 0)}>
+                                        <span className={(row.recognized ?? 0) > 0 ? "font-medium text-amber-700" : "text-slate-500"}>
+                                          {gh(row.recognized ?? 0)}
+                                        </span>
+                                        <span className="block text-[11px] text-slate-500">
+                                          {(row.recognized ?? 0) > 0
+                                            ? `of ${gh(row.cost ?? 0)} stock cost`
+                                            : `${gh(row.cost ?? 0)} expensed at purchase`}
+                                        </span>
+                                      </span>
+                                    )}
                                   </TableCell>
                                   <TableCell className="text-right">
                                     {isAdj ? (
@@ -977,6 +1020,9 @@ export default function FeedTrackerPage() {
                                 {filteredLedgerOutTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                               </TableCell>
                               <TableCell />
+                              <TableCell className="text-right font-bold text-amber-700 tabular-nums text-sm">
+                                {gh(filteredLedgerRecognizedTotal)}
+                              </TableCell>
                               <TableCell />
                             </TableRow>
                           </TableFooter>

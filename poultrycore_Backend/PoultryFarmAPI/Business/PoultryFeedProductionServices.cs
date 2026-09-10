@@ -164,6 +164,14 @@ namespace PoultryFarmAPIWeb.Business
             ReversedBy = r.StrN("ReversedBy"),
             ReversedAt = r.DateN("ReversedAt"),
             ReversalReason = r.StrN("ReversalReason"),
+            // 268. Present on the detail read only -- this mapper is shared with
+            // the list read, which has no lot to join. Guarded, so the list keeps
+            // working untouched.
+            CostRecognitionMethod = r.Has("CostRecognitionMethod") ? r.StrN("CostRecognitionMethod") : null,
+            DeferredProductionCost = r.Has("DeferredProductionCost") ? r.Dec("DeferredProductionCost") : 0m,
+            DeferredRemainingCost = r.Has("DeferredRemainingCost") ? r.Dec("DeferredRemainingCost") : 0m,
+            DeferredUnitCost = r.Has("DeferredUnitCost") ? r.DecN("DeferredUnitCost") : null,
+            CostRecognitionStatus = r.Has("CostRecognitionStatus") ? r.StrN("CostRecognitionStatus") : null,
         };
 
         private static PoultryFeedProductionBatchLineModel MapLine(NpgsqlDataReader r) => new()

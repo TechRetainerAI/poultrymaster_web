@@ -57,6 +57,7 @@ import {
   History,
   Scale,
   ArrowLeftRight,
+  Coins,
   HandCoins,
   Repeat,
   CalendarClock,
@@ -367,11 +368,17 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/water-payroll",           label: "Payroll",           icon: Banknote },
     { href: "/water-supplier-payments", label: "Supplier Payments", icon: Receipt },
     { href: "/water-supplier-balances", label: "Supplier Balances", icon: Truck },
+    // Migrations 283-286. Recorded from where a major purchase is entered, but
+    // deliberately NOT an expense -- the page says so on every screen.
+    { href: "/water-assets",            label: "Assets",            icon: Building2 },
   ])
   const waterMoneyItems = gateWater([
     { href: "/water-cash-flow",           label: "Cash Flow",      icon: Wallet },
     { href: "/water-cash-accounts",       label: "Cash accounts",  icon: Wallet },
     { href: "/water-cash-reconciliation", label: "Reconcile cash", icon: Scale },
+    { href: "/water-cash-transfers",      label: "Cash Transfers", icon: ArrowLeftRight },
+    { href: "/water-owner-money",         label: "Owner Money",    icon: HandCoins },
+    { href: "/water-loans",               label: "Loans",          icon: HandCoins },
   ])
   // Finance — Customers (was in Sales & money) and Suppliers (was buried in
   // Admin / Setup) now sit together: both are master data, and they're the two
@@ -406,6 +413,10 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const waterAdminItems = gateWater([
     { href: "/water-setup",         label: "Setup",         icon: Settings },
     { href: "/water-company-setup", label: "Company Setup", icon: Settings },
+    // Migrations 274 and 276. Configuration, but a FINANCE decision: it changes
+    // what the owner reads as profit. Its own IAM keys gate what you can do
+    // once inside.
+    { href: "/water-financial-settings", label: "Financial Settings", icon: Coins },
   ])
 
   // Generic Company nav items (shown when activeFarmType === "Generic")
@@ -616,6 +627,10 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     ...((!isWater && !isGeneric && !isHotel && !isRestaurant && permissions.featureAccess.canViewSettings)
       ? [{ href: "/poultry-setup", label: "Farm Setup", icon: Settings },
          { href: "/poultry-company-setup", label: "Company Setup", icon: Settings }] : []),
+    // Configuration, but a finance decision: it changes what the owner reads as
+    // profit, so it follows the financial flag rather than the settings one.
+    ...((!isWater && !isGeneric && !isHotel && !isRestaurant && permissions.featureAccess.canViewFinancial)
+      ? [{ href: "/poultry-financial-settings", label: "Financial Settings", icon: Coins }] : []),
     // /help is poultry-specific (flocks, eggs, vaccinations).
     ...((!isWater && !isGeneric && !isHotel && !isRestaurant) ? [{ href: "/help", label: "Help Center", icon: HelpCircle }] : []),
     { href: "/terms", label: "Terms & Conditions", icon: ListTodo },

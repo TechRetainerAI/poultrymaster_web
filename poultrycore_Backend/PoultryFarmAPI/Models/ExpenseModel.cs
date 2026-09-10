@@ -63,5 +63,51 @@ namespace PoultryFarmAPIWeb.Models
 
         /// <summary>When true on PUT, attachment columns are updated or cleared.</summary>
         public bool SetAttachmentImage { get; set; }
+
+        // ---- financial classification (migrations 269, 270) ------------------
+
+        /// <summary>
+        /// OperatingExpense | InventoryPurchase | CapitalAsset | NonCashExpense |
+        /// FinancingExpense. On the way OUT this is always resolved -- the stored
+        /// value if the writer stated one, otherwise derived from the source. On
+        /// the way IN, null means "not stated"; see SetFinancialCostType.
+        /// </summary>
+        public string? FinancialCostType { get; set; }
+
+        /// <summary>
+        /// Read-only: whether FinancialCostType was STATED on the row or inferred
+        /// for it. What lets the report say how much of itself is inference.
+        /// </summary>
+        public bool CostTypeIsStored { get; set; }
+
+        /// <summary>
+        /// Whether this write means to set FinancialCostType at all. False leaves
+        /// the row's existing classification alone, so editing a description can
+        /// never silently reclassify a cost.
+        /// </summary>
+        public bool SetFinancialCostType { get; set; }
+
+        /// <summary>Read-only: the P&amp;L line this row lands on (Feed, Payroll, ...).</summary>
+        public string? PlLine { get; set; }
+
+        /// <summary>Read-only: the line's own wording, e.g. "Feed Cost".</summary>
+        public string? PlLineLabel { get; set; }
+
+        /// <summary>
+        /// Read-only: DirectCost | OperatingExpense | OtherCost | Excluded.
+        /// "Excluded" means the row moves cash or opens a payable and is
+        /// deliberately NOT charged against profit -- a capital asset, or an
+        /// inventory purchase whose cost is recognised when it is consumed.
+        /// </summary>
+        public string? PlSection { get; set; }
+
+        /// <summary>Read-only: which workflow produced the row, in words.</summary>
+        public string? SourceLabel { get; set; }
+
+        /// <summary>Read-only: the capital asset a capital cost belongs to.</summary>
+        public int? PoultryCapitalAssetId { get; set; }
+
+        /// <summary>Read-only, resolved from PoultryCapitalAssetId.</summary>
+        public string? CapitalAssetName { get; set; }
     }
 }

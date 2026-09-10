@@ -13,6 +13,10 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { Loader2, ArrowLeft, Undo2, RotateCcw, Pencil, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import {
+  PRODUCTION_COST_TOOLTIP, CARRIED_FORWARD_TOOLTIP,
+  DEFERRED_INVENTORY_TOOLTIP, EXPENSED_AT_PURCHASE_TOOLTIP,
+} from "@/lib/poultry/cost-recognition"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import { usePermissions } from "@/hooks/use-permissions"
@@ -178,8 +182,46 @@ function ReadOnlyDetail({ batch, gh, onBack, onReverse, onRepost, onEdit, onDele
           <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cost</div>
           <Line label="Ingredient cost" value={gh(batch.totalIngredientCost)} />
           <Line label="Additional cost" value={gh(batch.totalAdditionalCost)} />
-          <Line label="Total production cost" value={gh(batch.totalProductionCost)} bold />
+          <Line label="Total production cost" value={gh(batch.totalProductionCost)} bold hint={PRODUCTION_COST_TOOLTIP} />
           <Line label="Cost per unit" value={gh(batch.costPerOutputUnit)} bold />
+
+          {/* TWO NUMBERS, AND THEY ARE NOT THE SAME ONE.
+              Total production cost is what the batch cost to make and is what
+              cost per unit is built on -- unchanged, and every existing report
+              still reads it. Carried forward is only the part still waiting to
+              reach Profit & Loss: ingredients already expensed when they were
+              bought are not in it, and neither is milling or labour. Expensing
+              the first figure when the feed is eaten would charge those twice.
+              Shown only once the batch is posted, because until then there is no
+              feed lot to carry anything. */}
+          {batch.status === "Posted" && batch.costRecognitionStatus && (
+            <div className="mt-2 border-t pt-2 space-y-1.5">
+              {(batch.deferredProductionCost ?? 0) > 0 ? (
+                <>
+                  <Line
+                    label="Cost carried forward to feed inventory"
+                    value={gh(batch.deferredProductionCost ?? 0)}
+                    tone="amber"
+                    hint={CARRIED_FORWARD_TOOLTIP}
+                  />
+                  <Line
+                    label="Still in the feed, unconsumed"
+                    value={gh(batch.deferredRemainingCost ?? 0)}
+                    tone="amber"
+                    hint={DEFERRED_INVENTORY_TOOLTIP}
+                  />
+                </>
+              ) : (
+                <Line
+                  label="Cost carried forward to feed inventory"
+                  value="None"
+                  tone="muted"
+                  hint={EXPENSED_AT_PURCHASE_TOOLTIP}
+                />
+              )}
+              <div className="text-[11px] text-slate-500">{batch.costRecognitionStatus}</div>
+            </div>
+          )}
         </CardContent></Card>
         <Card><CardContent className="p-4 space-y-1.5">
           <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Audit</div>
@@ -275,10 +317,17 @@ function ReadOnlyDetail({ batch, gh, onBack, onReverse, onRepost, onEdit, onDele
   )
 }
 
-function Line({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
+function Line({ label, value, bold, hint, tone }: {
+  label: string; value: string; bold?: boolean; hint?: string
+  tone?: "amber" | "muted"
+}) {
   return (
-    <div className={cn("flex justify-between text-sm gap-4", bold && "font-semibold text-slate-900")}>
-      <span className={cn("shrink-0", !bold && "text-slate-600")}>{label}</span>
+    <div
+      className={cn("flex justify-between text-sm gap-4", bold && "font-semibold text-slate-900",
+        tone === "amber" && "text-amber-800", tone === "muted" && "text-slate-500")}
+      title={hint}
+    >
+      <span className={cn("shrink-0", !bold && !tone && "text-slate-600")}>{label}</span>
       <span className="tabular-nums text-right truncate">{value}</span>
     </div>
   )

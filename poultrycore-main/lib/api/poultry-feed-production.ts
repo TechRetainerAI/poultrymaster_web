@@ -197,6 +197,26 @@ export interface FeedProductionBatch {
   reversedBy?: string | null
   reversedAt?: string | null
   reversalReason?: string | null
+
+  // ----- cost recognition (migration 268), detail read only, read-only fields -
+
+  /** The finished-feed lot's method snapshot. Null until the batch is posted. */
+  costRecognitionMethod?: string | null
+  /**
+   * The part of totalProductionCost carried forward into feed inventory — only
+   * what the ingredients still owed the P&L. Lower than totalProductionCost
+   * whenever an ingredient was already expensed at purchase, and zero for a
+   * batch mixed entirely from expensed stock. Milling, labour and transport are
+   * never in here: they are expenses of their own already.
+   */
+  deferredProductionCost?: number
+  /** How much of that is still sitting in the feed, uneaten. */
+  deferredRemainingCost?: number
+  /** Deferred cost over the quantity PRODUCED — the counterpart of costPerOutputUnit. */
+  deferredUnitCost?: number | null
+  /** "Not posted" | "Ingredients already expensed at purchase" | "Part of the cost already expensed at purchase" | "Cost carried forward to feed inventory". */
+  costRecognitionStatus?: string | null
+
   lines?: FeedProductionBatchLine[]
   additionalCosts?: FeedProductionAdditionalCost[]
 }

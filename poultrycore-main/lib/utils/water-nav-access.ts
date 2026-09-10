@@ -65,6 +65,17 @@ const WATER_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAdmin: 
   // Counting cash is a cash-ledger job; it rides the same flag rather than
   // introducing a permission nobody has been granted yet.
   "/water-cash-reconciliation": (f) => f.canViewCashLedger,
+  // Migration 257. Moving money between the company's own accounts is a
+  // cash-ledger job, so it rides the same flag as the pages above rather than
+  // a fresh permission nobody has been granted. What you can DO on the page --
+  // reversing an approved transfer -- is gated separately inside it.
+  "/water-cash-transfers": (f) => f.canViewCashLedger,
+  // Migrations 258 and 259. Same reasoning again: both are cash-ledger pages,
+  // so they ride canViewCashLedger rather than a fresh permission that nobody
+  // has been granted. Recording a draw or taking out a loan is gated inside
+  // the page, on the keys migration 260 seeds.
+  "/water-owner-money": (f) => f.canViewCashLedger,
+  "/water-loans": (f) => f.canViewCashLedger,
   "/water-payments": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canEnterSales,
   "/water-daily-closing": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canViewCashLedger,
 
@@ -84,10 +95,23 @@ const WATER_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAdmin: 
   "/water-staff": (f, isAdmin) => isAdmin || f.canSeeEmployees,
   "/water-payroll": (f) => f.canViewWaterPayroll,
 
+  // --- Assets --------------------------------------------------------------
+  // Migrations 283-286. Read as generously as Expenses, because that is where a
+  // major purchase is entered from and the register is largely a different view
+  // of the same money. What you can DO inside -- record, dispose, reverse, and
+  // above all generate depreciation -- is gated separately on the water.assets
+  // and water.asset-depreciation keys migration 286 seeds.
+  "/water-assets": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canEnterExpenses,
+
   // --- Reports / Setup -----------------------------------------------------
   "/water-reports": (f) => f.canViewReports,
   "/water-setup": (f) => f.canViewWaterSetup,
   "/water-company-setup": (f) => f.canViewWaterSetup,
+  // Migrations 274 and 276. Configuration, but it changes what the owner reads
+  // as profit, so it rides canViewFinancial rather than canViewWaterSetup --
+  // the same call the poultry rail made for its twin. Editing is gated inside
+  // the page on water.financial-settings.edit.
+  "/water-financial-settings": (f, isAdmin) => isAdmin || f.canViewFinancial,
 }
 
 /**

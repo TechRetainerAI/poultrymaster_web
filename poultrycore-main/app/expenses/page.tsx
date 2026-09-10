@@ -46,7 +46,11 @@ import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
+import Link from "next/link"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  costTypeLabel, COST_TYPE_HELP, COST_TYPE_CLASS, isInProfit, plSectionLabel,
+} from "@/lib/poultry/financial-classification"
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from "@/components/ui/pagination"
 import { Badge } from "@/components/ui/badge"
 import { formatCurrency as fmtCurrency } from "@/lib/utils/currency"
@@ -1427,6 +1431,12 @@ function ExpensesPageInner() {
                         <SortableHeader label="Date" sortKey="expenseDate" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className={cn("w-[100px]", isMobile && "sticky-col-date bg-slate-50")} />
                         <SortableHeader label="Description" sortKey="description" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-auto min-w-0" />
                         <SortableHeader label="Category" sortKey="category" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[150px]" />
+                        {/* 269/270. What KIND of cost this is, and which workflow
+                            produced it. Both matter on this page more than
+                            anywhere: it lists rows from eight different sources
+                            and some of them are not this period's expense at all. */}
+                        <SortableHeader label="Cost type" sortKey="financialCostType" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[140px]" />
+                        <SortableHeader label="Source" sortKey="sourceLabel" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[130px]" />
                         <SortableHeader label="Supplier / Paid To" sortKey="paidTo" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[140px] min-w-0" />
                         <SortableHeader label="Total" sortKey="amount" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[110px] text-right whitespace-nowrap" />
                         <SortableHeader label="Paid" sortKey="amountPaid" currentSort={sortKey} currentDirection={sortDir} onSort={handleSort} className="w-[110px] text-right whitespace-nowrap" />
@@ -1474,6 +1484,35 @@ function ExpensesPageInner() {
                               ("Raw Materials / Inventory Purchase") renders past this
                               fixed-width cell and over the Amount column. Let it wrap. */}
                           <TableCell className="align-top min-w-0"><Badge className={cn("whitespace-normal break-words shrink max-w-full text-left", getCategoryColor(expense.category))}>{expense.category}</Badge></TableCell>
+                          {/* A row that is NOT charged against profit says so
+                              here rather than being read as an operating expense
+                              merely because it lives in a table called expense.
+                              That mislabelling is the whole of section 25. */}
+                          <TableCell className="align-top">
+                            <Badge variant="outline"
+                                   className={cn("text-[10px] font-normal whitespace-nowrap",
+                                                 COST_TYPE_CLASS[(expense as any).financialCostType ?? "OperatingExpense"])}
+                                   title={COST_TYPE_HELP[(expense as any).financialCostType ?? "OperatingExpense"]}>
+                              {costTypeLabel((expense as any).financialCostType)}
+                            </Badge>
+                            {!isInProfit((expense as any).plSection) ? (
+                              <div className="text-[10px] text-amber-700 mt-0.5">Not in profit</div>
+                            ) : (expense as any).plLineLabel ? (
+                              <div className="text-[10px] text-slate-500 mt-0.5"
+                                   title={plSectionLabel((expense as any).plSection)}>
+                                {(expense as any).plLineLabel}
+                              </div>
+                            ) : null}
+                          </TableCell>
+                          <TableCell className="align-top text-sm text-slate-600 whitespace-normal wrap-anywhere">
+                            {(expense as any).sourceLabel ?? "Manual entry"}
+                            {(expense as any).poultryCapitalAssetId ? (
+                              <Link href={`/poultry-assets/${(expense as any).poultryCapitalAssetId}`}
+                                    className="block text-[10px] text-sky-700 underline">
+                                Open the asset
+                              </Link>
+                            ) : null}
+                          </TableCell>
                           <TableCell className="text-slate-600 min-w-0 wrap-anywhere whitespace-normal align-top overflow-hidden">
                             {expense.supplierName || expense.paidTo || "N/A"}
                           </TableCell>

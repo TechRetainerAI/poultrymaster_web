@@ -15,9 +15,9 @@
 
 import {
   Activity, AlertTriangle, Banknote, BarChart3, Bell, Boxes, Box, Building2,
-  CalendarDays, Cog, CreditCard, Droplets, FileText, Factory, ListTodo, PackageMinus, Receipt,
+  CalendarDays, Cog, Coins, CreditCard, Droplets, FileText, Factory, ListTodo, PackageMinus, Receipt,
   Route as RouteIcon, Settings, ShoppingBag, ShoppingCart, Truck, User, UserCog,
-  Users, Users2, Wallet, Wrench, History, Scale,
+  Users, Users2, Wallet, Wrench, History, Scale, ArrowLeftRight, HandCoins,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isWaterNavItemVisible } from "@/lib/utils/water-nav-access"
@@ -168,6 +168,12 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
           // we've paid against it.
           { id: "supplier-payments", title: "Supplier Payments", icon: Receipt, href: "/water-supplier-payments" },
           { id: "supplier-balances", title: "Supplier Balances", icon: Truck, href: "/water-supplier-balances" },
+          // Migrations 283-286. Assets sit in the Expenses column because that
+          // is where a major purchase is recorded from -- a company buying a
+          // borehole pump looks here, not in a separate "capital" menu -- but
+          // they are deliberately NOT expenses, which the page says on every
+          // screen.
+          { id: "assets", title: "Assets", icon: Building2, href: "/water-assets" },
         ],
       },
       {
@@ -177,6 +183,14 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
           { id: "cash-flow",     title: "Cash Flow",       icon: Wallet,   href: "/water-cash-flow" },
           { id: "cash-accounts", title: "Cash accounts",   icon: Wallet,   href: "/water-cash-accounts" },
           { id: "cash-reconciliation", title: "Reconcile cash", icon: Scale, href: "/water-cash-reconciliation" },
+          // Migration 257. Money between the company's own accounts -- never
+          // company-wide money in or out, which is why it sits here with the
+          // cash pages and not under Sales or Expenses.
+          { id: "cash-transfers", title: "Cash Transfers", icon: ArrowLeftRight, href: "/water-cash-transfers" },
+          // Migration 258. Owner funding in and out -- financing, never trading.
+          { id: "owner-money", title: "Owner Money", icon: HandCoins, href: "/water-owner-money" },
+          // Migration 259. Borrowing and repayments.
+          { id: "loans", title: "Loans", icon: HandCoins, href: "/water-loans" },
         ],
       },
     ],
@@ -188,6 +202,11 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
         items: [
           { id: "setup",         title: "Setup",         icon: Settings,  href: "/water-setup" },
           { id: "company-setup", title: "Company Setup", icon: Settings,  href: "/water-company-setup" },
+          // Migrations 274 and 276. Sits with the other setup rows because it is
+          // configuration, but it is a FINANCE decision -- it changes what the
+          // owner reads as profit -- and its own IAM keys gate what you can do
+          // once inside.
+          { id: "financial-settings", title: "Financial Settings", icon: Coins, href: "/water-financial-settings" },
           { id: "companies",     title: "Companies",     icon: Building2, href: "/companies" },
         ],
       },
