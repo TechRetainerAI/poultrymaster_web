@@ -26,10 +26,11 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog"
 import {
-  Check, X, Clock, Phone, User, Utensils, Volume2, VolumeX, QrCode, Banknote, Inbox,
+  Check, X, Clock, Phone, Mail, User, Utensils, Volume2, VolumeX, Globe, Banknote, Inbox,
 } from "lucide-react"
 import { PageSkeleton } from "@/components/restaurant/skeleton-loaders"
 import { useAuthStore } from "@/lib/store/auth-store"
+import { reportPendingCount } from "@/lib/utils/online-order-alerts"
 import { useToast } from "@/hooks/use-toast"
 import {
   listPendingOnlineOrders, acceptOnlineOrder, rejectOnlineOrder,
@@ -64,6 +65,10 @@ export default function RestaurantPendingOrdersPage() {
       }
       prevCount.current = list.length
       setOrders(list)
+      // Keep the nav badge in step with this tray. This runs on the first load,
+      // on every 10s poll, and after an accept or reject — all of which come
+      // through here — so the count never lags behind what is on screen.
+      reportPendingCount(list.length)
     } catch {
       // Swallow: a dropped poll is not worth a toast every 10 seconds. A real
       // problem shows up as the list going stale, and the accept/reject actions
@@ -161,6 +166,20 @@ export default function RestaurantPendingOrdersPage() {
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {orders.map(o => (
                 <div key={o.orderId} className={`rounded-xl border-2 p-4 shadow-sm ${waitTone(o.waitingMinutes)}`}>
+                  {/* Every order in this tray arrived online — that is what the tray is
+                      for — but it was only saying so in a muted grey chip reading "QR",
+                      the same chip the All Orders screen was corrected away from on
+                      8 September. Same rose marker as that screen, on its own line above
+                      the order number, so the two screens read alike. */}
+                  <div className="mb-2 flex items-center gap-2">
+                    <Badge className="h-5 gap-1 bg-rose-600 px-1.5 text-[10px] text-white hover:bg-rose-600">
+                      <Globe className="h-3 w-3" />
+                      ONLINE{o.onlineSource === "QR" ? " · QR" : o.onlineSource === "Web" ? " · WEB" : ""}
+                    </Badge>
+                    <Badge variant="outline" className="h-5 px-1.5 text-[10px] text-gray-600">
+                      {o.orderType}
+                    </Badge>
+                  </div>
                   <div className="mb-3 flex items-start justify-between gap-2">
                     <div>
                       <div className="flex items-center gap-2">
@@ -169,9 +188,6 @@ export default function RestaurantPendingOrdersPage() {
                             Table {o.tableNumber}
                           </Badge>
                         )}
-                        <Badge variant="secondary" className="gap-1">
-                          <QrCode className="h-3 w-3" /> {o.onlineSource || "Online"}
-                        </Badge>
                       </div>
                       <div className="mt-1 font-mono text-xs text-muted-foreground">{o.orderNumber}</div>
                     </div>
@@ -190,6 +206,12 @@ export default function RestaurantPendingOrdersPage() {
                       <a href={`tel:${o.customerPhone}`} className="flex items-center gap-1.5 text-gray-600 hover:text-rose-600">
                         <Phone className="h-3.5 w-3.5 text-gray-400" />
                         {o.customerPhone}
+                      </a>
+                    )}
+                    {o.customerEmail && (
+                      <a href={`mailto:${o.customerEmail}`} className="flex items-center gap-1.5 break-all text-gray-600 hover:text-rose-600">
+                        <Mail className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                        {o.customerEmail}
                       </a>
                     )}
                     {o.guestPaymentIntent && (

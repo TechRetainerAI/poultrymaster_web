@@ -690,6 +690,8 @@ export interface Order {
   orderId: number; farmId: string; orderNumber: string; orderType: string; status: string
   tableId?: number | null; tableNumber?: string | null
   customerId?: number | null; customerName?: string | null; customerPhone?: string | null
+  /** Optional guest email. Returned by the order reads from migration 250 onward. */
+  customerEmail?: string | null
   covers: number; subtotal: number; discountAmount: number; taxAmount: number
   serviceChargeAmount: number; totalAmount: number; paidAmount: number
   paymentStatus: string; notes?: string | null; createdBy?: string | null; servedBy?: string | null
@@ -1227,6 +1229,34 @@ export async function getPublicCategories(farmId: string): Promise<PublicCategor
   if (!res.ok) throw new Error(await readApiError(res))
   return res.json()
 }
+/**
+ * The restaurant's public identity for the guest ordering page: name, logo,
+ * cuisine, opening hours and — importantly — the currency, without which every
+ * price on the page is a bare number.
+ *
+ * Separate from `getPublicSettings` because it comes from `restaurantprofiles`,
+ * which a restaurant that has not finished setup may not have a row in. Callers
+ * should treat a null/absent name as "no profile yet" and fall back to a generic
+ * heading rather than showing the guest an error.
+ */
+export interface PublicRestaurantProfile {
+  restaurantName?: string | null
+  logoUrl?: string | null
+  description?: string | null
+  cuisineType?: string | null
+  city?: string | null
+  country?: string | null
+  phone?: string | null
+  openingTime?: string | null
+  closingTime?: string | null
+  defaultCurrency?: string | null
+}
+export async function getPublicProfile(farmId: string): Promise<PublicRestaurantProfile> {
+  const url = farmApiUrl(`/Restaurant/public/${farmId}/profile`)
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(await readApiError(res))
+  return res.json()
+}
 export async function getPublicSettings(farmId: string): Promise<any> {
   const url = farmApiUrl(`/Restaurant/public/${farmId}/settings`)
   const res = await fetch(url)
@@ -1261,6 +1291,8 @@ export interface PendingOnlineOrder {
   onlineSource?: string | null
   tableId?: number | null; tableNumber?: string | null
   customerName?: string | null; customerPhone?: string | null
+  /** Optional - the guest may not have given one. Added by migration 249. */
+  customerEmail?: string | null
   guestPaymentIntent?: string | null
   notes?: string | null
   totalAmount: number
@@ -1557,6 +1589,33 @@ export interface CustomerInput {
   anniversary?: string | null; dietaryPreferences?: string | null; allergies?: string | null
   favouriteItems?: string | null; segment?: string; notes?: string | null; isActive?: boolean
 }
+/**
+ * Saves an order's guest into the CRM and links the order to them.
+ *
+ * Sends no body on purpose: the name, phone and email are read from the order
+ * server-side. `created` tells the two outcomes apart - a brand-new record, or a
+ * match on phone number, which is how staff learn that a guest is a returning one.
+ */
+export interface LinkOrderCustomerResult {
+  ok: boolean
+  customerId?: number | null
+  created: boolean
+  name?: string | null
+  segment?: string | null
+  totalVisits?: number | null
+  totalSpent?: number | null
+  message: string
+}
+export async function linkOrderToCustomer(orderId: number): Promise<LinkOrderCustomerResult> {
+  // farmId goes in the query string, matching updateOrderStatus and the rest of
+  // the order endpoints - the controller reads it [FromQuery].
+  const farmId = activeFarmId()
+  const url = farmApiUrl(`/Restaurant/orders/${orderId}/link-customer?farmId=${encodeURIComponent(farmId)}`)
+  const res = await fetch(url, { method: "POST", headers: getAuthHeaders() })
+  if (!res.ok) throw new Error(await readApiError(res))
+  return res.json()
+}
+
 export async function listCustomers(segment?: string, search?: string): Promise<Customer[]> {
   let extra = ""; if (segment) extra += `&segment=${encodeURIComponent(segment)}`; if (search) extra += `&search=${encodeURIComponent(search)}`
   return jget<Customer[]>(`/Restaurant/crm/customers?_=1${extra}`)

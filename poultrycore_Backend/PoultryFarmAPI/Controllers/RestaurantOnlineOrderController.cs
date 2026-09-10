@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Helpers;
@@ -166,7 +166,42 @@ namespace PoultryFarmAPIWeb.Controllers
     public class RestaurantPublicController : ControllerBase
     {
         private readonly IRestaurantOnlineOrderService _svc;
-        public RestaurantPublicController(IRestaurantOnlineOrderService svc) => _svc = svc;
+        private readonly IRestaurantSetupService _setup;
+        public RestaurantPublicController(IRestaurantOnlineOrderService svc, IRestaurantSetupService setup)
+        {
+            _svc = svc;
+            _setup = setup;
+        }
+
+        /// <summary>
+        /// The restaurant's public identity, for the page a guest lands on after
+        /// scanning. Deliberately a hand-picked subset of the profile: a guest needs
+        /// the name, the logo and the currency to read a price, but has no business
+        /// seeing the tax rate, service-charge rate, seating capacity or the
+        /// owner's email. Anonymous, so treat every field added here as published.
+        /// </summary>
+        [HttpGet("{farmId}/profile")]
+        public async Task<IActionResult> GetPublicProfile(string farmId)
+        {
+            var p = await _setup.GetProfileAsync(farmId);
+            // No profile row is normal for a restaurant that has not finished setup.
+            // Return an empty shape rather than 404 so the page degrades to its
+            // generic heading instead of showing the guest an error.
+            if (p == null) return Ok(new { restaurantName = (string?)null });
+            return Ok(new
+            {
+                p.RestaurantName,
+                p.LogoUrl,
+                p.Description,
+                p.CuisineType,
+                p.City,
+                p.Country,
+                p.Phone,
+                p.OpeningTime,
+                p.ClosingTime,
+                p.DefaultCurrency,
+            });
+        }
 
         [HttpGet("{farmId}/menu")]
         public async Task<IActionResult> GetPublicMenu(string farmId) =>
