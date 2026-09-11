@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
+import { usePagination } from "@/hooks/use-pagination"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -256,6 +257,10 @@ function WaterCashReconciliationPageInner() {
   const drift = accountStatus?.cacheDrift ?? 0
   const hasDrift = Math.abs(drift) >= 0.01
 
+  // The history is the page, and an account counted daily outgrows one screen
+  // within a month. Paging it keeps the cards and the table to the same slice.
+  const pg = usePagination(counts)
+
   return (
     <div className="flex h-screen bg-slate-50">
       <DashboardSidebar onLogout={logout} />
@@ -435,13 +440,14 @@ function WaterCashReconciliationPageInner() {
                           Reversing one posts an opposite adjustment — the original is kept.
                         </CardDescription>
                       </CardHeader>
-                        <CardContent>
+                        <CardContent className="px-0 lg:px-6">
                           {/* Mobile opens on scorecards (expanded by default);
                               "View table format" flips to the wide table. */}
                           <MobileCardList
                             striped
                             defaultOpen
-                            items={counts}
+                            items={pg.pageItems}
+                            pagination={pg.paginationProps}
                             getKey={(c) => c.waterCashReconciliationId}
                             primary={(c) => c.referenceNo ?? `#${c.waterCashReconciliationId}`}
                             secondary={(c) => <span>{c.reconciliationDate.split("T")[0]}</span>}
@@ -459,7 +465,7 @@ function WaterCashReconciliationPageInner() {
                             ]}
                             actions={(c) => countActions(c, "card")}
                             emptyState={
-                              <p className="py-6 text-center text-sm text-slate-500">
+                              <p className="px-6 py-6 text-center text-sm text-slate-500">
                                 {vocab.emptyHistory}
                               </p>
                             }
@@ -484,7 +490,7 @@ function WaterCashReconciliationPageInner() {
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
-                                {counts.map((c) => (
+                                {pg.pageItems.map((c) => (
                                   <TableRow key={c.waterCashReconciliationId}>
                                     <TableCell className="font-medium">{c.referenceNo ?? `#${c.waterCashReconciliationId}`}</TableCell>
                                     <TableCell className="whitespace-nowrap">{c.reconciliationDate.split("T")[0]}</TableCell>

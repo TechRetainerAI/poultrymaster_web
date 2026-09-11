@@ -282,6 +282,8 @@ export default function PoultryOwnerMoneyPage() {
             </CardContent></Card>
           ) : (
             <MobileCardList
+              defaultOpen
+              striped
               items={pg.pageItems}
               // Keyed on source + id: a Cash-page row carries
               // poultryOwnerMoneyId 0, and the two id spaces overlap anyway.
@@ -334,7 +336,7 @@ export default function PoultryOwnerMoneyPage() {
                   )}
                 </>
               )}
-              {...pg.paginationProps}
+              pagination={pg.paginationProps}
               desktopTable={
                 <div className="overflow-x-auto">
                   <Table>

@@ -292,6 +292,8 @@ export default function PoultryLoansPage() {
             </CardContent></Card>
           ) : (
             <MobileCardList
+              defaultOpen
+              striped
               items={pg.pageItems}
               getKey={(l) => l.poultryLoanId}
               primary={(l) => `${l.loanNumber ?? `#${l.poultryLoanId}`} · ${l.lenderName}`}
@@ -327,7 +329,7 @@ export default function PoultryLoansPage() {
                   )}
                 </>
               )}
-              {...pg.paginationProps}
+              pagination={pg.paginationProps}
               desktopTable={
                 <div className="overflow-x-auto">
                   <Table>

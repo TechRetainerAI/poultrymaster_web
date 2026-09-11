@@ -61,6 +61,7 @@ import {
   HandCoins,
   Repeat,
   CalendarClock, TrendingUp,
+  Inbox,
 } from "lucide-react"
 import { InventoryLogo } from "@/components/auth/logo"
 import { useAlertsStore, type AlertItem } from "@/lib/store/alerts-store"

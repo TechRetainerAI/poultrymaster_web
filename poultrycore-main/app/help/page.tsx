@@ -145,18 +145,41 @@ const faqData: FAQItem[] = [
   },
 ]
 
+// `tint` is the disc behind the icon. It follows the subject, and where a
+// subject also appears as an FAQ category the two use the same colour.
 const featureGuides = [
-  { icon: Bird, title: "Flocks", description: "Manage your flocks, batches, and bird tracking", path: "/flocks" },
-  { icon: Egg, title: "Production", description: "Log daily egg production and track metrics", path: "/production-records" },
-  { icon: Package, title: "Feed Usage", description: "Record and monitor feed consumption", path: "/feed-usage" },
-  { icon: ShoppingCart, title: "Sales", description: "Record sales and track revenue", path: "/sales" },
-  { icon: DollarSign, title: "Expenses", description: "Track costs and financial records", path: "/expenses" },
-  { icon: Users, title: "Customers", description: "Manage your customer database", path: "/customers" },
-  { icon: BarChart3, title: "Reports", description: "View analytics and generate reports", path: "/reports" },
-  { icon: Activity, title: "Health Records", description: "Track vaccinations and treatments", path: "/health" },
-  { icon: FileText, title: "Inventory", description: "Manage farm supplies and stock", path: "/inventory" },
-  { icon: Settings, title: "Company Setup", description: "Configure farm preferences", path: "/poultry-company-setup" },
+  { icon: Bird, title: "Flocks", description: "Manage your flocks, batches, and bird tracking", path: "/flocks", tint: "bg-amber-100 text-amber-700" },
+  { icon: Egg, title: "Production", description: "Log daily egg production and track metrics", path: "/production-records", tint: "bg-sky-100 text-sky-700" },
+  { icon: Package, title: "Feed Usage", description: "Record and monitor feed consumption", path: "/feed-usage", tint: "bg-lime-100 text-lime-700" },
+  { icon: ShoppingCart, title: "Sales", description: "Record sales and track revenue", path: "/sales", tint: "bg-violet-100 text-violet-700" },
+  { icon: DollarSign, title: "Expenses", description: "Track costs and financial records", path: "/expenses", tint: "bg-rose-100 text-rose-700" },
+  { icon: Users, title: "Customers", description: "Manage your customer database", path: "/customers", tint: "bg-teal-100 text-teal-700" },
+  { icon: BarChart3, title: "Reports", description: "View analytics and generate reports", path: "/reports", tint: "bg-indigo-100 text-indigo-700" },
+  { icon: Activity, title: "Health Records", description: "Track vaccinations and treatments", path: "/health", tint: "bg-red-100 text-red-700" },
+  { icon: FileText, title: "Inventory", description: "Manage farm supplies and stock", path: "/inventory", tint: "bg-emerald-100 text-emerald-700" },
+  { icon: Settings, title: "Company Setup", description: "Configure farm preferences", path: "/poultry-company-setup", tint: "bg-slate-200 text-slate-700" },
 ]
+
+/**
+ * A colour per FAQ category, so the same subject is the same colour wherever
+ * it appears — the filter chip, the badge on an answer, and the rail down the
+ * left of its card. A long list of questions in one grey is a wall; colour is
+ * what lets someone scanning for "Flocks" find the block of them.
+ */
+const CATEGORY_TONES: Record<string, { chip: string; chipOn: string; rail: string; badge: string }> = {
+  "Getting Started":  { chip: "hover:bg-emerald-50", chipOn: "bg-emerald-600 hover:bg-emerald-700", rail: "border-l-emerald-400", badge: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+  "Flocks":           { chip: "hover:bg-amber-50",   chipOn: "bg-amber-600 hover:bg-amber-700",     rail: "border-l-amber-400",   badge: "border-amber-200 bg-amber-50 text-amber-700" },
+  "Production":       { chip: "hover:bg-sky-50",     chipOn: "bg-sky-600 hover:bg-sky-700",         rail: "border-l-sky-400",     badge: "border-sky-200 bg-sky-50 text-sky-700" },
+  "Feed & Inventory": { chip: "hover:bg-lime-50",    chipOn: "bg-lime-600 hover:bg-lime-700",       rail: "border-l-lime-400",    badge: "border-lime-200 bg-lime-50 text-lime-700" },
+  "Sales & Expenses": { chip: "hover:bg-violet-50",  chipOn: "bg-violet-600 hover:bg-violet-700",   rail: "border-l-violet-400",  badge: "border-violet-200 bg-violet-50 text-violet-700" },
+  "Customers":        { chip: "hover:bg-teal-50",    chipOn: "bg-teal-600 hover:bg-teal-700",       rail: "border-l-teal-400",    badge: "border-teal-200 bg-teal-50 text-teal-700" },
+  "Health":           { chip: "hover:bg-rose-50",    chipOn: "bg-rose-600 hover:bg-rose-700",       rail: "border-l-rose-400",    badge: "border-rose-200 bg-rose-50 text-rose-700" },
+  "Reports":          { chip: "hover:bg-indigo-50",  chipOn: "bg-indigo-600 hover:bg-indigo-700",   rail: "border-l-indigo-400",  badge: "border-indigo-200 bg-indigo-50 text-indigo-700" },
+  "Account":          { chip: "hover:bg-slate-100",  chipOn: "bg-slate-700 hover:bg-slate-800",     rail: "border-l-slate-400",   badge: "border-slate-200 bg-slate-100 text-slate-700" },
+}
+
+const FALLBACK_TONE = { chip: "hover:bg-slate-100", chipOn: "bg-indigo-600 hover:bg-indigo-700", rail: "border-l-slate-300", badge: "border-slate-200 bg-slate-50 text-slate-600" }
+const toneFor = (category: string) => CATEGORY_TONES[category] ?? FALLBACK_TONE
 
 export default function HelpPage() {
   const router = useRouter()
@@ -172,8 +195,18 @@ export default function HelpPage() {
   }, [activeFarmType, router])
 
   const [searchQuery, setSearchQuery] = useState("")
-  const [openFAQ, setOpenFAQ] = useState<number | null>(null)
+  // Open by default, and several at once: someone on a help page is reading,
+  // not navigating, and a wall of closed questions makes them click to find out
+  // whether each one was even the right question. `closedFAQs` holds the few
+  // they have chosen to fold away rather than the many they have opened.
+  const [closedFAQs, setClosedFAQs] = useState<Set<string>>(new Set())
   const [selectedCategory, setSelectedCategory] = useState<string>("All")
+
+  const toggleFAQ = (key: string) => setClosedFAQs((prev) => {
+    const next = new Set(prev)
+    if (!next.delete(key)) next.add(key)
+    return next
+  })
 
   const categories = ["All", ...Array.from(new Set(faqData.map((f) => f.category)))]
 
@@ -185,6 +218,8 @@ export default function HelpPage() {
     const matchesCategory = selectedCategory === "All" || faq.category === selectedCategory
     return matchesSearch && matchesCategory
   })
+
+  const allOpen = filteredFAQs.every((f) => !closedFAQs.has(f.question))
 
   const handleLogout = () => {
     localStorage.removeItem("auth_token")
@@ -237,13 +272,18 @@ export default function HelpPage() {
                 {featureGuides.map((guide) => (
                   <Card
                     key={guide.path}
-                    className="cursor-pointer hover:shadow-md hover:border-indigo-200 transition-all group"
+                    className="group cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md"
                     onClick={() => router.push(guide.path)}
                   >
                     <CardContent className="p-4 text-center">
-                      <guide.icon className="w-8 h-8 mx-auto mb-2 text-slate-500 group-hover:text-indigo-600 transition-colors" />
+                      {/* The icon in its own tinted disc: ten grey glyphs in a
+                          row are hard to tell apart at a glance, and this grid
+                          is meant to be scanned, not read. */}
+                      <div className={`mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-xl ${guide.tint}`}>
+                        <guide.icon className="h-6 w-6" />
+                      </div>
                       <div className="text-sm font-medium text-slate-900">{guide.title}</div>
-                      <div className="text-xs text-slate-500 mt-1 hidden sm:block">{guide.description}</div>
+                      <div className="mt-1 hidden text-xs text-slate-500 sm:block">{guide.description}</div>
                     </CardContent>
                   </Card>
                 ))}
@@ -252,27 +292,43 @@ export default function HelpPage() {
 
             {/* FAQ Section */}
             <div>
-              <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                <HelpCircle className="w-5 h-5 text-indigo-600" />
-                Frequently Asked Questions
-              </h2>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+                  <HelpCircle className="w-5 h-5 text-indigo-600" />
+                  Frequently Asked Questions
+                  <span className="text-sm font-normal text-slate-500">
+                    {filteredFAQs.length} {filteredFAQs.length === 1 ? "answer" : "answers"}
+                  </span>
+                </h2>
+                {filteredFAQs.length > 0 && (
+                  <button
+                    className="text-xs font-medium text-indigo-600 hover:underline"
+                    onClick={() => setClosedFAQs(allOpen ? new Set(filteredFAQs.map((f) => f.question)) : new Set())}
+                  >
+                    {allOpen ? "Collapse all" : "Expand all"}
+                  </button>
+                )}
+              </div>
 
               {/* Category Filters */}
               <div className="flex flex-wrap gap-2 mb-4">
-                {categories.map((cat) => (
-                  <Badge
-                    key={cat}
-                    variant={selectedCategory === cat ? "default" : "outline"}
-                    className={`cursor-pointer transition-colors ${
-                      selectedCategory === cat
-                        ? "bg-indigo-600 hover:bg-indigo-700"
-                        : "hover:bg-slate-100"
-                    }`}
-                    onClick={() => setSelectedCategory(cat)}
-                  >
-                    {cat}
-                  </Badge>
-                ))}
+                {categories.map((cat) => {
+                  const tone = cat === "All" ? FALLBACK_TONE : toneFor(cat)
+                  const on = selectedCategory === cat
+                  return (
+                    <Badge
+                      key={cat}
+                      variant={on ? "default" : "outline"}
+                      className={`cursor-pointer px-3 py-1 transition-colors ${on ? tone.chipOn : tone.chip}`}
+                      onClick={() => setSelectedCategory(cat)}
+                    >
+                      {cat}
+                      <span className={`ml-1.5 text-[10px] ${on ? "opacity-80" : "text-slate-400"}`}>
+                        {cat === "All" ? faqData.length : faqData.filter((f) => f.category === cat).length}
+                      </span>
+                    </Badge>
+                  )
+                })}
               </div>
 
               {/* FAQ Items */}
@@ -284,40 +340,45 @@ export default function HelpPage() {
                     </CardContent>
                   </Card>
                 ) : (
-                  filteredFAQs.map((faq, idx) => (
-                    <Card
-                      key={idx}
-                      className={`transition-all ${
-                        openFAQ === idx ? "border-indigo-200 shadow-sm" : ""
-                      }`}
-                    >
-                      <CardContent className="p-0">
-                        <button
-                          className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-slate-50 transition-colors rounded-xl"
-                          onClick={() => setOpenFAQ(openFAQ === idx ? null : idx)}
-                        >
-                          <div className="flex items-start gap-3 flex-1">
-                            <Badge variant="outline" className="text-xs shrink-0 mt-0.5">
-                              {faq.category}
-                            </Badge>
-                            <span className="font-medium text-slate-900">{faq.question}</span>
-                          </div>
-                          {openFAQ === idx ? (
-                            <ChevronUp className="w-5 h-5 text-slate-400 shrink-0 ml-2" />
-                          ) : (
-                            <ChevronDown className="w-5 h-5 text-slate-400 shrink-0 ml-2" />
-                          )}
-                        </button>
-                        {openFAQ === idx && (
-                          <div className="px-5 pb-4 pt-0">
-                            <div className="pl-[calc(theme(spacing.3)+4.5rem)] text-sm text-slate-600 leading-relaxed">
-                              {faq.answer}
+                  filteredFAQs.map((faq) => {
+                    const tone = toneFor(faq.category)
+                    const open = !closedFAQs.has(faq.question)
+                    return (
+                      <Card key={faq.question} className={`border-l-4 transition-all ${tone.rail} ${open ? "shadow-sm" : ""}`}>
+                        <CardContent className="p-0">
+                          <button
+                            className="w-full rounded-xl px-4 py-4 text-left transition-colors hover:bg-slate-50 sm:px-5"
+                            onClick={() => toggleFAQ(faq.question)}
+                            aria-expanded={open}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              {/* The category badge sits ABOVE the question on a
+                                  phone: inline, it took half the width and left
+                                  the question wrapping in a two-word column. */}
+                              <div className="min-w-0 flex-1">
+                                <Badge variant="outline" className={`mb-1.5 text-[10px] font-medium ${tone.badge}`}>
+                                  {faq.category}
+                                </Badge>
+                                <div className="font-medium text-slate-900">{faq.question}</div>
+                              </div>
+                              {open ? (
+                                <ChevronUp className="mt-0.5 h-5 w-5 shrink-0 text-slate-400" />
+                              ) : (
+                                <ChevronDown className="mt-0.5 h-5 w-5 shrink-0 text-slate-400" />
+                              )}
                             </div>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ))
+                          </button>
+                          {open && (
+                            <div className="px-4 pb-4 pt-0 sm:px-5">
+                              <div className="border-t border-slate-100 pt-3 text-sm leading-relaxed text-slate-600">
+                                {faq.answer}
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )
+                  })
                 )}
               </div>
             </div>
