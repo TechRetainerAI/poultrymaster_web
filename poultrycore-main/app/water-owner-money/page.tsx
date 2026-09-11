@@ -282,6 +282,8 @@ export default function WaterOwnerMoneyPage() {
             </CardContent></Card>
           ) : (
             <MobileCardList
+              defaultOpen
+              striped
               items={pg.pageItems}
               getKey={(o) => o.waterOwnerMoneyId}
               primary={(o) => o.transactionNumber ?? `#${o.waterOwnerMoneyId}`}
@@ -324,7 +326,7 @@ export default function WaterOwnerMoneyPage() {
                   )}
                 </>
               )}
-              {...pg.paginationProps}
+              pagination={pg.paginationProps}
               desktopTable={
                 <div className="overflow-x-auto">
                   <Table>

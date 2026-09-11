@@ -285,6 +285,8 @@ export default function PoultryCashTransfersPage() {
             </CardContent></Card>
           ) : (
             <MobileCardList
+              defaultOpen
+              striped
               items={pg.pageItems}
               getKey={(t) => t.poultryCashTransferId}
               primary={(t) => t.transferNumber ?? `#${t.poultryCashTransferId}`}
@@ -317,7 +319,7 @@ export default function PoultryCashTransfersPage() {
                   )}
                 </>
               )}
-              {...pg.paginationProps}
+              pagination={pg.paginationProps}
               desktopTable={
                 <div className="overflow-x-auto">
                   <Table>

@@ -39,6 +39,7 @@ import { toLocalDateKey } from "@/lib/utils/date-key"
 import { buildFeedStockLedger, type FeedLedgerRow } from "@/lib/utils/feed-ledger"
 import { useFmt } from "@/lib/currency"
 import { recognizedCostNote } from "@/lib/poultry/cost-recognition"
+import { CostBreakdownDialog } from "@/components/poultry/cost-breakdown-dialog"
 import {
   getFeedInventoryAdjustments,
   createFeedInventoryAdjustment,
@@ -60,6 +61,8 @@ export default function FeedTrackerPage() {
   const router = useRouter()
   const { toast } = useToast()
   const isMobile = useIsMobile()
+  // 288. Which production record's cost breakdown is open, if any.
+  const [breakdownFor, setBreakdownFor] = useState<number | null>(null)
   const [usages, setUsages] = useState<FeedUsage[]>([])
   const [rmItems, setRmItems] = useState<PoultryRawMaterialItem[]>([])
   const [rmPurchases, setRmPurchases] = useState<PoultryRawMaterialPurchase[]>([])
@@ -969,6 +972,20 @@ export default function FeedTrackerPage() {
                                             ? `of ${gh(row.cost ?? 0)} stock cost`
                                             : `${gh(row.cost ?? 0)} expensed at purchase`}
                                         </span>
+                                        {/* 288. Only where there is a record to
+                                            ask about: a feed-production draw and
+                                            an adjustment have no production
+                                            record, so the link would 404 on an
+                                            empty breakdown. */}
+                                        {row.productionRecordId != null && (
+                                          <button
+                                            type="button"
+                                            className="block text-[11px] text-blue-600 underline decoration-dotted underline-offset-2 hover:text-blue-800 ml-auto"
+                                            onClick={() => setBreakdownFor(row.productionRecordId ?? null)}
+                                          >
+                                            View cost breakdown
+                                          </button>
+                                        )}
                                       </span>
                                     )}
                                   </TableCell>
@@ -1105,6 +1122,12 @@ export default function FeedTrackerPage() {
           if (res.success) void loadData()
           return res
         }}
+      />
+
+      <CostBreakdownDialog
+        productionRecordId={breakdownFor}
+        title="Feed cost breakdown"
+        onClose={() => setBreakdownFor(null)}
       />
     </div>
   )

@@ -21,6 +21,16 @@ import {
   getMyCompanies, createCompany, updateCompany, deleteCompany, sendCompanyWelcomeEmail, switchCompany,
   dashboardHomeForType, type Company, type CompanyType,
 } from "@/lib/api/companies"
+// The same list /companies offers. Before this the panel had its own hardcoded
+// three options and set no template, so a company created from the Business
+// Office could never be a Gym, a School or a SaaS business — and a Generic one
+// arrived with none of its menus or starter categories.
+import { BUSINESS_TYPES, findBusinessType, needsTemplate } from "@/lib/companies/business-types"
+
+// Derived from the business-type list rather than hardcoded, so a company type
+// added there shows up in the filter without a second edit here.
+const COMPANY_TYPES: CompanyType[] =
+  Array.from(new Set(BUSINESS_TYPES.map((t) => t.companyType)))
 
 function typeIcon(t: string) { return t === "Water" ? Droplets : t === "Poultry" ? Bird : t === "Generic" ? ShoppingBag : Building2 }
 function typeTone(t: string) { return t === "Water" ? "bg-sky-100 text-sky-700" : t === "Poultry" ? "bg-orange-100 text-orange-700" : t === "Generic" ? "bg-violet-100 text-violet-700" : "bg-slate-100 text-slate-700" }
@@ -43,7 +53,12 @@ export function CompaniesPanel({ showHeading = true }: { showHeading?: boolean }
   const [typeFilter, setTypeFilter] = useState("all")
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState<{ name: string; type: CompanyType; email: string; phoneNumber: string }>({ name: "", type: "Water", email: "", phoneNumber: "" })
+  // The business type id is what is held; the CompanyType and the templates are
+  // derived from it, so this form and /companies cannot drift on what a given
+  // business means.
+  const [form, setForm] = useState<{ name: string; businessTypeId: string; email: string; phoneNumber: string }>({ name: "", businessTypeId: "water", email: "", phoneNumber: "" })
+  const chosen = findBusinessType(form.businessTypeId)
+  const companyType: CompanyType = chosen?.companyType ?? "Generic"
   // Doc 3 §8: edit an existing company (name/email/phone; type is fixed).
   const [editing, setEditing] = useState<Company | null>(null)
   const [editForm, setEditForm] = useState<{ name: string; email: string; phoneNumber: string }>({ name: "", email: "", phoneNumber: "" })
@@ -74,11 +89,27 @@ export function CompaniesPanel({ showHeading = true }: { showHeading?: boolean }
     if (!form.name.trim()) return toast({ title: "Company name is required", variant: "destructive" })
     setSaving(true)
     try {
-      await createCompany({ name: form.name, type: form.type, email: form.email || undefined, phoneNumber: form.phoneNumber || undefined })
+      const created = await createCompany({ name: form.name, type: companyType, email: form.email || undefined, phoneNumber: form.phoneNumber || undefined })
       toast({ title: `Created ${form.name}` })
       const to = (form.email.trim() || userEmail || "").trim()
-      if (to) { try { await sendCompanyWelcomeEmail({ email: to, companyName: form.name, companyType: form.type }) } catch {} }
-      setOpen(false); setForm({ name: "", type: "Water", email: "", phoneNumber: "" }); await load(); notifyShell()
+      if (to) { try { await sendCompanyWelcomeEmail({ email: to, companyName: form.name, companyType }) } catch {} }
+      setOpen(false); setForm({ name: "", businessTypeId: "water", email: "", phoneNumber: "" }); await load(); notifyShell()
+
+      // A business type that carries a template needs setting up before it is
+      // useful, so switch into the new company and hand over to the wizard.
+      // Switching first is what makes the wizard's requests target it. Same
+      // handover /companies does — without it a templated business was created
+      // and then left empty.
+      if (needsTemplate(chosen) && created?.farmId) {
+        try {
+          const res = await switchCompany(created.farmId)
+          setActiveCompany(res.farmId, res.farmName, companyType, res.accessToken.token)
+          router.push(`/generic-setup/wizard?industry=${encodeURIComponent(chosen!.industryTemplate!)}`)
+        } catch {
+          // Switching failed — the company still exists and the owner can open
+          // it from this list, so say nothing louder than the create toast.
+        }
+      }
     } catch (e: any) { toast({ title: "Create failed", description: e?.message, variant: "destructive" }) }
     finally { setSaving(false) }
   }
@@ -141,7 +172,12 @@ export function CompaniesPanel({ showHeading = true }: { showHeading?: boolean }
         <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search companies…" className="w-full sm:w-64" />
         <Select value={typeFilter} onValueChange={setTypeFilter}>
           <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="all">All types</SelectItem><SelectItem value="Water">Water</SelectItem><SelectItem value="Poultry">Poultry</SelectItem><SelectItem value="Generic">Generic</SelectItem></SelectContent>
+          {/* Every CompanyType a company can actually be. Hotel and Restaurant
+              were missing, so those companies could not be filtered for. */}
+          <SelectContent>
+            <SelectItem value="all">All types</SelectItem>
+            {COMPANY_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+          </SelectContent>
         </Select>
       </div>
 
@@ -189,11 +225,20 @@ export function CompaniesPanel({ showHeading = true }: { showHeading?: boolean }
         <DialogContent>
           <DialogHeader><DialogTitle>Create new company</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <div><Label>Company type *</Label>
-              <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v as CompanyType })}>
+            <div><Label>Business type *</Label>
+              <Select value={form.businessTypeId} onValueChange={(v) => setForm({ ...form, businessTypeId: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="Water">Water (sachet / bottled water)</SelectItem><SelectItem value="Poultry">Poultry farm</SelectItem><SelectItem value="Generic">Generic (shop / restaurant / hotel / pharmacy)</SelectItem></SelectContent>
+                <SelectContent>
+                  {BUSINESS_TYPES.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.label} — {t.description}</SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
+              {needsTemplate(chosen) && (
+                <p className="text-xs text-slate-500 mt-1">
+                  We&apos;ll set up the right menus and starter categories for this, and you can change any of it later.
+                </p>
+              )}
             </div>
             <div><Label>Company name *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Great Favour Water Co." /></div>
             <div><Label>Contact email</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>

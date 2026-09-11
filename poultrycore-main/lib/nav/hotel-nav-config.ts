@@ -150,6 +150,9 @@ export function buildHotelNavConfig({ permissions }: HotelNavDeps): HotelNavConf
         items: [
           { id: "profile",   title: "Account",   icon: User,     href: "/profile", visible: false },
           { id: "companies", title: "Companies", icon: Building2, href: "/companies" },
+          // The account's own subscription, not a guest's folio -- that is
+          // /hotel-billing, which stays in the Billing group.
+          { id: "billing",   title: "Billing",   icon: CreditCard, href: "/billing" },
         ],
       },
     ],

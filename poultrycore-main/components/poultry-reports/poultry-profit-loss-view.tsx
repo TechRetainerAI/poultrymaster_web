@@ -36,6 +36,9 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useFmt } from "@/lib/currency"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import {
+  SECTION_TONES, StatementPanel, stated, type SectionTone,
+} from "@/components/reports/statement-sections"
 import { defaultReportRange } from "@/lib/date-ranges"
 import {
   PoultryReportFilter, type PoultryReportFilterValue,
@@ -257,6 +260,15 @@ export function PoultryProfitLossView() {
 
   const legacy = data ? legacyNote(data.legacyExpenses, data.classifiedExpenses) : null
 
+  // The shared panel takes plain lines; each one carries the drilldown it opens.
+  const panelLines = (section: PlSection) => bySection(section).map((l) => ({
+    id: l.section + l.lineKey,
+    label: l.lineLabel,
+    amount: l.amount,
+    entryCount: l.entryCount,
+    onOpen: () => openDrill(l),
+  }))
+
   return (
     <div className="flex h-screen bg-slate-50">
       <DashboardSidebar />
@@ -317,7 +329,10 @@ export function PoultryProfitLossView() {
               </div>
 
               {/* ---- how the costs were recognised ----------------------- */}
-              <Card><CardContent className="p-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
+              {/* One pair per line on a phone: the method names are long
+                  sentences, and wrapping them mid-phrase across a flex row
+                  made the strip unreadable. */}
+              <Card><CardContent className="p-3 grid gap-y-1.5 text-xs sm:flex sm:flex-wrap sm:items-center sm:gap-x-6 sm:gap-y-2">
                 <span className="font-semibold uppercase tracking-wide text-slate-500">Cost recognition</span>
                 <span><span className="text-slate-500">Feed:</span>{" "}
                   <span className="font-medium">{recognitionSummaryLine(data.feedRecognitionMethod, data.hasItemOverrides)}</span></span>
@@ -331,26 +346,59 @@ export function PoultryProfitLossView() {
                     Some item overrides active
                   </Badge>
                 )}
-                <Link href="/poultry-financial-settings" className="ml-auto text-sky-700 underline">Settings</Link>
+                <Link href="/poultry-financial-settings" className="text-sky-700 underline sm:ml-auto">Settings</Link>
               </CardContent></Card>
 
-              {/* ---- the statement --------------------------------------- */}
-              <Card><CardContent className="p-0">
+              {/* ---- the statement, side by side on a desktop ------------- */}
+              {/* Four columns, one per section, so the whole statement is on a
+                  single line of the page: where money came IN, and the three
+                  places it goes OUT. Side by side the columns cannot show the
+                  running results between them — Gross, Operating, Net are read
+                  off the KPI tiles at the top of the page instead. Below lg:
+                  the stacked statement further down, which is the readable
+                  shape on a narrow screen and still carries them inline. */}
+              <div className="hidden items-start gap-3 lg:grid lg:grid-cols-3">
+                {/* Revenue and Depreciation & Financing are a line or two each,
+                    so they share a column: stacked, they stand as tall as the
+                    four-line Direct Production Costs beside them and the three
+                    columns square off instead of leaving two stubs and a wall. */}
+                <div className="flex flex-col gap-3">
+                  <StatementPanel title="Revenue" totalLabel="Total Revenue" total={data.totalRevenue}
+                                  lines={panelLines("Revenue")} gh={gh} tone="emerald" />
+                  <StatementPanel title="Depreciation & Financing Costs" totalLabel="Total Depreciation & Financing"
+                                  total={data.totalOtherCosts} lines={panelLines("OtherCost")}
+                                  gh={gh} negative tone="violet" />
+                </div>
+                <StatementPanel title="Direct Production Costs" totalLabel="Total Direct Production Costs"
+                                total={data.totalDirectCosts} lines={panelLines("DirectCost")}
+                                gh={gh} negative tone="rose" />
+                <StatementPanel title="Operating Expenses" totalLabel="Total Operating Expenses"
+                                total={data.totalOperatingExpenses} lines={panelLines("OperatingExpense")}
+                                gh={gh} negative tone="amber" />
+              </div>
+
+              <Card className="lg:hidden"><CardContent className="p-0">
                 <Table>
                   <TableBody>
-                    <SectionRows title="Revenue" lines={bySection("Revenue")} onOpen={openDrill} gh={gh} />
-                    <TotalRow label="Total Revenue" amount={data.totalRevenue} gh={gh} />
+                    {/* One colour per section, carried by the heading, a spine
+                        down the left of its lines, and its own subtotal — so the
+                        eye can tell at a glance where money came IN (emerald)
+                        from the three places it goes OUT, and the running
+                        results (Gross / Operating / Net) read as the milestones
+                        between them rather than as more rows. */}
+                    <SectionRows title="Revenue" lines={bySection("Revenue")} onOpen={openDrill} gh={gh} tone="emerald" />
+                    <TotalRow label="Total Revenue" amount={data.totalRevenue} gh={gh} tone="emerald" />
 
-                    <SectionRows title="Direct Production Costs" lines={bySection("DirectCost")} onOpen={openDrill} gh={gh} negative />
-                    <TotalRow label="Total Direct Production Costs" amount={data.totalDirectCosts} gh={gh} negative />
+                    <SectionRows title="Direct Production Costs" lines={bySection("DirectCost")} onOpen={openDrill} gh={gh} negative tone="rose" />
+                    <TotalRow label="Total Direct Production Costs" amount={data.totalDirectCosts} gh={gh} negative tone="rose" />
                     <ResultRow label="Gross Profit" amount={data.grossProfit} pct={data.grossMarginPercent} gh={gh} />
 
-                    <SectionRows title="Operating Expenses" lines={bySection("OperatingExpense")} onOpen={openDrill} gh={gh} negative />
-                    <TotalRow label="Total Operating Expenses" amount={data.totalOperatingExpenses} gh={gh} negative />
+                    <SectionRows title="Operating Expenses" lines={bySection("OperatingExpense")} onOpen={openDrill} gh={gh} negative tone="amber" />
+                    <TotalRow label="Total Operating Expenses" amount={data.totalOperatingExpenses} gh={gh} negative tone="amber" />
                     <ResultRow label="Operating Profit" amount={data.operatingProfit} pct={data.operatingMarginPercent} gh={gh} />
 
-                    <SectionRows title="Depreciation & Financing Costs" lines={bySection("OtherCost")} onOpen={openDrill} gh={gh} negative />
-                    <TotalRow label="Total Depreciation & Financing" amount={data.totalOtherCosts} gh={gh} negative />
+                    <SectionRows title="Depreciation & Financing Costs" lines={bySection("OtherCost")} onOpen={openDrill} gh={gh} negative tone="violet" />
+                    <TotalRow label="Total Depreciation & Financing" amount={data.totalOtherCosts} gh={gh} negative tone="violet" />
                     <ResultRow label="Net Profit" amount={data.netProfit} pct={data.netMarginPercent} gh={gh} strong />
                   </TableBody>
                 </Table>
@@ -446,7 +494,32 @@ export function PoultryProfitLossView() {
                 <div className="py-10 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>
               ) : (
                 <div className="max-h-[60vh] overflow-y-auto">
-                  <Table>
+                  {/* Phone: four columns cannot fit, so each entry is stacked —
+                      what it was and how much on the first line, the date and
+                      the source beneath. Same rows, same order, same total. */}
+                  <div className="space-y-2 sm:hidden">
+                    {(drill?.rows ?? []).length === 0 ? (
+                      <p className="py-6 text-center text-sm text-slate-500">
+                        Nothing behind this figure in the selected period.
+                      </p>
+                    ) : drill!.rows.map((r, i) => (
+                      <div key={i} className="rounded-lg border border-slate-200 p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="min-w-0 break-words text-sm font-medium text-slate-900">
+                            {r.mid || r.left}
+                          </span>
+                          <span className="shrink-0 tabular-nums text-sm font-semibold">{gh(r.amount)}</span>
+                        </div>
+                        {r.note && <div className="mt-0.5 text-[11px] text-slate-500">{r.note}</div>}
+                        <div className="mt-1 flex flex-wrap gap-x-3 text-[11px] text-slate-500">
+                          <span>{r.left}</span>
+                          {r.right && <span>{r.right}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <Table className="hidden sm:table">
                     <TableHeader><TableRow>
                       <TableHead>Date</TableHead><TableHead>Detail</TableHead>
                       <TableHead>Source</TableHead><TableHead className="text-right">Amount</TableHead>
@@ -459,7 +532,7 @@ export function PoultryProfitLossView() {
                       ) : drill!.rows.map((r, i) => (
                         <TableRow key={i}>
                           <TableCell className="whitespace-nowrap text-sm">{r.left}</TableCell>
-                          <TableCell className="text-sm">
+                          <TableCell className="text-sm whitespace-normal">
                             {r.mid}
                             {r.note && <div className="text-[11px] text-slate-500">{r.note}</div>}
                           </TableCell>
@@ -509,31 +582,36 @@ function Kpi({ label, value, hint, tone, strong }: {
   )
 }
 
-function SectionRows({ title, lines, onOpen, gh, negative }: {
+function SectionRows({ title, lines, onOpen, gh, negative, tone }: {
   title: string; lines: PoultryProfitLossLine[]
   onOpen: (l: PoultryProfitLossLine) => void
-  gh: (n: number) => string; negative?: boolean
+  gh: (n: number) => string; negative?: boolean; tone: SectionTone
 }) {
+  const t = SECTION_TONES[tone]
   return (
     <>
-      <TableRow className="bg-slate-50 hover:bg-slate-50">
-        <TableCell colSpan={2} className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 py-2">
+      {/* hover is pinned to the same tint: a heading is not clickable, and a
+          row that lights up under the cursor reads as though it were. */}
+      <TableRow className={cn(t.head, "hover:bg-inherit")}>
+        <TableCell colSpan={2} className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide whitespace-normal sm:px-4">
           {title}
         </TableCell>
       </TableRow>
       {lines.length === 0 ? (
-        <TableRow><TableCell colSpan={2} className="text-sm text-slate-400 pl-8 py-2">None this period</TableCell></TableRow>
+        <TableRow><TableCell colSpan={2} className={cn("border-l-4 py-2 pl-5 text-sm text-slate-400 whitespace-normal sm:pl-8", t.rail)}>None this period</TableCell></TableRow>
       ) : lines.map((l) => (
         <TableRow key={l.section + l.lineKey} className="cursor-pointer" onClick={() => onOpen(l)}>
-          <TableCell className="pl-8 py-1.5 text-sm">
+          <TableCell className={cn("border-l-4 py-3 pl-5 pr-2 text-sm whitespace-normal sm:py-1.5 sm:pl-8", t.rail)}>
             <span className="inline-flex items-center gap-1 hover:underline">
               {l.lineLabel}
               <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
             </span>
-            <span className="ml-2 text-[11px] text-slate-400">{l.entryCount}</span>
+            <span className="ml-2 inline-block rounded-full bg-slate-100 px-1.5 py-px align-middle text-[10px] font-medium text-slate-500">
+              {l.entryCount} {l.entryCount === 1 ? "entry" : "entries"}
+            </span>
           </TableCell>
-          <TableCell className="text-right py-1.5 tabular-nums text-sm">
-            {negative ? `(${gh(l.amount)})` : gh(l.amount)}
+          <TableCell className="py-3 pr-3 text-right tabular-nums text-sm whitespace-nowrap sm:py-1.5 sm:pr-4">
+            {stated(l.amount, gh, negative)}
           </TableCell>
         </TableRow>
       ))}
@@ -541,14 +619,16 @@ function SectionRows({ title, lines, onOpen, gh, negative }: {
   )
 }
 
-function TotalRow({ label, amount, gh, negative }: {
+function TotalRow({ label, amount, gh, negative, tone }: {
   label: string; amount: number; gh: (n: number) => string; negative?: boolean
+  tone: SectionTone
 }) {
+  const t = SECTION_TONES[tone]
   return (
-    <TableRow className="border-t">
-      <TableCell className="py-1.5 text-sm font-medium">{label}</TableCell>
-      <TableCell className="text-right py-1.5 tabular-nums text-sm font-medium">
-        {negative ? `(${gh(amount)})` : gh(amount)}
+    <TableRow className={cn("border-t", t.total, "hover:bg-inherit")}>
+      <TableCell className={cn("border-l-4 px-3 py-2 text-sm font-medium whitespace-normal sm:px-4 sm:py-1.5", t.rail)}>{label}</TableCell>
+      <TableCell className="px-3 py-2 text-right tabular-nums text-sm font-medium whitespace-nowrap sm:px-4 sm:py-1.5">
+        {stated(amount, gh, negative)}
       </TableCell>
     </TableRow>
   )
@@ -558,13 +638,31 @@ function ResultRow({ label, amount, pct, gh, strong }: {
   label: string; amount: number; pct?: number | null; gh: (n: number) => string; strong?: boolean
 }) {
   return (
-    <TableRow className={cn("border-t-2 border-slate-300", strong && "bg-slate-50 hover:bg-slate-50")}>
-      <TableCell className={cn("py-2 text-sm font-semibold", strong && "text-base")}>
+    <TableRow className={cn(
+      "border-t-2 border-slate-300 hover:bg-inherit",
+      // A result is an answer, so it is banded rather than tinted at the edge:
+      // green when the farm is ahead at that line, red when it is behind, and
+      // Net Profit — the one figure most readers came for — banded strongest.
+      amount >= 0
+        ? (strong ? "bg-emerald-100" : "bg-emerald-50")
+        : (strong ? "bg-rose-100" : "bg-rose-50"),
+    )}>
+      {/* The spine stops at a result — that is the point of it — but the 4px
+          it occupied is kept transparent so every label still starts on the
+          same vertical line. */}
+      <TableCell className={cn("border-l-4 border-transparent px-3 py-2.5 text-sm font-semibold whitespace-normal sm:px-4 sm:py-2", strong && "text-base")}>
         {label}
-        {pct != null && <span className="ml-2 font-normal text-xs text-slate-500">{pct}% of revenue</span>}
+        {/* Its own chip, and under the label on a phone: run straight on after
+            the label it read as one word — "Gross Profit-1830.3%" — and beside
+            it on a phone it pushed the amount off a 360px screen. */}
+        {pct != null && (
+          <span className="mt-1 block w-fit rounded bg-white/70 px-1.5 py-px text-xs font-normal text-slate-500 ring-1 ring-slate-200 sm:mt-0 sm:ml-2 sm:inline-block">
+            {pct}% of revenue
+          </span>
+        )}
       </TableCell>
       <TableCell className={cn(
-        "text-right py-2 tabular-nums font-semibold", strong && "text-base",
+        "px-3 py-2.5 text-right tabular-nums font-semibold whitespace-nowrap sm:px-4 sm:py-2", strong && "text-base",
         amount >= 0 ? "text-emerald-700" : "text-red-700",
       )}>
         {gh(amount)}
@@ -599,14 +697,17 @@ function InfoSection({ icon, title, subtitle, note, lines, onOpen, gh, footer, l
       {lines.length === 0 ? (
         <p className="text-sm text-slate-400">None this period.</p>
       ) : (
+        // Each line is a drilldown trigger, so it needs a finger-sized row on
+        // a phone; on a desktop it goes back to a tight statement line.
         <div className="space-y-1">
           {lines.map((l) => (
             <button key={l.lineKey} type="button" onClick={() => onOpen(l)}
-                    className="flex w-full items-center justify-between text-sm hover:underline">
-              <span className="inline-flex items-center gap-1">
-                {l.lineLabel}<ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                    className="flex w-full items-center justify-between gap-3 py-2 text-left text-sm hover:underline sm:py-0.5">
+              <span className="inline-flex min-w-0 items-center gap-1">
+                <span className="break-words">{l.lineLabel}</span>
+                <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-400" />
               </span>
-              <span className="tabular-nums">{gh(l.amount)}</span>
+              <span className="shrink-0 tabular-nums">{gh(l.amount)}</span>
             </button>
           ))}
         </div>
