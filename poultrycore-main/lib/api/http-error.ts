@@ -88,3 +88,52 @@ export function explainHttpError(
   // showing the payload.
   return generic
 }
+
+/**
+ * The same job as explainHttpError, one step further along: what to PUT ON THE
+ * PAGE when a read fails and there is nothing else to show.
+ *
+ * explainHttpError keeps a raw payload out of a toast, but it cannot help when
+ * the backend hands us a technically accurate sentence that means nothing to
+ * the reader -- "function sppoultrydeferredpurchase_summary(...) does not
+ * exist" is the example that prompted this. That is a real answer to a
+ * question a farm manager never asked.
+ *
+ * Returns a headline they can act on plus the hint of what to do. The caller
+ * keeps the raw text and shows it demoted: whoever can fix this needs it, and
+ * whoever cannot should not have to read it.
+ *
+ * @param subject what failed to load, lower case, e.g. "deferred inventory costs"
+ */
+export function explainLoadFailure(
+  raw: string,
+  subject = "this page",
+): { headline: string; hint: string } {
+  const t = (raw || "").toLowerCase()
+
+  // 42883 is Postgres undefined_function: a migration this screen depends on
+  // has not been applied. Nothing is wrong with the company's data, and saying
+  // so is the difference between a shrug and a support call about lost records.
+  if (t.includes("does not exist") || t.includes("undefined function") || t.includes("42883")) {
+    return {
+      headline: `${subject[0].toUpperCase()}${subject.slice(1)} aren't switched on yet.`,
+      hint: "This company's database is missing an update this screen needs. Ask whoever looks after your system to apply it — nothing is wrong with your data.",
+    }
+  }
+  if (t.includes("(401)") || t.includes("(403)") || t.includes("unauthor") || t.includes("forbid")) {
+    return {
+      headline: "You do not have permission to view this.",
+      hint: "Ask an administrator to give you access for this company.",
+    }
+  }
+  if (t.includes("failed to fetch") || t.includes("networkerror") || t.includes("timeout")) {
+    return {
+      headline: "Could not reach the server.",
+      hint: "Check your connection and try again. Nothing has been changed.",
+    }
+  }
+  return {
+    headline: `Could not load ${subject}.`,
+    hint: "Try again in a moment. If it keeps happening, pass the detail below to whoever looks after your system.",
+  }
+}

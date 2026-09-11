@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge"
 import { Loader2, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useFmt } from "@/lib/currency"
+import { explainLoadFailure } from "@/lib/api/http-error"
 import {
   OPERATIONAL_COST_TOOLTIP, NEWLY_RECOGNIZED_TOOLTIP, ALREADY_EXPENSED_TOOLTIP,
   NO_SECOND_PAYMENT_TOOLTIP,
@@ -80,9 +81,24 @@ export function CostBreakdownDialog({
         </DialogHeader>
 
         {error ? (
-          <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-900">
-            <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-            <span>{error}</span>
+          // Same rule as the deferred-costs page: a headline somebody can act
+          // on, with the server's own words demoted rather than deleted.
+          <div className="p-4 text-center">
+            <AlertTriangle className="mx-auto h-7 w-7 text-amber-500" />
+            <h3 className="mt-2 text-sm font-semibold text-slate-900">
+              {explainLoadFailure(error, "the cost breakdown").headline}
+            </h3>
+            <p className="mt-1 text-xs text-slate-500">
+              {explainLoadFailure(error, "the cost breakdown").hint}
+            </p>
+            <details className="mt-3 text-left">
+              <summary className="cursor-pointer text-[11px] text-slate-400 hover:text-slate-600">
+                Technical detail
+              </summary>
+              <p className="mt-1 break-words rounded bg-slate-50 p-2 font-mono text-[11px] text-slate-500">
+                {error}
+              </p>
+            </details>
           </div>
         ) : rows == null ? (
           <div className="flex items-center gap-2 p-6 text-sm text-slate-500">

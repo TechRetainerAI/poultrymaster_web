@@ -48,7 +48,7 @@ export default function PoultryAssetDetailPage() {
     if (!Number.isFinite(id)) return
     setLoading(true)
     try { setAsset(await getPoultryAsset(id)) }
-    catch (e: any) { toast({ title: "Could not load the asset", description: e?.message ?? String(e), variant: "destructive" }) }
+    catch (e: any) { toast({ title: "Could not load the investment", description: e?.message ?? String(e), variant: "destructive" }) }
     finally { setLoading(false) }
   }, [id, toast])
 
@@ -75,7 +75,7 @@ export default function PoultryAssetDetailPage() {
   }
   if (!asset) {
     return <div className="p-6 text-sm text-slate-600">
-      Asset not found. <Link href="/poultry-assets" className="underline">Back to Assets</Link>
+      Capital investment not found. <Link href="/poultry-assets" className="underline">Back to Capital Investments</Link>
     </div>
   }
 
@@ -90,7 +90,7 @@ export default function PoultryAssetDetailPage() {
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
           <div className="flex flex-wrap items-center gap-3">
             <Button variant="ghost" size="sm" onClick={() => router.push("/poultry-assets")}>
-              <ArrowLeft className="w-4 h-4 mr-1" /> Assets
+              <ArrowLeft className="w-4 h-4 mr-1" /> Capital Investments
             </Button>
             <div>
               <h1 className="text-lg font-semibold text-slate-900">{asset.assetName}</h1>
@@ -155,7 +155,7 @@ export default function PoultryAssetDetailPage() {
               <TableBody>
                 {costs.length === 0 ? (
                   <TableRow><TableCell colSpan={6} className="text-center text-slate-500 py-6">
-                    Nothing capitalised yet. Use &quot;Add cost&quot; on the register to build this asset up.
+                    Nothing capitalised yet. Use &quot;Add cost&quot; on the register to build this investment up.
                   </TableCell></TableRow>
                 ) : costs.map((c) => (
                   <TableRow key={c.poultryCapitalAssetCostId}>
@@ -197,7 +197,7 @@ export default function PoultryAssetDetailPage() {
               <TableBody>
                 {(asset.depreciation ?? []).length === 0 ? (
                   <TableRow><TableCell colSpan={6} className="text-center text-slate-500 py-6">
-                    Nothing charged yet.{asset.status === "Draft" && " This asset is not in service, so it does not depreciate."}
+                    Nothing charged yet.{asset.status === "Draft" && " This investment is not in service, so it does not depreciate."}
                   </TableCell></TableRow>
                 ) : (asset.depreciation ?? []).map((d) => (
                   <TableRow key={d.poultryAssetDepreciationId} className={cn(d.status === "Reversed" && "opacity-60")}>

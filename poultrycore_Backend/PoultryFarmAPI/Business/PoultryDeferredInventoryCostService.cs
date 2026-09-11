@@ -113,6 +113,8 @@ namespace PoultryFarmAPIWeb.Business
                     Exceptions = Int(r, "Exceptions"),
                     ExceptionDrift = Dec(r, "ExceptionDrift"),
                     RecognitionPercent = Dec(r, "RecognitionPercent"),
+                    BlockedPurchases = Int(r, "BlockedPurchases"),
+                    BlockedCost = Dec(r, "BlockedCost"),
                 };
             }
 
@@ -150,6 +152,9 @@ namespace PoultryFarmAPIWeb.Business
                         IsLotProduced = Bool(r, "IsLotProduced"),
                         RecognitionEvents = Int(r, "RecognitionEvents"),
                         LastRecognitionDate = DtN(r, "LastRecognitionDate"),
+                        CostingMethod = StrN(r, "CostingMethod"),
+                        QueuePosition = IntN(r, "QueuePosition"),
+                        QuantityAheadInQueue = DecN(r, "QuantityAheadInQueue"),
                     });
                 }
             }

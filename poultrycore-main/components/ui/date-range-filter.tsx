@@ -21,6 +21,7 @@ import {
   SelectSeparator, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
 import { PERIOD_GROUPS, periodToRange, rangeToPeriod } from "@/lib/date-ranges"
+import { GROUPED_SELECT_CONTENT_CLASS } from "@/components/dashboard/mobile-filters"
 
 export function DateRangeFilter({
   from,
@@ -51,7 +52,10 @@ export function DateRangeFilter({
           }}
         >
           <SelectTrigger className="w-40"><SelectValue placeholder="Select period" /></SelectTrigger>
-          <SelectContent>
+          {/* Sixteen presets in six groups. Left to the default ceiling this
+              scrolled with half the list hidden, which defeats a preset picker
+              -- you pick one by seeing it, not by hunting for it. */}
+          <SelectContent className={GROUPED_SELECT_CONTENT_CLASS}>
             {/* Visually grouped (James's "Best display order" mockup): separators, no headings. */}
             {PERIOD_GROUPS.map((g, gi) => (
               <SelectGroup key={g.label}>

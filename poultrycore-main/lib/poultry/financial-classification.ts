@@ -131,9 +131,20 @@ export const PROFIT_NOT_CASH_EXAMPLES = [
   "A bill you have received but not yet paid — the cost is yours the day it is incurred",
 ]
 
-/** Shown above the Financing & Owner Activity section. §42, near enough verbatim. */
-export const FINANCING_SECTION_NOTE =
-  "These transactions affect company cash but are excluded from profit, because they represent owner funding, withdrawals or financing rather than operating revenue or operating expenses."
+
+/**
+ * The financing note, split in two.
+ *
+ * One card covering owner money AND borrowing had to describe both at once,
+ * and the combined wording ("owner funding, withdrawals or financing") is
+ * vague precisely because it is covering two different things. Separated, each
+ * card can say the one thing that is true of it.
+ */
+export const OWNER_SECTION_NOTE =
+  "Money the owner puts in or takes out. It changes company cash but is never profit: putting money in is not income, and taking it out is not an expense."
+
+export const BORROWING_SECTION_NOTE =
+  "Money borrowed and principal repaid. Borrowing is not income and repaying principal is not an expense — only the interest and fees are a cost of borrowing, and those are already in the expenses above."
 
 /** Shown above Capital Investments. §44. */
 export const CAPITAL_SECTION_NOTE =
@@ -177,7 +188,7 @@ export const DEPRECIATION_NONCASH_NOTE =
   "Depreciation reduces profit and the asset's book value. It moves no money: no cash account, no supplier and no payment are affected."
 
 export const BOOK_VALUE_TOOLTIP =
-  "What the asset is still worth on the books: what it cost, less the depreciation charged so far. It never falls below the residual value."
+  "What the capital investment is still worth on the books: what it cost, less the depreciation charged so far. It never falls below the residual value."
 
 export const ORIGINAL_COST_TOOLTIP =
-  "Everything capitalised into this asset — the purchase, plus any further costs added to it."
+  "Everything capitalised into this capital investment — the purchase, plus any further costs added to it."

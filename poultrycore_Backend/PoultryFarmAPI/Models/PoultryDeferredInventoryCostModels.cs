@@ -69,6 +69,18 @@ namespace PoultryFarmAPIWeb.Models
 
         public int RecognitionEvents { get; set; }
         public DateTime? LastRecognitionDate { get; set; }
+
+        // ---- 289: the consumption queue ------------------------------------
+        /// <summary>FIFO | LIFO | HIFO — the item's costing method, which
+        /// decides draw order and therefore everything below.</summary>
+        public string? CostingMethod { get; set; }
+        /// <summary>Place in the queue for this item, 1 = drawn next. NULL when
+        /// the lot has no stock left, so it is not queued at all.</summary>
+        public int? QueuePosition { get; set; }
+        /// <summary>Stock (production units) that will be consumed before this
+        /// lot is reached. 0 means next. This is why a deferred cost can sit
+        /// still while stock is being consumed.</summary>
+        public decimal? QuantityAheadInQueue { get; set; }
     }
 
     /// <summary>
@@ -160,6 +172,10 @@ namespace PoultryFarmAPIWeb.Models
         public int Exceptions { get; set; }
         public decimal ExceptionDrift { get; set; }
         public decimal RecognitionPercent { get; set; }
+        /// <summary>289. How many filtered lots cannot be reached yet because
+        /// older stock stands in front of them. Zero is the reassuring answer.</summary>
+        public int BlockedPurchases { get; set; }
+        public decimal BlockedCost { get; set; }
     }
 
     /// <summary>Summary plus rows, fetched in one round trip.</summary>

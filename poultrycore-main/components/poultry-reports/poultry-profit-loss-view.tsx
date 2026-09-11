@@ -31,7 +31,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { ArrowLeft, AlertTriangle, Info, Loader2, ChevronRight, Wallet, Building2 } from "lucide-react"
+import { ArrowLeft, AlertTriangle, Info, Loader2, ChevronRight, Wallet, Building2, Banknote } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useFmt } from "@/lib/currency"
 import { useToast } from "@/hooks/use-toast"
@@ -50,7 +50,7 @@ import {
 import {
   PROFIT_VS_CASH_TITLE, PROFIT_VS_CASH_BODY,
   CASH_NOT_PROFIT_EXAMPLES, PROFIT_NOT_CASH_EXAMPLES,
-  FINANCING_SECTION_NOTE, CAPITAL_SECTION_NOTE, PL_METHOD_NOTE, legacyNote,
+  OWNER_SECTION_NOTE, BORROWING_SECTION_NOTE, CAPITAL_SECTION_NOTE, PL_METHOD_NOTE, legacyNote,
   recognitionSummaryLine, ITEM_OVERRIDE_TOOLTIP,
 } from "@/lib/poultry/financial-classification"
 
@@ -94,6 +94,20 @@ export function PoultryProfitLossView() {
     (s: PlSection) => lines.filter((l) => l.section === s).sort((a, b) => a.sortOrder - b.sortOrder),
     [lines],
   )
+
+  // 272 splits Financing into four line keys; these are the two owner ones.
+  // Named here rather than inlined so the owner card and the borrowing card
+  // cannot drift into overlapping or leaving a key out -- borrowingLines is
+  // deliberately "everything else", so a fifth key added later still appears
+  // on the page instead of silently vanishing from both cards.
+  const ownerLines = useMemo(
+    () => bySection("Financing").filter(
+      (l) => l.lineKey === "OwnerContributions" || l.lineKey === "OwnerDraws"),
+    [bySection])
+  const borrowingLines = useMemo(
+    () => bySection("Financing").filter(
+      (l) => l.lineKey !== "OwnerContributions" && l.lineKey !== "OwnerDraws"),
+    [bySection])
 
   // -------------------------------------------------------------- drilldown --
   const openDrill = useCallback(async (line: PoultryProfitLossLine) => {
@@ -334,46 +348,99 @@ export function PoultryProfitLossView() {
                 <Link href="/poultry-financial-settings" className="ml-auto text-sky-700 underline">Settings</Link>
               </CardContent></Card>
 
-              {/* ---- the statement --------------------------------------- */}
-              <Card><CardContent className="p-0">
+              {/* ---- the statement ---------------------------------------
+                  ONE full-width table with FOUR columns, not two.
+                  A two-column statement across a desktop leaves the amount on
+                  the far edge, a hand-span from its own label, with nothing in
+                  between. Narrowing the table, or cutting it into cards, both
+                  fix that gap by making the page smaller -- a worse trade.
+                  Filling it with Entries and % of Revenue fixes it with
+                  information instead: the three numeric columns sit together on
+                  the right, the label column takes what is left, and there is
+                  no empty middle because nothing is empty. */}
+              <Card><CardContent className="p-0 overflow-x-auto">
                 <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Section / Line</TableHead>
+                      <TableHead className="w-[110px] text-right">Entries</TableHead>
+                      <TableHead className="w-[170px] text-right">Amount</TableHead>
+                      <TableHead className="w-[130px] text-right">% of Revenue</TableHead>
+                    </TableRow>
+                  </TableHeader>
                   <TableBody>
-                    <SectionRows title="Revenue" lines={bySection("Revenue")} onOpen={openDrill} gh={gh} />
-                    <TotalRow label="Total Revenue" amount={data.totalRevenue} gh={gh} />
-
-                    <SectionRows title="Direct Production Costs" lines={bySection("DirectCost")} onOpen={openDrill} gh={gh} negative />
-                    <TotalRow label="Total Direct Production Costs" amount={data.totalDirectCosts} gh={gh} negative />
-                    <ResultRow label="Gross Profit" amount={data.grossProfit} pct={data.grossMarginPercent} gh={gh} />
-
-                    <SectionRows title="Operating Expenses" lines={bySection("OperatingExpense")} onOpen={openDrill} gh={gh} negative />
-                    <TotalRow label="Total Operating Expenses" amount={data.totalOperatingExpenses} gh={gh} negative />
-                    <ResultRow label="Operating Profit" amount={data.operatingProfit} pct={data.operatingMarginPercent} gh={gh} />
-
-                    <SectionRows title="Depreciation & Financing Costs" lines={bySection("OtherCost")} onOpen={openDrill} gh={gh} negative />
-                    <TotalRow label="Total Depreciation & Financing" amount={data.totalOtherCosts} gh={gh} negative />
-                    <ResultRow label="Net Profit" amount={data.netProfit} pct={data.netMarginPercent} gh={gh} strong />
+                    <StatementSection
+                      title="Revenue" lines={bySection("Revenue")}
+                      totalLabel="Total Revenue" totalAmount={data.totalRevenue}
+                      revenue={data.totalRevenue} onOpen={openDrill} gh={gh}
+                    />
+                    <StatementSection
+                      title="Direct Production Costs" negative lines={bySection("DirectCost")}
+                      totalLabel="Total Direct Production Costs" totalAmount={data.totalDirectCosts}
+                      resultLabel="Gross Profit" resultAmount={data.grossProfit}
+                      resultPct={data.grossMarginPercent}
+                      revenue={data.totalRevenue} onOpen={openDrill} gh={gh}
+                    />
+                    <StatementSection
+                      title="Operating Expenses" negative lines={bySection("OperatingExpense")}
+                      totalLabel="Total Operating Expenses" totalAmount={data.totalOperatingExpenses}
+                      resultLabel="Operating Profit" resultAmount={data.operatingProfit}
+                      resultPct={data.operatingMarginPercent}
+                      revenue={data.totalRevenue} onOpen={openDrill} gh={gh}
+                    />
+                    <StatementSection
+                      title="Depreciation & Financing Costs" negative lines={bySection("OtherCost")}
+                      totalLabel="Total Depreciation & Financing" totalAmount={data.totalOtherCosts}
+                      resultLabel="Net Profit" resultAmount={data.netProfit}
+                      resultPct={data.netMarginPercent} strong
+                      revenue={data.totalRevenue} onOpen={openDrill} gh={gh}
+                    />
                   </TableBody>
                 </Table>
               </CardContent></Card>
 
-              {/* ---- informational: cash moved, profit did not ------------ */}
-              <div className="grid gap-4 lg:grid-cols-2">
+              {/* ---- informational: cash moved, profit did not ------------
+                  Side by side: three across on a wide screen, two on medium,
+                  stacked only on a phone. items-start is deliberately NOT set,
+                  so the cards share a row height and their notes line up
+                  instead of stepping.
+
+                  Owner money is its own card rather than sharing one with
+                  borrowing: they are both "not profit", but for different
+                  reasons, and one card had to describe both at once. */}
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <InfoSection
-                  icon={<Wallet className="w-4 h-4" />}
-                  title="Financing & Owner Activity"
+                  icon={<Banknote className="w-4 h-4" />}
+                  title="Owner Contributions & Draws"
                   subtitle="Excluded from profit"
-                  note={FINANCING_SECTION_NOTE}
-                  lines={bySection("Financing")}
+                  note={OWNER_SECTION_NOTE}
+                  lines={ownerLines}
                   onOpen={openDrill}
                   gh={gh}
                   footer={
-                    <div className="flex flex-wrap gap-3 text-xs">
-                      <span className="text-slate-600">Net owner funding <strong>{gh(data.netOwnerFunding)}</strong></span>
-                      <span className="text-slate-600">Net borrowing <strong>{gh(data.netBorrowing)}</strong></span>
+                    <div className="text-xs text-slate-600">
+                      Net owner funding <strong>{gh(data.netOwnerFunding)}</strong>
                     </div>
                   }
                   links={[
                     { href: "/poultry-owner-money", label: "View Owner Money" },
+                    { href: "/cash-flow", label: "View Cash Flow" },
+                  ]}
+                />
+                <InfoSection
+                  icon={<Wallet className="w-4 h-4" />}
+                  title="Loans (Financing)"
+                  subtitle="Excluded from profit"
+                  note={BORROWING_SECTION_NOTE}
+                  lines={borrowingLines}
+                  onOpen={openDrill}
+                  gh={gh}
+                  footer={
+                    <div className="text-xs text-slate-600">
+                      Net borrowing <strong>{gh(data.netBorrowing)}</strong>
+                    </div>
+                  }
+                  links={[
                     { href: "/poultry-loans", label: "View Loans" },
                     { href: "/cash-flow", label: "View Cash Flow" },
                   ]}
@@ -391,7 +458,7 @@ export function PoultryProfitLossView() {
                       Total capital investments <strong>{gh(data.totalCapitalInvestments)}</strong>
                     </div>
                   }
-                  links={[{ href: "/poultry-assets", label: "View Assets" }]}
+                  links={[{ href: "/poultry-assets", label: "View Capital Investments" }]}
                 />
               </div>
 
@@ -509,67 +576,100 @@ function Kpi({ label, value, hint, tone, strong }: {
   )
 }
 
-function SectionRows({ title, lines, onOpen, gh, negative }: {
-  title: string; lines: PoultryProfitLossLine[]
+
+/**
+ * One band of the statement: its heading, its lines, its total, and the
+ * subtotal that band produces.
+ *
+ * Emits rows into the shared table rather than owning a card of its own, so
+ * every section uses one set of column widths and the figures line up down the
+ * whole statement. Columns that do not line up are not a statement.
+ *
+ * % OF REVENUE is measured on the ABSOLUTE amount against total revenue, so a
+ * cost reads "38.8% of revenue" rather than "-38.8%". A period with no revenue
+ * prints an em dash rather than 0.0% or NaN: "0% of nothing" is not a fact.
+ */
+function StatementSection({
+  title, lines, totalLabel, totalAmount, resultLabel, resultAmount, resultPct,
+  revenue, onOpen, gh, negative, strong,
+}: {
+  title: string
+  lines: PoultryProfitLossLine[]
+  totalLabel: string; totalAmount: number
+  resultLabel?: string; resultAmount?: number; resultPct?: number | null
+  revenue: number
   onOpen: (l: PoultryProfitLossLine) => void
-  gh: (n: number) => string; negative?: boolean
+  gh: (n: number) => string
+  negative?: boolean; strong?: boolean
 }) {
+  const money = (n: number) => (negative ? `(${gh(n)})` : gh(n))
+  const pct = (n: number) =>
+    revenue > 0 ? `${((Math.abs(n) / revenue) * 100).toFixed(1)}%` : "—"
+  const entryTotal = lines.reduce((a, l) => a + l.entryCount, 0)
+
   return (
     <>
       <TableRow className="bg-slate-50 hover:bg-slate-50">
-        <TableCell colSpan={2} className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 py-2">
+        <TableCell colSpan={4} className="py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
           {title}
         </TableCell>
       </TableRow>
+
       {lines.length === 0 ? (
-        <TableRow><TableCell colSpan={2} className="text-sm text-slate-400 pl-8 py-2">None this period</TableCell></TableRow>
+        <TableRow>
+          <TableCell colSpan={4} className="py-2 pl-8 text-sm text-slate-400">None this period</TableCell>
+        </TableRow>
       ) : lines.map((l) => (
         <TableRow key={l.section + l.lineKey} className="cursor-pointer" onClick={() => onOpen(l)}>
-          <TableCell className="pl-8 py-1.5 text-sm">
+          <TableCell className="py-1.5 pl-8 text-sm">
             <span className="inline-flex items-center gap-1 hover:underline">
               {l.lineLabel}
-              <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+              <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
             </span>
-            <span className="ml-2 text-[11px] text-slate-400">{l.entryCount}</span>
           </TableCell>
-          <TableCell className="text-right py-1.5 tabular-nums text-sm">
-            {negative ? `(${gh(l.amount)})` : gh(l.amount)}
+          <TableCell className="py-1.5 text-right text-sm tabular-nums text-slate-500">
+            {l.entryCount}
+          </TableCell>
+          <TableCell className="py-1.5 text-right text-sm tabular-nums">{money(l.amount)}</TableCell>
+          <TableCell className="py-1.5 text-right text-sm tabular-nums text-slate-500">
+            {pct(l.amount)}
           </TableCell>
         </TableRow>
       ))}
+
+      <TableRow className="border-t">
+        <TableCell className="py-1.5 pl-8 text-sm font-medium">{totalLabel}</TableCell>
+        <TableCell className="py-1.5 text-right text-sm tabular-nums text-slate-500">
+          {entryTotal > 0 ? entryTotal : ""}
+        </TableCell>
+        <TableCell className="py-1.5 text-right text-sm font-medium tabular-nums">
+          {money(totalAmount)}
+        </TableCell>
+        <TableCell className="py-1.5 text-right text-sm font-medium tabular-nums text-slate-500">
+          {pct(totalAmount)}
+        </TableCell>
+      </TableRow>
+
+      {resultLabel != null && resultAmount != null && (
+        <TableRow className={cn("border-t-2 border-slate-300", strong && "bg-slate-50 hover:bg-slate-50")}>
+          <TableCell className={cn("py-2 text-sm font-semibold", strong && "text-base")}>
+            {resultLabel}
+          </TableCell>
+          {/* No entry count on a result row: it is arithmetic on the rows
+              above, not a set of documents of its own. */}
+          <TableCell />
+          <TableCell className={cn(
+            "py-2 text-right font-semibold tabular-nums", strong && "text-base",
+            resultAmount >= 0 ? "text-emerald-700" : "text-red-700",
+          )}>
+            {gh(resultAmount)}
+          </TableCell>
+          <TableCell className={cn("py-2 text-right font-semibold tabular-nums text-slate-500", strong && "text-base")}>
+            {resultPct != null ? `${resultPct}%` : pct(resultAmount)}
+          </TableCell>
+        </TableRow>
+      )}
     </>
-  )
-}
-
-function TotalRow({ label, amount, gh, negative }: {
-  label: string; amount: number; gh: (n: number) => string; negative?: boolean
-}) {
-  return (
-    <TableRow className="border-t">
-      <TableCell className="py-1.5 text-sm font-medium">{label}</TableCell>
-      <TableCell className="text-right py-1.5 tabular-nums text-sm font-medium">
-        {negative ? `(${gh(amount)})` : gh(amount)}
-      </TableCell>
-    </TableRow>
-  )
-}
-
-function ResultRow({ label, amount, pct, gh, strong }: {
-  label: string; amount: number; pct?: number | null; gh: (n: number) => string; strong?: boolean
-}) {
-  return (
-    <TableRow className={cn("border-t-2 border-slate-300", strong && "bg-slate-50 hover:bg-slate-50")}>
-      <TableCell className={cn("py-2 text-sm font-semibold", strong && "text-base")}>
-        {label}
-        {pct != null && <span className="ml-2 font-normal text-xs text-slate-500">{pct}% of revenue</span>}
-      </TableCell>
-      <TableCell className={cn(
-        "text-right py-2 tabular-nums font-semibold", strong && "text-base",
-        amount >= 0 ? "text-emerald-700" : "text-red-700",
-      )}>
-        {gh(amount)}
-      </TableCell>
-    </TableRow>
   )
 }
 

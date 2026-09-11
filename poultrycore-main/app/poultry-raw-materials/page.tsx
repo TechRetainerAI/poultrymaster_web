@@ -600,7 +600,7 @@ function PoultryRawMaterialsPageInner() {
                           ? "See the purchases this is waiting on"
                           : DEFERRED_INVENTORY_TOOLTIP}
                       >
-                        <div className="text-[11px] uppercase tracking-wide text-amber-700">Awaiting Profit &amp; Loss</div>
+                        <div className="text-[11px] uppercase tracking-wide text-amber-700">Awaiting P&amp;L</div>
                         <div className="text-base font-semibold text-amber-900">{gh(valuation.summary.deferredValue)}</div>
                         <div className="text-[11px] text-amber-700">
                           {valuation.summary.deferredValue > 0
