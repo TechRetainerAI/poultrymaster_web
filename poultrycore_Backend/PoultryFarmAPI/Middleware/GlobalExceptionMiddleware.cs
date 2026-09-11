@@ -39,11 +39,44 @@ namespace PoultryFarmAPIWeb.Middleware
             {
                 _logger.LogError(ex, "Unhandled exception on {Method} {Path}",
                     context.Request.Method, context.Request.Path);
+
+                // Several services wrap the driver's exception in a friendlier
+                // one -- ExpenseService does it as
+                // `new Exception("Error inserting expense record.", ex)`. That
+                // wrapper is not a PostgresException, so without this the catch
+                // above never fires and the caller is told only that something
+                // went wrong inserting an expense: no SQLSTATE, no constraint,
+                // no column. True, and useless to everyone.
+                //
+                // Unwrap and report the database's own answer when there is one.
+                // The wrapper's message is kept as `context` so the sentence the
+                // service chose is not lost either.
+                var pg = FindPostgresException(ex);
+                if (pg is not null)
+                {
+                    await WriteSqlError(context, pg, ex.Message);
+                    return;
+                }
+
                 await WriteGenericError(context, ex);
             }
         }
 
-        private static async Task WriteSqlError(HttpContext context, PostgresException ex)
+        /// <summary>
+        /// Walks the InnerException chain for the driver's own error. Bounded,
+        /// because a cyclic chain here would hang the error path itself.
+        /// </summary>
+        private static PostgresException? FindPostgresException(Exception? ex)
+        {
+            for (var depth = 0; ex is not null && depth < 10; depth++, ex = ex.InnerException)
+            {
+                if (ex is PostgresException pg) return pg;
+            }
+            return null;
+        }
+
+        private static async Task WriteSqlError(HttpContext context, PostgresException ex,
+                                                string? wrappedBy = null)
         {
             if (context.Response.HasStarted) return;
 
@@ -74,6 +107,9 @@ namespace PoultryFarmAPIWeb.Middleware
                 sqlMessage = ex.MessageText,
                 detail = ex.Detail,
                 hint,
+                // What the service was doing when the database refused. Null on
+                // an error that reached the middleware unwrapped.
+                context = wrappedBy,
                 path = context.Request.Path.Value,
             };
 

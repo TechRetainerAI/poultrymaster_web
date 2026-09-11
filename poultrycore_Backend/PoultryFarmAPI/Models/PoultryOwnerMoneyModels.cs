@@ -21,7 +21,13 @@ namespace PoultryFarmAPIWeb.Models
         public string TransactionType { get; set; } = string.Empty;
         public decimal Amount { get; set; }
 
-        public int PoultryCashAccountId { get; set; }
+        /// <summary>
+        /// NULL for a row recorded on the Cash / Cash Flow page (migration 287):
+        /// cashadjustment has no cash-account column at all, which is why
+        /// sppoultrycashflow_rows also reports those movements without one.
+        /// A row recorded on this page always has one.
+        /// </summary>
+        public int? PoultryCashAccountId { get; set; }
         public string? AccountName { get; set; }
         public string? PaymentMethod { get; set; }
 
@@ -43,6 +49,25 @@ namespace PoultryFarmAPIWeb.Models
         public string? ReversedBy { get; set; }
         public DateTime? ReversedAt { get; set; }
         public string? ReversalReason { get; set; }
+
+        /// <summary>
+        /// Which record this row actually is (migration 287).
+        ///
+        /// <c>OwnerMoney</c> -- recorded on this page, reversible here.
+        /// <c>CashAdjustment</c> -- an owner injection or withdrawal typed on the
+        /// Cash or Cash Flow page. Read-only here: that row belongs to the Cash
+        /// page, which edits and deletes it, and this module reverses by writing
+        /// an opposite cash row it knows nothing about.
+        /// </summary>
+        public string Source { get; set; } = "OwnerMoney";
+
+        /// <summary>
+        /// The id WITHIN <see cref="Source"/>. For a Cash-page row
+        /// <see cref="PoultryOwnerMoneyId"/> is 0 -- the two id spaces overlap,
+        /// so the list must be keyed on Source + SourceId, never on the owner
+        /// money id alone.
+        /// </summary>
+        public int SourceId { get; set; }
     }
 
     /// <summary>
@@ -59,6 +84,17 @@ namespace PoultryFarmAPIWeb.Models
         public decimal PeriodDraws { get; set; }
         public int ContributionCount { get; set; }
         public int DrawCount { get; set; }
+
+        /// <summary>
+        /// How much of the above was recorded on the Cash / Cash Flow pages
+        /// rather than here (migration 287). Surfaced so the page can say so,
+        /// instead of quietly changing totals an owner has been reading for
+        /// months.
+        /// </summary>
+        public int LegacyCount { get; set; }
+
+        /// <summary>Contributions less draws, for those Cash-page rows only.</summary>
+        public decimal LegacyNet { get; set; }
     }
 
     public class PoultryOwnerMoneyRecordRequest
