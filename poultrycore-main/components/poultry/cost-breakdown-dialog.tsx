@@ -75,7 +75,13 @@ export function CostBreakdownDialog({
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
-      <DialogContent className="max-w-2xl">
+      {/* Sized like the All-payments dialog on /customer-balances, which is the
+          house pattern for a wide table in a modal: 95vw rather than the base
+          full-width-minus-2rem, because setting any max-w-* overrides that
+          mobile cap and the modal would otherwise run edge to edge. Seven
+          columns clear 7xl with room, and tighter padding on a phone buys back
+          a column. */}
+      <DialogContent className="w-[95vw] max-w-[95vw] max-h-[92vh] overflow-y-auto p-4 sm:max-w-7xl sm:p-6">
         <DialogHeader>
           <DialogTitle>{title ?? "Cost breakdown"}</DialogTitle>
         </DialogHeader>
@@ -112,10 +118,64 @@ export function CostBreakdownDialog({
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="overflow-x-auto rounded-md border border-slate-200">
-              <Table>
+            {/* ---- Phones and tablets: one card per lot ------------------- */}
+            {/* Seven columns on a 360px screen is a sideways drag through a
+                figure nobody can line up. Same lg break as the payment
+                history, so the two dialogs change shape together. */}
+            <div className="space-y-2 lg:hidden">
+              {rows.map((r) => (
+                <div key={`m-${r.poultryRawMaterialUsageId}-${r.poultryRawMaterialPurchaseId}`}
+                     className={cn("rounded-lg border border-slate-200 border-l-4 p-3",
+                       r.isReversed ? "border-l-rose-400 bg-rose-100/70 text-slate-400" : "border-l-transparent")}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className={cn("min-w-0", r.isReversed && "line-through")}>
+                      <div className="text-sm font-medium text-slate-900 break-words">{r.itemName}</div>
+                      <div className="text-[11px] text-slate-500">
+                        #{r.poultryRawMaterialPurchaseId}
+                        {r.purchaseDate ? ` · ${r.purchaseDate.slice(0, 10)}` : ""}
+                        {r.supplierName ? ` · ${r.supplierName}` : ""}
+                        {r.feedProductionBatchNumber ? ` · ${r.feedProductionBatchNumber}` : ""}
+                      </div>
+                    </div>
+                    <Badge variant="outline"
+                           className={cn("shrink-0 text-[10px] font-normal",
+                             r.recognizedCost > 0
+                               ? "border-amber-300 bg-amber-50 text-amber-800"
+                               : "border-emerald-300 bg-emerald-50 text-emerald-800")}>
+                      {r.recognitionLabel}
+                    </Badge>
+                  </div>
+                  <div className={cn("mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs", r.isReversed && "line-through")}>
+                    <div className="flex justify-between"><span className="text-slate-500">Qty drawn</span>
+                      <span className="tabular-nums">
+                        {r.quantityDrawn.toLocaleString(undefined, { maximumFractionDigits: 3 })}
+                        {r.productionUnit ? ` ${r.productionUnit}` : ""}
+                      </span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Unit cost</span>
+                      <span className="tabular-nums">{gh(r.unitCostAtDraw)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Cost</span>
+                      <span className="tabular-nums">{gh(r.operationalCost)}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">New expense</span>
+                      {r.recognizedCost > 0
+                        ? <span className="font-medium tabular-nums text-amber-700">{gh(r.recognizedCost)}</span>
+                        : <span className="text-slate-300">—</span>}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* ---- lg and up: the full table ------------------------------ */}
+            {/* Every cell in <Table> is whitespace-nowrap by default and the
+                component wraps itself in an overflow-x-auto div, so a wide row
+                can only ever scroll. Letting the text wrap lets the columns
+                shrink to the dialog instead; the money and quantity cells keep
+                the important form of nowrap so a figure never splits. */}
+            <div className="hidden rounded-md border border-slate-200 lg:block">
+              <Table className="w-full [&_td]:whitespace-normal [&_th]:whitespace-normal">
                 <TableHeader>
-                  <TableRow>
+                  {/* A header, not row zero: darker ground and a heavy rule
+                      under it, so the eye has a hard line to start from. */}
+                  <TableRow className="border-b-2 border-slate-300 bg-slate-300/60 hover:bg-slate-300/60 [&_th]:font-semibold [&_th]:text-slate-700">
                     <TableHead className="text-xs">Purchase</TableHead>
                     <TableHead className="text-xs">Item</TableHead>
                     <TableHead className="text-xs text-right">Qty drawn</TableHead>
@@ -128,10 +188,13 @@ export function CostBreakdownDialog({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((r) => (
+                  {rows.map((r, i) => (
                     <TableRow key={`${r.poultryRawMaterialUsageId}-${r.poultryRawMaterialPurchaseId}`}
-                              className={cn(r.isReversed && "opacity-60 line-through")}>
-                      <TableCell className="text-xs whitespace-nowrap">
+                              className={cn(
+                                i % 2 === 1 && "bg-slate-50/70",
+                                r.isReversed && "bg-rose-100/70 text-slate-400 line-through",
+                              )}>
+                      <TableCell className="text-xs whitespace-nowrap!">
                         <div className="font-medium">#{r.poultryRawMaterialPurchaseId}</div>
                         <div className="text-[11px] text-slate-500">
                           {r.purchaseDate?.slice(0, 10)}
@@ -140,12 +203,12 @@ export function CostBreakdownDialog({
                         </div>
                       </TableCell>
                       <TableCell className="text-xs">{r.itemName}</TableCell>
-                      <TableCell className="text-xs text-right whitespace-nowrap">
+                      <TableCell className="text-xs text-right whitespace-nowrap!">
                         {r.quantityDrawn.toLocaleString(undefined, { maximumFractionDigits: 3 })}
                         {r.productionUnit ? ` ${r.productionUnit}` : ""}
                       </TableCell>
-                      <TableCell className="text-xs text-right">{gh(r.unitCostAtDraw)}</TableCell>
-                      <TableCell className="text-xs text-right">{gh(r.operationalCost)}</TableCell>
+                      <TableCell className="text-xs text-right whitespace-nowrap!">{gh(r.unitCostAtDraw)}</TableCell>
+                      <TableCell className="text-xs text-right whitespace-nowrap!">{gh(r.operationalCost)}</TableCell>
                       <TableCell className="text-xs">
                         {/* The LOT's own label. Two rows here can disagree, and
                             that is the whole reason the breakdown exists. */}
@@ -169,38 +232,37 @@ export function CostBreakdownDialog({
               </Table>
             </div>
 
-            {/* The summary the brief asks for, in the owner's words. */}
-            <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm space-y-1">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Total quantity</span>
-                <span className="tabular-nums">
+            {/* The summary the brief asks for, in the owner's words. Five
+                stacked rows pushed the table off a laptop screen; across the
+                foot of a wide dialog they are read in one glance, and the two
+                that answer "what did this cost me" sit together at the end. */}
+            <div className="grid gap-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm sm:grid-cols-2 lg:grid-cols-5 lg:gap-4">
+              <div>
+                <div className="text-xs text-slate-500">Total quantity</div>
+                <div className="tabular-nums">
                   {quantity.toLocaleString(undefined, { maximumFractionDigits: 3 })}{unit ? ` ${unit}` : ""}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500" title={OPERATIONAL_COST_TOOLTIP}>Stock used (cost)</span>
-                <span className="tabular-nums font-medium">{gh(operational)}</span>
-              </div>
-              {quantity > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Effective unit cost</span>
-                  <span className="tabular-nums text-slate-600">
-                    {gh(operational / quantity)}{unit ? ` / ${unit}` : ""}
-                  </span>
                 </div>
-              )}
-              <div className="flex justify-between border-t pt-1">
-                <span className="text-slate-500" title={ALREADY_EXPENSED_TOOLTIP}>Already expensed earlier</span>
-                <span className="tabular-nums text-slate-600">{gh(already)}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500" title={NEWLY_RECOGNIZED_TOOLTIP}>
-                  Charged to Profit &amp; Loss now
-                </span>
-                <span className={cn("tabular-nums font-medium",
-                                    recognized > 0 ? "text-amber-700" : "text-slate-500")}>
+              <div>
+                <div className="text-xs text-slate-500" title={OPERATIONAL_COST_TOOLTIP}>Stock used (cost)</div>
+                <div className="font-medium tabular-nums">{gh(operational)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500">Effective unit cost</div>
+                <div className="tabular-nums text-slate-600">
+                  {quantity > 0 ? `${gh(operational / quantity)}${unit ? ` / ${unit}` : ""}` : "—"}
+                </div>
+              </div>
+              <div className="lg:border-l lg:border-slate-200 lg:pl-4">
+                <div className="text-xs text-slate-500" title={ALREADY_EXPENSED_TOOLTIP}>Already expensed earlier</div>
+                <div className="tabular-nums text-slate-600">{gh(already)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500" title={NEWLY_RECOGNIZED_TOOLTIP}>Charged to P&amp;L now</div>
+                <div className={cn("font-medium tabular-nums",
+                                   recognized > 0 ? "text-amber-700" : "text-slate-500")}>
                   {gh(recognized)}
-                </span>
+                </div>
               </div>
             </div>
 

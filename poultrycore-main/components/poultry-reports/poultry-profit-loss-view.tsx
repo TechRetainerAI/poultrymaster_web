@@ -654,39 +654,6 @@ function SectionRows({ title, lines, onOpen, gh, negative, tone }: {
           </TableCell>
         </TableRow>
       ))}
-
-      <TableRow className="border-t">
-        <TableCell className="py-1.5 pl-8 text-sm font-medium">{totalLabel}</TableCell>
-        <TableCell className="py-1.5 text-right text-sm tabular-nums text-slate-500">
-          {entryTotal > 0 ? entryTotal : ""}
-        </TableCell>
-        <TableCell className="py-1.5 text-right text-sm font-medium tabular-nums">
-          {money(totalAmount)}
-        </TableCell>
-        <TableCell className="py-1.5 text-right text-sm font-medium tabular-nums text-slate-500">
-          {pct(totalAmount)}
-        </TableCell>
-      </TableRow>
-
-      {resultLabel != null && resultAmount != null && (
-        <TableRow className={cn("border-t-2 border-slate-300", strong && "bg-slate-50 hover:bg-slate-50")}>
-          <TableCell className={cn("py-2 text-sm font-semibold", strong && "text-base")}>
-            {resultLabel}
-          </TableCell>
-          {/* No entry count on a result row: it is arithmetic on the rows
-              above, not a set of documents of its own. */}
-          <TableCell />
-          <TableCell className={cn(
-            "py-2 text-right font-semibold tabular-nums", strong && "text-base",
-            resultAmount >= 0 ? "text-emerald-700" : "text-red-700",
-          )}>
-            {gh(resultAmount)}
-          </TableCell>
-          <TableCell className={cn("py-2 text-right font-semibold tabular-nums text-slate-500", strong && "text-base")}>
-            {resultPct != null ? `${resultPct}%` : pct(resultAmount)}
-          </TableCell>
-        </TableRow>
-      )}
     </>
   )
 }
