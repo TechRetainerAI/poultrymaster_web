@@ -380,8 +380,12 @@ BEGIN
     RAISE NOTICE 'J3. EXCEPTION scope finds it expect      t  got %',
         (SELECT COUNT(*) > 0 FROM sppoultrydeferredpurchase_getall(v_farm, 'EXCEPTION')
           WHERE poultryrawmaterialpurchaseid = v_lotS);
-    RAISE NOTICE 'J4. summary counts it      expect       >0  got %',
-        (SELECT exceptions FROM sppoultrydeferredpurchase_summary(v_farm, 'ALL'));
+    -- Emitted as a BOOLEAN, not as ">0". The apply script auto-compares every
+    -- "expect X got Y" pair and aborts on a mismatch; an expectation it cannot
+    -- parse as a number or t/f never equals the value, so a relational
+    -- expectation written literally would fail a run that was perfectly fine.
+    RAISE NOTICE 'J4. summary counts it      expect        t  got %',
+        (SELECT exceptions > 0 FROM sppoultrydeferredpurchase_summary(v_farm, 'ALL'));
 
     RAISE NOTICE '   -- all checks emitted; compare each expect/got pair above --';
 END

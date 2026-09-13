@@ -34,15 +34,17 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DateRangeFilter } from "@/components/ui/date-range-filter"
+import { MOBILE_FILTER_SELECT_CONTENT_CLASS } from "@/components/dashboard/mobile-filters"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   ChevronDown, ChevronRight, Loader2, AlertTriangle, Hourglass,
-  CheckCircle2, Receipt, Factory, Package, Download, ExternalLink,
+  CheckCircle2, Receipt, Factory, Package, Download, ExternalLink, Clock,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useFmt } from "@/lib/currency"
+import { explainLoadFailure } from "@/lib/api/http-error"
 import { useToast } from "@/hooks/use-toast"
 import { usePermissions } from "@/hooks/use-permissions"
 import {
@@ -73,6 +75,26 @@ const SCOPES: { value: DeferredCostScope; label: string; hint: string }[] = [
   { value: "ALL", label: "All purchases", hint: "Every inventory purchase, however its cost was recognised" },
 ]
 
+/**
+ * Why a deferred cost is not moving.
+ *
+ * A farm that switches to "expense when used" keeps every lot it already owns
+ * stamped as expensed-at-purchase, so the new deferred lot is the NEWEST one --
+ * and under FIFO the newest lot is drawn LAST. Consumption then correctly
+ * recognises nothing, for as long as it takes to clear the older stock, and
+ * correctly looks like a broken feature.
+ *
+ * Returns null when the lot is next in line, so the row stays quiet when there
+ * is nothing to explain.
+ */
+function queueNote(p: PoultryDeferredPurchase): string | null {
+  const ahead = p.quantityAheadInQueue
+  if (ahead == null || ahead <= 0) return null
+  const unit = p.productionUnit ? ` ${p.productionUnit}` : ""
+  const qty = ahead.toLocaleString(undefined, { maximumFractionDigits: 3 })
+  return `${qty}${unit} of older stock is used before this cost starts reaching Profit & Loss (${p.costingMethod ?? "FIFO"}).`
+}
+
 const qtyFmt = (n: number, unit?: string | null) =>
   `${n.toLocaleString(undefined, { maximumFractionDigits: 3 })}${unit ? ` ${unit}` : ""}`
 
@@ -90,6 +112,10 @@ function DeferredCostsInner() {
 
   const [data, setData] = useState<PoultryDeferredCostResponse | null>(null)
   const [loading, setLoading] = useState(true)
+  // Held separately from `data`, because "the call failed" and "there is
+  // nothing to show" are different answers and the page must not give the
+  // reassuring one when it means the alarming one.
+  const [error, setError] = useState<string | null>(null)
 
   // Deep-link targets from the inventory page's "Awaiting Profit & Loss".
   const itemIdParam = params.get("itemId")
@@ -122,16 +148,21 @@ function DeferredCostsInner() {
         search: search.trim() || undefined,
       })
       setData(res)
+      setError(null)
       // A filter change invalidates every cached history: the rows behind them
       // may no longer be on screen.
       setExpanded(new Set())
       setHistory({})
     } catch (e: any) {
-      toast({ title: "Could not load deferred costs", description: e?.message ?? String(e), variant: "destructive" })
+      // No toast. A toast for a failure that leaves the whole page empty
+      // disappears after a few seconds and takes the only explanation with it;
+      // the card below stays until the problem is fixed.
+      setData(null)
+      setError(e?.message ?? String(e))
     } finally {
       setLoading(false)
     }
-  }, [canView, scope, itemId, category, dateFrom, dateTo, search, toast])
+  }, [canView, scope, itemId, category, dateFrom, dateTo, search])
 
   useEffect(() => { void load() }, [load])
 
@@ -163,7 +194,14 @@ function DeferredCostsInner() {
       const h = await getPoultryDeferredCostHistory(id)
       setHistory((m) => ({ ...m, [id]: h }))
     } catch (e: any) {
-      toast({ title: "Could not load recognition history", description: e?.message ?? String(e), variant: "destructive" })
+      // A per-row failure IS worth a toast -- the rest of the page is still
+      // usable and the row can be collapsed -- but it carries the readable
+      // headline, not the server's sentence.
+      toast({
+        title: explainLoadFailure(e?.message ?? String(e), "the recognition history").headline,
+        description: explainLoadFailure(e?.message ?? String(e), "the recognition history").hint,
+        variant: "destructive",
+      })
     } finally {
       setHistoryLoading((s) => { const n = new Set(s); n.delete(id); return n })
     }
@@ -228,7 +266,7 @@ function DeferredCostsInner() {
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
             <div>
-              <h1 className="text-xl font-semibold text-slate-900">Deferred Inventory Costs</h1>
+              <h1 className="text-xl font-semibold text-slate-900">Awaiting P&amp;L</h1>
               <p className="text-sm text-slate-500">
                 Track inventory purchases whose costs are recognized in Profit &amp; Loss as the inventory is consumed.
               </p>
@@ -253,7 +291,7 @@ function DeferredCostsInner() {
                 <Label className="text-xs">Show</Label>
                 <Select value={scope} onValueChange={(v) => setScope(v as DeferredCostScope)}>
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
                     {SCOPES.map((x) => (
                       <SelectItem key={x.value} value={x.value} title={x.hint}>{x.label}</SelectItem>
                     ))}
@@ -264,7 +302,7 @@ function DeferredCostsInner() {
                 <Label className="text-xs">Category</Label>
                 <Select value={category} onValueChange={setCategory}>
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
                     <SelectItem value="all">All categories</SelectItem>
                     {Array.from(new Set((data?.purchases ?? []).map((p) => p.category).filter(Boolean) as string[]))
                       .sort().map((c) => <SelectItem key={c} value={c}>{categoryLabel(c)}</SelectItem>)}
@@ -275,7 +313,7 @@ function DeferredCostsInner() {
                 <Label className="text-xs">Supplier</Label>
                 <Select value={supplier} onValueChange={setSupplier}>
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
                     <SelectItem value="all">All suppliers</SelectItem>
                     {suppliers.map((x) => <SelectItem key={x} value={x}>{x}</SelectItem>)}
                   </SelectContent>
@@ -301,6 +339,36 @@ function DeferredCostsInner() {
             <div className="flex items-center gap-2 text-slate-500 p-8">
               <Loader2 className="w-4 h-4 animate-spin" /> Loading…
             </div>
+          ) : error ? (
+            // Checked BEFORE the summary and the table. A failed load leaves
+            // `data` null, and without this branch the page falls through to
+            // "no purchases are holding cost back" -- which is the one thing a
+            // broken page must never say, because it reads as an all-clear.
+            <Card><CardContent className="p-8">
+              <div className="mx-auto max-w-md text-center">
+                <AlertTriangle className="mx-auto h-8 w-8 text-amber-500" />
+                <h2 className="mt-3 text-base font-semibold text-slate-900">
+                  {explainLoadFailure(error, "deferred inventory costs").headline}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {explainLoadFailure(error, "deferred inventory costs").hint}
+                </p>
+                <Button variant="outline" size="sm" className="mt-4" onClick={() => void load()}>
+                  Try again
+                </Button>
+                {/* Kept, but demoted: the person who can fix this needs the
+                    real text, and the person who cannot should not have to
+                    read it. */}
+                <details className="mt-4 text-left">
+                  <summary className="cursor-pointer text-[11px] text-slate-400 hover:text-slate-600">
+                    Technical detail
+                  </summary>
+                  <p className="mt-1 break-words rounded bg-slate-50 p-2 font-mono text-[11px] text-slate-500">
+                    {error}
+                  </p>
+                </details>
+              </div>
+            </CardContent></Card>
           ) : (
             <>
               {/* Summary cards. These come from the same SQL that produced the
@@ -310,7 +378,7 @@ function DeferredCostsInner() {
                   <div className="p-4 rounded-xl border border-amber-200 bg-amber-50 shadow-sm">
                     <div className="flex items-center gap-1.5 text-xs font-medium text-amber-700 uppercase tracking-wide"
                          title={REMAINING_DEFERRED_TOOLTIP}>
-                      <Hourglass className="w-4 h-4" /> Awaiting Profit &amp; Loss
+                      <Hourglass className="w-4 h-4" /> Awaiting P&amp;L
                     </div>
                     <div className="mt-1 text-2xl font-bold text-amber-900 tabular-nums">
                       {gh(s.remainingDeferredCost)}
@@ -318,6 +386,19 @@ function DeferredCostsInner() {
                     <div className="text-xs text-amber-700 mt-0.5">
                       across {s.deferredPurchases.toLocaleString()} purchase{s.deferredPurchases === 1 ? "" : "s"}
                     </div>
+                    {/* 289. Without this, a farm that has just switched method
+                        sees a large number that never moves and concludes the
+                        feature is broken. It is not -- the stock in front of it
+                        has to be used first. */}
+                    {s.blockedPurchases > 0 && (
+                      <div className="mt-1 flex items-start gap-1 border-t border-amber-200 pt-1 text-[11px] text-amber-800">
+                        <Clock className="w-3 h-3 mt-px flex-shrink-0" />
+                        <span>
+                          {gh(s.blockedCost)} of this is queued behind older stock and will not
+                          move until that stock is used.
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
@@ -382,7 +463,7 @@ function DeferredCostsInner() {
                             <TableHead className="text-right">Remaining</TableHead>
                             <TableHead className="text-right">Original cost</TableHead>
                             <TableHead className="text-right" title={RECOGNIZED_COST_TOOLTIP}>Expensed</TableHead>
-                            <TableHead className="text-right" title={REMAINING_DEFERRED_TOOLTIP}>Still to expense</TableHead>
+                            <TableHead className="text-right whitespace-nowrap" title={REMAINING_DEFERRED_TOOLTIP}>Awaiting P&amp;L</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="w-8" />
                           </TableRow>
@@ -451,6 +532,18 @@ function DeferredCostsInner() {
                                     {!neverDeferred && p.deferredTotalCost > 0 && (
                                       <div className="mt-0.5 text-[11px] text-slate-500">
                                         {p.recognitionPercent.toFixed(1)}% expensed
+                                      </div>
+                                    )}
+                                    {/* 289. The answer to "I consumed stock and
+                                        nothing happened". Shown only when it is
+                                        actually the explanation. */}
+                                    {p.deferredRemainingCost > 0 && queueNote(p) && (
+                                      <div className="mt-0.5 flex items-start gap-1 text-[11px] text-sky-700"
+                                           title={queueNote(p)!}>
+                                        <Clock className="w-3 h-3 mt-px flex-shrink-0" />
+                                        <span>
+                                          behind {qtyFmt(p.quantityAheadInQueue ?? 0, p.productionUnit)}
+                                        </span>
                                       </div>
                                     )}
                                   </TableCell>

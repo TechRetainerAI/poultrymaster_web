@@ -159,12 +159,17 @@ export function buildPoultryNavConfig(
           // stock cost that has NOT become an expense yet. It is deliberately
           // not under Inventory -- an owner asking "why is my feed bill low
           // this month" looks here, beside the expenses it explains.
-          { id: "deferred-inventory-costs", title: "Deferred Inventory Costs", icon: Hourglass, href: "/poultry-deferred-costs", visible: money("/poultry-deferred-costs") },
+          //
+          // "Awaiting P&L", not "Deferred Inventory Costs": the long name was
+          // the widest label in this menu by eight characters and pushed the
+          // panel into a horizontal scrollbar. It also matches the wording on
+          // the inventory card people click to get here.
+          { id: "deferred-inventory-costs", title: "Awaiting P&L", icon: Hourglass, href: "/poultry-deferred-costs", visible: money("/poultry-deferred-costs") },
           // Migrations 270-273. Assets sit in the Expenses column because that
           // is where a major purchase is recorded from -- a farm buying a
           // generator looks here, not in a separate "capital" menu -- but they
           // are deliberately NOT expenses, which the page says on every screen.
-          { id: "assets", title: "Assets", icon: Building2, href: "/poultry-assets", visible: money("/expenses") },
+          { id: "assets", title: "Capital Investments", icon: Building2, href: "/poultry-assets", visible: money("/expenses") },
         ],
       },
       {
@@ -186,7 +191,11 @@ export function buildPoultryNavConfig(
           // borrowed money.
           { id: "cash-transfers", title: "Cash Transfers", icon: ArrowLeftRight, href: "/poultry-cash-transfers", visible: money("/poultry-cash-transfers") },
           { id: "owner-money",    title: "Owner Money",    icon: Banknote,       href: "/poultry-owner-money",    visible: money("/poultry-owner-money") },
-          { id: "loans",          title: "Loans",          icon: HandCoins,      href: "/poultry-loans",          visible: money("/poultry-loans") },
+          // "(Financing)" because borrowed money is neither income nor an
+          // expense -- it is a financing movement. The bracket says so in the
+          // menu, where an owner decides what to click, rather than only inside
+          // the page once they are already there.
+          { id: "loans",          title: "Loans (Financing)", icon: HandCoins,   href: "/poultry-loans",          visible: money("/poultry-loans") },
           { id: "cash-reconciliation", title: "Reconcile cash", icon: Scale, href: "/poultry-cash-reconciliation", visible: money("/poultry-cash-reconciliation") },
         ],
       },

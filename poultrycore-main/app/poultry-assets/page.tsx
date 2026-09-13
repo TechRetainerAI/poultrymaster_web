@@ -97,7 +97,7 @@ export default function PoultryAssetsPage() {
       setAssets(a); setCategories(c); setSummary(s); setDue(d)
       setCashAccounts((ca as PoultryCashAccount[]).filter((x) => x.isActive))
     } catch (e: any) {
-      toast({ title: "Could not load assets", description: e?.message ?? String(e), variant: "destructive" })
+      toast({ title: "Could not load capital investments", description: e?.message ?? String(e), variant: "destructive" })
     } finally { setLoading(false) }
   }, [toast])
 
@@ -132,7 +132,7 @@ export default function PoultryAssetsPage() {
         title: res.entriesCreated > 0 ? "Depreciation posted" : "Nothing was due",
         description: res.entriesCreated > 0
           ? `${res.entriesCreated} month(s) across ${res.assetsProcessed} asset(s), ${gh(res.totalAmount)} charged to Profit & Loss. No cash moved.`
-          : "Every asset is up to date.",
+          : "Every capital investment is up to date.",
       })
       setDepOpen(false)
       await load()
@@ -143,7 +143,7 @@ export default function PoultryAssetsPage() {
 
   if (activeFarmType && activeFarmType !== "Poultry") {
     return <div className="p-6 text-sm text-slate-600">
-      Assets are a poultry company feature. <Link href="/dashboard" className="underline">Back to dashboard</Link>
+      Capital investments are a poultry company feature. <Link href="/dashboard" className="underline">Back to dashboard</Link>
     </div>
   }
 
@@ -155,9 +155,9 @@ export default function PoultryAssetsPage() {
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
           <div className="flex flex-wrap items-start gap-3">
             <div>
-              <h1 className="text-lg font-semibold text-slate-900">Assets</h1>
+              <h1 className="text-lg font-semibold text-slate-900">Capital Investments</h1>
               <p className="text-xs text-slate-500">
-                Track major long-term business assets, their cost, depreciation, and current book value.
+                Track major long-term business investments, their cost, depreciation, and current book value.
               </p>
             </div>
             <div className="ml-auto flex flex-wrap gap-2">
@@ -168,28 +168,28 @@ export default function PoultryAssetsPage() {
                   <Badge className="ml-2 bg-amber-100 text-amber-800 hover:bg-amber-100">{dueMonths} due</Badge>
                 )}
               </Button>
-              <Button onClick={() => setNewOpen(true)}><Plus className="w-4 h-4 mr-1" /> New asset</Button>
+              <Button onClick={() => setNewOpen(true)}><Plus className="w-4 h-4 mr-1" /> New investment</Button>
             </div>
           </div>
 
           {/* ---- the five cards -------------------------------------------- */}
           {summary && (
             <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
-              <StatCard label="Total asset cost" value={gh(summary.totalAssetCost)} hint={ORIGINAL_COST_TOOLTIP} />
+              <StatCard label="Total investment cost" value={gh(summary.totalAssetCost)} hint={ORIGINAL_COST_TOOLTIP} />
               <StatCard label="Depreciation so far" value={gh(summary.accumulatedDepreciation)}
                         hint="Charged to Profit & Loss over time. No cash moved." tone="amber" />
               <StatCard label="Current book value" value={gh(summary.currentBookValue)}
                         hint={BOOK_VALUE_TOOLTIP} tone="emerald" strong />
               <StatCard label="Added this period" value={gh(summary.addedInPeriod)}
                         hint={`${summary.addedCount} asset(s) acquired`} />
-              <StatCard label="Active assets" value={String(summary.activeAssets)}
+              <StatCard label="Active investments" value={String(summary.activeAssets)}
                         hint={`${summary.draftAssets} not in service · ${summary.fullyDepreciated} fully depreciated`} />
             </div>
           )}
 
           <ListFilters
             search={search} setSearch={setSearch} searchOnly
-            searchPlaceholder="Search asset, number, location or supplier"
+            searchPlaceholder="Search investment, number, location or supplier"
             extras={<>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-full sm:w-[170px]"><SelectValue placeholder="All statuses" /></SelectTrigger>
@@ -222,8 +222,8 @@ export default function PoultryAssetsPage() {
                     {(() => { const onSort = (k: string) => setSort((s) => toggleSort(k, s.key, s.direction))
                       const cs = sort.key, cd = sort.direction
                       return (<>
-                        <SortableHeader label="Asset #" sortKey="assetNumber" currentSort={cs} currentDirection={cd} onSort={onSort} />
-                        <SortableHeader label="Asset" sortKey="assetName" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                        <SortableHeader label="Investment #" sortKey="assetNumber" currentSort={cs} currentDirection={cd} onSort={onSort} />
+                        <SortableHeader label="Investment" sortKey="assetName" currentSort={cs} currentDirection={cd} onSort={onSort} />
                         <SortableHeader label="Category" sortKey="categoryName" currentSort={cs} currentDirection={cd} onSort={onSort} />
                         <SortableHeader label="Acquired" sortKey="acquisitionDate" currentSort={cs} currentDirection={cd} onSort={onSort} />
                         <SortableHeader label="Cost" sortKey="originalCost" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
@@ -237,7 +237,7 @@ export default function PoultryAssetsPage() {
                   <TableBody>
                     {sorted.length === 0 ? (
                       <TableRow><TableCell colSpan={10} className="text-center text-slate-500 py-8">
-                        No assets recorded. A poultry house, a vehicle or a feed mixer belongs here rather than on the Expenses page.
+                        No capital investments recorded. A poultry house, a vehicle or a feed mixer belongs here rather than on the Expenses page.
                       </TableCell></TableRow>
                     ) : pg.pageItems.map((a) => (
                       <TableRow key={a.poultryCapitalAssetId} className={cn(a.status === "Reversed" && "opacity-60")}>
@@ -274,7 +274,7 @@ export default function PoultryAssetsPage() {
                               <Pencil className="w-4 h-4" />
                             </Button>
                             {a.status !== "Disposed" && (
-                              <Button variant="ghost" size="sm" title="Add cost to this asset" onClick={() => setCostFor(a)}>
+                              <Button variant="ghost" size="sm" title="Add cost to this investment" onClick={() => setCostFor(a)}>
                                 <Coins className="w-4 h-4" />
                               </Button>
                             )}
@@ -305,7 +305,7 @@ export default function PoultryAssetsPage() {
           </CardContent></Card>
 
           <p className="text-[11px] text-slate-500">
-            Capital assets affect Cash Flow when they are paid for and appear on Supplier Balances when they are bought
+            Capital investments affect Cash Flow when they are paid for and appear on Supplier Balances when they are bought
             on credit. They are not charged against profit in the month they are bought — their cost reaches Profit &amp;
             Loss over time through depreciation.
           </p>
@@ -327,13 +327,13 @@ export default function PoultryAssetsPage() {
                 <DialogDescription>{DEPRECIATION_NONCASH_NOTE}</DialogDescription>
               </DialogHeader>
               {due.length === 0 ? (
-                <p className="text-sm text-slate-600 py-4">Every asset is up to date. Nothing is due.</p>
+                <p className="text-sm text-slate-600 py-4">Every capital investment is up to date. Nothing is due.</p>
               ) : (
                 <div className="space-y-3">
                   <div className="max-h-[45vh] overflow-y-auto">
                     <Table>
                       <TableHeader><TableRow>
-                        <TableHead>Asset</TableHead><TableHead>From</TableHead>
+                        <TableHead>Investment</TableHead><TableHead>From</TableHead>
                         <TableHead className="text-right">Months</TableHead>
                         <TableHead className="text-right">Amount</TableHead>
                       </TableRow></TableHeader>
@@ -415,7 +415,7 @@ function AssetFormDialog({ open, onOpenChange, categories, cashAccounts, saving,
   const monthly = life > 0 ? Math.round(((amount - (Number(f.residualValue) || 0)) / life) * 100) / 100 : 0
 
   const save = async () => {
-    if (!f.assetName?.trim()) { toast({ title: "Name the asset", variant: "destructive" }); return }
+    if (!f.assetName?.trim()) { toast({ title: "Name the investment", variant: "destructive" }); return }
     setSaving(true)
     try {
       await createPoultryAsset({
@@ -432,11 +432,11 @@ function AssetFormDialog({ open, onOpenChange, categories, cashAccounts, saving,
         cashAccountId: f.cashAccountId ? Number(f.cashAccountId) : null,
         location: f.location || null, serialNumber: f.serialNumber || null, notes: f.notes || null,
       })
-      toast({ title: "Asset recorded", description: "It is in the register and excluded from this period's operating expenses." })
+      toast({ title: "Investment recorded", description: "It is in the register and excluded from this period's operating expenses." })
       onOpenChange(false)
       await onSaved()
     } catch (e: any) {
-      toast({ title: "Could not record the asset", description: e?.message ?? String(e), variant: "destructive" })
+      toast({ title: "Could not record the investment", description: e?.message ?? String(e), variant: "destructive" })
     } finally { setSaving(false) }
   }
 
@@ -444,7 +444,7 @@ function AssetFormDialog({ open, onOpenChange, categories, cashAccounts, saving,
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>New asset</DialogTitle>
+          <DialogTitle>New capital investment</DialogTitle>
           <DialogDescription>
             A major long-term purchase. Cash and supplier balances behave exactly as they do for a bill; the cost is
             recognised over time through depreciation rather than charged to this period.
@@ -452,7 +452,7 @@ function AssetFormDialog({ open, onOpenChange, categories, cashAccounts, saving,
         </DialogHeader>
 
         <FormSection title="What it is">
-          <FormField label="Asset name">
+          <FormField label="Investment name">
             <Input value={f.assetName ?? ""} onChange={(e) => setF({ ...f, assetName: e.target.value })}
                    placeholder="Poultry House 4" />
           </FormField>
@@ -481,7 +481,7 @@ function AssetFormDialog({ open, onOpenChange, categories, cashAccounts, saving,
           <FormField label="Acquisition date">
             <Input type="date" value={f.acquisitionDate ?? ""} onChange={(e) => setF({ ...f, acquisitionDate: e.target.value })} />
           </FormField>
-          <FormField label="Cost" hint="Leave blank for an asset you will build up cost by cost.">
+          <FormField label="Cost" hint="Leave blank for an investment you will build up cost by cost.">
             <NumberInput value={f.amount ?? ""} onChange={(e) => setF({ ...f, amount: e.target.value })} />
           </FormField>
           <FormField label="Supplier / payee"><Input value={f.supplier ?? ""} onChange={(e) => setF({ ...f, supplier: e.target.value })} /></FormField>
@@ -519,7 +519,7 @@ function AssetFormDialog({ open, onOpenChange, categories, cashAccounts, saving,
           <div className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900 space-y-1">
             <div className="flex items-start gap-1.5"><Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
               <span className="font-medium">What this will record</span></div>
-            <div>Asset value <strong>{gh(amount)}</strong></div>
+            <div>Investment value <strong>{gh(amount)}</strong></div>
             <div>Cash out now <strong>{gh(paid)}</strong>{owing > 0 && <> · owed to the supplier <strong>{gh(owing)}</strong></>}</div>
             <div>Charged against this period&apos;s profit <strong>{gh(0)}</strong></div>
             {monthly > 0 && <div>Depreciation <strong>{gh(monthly)}</strong> a month for {life} months</div>}
@@ -530,7 +530,7 @@ function AssetFormDialog({ open, onOpenChange, categories, cashAccounts, saving,
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={save} disabled={saving}>
-            {saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}Record asset
+            {saving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}Record investment
           </Button>
         </div>
       </DialogContent>
@@ -573,10 +573,10 @@ function EditDialog({ asset, onClose, categories, onSaved }: {
         residualValue: setFinancials ? (Number(f.residualValue) || 0) : null,
         setFinancials,
       })
-      toast({ title: "Asset updated" })
+      toast({ title: "Investment updated" })
       onClose(); await onSaved()
     } catch (e: any) {
-      toast({ title: "Could not update the asset", description: e?.message ?? String(e), variant: "destructive" })
+      toast({ title: "Could not update the investment", description: e?.message ?? String(e), variant: "destructive" })
     } finally { setSaving(false) }
   }
 
@@ -585,7 +585,7 @@ function EditDialog({ asset, onClose, categories, onSaved }: {
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Edit {asset?.assetName}</DialogTitle></DialogHeader>
         <FormSection title="Details">
-          <FormField label="Asset name"><Input value={f.assetName ?? ""} onChange={(e) => setF({ ...f, assetName: e.target.value })} /></FormField>
+          <FormField label="Investment name"><Input value={f.assetName ?? ""} onChange={(e) => setF({ ...f, assetName: e.target.value })} /></FormField>
           <FormField label="Category">
             <Select value={f.assetCategoryId ? String(f.assetCategoryId) : ""} onValueChange={(v) => setF({ ...f, assetCategoryId: v })}>
               <SelectTrigger><SelectValue placeholder="Choose a category" /></SelectTrigger>
@@ -600,10 +600,10 @@ function EditDialog({ asset, onClose, categories, onSaved }: {
           <FormField label="Serial number"><Input value={f.serialNumber ?? ""} onChange={(e) => setF({ ...f, serialNumber: e.target.value })} /></FormField>
           {/* Read-only: sppoultrycapitalasset_update takes no acquisition date,
               so an editable box here would silently discard what you typed. */}
-          <FormField label="Acquired" hint="Set when the asset was recorded and not editable here.">
+          <FormField label="Acquired" hint="Set when the investment was recorded and not editable here.">
             <Input value={(asset?.acquisitionDate ?? "").split("T")[0]} disabled />
           </FormField>
-          <FormField label="Asset number"><Input value={asset?.assetNumber ?? ""} disabled /></FormField>
+          <FormField label="Investment number"><Input value={asset?.assetNumber ?? ""} disabled /></FormField>
           {/* Description is captured when the asset is recorded; without this
               field it could never be read back or corrected. */}
           <FormField label="Description" full>
@@ -627,7 +627,7 @@ function EditDialog({ asset, onClose, categories, onSaved }: {
           <FormField label="Method"><Input value="Straight line" disabled /></FormField>
           {/* Cost is the sum of the asset's cost rows, so it is changed by adding
               or reversing a cost rather than typed here. Shown for context. */}
-          <FormField label="Original cost" hint="The total of this asset's capitalised costs. Change it with Add cost.">
+          <FormField label="Original cost" hint="The total of this investment's capitalised costs. Change it with Add cost.">
             <Input value={gh(asset?.originalCost ?? 0)} disabled />
           </FormField>
         </FormSection>
@@ -636,7 +636,7 @@ function EditDialog({ asset, onClose, categories, onSaved }: {
           <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
             <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
             <span>
-              Depreciation has been posted for this asset, so its in-service date, useful life and residual value are
+              Depreciation has been posted for this investment, so its in-service date, useful life and residual value are
               locked — changing them would make every month already charged wrong. Reverse the depreciation first.
               The name, category and location can still be edited.
             </span>
@@ -679,7 +679,7 @@ function AddCostDialog({ asset, onClose, cashAccounts, onSaved }: {
         dueDate: f.dueDate || null,
         cashAccountId: f.cashAccountId ? Number(f.cashAccountId) : null,
       })
-      toast({ title: "Cost added", description: "The asset's value has increased. Nothing was charged to profit." })
+      toast({ title: "Cost added", description: "The investment's value has increased. Nothing was charged to profit." })
       onClose(); await onSaved()
     } catch (e: any) {
       toast({ title: "Could not add the cost", description: e?.message ?? String(e), variant: "destructive" })
@@ -758,10 +758,10 @@ function DisposeDialog({ asset, onClose, cashAccounts, onSaved }: {
         cashAccountId: f.cashAccountId ? Number(f.cashAccountId) : null,
         notes: f.notes || null,
       })
-      toast({ title: "Asset disposed" })
+      toast({ title: "Investment disposed" })
       onClose(); await onSaved()
     } catch (e: any) {
-      toast({ title: "Could not dispose the asset", description: e?.message ?? String(e), variant: "destructive" })
+      toast({ title: "Could not dispose the investment", description: e?.message ?? String(e), variant: "destructive" })
     } finally { setSaving(false) }
   }
 
@@ -822,7 +822,7 @@ function ReverseDialog({ asset, onClose, onSaved }: {
       toast({ title: "Acquisition reversed", description: "Any cash paid has been returned. The record is kept with its reason." })
       onClose(); await onSaved()
     } catch (e: any) {
-      toast({ title: "Could not reverse the asset", description: e?.message ?? String(e), variant: "destructive" })
+      toast({ title: "Could not reverse the investment", description: e?.message ?? String(e), variant: "destructive" })
     } finally { setSaving(false) }
   }
 
@@ -832,7 +832,7 @@ function ReverseDialog({ asset, onClose, onSaved }: {
         <DialogHeader>
           <DialogTitle>Reverse {asset?.assetName}</DialogTitle>
           <DialogDescription>
-            The asset and its costs are kept and marked reversed; any cash paid is returned to its account. This is
+            The investment and its costs are kept and marked reversed; any cash paid is returned to its account. This is
             refused if depreciation has been posted or a supplier payment has been recorded against it.
           </DialogDescription>
         </DialogHeader>

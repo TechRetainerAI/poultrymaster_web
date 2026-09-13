@@ -247,7 +247,7 @@ export default function PoultryLoansPage() {
           <div className="mb-4 flex items-end justify-between flex-wrap gap-2">
             <div>
               <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
-                <Banknote className="h-6 w-6 text-violet-600" /> Loans
+                <Banknote className="h-6 w-6 text-violet-600" /> Loans (Financing)
               </h1>
               <p className="text-sm text-slate-500 max-w-2xl">
                 Money the farm has borrowed. Borrowing is <strong>not income</strong> and repaying
