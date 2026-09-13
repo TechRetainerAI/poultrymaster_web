@@ -725,6 +725,16 @@ export interface PoultryDeferredPurchase {
 
   recognitionEvents: number
   lastRecognitionDate?: string | null
+
+  // ---- 289: the consumption queue -----------------------------------------
+  /** FIFO | LIFO | HIFO — decides draw order, and therefore everything below. */
+  costingMethod?: string | null
+  /** Place in the queue for this item, 1 = drawn next. NULL when the lot has no
+   *  stock left, so it is not queued at all. */
+  queuePosition?: number | null
+  /** Stock (production units) consumed before this lot is reached. 0 = next.
+   *  This is why a deferred cost can sit still while stock is consumed. */
+  quantityAheadInQueue?: number | null
 }
 
 /** One consumption that drew on a purchase lot. */
@@ -797,6 +807,9 @@ export interface PoultryDeferredCostSummary {
   exceptions: number
   exceptionDrift: number
   recognitionPercent: number
+  /** 289. Lots that cannot be reached yet because older stock is in front. */
+  blockedPurchases: number
+  blockedCost: number
 }
 
 export interface PoultryDeferredCostResponse {

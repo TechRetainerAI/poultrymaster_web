@@ -159,7 +159,12 @@ export function NavMegaMenu({
               layout !== "grid"
                 ? COLUMNS_CLASS[columns]
                 : fitColumns ? GRID_FIT_CLASS[columns] : GRID_CLASS[columns],
-              "gap-x-4 p-4 max-h-[70vh] overflow-y-auto",
+              // overflow-x-hidden is NOT redundant beside overflow-y-auto. CSS computes a
+              // "visible" axis to "auto" when the other axis is not visible, so
+              // overflow-y-auto alone silently turns on HORIZONTAL scrolling too --
+              // one label longer than its column share and the whole panel slides
+              // sideways. Stating the x axis is what stops that.
+              "gap-x-4 p-4 max-h-[70vh] overflow-y-auto overflow-x-hidden",
               // A scrollbar on a tall panel eats into the right padding only,
               // which shifts every group left and is most of why this looked
               // off-centre. Reserving the gutter on both edges keeps the left
