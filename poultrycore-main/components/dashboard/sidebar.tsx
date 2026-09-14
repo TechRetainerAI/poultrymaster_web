@@ -292,6 +292,8 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   ]
   const poultryMoneyItems = gateFinancial([
     { href: "/cash-flow", label: "Cash Flow", icon: Wallet },
+    // The bridge between Cash Flow above and Profit & Loss below.
+    { href: "/poultry-financial-activity", label: "Financial Activity", icon: Activity },
     // The same page as Reports > Profit & Loss, surfaced here because it is the
     // number owners come looking for. Linked, not duplicated.
     { href: "/poultry/reports/profit-loss", label: "Profit & Loss", icon: TrendingUp },

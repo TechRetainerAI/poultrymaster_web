@@ -94,6 +94,8 @@ builder.Services.AddScoped<IPoultryBalanceService>(sp => new PoultryBalanceServi
 // Cash Flow: one service, both rails. Reads the transaction-sourced cash-flow
 // functions (migrations 235/236), never the cash-account ledger.
 builder.Services.AddScoped<ICashFlowService>(sp => new CashFlowService(connectionString));
+// Financial Activity (290) -- the bridge report between Cash Flow and P&L.
+builder.Services.AddScoped<IPoultryFinancialActivityService>(sp => new PoultryFinancialActivityService(connectionString));
 builder.Services.AddScoped<IWaterBalanceService>(sp => new WaterBalanceService(connectionString));
 
 builder.Services.AddScoped<IHouseService>(sp => new HouseService(connectionString));

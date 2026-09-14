@@ -15,7 +15,7 @@
 
 import {
   Activity, AlertTriangle, ArrowLeftRight, Banknote, BarChart3, Bell, Bird, BookOpen, Box, Boxes,
-  Building2, Clock, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle, Hourglass,
+  Building2, Clock, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle, History, Hourglass,
   Coins, HandCoins, ListTodo, Package, PackageMinus, Pill, Receipt, Scale, Settings, ShoppingCart, Truck, User, UserCog, Users,
   Users2, Wallet, Wheat, TrendingUp,
 } from "lucide-react"
@@ -182,6 +182,9 @@ export function buildPoultryNavConfig(
         label: "Money",
         items: [
           { id: "cash-flow",     title: "Cash Flow",    icon: Wallet,     href: "/cash-flow",              visible: money("/cash-flow") },
+          // Between the two on purpose: it is the bridge between them, and it
+          // reads the same functions both of them read.
+          { id: "financial-activity", title: "Financial Activity", icon: Activity, href: "/poultry-financial-activity", visible: money("/poultry-financial-activity") },
           // The same page as Reports > Profit & Loss. Surfaced beside Cash Flow
           // because the two answer the pair of questions owners ask together:
           // what did we earn, and where did the money go.

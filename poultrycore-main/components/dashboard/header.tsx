@@ -47,6 +47,7 @@ export function DashboardHeader() {
     { path: '/employees', keywords: ['employees', 'employee', 'staff', 'workers'] },
     { path: '/sales', keywords: ['sales', 'sale', 'sell', 'revenue'] },
     { path: '/expenses', keywords: ['expenses', 'expense', 'cost', 'spending'] },
+    { path: '/poultry-financial-activity', keywords: ['financial activity', 'cash vs profit', 'why is profit different', 'money in revenue', 'profit impact', 'financial position'] },
     { path: '/inventory', keywords: ['inventory', 'stock', 'items'] },
     { path: '/supplies', keywords: ['supplies', 'supply', 'materials'] },
     { path: '/production-records', keywords: ['production', 'records', 'production records'] },
