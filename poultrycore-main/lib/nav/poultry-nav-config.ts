@@ -15,7 +15,7 @@
 
 import {
   Activity, AlertTriangle, ArrowLeftRight, Banknote, BarChart3, Bell, Bird, BookOpen, Box, Boxes,
-  Building2, Clock, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle, History, Hourglass,
+  Building2, Clock, CreditCard, DollarSign, Egg, Factory, FileText, HelpCircle, Hourglass,
   Coins, HandCoins, ListTodo, Package, PackageMinus, Pill, Receipt, Scale, Settings, ShoppingCart, Truck, User, UserCog, Users,
   Users2, Wallet, Wheat, TrendingUp,
 } from "lucide-react"
@@ -160,16 +160,21 @@ export function buildPoultryNavConfig(
           // not under Inventory -- an owner asking "why is my feed bill low
           // this month" looks here, beside the expenses it explains.
           //
-          // "Awaiting P&L", not "Deferred Inventory Costs": the long name was
-          // the widest label in this menu by eight characters and pushed the
-          // panel into a horizontal scrollbar. It also matches the wording on
-          // the inventory card people click to get here.
-          { id: "deferred-inventory-costs", title: "Awaiting P&L", icon: Hourglass, href: "/poultry-deferred-costs", visible: money("/poultry-deferred-costs") },
+          // "Deferred inventory cost" is now the name everywhere -- the page's
+          // own heading and the inventory card people click to get here.
+          { id: "deferred-inventory-costs", title: "Deferred inventory cost", icon: Hourglass, href: "/poultry-deferred-costs", visible: money("/poultry-deferred-costs") },
           // Migrations 270-273. Assets sit in the Expenses column because that
           // is where a major purchase is recorded from -- a farm buying a
           // generator looks here, not in a separate "capital" menu -- but they
           // are deliberately NOT expenses, which the page says on every screen.
-          { id: "assets", title: "Capital Investments", icon: Building2, href: "/poultry-assets", visible: money("/expenses") },
+          // Gated on its OWN href now that financial-nav-access.ts names it;
+          // it used to borrow "/expenses", which the sidebar could not copy.
+          //
+          // "Capital Investments/Assets" carries both names because the page is
+          // filed under one and talked about as the other. It is the widest
+          // label in this menu, so the Expenses column (and the panel width in
+          // top-nav) is sized to it; see the width note on the NavMegaMenu.
+          { id: "assets", title: "Capital Investments/Assets", icon: Building2, href: "/poultry-assets", visible: money("/poultry-assets") },
         ],
       },
       {
@@ -181,22 +186,26 @@ export function buildPoultryNavConfig(
           // because the two answer the pair of questions owners ask together:
           // what did we earn, and where did the money go.
           { id: "profit-loss",   title: "Profit & Loss", icon: TrendingUp, href: "/poultry/reports/profit-loss", visible: money("/poultry/reports/profit-loss") },
-          // The pre-cash-account page, kept while the two are compared. It
-          // counts EVERY sale and expense; Cash Flow counts only what was
-          // linked to a cash account, which is why their totals differ.
-          { id: "cash",          title: "Cash",         icon: History,   href: "/cash",                   visible: money("/cash") },
-          { id: "cash-accounts", title: "Cash Account", icon: Wallet,     href: "/poultry-cash-accounts",  visible: money("/poultry-cash-accounts") },
-          // Migrations 252-254, in the order the spec's Money menu lists them:
-          // moving money between our own accounts, the owner's money, then
-          // borrowed money.
-          { id: "cash-transfers", title: "Cash Transfers", icon: ArrowLeftRight, href: "/poultry-cash-transfers", visible: money("/poultry-cash-transfers") },
+          // The pre-cash-account page. HIDDEN from the menu: it counts EVERY
+          // sale and expense while Cash Flow counts only what was linked to a
+          // cash account, and two rows one above the other showing different
+          // totals for "cash" was the question owners kept asking. The route
+          // still works for anyone holding a link -- only the menu row is gone.
+          // { id: "cash",       title: "Cash",         icon: History,   href: "/cash",                   visible: money("/cash") },
+          // Migrations 253-254. Where money comes FROM when it is neither a
+          // sale nor an expense: the owner's own funding, then borrowed money.
           { id: "owner-money",    title: "Owner Money",    icon: Banknote,       href: "/poultry-owner-money",    visible: money("/poultry-owner-money") },
           // "(Financing)" because borrowed money is neither income nor an
           // expense -- it is a financing movement. The bracket says so in the
           // menu, where an owner decides what to click, rather than only inside
           // the page once they are already there.
           { id: "loans",          title: "Loans (Financing)", icon: HandCoins,   href: "/poultry-loans",          visible: money("/poultry-loans") },
-          { id: "cash-reconciliation", title: "Reconcile cash", icon: Scale, href: "/poultry-cash-reconciliation", visible: money("/poultry-cash-reconciliation") },
+          // The accounts themselves, and the two things you do TO them, kept
+          // together at the foot of the column: where the money sits, moving it
+          // between our own accounts (252), and counting it against the system.
+          { id: "cash-accounts", title: "Cash Account", icon: Wallet,     href: "/poultry-cash-accounts",  visible: money("/poultry-cash-accounts") },
+          { id: "cash-transfers", title: "Cash Transfers", icon: ArrowLeftRight, href: "/poultry-cash-transfers", visible: money("/poultry-cash-transfers") },
+          { id: "cash-reconciliation", title: "Reconciliation", icon: Scale, href: "/poultry-cash-reconciliation", visible: money("/poultry-cash-reconciliation") },
         ],
       },
     ],

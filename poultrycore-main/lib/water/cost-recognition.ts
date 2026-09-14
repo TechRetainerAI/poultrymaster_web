@@ -209,3 +209,60 @@ export const RECOGNITION_TONE_CLASS: Record<RecognitionTone, string> = {
   expensed: "border-emerald-300 bg-emerald-50 text-emerald-800",
   muted: "border-gray-300 bg-gray-50 text-gray-600",
 }
+
+// ---------------------------------------------------------------------------
+// Deferred Inventory Cost page (/water-deferred-costs).
+//
+// Written for a company owner, not an accountant: no "COGS", no "recognition
+// allocation ledger". Every one of these explains a number that is on screen
+// beside it, in the words somebody would use to ask about it.
+//
+// Deliberately worded for water rather than shared with lib/poultry: the two
+// modules describe the same mechanic over different stock ("as the stock is
+// used" reads the same, but a water owner's stock is film and chemical, and
+// the source of a draw is a production batch, not a flock). Sharing one string
+// table would force every future wording change to be safe for both.
+// ---------------------------------------------------------------------------
+
+export const REMAINING_DEFERRED_TOOLTIP =
+  "The part of this purchase still held as stock value. It has not been charged to Profit & Loss yet, and will be as the stock is used in production."
+
+export const RECOGNIZED_COST_TOOLTIP =
+  "How much of this purchase has already been charged to Profit & Loss as the stock was used."
+
+export const OPERATIONAL_COST_TOOLTIP =
+  "The stock this production run actually used up, at what it cost. Some of it may have been charged to Profit & Loss earlier, when it was bought."
+
+export const NEWLY_RECOGNIZED_TOOLTIP =
+  "The part of this usage that is being charged to Profit & Loss now."
+
+export const ALREADY_EXPENSED_TOOLTIP =
+  "The part of this usage that was already charged to Profit & Loss when the stock was bought. It is not charged again."
+
+/**
+ * The one that stops an owner reading a settled purchase as a problem, and a
+ * problem as settled.
+ */
+export const DEFERRED_EXCEPTION_TOOLTIP =
+  "This purchase's own balance and its recorded usages do not agree on how much has been charged to Profit & Loss. Neither figure should be relied on until it is checked."
+
+export const DEFERRED_PAGE_INTRO =
+  "These purchases have already been recorded and may already have affected cash or supplier balances. What is shown here is stock value that has not yet become an expense -- it moves into Profit & Loss as production draws the stock."
+
+/** Beside anything that might be read as a second payment. */
+export const NO_SECOND_PAYMENT_TOOLTIP =
+  "Charging this to Profit & Loss moves no money. The cash left the business when the stock was bought."
+
+/** Status → badge tone on the deferred page. */
+export function deferredStatusTone(status: string | null | undefined): RecognitionTone {
+  switch (status) {
+    case "Not yet expensed":
+    case "Partly expensed":
+      return "deferred"
+    case "Fully expensed":
+    case "Expensed at purchase":
+      return "expensed"
+    default:
+      return "muted"
+  }
+}

@@ -202,15 +202,20 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
           groups={nav.salesMoney}
           /* Same treatment as the poultry rail: three columns sized to their
              OWN content (fitColumns), not to an equal share -- equal columns
-             would widen all three to "Customer Balances" and hang the
-             difference off the right edge as dead space. Measured in
-             Geist-Medium (the active row's weight): Sales' longest is
-             "Customer Balances" 132px, Expenses' is "Supplier Payments" 130px,
-             Money's is "Reconcile cash" 102px. Each column needs ~40px more for
-             the icon, gap and row padding, so the three are ~180, ~178 and
-             ~148px. 35rem = 560px covers those plus 2x16px grid gaps and 32px
-             of panel padding, with slack for font rendering. */
-          columns={3} widthRem={35} layout="grid" fitColumns
+             would widen all three to the widest and hang the difference off the
+             right edge as dead space.
+
+             Derived with the formula at the top of this rail, INCLUDING its
+             32px scrollbar gutter (the earlier version of this comment left the
+             gutter out and was 2rem short):
+               32 panel padding + 32 gutter + 2x16 grid gaps
+               + per column: 16 px-2 + 16 icon + 8 gap + ~7.6px per character
+             Sales "Customer Balances" 17ch=129 -> 169px; Expenses "Capital
+             Investments/Assets" 26ch=198 -> 238px; Money "Cash Transfers" /
+             "Reconciliation" 14ch=106 -> 146px. 96 + 169 + 238 + 146 = 649px,
+             so 41rem = 656px. Rows `truncate`, so err wide.
+             (Was 35rem when Expenses topped out at "Supplier Payments".) */
+          columns={3} widthRem={41} layout="grid" fitColumns
         />
 
         {/* Analytics is a menu, not a destination — there is no landing page,
@@ -564,16 +569,22 @@ export function TopNavigation() {
             groups={nav.salesMoney}
             /* Three columns sized to their OWN content (fitColumns), not to an
                equal share: Sales' longest label is "Customer Balances",
-               Expenses' is "Supplier Payments" and Money's is "Reconcile cash",
-               and equal columns would widen ALL THREE to the first and hang the
-               difference off the right edge as dead space.
-               Measured in Geist-Medium (the active row's weight): Customer
-               Balances 132px, Supplier Payments 130px, Reconcile cash 102px.
-               Each column needs ~40px more for the icon, gap and row padding, so
-               the three are ~180, ~178 and ~148px. 35rem = 560px covers those
-               plus 2x16px grid gaps + 32px of panel padding, with slack for font
-               rendering. */
-            columns={3} widthRem={35} layout="grid" fitColumns accent="orange"
+               Expenses' is "Capital Investments/Assets" and Money's is
+               "Reconciliation", and equal columns would widen ALL THREE to the
+               widest and hang the difference off the right edge as dead space.
+
+               Derived with the formula documented on the water rail above --
+               INCLUDING its 32px scrollbar gutter, which the earlier version of
+               this comment left out:
+                 32 panel padding + 32 gutter + 2x16 grid gaps
+                 + per column: 16 px-2 + 16 icon + 8 gap + ~7.6px per character
+               Customer Balances 17ch=129 -> 169px; Capital Investments/Assets
+               26ch=198 -> 238px (it edges out "Deferred inventory cost" 23ch);
+               Reconciliation 14ch=106 -> 146px. 96 + 169 + 238 + 146 = 649px,
+               so 41rem = 656px. Rows use `truncate` -- too narrow silently eats
+               letters rather than reflowing -- so err wide.
+               (Was 35rem when Expenses topped out at "Supplier Payments".) */
+            columns={3} widthRem={41} layout="grid" fitColumns accent="orange"
           />
 
           <NavMegaMenu

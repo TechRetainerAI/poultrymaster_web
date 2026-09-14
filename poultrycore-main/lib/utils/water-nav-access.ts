@@ -95,6 +95,13 @@ const WATER_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAdmin: 
   "/water-staff": (f, isAdmin) => isAdmin || f.canSeeEmployees,
   "/water-payroll": (f) => f.canViewWaterPayroll,
 
+  // Stock cost that has NOT become an expense yet. Filed under Expenses, so it
+  // reads as generously as Expenses does: anyone who can see what the company
+  // spends can see what it has not spent yet. It is a costing detail, which is
+  // why it is not on canViewWaterInventory -- a storekeeper who can count film
+  // has no business reading what the film cost.
+  "/water-deferred-costs": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canEnterExpenses,
+
   // --- Assets --------------------------------------------------------------
   // Migrations 283-286. Read as generously as Expenses, because that is where a
   // major purchase is entered from and the register is largely a different view

@@ -600,7 +600,7 @@ function PoultryRawMaterialsPageInner() {
                           ? "See the purchases this is waiting on"
                           : DEFERRED_INVENTORY_TOOLTIP}
                       >
-                        <div className="text-[11px] uppercase tracking-wide text-amber-700">Awaiting P&amp;L</div>
+                        <div className="text-[11px] uppercase tracking-wide text-amber-700">Deferred inventory cost</div>
                         <div className="text-base font-semibold text-amber-900">{gh(valuation.summary.deferredValue)}</div>
                         <div className="text-[11px] text-amber-700">
                           {valuation.summary.deferredValue > 0
@@ -730,7 +730,7 @@ function PoultryRawMaterialsPageInner() {
                                         router.push(`/poultry-deferred-costs?itemId=${i.poultryRawMaterialItemId}`)
                                       }}
                                     >
-                                      {gh(v.deferredValue)} awaiting P&amp;L
+                                      {gh(v.deferredValue)} deferred inventory cost
                                     </button>
                                   ) : (
                                     <div className="text-[11px] text-slate-500" title={EXPENSED_AT_PURCHASE_TOOLTIP}>
@@ -849,7 +849,7 @@ function PoultryRawMaterialsPageInner() {
                                       router.push(`/poultry-deferred-costs?itemId=${p.poultryRawMaterialItemId}`)
                                     }}
                                   >
-                                    {gh(p.deferredRemainingCost ?? 0)} awaiting P&amp;L
+                                    {gh(p.deferredRemainingCost ?? 0)} deferred inventory cost
                                   </button>
                                 )}
                               </>
