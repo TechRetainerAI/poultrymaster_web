@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic"
  * the mistake the whole report exists to prevent.
  */
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Fragment, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -469,8 +469,11 @@ function FinancialActivityPageInner() {
                         {pg.pageItems.map((r) => {
                           const open = expanded.has(r.eventKey)
                           return (
-                            <>
-                              <TableRow key={r.eventKey} className="cursor-pointer" onClick={() => toggle(r.eventKey)}>
+                            // The Fragment carries the key, not the row inside
+                            // it: a bare <> is the child React is keying here, so
+                            // keying its children leaves the list unkeyed.
+                            <Fragment key={r.eventKey}>
+                              <TableRow className="cursor-pointer" onClick={() => toggle(r.eventKey)}>
                                 <TableCell className="px-1">
                                   {open ? <ChevronDown className="w-4 h-4 text-slate-400" />
                                         : <ChevronRight className="w-4 h-4 text-slate-400" />}
@@ -497,11 +500,11 @@ function FinancialActivityPageInner() {
                                 <TableCell className="text-right tabular-nums text-slate-700">{gh(r.runningCash)}</TableCell>
                               </TableRow>
                               {open && (
-                                <TableRow key={`${r.eventKey}-detail`}>
+                                <TableRow>
                                   <TableCell colSpan={11} className="bg-slate-50 p-0">{positionsFor(r)}</TableCell>
                                 </TableRow>
                               )}
-                            </>
+                            </Fragment>
                           )
                         })}
                       </TableBody>
