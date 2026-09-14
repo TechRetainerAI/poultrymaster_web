@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic"
 
 /**
- * Reconcile cash — pick an account, count it, post the difference.
+ * Reconciliation — pick an account, count it, post the difference.
  *
  * The reconciliation work used to sit inside the account detail page. It has its
  * own page because it is a task rather than a property of one record: you arrive
@@ -242,7 +242,7 @@ function PoultryCashReconciliationPageInner() {
             <div className="mt-0.5">
               <h1 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
                 <Scale className="h-5 w-5 text-sky-600" />
-                Reconcile cash
+                Reconciliation
               </h1>
               <p className="mt-1 text-xs text-slate-500 max-w-3xl">
                 Check what an account actually holds against what the system says. The difference is

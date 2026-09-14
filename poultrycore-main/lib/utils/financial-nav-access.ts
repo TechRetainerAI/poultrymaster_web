@@ -45,6 +45,13 @@ export function isFinancialNavItemVisible(
   // for the same reason the Balances rows below include it -- a finance-only
   // reader needs the page that explains their expense lines.
   if (href === "/poultry-deferred-costs") return f.canEnterExpenses || f.canViewFinancial
+  // Migrations 270-273. Capital Investments is the other "what did this cost"
+  // page in the Expenses column, so it reads to the same audience as the line
+  // above. It previously had no rule of its own and the nav entry gated it on
+  // "/expenses" instead -- which worked in the top nav but meant the sidebar
+  // could not carry the row at all, since that surface gates on the item's own
+  // href. Naming it here is what lets both surfaces show it.
+  if (href === "/poultry-assets") return f.canEnterExpenses || f.canViewFinancial
   if (href === "/poultry-payments") return isAdmin || f.canViewFinancial || f.canEnterSales
   if (href === "/customers") {
     return (

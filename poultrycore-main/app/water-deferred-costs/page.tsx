@@ -1,17 +1,16 @@
 "use client"
 
-// Deferred Inventory Costs (Sales, Expenses & Money → Expenses → Deferred
-// Inventory Costs). Migration 288.
+// Deferred Inventory Cost (Sales, Expenses & Money → Expenses → Deferred
+// inventory cost). The water twin of /poultry-deferred-costs.
 //
-// The page that makes "Awaiting Profit & Loss" explainable. An owner arrives
-// here from that card on the inventory screen, sees the purchases behind the
-// number, expands one, and reads the individual usages that moved its cost into
-// the P&L.
+// The page that makes deferred stock value explainable. An owner arrives here
+// from the Expenses menu, sees the purchases behind the number, expands one,
+// and reads the individual production draws that moved its cost into the P&L.
 //
 // READ-ONLY, DELIBERATELY. Everything shown is derived from the cost layers and
 // their allocations. There is no action here that could change a recognised
-// figure, because recognition happens where consumption happens (migration 266)
-// and a second way to set it would immediately disagree with the P&L.
+// figure, because recognition happens where consumption happens and a second
+// way to set it would immediately disagree with the P&L.
 //
 // TWO NUMBERS THAT ARE NOT THE SAME, AND ARE NOT PRESENTED AS IF THEY WERE
 // -----------------------------------------------------------------------
@@ -21,6 +20,15 @@
 // A purchase expensed at purchase therefore shows a large original cost and no
 // deferred anything, which is correct and is why the deferred columns are
 // visually muted rather than showing a bare 0.00 that reads like a mistake.
+//
+// WHAT IS NOT HERE, AND WHY
+// -------------------------
+// The poultry page carries a "produced lot" shape: a feed-production batch can
+// CREATE a raw-material lot, so a row there can have a batch instead of a
+// supplier. Water has no feed production and no produced lots -- every water lot
+// is bought -- so none of that is mirrored rather than invented. The other way
+// round, a water draw belongs to a PRODUCTION BATCH (sachets/bottles) where the
+// poultry one belongs to a flock, which is what the Source column shows.
 
 import { Fragment, Suspense, useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -36,12 +44,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DateRangeFilter } from "@/components/ui/date-range-filter"
 import { MOBILE_FILTER_SELECT_CONTENT_CLASS } from "@/components/dashboard/mobile-filters"
 import { DataPagination } from "@/components/ui/data-pagination"
-import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { usePagination } from "@/hooks/use-pagination"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   ChevronDown, ChevronRight, Loader2, AlertTriangle, Hourglass,
-  CheckCircle2, Receipt, Factory, Package, Download, ExternalLink, Clock,
+  CheckCircle2, Receipt, Package, Download, ExternalLink, Clock,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useFmt } from "@/lib/currency"
@@ -51,44 +58,50 @@ import { usePermissions } from "@/hooks/use-permissions"
 import {
   RECOGNITION_TONE_CLASS, deferredStatusTone,
   REMAINING_DEFERRED_TOOLTIP, RECOGNIZED_COST_TOOLTIP, OPERATIONAL_COST_TOOLTIP,
-  NEWLY_RECOGNIZED_TOOLTIP, ALREADY_EXPENSED_TOOLTIP, DEFERRED_EXCEPTION_TOOLTIP,
+  NEWLY_RECOGNIZED_TOOLTIP, DEFERRED_EXCEPTION_TOOLTIP,
   DEFERRED_PAGE_INTRO, NO_SECOND_PAYMENT_TOOLTIP,
-} from "@/lib/poultry/cost-recognition"
+} from "@/lib/water/cost-recognition"
 import {
-  getPoultryDeferredCosts, getPoultryDeferredCostHistory,
-  type PoultryDeferredCostResponse, type PoultryDeferredPurchase,
-  type PoultryDeferredRecognition, type DeferredCostScope,
-} from "@/lib/api/poultry-inventory"
+  getWaterDeferredCosts, getWaterDeferredCostHistory,
+  type WaterDeferredCostResponse, type WaterDeferredPurchase,
+  type WaterDeferredRecognition, type WaterDeferredCostScope,
+} from "@/lib/api/water-deferred-costs"
 
+// The stored category codes, spelled the way the raw-materials page spells
+// them. Anything the server sends that is not in this map falls through as-is,
+// so a category added later shows its own name rather than a blank.
 const CATEGORY_LABELS: Record<string, string> = {
-  FeedIngredient: "Feed Ingredient",
-  FinishedFeed: "Finished Feed",
+  PackagingRoll: "Packaging Roll",
+  SachetFilm: "Sachet Film",
+  OuterBag: "Outer Bag",
+  UVLamp: "UV Lamp",
   SparePart: "Spare Part",
+  CleaningSupply: "Cleaning Supply",
 }
 const categoryLabel = (c?: string | null) => (c ? CATEGORY_LABELS[c] ?? c : "—")
 
 // The four views, in the order an owner works through them: what is waiting,
 // what is done, what is wrong, everything.
-const SCOPES: { value: DeferredCostScope; label: string; hint: string }[] = [
+const SCOPES: { value: WaterDeferredCostScope; label: string; hint: string }[] = [
   { value: "DEFERRED", label: "Still to expense", hint: "Purchases with cost still waiting to reach Profit & Loss" },
   { value: "RECOGNIZED", label: "Fully expensed", hint: "Purchases that were deferred and are now completely expensed" },
   { value: "EXCEPTION", label: "Needs checking", hint: "Purchases whose figures do not agree with their usages" },
-  { value: "ALL", label: "All purchases", hint: "Every inventory purchase, however its cost was recognised" },
+  { value: "ALL", label: "All purchases", hint: "Every raw material purchase, however its cost was recognised" },
 ]
 
 /**
  * Why a deferred cost is not moving.
  *
- * A farm that switches to "expense when used" keeps every lot it already owns
- * stamped as expensed-at-purchase, so the new deferred lot is the NEWEST one --
- * and under FIFO the newest lot is drawn LAST. Consumption then correctly
+ * A company that switches to "expense when used" keeps every lot it already
+ * owns stamped as expensed-at-purchase, so the new deferred lot is the NEWEST
+ * one -- and under FIFO the newest lot is drawn LAST. Production then correctly
  * recognises nothing, for as long as it takes to clear the older stock, and
  * correctly looks like a broken feature.
  *
  * Returns null when the lot is next in line, so the row stays quiet when there
  * is nothing to explain.
  */
-function queueNote(p: PoultryDeferredPurchase): string | null {
+function queueNote(p: WaterDeferredPurchase): string | null {
   const ahead = p.quantityAheadInQueue
   if (ahead == null || ahead <= 0) return null
   const unit = p.productionUnit ? ` ${p.productionUnit}` : ""
@@ -99,7 +112,7 @@ function queueNote(p: PoultryDeferredPurchase): string | null {
 const qtyFmt = (n: number, unit?: string | null) =>
   `${n.toLocaleString(undefined, { maximumFractionDigits: 3 })}${unit ? ` ${unit}` : ""}`
 
-function DeferredCostsInner() {
+function WaterDeferredCostsInner() {
   const router = useRouter()
   const params = useSearchParams()
   const { toast } = useToast()
@@ -108,20 +121,21 @@ function DeferredCostsInner() {
 
   // Costing detail is financial data. Anyone who cannot see expenses cannot see
   // what a purchase cost or where it went -- gated here as well as in the nav,
-  // because a nav that hides a route does not stop somebody typing it.
+  // because a nav that hides a route does not stop somebody typing it. Same
+  // predicate lib/utils/water-nav-access.ts uses for this href.
   const canView = isAdmin || featureAccess.canEnterExpenses || featureAccess.canViewFinancial
 
-  const [data, setData] = useState<PoultryDeferredCostResponse | null>(null)
+  const [data, setData] = useState<WaterDeferredCostResponse | null>(null)
   const [loading, setLoading] = useState(true)
   // Held separately from `data`, because "the call failed" and "there is
   // nothing to show" are different answers and the page must not give the
   // reassuring one when it means the alarming one.
   const [error, setError] = useState<string | null>(null)
 
-  // Deep-link targets from the inventory page's "Awaiting Profit & Loss".
+  // Deep-link target: ?itemId= narrows to one raw material.
   const itemIdParam = params.get("itemId")
-  const [scope, setScope] = useState<DeferredCostScope>(
-    (params.get("scope") as DeferredCostScope) || "DEFERRED")
+  const [scope, setScope] = useState<WaterDeferredCostScope>(
+    (params.get("scope") as WaterDeferredCostScope) || "DEFERRED")
   const [itemId, setItemId] = useState<number | undefined>(
     itemIdParam ? Number(itemIdParam) : undefined)
   const [search, setSearch] = useState("")
@@ -133,15 +147,15 @@ function DeferredCostsInner() {
   // Expanded rows and their history, cached per purchase so collapsing and
   // re-expanding does not refetch.
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
-  const [history, setHistory] = useState<Record<number, PoultryDeferredRecognition[]>>({})
+  const [history, setHistory] = useState<Record<number, WaterDeferredRecognition[]>>({})
   const [historyLoading, setHistoryLoading] = useState<Set<number>>(new Set())
-  const [detail, setDetail] = useState<PoultryDeferredPurchase | null>(null)
+  const [detail, setDetail] = useState<WaterDeferredPurchase | null>(null)
 
   const load = useCallback(async () => {
     if (!canView) { setLoading(false); return }
     setLoading(true)
     try {
-      const res = await getPoultryDeferredCosts({
+      const res = await getWaterDeferredCosts({
         scope, itemId,
         category: category === "all" ? undefined : category,
         fromDate: dateFrom || undefined,
@@ -183,8 +197,8 @@ function DeferredCostsInner() {
 
   const pg = usePagination(rows)
 
-  const toggle = async (p: PoultryDeferredPurchase) => {
-    const id = p.poultryRawMaterialPurchaseId
+  const toggle = async (p: WaterDeferredPurchase) => {
+    const id = p.waterRawMaterialPurchaseId
     const next = new Set(expanded)
     if (next.has(id)) { next.delete(id); setExpanded(next); return }
     next.add(id)
@@ -192,7 +206,7 @@ function DeferredCostsInner() {
     if (history[id]) return
     setHistoryLoading((s) => new Set(s).add(id))
     try {
-      const h = await getPoultryDeferredCostHistory(id)
+      const h = await getWaterDeferredCostHistory(id)
       setHistory((m) => ({ ...m, [id]: h }))
     } catch (e: any) {
       // A per-row failure IS worth a toast -- the rest of the page is still
@@ -216,11 +230,11 @@ function DeferredCostsInner() {
       "Recognized Cost", "Remaining Deferred", "Recognition %", "Method", "Status",
     ]
     const lines = rows.map((p) => [
-      p.poultryRawMaterialPurchaseId,
+      p.waterRawMaterialPurchaseId,
       p.purchaseDate?.slice(0, 10) ?? "",
       p.itemName ?? "",
       categoryLabel(p.category),
-      p.supplierName ?? (p.isLotProduced ? `Produced ${p.feedProductionBatchNumber ?? ""}` : ""),
+      p.supplierName ?? "",
       p.purchasedQuantity, p.productionUnit ?? "",
       p.remainingQuantity, p.operationalCost, p.deferredTotalCost,
       p.recognizedCost, p.deferredRemainingCost, p.recognitionPercent,
@@ -234,7 +248,7 @@ function DeferredCostsInner() {
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }))
     const a = document.createElement("a")
     a.href = url
-    a.download = `deferred-inventory-costs-${new Date().toISOString().slice(0, 10)}.csv`
+    a.download = `water-deferred-inventory-costs-${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -243,7 +257,7 @@ function DeferredCostsInner() {
     return (
       <div className="flex min-h-screen bg-gray-50">
         <DashboardSidebar />
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col">
           <DashboardHeader />
           <main className="flex-1 p-4 sm:p-6">
             <Card><CardContent className="p-8 text-center text-slate-500">
@@ -261,15 +275,15 @@ function DeferredCostsInner() {
   return (
     <div className="flex min-h-screen bg-gray-50">
       <DashboardSidebar />
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col">
         <DashboardHeader />
-        <main className="flex-1 min-w-0 p-4 sm:p-6 space-y-4">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
             <div>
               <h1 className="text-xl font-semibold text-slate-900">Deferred inventory cost</h1>
               <p className="text-sm text-slate-500">
-                Track inventory purchases whose costs are recognized in Profit &amp; Loss as the inventory is consumed.
+                Track raw material purchases whose costs are recognized in Profit &amp; Loss as production consumes the stock.
               </p>
             </div>
             <div className="sm:ml-auto flex gap-2">
@@ -290,7 +304,7 @@ function DeferredCostsInner() {
             <div className="flex flex-wrap items-end gap-2">
               <div className="min-w-[180px]">
                 <Label className="text-xs">Show</Label>
-                <Select value={scope} onValueChange={(v) => setScope(v as DeferredCostScope)}>
+                <Select value={scope} onValueChange={(v) => setScope(v as WaterDeferredCostScope)}>
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent className={MOBILE_FILTER_SELECT_CONTENT_CLASS}>
                     {SCOPES.map((x) => (
@@ -328,7 +342,7 @@ function DeferredCostsInner() {
               </div>
               {itemId != null && (
                 <Button variant="ghost" size="sm" className="h-9"
-                        onClick={() => { setItemId(undefined); router.replace("/poultry-deferred-costs") }}>
+                        onClick={() => { setItemId(undefined); router.replace("/water-deferred-costs") }}>
                   Clear item filter
                 </Button>
               )}
@@ -387,7 +401,7 @@ function DeferredCostsInner() {
                     <div className="text-xs text-amber-700 mt-0.5">
                       across {s.deferredPurchases.toLocaleString()} purchase{s.deferredPurchases === 1 ? "" : "s"}
                     </div>
-                    {/* 289. Without this, a farm that has just switched method
+                    {/* Without this, a company that has just switched method
                         sees a large number that never moves and concludes the
                         feature is broken. It is not -- the stock in front of it
                         has to be used first. */}
@@ -443,84 +457,15 @@ function DeferredCostsInner() {
                 </div>
               )}
 
-              {/* p-0 under lg so the scorecards run the full width of main, the way
-              the /poultry-daily-closing cards do. The list supplies its own
-              gutter; the Card padding on top of it left them visibly inset.
-              Desktop keeps the padding for the table. */}
-              <Card><CardContent className="p-0 lg:p-4">
+              <Card><CardContent className="p-4">
                 {rows.length === 0 ? (
                   <div className="p-8 text-center text-sm text-slate-500">
                     {scope === "DEFERRED"
-                      ? "No purchases are holding cost back from Profit & Loss. On a farm that expenses stock when it is bought, this is the expected result."
+                      ? "No purchases are holding cost back from Profit & Loss. On a company that expenses stock when it is bought, this is the expected result."
                       : "No purchases match these filters."}
                   </div>
                 ) : (
-                  <MobileCardList
-                    striped
-                    defaultOpen
-                    items={pg.pageItems}
-                    getKey={(p) => p.poultryRawMaterialPurchaseId}
-                    primary={(p) => p.itemName ?? `Purchase #${p.poultryRawMaterialPurchaseId}`}
-                    secondary={(p) => (
-                      <span className="truncate">
-                        #{p.poultryRawMaterialPurchaseId} · {p.purchaseDate?.slice(0, 10)} · {categoryLabel(p.category)}
-                      </span>
-                    )}
-                    trailing={(p) => (
-                      <Badge variant="outline"
-                             className={cn("text-[10px] font-normal",
-                                           p.status === "Exception" ? "border-red-300 bg-red-50 text-red-700"
-                                                                    : RECOGNITION_TONE_CLASS[deferredStatusTone(p.status)])}>
-                        {p.status}
-                      </Badge>
-                    )}
-                    /* The page is named after "Awaiting P&L", so that figure
-                       leads. A purchase that was never deferred shows a dash,
-                       not 0.00 — a bare zero here reads as a missing number
-                       rather than a correct one, same as the table. */
-                    highlights={(p) => [
-                      {
-                        label: "Awaiting P&L",
-                        value: p.deferredTotalCost <= 0 ? "—" : gh(p.deferredRemainingCost),
-                        accent: "amber", wide: true,
-                      },
-                      { label: "Original cost", value: gh(p.operationalCost), accent: "blue" },
-                      {
-                        label: "Expensed",
-                        value: p.deferredTotalCost <= 0 ? "—" : gh(p.recognizedCost),
-                        accent: "emerald",
-                      },
-                    ]}
-                    details={(p) => [
-                      {
-                        label: "Supplier",
-                        value: p.isLotProduced ? (p.feedProductionBatchNumber ?? "Produced") : (p.supplierName ?? "—"),
-                      },
-                      { label: "Purchased", value: qtyFmt(p.purchasedQuantity, p.productionUnit) },
-                      { label: "Remaining", value: qtyFmt(p.remainingQuantity, p.productionUnit) },
-                      {
-                        label: "Progress",
-                        value: p.deferredTotalCost > 0 ? `${p.recognitionPercent.toFixed(1)}% expensed` : "—",
-                      },
-                      ...(p.status === "Exception" && p.exceptionReason
-                        ? [{ label: "Needs checking", value: p.exceptionReason }]
-                        : []),
-                      // 289. The answer to "I consumed stock and nothing
-                      // happened", shown only when it is the explanation.
-                      ...(p.deferredRemainingCost > 0 && queueNote(p)
-                        ? [{ label: "In the queue", value: `behind ${qtyFmt(p.quantityAheadInQueue ?? 0, p.productionUnit)}` }]
-                        : []),
-                    ]}
-                    /* The desktop row expands in place; on a card the usage
-                       history opens in the detail dialog, which shows the same
-                       rows and does not need the row to stay on screen. */
-                    actions={(p) => (
-                      <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => setDetail(p)}>
-                        <Receipt className="w-4 h-4 mr-1" /> Purchase detail
-                      </Button>
-                    )}
-                    pagination={pg.paginationProps}
-                    desktopTable={
+                  <>
                     <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
@@ -540,7 +485,7 @@ function DeferredCostsInner() {
                         </TableHeader>
                         <TableBody>
                           {pg.pageItems.map((p) => {
-                            const id = p.poultryRawMaterialPurchaseId
+                            const id = p.waterRawMaterialPurchaseId
                             const open = expanded.has(id)
                             const isException = p.status === "Exception"
                             const neverDeferred = p.deferredTotalCost <= 0
@@ -563,14 +508,10 @@ function DeferredCostsInner() {
                                     <div className="text-slate-900">{p.itemName ?? "—"}</div>
                                     <div className="text-[11px] text-slate-500">{categoryLabel(p.category)}</div>
                                   </TableCell>
-                                  <TableCell>
-                                    {p.isLotProduced ? (
-                                      <span className="inline-flex items-center gap-1 text-[11px] text-indigo-700">
-                                        <Factory className="w-3 h-3" />
-                                        {p.feedProductionBatchNumber ?? "Produced"}
-                                      </span>
-                                    ) : (p.supplierName ?? "—")}
-                                  </TableCell>
+                                  {/* Always a supplier or nothing: water has no
+                                      produced lots, so there is no second kind
+                                      of origin to render here. */}
+                                  <TableCell>{p.supplierName ?? "—"}</TableCell>
                                   <TableCell className="text-right whitespace-nowrap">
                                     {qtyFmt(p.purchasedQuantity, p.productionUnit)}
                                   </TableCell>
@@ -604,8 +545,8 @@ function DeferredCostsInner() {
                                         {p.recognitionPercent.toFixed(1)}% expensed
                                       </div>
                                     )}
-                                    {/* 289. The answer to "I consumed stock and
-                                        nothing happened". Shown only when it is
+                                    {/* The answer to "I ran a batch and nothing
+                                        happened". Shown only when it is
                                         actually the explanation. */}
                                     {p.deferredRemainingCost > 0 && queueNote(p) && (
                                       <div className="mt-0.5 flex items-start gap-1 text-[11px] text-sky-700"
@@ -633,7 +574,8 @@ function DeferredCostsInner() {
                                         rows={history[id]}
                                         loading={historyLoading.has(id)}
                                         gh={gh}
-                                        onOpenExpense={() => router.push("/expenses")}
+                                        onOpenExpense={() => router.push("/water-expenses")}
+                                        onOpenBatch={(bid) => router.push(`/water-production-batches/${bid}`)}
                                       />
                                     </TableCell>
                                   </TableRow>
@@ -644,8 +586,8 @@ function DeferredCostsInner() {
                         </TableBody>
                       </Table>
                     </div>
-                    }
-                  />
+                    <DataPagination {...pg.paginationProps} />
+                  </>
                 )}
               </CardContent></Card>
             </>
@@ -653,11 +595,11 @@ function DeferredCostsInner() {
 
           <PurchaseDetailDialog
             purchase={detail}
-            rows={detail ? history[detail.poultryRawMaterialPurchaseId] : undefined}
+            rows={detail ? history[detail.waterRawMaterialPurchaseId] : undefined}
             gh={gh}
             onClose={() => setDetail(null)}
-            onOpenItem={(iid) => router.push(`/poultry-raw-materials?tab=items&itemId=${iid}`)}
-            onOpenPurchase={(pid) => router.push(`/poultry-raw-materials?tab=purchases&purchaseId=${pid}`)}
+            onOpenItems={() => router.push("/water-raw-materials?tab=items")}
+            onOpenPurchase={(pid) => router.push(`/water-raw-materials?tab=purchases&purchaseId=${pid}`)}
           />
         </main>
       </div>
@@ -666,16 +608,17 @@ function DeferredCostsInner() {
 }
 
 // ---------------------------------------------------------------------------
-// The expanded row: every usage that drew on this purchase.
+// The expanded row: every production draw that drew on this purchase.
 // ---------------------------------------------------------------------------
 function HistoryPanel({
-  purchase, rows, loading, gh, onOpenExpense,
+  purchase, rows, loading, gh, onOpenExpense, onOpenBatch,
 }: {
-  purchase: PoultryDeferredPurchase
-  rows?: PoultryDeferredRecognition[]
+  purchase: WaterDeferredPurchase
+  rows?: WaterDeferredRecognition[]
   loading: boolean
   gh: (n: number) => string
   onOpenExpense: () => void
+  onOpenBatch: (batchId: number) => void
 }) {
   if (loading) {
     return (
@@ -708,7 +651,9 @@ function HistoryPanel({
           <TableHeader>
             <TableRow>
               <TableHead className="text-xs">Date</TableHead>
-              <TableHead className="text-xs">Source</TableHead>
+              {/* Poultry asks which flock ate it; water asks which batch
+                  packed it. Same column, different question. */}
+              <TableHead className="text-xs">Production batch</TableHead>
               <TableHead className="text-xs text-right">Qty drawn</TableHead>
               <TableHead className="text-xs text-right">Unit cost</TableHead>
               <TableHead className="text-xs text-right" title={OPERATIONAL_COST_TOOLTIP}>Stock used</TableHead>
@@ -718,12 +663,27 @@ function HistoryPanel({
           </TableHeader>
           <TableBody>
             {rows.map((r) => (
-              <TableRow key={r.poultryRawMaterialUsageId}
+              <TableRow key={r.waterRawMaterialUsageId}
                         className={cn(r.isReversed && "opacity-60")}>
                 <TableCell className="text-xs whitespace-nowrap">{r.usedDate?.slice(0, 10)}</TableCell>
                 <TableCell className="text-xs">
-                  <div className="text-slate-900">{r.sourceLabel}</div>
-                  <div className="text-[11px] text-slate-500">{r.sourceType}</div>
+                  {/* Linked only when there is a batch to open. A draw can also
+                      come from internal use or a loss record, which have no
+                      batch page -- those show the server's label alone rather
+                      than a link that goes nowhere. */}
+                  {r.waterProductionBatchId != null ? (
+                    <button type="button"
+                            className="text-left text-sky-700 underline decoration-dotted underline-offset-2 hover:text-sky-900"
+                            title="Open the production batch"
+                            onClick={() => onOpenBatch(r.waterProductionBatchId!)}>
+                      {r.sourceLabel ?? r.batchNumber ?? `Batch #${r.waterProductionBatchId}`}
+                    </button>
+                  ) : (
+                    <div className="text-slate-900">{r.sourceLabel ?? "—"}</div>
+                  )}
+                  <div className="text-[11px] text-slate-500">
+                    {r.productName ?? r.sourceType ?? ""}
+                  </div>
                 </TableCell>
                 <TableCell className="text-xs text-right whitespace-nowrap">
                   {qtyFmt(r.quantityDrawn, r.productionUnit)}
@@ -741,9 +701,9 @@ function HistoryPanel({
                                         : r.recognizedCost > 0 ? "text-emerald-700" : "text-slate-500")}>
                       {r.recognitionOutcome}
                     </span>
-                    {r.expenseId != null && !r.isReversed && (
+                    {r.waterExpenseId != null && !r.isReversed && (
                       <Button variant="ghost" size="sm" className="h-5 px-1"
-                              title={`Expense #${r.expenseId} — ${NO_SECOND_PAYMENT_TOOLTIP}`}
+                              title={`Expense #${r.waterExpenseId} — ${NO_SECOND_PAYMENT_TOOLTIP}`}
                               onClick={onOpenExpense}>
                         <ExternalLink className="w-3 h-3 text-slate-400" />
                       </Button>
@@ -779,13 +739,13 @@ function HistoryPanel({
 // Purchase detail / audit view.
 // ---------------------------------------------------------------------------
 function PurchaseDetailDialog({
-  purchase, rows, gh, onClose, onOpenItem, onOpenPurchase,
+  purchase, rows, gh, onClose, onOpenItems, onOpenPurchase,
 }: {
-  purchase: PoultryDeferredPurchase | null
-  rows?: PoultryDeferredRecognition[]
+  purchase: WaterDeferredPurchase | null
+  rows?: WaterDeferredRecognition[]
   gh: (n: number) => string
   onClose: () => void
-  onOpenItem: (itemId: number) => void
+  onOpenItems: () => void
   onOpenPurchase: (purchaseId: number) => void
 }) {
   if (!purchase) return null
@@ -803,7 +763,7 @@ function PurchaseDetailDialog({
     <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Purchase #{p.poultryRawMaterialPurchaseId}</DialogTitle>
+          <DialogTitle>Purchase #{p.waterRawMaterialPurchaseId}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3">
@@ -812,8 +772,7 @@ function PurchaseDetailDialog({
             <Row k="Item" v={p.itemName ?? "—"} />
             <Row k="Category" v={categoryLabel(p.category)} />
             <Row k="Purchase date" v={p.purchaseDate?.slice(0, 10) ?? "—"} />
-            <Row k={p.isLotProduced ? "Produced by" : "Supplier"}
-                 v={p.isLotProduced ? (p.feedProductionBatchNumber ?? "Feed production") : (p.supplierName ?? "—")} />
+            <Row k="Supplier" v={p.supplierName ?? "—"} />
             <Row k="Original quantity" v={qtyFmt(p.purchasedQuantity, p.productionUnit)} />
             <Row k="Original cost" v={gh(p.operationalCost)} />
             <Row k="Recognition" v={p.recognitionMethodLabel ?? "—"} />
@@ -862,7 +821,7 @@ function PurchaseDetailDialog({
               </div>
               <div className="max-h-40 overflow-y-auto space-y-1">
                 {rows.map((r) => (
-                  <div key={r.poultryRawMaterialUsageId}
+                  <div key={r.waterRawMaterialUsageId}
                        className={cn("flex justify-between gap-2 text-xs", r.isReversed && "opacity-60 line-through")}>
                     <span className="text-slate-500">{r.usedDate?.slice(0, 10)}</span>
                     <span className="flex-1 text-slate-700 truncate">{r.sourceLabel}</span>
@@ -875,11 +834,14 @@ function PurchaseDetailDialog({
           )}
 
           <div className="flex gap-2 border-t pt-3">
-            <Button variant="outline" size="sm" onClick={() => onOpenPurchase(p.poultryRawMaterialPurchaseId)}>
+            <Button variant="outline" size="sm" onClick={() => onOpenPurchase(p.waterRawMaterialPurchaseId)}>
               Open purchase
             </Button>
-            <Button variant="outline" size="sm" onClick={() => onOpenItem(p.poultryRawMaterialItemId)}>
-              Open item
+            {/* The raw-materials page takes ?purchaseId= but has no ?itemId=
+                focus, so this opens the Items tab rather than pretending to
+                deep-link a row. */}
+            <Button variant="outline" size="sm" onClick={onOpenItems}>
+              Open items
             </Button>
           </div>
         </div>
@@ -888,10 +850,10 @@ function PurchaseDetailDialog({
   )
 }
 
-export default function PoultryDeferredCostsPage() {
+export default function WaterDeferredCostsPage() {
   return (
     <Suspense fallback={null}>
-      <DeferredCostsInner />
+      <WaterDeferredCostsInner />
     </Suspense>
   )
 }

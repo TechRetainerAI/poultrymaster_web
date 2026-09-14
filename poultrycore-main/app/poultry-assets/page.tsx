@@ -156,7 +156,7 @@ export default function PoultryAssetsPage() {
         <main className="flex-1 min-w-0 overflow-y-auto p-4 sm:p-6 space-y-4">
           <div className="flex flex-wrap items-start gap-3">
             <div>
-              <h1 className="text-lg font-semibold text-slate-900">Capital Investments</h1>
+              <h1 className="text-lg font-semibold text-slate-900">Capital Investments/Assets</h1>
               <p className="text-xs text-slate-500">
                 Track major long-term business investments, their cost, depreciation, and current book value.
               </p>

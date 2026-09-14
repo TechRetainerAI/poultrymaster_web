@@ -209,6 +209,11 @@ builder.Services.AddScoped<IWaterFinancialSettingsService>(sp => new WaterFinanc
 // vehicles the company owns, charged to the P&L over their useful life without
 // ever moving money.
 builder.Services.AddScoped<IWaterCapitalAssetService>(sp => new WaterCapitalAssetService(connectionString));
+// Deferred inventory costs (281): reads only -- which purchase lots still hold
+// cost that has not reached Profit & Loss, what drew it down, and why a lot can
+// sit still while stock is consumed. No writer; recognition happens on the
+// consumption rail.
+builder.Services.AddScoped<IWaterDeferredInventoryCostService>(sp => new WaterDeferredInventoryCostService(connectionString));
 
 // Poultry Cash Accounts (port of the Water cash module). Multi-account cash
 // management + signed ledger + paired transfers. Migrations 128 (schema) + 129 (SPs).
