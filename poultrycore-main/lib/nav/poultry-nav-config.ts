@@ -160,16 +160,21 @@ export function buildPoultryNavConfig(
           // not under Inventory -- an owner asking "why is my feed bill low
           // this month" looks here, beside the expenses it explains.
           //
-          // "Awaiting P&L", not "Deferred Inventory Costs": the long name was
-          // the widest label in this menu by eight characters and pushed the
-          // panel into a horizontal scrollbar. It also matches the wording on
-          // the inventory card people click to get here.
-          { id: "deferred-inventory-costs", title: "Awaiting P&L", icon: Hourglass, href: "/poultry-deferred-costs", visible: money("/poultry-deferred-costs") },
+          // "Deferred inventory cost" is now the name everywhere -- the page's
+          // own heading and the inventory card people click to get here.
+          { id: "deferred-inventory-costs", title: "Deferred inventory cost", icon: Hourglass, href: "/poultry-deferred-costs", visible: money("/poultry-deferred-costs") },
           // Migrations 270-273. Assets sit in the Expenses column because that
           // is where a major purchase is recorded from -- a farm buying a
           // generator looks here, not in a separate "capital" menu -- but they
           // are deliberately NOT expenses, which the page says on every screen.
-          { id: "assets", title: "Capital Investments", icon: Building2, href: "/poultry-assets", visible: money("/expenses") },
+          // Gated on its OWN href now that financial-nav-access.ts names it;
+          // it used to borrow "/expenses", which the sidebar could not copy.
+          //
+          // "Capital Investments/Assets" carries both names because the page is
+          // filed under one and talked about as the other. It is the widest
+          // label in this menu, so the Expenses column (and the panel width in
+          // top-nav) is sized to it; see the width note on the NavMegaMenu.
+          { id: "assets", title: "Capital Investments/Assets", icon: Building2, href: "/poultry-assets", visible: money("/poultry-assets") },
         ],
       },
       {
@@ -177,26 +182,33 @@ export function buildPoultryNavConfig(
         label: "Money",
         items: [
           { id: "cash-flow",     title: "Cash Flow",    icon: Wallet,     href: "/cash-flow",              visible: money("/cash-flow") },
+          // Between the two on purpose: it is the bridge between them, and it
+          // reads the same functions both of them read.
+          { id: "financial-activity", title: "Financial Activity", icon: Activity, href: "/poultry-financial-activity", visible: money("/poultry-financial-activity") },
           // The same page as Reports > Profit & Loss. Surfaced beside Cash Flow
           // because the two answer the pair of questions owners ask together:
           // what did we earn, and where did the money go.
           { id: "profit-loss",   title: "Profit & Loss", icon: TrendingUp, href: "/poultry/reports/profit-loss", visible: money("/poultry/reports/profit-loss") },
-          // The pre-cash-account page, kept while the two are compared. It
-          // counts EVERY sale and expense; Cash Flow counts only what was
-          // linked to a cash account, which is why their totals differ.
-          { id: "cash",          title: "Cash",         icon: History,   href: "/cash",                   visible: money("/cash") },
-          { id: "cash-accounts", title: "Cash Account", icon: Wallet,     href: "/poultry-cash-accounts",  visible: money("/poultry-cash-accounts") },
-          // Migrations 252-254, in the order the spec's Money menu lists them:
-          // moving money between our own accounts, the owner's money, then
-          // borrowed money.
-          { id: "cash-transfers", title: "Cash Transfers", icon: ArrowLeftRight, href: "/poultry-cash-transfers", visible: money("/poultry-cash-transfers") },
+          // The pre-cash-account page. HIDDEN from the menu: it counts EVERY
+          // sale and expense while Cash Flow counts only what was linked to a
+          // cash account, and two rows one above the other showing different
+          // totals for "cash" was the question owners kept asking. The route
+          // still works for anyone holding a link -- only the menu row is gone.
+          // { id: "cash",       title: "Cash",         icon: History,   href: "/cash",                   visible: money("/cash") },
+          // Migrations 253-254. Where money comes FROM when it is neither a
+          // sale nor an expense: the owner's own funding, then borrowed money.
           { id: "owner-money",    title: "Owner Money",    icon: Banknote,       href: "/poultry-owner-money",    visible: money("/poultry-owner-money") },
           // "(Financing)" because borrowed money is neither income nor an
           // expense -- it is a financing movement. The bracket says so in the
           // menu, where an owner decides what to click, rather than only inside
           // the page once they are already there.
           { id: "loans",          title: "Loans (Financing)", icon: HandCoins,   href: "/poultry-loans",          visible: money("/poultry-loans") },
-          { id: "cash-reconciliation", title: "Reconcile cash", icon: Scale, href: "/poultry-cash-reconciliation", visible: money("/poultry-cash-reconciliation") },
+          // The accounts themselves, and the two things you do TO them, kept
+          // together at the foot of the column: where the money sits, moving it
+          // between our own accounts (252), and counting it against the system.
+          { id: "cash-accounts", title: "Cash Account", icon: Wallet,     href: "/poultry-cash-accounts",  visible: money("/poultry-cash-accounts") },
+          { id: "cash-transfers", title: "Cash Transfers", icon: ArrowLeftRight, href: "/poultry-cash-transfers", visible: money("/poultry-cash-transfers") },
+          { id: "cash-reconciliation", title: "Reconciliation", icon: Scale, href: "/poultry-cash-reconciliation", visible: money("/poultry-cash-reconciliation") },
         ],
       },
     ],
@@ -207,7 +219,12 @@ export function buildPoultryNavConfig(
         label: "Trackers",
         items: [
           { id: "egg-tracker",        title: "Egg tracker",        icon: BarChart3, href: "/egg-tracker" },
+          // Three lenses on the same feed movements, narrowing left to right:
+          // the finished feed a farm holds, the ingredients it mills from, and
+          // then one item at a time with its own opening and closing.
           { id: "feed-tracker",       title: "Feed tracker",       icon: Wheat,     href: "/feed-tracker" },
+          { id: "feed-ingredient-tracker", title: "Ingredients tracker", icon: Wheat, href: "/feed-ingredient-tracker" },
+          { id: "feed-inventory-tracker", title: "Feed inventory tracker", icon: History, href: "/feed-inventory-tracker" },
           { id: "medication-tracker", title: "Medication tracker", icon: Pill,      href: "/medication-tracker" },
           { id: "birds-left",         title: "Birds tracker",      icon: Bird,      href: "/birds-left-tracker" },
           { id: "weekly-report",      title: "Report",             icon: FileText,  href: "/weekly-report" },
@@ -233,22 +250,13 @@ export function buildPoultryNavConfig(
           { id: "companies",  title: "Companies", icon: Building2, href: "/companies" },
         ],
       },
-      {
-        // Customers and Suppliers are master data maintained here, not part of
-        // the day's selling flow — but they're the two trading parties every
-        // receivable and payable hangs off, so they get their own Finance
-        // column rather than sitting under Company. Both rows are money()-gated,
-        // so this whole column drops out for a user without financial access;
-        // that's safe because Company above is ungated.
-        key: "finance",
-        label: "Finance",
-        items: [
-          { id: "customers", title: "Customers", icon: Users, href: "/customers", visible: money("/customers") },
-          { id: "suppliers", title: "Suppliers", icon: Truck, href: "/suppliers", visible: money("/suppliers") },
-        ],
-      },
-      // Group ORDER is load-bearing: the panel is a 2-column grid filled row by
-      // row, so this reads Company | Finance, Delivery | Production, Farm | People.
+      // Group ORDER is load-bearing: the panel is a 3-column grid filled row by
+      // row, so these six groups read as two rows --
+      //   Company | Delivery | Production   (the operating chain)
+      //   Finance | Farm     | People
+      // Reordering here silently reshuffles the panel; keep the pairs of three
+      // together, and keep `columns={3}` on the Setup NavMegaMenu in
+      // components/dashboard/top-nav.tsx in step with it.
       {
         key: "delivery-setup",
         label: "Delivery",
@@ -269,6 +277,20 @@ export function buildPoultryNavConfig(
           // A farm-level schedule that production records key off, so it sits
           // with the other production master data rather than under Company.
           { id: "egg-picks",     title: "Egg Pick Times", icon: Clock,  href: "/business-office/egg-pick-settings", visible: isAdmin },
+        ],
+      },
+      {
+        // Customers and Suppliers are master data maintained here, not part of
+        // the day's selling flow — but they're the two trading parties every
+        // receivable and payable hangs off, so they get their own Finance group
+        // rather than sitting under Company. Both rows are money()-gated, so
+        // this group drops out for a user without financial access; that's safe
+        // because Company is ungated.
+        key: "finance",
+        label: "Finance",
+        items: [
+          { id: "customers", title: "Customers", icon: Users, href: "/customers", visible: money("/customers") },
+          { id: "suppliers", title: "Suppliers", icon: Truck, href: "/suppliers", visible: money("/suppliers") },
         ],
       },
       {

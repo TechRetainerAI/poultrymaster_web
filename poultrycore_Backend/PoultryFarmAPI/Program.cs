@@ -94,6 +94,8 @@ builder.Services.AddScoped<IPoultryBalanceService>(sp => new PoultryBalanceServi
 // Cash Flow: one service, both rails. Reads the transaction-sourced cash-flow
 // functions (migrations 235/236), never the cash-account ledger.
 builder.Services.AddScoped<ICashFlowService>(sp => new CashFlowService(connectionString));
+// Financial Activity (290) -- the bridge report between Cash Flow and P&L.
+builder.Services.AddScoped<IPoultryFinancialActivityService>(sp => new PoultryFinancialActivityService(connectionString));
 builder.Services.AddScoped<IWaterBalanceService>(sp => new WaterBalanceService(connectionString));
 
 builder.Services.AddScoped<IHouseService>(sp => new HouseService(connectionString));
@@ -209,6 +211,11 @@ builder.Services.AddScoped<IWaterFinancialSettingsService>(sp => new WaterFinanc
 // vehicles the company owns, charged to the P&L over their useful life without
 // ever moving money.
 builder.Services.AddScoped<IWaterCapitalAssetService>(sp => new WaterCapitalAssetService(connectionString));
+// Deferred inventory costs (281): reads only -- which purchase lots still hold
+// cost that has not reached Profit & Loss, what drew it down, and why a lot can
+// sit still while stock is consumed. No writer; recognition happens on the
+// consumption rail.
+builder.Services.AddScoped<IWaterDeferredInventoryCostService>(sp => new WaterDeferredInventoryCostService(connectionString));
 
 // Poultry Cash Accounts (port of the Water cash module). Multi-account cash
 // management + signed ledger + paired transfers. Migrations 128 (schema) + 129 (SPs).

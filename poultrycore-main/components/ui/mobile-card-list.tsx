@@ -72,6 +72,12 @@ export interface MobileCardListProps<T> {
    */
   highlights?: (item: T) => HighlightField[]
   actions?: (item: T) => ReactNode
+  /**
+   * Full-width content inside the opened card, below the detail grid — a nested
+   * list or table the two-column grid cannot hold. Optional; cards without it
+   * are unchanged.
+   */
+  extra?: (item: T) => ReactNode
   desktopTable: ReactNode
   emptyState?: ReactNode
   /** Optional badge / status pill rendered to the right of the chevron. */
@@ -106,7 +112,7 @@ const STRIPE_TONES = {
 } as const
 
 export function MobileCardList<T>({
-  items, getKey, primary, secondary, details, highlights, actions, desktopTable, emptyState, trailing, alwaysExpanded = false, defaultOpen = false, striped = false, stripeAccent = "amber", pagination,
+  items, getKey, primary, secondary, details, highlights, actions, extra, desktopTable, emptyState, trailing, alwaysExpanded = false, defaultOpen = false, striped = false, stripeAccent = "amber", pagination,
 }: MobileCardListProps<T>) {
   const [showTable, setShowTable] = useState(false)
 
@@ -190,6 +196,7 @@ export function MobileCardList<T>({
                           ))}
                         </div>
                       )}
+                      {extra && <div className="pt-2">{extra(item)}</div>}
                       {actions && (
                         <div className="flex gap-2 pt-2">
                           {actions(item)}

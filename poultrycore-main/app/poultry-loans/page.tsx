@@ -16,7 +16,7 @@
 // and shows the total, alongside what the debt will be afterwards. The split is
 // the input; the total is a consequence.
 
-import { useEffect, useMemo, useState } from "react"
+import { Fragment, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -34,11 +34,12 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { usePagination } from "@/hooks/use-pagination"
-import { Banknote, HandCoins, Loader2, Plus, Undo2 } from "lucide-react"
+import { Banknote, ChevronDown, ChevronRight, HandCoins, Loader2, Plus, Undo2 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { entryTimestamp } from "@/lib/utils/date-key"
+import { cn } from "@/lib/utils"
 import { useFmt } from "@/lib/currency"
 import {
   listPoultryCashAccounts, listPoultryLoans, getPoultryLoanSummary, createPoultryLoan,
@@ -60,6 +61,147 @@ function statusClass(l: PoultryLoan) {
   if (l.isOverdue) return "bg-rose-100 text-rose-800 hover:bg-rose-100"
   if (l.status === "Draft") return "bg-sky-100 text-sky-800 hover:bg-sky-100"
   return "bg-amber-100 text-amber-800 hover:bg-amber-100"
+}
+
+/**
+ * One loan's repayments, for the expanded desktop row. Deliberately has no Loan
+ * column: it only ever shows the loan it hangs off, and repeating the number on
+ * every line was most of what made the old standalone list hard to read.
+ */
+function LoanRepaymentTable({ payments, fmt, onReverse }: {
+  payments: PoultryLoanPayment[]
+  fmt: (n: number) => string
+  onReverse: (p: PoultryLoanPayment) => void
+}) {
+  if (payments.length === 0) {
+    return (
+      <div className="px-4 py-3 text-sm text-slate-500">
+        No repayments recorded against this loan yet.
+      </div>
+    )
+  }
+  return (
+    <div className="px-4 py-3">
+      <p className="mb-2 text-xs text-slate-500">The total is what left the bank. Only the interest and the fees reach the profit and loss.</p>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Date</TableHead>
+              <TableHead>Payment #</TableHead>
+              <TableHead className="text-right">Principal</TableHead>
+              <TableHead className="text-right">Interest</TableHead>
+              <TableHead className="text-right">Fees</TableHead>
+              <TableHead className="text-right">Total paid</TableHead>
+              <TableHead>Account</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {payments.map((p) => (
+              <TableRow key={p.poultryLoanPaymentId} className="bg-white">
+                <TableCell className="whitespace-nowrap">{new Date(p.paymentDate).toLocaleDateString()}</TableCell>
+                <TableCell className="font-medium">{p.paymentNumber ?? `#${p.poultryLoanPaymentId}`}</TableCell>
+                <TableCell className="text-right tabular-nums">{fmt(p.principalAmount)}</TableCell>
+                <TableCell className="text-right tabular-nums text-amber-700">{fmt(p.interestAmount)}</TableCell>
+                <TableCell className="text-right tabular-nums text-amber-700">{fmt(p.feeAmount)}</TableCell>
+                <TableCell className="text-right tabular-nums font-medium">
+                  <span className={p.status === "Reversed" ? "line-through text-slate-400" : ""}>
+                    {fmt(p.totalAmount)}
+                  </span>
+                </TableCell>
+                <TableCell className="text-slate-500">{p.accountName ?? "–"}</TableCell>
+                <TableCell>
+                  <Badge className={p.status === "Reversed"
+                    ? "bg-slate-100 text-slate-700 hover:bg-slate-100"
+                    : "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"}>
+                    {p.status}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right">
+                  {p.status === "Posted" && (
+                    <Button size="sm" variant="outline" onClick={() => onReverse(p)}>
+                      <Undo2 className="h-3 w-3 mr-1" /> Reverse
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The same repayments for the opened card. A nine-column table inside a phone
+ * card would scroll sideways inside something already scrolling, so each
+ * payment is one stacked block instead.
+ */
+function LoanRepaymentList({ payments, fmt, onReverse }: {
+  payments: PoultryLoanPayment[]
+  fmt: (n: number) => string
+  onReverse: (p: PoultryLoanPayment) => void
+}) {
+  if (payments.length === 0) {
+    return <div className="text-xs text-slate-500">No repayments recorded against this loan yet.</div>
+  }
+  return (
+    <div className="space-y-2">
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Repayment history
+      </div>
+      <p className="text-[11px] text-slate-500">The total is what left the bank. Only the interest and the fees reach the profit and loss.</p>
+      {payments.map((p) => (
+        <div key={p.poultryLoanPaymentId} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="font-medium text-slate-900">
+                {new Date(p.paymentDate).toLocaleDateString()}
+              </div>
+              <div className="text-[11px] text-slate-500 truncate">
+                {p.paymentNumber ?? `#${p.poultryLoanPaymentId}`}
+                {p.accountName ? ` · ${p.accountName}` : ""}
+              </div>
+            </div>
+            <div className="text-right shrink-0">
+              <div className={cn("font-semibold tabular-nums",
+                                 p.status === "Reversed" ? "text-slate-400 line-through" : "text-slate-900")}>
+                {fmt(p.totalAmount)}
+              </div>
+              <Badge className={cn("mt-0.5 text-[10px]", p.status === "Reversed"
+                ? "bg-slate-100 text-slate-700 hover:bg-slate-100"
+                : "bg-emerald-100 text-emerald-800 hover:bg-emerald-100")}>
+                {p.status}
+              </Badge>
+            </div>
+          </div>
+          <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+            <div>
+              <div className="text-slate-500">Principal</div>
+              <div className="font-medium tabular-nums">{fmt(p.principalAmount)}</div>
+            </div>
+            <div>
+              <div className="text-slate-500">Interest</div>
+              <div className="font-medium tabular-nums text-amber-700">{fmt(p.interestAmount)}</div>
+            </div>
+            <div>
+              <div className="text-slate-500">Fees</div>
+              <div className="font-medium tabular-nums text-amber-700">{fmt(p.feeAmount)}</div>
+            </div>
+          </div>
+          {p.status === "Posted" && (
+            <Button size="sm" variant="outline" className="mt-2 h-9 w-full"
+                    onClick={() => onReverse(p)}>
+              <Undo2 className="h-3 w-3 mr-1" /> Reverse
+            </Button>
+          )}
+        </div>
+      ))}
+    </div>
+  )
 }
 
 export default function PoultryLoansPage() {
@@ -93,6 +235,32 @@ export default function PoultryLoansPage() {
   })
 
   const [reversing, setReversing] = useState<PoultryLoanPayment | null>(null)
+  /**
+   * Repayments keyed by the loan they paid down, newest first. The endpoint
+   * returns every payment for the company in one list; grouping here keeps the
+   * single request rather than one per expanded row.
+   */
+  const paymentsByLoan = useMemo(() => {
+    const m = new Map<number, PoultryLoanPayment[]>()
+    for (const p of payments) {
+      const list = m.get(p.poultryLoanId)
+      if (list) list.push(p)
+      else m.set(p.poultryLoanId, [p])
+    }
+    for (const list of m.values()) {
+      list.sort((a, b) => (a.paymentDate < b.paymentDate ? 1 : a.paymentDate > b.paymentDate ? -1 : 0))
+    }
+    return m
+  }, [payments])
+
+  /** Which loans have their repayment history open, on desktop. */
+  const [expanded, setExpanded] = useState<Set<number>>(new Set())
+  const toggleExpanded = (id: number) =>
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(id)) next.add(id)
+      return next
+    })
   const [reason, setReason] = useState("")
 
   const load = async () => {
@@ -243,7 +411,7 @@ export default function PoultryLoansPage() {
       <DashboardSidebar onLogout={logout} />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <DashboardHeader />
-        <main className="flex-1 overflow-auto p-4 md:p-6">
+        <main className="flex-1 min-w-0 overflow-auto p-4 md:p-6">
           <div className="mb-4 flex items-end justify-between flex-wrap gap-2">
             <div>
               <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
@@ -282,6 +450,9 @@ export default function PoultryLoansPage() {
             ))}
           </div>
 
+          {/* Repayments belong to the loan they paid down, so they hang off the
+              loan row rather than sitting in a separate list underneath that
+              made you match loan numbers by eye. Newest first. */}
           {loading ? (
             <div className="flex items-center gap-2 text-slate-500">
               <Loader2 className="h-4 w-4 animate-spin" /> Loading…
@@ -320,6 +491,13 @@ export default function PoultryLoansPage() {
                 { label: "Next payment", value: l.nextPaymentDate ? new Date(l.nextPaymentDate).toLocaleDateString() : "–" },
                 { label: "Repayments", value: String(l.paymentCount) },
               ]}
+              extra={(l) => (
+                <LoanRepaymentList
+                  payments={paymentsByLoan.get(l.poultryLoanId) ?? []}
+                  fmt={fmt}
+                  onReverse={(p) => { setReversing(p); setReason("") }}
+                />
+              )}
               actions={(l) => (
                 <>
                   {(l.status === "Active" || l.status === "Overdue") && l.outstandingPrincipal > 0 && (
@@ -335,6 +513,7 @@ export default function PoultryLoansPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-8" />
                         <TableHead>Loan #</TableHead>
                         <TableHead>Lender</TableHead>
                         <TableHead className="text-right">Borrowed</TableHead>
@@ -349,9 +528,24 @@ export default function PoultryLoansPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {pg.pageItems.map((l) => (
-                        <TableRow key={l.poultryLoanId}>
-                          <TableCell className="font-medium">{l.loanNumber ?? `#${l.poultryLoanId}`}</TableCell>
+                      {pg.pageItems.map((l) => {
+                        const loanPayments = paymentsByLoan.get(l.poultryLoanId) ?? []
+                        const open = expanded.has(l.poultryLoanId)
+                        return (
+                        <Fragment key={l.poultryLoanId}>
+                        <TableRow className="cursor-pointer" onClick={() => toggleExpanded(l.poultryLoanId)}>
+                          <TableCell className="px-1">
+                            {open ? <ChevronDown className="w-4 h-4 text-slate-400" />
+                                  : <ChevronRight className="w-4 h-4 text-slate-400" />}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {l.loanNumber ?? `#${l.poultryLoanId}`}
+                            <div className="text-xs text-slate-500">
+                              {loanPayments.length === 0
+                                ? "no repayments"
+                                : `${loanPayments.length} repayment${loanPayments.length === 1 ? "" : "s"}`}
+                            </div>
+                          </TableCell>
                           <TableCell>{l.lenderName}<div className="text-xs text-slate-500">{l.lenderType}</div></TableCell>
                           <TableCell className="text-right tabular-nums">{fmt(l.originalPrincipal)}</TableCell>
                           <TableCell className="text-right tabular-nums">{fmt(l.amountReceived)}</TableCell>
@@ -365,13 +559,27 @@ export default function PoultryLoansPage() {
                           <TableCell><Badge className={statusClass(l)}>{l.isOverdue ? "Overdue" : l.status}</Badge></TableCell>
                           <TableCell className="text-right">
                             {(l.status === "Active" || l.status === "Overdue") && l.outstandingPrincipal > 0 && (
-                              <Button size="sm" variant="outline" onClick={() => openRepay(l)}>
+                              <Button size="sm" variant="outline"
+                                      onClick={(e) => { e.stopPropagation(); openRepay(l) }}>
                                 <HandCoins className="h-3 w-3 mr-1" /> Repay
                               </Button>
                             )}
                           </TableCell>
                         </TableRow>
-                      ))}
+                        {open && (
+                          <TableRow>
+                            <TableCell colSpan={12} className="bg-slate-50 p-0">
+                              <LoanRepaymentTable
+                                payments={loanPayments}
+                                fmt={fmt}
+                                onReverse={(p) => { setReversing(p); setReason("") }}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        </Fragment>
+                        )
+                      })}
                     </TableBody>
                   </Table>
                 </div>
@@ -379,69 +587,6 @@ export default function PoultryLoansPage() {
             />
           )}
 
-          {/* ---- repayment history ---------------------------------------- */}
-          {!loading && payments.length > 0 && (
-            <Card className="mt-4">
-              <CardContent className="pt-6">
-                <div className="mb-2 font-medium text-slate-700">Repayment history</div>
-                <p className="text-xs text-slate-500 mb-3">
-                  The total is what left the bank. Only the interest and fee columns reach the profit
-                  and loss.
-                </p>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Payment #</TableHead>
-                        <TableHead>Loan</TableHead>
-                        <TableHead className="text-right">Principal</TableHead>
-                        <TableHead className="text-right">Interest</TableHead>
-                        <TableHead className="text-right">Fees</TableHead>
-                        <TableHead className="text-right">Total paid</TableHead>
-                        <TableHead>Account</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {payments.map((p) => (
-                        <TableRow key={p.poultryLoanPaymentId}>
-                          <TableCell className="whitespace-nowrap">{new Date(p.paymentDate).toLocaleDateString()}</TableCell>
-                          <TableCell className="font-medium">{p.paymentNumber ?? `#${p.poultryLoanPaymentId}`}</TableCell>
-                          <TableCell>{p.loanNumber ?? p.poultryLoanId}<div className="text-xs text-slate-500">{p.lenderName}</div></TableCell>
-                          <TableCell className="text-right tabular-nums">{fmt(p.principalAmount)}</TableCell>
-                          <TableCell className="text-right tabular-nums text-amber-700">{fmt(p.interestAmount)}</TableCell>
-                          <TableCell className="text-right tabular-nums text-amber-700">{fmt(p.feeAmount)}</TableCell>
-                          <TableCell className="text-right tabular-nums font-medium">
-                            <span className={p.status === "Reversed" ? "line-through text-slate-400" : ""}>
-                              {fmt(p.totalAmount)}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-slate-500">{p.accountName ?? "–"}</TableCell>
-                          <TableCell>
-                            <Badge className={p.status === "Reversed"
-                              ? "bg-slate-100 text-slate-700 hover:bg-slate-100"
-                              : "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"}>
-                              {p.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {p.status === "Posted" && (
-                              <Button size="sm" variant="outline"
-                                      onClick={() => { setReversing(p); setReason("") }}>
-                                <Undo2 className="h-3 w-3 mr-1" /> Reverse
-                              </Button>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </main>
       </div>
 

@@ -75,7 +75,7 @@ export default function PoultryAssetDetailPage() {
   }
   if (!asset) {
     return <div className="p-6 text-sm text-slate-600">
-      Capital investment not found. <Link href="/poultry-assets" className="underline">Back to Capital Investments</Link>
+      Capital investment not found. <Link href="/poultry-assets" className="underline">Back to Capital Investments/Assets</Link>
     </div>
   }
 
@@ -90,7 +90,7 @@ export default function PoultryAssetDetailPage() {
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
           <div className="flex flex-wrap items-center gap-3">
             <Button variant="ghost" size="sm" onClick={() => router.push("/poultry-assets")}>
-              <ArrowLeft className="w-4 h-4 mr-1" /> Capital Investments
+              <ArrowLeft className="w-4 h-4 mr-1" /> Capital Investments/Assets
             </Button>
             <div>
               <h1 className="text-lg font-semibold text-slate-900">{asset.assetName}</h1>

@@ -458,7 +458,7 @@ export function PoultryProfitLossView() {
                       Total capital investments <strong>{gh(data.totalCapitalInvestments)}</strong>
                     </div>
                   }
-                  links={[{ href: "/poultry-assets", label: "View Capital Investments" }]}
+                  links={[{ href: "/poultry-assets", label: "View Capital Investments/Assets" }]}
                 />
               </div>
 

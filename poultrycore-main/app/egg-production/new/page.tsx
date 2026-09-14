@@ -17,6 +17,7 @@ import { EGG_GRADE_OPTIONS, EGG_GRADE_SELECT_VALUE_NONE, eggGradeToApi } from "@
 import { getFlockBatches, type FlockBatch } from "@/lib/api/flock-batch"
 import { getUserContext } from "@/lib/utils/user-context"
 import { getProductionRecords, createProductionRecord, updateProductionRecord, type ProductionRecordInput } from "@/lib/api/production-record"
+import { isFinishedFeedCategory } from "@/lib/utils/feed-item-ledger"
 import { getFlocks } from "@/lib/api/flock"
 import { listPoultryRawMaterialItems, listPoultryRawMaterialPurchases, type PoultryRawMaterialItem } from "@/lib/api/poultry-inventory"
 import { usePickSettings } from "@/hooks/use-pick-settings"
@@ -103,7 +104,15 @@ export default function NewEggProductionPage() {
   const [medId, setMedId] = useState(0)
   const [medConsumed, setMedConsumed] = useState(0)
   const [medUnitCost, setMedUnitCost] = useState(0)
-  const feedItems = useMemo(() => rawItems.filter((i) => i.isActive && i.category === "FeedIngredient"), [rawItems])
+  // Finished feed, not ingredients. This wrote the SAME specificFeedUsedId as
+  // the production record forms but offered the opposite half of the store:
+  // maize and soya, which reach a flock through a feed batch rather than
+  // directly. feedId only ever starts at 0 here (this form creates, and updates
+  // only the record it just matched), so there is no saved selection to keep.
+  const feedItems = useMemo(
+    () => rawItems.filter((i) => i.isActive && isFinishedFeedCategory(i.category)),
+    [rawItems],
+  )
   const medItems = useMemo(() => rawItems.filter((i) => i.isActive && (i.category === "Medication" || i.category === "Vaccine")), [rawItems])
   const totalFeedCost = Number((feedConsumed * feedUnitCost).toFixed(2))
   const totalMedCost = Number((medConsumed * medUnitCost).toFixed(2))

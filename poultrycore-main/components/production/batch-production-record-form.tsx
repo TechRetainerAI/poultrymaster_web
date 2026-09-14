@@ -56,9 +56,14 @@ import {
   flockAge as calcFlockAge, netSellableEggs as calcNetSellable, pickTotal,
   totalCostOfProduction as calcTotalCost, totalLosses as calcTotalLosses,
 } from "@/lib/production/production-record-calc"
+import { isFinishedFeedCategory } from "@/lib/utils/feed-item-ledger"
 
 // Doc §4a: classify a raw-material item as Feed or Medication by its category.
-const isFeedCategory = (c?: string | null) => !!c && /feed/i.test(c)
+// Feed here means FINISHED feed only. /feed/i also matched "FeedIngredient", so
+// maize and soya were offered as something to feed a flock -- they are what
+// finished feed is MILLED FROM, and drawing them here bypasses the feed batch
+// that turns them into feed. isFinishedFeedCategory is the same test the feed
+// formula builder and the feed trackers use.
 const isMedicationCategory = (c?: string | null) => !!c && /(medic|vaccin|drug)/i.test(c)
 
 // Sentinels for the batch-scope dropdown.
@@ -169,7 +174,6 @@ export function BatchProductionRecordForm({
   // ---- Inventory ----------------------------------------------------------
   const [rawItems, setRawItems] = useState<PoultryRawMaterialItem[]>([])
   const [purchases, setPurchases] = useState<PoultryRawMaterialPurchase[]>([])
-  const feedItems = useMemo(() => rawItems.filter((i) => isFeedCategory(i.category)), [rawItems])
   const medItems = useMemo(() => rawItems.filter((i) => isMedicationCategory(i.category)), [rawItems])
 
   const [feedLines, setFeedLines] = useState<FeedLineDraft[]>(isEdit ? [] : [emptyFeedLine()])
@@ -178,6 +182,22 @@ export function BatchProductionRecordForm({
   const changeFeedLine = (idx: number, p: Partial<FeedLineDraft>) => {
     setDirty(true); setFeedLines((d) => d.map((row, i) => (i === idx ? { ...row, ...p } : row)))
   }
+
+  // Only finished feed can be PICKED. A record saved before that rule may
+  // already reference an ingredient, so any item a line already points at is
+  // kept in the list: dropping it would blank the line on edit and hide which
+  // stock the record actually drew.
+  const referencedFeedIds = useMemo(
+    () => new Set(feedLines.map((l) => l.specificFeedUsedId).filter(Boolean)),
+    [feedLines],
+  )
+  const feedItems = useMemo(
+    () => rawItems.filter(
+      (i) => isFinishedFeedCategory(i.category)
+        || referencedFeedIds.has(String(i.poultryRawMaterialItemId)),
+    ),
+    [rawItems, referencedFeedIds],
+  )
 
   const [medLines, setMedLines] = useState<MedLineDraft[]>(isEdit ? [] : [emptyMedLine(), emptyMedLine()])
   const addMedLine = () => { setDirty(true); setMedLines((d) => [...d, emptyMedLine()]) }

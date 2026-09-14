@@ -31,6 +31,7 @@ import { FormSection, FormField } from "@/components/ui/form-section"
 import { ListFilters } from "@/components/ui/list-filters"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { DataPagination } from "@/components/ui/data-pagination"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { usePagination } from "@/hooks/use-pagination"
 import {
   Plus, Building2, Loader2, Pencil, Coins, Undo2, PackageMinus, CalendarClock, Info, AlertTriangle,
@@ -150,12 +151,12 @@ export default function PoultryAssetsPage() {
   return (
     <div className="flex h-screen bg-slate-50">
       <DashboardSidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <DashboardHeader />
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+        <main className="flex-1 min-w-0 overflow-y-auto p-4 sm:p-6 space-y-4">
           <div className="flex flex-wrap items-start gap-3">
             <div>
-              <h1 className="text-lg font-semibold text-slate-900">Capital Investments</h1>
+              <h1 className="text-lg font-semibold text-slate-900">Capital Investments/Assets</h1>
               <p className="text-xs text-slate-500">
                 Track major long-term business investments, their cost, depreciation, and current book value.
               </p>
@@ -212,11 +213,84 @@ export default function PoultryAssetsPage() {
             </>}
           />
 
-          <Card><CardContent className="p-4">
+          {/* p-0 under lg so the scorecards run the full width of main, the way
+              the /poultry-daily-closing cards do. The list supplies its own
+              gutter; the Card padding on top of it left them visibly inset.
+              Desktop keeps the padding for the table. */}
+          <Card><CardContent className="p-0 lg:p-4">
             {loading ? (
               <div className="py-10 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>
             ) : (
               <>
+                <MobileCardList
+                  striped
+                  defaultOpen
+                  items={pg.pageItems}
+                  getKey={(a) => a.poultryCapitalAssetId}
+                  primary={(a) => (
+                    <Link href={`/poultry-assets/${a.poultryCapitalAssetId}`} className="hover:underline">
+                      {a.assetName}
+                    </Link>
+                  )}
+                  secondary={(a) => (
+                    <span className="truncate">
+                      {a.assetNumber} · {a.categoryName ?? "Uncategorised"}
+                      {a.location ? ` · ${a.location}` : ""}
+                    </span>
+                  )}
+                  trailing={(a) => (
+                    <Badge variant="outline" className={cn("text-[10px] font-normal", ASSET_STATUS_CLASS[a.status])}>
+                      {assetStatusLabel(a.status)}
+                    </Badge>
+                  )}
+                  /* Book value first: it is the figure the page exists to give,
+                     and cost beside it is what makes it mean something. */
+                  highlights={(a) => [
+                    { label: "Book value", value: gh(a.currentBookValue), accent: "emerald", wide: true },
+                    { label: "Cost", value: gh(a.originalCost), accent: "blue" },
+                    { label: "Depreciation", value: a.accumulatedDepreciation > 0 ? gh(a.accumulatedDepreciation) : "—", accent: "amber" },
+                  ]}
+                  details={(a) => [
+                    { label: "Acquired", value: (a.acquisitionDate || "").split("T")[0] || "—" },
+                    {
+                      label: "Useful life",
+                      value: a.usefulLifeMonths
+                        ? `${a.usefulLifeMonths} months${a.monthlyDepreciation ? ` · ${gh(a.monthlyDepreciation)}/month` : ""}`
+                        : "Not set",
+                    },
+                  ]}
+                  actions={(a) => (
+                    a.status === "Reversed" ? null : (<>
+                      <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => setEditing(a)}>
+                        <Pencil className="w-4 h-4 mr-1" /> Edit
+                      </Button>
+                      {a.status !== "Disposed" && (
+                        <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => setCostFor(a)}>
+                          <Coins className="w-4 h-4 mr-1" /> Add cost
+                        </Button>
+                      )}
+                      {a.status !== "Disposed" && (
+                        <Button size="sm" variant="outline" className="flex-1 h-10 text-amber-700" onClick={() => setDisposing(a)}>
+                          <PackageMinus className="w-4 h-4 mr-1" /> Dispose
+                        </Button>
+                      )}
+                      {/* Same rule as the table: offered only where the server
+                          can actually accept it. */}
+                      {a.depreciationEntries === 0 && a.status !== "Disposed" && (
+                        <Button size="sm" variant="outline" className="flex-1 h-10 text-red-600" onClick={() => setReversing(a)}>
+                          <Undo2 className="w-4 h-4 mr-1" /> Reverse
+                        </Button>
+                      )}
+                    </>)
+                  )}
+                  emptyState={
+                    <div className="py-8 text-center text-slate-500 text-sm px-4">
+                      No capital investments recorded. A poultry house, a vehicle or a feed mixer belongs here rather
+                      than on the Expenses page.
+                    </div>
+                  }
+                  pagination={pg.paginationProps}
+                  desktopTable={
                 <div className="overflow-x-auto"><Table className="min-w-[900px]">
                   <TableHeader><TableRow>
                     {(() => { const onSort = (k: string) => setSort((s) => toggleSort(k, s.key, s.direction))
@@ -298,8 +372,8 @@ export default function PoultryAssetsPage() {
                     ))}
                   </TableBody>
                 </Table></div>
-                <DataPagination page={pg.page} pageSize={pg.pageSize} total={pg.total}
-                                onPageChange={pg.setPage} onPageSizeChange={pg.setPageSize} />
+                  }
+                />
               </>
             )}
           </CardContent></Card>

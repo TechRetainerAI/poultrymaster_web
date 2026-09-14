@@ -58,7 +58,7 @@ import {
   Repeat,
   CalendarClock,
   ArrowLeftRight,
-  HandCoins, TrendingUp,
+  HandCoins, TrendingUp, Hourglass,
 } from "lucide-react"
 import {
   Sheet,
@@ -248,15 +248,21 @@ export function MobileBottomNav() {
               { href: "/water-payroll",           label: "Payroll",           icon: Banknote },
               { href: "/water-supplier-payments", label: "Supplier Payments", icon: Receipt },
               { href: "/water-supplier-balances", label: "Supplier Balances", icon: Truck },
+              // Stock cost that has not become an expense yet — filed beside
+              // the expenses it explains, matching the sidebar and top nav.
+              { href: "/water-deferred-costs",    label: "Deferred inventory cost", icon: Hourglass },
+              // 283-286. Present in the top nav and sidebar but never here, so
+              // a phone user could not reach it at all.
+              { href: "/water-assets",            label: "Capital Investments/Assets", icon: Building2 },
             ] as NavItem[]) },
             { title: "Money", items: gateWater([
               { href: "/water-cash-flow",           label: "Cash Flow",      icon: Wallet },
               { href: "/water-reports/profit-loss", label: "Profit & Loss",  icon: TrendingUp },
-              { href: "/water-cash-accounts",       label: "Cash accounts",  icon: Wallet },
-              { href: "/water-cash-reconciliation", label: "Reconcile cash", icon: Scale },
-              { href: "/water-cash-transfers",      label: "Cash Transfers", icon: ArrowLeftRight },
               { href: "/water-owner-money",         label: "Owner Money",    icon: HandCoins },
               { href: "/water-loans",               label: "Loans",          icon: HandCoins },
+              { href: "/water-cash-accounts",       label: "Cash accounts",  icon: Wallet },
+              { href: "/water-cash-transfers",      label: "Cash Transfers", icon: ArrowLeftRight },
+              { href: "/water-cash-reconciliation", label: "Reconciliation", icon: Scale },
             ] as NavItem[]) },
           ]) },
           ...asSections([
