@@ -207,7 +207,10 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
   const analyticsItems = [
     { href: "/egg-tracker", label: "Egg tracker", icon: BarChart3 },
+    // Finished feed, ingredients, then one item at a time.
     { href: "/feed-tracker", label: "Feed tracker", icon: Wheat },
+    { href: "/feed-ingredient-tracker", label: "Ingredients tracker", icon: Wheat },
+    { href: "/feed-inventory-tracker", label: "Feed inventory tracker", icon: History },
     { href: "/medication-tracker", label: "Medication tracker", icon: Pill },
     { href: "/birds-left-tracker", label: "Birds left tracker", icon: Bird },
     { href: "/weekly-report", label: "Analytical Report", icon: FileText },

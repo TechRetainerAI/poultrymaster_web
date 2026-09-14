@@ -34,7 +34,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
-import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, AlertTriangle, Factory } from "lucide-react"
+import Link from "next/link"
+import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, AlertTriangle, Factory, History } from "lucide-react"
+import { feedItemKind } from "@/lib/utils/feed-item-ledger"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { cn } from "@/lib/utils"
 import { RAW_MATERIAL_UNITS } from "@/lib/units"
@@ -742,6 +744,16 @@ function PoultryRawMaterialsPageInner() {
                             })()}
                           </TableCell>
                           <TableCell className="text-right">
+                            {/* Feed items only: the tracker reads the two feed
+                                categories, so the link would open an empty page
+                                for packaging or a spare part. */}
+                            {feedItemKind(i.category) && (
+                              <Button asChild variant="ghost" size="sm" title="Track this item's movements">
+                                <Link href={`/feed-inventory-tracker?itemId=${i.poultryRawMaterialItemId}`}>
+                                  <History className="w-4 h-4 text-amber-700" />
+                                </Link>
+                              </Button>
+                            )}
                             <Button variant="ghost" size="sm" onClick={() => openEditItem(i)}><Pencil className="w-4 h-4" /></Button>
                             <Button variant="ghost" size="sm" onClick={() => setDeleteItemTarget(i)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
                           </TableCell>
@@ -757,6 +769,13 @@ function PoultryRawMaterialsPageInner() {
                           badge={!i.isActive ? <Badge variant="secondary">Inactive</Badge> : i.isLowStock ? <Badge className="bg-amber-100 text-amber-700">Low stock</Badge> : <Badge className="bg-green-100 text-green-700">OK</Badge>}
                           fields={[["Category", categoryLabel(i.category)], ["Purchase Unit", i.purchaseUnitOfMeasure ?? "—"], ["Production Unit", i.unitOfMeasure ?? "—"], ["In stock", i.currentQuantity.toLocaleString()], ["Min alert", i.minimumStockAlert.toLocaleString()], ["Cost recognised", `${methodShortLabel(i.effectiveCostRecognitionMethod)}${i.costRecognitionSource === "ItemOverride" ? " (override)" : ""}`]]}
                           actions={<>
+                            {feedItemKind(i.category) && (
+                              <Button asChild variant="ghost" size="sm" title="Track this item's movements">
+                                <Link href={`/feed-inventory-tracker?itemId=${i.poultryRawMaterialItemId}`}>
+                                  <History className="w-4 h-4 text-amber-700" />
+                                </Link>
+                              </Button>
+                            )}
                             <Button variant="ghost" size="sm" onClick={() => openEditItem(i)}><Pencil className="w-4 h-4" /></Button>
                             <Button variant="ghost" size="sm" onClick={() => setDeleteItemTarget(i)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
                           </>} />

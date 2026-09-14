@@ -609,11 +609,14 @@ export function TopNavigation() {
             title="Setup"
             blurb="Houses, flocks, products, delivery, customers and your team."
             groups={nav.setup}
-            /* 6 groups over 2 columns = a 3x2 block. "Users & Permissions" is
-               the longest label at 145px in Geist-Medium (the active row's
-               weight), so a column needs 185px:
-               64 + 2x185 + 16 = 450px. */
-            columns={2} widthRem={28.5} layout="grid" accent="orange"
+            /* 6 groups over 3 columns = a 2x3 block: Company | Delivery |
+               Production on the first row, Finance | Farm | People on the
+               second. The order lives in lib/nav/poultry-nav-config.ts and the
+               grid fills row by row, so the two must stay in step.
+               "Users & Permissions" is the longest label at 145px in
+               Geist-Medium (the active row's weight), so a column needs 185px:
+               64 + 3x185 + 2x16 = 651px. */
+            columns={3} widthRem={41} layout="grid" accent="orange"
           />
 
           <div className="ml-auto flex items-center gap-1">

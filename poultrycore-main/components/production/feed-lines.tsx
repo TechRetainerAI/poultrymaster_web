@@ -8,6 +8,7 @@ import { Plus, Trash2 } from "lucide-react"
 import { previewLinesSequential, type BatchCostPreview, type ConsumptionCredit } from "@/lib/utils/raw-material-costing"
 import type { PoultryRawMaterialItem, PoultryRawMaterialPurchase } from "@/lib/api/poultry-inventory"
 import type { ProductionFeedLine } from "@/lib/api/production-record"
+import { isFinishedFeedCategory } from "@/lib/utils/feed-item-ledger"
 
 // Multiple feed lines on a production record (migration 148). Same "Add line"
 // pattern as the medication lines: each line picks a feed from raw-material
@@ -130,7 +131,15 @@ interface FeedLinesProps {
 // Trim float noise (e.g. 129.99999999) without forcing trailing zeros.
 const fmtStock = (n: number) => (Math.round(n * 1000) / 1000).toLocaleString()
 
-/** Repeatable feed-line editor. Costs are read-only server-mirrored previews. */
+/**
+ * Repeatable feed-line editor. Costs are read-only server-mirrored previews.
+ *
+ * The caller decides what may be picked; this only hides what cannot be chosen
+ * now while keeping whatever a saved line already points at. Both production
+ * record forms pass FINISHED FEED — an ingredient reaches a flock through a feed
+ * batch, not directly — plus any legacy ingredient an existing line references,
+ * which is why a row can still be marked "(ingredient)".
+ */
 export function FeedLines({ lines, rows, feedItems, stockByItemId, onAdd, onRemove, onChange, disabled }: FeedLinesProps) {
   return (
     <div className="col-span-12 space-y-3">
@@ -165,11 +174,18 @@ export function FeedLines({ lines, rows, feedItems, stockByItemId, onAdd, onRemo
                     const stock = stockByItemId?.[i.poultryRawMaterialItemId] ?? i.currentQuantity
                     return (
                       <SelectItem key={i.poultryRawMaterialItemId} value={String(i.poultryRawMaterialItemId)}>
-                        {i.itemName}{i.unitOfMeasure ? ` (${i.unitOfMeasure})` : ""} · {fmtStock(stock)} in stock · {i.usageMethod}{i.isActive ? "" : " · (inactive)"}
+                        {i.itemName}{i.unitOfMeasure ? ` (${i.unitOfMeasure})` : ""} · {fmtStock(stock)} in stock · {i.usageMethod}{i.isActive ? "" : " · (inactive)"}{isFinishedFeedCategory(i.category) ? "" : " · (ingredient)"}
                       </SelectItem>
                     )
                   })}
-                  {visibleItems.length === 0 && <div className="px-2 py-1.5 text-xs text-slate-400">No active feed items in Raw Materials.</div>}
+                  {/* Named precisely: the list is finished feed, so "no feed
+                      items" would send someone to add an ingredient and wonder
+                      why it never appears. */}
+                  {visibleItems.length === 0 && (
+                    <div className="px-2 py-1.5 text-xs text-slate-400">
+                      No active Finished Feed items in Raw Materials.
+                    </div>
+                  )}
                 </SelectContent>
               </Select>
             </div>

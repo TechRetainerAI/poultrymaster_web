@@ -36,6 +36,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DateRangeFilter } from "@/components/ui/date-range-filter"
 import { MOBILE_FILTER_SELECT_CONTENT_CLASS } from "@/components/dashboard/mobile-filters"
 import { DataPagination } from "@/components/ui/data-pagination"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { usePagination } from "@/hooks/use-pagination"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
@@ -242,7 +243,7 @@ function DeferredCostsInner() {
     return (
       <div className="flex min-h-screen bg-gray-50">
         <DashboardSidebar />
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-w-0">
           <DashboardHeader />
           <main className="flex-1 p-4 sm:p-6">
             <Card><CardContent className="p-8 text-center text-slate-500">
@@ -260,9 +261,9 @@ function DeferredCostsInner() {
   return (
     <div className="flex min-h-screen bg-gray-50">
       <DashboardSidebar />
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         <DashboardHeader />
-        <main className="flex-1 p-4 sm:p-6 space-y-4">
+        <main className="flex-1 min-w-0 p-4 sm:p-6 space-y-4">
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
             <div>
@@ -442,7 +443,11 @@ function DeferredCostsInner() {
                 </div>
               )}
 
-              <Card><CardContent className="p-4">
+              {/* p-0 under lg so the scorecards run the full width of main, the way
+              the /poultry-daily-closing cards do. The list supplies its own
+              gutter; the Card padding on top of it left them visibly inset.
+              Desktop keeps the padding for the table. */}
+              <Card><CardContent className="p-0 lg:p-4">
                 {rows.length === 0 ? (
                   <div className="p-8 text-center text-sm text-slate-500">
                     {scope === "DEFERRED"
@@ -450,7 +455,72 @@ function DeferredCostsInner() {
                       : "No purchases match these filters."}
                   </div>
                 ) : (
-                  <>
+                  <MobileCardList
+                    striped
+                    defaultOpen
+                    items={pg.pageItems}
+                    getKey={(p) => p.poultryRawMaterialPurchaseId}
+                    primary={(p) => p.itemName ?? `Purchase #${p.poultryRawMaterialPurchaseId}`}
+                    secondary={(p) => (
+                      <span className="truncate">
+                        #{p.poultryRawMaterialPurchaseId} · {p.purchaseDate?.slice(0, 10)} · {categoryLabel(p.category)}
+                      </span>
+                    )}
+                    trailing={(p) => (
+                      <Badge variant="outline"
+                             className={cn("text-[10px] font-normal",
+                                           p.status === "Exception" ? "border-red-300 bg-red-50 text-red-700"
+                                                                    : RECOGNITION_TONE_CLASS[deferredStatusTone(p.status)])}>
+                        {p.status}
+                      </Badge>
+                    )}
+                    /* The page is named after "Awaiting P&L", so that figure
+                       leads. A purchase that was never deferred shows a dash,
+                       not 0.00 — a bare zero here reads as a missing number
+                       rather than a correct one, same as the table. */
+                    highlights={(p) => [
+                      {
+                        label: "Awaiting P&L",
+                        value: p.deferredTotalCost <= 0 ? "—" : gh(p.deferredRemainingCost),
+                        accent: "amber", wide: true,
+                      },
+                      { label: "Original cost", value: gh(p.operationalCost), accent: "blue" },
+                      {
+                        label: "Expensed",
+                        value: p.deferredTotalCost <= 0 ? "—" : gh(p.recognizedCost),
+                        accent: "emerald",
+                      },
+                    ]}
+                    details={(p) => [
+                      {
+                        label: "Supplier",
+                        value: p.isLotProduced ? (p.feedProductionBatchNumber ?? "Produced") : (p.supplierName ?? "—"),
+                      },
+                      { label: "Purchased", value: qtyFmt(p.purchasedQuantity, p.productionUnit) },
+                      { label: "Remaining", value: qtyFmt(p.remainingQuantity, p.productionUnit) },
+                      {
+                        label: "Progress",
+                        value: p.deferredTotalCost > 0 ? `${p.recognitionPercent.toFixed(1)}% expensed` : "—",
+                      },
+                      ...(p.status === "Exception" && p.exceptionReason
+                        ? [{ label: "Needs checking", value: p.exceptionReason }]
+                        : []),
+                      // 289. The answer to "I consumed stock and nothing
+                      // happened", shown only when it is the explanation.
+                      ...(p.deferredRemainingCost > 0 && queueNote(p)
+                        ? [{ label: "In the queue", value: `behind ${qtyFmt(p.quantityAheadInQueue ?? 0, p.productionUnit)}` }]
+                        : []),
+                    ]}
+                    /* The desktop row expands in place; on a card the usage
+                       history opens in the detail dialog, which shows the same
+                       rows and does not need the row to stay on screen. */
+                    actions={(p) => (
+                      <Button size="sm" variant="outline" className="flex-1 h-10" onClick={() => setDetail(p)}>
+                        <Receipt className="w-4 h-4 mr-1" /> Purchase detail
+                      </Button>
+                    )}
+                    pagination={pg.paginationProps}
+                    desktopTable={
                     <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
@@ -574,8 +644,8 @@ function DeferredCostsInner() {
                         </TableBody>
                       </Table>
                     </div>
-                    <DataPagination {...pg.paginationProps} />
-                  </>
+                    }
+                  />
                 )}
               </CardContent></Card>
             </>

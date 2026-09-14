@@ -207,7 +207,12 @@ export function buildPoultryNavConfig(
         label: "Trackers",
         items: [
           { id: "egg-tracker",        title: "Egg tracker",        icon: BarChart3, href: "/egg-tracker" },
+          // Three lenses on the same feed movements, narrowing left to right:
+          // the finished feed a farm holds, the ingredients it mills from, and
+          // then one item at a time with its own opening and closing.
           { id: "feed-tracker",       title: "Feed tracker",       icon: Wheat,     href: "/feed-tracker" },
+          { id: "feed-ingredient-tracker", title: "Ingredients tracker", icon: Wheat, href: "/feed-ingredient-tracker" },
+          { id: "feed-inventory-tracker", title: "Feed inventory tracker", icon: History, href: "/feed-inventory-tracker" },
           { id: "medication-tracker", title: "Medication tracker", icon: Pill,      href: "/medication-tracker" },
           { id: "birds-left",         title: "Birds tracker",      icon: Bird,      href: "/birds-left-tracker" },
           { id: "weekly-report",      title: "Report",             icon: FileText,  href: "/weekly-report" },
@@ -233,22 +238,13 @@ export function buildPoultryNavConfig(
           { id: "companies",  title: "Companies", icon: Building2, href: "/companies" },
         ],
       },
-      {
-        // Customers and Suppliers are master data maintained here, not part of
-        // the day's selling flow — but they're the two trading parties every
-        // receivable and payable hangs off, so they get their own Finance
-        // column rather than sitting under Company. Both rows are money()-gated,
-        // so this whole column drops out for a user without financial access;
-        // that's safe because Company above is ungated.
-        key: "finance",
-        label: "Finance",
-        items: [
-          { id: "customers", title: "Customers", icon: Users, href: "/customers", visible: money("/customers") },
-          { id: "suppliers", title: "Suppliers", icon: Truck, href: "/suppliers", visible: money("/suppliers") },
-        ],
-      },
-      // Group ORDER is load-bearing: the panel is a 2-column grid filled row by
-      // row, so this reads Company | Finance, Delivery | Production, Farm | People.
+      // Group ORDER is load-bearing: the panel is a 3-column grid filled row by
+      // row, so these six groups read as two rows --
+      //   Company | Delivery | Production   (the operating chain)
+      //   Finance | Farm     | People
+      // Reordering here silently reshuffles the panel; keep the pairs of three
+      // together, and keep `columns={3}` on the Setup NavMegaMenu in
+      // components/dashboard/top-nav.tsx in step with it.
       {
         key: "delivery-setup",
         label: "Delivery",
@@ -269,6 +265,20 @@ export function buildPoultryNavConfig(
           // A farm-level schedule that production records key off, so it sits
           // with the other production master data rather than under Company.
           { id: "egg-picks",     title: "Egg Pick Times", icon: Clock,  href: "/business-office/egg-pick-settings", visible: isAdmin },
+        ],
+      },
+      {
+        // Customers and Suppliers are master data maintained here, not part of
+        // the day's selling flow — but they're the two trading parties every
+        // receivable and payable hangs off, so they get their own Finance group
+        // rather than sitting under Company. Both rows are money()-gated, so
+        // this group drops out for a user without financial access; that's safe
+        // because Company is ungated.
+        key: "finance",
+        label: "Finance",
+        items: [
+          { id: "customers", title: "Customers", icon: Users, href: "/customers", visible: money("/customers") },
+          { id: "suppliers", title: "Suppliers", icon: Truck, href: "/suppliers", visible: money("/suppliers") },
         ],
       },
       {

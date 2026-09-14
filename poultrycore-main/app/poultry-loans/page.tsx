@@ -243,7 +243,7 @@ export default function PoultryLoansPage() {
       <DashboardSidebar onLogout={logout} />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <DashboardHeader />
-        <main className="flex-1 overflow-auto p-4 md:p-6">
+        <main className="flex-1 min-w-0 overflow-auto p-4 md:p-6">
           <div className="mb-4 flex items-end justify-between flex-wrap gap-2">
             <div>
               <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
@@ -382,12 +382,60 @@ export default function PoultryLoansPage() {
           {/* ---- repayment history ---------------------------------------- */}
           {!loading && payments.length > 0 && (
             <Card className="mt-4">
-              <CardContent className="pt-6">
-                <div className="mb-2 font-medium text-slate-700">Repayment history</div>
-                <p className="text-xs text-slate-500 mb-3">
-                  The total is what left the bank. Only the interest and fee columns reach the profit
-                  and loss.
-                </p>
+              {/* px-0 under lg so the scorecards run the full width, the way the
+                  /poultry-daily-closing cards do. CardContent's own px-6 sat on
+                  top of the list's gutter and left them visibly inset. The
+                  heading keeps a gutter of its own; only the cards go edge to
+                  edge. Desktop is unchanged. */}
+              <CardContent className="px-0 pt-6 lg:px-6">
+                <div className="px-4 lg:px-0">
+                  <div className="mb-2 font-medium text-slate-700">Repayment history</div>
+                  <p className="text-xs text-slate-500 mb-3">
+                    The total is what left the bank. Only the interest and fee columns reach the profit
+                    and loss.
+                  </p>
+                </div>
+                <MobileCardList
+                  striped
+                  defaultOpen
+                  items={payments}
+                  getKey={(p) => p.poultryLoanPaymentId}
+                  primary={(p) => new Date(p.paymentDate).toLocaleDateString()}
+                  secondary={(p) => (
+                    <span className="truncate">
+                      {p.paymentNumber ?? `#${p.poultryLoanPaymentId}`} · {p.loanNumber ?? p.poultryLoanId}
+                    </span>
+                  )}
+                  trailing={(p) => (
+                    <Badge className={p.status === "Reversed"
+                      ? "bg-slate-100 text-slate-700 hover:bg-slate-100"
+                      : "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"}>
+                      {p.status}
+                    </Badge>
+                  )}
+                  /* Total is what left the bank; the split underneath is the part
+                     that reaches Profit & Loss. Both above the fold, because the
+                     card exists to stop the two being confused. */
+                  highlights={(p) => [
+                    { label: "Total paid", value: fmt(p.totalAmount), accent: p.status === "Reversed" ? "slate" : "emerald", wide: true },
+                    { label: "Principal", value: fmt(p.principalAmount), accent: "blue" },
+                    { label: "Interest + fees", value: fmt(p.interestAmount + p.feeAmount), accent: "amber" },
+                  ]}
+                  details={(p) => [
+                    { label: "Lender", value: p.lenderName ?? "–" },
+                    { label: "Account", value: p.accountName ?? "–" },
+                    { label: "Interest", value: fmt(p.interestAmount) },
+                    { label: "Fees", value: fmt(p.feeAmount) },
+                  ]}
+                  actions={(p) => (
+                    p.status === "Posted" ? (
+                      <Button size="sm" variant="outline" className="flex-1 h-10"
+                              onClick={() => { setReversing(p); setReason("") }}>
+                        <Undo2 className="h-4 w-4 mr-1" /> Reverse
+                      </Button>
+                    ) : null
+                  )}
+                  desktopTable={
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -439,6 +487,8 @@ export default function PoultryLoansPage() {
                     </TableBody>
                   </Table>
                 </div>
+                  }
+                />
               </CardContent>
             </Card>
           )}
