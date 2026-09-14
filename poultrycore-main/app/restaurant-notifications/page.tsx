@@ -150,7 +150,7 @@ export default function RestaurantNotificationsPage() {
       <DashboardSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <DashboardHeader />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="max-w-5xl mx-auto space-y-6">
             <PageHeader
               icon={Bell}
@@ -173,7 +173,7 @@ export default function RestaurantNotificationsPage() {
                 if (v === "settings") loadSettings()
               }}
             >
-              <TabsList className="bg-white border shadow-sm">
+              <TabsList className="bg-white border shadow-sm flex-wrap h-auto">
                 <TabsTrigger
                   value="all"
                   className="data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700"

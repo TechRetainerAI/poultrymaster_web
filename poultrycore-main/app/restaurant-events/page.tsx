@@ -319,7 +319,7 @@ export default function RestaurantEventsPage() {
             <DialogDescription>Book a private event or catering order</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Event Name <span className="text-rose-500">*</span></Label>
                 <Input className="h-10" placeholder="e.g. Smith Wedding Reception" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />

@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, ChefHat, Clock, Bell, RotateCcw, Check, Volume2, VolumeX, Maximize, Minimize } from "lucide-react"
+import { Loader2, ChefHat, Clock, Bell, RotateCcw, Check, Volume2, VolumeX, Maximize, Minimize, LogOut } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import {
@@ -148,14 +148,14 @@ export default function RestaurantKDSPage() {
       </audio>
 
       {/* Top bar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700 flex-shrink-0">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 sm:px-4 py-2 bg-gray-800 border-b border-gray-700 flex-shrink-0">
         <div className="flex items-center gap-3">
           <ChefHat className="h-6 w-6 text-orange-500" />
           <h1 className="text-lg font-bold">Kitchen Display</h1>
         </div>
 
         {/* Station tabs */}
-        <div className="flex gap-1">
+        <div className="order-last w-full overflow-x-auto flex gap-1 sm:order-none sm:w-auto sm:overflow-visible">
           <Button size="sm" variant={activeStation === null && !isExpo ? "default" : "ghost"}
             className={activeStation === null && !isExpo ? "bg-orange-600" : "text-gray-300"}
             onClick={() => { setActiveStation(null); setIsExpo(false) }}>All</Button>
@@ -176,7 +176,7 @@ export default function RestaurantKDSPage() {
         {/* Stats + controls */}
         <div className="flex items-center gap-3">
           {stats && (
-            <div className="flex gap-3 text-xs">
+            <div className="hidden md:flex gap-3 text-xs">
               <span className="text-blue-400">Pending: {stats.pendingCount}</span>
               <span className="text-yellow-400">Preparing: {stats.preparingCount}</span>
               <span className="text-green-400">Ready: {stats.readyCount}</span>
@@ -194,7 +194,7 @@ export default function RestaurantKDSPage() {
           <Button variant="ghost" size="icon" className="text-gray-400" onClick={toggleFullscreen}>
             {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
           </Button>
-          <Button variant="ghost" size="sm" className="text-gray-400" onClick={() => router.push("/restaurant-pos")}>Exit</Button>
+          <Button variant="ghost" size="sm" className="flex-shrink-0 gap-1.5 border border-gray-600 text-gray-100 hover:bg-gray-700 hover:text-white" onClick={() => router.push("/restaurant-pos")}><LogOut className="h-4 w-4" /> Exit</Button>
         </div>
       </div>
 
@@ -207,7 +207,7 @@ export default function RestaurantKDSPage() {
             <p className="text-sm mt-1">Waiting for orders...</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {Object.entries(orderGroups).map(([key, items]) => {
               const first = items[0]
               const maxElapsed = Math.max(...items.map(i => i.elapsedMinutes))

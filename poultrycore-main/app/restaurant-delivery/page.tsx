@@ -193,7 +193,7 @@ export default function RestaurantDeliveryPage() {
       <DashboardSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <DashboardHeader />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="max-w-6xl mx-auto space-y-6">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-lg bg-rose-100 flex items-center justify-center">
@@ -207,7 +207,7 @@ export default function RestaurantDeliveryPage() {
 
             {/* Stats */}
             {stats && (
-              <div className="grid grid-cols-5 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 {[["Available Drivers", stats.availableDrivers, "text-green-600"], ["On Delivery", stats.onDeliveryDrivers, "text-blue-600"],
                   ["Active", stats.activeCount, "text-purple-600"], ["Delivered Today", stats.deliveredCount, "text-gray-600"],
                   ["Avg Time", stats.avgDeliveryMins ? `${stats.avgDeliveryMins.toFixed(0)}m` : "—", "text-orange-600"]
@@ -220,7 +220,7 @@ export default function RestaurantDeliveryPage() {
             )}
 
             <Tabs defaultValue="deliveries">
-              <TabsList>
+              <TabsList className="flex-wrap h-auto">
                 <TabsTrigger value="deliveries">Deliveries {pendingDeliveries.length > 0 && <Badge className="ml-1 bg-amber-500 text-white h-5 px-1.5">{pendingDeliveries.length}</Badge>}</TabsTrigger>
                 <TabsTrigger value="drivers">Drivers ({drivers.length})</TabsTrigger>
                 <TabsTrigger value="zones">Zones ({zones.length})</TabsTrigger>
@@ -265,7 +265,7 @@ export default function RestaurantDeliveryPage() {
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between">
                     <CardTitle>Delivery Assignments</CardTitle>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
                       <Select value={filterAssignStatus} onValueChange={setFilterAssignStatus}>
                         <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
                         <SelectContent>
@@ -424,13 +424,13 @@ export default function RestaurantDeliveryPage() {
         <DialogContent>
           <DialogHeader><DialogTitle>{driverEditing ? "Edit Driver" : "Add Driver"}</DialogTitle><DialogDescription>Manage delivery driver details</DialogDescription></DialogHeader>
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label>First Name *</Label><Input value={driverForm.firstName} onChange={e => setDriverForm({ ...driverForm, firstName: e.target.value })} /></div>
               <div><Label>Last Name *</Label><Input value={driverForm.lastName} onChange={e => setDriverForm({ ...driverForm, lastName: e.target.value })} /></div>
               <div><Label>Phone *</Label><Input value={driverForm.phone} onChange={e => setDriverForm({ ...driverForm, phone: e.target.value })} /></div>
               <div><Label>Email</Label><Input value={driverForm.email || ""} onChange={e => setDriverForm({ ...driverForm, email: e.target.value })} /></div>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <div><Label>Vehicle</Label>
                 <Select value={driverForm.vehicleType || "Motorcycle"} onValueChange={v => setDriverForm({ ...driverForm, vehicleType: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -450,7 +450,7 @@ export default function RestaurantDeliveryPage() {
           <DialogHeader><DialogTitle>{zoneEditing ? "Edit Zone" : "Add Zone"}</DialogTitle><DialogDescription>Configure delivery zone</DialogDescription></DialogHeader>
           <div className="space-y-3">
             <div><Label>Name *</Label><Input value={zoneForm.name} onChange={e => setZoneForm({ ...zoneForm, name: e.target.value })} placeholder="e.g. Zone A - 0-3km" /></div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label>Min Distance (km)</Label><Input type="number" step="0.1" value={zoneForm.minDistanceKm || 0} onChange={e => setZoneForm({ ...zoneForm, minDistanceKm: parseFloat(e.target.value) || 0 })} /></div>
               <div><Label>Max Distance (km)</Label><Input type="number" step="0.1" value={zoneForm.maxDistanceKm || 5} onChange={e => setZoneForm({ ...zoneForm, maxDistanceKm: parseFloat(e.target.value) || 5 })} /></div>
               <div><Label>Delivery Fee</Label><Input type="number" step="0.01" value={zoneForm.deliveryFee || 0} onChange={e => setZoneForm({ ...zoneForm, deliveryFee: parseFloat(e.target.value) || 0 })} /></div>
@@ -467,7 +467,7 @@ export default function RestaurantDeliveryPage() {
           <DialogHeader><DialogTitle>{platEditing ? "Edit Platform" : "Add Platform"}</DialogTitle><DialogDescription>Third-party delivery platform</DialogDescription></DialogHeader>
           <div className="space-y-3">
             <div><Label>Platform Name *</Label><Input value={platForm.name} onChange={e => setPlatForm({ ...platForm, name: e.target.value })} placeholder="e.g. Uber Eats, Glovo" /></div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label>Store ID</Label><Input value={platForm.storeId || ""} onChange={e => setPlatForm({ ...platForm, storeId: e.target.value })} /></div>
               <div><Label>Commission %</Label><Input type="number" step="0.1" value={platForm.commissionRate || 0} onChange={e => setPlatForm({ ...platForm, commissionRate: parseFloat(e.target.value) || 0 })} /></div>
             </div>

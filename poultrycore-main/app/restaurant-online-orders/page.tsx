@@ -192,7 +192,7 @@ export default function RestaurantOnlineOrdersPage() {
       <DashboardSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <DashboardHeader />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="max-w-5xl mx-auto space-y-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -210,7 +210,7 @@ export default function RestaurantOnlineOrdersPage() {
             </div>
 
             <Tabs defaultValue="settings">
-              <TabsList>
+              <TabsList className="flex-wrap h-auto">
                 <TabsTrigger value="settings">Settings</TabsTrigger>
                 <TabsTrigger value="qr">QR Codes ({qrCodes.length})</TabsTrigger>
                 <TabsTrigger value="promos">Promo Codes ({promoCodes.length})</TabsTrigger>
@@ -226,17 +226,17 @@ export default function RestaurantOnlineOrdersPage() {
                         <label key={key} className="flex items-center gap-2"><input type="checkbox" checked={(settings as any)[key] || false} onChange={e => setSettings({ ...settings, [key]: e.target.checked })} />{label}</label>
                       ))}
                     </div>
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       <div><Label>Min Order Amount</Label><Input type="number" step="0.01" value={settings.minOrderAmount || 0} onChange={e => setSettings({ ...settings, minOrderAmount: parseFloat(e.target.value) || 0 })} /></div>
                       <div><Label>Max Orders/Slot (0=unlimited)</Label><Input type="number" value={settings.maxOrdersPerSlot || 0} onChange={e => setSettings({ ...settings, maxOrdersPerSlot: parseInt(e.target.value) || 0 })} /></div>
                       <div><Label>Slot Duration (mins)</Label><Input type="number" value={settings.slotDurationMins || 30} onChange={e => setSettings({ ...settings, slotDurationMins: parseInt(e.target.value) || 30 })} /></div>
                     </div>
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       <div><Label>Est. Prep Dine-In (mins)</Label><Input type="number" value={settings.estimatedPrepMinsDine || 15} onChange={e => setSettings({ ...settings, estimatedPrepMinsDine: parseInt(e.target.value) || 15 })} /></div>
                       <div><Label>Est. Prep Takeaway (mins)</Label><Input type="number" value={settings.estimatedPrepMinsTake || 20} onChange={e => setSettings({ ...settings, estimatedPrepMinsTake: parseInt(e.target.value) || 20 })} /></div>
                       <div><Label>Est. Prep Delivery (mins)</Label><Input type="number" value={settings.estimatedPrepminsDeliv || 30} onChange={e => setSettings({ ...settings, estimatedPrepminsDeliv: parseInt(e.target.value) || 30 })} /></div>
                     </div>
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       <div>
                         <Label>Delivery Fee Type</Label>
                         <Select value={settings.deliveryFeeType || "Fixed"} onValueChange={v => setSettings({ ...settings, deliveryFeeType: v })}>
@@ -390,7 +390,7 @@ export default function RestaurantOnlineOrdersPage() {
         <DialogContent>
           <DialogHeader><DialogTitle>{promoEditing ? "Edit Promo Code" : "New Promo Code"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label>Code *</Label><Input value={promoForm.code} onChange={e => setPromoForm({ ...promoForm, code: e.target.value.toUpperCase() })} placeholder="e.g. SAVE20" /></div>
               <div>
                 <Label>Type</Label>
@@ -405,12 +405,12 @@ export default function RestaurantOnlineOrdersPage() {
               </div>
             </div>
             <div><Label>Description</Label><Input value={promoForm.description || ""} onChange={e => setPromoForm({ ...promoForm, description: e.target.value })} /></div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <div><Label>Value</Label><Input type="number" step="0.01" value={promoForm.discountValue} onChange={e => setPromoForm({ ...promoForm, discountValue: parseFloat(e.target.value) || 0 })} /></div>
               <div><Label>Min Order</Label><Input type="number" step="0.01" value={promoForm.minOrderAmount || 0} onChange={e => setPromoForm({ ...promoForm, minOrderAmount: parseFloat(e.target.value) || 0 })} /></div>
               <div><Label>Max Uses (0=∞)</Label><Input type="number" value={promoForm.maxUses || 0} onChange={e => setPromoForm({ ...promoForm, maxUses: parseInt(e.target.value) || 0 })} /></div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div><Label>Valid From</Label><Input type="datetime-local" value={promoForm.validFrom?.slice(0, 16) || ""} onChange={e => setPromoForm({ ...promoForm, validFrom: e.target.value || null })} /></div>
               <div><Label>Valid Until</Label><Input type="datetime-local" value={promoForm.validUntil?.slice(0, 16) || ""} onChange={e => setPromoForm({ ...promoForm, validUntil: e.target.value || null })} /></div>
             </div>
