@@ -157,7 +157,7 @@ export default function RestaurantOrdersPage() {
       <DashboardSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <DashboardHeader />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="max-w-5xl mx-auto space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
@@ -173,7 +173,7 @@ export default function RestaurantOrdersPage() {
                   </p>
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Select value={filterStatus} onValueChange={setFilterStatus}>
                   <SelectTrigger className="w-[130px] h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -246,14 +246,14 @@ export default function RestaurantOrdersPage() {
                   <div className="space-y-2">
                     {visibleOrders.map(o => (
                       <div key={o.orderId}
-                        className={`group relative flex items-center gap-4 overflow-hidden rounded-xl border p-4 pl-5 cursor-pointer transition-all hover:border-rose-200 hover:bg-rose-50/30 ${
+                        className={`group relative flex flex-wrap items-center gap-x-4 gap-y-2 overflow-hidden rounded-xl border p-4 pl-5 cursor-pointer transition-all hover:border-rose-200 hover:bg-rose-50/30 ${
                           isOnline(o) ? "border-rose-200 bg-rose-50/40" : ""}`}
                         onClick={() => openDetail(o)}>
                         {/* A colour bar down the edge of the row: the marker has to be
                             readable at a glance while scanning a list, not something you
                             have to stop and read. */}
                         {isOnline(o) && <span aria-hidden className="absolute inset-y-0 left-0 w-1.5 bg-rose-500" />}
-                        <div className="flex-1 min-w-0">
+                        <div className="flex-1 min-w-0 basis-full sm:basis-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-mono font-bold text-gray-900">{o.orderNumber}</span>
                             {/* Promoted out of the muted metadata line below, where it was a
@@ -287,7 +287,7 @@ export default function RestaurantOrdersPage() {
                               </Badge>
                             )}
                           </div>
-                          <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{new Date(o.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                             {o.tableNumber && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />Table {o.tableNumber}</span>}
                             {o.customerName && <span className="flex items-center gap-1"><Users className="h-3 w-3" />{o.customerName}</span>}
@@ -344,7 +344,7 @@ export default function RestaurantOrdersPage() {
           </DialogHeader>
           {detailOrder && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                 {[
                   ["Type", detailOrder.orderType], ["Table", detailOrder.tableNumber || "—"],
                   ["Customer", detailOrder.customerName || "Walk-in"], ["Covers", String(detailOrder.covers)],

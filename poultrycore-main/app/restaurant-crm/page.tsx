@@ -116,7 +116,7 @@ export default function RestaurantCRMPage() {
       <DashboardSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <DashboardHeader />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="max-w-6xl mx-auto space-y-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -144,7 +144,7 @@ export default function RestaurantCRMPage() {
             )}
 
             <Tabs defaultValue="customers" className="space-y-4">
-              <TabsList className="bg-white border shadow-sm">
+              <TabsList className="bg-white border shadow-sm flex-wrap h-auto">
                 <TabsTrigger value="customers" className="data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700"><Users className="h-4 w-4 mr-2" />Customers <Badge variant="secondary" className="ml-2 h-5 px-1.5">{customers.length}</Badge></TabsTrigger>
                 <TabsTrigger value="feedback" className="data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700"><Star className="h-4 w-4 mr-2" />Feedback {fbStats && fbStats.newCount > 0 && <Badge className="ml-2 h-5 px-1.5 bg-amber-500 text-white">{fbStats.newCount}</Badge>}</TabsTrigger>
                 <TabsTrigger value="campaigns" className="data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700"><Megaphone className="h-4 w-4 mr-2" />Campaigns</TabsTrigger>
@@ -154,7 +154,7 @@ export default function RestaurantCRMPage() {
               <TabsContent value="customers">
                 <Card>
                   <CardHeader className="pb-4">
-                    <div className="flex gap-3">
+                    <div className="flex gap-3 flex-wrap">
                       <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input className="pl-9 h-10" placeholder="Search customers..." value={search} onChange={e => setSearch(e.target.value)} /></div>
                       <Select value={filterSeg} onValueChange={setFilterSeg}>
                         <SelectTrigger className="w-[140px] h-10"><SelectValue /></SelectTrigger>
@@ -171,7 +171,8 @@ export default function RestaurantCRMPage() {
                         <Button className="bg-rose-600 hover:bg-rose-700" onClick={() => openCustDialog()}><Plus className="h-4 w-4 mr-2" /> Add Customer</Button>
                       </div>
                     ) : (
-                      <table className="w-full text-sm">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm min-w-[640px]">
                         <thead className="bg-gray-50 border-b">
                           <tr>
                             <th className="text-left p-3">Name</th>
@@ -204,7 +205,8 @@ export default function RestaurantCRMPage() {
                             )
                           })}
                         </tbody>
-                      </table>
+                        </table>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
@@ -213,7 +215,7 @@ export default function RestaurantCRMPage() {
               {/* Feedback */}
               <TabsContent value="feedback" className="space-y-4">
                 {fbStats && (
-                  <div className="grid grid-cols-5 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                     {[["Overall", fbStats.avgRating, "⭐"], ["Food", fbStats.avgFood, "🍕"], ["Service", fbStats.avgService, "🙋"], ["Ambience", fbStats.avgAmbience, "🎵"], ["Total", fbStats.totalFeedback, "📝"]].map(([l, v, e]) => (
                       <Card key={String(l)}><CardContent className="py-3 text-center">
                         <div className="text-xl">{e}</div>
@@ -292,7 +294,7 @@ export default function RestaurantCRMPage() {
       <Dialog open={custDialogOpen} onOpenChange={setCustDialogOpen}>
         <DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>{custEditing ? "Edit Customer" : "Add Customer"}</DialogTitle><DialogDescription>Track guest preferences and visit history</DialogDescription></DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5"><Label>Name <span className="text-rose-500">*</span></Label><Input value={custForm.name} onChange={e => setCustForm({ ...custForm, name: e.target.value })} className="h-10" /></div>
               <div className="space-y-1.5"><Label>Phone</Label><Input value={custForm.phone || ""} onChange={e => setCustForm({ ...custForm, phone: e.target.value })} className="h-10" /></div>
               <div className="space-y-1.5"><Label>Email</Label><Input value={custForm.email || ""} onChange={e => setCustForm({ ...custForm, email: e.target.value })} className="h-10" /></div>
@@ -314,7 +316,7 @@ export default function RestaurantCRMPage() {
           <div className="space-y-4">
             <div className="space-y-1.5"><Label>Customer Name</Label><Input value={fbForm.customerName || ""} onChange={e => setFbForm({ ...fbForm, customerName: e.target.value })} className="h-10" /></div>
             <div className="space-y-1.5"><Label>Overall Rating</Label><div className="flex gap-1">{[1,2,3,4,5].map(r => <button key={r} type="button" onClick={() => setFbForm({ ...fbForm, rating: r })} className={`h-10 w-10 rounded-lg text-lg ${fbForm.rating >= r ? "bg-amber-100" : "bg-gray-100"}`}>⭐</button>)}</div></div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <div className="space-y-1"><Label className="text-xs">Food</Label><Select value={String(fbForm.foodRating || "")} onValueChange={v => setFbForm({ ...fbForm, foodRating: parseInt(v) })}><SelectTrigger className="h-9"><SelectValue placeholder="—" /></SelectTrigger><SelectContent>{[1,2,3,4,5].map(r => <SelectItem key={r} value={String(r)}>{r}/5</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-1"><Label className="text-xs">Service</Label><Select value={String(fbForm.serviceRating || "")} onValueChange={v => setFbForm({ ...fbForm, serviceRating: parseInt(v) })}><SelectTrigger className="h-9"><SelectValue placeholder="—" /></SelectTrigger><SelectContent>{[1,2,3,4,5].map(r => <SelectItem key={r} value={String(r)}>{r}/5</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-1"><Label className="text-xs">Ambience</Label><Select value={String(fbForm.ambienceRating || "")} onValueChange={v => setFbForm({ ...fbForm, ambienceRating: parseInt(v) })}><SelectTrigger className="h-9"><SelectValue placeholder="—" /></SelectTrigger><SelectContent>{[1,2,3,4,5].map(r => <SelectItem key={r} value={String(r)}>{r}/5</SelectItem>)}</SelectContent></Select></div>
@@ -338,7 +340,7 @@ export default function RestaurantCRMPage() {
         <DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Create Campaign</DialogTitle><DialogDescription>Send targeted messages to your customers</DialogDescription></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5"><Label>Campaign Name <span className="text-rose-500">*</span></Label><Input value={campForm.name} onChange={e => setCampForm({ ...campForm, name: e.target.value })} className="h-10" /></div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5"><Label>Type</Label><Select value={campForm.campaignType} onValueChange={v => setCampForm({ ...campForm, campaignType: v })}><SelectTrigger className="h-10"><SelectValue /></SelectTrigger><SelectContent>{["Birthday", "WinBack", "Promotion", "Announcement"].map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-1.5"><Label>Target</Label><Select value={campForm.targetSegment || "All"} onValueChange={v => setCampForm({ ...campForm, targetSegment: v })}><SelectTrigger className="h-10"><SelectValue /></SelectTrigger><SelectContent>{["All", "New", "Regular", "VIP", "Lapsed"].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>
             </div>

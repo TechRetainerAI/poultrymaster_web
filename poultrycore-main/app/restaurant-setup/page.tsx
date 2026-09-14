@@ -191,7 +191,7 @@ export default function RestaurantSetupPage() {
       <DashboardSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <DashboardHeader />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="max-w-5xl mx-auto space-y-6">
             {/* Page Header */}
             <div className="flex items-center justify-between">
@@ -213,7 +213,7 @@ export default function RestaurantSetupPage() {
             </div>
 
             <Tabs defaultValue="profile" className="space-y-6">
-              <TabsList className="bg-white border shadow-sm">
+              <TabsList className="bg-white border shadow-sm flex-wrap h-auto">
                 <TabsTrigger value="profile" className="data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700">
                   <Store className="h-4 w-4 mr-2" /> Profile
                 </TabsTrigger>
@@ -563,7 +563,7 @@ export default function RestaurantSetupPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Start Time</Label>
                 <Input type="time" value={schedForm.startTime} onChange={e => setSchedForm({ ...schedForm, startTime: e.target.value })} className="h-10" />
@@ -623,7 +623,7 @@ export default function RestaurantSetupPage() {
                   <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform mt-0.5 ${mgForm.isRequired ? "translate-x-5 ml-0.5" : "translate-x-0.5"}`} />
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Min selections</Label>
                   <Input type="number" min={0} value={mgForm.minSelections || 0} onChange={e => setMgForm({ ...mgForm, minSelections: parseInt(e.target.value) || 0 })} className="h-9" />

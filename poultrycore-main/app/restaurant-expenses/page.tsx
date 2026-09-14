@@ -217,7 +217,8 @@ export default function RestaurantExpensesPage() {
                 ) : (
                   <Card>
                     <CardContent className="p-0">
-                      <table className="w-full text-sm">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm min-w-[640px]">
                         <thead className="bg-gray-50 border-b">
                           <tr>
                             <th className="text-left p-3">Date</th>
@@ -246,7 +247,8 @@ export default function RestaurantExpensesPage() {
                             </tr>
                           ))}
                         </tbody>
-                      </table>
+                        </table>
+                      </div>
                     </CardContent>
                   </Card>
                 )}
@@ -307,7 +309,7 @@ export default function RestaurantExpensesPage() {
             <DialogDescription>Log a business expense</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Date</Label>
                 <Input
@@ -343,7 +345,7 @@ export default function RestaurantExpensesPage() {
                 onChange={(e) => setExpenseForm((f) => ({ ...f, description: e.target.value }))}
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Amount <span className="text-rose-500">*</span></Label>
                 <Input

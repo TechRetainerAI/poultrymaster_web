@@ -58,6 +58,12 @@ namespace PoultryFarmAPIWeb.Business
         Task<int> AssignItemToScheduleAsync(string farmId, int scheduleId, int menuItemId, decimal? overridePrice);
         Task UnassignItemFromScheduleAsync(int id, string farmId);
 
+        // Menu Item Names (system seed list + this farm's custom additions).
+        // Kept on the Restaurant service on purpose: Hotel Setup reads the same
+        // underlying table through its own service and must not be disturbed.
+        Task<List<RestaurantMenuItemNameModel>> ListItemNamesForFarmAsync(string farmId);
+        Task<RestaurantMenuItemNameModel?> InsertItemNameAsync(string farmId, string description, string? category);
+
         // Item Tags
         Task<List<RestaurantItemTagModel>> ListItemTagsAsync(int menuItemId, string farmId);
         Task<int> AddItemTagAsync(string farmId, int menuItemId, string tag);

@@ -961,7 +961,7 @@ function RestaurantOrderOnlineContent() {
           phone costs an extra tap and a native picker for no benefit. */}
       <div>
         <Label className="text-xs font-medium text-stone-600">How will you pay? <span className="text-rose-600">*</span></Label>
-        <div className="mt-1.5 grid grid-cols-3 gap-2">
+        <div className="mt-1.5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
           {PAYMENT_METHODS.map(m => {
             const active = paymentIntent === m.value
             const Icon = m.icon
