@@ -113,6 +113,25 @@ namespace PoultryFarmAPIWeb.Controllers
         }
 
         /// <summary>
+        /// 292/293. Turn a Cash Flow "Loan received" adjustment into a real,
+        /// repayable loan.
+        ///
+        /// Separate from Create on purpose. This one takes no amount and no cash
+        /// account: the amount comes from the adjustment, and the conversion
+        /// writes no cash row at all -- the adjustment stays the cash event, and
+        /// the loan is the debt record beside it. Nothing about cash moves.
+        /// </summary>
+        [HttpPost("from-adjustment")]
+        public async Task<ActionResult<int>> CreateFromAdjustment(
+            [FromBody] WaterLoanFromAdjustmentRequest r)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            if (string.IsNullOrWhiteSpace(r.FarmId)) return BadRequest("Company ID is required.");
+            var id = await _svc.CreateFromAdjustmentAsync(r);
+            return Ok(new { WaterLoanId = id });
+        }
+
+        /// <summary>
         /// Edits the descriptive fields only. Principal, amount received and the
         /// running totals are consequences of postings, and a form that could
         /// rewrite them is how a loan stops matching its own payments.

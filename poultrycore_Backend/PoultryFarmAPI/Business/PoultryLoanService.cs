@@ -15,6 +15,8 @@ namespace PoultryFarmAPIWeb.Business
         Task<PoultryLoanModel?> GetByIdAsync(int id, string farmId);
         Task<PoultryLoanSummary> GetSummaryAsync(string farmId);
         Task<int> CreateAsync(PoultryLoanCreateRequest r);
+        /// <summary>292/293. Convert a Cash Flow adjustment into a real loan.</summary>
+        Task<int> CreateFromAdjustmentAsync(PoultryLoanFromAdjustmentRequest r);
         Task UpdateAsync(int id, string farmId, PoultryLoanUpdateRequest r, string? updatedBy);
         Task CancelAsync(int id, string farmId, string reason, string? cancelledBy);
 
@@ -58,8 +60,11 @@ namespace PoultryFarmAPIWeb.Business
             PoultryLoanId = r.GetInt32(r.GetOrdinal("PoultryLoanId")),
             FarmId = r.GetString(r.GetOrdinal("FarmId")),
             LoanNumber = Str(r, "LoanNumber"),
-            LenderName = r.GetString(r.GetOrdinal("LenderName")),
-            LenderType = r.GetString(r.GetOrdinal("LenderType")),
+            // Str, not GetString: 290/291 return NULL for both on a row that
+            // came from a Cash Flow "Loan received" adjustment. GetString threw
+            // "Column 'lendername' is null" and took the whole list with it.
+            LenderName = Str(r, "LenderName"),
+            LenderType = Str(r, "LenderType"),
             AccountNumber = Str(r, "AccountNumber"),
             LoanDate = r.GetDateTime(r.GetOrdinal("LoanDate")),
             OriginalPrincipal = r.GetDecimal(r.GetOrdinal("OriginalPrincipal")),
@@ -85,6 +90,11 @@ namespace PoultryFarmAPIWeb.Business
             CreatedBy = Str(r, "CreatedBy"),
             CreatedAt = r.GetDateTime(r.GetOrdinal("CreatedAt")),
             ReversalReason = Str(r, "ReversalReason"),
+            // 290/291 added these two columns, so they are always present --
+            // GetOrdinal would throw if they were not. The ?? pair only covers
+            // a NULL value, which the migrations never emit.
+            Source = Str(r, "Source") ?? "Loan",
+            SourceId = IntN(r, "SourceId") ?? 0,
         };
 
         public async Task<List<PoultryLoanModel>> GetAllAsync(string farmId, string? status)
@@ -128,6 +138,47 @@ namespace PoultryFarmAPIWeb.Business
                 OverdueLoans = r.GetInt32(r.GetOrdinal("OverdueLoans")),
                 NextPaymentDate = DateN(r, "NextPaymentDate"),
             };
+        }
+
+        // 292/293. Deliberately a DIFFERENT SP from CreateAsync: sppoultryloan_create
+        // writes a cash row and moves an account balance, and neither may happen
+        // here -- the money already arrived, as the adjustment. The SP refuses a
+        // non-LoanReceived row, a negative amount (that is a correction, not a
+        // borrowing) and a second conversion; those surface as SqlExceptions
+        // that GlobalExceptionMiddleware turns into readable 500s.
+        public async Task<int> CreateFromAdjustmentAsync(PoultryLoanFromAdjustmentRequest q)
+        {
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT sppoultryloan_fromadjustment("
+                + "p_farmid => @FarmId::text,"
+                + "p_adjustmentid => @AdjustmentId::int,"
+                + "p_lendername => @Lender::text,"
+                + "p_lendertype => @LenderType::text,"
+                + "p_accountnumber => @AccountNumber::text,"
+                + "p_interestrate => @Rate::numeric,"
+                + "p_interesttype => @RateType::text,"
+                + "p_termmonths => @Term::int,"
+                + "p_paymentfrequency => @Frequency::text,"
+                + "p_enddate => @EndDate::date,"
+                + "p_nextpaymentdate => @NextDate::date,"
+                + "p_notes => @Notes::text,"
+                + "p_createdby => @CreatedBy::text)", c);
+            cmd.Parameters.AddWithValue("@FarmId", q.FarmId);
+            cmd.Parameters.AddWithValue("@AdjustmentId", q.AdjustmentId);
+            cmd.Parameters.AddWithValue("@Lender", q.LenderName);
+            cmd.Parameters.AddWithValue("@LenderType", q.LenderType ?? "Other");
+            cmd.Parameters.AddWithValue("@AccountNumber", Db(q.AccountNumber));
+            cmd.Parameters.AddWithValue("@Rate", Db(q.InterestRate));
+            cmd.Parameters.AddWithValue("@RateType", Db(q.InterestType));
+            cmd.Parameters.AddWithValue("@Term", Db(q.TermMonths));
+            cmd.Parameters.AddWithValue("@Frequency", Db(q.PaymentFrequency));
+            cmd.Parameters.AddWithValue("@EndDate", DbDate(q.EndDate));
+            cmd.Parameters.AddWithValue("@NextDate", DbDate(q.NextPaymentDate));
+            cmd.Parameters.AddWithValue("@Notes", Db(q.Notes));
+            cmd.Parameters.AddWithValue("@CreatedBy", Db(q.CreatedBy));
+            await c.OpenAsync();
+            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
         }
 
         public async Task<int> CreateAsync(PoultryLoanCreateRequest q)
