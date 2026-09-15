@@ -880,8 +880,15 @@ export function FeedStockTracker({ kind }: { kind: FeedItemKind }) {
                          /egg-tracker: one card per row, open by default, striped
                          so consecutive rows are told apart at a glance. In and
                          out keep their green and red — they are the two
-                         directions the ledger exists to tell apart. */
-                      <div className="space-y-3">
+                         directions the ledger exists to tell apart.
+
+                         -mx-6 cancels CardContent's px-6. On /poultry-daily-closing
+                         the scorecards hang straight off <main>, so their only
+                         gutter is its p-4; here they sit inside a Card, and that
+                         extra 24px each side made the same cards visibly narrower
+                         on the same phone. Full bleed inside the card puts both
+                         pages at the same width. */
+                      <div className="-mx-6 space-y-3">
                         {paginatedFeedLedgerRows.map((row, idx) => {
                           const isAdj = row.sortKey.startsWith("feedadj_")
                           return (

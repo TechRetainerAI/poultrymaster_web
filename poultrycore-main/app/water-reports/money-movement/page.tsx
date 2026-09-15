@@ -273,10 +273,12 @@ export default function WaterMoneyReportPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
+                      {/* Keyed on source + id: a loan synthesised from a Cash Flow
+                          "Loan received" carries a loan id of 0. */}
                       {loans.map((l) => (
-                        <TableRow key={l.waterLoanId}>
+                        <TableRow key={`${l.source ?? "Loan"}:${l.sourceId ?? l.waterLoanId}`}>
                           <TableCell className="font-medium">{l.loanNumber ?? `#${l.waterLoanId}`}</TableCell>
-                          <TableCell>{l.lenderName}</TableCell>
+                          <TableCell>{l.lenderName ?? (l.source === "CashAdjustment" ? "Recorded on Cash Flow" : "–")}</TableCell>
                           <TableCell className="text-right tabular-nums">{fmt(l.originalPrincipal)}</TableCell>
                           <TableCell className="text-right tabular-nums">{fmt(l.amountReceived)}</TableCell>
                           <TableCell className="text-right tabular-nums">{fmt(l.totalPrincipalRepaid)}</TableCell>

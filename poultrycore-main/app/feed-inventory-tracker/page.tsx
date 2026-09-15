@@ -661,10 +661,19 @@ function FeedInventoryTrackerPageInner() {
                     ) : (
                       <>
                       {/* Mobile opens on scorecards (expanded by default);
-                          "View table format" flips to the wide ledger table. */}
+                          "View table format" flips to the wide ledger table.
+
+                          -mx-6 cancels CardContent's px-6 and flushMobile drops
+                          the card stack's own p-3. Without both, these cards
+                          carry 36px of gutter the same cards on
+                          /poultry-daily-closing do not — that page hangs them
+                          straight off <main>, so their only inset is its p-4.
+                          Phone-only: the desktop table keeps the card padding. */}
+                      <div className="-mx-6 lg:mx-0">
                       <MobileCardList
                         striped
                         defaultOpen
+                        flushMobile
                         items={pageRows}
                         getKey={(row) => row.key}
                         primary={(row) => row.date || "—"}
@@ -786,7 +795,7 @@ function FeedInventoryTrackerPageInner() {
 
                       {/* The footer totals live in the table, which mobile does
                           not show, so repeat them as a strip under the cards. */}
-                      <div className="lg:hidden mx-3 mb-2 flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+                      <div className="lg:hidden mb-2 flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
                         <span className="text-slate-600">
                           Totals ({sortedRows.length.toLocaleString()}{sortedRows.length === 1 ? " movement" : " movements"})
                         </span>
@@ -798,6 +807,7 @@ function FeedInventoryTrackerPageInner() {
                             <span className="font-semibold text-red-600">Out {ledgerTotals.outQty > 0 ? qty(ledgerTotals.outQty) : "—"}</span>
                           </span>
                         )}
+                      </div>
                       </div>
 
                         <div className="flex flex-wrap items-center justify-center gap-2 pt-3">

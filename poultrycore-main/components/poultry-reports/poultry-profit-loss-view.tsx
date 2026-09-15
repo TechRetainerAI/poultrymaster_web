@@ -348,56 +348,55 @@ export function PoultryProfitLossView() {
                 <Link href="/poultry-financial-settings" className="ml-auto text-sky-700 underline">Settings</Link>
               </CardContent></Card>
 
-              {/* ---- the statement ---------------------------------------
-                  ONE full-width table with FOUR columns, not two.
-                  A two-column statement across a desktop leaves the amount on
-                  the far edge, a hand-span from its own label, with nothing in
-                  between. Narrowing the table, or cutting it into cards, both
-                  fix that gap by making the page smaller -- a worse trade.
-                  Filling it with Entries and % of Revenue fixes it with
-                  information instead: the three numeric columns sit together on
-                  the right, the label column takes what is left, and there is
-                  no empty middle because nothing is empty. */}
-              <Card><CardContent className="p-0 overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Section / Line</TableHead>
-                      <TableHead className="w-[110px] text-right">Entries</TableHead>
-                      <TableHead className="w-[170px] text-right">Amount</TableHead>
-                      <TableHead className="w-[130px] text-right">% of Revenue</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <StatementSection
-                      title="Revenue" lines={bySection("Revenue")}
-                      totalLabel="Total Revenue" totalAmount={data.totalRevenue}
-                      revenue={data.totalRevenue} onOpen={openDrill} gh={gh}
-                    />
-                    <StatementSection
-                      title="Direct Production Costs" negative lines={bySection("DirectCost")}
-                      totalLabel="Total Direct Production Costs" totalAmount={data.totalDirectCosts}
-                      resultLabel="Gross Profit" resultAmount={data.grossProfit}
-                      resultPct={data.grossMarginPercent}
-                      revenue={data.totalRevenue} onOpen={openDrill} gh={gh}
-                    />
-                    <StatementSection
-                      title="Operating Expenses" negative lines={bySection("OperatingExpense")}
-                      totalLabel="Total Operating Expenses" totalAmount={data.totalOperatingExpenses}
-                      resultLabel="Operating Profit" resultAmount={data.operatingProfit}
-                      resultPct={data.operatingMarginPercent}
-                      revenue={data.totalRevenue} onOpen={openDrill} gh={gh}
-                    />
-                    <StatementSection
-                      title="Depreciation & Financing Costs" negative lines={bySection("OtherCost")}
-                      totalLabel="Total Depreciation & Financing" totalAmount={data.totalOtherCosts}
-                      resultLabel="Net Profit" resultAmount={data.netProfit}
-                      resultPct={data.netMarginPercent} strong
-                      revenue={data.totalRevenue} onOpen={openDrill} gh={gh}
-                    />
-                  </TableBody>
-                </Table>
-              </CardContent></Card>
+              {/* ---- the statement, as section cards ----------------------
+                  Three column STACKS, not a plain grid of four: Revenue and
+                  Depreciation & Financing share the first column, so the short
+                  one sits directly under the short one instead of waiting for
+                  the tallest card in its row. A grid aligns rows; that is
+                  exactly what leaves a hole under Revenue.
+
+                  Below md there is one column and the stacks go `contents`, so
+                  the cards become items of the outer grid directly and `order`
+                  can put them back in statement order -- Revenue, Direct,
+                  Operating, Depreciation -- for a phone, where reading is
+                  top-to-bottom and the side-by-side grouping means nothing.
+
+                  The running subtotals -- Gross, Operating and Net Profit -- are
+                  NOT repeated inside the cards. They are the tiles at the top of
+                  the page, and a figure printed twice invites a reader to add it
+                  twice. */}
+              <div className="grid gap-4 md:grid-cols-2 md:items-start xl:grid-cols-3">
+                <div className="contents md:block md:space-y-4">
+                  <SectionCard
+                    className="order-1 md:order-none"
+                    tone="emerald" title="Revenue" lines={bySection("Revenue")}
+                    totalLabel="Total Revenue" totalAmount={data.totalRevenue}
+                    onOpen={openDrill} gh={gh}
+                  />
+                  <SectionCard
+                    className="order-4 md:order-none"
+                    tone="violet" negative title="Depreciation & Financing Costs" lines={bySection("OtherCost")}
+                    totalLabel="Total Depreciation & Financing" totalAmount={data.totalOtherCosts}
+                    onOpen={openDrill} gh={gh}
+                  />
+                </div>
+                <div className="contents md:block md:space-y-4">
+                  <SectionCard
+                    className="order-2 md:order-none"
+                    tone="rose" negative title="Direct Production Costs" lines={bySection("DirectCost")}
+                    totalLabel="Total Direct Production Costs" totalAmount={data.totalDirectCosts}
+                    onOpen={openDrill} gh={gh}
+                  />
+                </div>
+                <div className="contents md:block md:space-y-4">
+                  <SectionCard
+                    className="order-3 md:order-none"
+                    tone="amber" negative title="Operating Expenses" lines={bySection("OperatingExpense")}
+                    totalLabel="Total Operating Expenses" totalAmount={data.totalOperatingExpenses}
+                    onOpen={openDrill} gh={gh}
+                  />
+                </div>
+              </div>
 
               {/* ---- informational: cash moved, profit did not ------------
                   Side by side: three across on a wide screen, two on medium,
@@ -577,107 +576,83 @@ function Kpi({ label, value, hint, tone, strong }: {
 }
 
 
+const SECTION_TONES = {
+  emerald: { head: "bg-emerald-50 text-emerald-800", total: "bg-emerald-50/60", border: "border-emerald-200" },
+  rose: { head: "bg-rose-50 text-rose-800", total: "bg-rose-50/60", border: "border-rose-200" },
+  amber: { head: "bg-amber-50 text-amber-800", total: "bg-amber-50/60", border: "border-amber-200" },
+  violet: { head: "bg-violet-50 text-violet-800", total: "bg-violet-50/60", border: "border-violet-200" },
+} as const
+
 /**
- * One band of the statement: its heading, its lines, its total, and the
- * subtotal that band produces.
+ * One band of the statement: its heading, its lines and its total, in a card of
+ * its own.
  *
- * Emits rows into the shared table rather than owning a card of its own, so
- * every section uses one set of column widths and the figures line up down the
- * whole statement. Columns that do not line up are not a statement.
- *
- * % OF REVENUE is measured on the ABSOLUTE amount against total revenue, so a
- * cost reads "38.8% of revenue" rather than "-38.8%". A period with no revenue
- * prints an em dash rather than 0.0% or NaN: "0% of nothing" is not a fact.
+ * Costs print in parentheses rather than with a minus sign -- accounting
+ * notation, and the one that survives being read quickly. Every line is a
+ * button, not a row with a click handler, so it is reachable by keyboard and
+ * announces itself; the drilldown behind it reads the same server function the
+ * figure was built from.
  */
-function StatementSection({
-  title, lines, totalLabel, totalAmount, resultLabel, resultAmount, resultPct,
-  revenue, onOpen, gh, negative, strong,
+function SectionCard({
+  title, lines, totalLabel, totalAmount, onOpen, gh, negative, tone, className,
 }: {
   title: string
   lines: PoultryProfitLossLine[]
-  totalLabel: string; totalAmount: number
-  resultLabel?: string; resultAmount?: number; resultPct?: number | null
-  revenue: number
+  totalLabel: string
+  totalAmount: number
   onOpen: (l: PoultryProfitLossLine) => void
   gh: (n: number) => string
-  negative?: boolean; strong?: boolean
+  negative?: boolean
+  tone: keyof typeof SECTION_TONES
+  className?: string
 }) {
+  const t = SECTION_TONES[tone]
   const money = (n: number) => (negative ? `(${gh(n)})` : gh(n))
-  const pct = (n: number) =>
-    revenue > 0 ? `${((Math.abs(n) / revenue) * 100).toFixed(1)}%` : "—"
-  const entryTotal = lines.reduce((a, l) => a + l.entryCount, 0)
 
   return (
-    <>
-      <TableRow className="bg-slate-50 hover:bg-slate-50">
-        <TableCell colSpan={4} className="py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-          {title}
-        </TableCell>
-      </TableRow>
+    <div className={cn("overflow-hidden rounded-xl border bg-white shadow-sm", t.border, className)}>
+      <div className={cn("px-4 py-2 text-[11px] font-semibold uppercase tracking-wide", t.head)}>
+        {title}
+      </div>
 
       {lines.length === 0 ? (
-        <TableRow>
-          <TableCell colSpan={4} className="py-2 pl-8 text-sm text-slate-400">None this period</TableCell>
-        </TableRow>
-      ) : lines.map((l) => (
-        <TableRow key={l.section + l.lineKey} className="cursor-pointer" onClick={() => onOpen(l)}>
-          <TableCell className="py-1.5 pl-8 text-sm">
-            <span className="inline-flex items-center gap-1 hover:underline">
-              {l.lineLabel}
-              <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
-            </span>
-          </TableCell>
-          <TableCell className="py-1.5 text-right text-sm tabular-nums text-slate-500">
-            {l.entryCount}
-          </TableCell>
-          <TableCell className="py-1.5 text-right text-sm tabular-nums">{money(l.amount)}</TableCell>
-          <TableCell className="py-1.5 text-right text-sm tabular-nums text-slate-500">
-            {pct(l.amount)}
-          </TableCell>
-        </TableRow>
-      ))}
-
-      <TableRow className="border-t">
-        <TableCell className="py-1.5 pl-8 text-sm font-medium">{totalLabel}</TableCell>
-        <TableCell className="py-1.5 text-right text-sm tabular-nums text-slate-500">
-          {entryTotal > 0 ? entryTotal : ""}
-        </TableCell>
-        <TableCell className="py-1.5 text-right text-sm font-medium tabular-nums">
-          {money(totalAmount)}
-        </TableCell>
-        <TableCell className="py-1.5 text-right text-sm font-medium tabular-nums text-slate-500">
-          {pct(totalAmount)}
-        </TableCell>
-      </TableRow>
-
-      {resultLabel != null && resultAmount != null && (
-        <TableRow className={cn("border-t-2 border-slate-300", strong && "bg-slate-50 hover:bg-slate-50")}>
-          <TableCell className={cn("py-2 text-sm font-semibold", strong && "text-base")}>
-            {resultLabel}
-          </TableCell>
-          {/* No entry count on a result row: it is arithmetic on the rows
-              above, not a set of documents of its own. */}
-          <TableCell />
-          <TableCell className={cn(
-            "py-2 text-right font-semibold tabular-nums", strong && "text-base",
-            resultAmount >= 0 ? "text-emerald-700" : "text-red-700",
-          )}>
-            {gh(resultAmount)}
-          </TableCell>
-          <TableCell className={cn("py-2 text-right font-semibold tabular-nums text-slate-500", strong && "text-base")}>
-            {resultPct != null ? `${resultPct}%` : pct(resultAmount)}
-          </TableCell>
-        </TableRow>
+        <p className="px-4 py-4 text-sm text-slate-400">None this period</p>
+      ) : (
+        <ul className="divide-y divide-slate-100">
+          {lines.map((l) => (
+            <li key={l.section + l.lineKey}>
+              <button
+                type="button"
+                onClick={() => onOpen(l)}
+                className="flex w-full items-center gap-2 px-4 py-2 text-left transition-colors hover:bg-slate-50"
+              >
+                {/* No truncation: a statement line that reads "Medication &
+                    Vete..." on a phone has hidden the very thing the reader
+                    came for. It wraps instead and the row grows. */}
+                <span className="inline-flex min-w-0 items-center gap-1 text-sm text-slate-900">
+                  <span>{l.lineLabel}</span>
+                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                </span>
+                {l.entryCount > 0 && (
+                  <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500">
+                    {l.entryCount} {l.entryCount === 1 ? "entry" : "entries"}
+                  </span>
+                )}
+                <span className="ml-auto shrink-0 text-sm tabular-nums text-slate-900">{money(l.amount)}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
-    </>
+
+      <div className={cn("flex items-center gap-2 border-t px-4 py-2", t.border, t.total)}>
+        <span className="text-sm font-semibold text-slate-900">{totalLabel}</span>
+        <span className="ml-auto text-sm font-semibold tabular-nums text-slate-900">{money(totalAmount)}</span>
+      </div>
+    </div>
   )
 }
 
-/**
- * The two sections that are NOT profit. Deliberately in their own cards with
- * their own heading and explanation: a reader who adds these into Net Profit
- * gets a number that means nothing, and the layout is the first defence.
- */
 function InfoSection({ icon, title, subtitle, note, lines, onOpen, gh, footer, links }: {
   icon: React.ReactNode; title: string; subtitle: string; note: string
   lines: PoultryProfitLossLine[]
