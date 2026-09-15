@@ -224,7 +224,17 @@ export default function RestaurantPOSPage() {
       const pageW = doc.internal.pageSize.getWidth()
       let y = 15
       doc.setFontSize(16); doc.setFont("helvetica", "bold")
-      doc.text(receiptTemplate?.restaurantName || "Restaurant", pageW / 2, y, { align: "center" }); y += 7
+      // Same header the PRINTED receipt builds above: the active company name, then
+      // the configured header line. `receiptTemplate.restaurantName` used to be read
+      // here, but that field does not exist — restaurantreceipttemplates has no such
+      // column (migration 229) — so every emailed receipt was headed with the literal
+      // word "Restaurant" instead of the venue name.
+      doc.text(activeFarmName, pageW / 2, y, { align: "center" }); y += 7
+      if (receiptTemplate?.headerText) {
+        doc.setFontSize(8)
+        doc.text(receiptTemplate.headerText, pageW / 2, y, { align: "center" }); y += 5
+        doc.setFontSize(9)
+      }
       doc.setFontSize(9); doc.setFont("helvetica", "normal")
       doc.text(`Order: ${order.orderNumber} | ${order.orderType}${order.tableNumber ? ` | Table ${order.tableNumber}` : ""}`, pageW / 2, y, { align: "center" }); y += 5
       doc.text(new Date(order.createdAt).toLocaleString(), pageW / 2, y, { align: "center" }); y += 8
@@ -234,11 +244,30 @@ export default function RestaurantPOSPage() {
       doc.text(`Total: ${order.totalAmount.toFixed(2)}`, pageW - 10, y, { align: "right" }); y += 8
       doc.setFontSize(9)
       doc.text("Thank you for dining with us!", pageW / 2, y, { align: "center" })
-      const blob = doc.output("blob")
-      const file = new File([blob], `Receipt_${order.orderNumber}.pdf`, { type: "application/pdf" })
-      // Send via email API
+      const blob = doc.output("blob") as Blob
+
+      // sendReportEmail takes `blob` + `filename`. This used to pass a `file:` property
+      // that does not exist on SendReportEmailInput, which left input.blob undefined —
+      // and FormData.append(name, undefined, filename) THROWS, so emailing a receipt
+      // failed 100% of the time and surfaced as a misleading "Email failed" toast.
+      // Shape and extra fields now match lib/utils/pdf-export.ts (the Poultry/Water path).
       const { sendReportEmail } = await import("@/lib/api/email")
-      await sendReportEmail({ file, to: email, subject: `Your Receipt — Order ${order.orderNumber}`, body: `<p>Dear ${cust.name},</p><p>Please find your receipt attached for Order ${order.orderNumber}.</p><p>Thank you for dining with us!</p>` })
+      const res = await sendReportEmail({
+        blob,
+        filename: `Receipt_${order.orderNumber}.pdf`,
+        to: email,
+        subject: `Your Receipt — Order ${order.orderNumber}`,
+        body: `<p>Dear ${cust.name},</p><p>Please find your receipt attached for Order ${order.orderNumber}.</p><p>Thank you for dining with us!</p>`,
+        farmName: activeFarmName || undefined,
+        reportTitle: `Receipt ${order.orderNumber}`,
+        senderName: activeFarmName || undefined,
+      })
+
+      // /api/Email/Report answers 400/500/503 on failure, so success is real and not assumed.
+      if (!res.success) {
+        toast({ title: "Email failed", description: res.message || "The receipt could not be sent.", variant: "destructive" })
+        return
+      }
       toast({ title: "Receipt emailed", description: `Sent to ${email}` })
     } catch (e: any) { toast({ title: "Email failed", description: e?.message, variant: "destructive" }) }
   }

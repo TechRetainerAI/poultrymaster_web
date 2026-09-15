@@ -94,25 +94,29 @@ export default function HotelGuestFolioPage() {
 
               {/* Charges */}
               <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Charges</CardTitle></CardHeader><CardContent className="p-0">
-                <table className="w-full text-sm"><thead className="bg-slate-50 border-b"><tr><th className="text-left p-3">Date</th><th className="text-left p-3">Type</th><th className="text-left p-3">Description</th><th className="text-right p-3">Qty</th><th className="text-right p-3">Rate</th><th className="text-right p-3">Total</th></tr></thead>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[660px]"><thead className="bg-slate-50 border-b"><tr><th className="text-left p-3">Date</th><th className="text-left p-3">Type</th><th className="text-left p-3">Description</th><th className="text-right p-3">Qty</th><th className="text-right p-3">Rate</th><th className="text-right p-3">Total</th></tr></thead>
                 <tbody>
                   <tr className="border-b"><td className="p-3">{(b.checkindate ?? "").slice(0,10)}</td><td className="p-3">Room</td><td className="p-3">{b.roomtypename}</td><td className="p-3 text-right">1</td><td className="p-3 text-right">{Number(b.nightlyrate ?? 0).toFixed(2)}</td><td className="p-3 text-right font-semibold">{Number(b.totalamount ?? 0).toFixed(2)}</td></tr>
                   {folio.charges.map((c: any, i: number) => <tr key={i} className="border-b"><td className="p-3">{(c.chargedate ?? "").slice(0,10)}</td><td className="p-3">{c.chargetype}</td><td className="p-3">{c.description ?? ""}</td><td className="p-3 text-right">{c.quantity ?? 1}</td><td className="p-3 text-right">{Number(c.unitprice ?? 0).toFixed(2)}</td><td className="p-3 text-right font-semibold">{Number(c.totalamount ?? 0).toFixed(2)}</td></tr>)}
-                </tbody></table>
+                  </tbody></table>
+                </div>
               </CardContent></Card>
 
               {/* Payments */}
               <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Payments</CardTitle></CardHeader><CardContent className="p-0">
-                <table className="w-full text-sm"><thead className="bg-slate-50 border-b"><tr><th className="text-left p-3">Date</th><th className="text-left p-3">Method</th><th className="text-left p-3">Reference</th><th className="text-right p-3">Amount</th></tr></thead>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[520px]"><thead className="bg-slate-50 border-b"><tr><th className="text-left p-3">Date</th><th className="text-left p-3">Method</th><th className="text-left p-3">Reference</th><th className="text-right p-3">Amount</th></tr></thead>
                 <tbody>
                   {folio.payments.map((p: any, i: number) => <tr key={i} className="border-b"><td className="p-3">{(p.paymentdate ?? "").slice(0,10)}</td><td className="p-3">{p.paymentmethod}</td><td className="p-3 font-mono text-xs">{p.reference ?? "—"}</td><td className="p-3 text-right font-semibold text-emerald-700">{Number(p.amount ?? 0).toFixed(2)}</td></tr>)}
                   {folio.payments.length === 0 && <tr><td colSpan={4} className="p-4 text-center text-slate-400">No payments</td></tr>}
-                </tbody></table>
+                  </tbody></table>
+                </div>
               </CardContent></Card>
 
               {/* Summary */}
               <Card className="border-violet-200"><CardContent className="p-4">
-                <div className="grid grid-cols-2 gap-2 text-sm max-w-md mx-auto">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm max-w-md mx-auto">
                   <div className="text-slate-500">Room Total</div><div className="text-right">{s.roomTotal.toFixed(2)}</div>
                   <div className="text-slate-500">Additional Charges</div><div className="text-right">{s.chargesTotal.toFixed(2)}</div>
                   <div className="font-bold text-lg border-t pt-2">Grand Total</div><div className="text-right font-bold text-lg border-t pt-2">{s.grandTotal.toFixed(2)}</div>

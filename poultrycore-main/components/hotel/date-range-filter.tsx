@@ -14,7 +14,7 @@ interface DateRangeFilterProps {
 
 export function DateRangeFilter({ startDate, endDate, onStartChange, onEndChange, onClear }: DateRangeFilterProps) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 flex-wrap">
       <Calendar className="h-4 w-4 text-slate-400" />
       <Input type="date" className="w-[140px] h-8 text-xs" value={startDate} onChange={(e) => onStartChange(e.target.value)} />
       <span className="text-xs text-slate-400">to</span>

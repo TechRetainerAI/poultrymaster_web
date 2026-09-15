@@ -181,7 +181,8 @@ export default function HotelGuestRequestsPage() {
           ) : (
             <Card>
               <CardContent className="p-0">
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[520px]">
                   <thead className="bg-slate-50 border-b">
                     <tr>
                       <th className="text-left p-3">Date</th>
@@ -215,7 +216,8 @@ export default function HotelGuestRequestsPage() {
                       <tr><td colSpan={8} className="p-8 text-center text-slate-400">No requests found.</td></tr>
                     )}
                   </tbody>
-                </table>
+                  </table>
+                </div>
                 <PaginationControls page={page} pageSize={pageSize} total={filtered.length} onPageChange={setPage} />
               </CardContent>
             </Card>
@@ -233,7 +235,7 @@ export default function HotelGuestRequestsPage() {
                     </DialogTitle>
                   </DialogHeader>
                   <div className="space-y-3 text-sm">
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div><span className="text-slate-500">Guest</span><div className="font-semibold">{detailItem.firstname ? `${detailItem.firstname} ${detailItem.lastname}` : "—"}</div></div>
                       <div><span className="text-slate-500">Room</span><div className="font-semibold">{detailItem.roomnumber ?? "—"}</div></div>
                       <div><span className="text-slate-500">Created</span><div>{detailItem.createdat ? new Date(detailItem.createdat).toLocaleString() : "—"}</div></div>
@@ -271,7 +273,7 @@ export default function HotelGuestRequestsPage() {
             <DialogContent className="max-w-lg">
               <DialogHeader><DialogTitle>New Guest Request</DialogTitle></DialogHeader>
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <Label>Booking (optional)</Label>
                     <Select value={form.hotelBookingId ? String(form.hotelBookingId) : "__none__"} onValueChange={(v) => {
@@ -313,7 +315,7 @@ export default function HotelGuestRequestsPage() {
                   })()}
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <Label>Type *</Label>
                     <Select value={typeSelection || "__none__"} onValueChange={(v) => {

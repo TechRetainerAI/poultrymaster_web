@@ -143,7 +143,8 @@ export default function HotelStaffPage() {
 
         {loading ? <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-violet-600" /></div> : (
           <Card><CardContent className="p-0">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[770px]">
               <thead className="bg-slate-50 border-b"><tr>
                 <th className="text-left p-3">Name</th><th className="text-left p-3">Role</th><th className="text-left p-3">Department</th>
                 <th className="text-left p-3">Phone</th><th className="text-left p-3">Status</th><th className="text-right p-3">Salary</th><th className="text-right p-3">Actions</th>
@@ -172,7 +173,8 @@ export default function HotelStaffPage() {
                 })}
                 {filtered.length === 0 && <tr><td colSpan={7} className="p-8 text-center text-slate-400">No staff found. Add your hotel workers.</td></tr>}
               </tbody>
-            </table>
+              </table>
+            </div>
           </CardContent></Card>
         )}
 

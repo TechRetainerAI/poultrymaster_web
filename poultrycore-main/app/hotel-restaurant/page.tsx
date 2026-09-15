@@ -203,7 +203,8 @@ export default function HotelRestaurantPage() {
               </div>
             </div>
             <Card><CardContent className="p-0">
-              <table className="w-full text-sm"><thead className="bg-slate-50 border-b"><tr><th className="text-left p-3">#</th><th className="text-left p-3">Table</th><th className="text-left p-3">Server</th><th className="text-left p-3">Status</th><th className="text-right p-3">Total</th><th className="text-left p-3">Time</th><th className="text-right p-3">Action</th></tr></thead>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[770px]"><thead className="bg-slate-50 border-b"><tr><th className="text-left p-3">#</th><th className="text-left p-3">Table</th><th className="text-left p-3">Server</th><th className="text-left p-3">Status</th><th className="text-right p-3">Total</th><th className="text-left p-3">Time</th><th className="text-right p-3">Action</th></tr></thead>
                 <tbody>{filteredOrders.map((o: any, idx: number) => {
                   const id = o.hotelRestaurantOrderId ?? o.hotelrestaurantorderid
                   const next: Record<string, string> = { Placed: "Preparing", Preparing: "Ready", Ready: "Served" }
@@ -223,6 +224,7 @@ export default function HotelRestaurantPage() {
                 })}
                   {filteredOrders.length === 0 && <tr><td colSpan={7} className="p-8 text-center text-slate-400">No orders.</td></tr>}
                 </tbody></table>
+              </div>
             </CardContent></Card>
           </>
         )}

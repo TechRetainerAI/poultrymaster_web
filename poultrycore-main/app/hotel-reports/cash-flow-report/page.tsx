@@ -255,7 +255,8 @@ export default function CashFlowReportPage() {
                   <Card>
                     <CardHeader className="pb-2"><CardTitle className="text-sm">By Account</CardTitle></CardHeader>
                     <CardContent className="p-0">
-                      <table className="w-full text-sm">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm min-w-[550px]">
                         <thead className="bg-slate-50 border-b"><tr><th className="text-left p-3">Account</th><th className="text-right p-3 text-emerald-700">In</th><th className="text-right p-3 text-red-700">Out</th><th className="text-right p-3">Net</th><th className="text-right p-3">Balance</th></tr></thead>
                         <tbody>
                           {accountSummary.map((a, i) => (
@@ -268,7 +269,8 @@ export default function CashFlowReportPage() {
                             </tr>
                           ))}
                         </tbody>
-                      </table>
+                        </table>
+                      </div>
                     </CardContent>
                   </Card>
                 )}
@@ -276,14 +278,16 @@ export default function CashFlowReportPage() {
                   <Card>
                     <CardHeader className="pb-2"><CardTitle className="text-sm">By Source</CardTitle></CardHeader>
                     <CardContent className="p-0">
-                      <table className="w-full text-sm">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm min-w-[520px]">
                         <thead className="bg-slate-50 border-b"><tr><th className="text-left p-3">Source</th><th className="text-right p-3">Count</th><th className="text-right p-3">Total</th></tr></thead>
                         <tbody>
                           {sourceBreakdown.map((s, i) => (
                             <tr key={i} className="border-b"><td className="p-3 font-medium">{s.source}</td><td className="p-3 text-right">{s.count}</td><td className="p-3 text-right font-semibold">{s.total.toFixed(2)}</td></tr>
                           ))}
                         </tbody>
-                      </table>
+                        </table>
+                      </div>
                     </CardContent>
                   </Card>
                 )}
@@ -293,7 +297,8 @@ export default function CashFlowReportPage() {
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-sm">Transaction Log ({filtered.length})</CardTitle></CardHeader>
                 <CardContent className="p-0">
-                  <table className="w-full text-sm">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm min-w-[520px]">
                     <thead className="bg-slate-50 border-b">
                       <tr>
                         <th className="text-left p-3">Date</th>
@@ -331,7 +336,8 @@ export default function CashFlowReportPage() {
                       ))}
                       {filtered.length === 0 && <tr><td colSpan={9} className="p-8 text-center text-slate-400">No transactions found for the selected filters.</td></tr>}
                     </tbody>
-                  </table>
+                    </table>
+                  </div>
                 </CardContent>
               </Card>
             </>

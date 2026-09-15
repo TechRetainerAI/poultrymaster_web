@@ -189,7 +189,8 @@ export default function HotelExpensesPage() {
 
         {loading ? <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-violet-600" /></div> : (
           <Card><CardContent className="p-0">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[520px]">
               <thead className="bg-slate-50 border-b"><tr>
                 <th className="text-left p-3">Date</th>
                 <th className="text-left p-3">Category</th>
@@ -226,7 +227,8 @@ export default function HotelExpensesPage() {
                 })}
                 {filtered.length === 0 && <tr><td colSpan={9} className="p-8 text-center text-slate-400">No expenses found.</td></tr>}
               </tbody>
-            </table>
+              </table>
+            </div>
             <PaginationControls page={page} pageSize={pageSize} total={filtered.length} onPageChange={setPage} onPageSizeChange={(ps) => { setPageSize(ps); setPage(1) }} />
           </CardContent></Card>
         )}

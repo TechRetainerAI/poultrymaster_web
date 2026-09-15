@@ -295,7 +295,7 @@ export default function HotelSetupPage() {
           </div>
 
           <Tabs defaultValue="profile" className="space-y-4">
-            <TabsList className="flex-wrap">
+            <TabsList className="flex-wrap h-auto">
               <TabsTrigger value="profile">Profile</TabsTrigger>
               <TabsTrigger value="room-types">Room Types ({roomTypes.length})</TabsTrigger>
               <TabsTrigger value="rooms">Rooms ({rooms.length})</TabsTrigger>
@@ -310,21 +310,21 @@ export default function HotelSetupPage() {
                 <CardHeader><CardTitle>Hotel Profile</CardTitle></CardHeader>
                 <CardContent className="space-y-4 max-w-xl">
                   <div><Label>Hotel Name</Label><Input value={profile.hotelName ?? ""} onChange={(e) => setProfile({ ...profile, hotelName: e.target.value })} /></div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div><Label>Phone</Label><Input value={profile.phone ?? ""} onChange={(e) => setProfile({ ...profile, phone: e.target.value })} /></div>
                     <div><Label>Email</Label><Input value={profile.email ?? ""} onChange={(e) => setProfile({ ...profile, email: e.target.value })} /></div>
                   </div>
                   <div><Label>Address</Label><Input value={profile.address ?? ""} onChange={(e) => setProfile({ ...profile, address: e.target.value })} /></div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div><Label>City</Label><Input value={profile.city ?? ""} onChange={(e) => setProfile({ ...profile, city: e.target.value })} /></div>
                     <div><Label>Country</Label><Input value={profile.country ?? ""} onChange={(e) => setProfile({ ...profile, country: e.target.value })} /></div>
                   </div>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div><Label>Star Rating</Label><Input type="number" min={1} max={5} value={profile.starRating ?? ""} onChange={(e) => setProfile({ ...profile, starRating: e.target.value ? Number(e.target.value) : null })} /></div>
                     <div><Label>Check-in Time</Label><Input value={profile.checkInTime ?? "14:00"} onChange={(e) => setProfile({ ...profile, checkInTime: e.target.value })} /></div>
                     <div><Label>Check-out Time</Label><Input value={profile.checkOutTime ?? "12:00"} onChange={(e) => setProfile({ ...profile, checkOutTime: e.target.value })} /></div>
                   </div>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div><Label>Currency</Label><Input value={profile.defaultCurrency ?? "GHS"} onChange={(e) => setProfile({ ...profile, defaultCurrency: e.target.value })} /></div>
                     <div><Label>Tax Rate (%)</Label><Input type="number" step="0.01" value={profile.taxRate ?? 0} onChange={(e) => setProfile({ ...profile, taxRate: Number(e.target.value) })} /></div>
                     <div><Label>Service Charge (%)</Label><Input type="number" step="0.01" value={profile.serviceChargeRate ?? 0} onChange={(e) => setProfile({ ...profile, serviceChargeRate: Number(e.target.value) })} /></div>
@@ -350,7 +350,8 @@ export default function HotelSetupPage() {
                     <Select value={rtBedFilter} onValueChange={setRtBedFilter}><SelectTrigger className="w-[150px]"><SelectValue placeholder="All bed types" /></SelectTrigger><SelectContent><SelectItem value="all">All bed types</SelectItem>{bedTypes.map(b => <SelectItem key={b.hotelBedTypeId} value={String(b.hotelBedTypeId)}>{b.description}</SelectItem>)}</SelectContent></Select>
                     <span className="text-sm text-slate-400 self-center">{filteredRoomTypes.length} of {roomTypes.length}</span>
                   </div>
-                  <table className="w-full text-sm">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm min-w-[660px]">
                     <thead className="bg-slate-50 border-b"><tr><th className="text-left p-3">Category</th><th className="text-left p-3">Name</th><th className="text-left p-3">Base Rate</th><th className="text-left p-3">Max Guests</th><th className="text-left p-3">Bed Type</th><th className="text-right p-3">Actions</th></tr></thead>
                     <tbody>
                       {filteredRoomTypes.map((rt) => (
@@ -368,7 +369,8 @@ export default function HotelSetupPage() {
                       ))}
                       {filteredRoomTypes.length === 0 && <tr><td colSpan={6} className="p-8 text-center text-slate-400">{roomTypes.length === 0 ? "No room types yet." : "No room types match filters."}</td></tr>}
                     </tbody>
-                  </table>
+                    </table>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -391,7 +393,8 @@ export default function HotelSetupPage() {
                     <Select value={rmStatusFilter} onValueChange={setRmStatusFilter}><SelectTrigger className="w-[140px]"><SelectValue placeholder="All statuses" /></SelectTrigger><SelectContent><SelectItem value="all">All statuses</SelectItem><SelectItem value="Available">Available</SelectItem><SelectItem value="Occupied">Occupied</SelectItem><SelectItem value="Reserved">Reserved</SelectItem><SelectItem value="Cleaning">Cleaning</SelectItem><SelectItem value="Maintenance">Maintenance</SelectItem></SelectContent></Select>
                     <span className="text-sm text-slate-400 self-center">{filteredRooms.length} of {rooms.length}</span>
                   </div>
-                  <table className="w-full text-sm">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm min-w-[520px]">
                     <thead className="bg-slate-50 border-b">
                       <tr>
                         <th className="text-left p-3">Room #</th>
@@ -426,7 +429,8 @@ export default function HotelSetupPage() {
                       ))}
                       {filteredRooms.length === 0 && <tr><td colSpan={6} className="p-8 text-center text-slate-400"><DoorOpen className="h-8 w-8 mx-auto mb-2 text-slate-300" />{rooms.length === 0 ? "No rooms yet. Add room types and floors first, then create rooms." : "No rooms match filters."}</td></tr>}
                     </tbody>
-                  </table>
+                    </table>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -439,11 +443,12 @@ export default function HotelSetupPage() {
                   <Button size="sm" onClick={() => { setFlEditing(null); setFlForm({ floorNumber: floors.length + 1, name: `Floor ${floors.length + 1}` }); setFlDialogOpen(true) }} className="bg-violet-600 hover:bg-violet-700"><Plus className="h-4 w-4 mr-1" /> Add</Button>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex gap-2 mb-4">
+                  <div className="flex gap-2 mb-4 flex-wrap">
                     <div className="relative"><Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" /><Input placeholder="Search floor..." className="pl-8 w-[200px]" value={flSearch} onChange={(e) => setFlSearch(e.target.value)} /></div>
                     <span className="text-sm text-slate-400 self-center">{filteredFloors.length} of {floors.length}</span>
                   </div>
-                  <table className="w-full text-sm">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm min-w-[520px]">
                     <thead className="bg-slate-50 border-b"><tr><th className="text-left p-3">#</th><th className="text-left p-3">Name</th><th className="text-right p-3">Actions</th></tr></thead>
                     <tbody>
                       {filteredFloors.map((f) => (
@@ -458,7 +463,8 @@ export default function HotelSetupPage() {
                       ))}
                       {filteredFloors.length === 0 && <tr><td colSpan={3} className="p-8 text-center text-slate-400">{floors.length === 0 ? "No floors yet." : "No floors match search."}</td></tr>}
                     </tbody>
-                  </table>
+                    </table>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -476,7 +482,8 @@ export default function HotelSetupPage() {
                     <Select value={amCatFilter} onValueChange={setAmCatFilter}><SelectTrigger className="w-[160px]"><SelectValue placeholder="All categories" /></SelectTrigger><SelectContent><SelectItem value="all">All categories</SelectItem>{amenityCategories.map(c => <SelectItem key={c} value={c!}>{c}</SelectItem>)}</SelectContent></Select>
                     <span className="text-sm text-slate-400 self-center">{filteredAmenities.length} of {amenities.length}</span>
                   </div>
-                  <table className="w-full text-sm">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm min-w-[520px]">
                     <thead className="bg-slate-50 border-b"><tr><th className="text-left p-3">Name</th><th className="text-left p-3">Category</th><th className="text-right p-3">Actions</th></tr></thead>
                     <tbody>
                       {filteredAmenities.map((a) => (
@@ -491,7 +498,8 @@ export default function HotelSetupPage() {
                       ))}
                       {filteredAmenities.length === 0 && <tr><td colSpan={3} className="p-8 text-center text-slate-400">{amenities.length === 0 ? "No amenities yet." : "No amenities match filters."}</td></tr>}
                     </tbody>
-                  </table>
+                    </table>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -515,7 +523,8 @@ export default function HotelSetupPage() {
                     <span className="text-sm text-slate-400 self-center">{filteredRates.length} of {rates.length}</span>
                   </div>
                   {filteredRates.length > 0 ? (
-                    <table className="w-full text-sm">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm min-w-[520px]">
                       <thead className="bg-slate-50 border-b">
                         <tr>
                           <th className="text-left p-3">Rate Name</th>
@@ -562,7 +571,8 @@ export default function HotelSetupPage() {
                           )
                         })}
                       </tbody>
-                    </table>
+                      </table>
+                    </div>
                   ) : (
                     <div className="text-center py-8 text-slate-400">
                       <CalendarDays className="h-8 w-8 mx-auto mb-2 text-slate-300" />
@@ -597,7 +607,7 @@ export default function HotelSetupPage() {
                   </Select>
                 </div>
                 <div><Label>Name</Label><Input value={rtForm.name} onChange={(e) => setRtForm({ ...rtForm, name: e.target.value })} placeholder="e.g. Deluxe Double" /></div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><Label>Base Rate</Label><Input type="number" step="0.01" value={rtForm.baseRate} onChange={(e) => setRtForm({ ...rtForm, baseRate: Number(e.target.value) })} /></div>
                   <div><Label>Max Occupancy</Label><Input type="number" min={1} value={rtForm.maxOccupancy ?? 2} onChange={(e) => setRtForm({ ...rtForm, maxOccupancy: Number(e.target.value) })} /></div>
                 </div>
@@ -708,7 +718,7 @@ export default function HotelSetupPage() {
                   </Select>
                 </div>
                 <div><Label>Rate *</Label><Input type="number" step="0.01" value={rateForm.rate} onChange={(e) => setRateForm({ ...rateForm, rate: Number(e.target.value) })} /></div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><Label>Start Date *</Label><Input type="date" value={rateForm.startDate} onChange={(e) => setRateForm({ ...rateForm, startDate: e.target.value })} /></div>
                   <div><Label>End Date *</Label><Input type="date" value={rateForm.endDate} onChange={(e) => setRateForm({ ...rateForm, endDate: e.target.value })} /></div>
                 </div>

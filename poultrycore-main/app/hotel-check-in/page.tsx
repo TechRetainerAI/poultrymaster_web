@@ -128,7 +128,7 @@ export default function HotelCheckInPage() {
 
         {loading ? <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-violet-600" /></div> : (
           <Tabs value={tab} onValueChange={(v) => { setTab(v); setPage(1) }}>
-            <TabsList className="mb-4">
+            <TabsList className="mb-4 flex-wrap h-auto">
               <TabsTrigger value="awaiting">Awaiting Check-in ({filteredConfirmed.length})</TabsTrigger>
               <TabsTrigger value="inhouse">In-House Guests ({filteredInHouse.length})</TabsTrigger>
             </TabsList>
@@ -156,7 +156,8 @@ export default function HotelCheckInPage() {
             {/* TAB 2: In-House Guests with balance tracking */}
             <TabsContent value="inhouse">
               <Card><CardContent className="p-0">
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[520px]">
                   <thead className="bg-slate-50 border-b"><tr>
                     <th className="text-left p-3">Guest</th>
                     <th className="text-left p-3">Room</th>
@@ -197,7 +198,8 @@ export default function HotelCheckInPage() {
                     })}
                     {filteredInHouse.length === 0 && <tr><td colSpan={11} className="p-8 text-center text-slate-400">{search ? "No matching guests found." : "No guests currently checked in."}</td></tr>}
                   </tbody>
-                </table>
+                  </table>
+                </div>
                 <PaginationControls page={page} pageSize={pageSize} total={filteredInHouse.length} onPageChange={setPage} onPageSizeChange={(ps) => { setPageSize(ps); setPage(1) }} />
               </CardContent></Card>
             </TabsContent>
@@ -217,7 +219,7 @@ export default function HotelCheckInPage() {
                 </Select>
               </div>
               <div><Label>Key Card Number</Label><Input value={keyCard} onChange={(e) => setKeyCard(e.target.value)} placeholder="Optional" /></div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><Label>Deposit Amount</Label><Input type="number" step="0.01" value={deposit} onChange={(e) => setDeposit(Number(e.target.value))} /></div>
                 <div><Label>Deposit Method</Label>
                   <Select value={depositMethod} onValueChange={setDepositMethod}><SelectTrigger><SelectValue /></SelectTrigger>
