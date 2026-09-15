@@ -26,6 +26,7 @@ import {
   Boxes, Box, ShoppingBag, AlertTriangle, AlertCircle, Layers, Loader2, Search,
   ExternalLink, RefreshCw, Download, Mail,
 } from "lucide-react"
+import { feedItemKind } from "@/lib/utils/feed-item-ledger"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -74,7 +75,10 @@ function productLink(p: PoultryProduct): { href: string; label: string } {
 }
 function rawLink(r: PoultryRawMaterialItem): { href: string; label: string } {
   const id = r.poultryRawMaterialItemId
-  if (r.category === "FeedIngredient") return { href: `/feed-tracker?inventoryItemId=${id}`, label: "Feed Tracker" }
+  // Both feed categories go to the per-item tracker, which is the one that can
+  // show THIS item's movements; /feed-tracker pools every feed item into one
+  // balance and never filtered on inventoryItemId.
+  if (feedItemKind(r.category)) return { href: `/feed-inventory-tracker?itemId=${id}`, label: "Feed Tracker" }
   if (r.category === "Medication" || r.category === "Vaccine") return { href: `/medication-tracker?inventoryItemId=${id}`, label: "Medication Tracker" }
   return { href: `/poultry-stock?rawId=${id}`, label: "View Details" }
 }

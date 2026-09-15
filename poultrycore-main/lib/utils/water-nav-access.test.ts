@@ -92,4 +92,15 @@ describe("isWaterNavItemVisible", () => {
     expect(isWaterNavItemVisible("/water-payroll", access({ canViewWaterPayroll: true }), false)).toBe(true)
     expect(isWaterNavItemVisible("/water-reports", access({ canViewReports: true }), false)).toBe(true)
   })
+
+  it("gates Deferred inventory cost as a costing page, not an inventory one", () => {
+    // It reads as generously as Expenses, because that is the menu it is filed
+    // under and the question it answers. It is NOT on canViewWaterInventory:
+    // a storekeeper who can count film has no business reading what it cost.
+    expect(isGatedWaterRoute("/water-deferred-costs")).toBe(true)
+    expect(isWaterNavItemVisible("/water-deferred-costs", access({ canEnterExpenses: true }), false)).toBe(true)
+    expect(isWaterNavItemVisible("/water-deferred-costs", access({ canViewFinancial: true }), false)).toBe(true)
+    expect(isWaterNavItemVisible("/water-deferred-costs", access({ canViewWaterInventory: true }), false)).toBe(false)
+    expect(isWaterNavItemVisible("/water-deferred-costs", access(), false)).toBe(false)
+  })
 })

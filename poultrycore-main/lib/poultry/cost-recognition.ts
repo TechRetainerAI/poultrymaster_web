@@ -207,3 +207,54 @@ export const EXPENSED_AT_PURCHASE_TOOLTIP =
 
 export const OPERATIONAL_VALUE_TOOLTIP =
   "What the stock on hand cost. This is what the inventory is worth, whichever way its cost was recognised."
+
+// ---------------------------------------------------------------------------
+// Deferred Inventory Costs page (migration 288).
+//
+// Written for a farm owner, not an accountant: no "COGS", no "recognition
+// allocation ledger". Every one of these explains a number that is on screen
+// beside it, in the words somebody would use to ask about it.
+// ---------------------------------------------------------------------------
+
+export const REMAINING_DEFERRED_TOOLTIP =
+  "The part of this purchase still held as stock value. It has not been charged to Profit & Loss yet, and will be as the stock is used."
+
+export const RECOGNIZED_COST_TOOLTIP =
+  "How much of this purchase has already been charged to Profit & Loss as the stock was used."
+
+export const OPERATIONAL_COST_TOOLTIP =
+  "The stock this activity actually used up, at what it cost. Some of it may have been charged to Profit & Loss earlier, when it was bought."
+
+export const NEWLY_RECOGNIZED_TOOLTIP =
+  "The part of this usage that is being charged to Profit & Loss now."
+
+export const ALREADY_EXPENSED_TOOLTIP =
+  "The part of this usage that was already charged to Profit & Loss when the stock was bought. It is not charged again."
+
+/**
+ * The one that stops an owner reading a settled purchase as a problem, and a
+ * problem as settled.
+ */
+export const DEFERRED_EXCEPTION_TOOLTIP =
+  "This purchase's own balance and its recorded usages do not agree on how much has been charged to Profit & Loss. Neither figure should be relied on until it is checked."
+
+export const DEFERRED_PAGE_INTRO =
+  "These purchases have already been recorded and may already have affected cash or supplier balances. What is shown here is stock value that has not yet become an expense -- it moves into Profit & Loss as the stock is used."
+
+/** Beside anything that might be read as a second payment. */
+export const NO_SECOND_PAYMENT_TOOLTIP =
+  "Charging this to Profit & Loss moves no money. The cash left the business when the stock was bought."
+
+/** Status → badge tone on the deferred page. */
+export function deferredStatusTone(status: string | null | undefined): RecognitionTone {
+  switch (status) {
+    case "Not yet expensed":
+    case "Partly expensed":
+      return "deferred"
+    case "Fully expensed":
+    case "Expensed at purchase":
+      return "expensed"
+    default:
+      return "muted"
+  }
+}

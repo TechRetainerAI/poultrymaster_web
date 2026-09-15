@@ -12,7 +12,6 @@ import { NumberInput } from "@/components/ui/number-input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { DataPagination } from "@/components/ui/data-pagination"
@@ -228,7 +227,7 @@ export default function PoultryDailyClosingPage() {
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>New daily closing</DialogTitle></DialogHeader>
-          <FormSection title="Date" color="blue"><FormField label="Closing date"><Input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} /></FormField></FormSection>
+          <div className="space-y-2"><Label>Closing date</Label><Input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} /></div>
           <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setNewOpen(false)}>Cancel</Button><Button onClick={createNew} disabled={busy}>{busy ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create"}</Button></div>
         </DialogContent>
       </Dialog>

@@ -8,6 +8,12 @@ import {
   methodShortLabel,
   recognitionTone,
   recognizedCostNote,
+  deferredStatusTone,
+  REMAINING_DEFERRED_TOOLTIP,
+  NEWLY_RECOGNIZED_TOOLTIP,
+  ALREADY_EXPENSED_TOOLTIP,
+  NO_SECOND_PAYMENT_TOOLTIP,
+  DEFERRED_EXCEPTION_TOOLTIP,
   type FarmCostRecognitionDefaults,
 } from "./cost-recognition"
 
@@ -187,5 +193,68 @@ describe("recognizedCostNote", () => {
 
   it("distinguishes nothing recognised from nothing drawn", () => {
     expect(recognizedCostNote(0, 0)).toContain("No cost layers")
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Migration 288: the Deferred Inventory Costs page's own vocabulary.
+//
+// These mirror the status strings produced by fnpoultrydeferredpurchase_rows
+// and checked in database/checks/poultry-deferred-inventory-cost-reads.test.sql.
+// The SQL is the authority for WHICH status a purchase gets; this file only
+// guards how the page colours and explains it.
+// ---------------------------------------------------------------------------
+describe("deferredStatusTone", () => {
+  it("treats cost still waiting as deferred", () => {
+    expect(deferredStatusTone("Not yet expensed")).toBe("deferred")
+    expect(deferredStatusTone("Partly expensed")).toBe("deferred")
+  })
+
+  it("treats settled cost as expensed, however it got there", () => {
+    // Two different histories, one meaning: nothing more will hit the P&L.
+    expect(deferredStatusTone("Fully expensed")).toBe("expensed")
+    expect(deferredStatusTone("Expensed at purchase")).toBe("expensed")
+  })
+
+  it("does NOT dress an Exception as either", () => {
+    // The one that matters: an Exception must never borrow the calm green of a
+    // settled purchase or the ordinary amber of a waiting one. The page paints
+    // it red from the status string itself.
+    expect(deferredStatusTone("Exception")).toBe("muted")
+  })
+
+  it("falls back to muted on an unknown or missing status", () => {
+    // A server that grows a new status must not crash the page or, worse,
+    // colour the unknown one as though it were settled.
+    expect(deferredStatusTone(null)).toBe("muted")
+    expect(deferredStatusTone(undefined)).toBe("muted")
+    expect(deferredStatusTone("Something New")).toBe("muted")
+  })
+})
+
+describe("deferred-cost tooltips", () => {
+  it("never uses accountant vocabulary", () => {
+    // Section 29 of the brief: no "COGS", no "deferred recognition allocation
+    // ledger". These are read by farm owners.
+    const all = [
+      REMAINING_DEFERRED_TOOLTIP, NEWLY_RECOGNIZED_TOOLTIP,
+      ALREADY_EXPENSED_TOOLTIP, NO_SECOND_PAYMENT_TOOLTIP,
+      DEFERRED_EXCEPTION_TOOLTIP,
+    ]
+    for (const t of all) {
+      expect(t).not.toMatch(/COGS|amortis|accrual|ledger|allocation/i)
+      expect(t.length).toBeGreaterThan(20)
+    }
+  })
+
+  it("says plainly that recognising a cost moves no money", () => {
+    // The single most expensive misreading on this page: an owner seeing a new
+    // expense and believing they have been charged twice.
+    expect(NO_SECOND_PAYMENT_TOOLTIP).toMatch(/moves no money|no money/i)
+    expect(NO_SECOND_PAYMENT_TOOLTIP).toMatch(/bought/i)
+  })
+
+  it("warns that neither figure is safe on an Exception", () => {
+    expect(DEFERRED_EXCEPTION_TOOLTIP).toMatch(/do not agree|until it is checked/i)
   })
 })

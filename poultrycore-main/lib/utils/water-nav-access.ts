@@ -95,6 +95,13 @@ const WATER_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAdmin: 
   "/water-staff": (f, isAdmin) => isAdmin || f.canSeeEmployees,
   "/water-payroll": (f) => f.canViewWaterPayroll,
 
+  // Stock cost that has NOT become an expense yet. Filed under Expenses, so it
+  // reads as generously as Expenses does: anyone who can see what the company
+  // spends can see what it has not spent yet. It is a costing detail, which is
+  // why it is not on canViewWaterInventory -- a storekeeper who can count film
+  // has no business reading what the film cost.
+  "/water-deferred-costs": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canEnterExpenses,
+
   // --- Assets --------------------------------------------------------------
   // Migrations 283-286. Read as generously as Expenses, because that is where a
   // major purchase is entered from and the register is largely a different view
@@ -105,6 +112,11 @@ const WATER_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAdmin: 
 
   // --- Reports / Setup -----------------------------------------------------
   "/water-reports": (f) => f.canViewReports,
+  // Surfaced in the Money group under Cash Flow as well as inside Reports. It
+  // is the same page either way, so it follows the same rule -- without this it
+  // would fall through to the default-allow and show to someone who cannot open
+  // Reports at all.
+  "/water-reports/profit-loss": (f) => f.canViewReports,
   "/water-setup": (f) => f.canViewWaterSetup,
   "/water-company-setup": (f) => f.canViewWaterSetup,
   // Migrations 274 and 276. Configuration, but it changes what the owner reads

@@ -14,6 +14,10 @@
 #                   when they are eaten, once, and come back on reversal
 #   -Stage 7   267  the two inventory values and the cost-layer audit
 #   -Stage 8   268  the read surface those numbers are shown through
+#   -Stage 9   288  the deferred-cost read surface: purchase-level recognition,
+#                   per-purchase history and the per-usage cost breakdown
+#   -Stage 10  289  the consumption-queue indicator: why a deferred cost can sit
+#                   still while stock is consumed (older lots are drawn first)
 #
 # The four phases, as in apply-water-money.ps1:
 #
@@ -45,7 +49,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateRange(1, 8)]
+    [ValidateRange(1, 10)]
     [int]    $Stage,
     [string] $DbHost   = '34.175.134.7',
     [int]    $Port     = 5432,
@@ -74,6 +78,9 @@ $stages = @{
     6 = @{ Migration = '266_PoultryConsumptionRecognition.postgres.sql';    Check = 'poultry-consumption-recognition.test.sql' }
     7 = @{ Migration = '267_PoultryCostLayerGuards.postgres.sql';           Check = 'poultry-cost-layer-guards.test.sql' }
     8 = @{ Migration = '268_PoultryCostRecognitionReads.postgres.sql';      Check = 'poultry-cost-recognition-reads.test.sql' }
+    # ---- Phase 3 ------------------------------------------------------------
+    9 = @{ Migration = '288_PoultryDeferredInventoryCostReads.postgres.sql'; Check = 'poultry-deferred-inventory-cost-reads.test.sql' }
+   10 = @{ Migration = '289_PoultryDeferredQueuePosition.postgres.sql';      Check = 'poultry-deferred-queue-position.test.sql' }
 }
 $plan = $stages[$Stage]
 $files = @($plan.Migration)

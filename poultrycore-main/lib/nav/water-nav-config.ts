@@ -17,7 +17,7 @@ import {
   Activity, AlertTriangle, Banknote, BarChart3, Bell, Boxes, Box, Building2,
   CalendarDays, Cog, Coins, CreditCard, Droplets, FileText, Factory, ListTodo, PackageMinus, Receipt,
   Route as RouteIcon, Settings, ShoppingBag, ShoppingCart, Truck, User, UserCog,
-  Users, Users2, Wallet, Wrench, History, Scale, ArrowLeftRight, HandCoins,
+  Users, Users2, Wallet, Wrench, History, Hourglass, Scale, ArrowLeftRight, HandCoins, TrendingUp,
 } from "lucide-react"
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isWaterNavItemVisible } from "@/lib/utils/water-nav-access"
@@ -168,12 +168,22 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
           // we've paid against it.
           { id: "supplier-payments", title: "Supplier Payments", icon: Receipt, href: "/water-supplier-payments" },
           { id: "supplier-balances", title: "Supplier Balances", icon: Truck, href: "/water-supplier-balances" },
+          // Sits with Expenses because that is what it is about: stock cost
+          // that has NOT become an expense yet. It is deliberately not under
+          // Inventory -- an owner asking "why is my packaging bill low this
+          // month" looks here, beside the expenses it explains.
+          //
+          // "Deferred inventory cost" is the name everywhere, matching the
+          // poultry row and the page's own heading.
+          { id: "deferred-inventory-costs", title: "Deferred inventory cost", icon: Hourglass, href: "/water-deferred-costs" },
           // Migrations 283-286. Assets sit in the Expenses column because that
           // is where a major purchase is recorded from -- a company buying a
           // borehole pump looks here, not in a separate "capital" menu -- but
           // they are deliberately NOT expenses, which the page says on every
           // screen.
-          { id: "assets", title: "Assets", icon: Building2, href: "/water-assets" },
+          // "Capital Investments/Assets" matches the poultry row: the page is
+          // filed under one name and talked about as the other.
+          { id: "assets", title: "Capital Investments/Assets", icon: Building2, href: "/water-assets" },
         ],
       },
       {
@@ -181,16 +191,19 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
         label: "Money",
         items: [
           { id: "cash-flow",     title: "Cash Flow",       icon: Wallet,   href: "/water-cash-flow" },
-          { id: "cash-accounts", title: "Cash accounts",   icon: Wallet,   href: "/water-cash-accounts" },
-          { id: "cash-reconciliation", title: "Reconcile cash", icon: Scale, href: "/water-cash-reconciliation" },
-          // Migration 257. Money between the company's own accounts -- never
-          // company-wide money in or out, which is why it sits here with the
-          // cash pages and not under Sales or Expenses.
-          { id: "cash-transfers", title: "Cash Transfers", icon: ArrowLeftRight, href: "/water-cash-transfers" },
+          // The same page as Reports > Profit & Loss, surfaced beside Cash Flow.
+          { id: "profit-loss",   title: "Profit & Loss",   icon: TrendingUp, href: "/water-reports/profit-loss" },
           // Migration 258. Owner funding in and out -- financing, never trading.
           { id: "owner-money", title: "Owner Money", icon: HandCoins, href: "/water-owner-money" },
           // Migration 259. Borrowing and repayments.
           { id: "loans", title: "Loans", icon: HandCoins, href: "/water-loans" },
+          // The accounts themselves and the two things you do TO them, kept
+          // together at the foot of the column, same order as the poultry rail:
+          // where the money sits, moving it between our own accounts (257), and
+          // counting it against what the system says.
+          { id: "cash-accounts", title: "Cash accounts",   icon: Wallet,   href: "/water-cash-accounts" },
+          { id: "cash-transfers", title: "Cash Transfers", icon: ArrowLeftRight, href: "/water-cash-transfers" },
+          { id: "cash-reconciliation", title: "Reconciliation", icon: Scale, href: "/water-cash-reconciliation" },
         ],
       },
     ],
@@ -268,6 +281,10 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
           // and put "account" back in the System blurb in top-nav.tsx.
           { id: "profile",    title: "Account",            icon: User,     href: "/profile", visible: false },
           { id: "alerts",     title: "Alerts",             icon: Bell,     onClick: onOpenAlerts, badge: alertCount },
+          // The account's own subscription. It was never in the water nav at
+          // all -- only the poultry Money column carried it -- so a water owner
+          // had no way to reach their billing from here.
+          { id: "billing",    title: "Billing",            icon: CreditCard, href: "/billing" },
           { id: "audit-logs", title: "Activity Log",       icon: Activity, href: "/audit-logs", visible: canSeeActivityLog },
           { id: "terms",      title: "Terms & Conditions", icon: ListTodo, href: "/terms" },
         ],

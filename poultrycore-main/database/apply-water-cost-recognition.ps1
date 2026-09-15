@@ -8,8 +8,10 @@
 #   -Stage 3   276  permissions
 #   -Stage 4   277  cost layers: the deferred balance on a lot and the pro-rata
 #                   draw when stock is consumed
-#   -Stage 5   278  the deferred cost is opened at purchase and carried through
-#                   a production batch into the finished product
+#   -Stage 5   278  the deferred cost is opened at purchase, and an edit to an
+#                   untouched lot carries it. NOT a lot-to-lot transfer: water
+#                   has no produced raw-material lot, unlike poultry's feed
+#                   production. See 278's header.
 #   -Stage 6   279  consumption recognition: packaging and treatment reach the
 #                   P&L when they are used, once, and come back on reversal
 #   -Stage 7   280  the two inventory values and the cost-layer audit
@@ -17,8 +19,21 @@
 #
 # WHICH STAGES EXIST TODAY
 # ========================
-# Stages 1 and 3 (274, 276) are written. The rest are NOT, and the script throws
-# "Missing migration" rather than pretending otherwise.
+# Stages 1-6 and 8 are written. Stage 7 (280, the guards/reconciliation report)
+# is NOT, and the script throws rather than pretending otherwise. 8 does not
+# depend on 7 -- 281 reads the columns 277 added, not anything 280 builds.
+#
+# STAGE 6 IS THE ONE THAT SWITCHES THE FEATURE ON. 279 replaces
+# fnwatercostrecognition_deferralready() with TRUE. Until it is applied, 275/277/
+# 278 are inert; after it, a company can choose EXPENSE_WHEN_CONSUMED.
+#
+# Stage 2 was unblocked by dumping the live Postgres definitions of
+# spwaterrawmaterialpurchase_insert and spwatersupplierpaymentcash_sync and
+# reproducing them inside 275 -- the water equivalent of what migration 207 did
+# for poultry. Stages 4-8 need the same treatment for the consume/FIFO engine
+# (spwaterrawmaterialitem_consumebatches) and the usage reads. Stage 4 did the
+# consume engine; 278-281 still need the usage reads and the production-batch
+# path.
 #
 # The reason is the same one apply-water-phase3.ps1 gives for its stage 4, and
 # it is worth stating once here in full because it shapes this whole workstream:
@@ -117,7 +132,7 @@ $stages = @{
     3 = @{ Migration = '276_WaterFinancialSettingsPermissions.postgres.sql'; Check = 'water-financial-settings-permissions.test.sql' }
     # ---- Phase 2 ------------------------------------------------------------
     4 = @{ Migration = '277_WaterDeferredCostLayers.postgres.sql';           Check = 'water-deferred-cost-layers.test.sql' }
-    5 = @{ Migration = '278_WaterDeferredCostTransfer.postgres.sql';         Check = 'water-deferred-cost-transfer.test.sql' }
+    5 = @{ Migration = '278_WaterDeferredCostOpening.postgres.sql';          Check = 'water-deferred-cost-opening.test.sql' }
     6 = @{ Migration = '279_WaterConsumptionRecognition.postgres.sql';       Check = 'water-consumption-recognition.test.sql' }
     7 = @{ Migration = '280_WaterCostLayerGuards.postgres.sql';              Check = 'water-cost-layer-guards.test.sql' }
     8 = @{ Migration = '281_WaterCostRecognitionReads.postgres.sql';         Check = 'water-cost-recognition-reads.test.sql' }
@@ -129,7 +144,7 @@ New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
 foreach ($f in $files) {
     if (-not (Test-Path (Join-Path $MigrationsDir $f))) {
-        if ($Stage -in 2, 4, 5, 6, 7, 8) {
+        if ($Stage -in 7) {
             throw "Stage $Stage ($f) has not been written yet -- it rewrites a live water SP whose Postgres body is not in this repo. See the header."
         }
         throw "Missing migration: $f"

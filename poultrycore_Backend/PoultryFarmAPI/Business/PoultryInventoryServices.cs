@@ -375,7 +375,7 @@ namespace PoultryFarmAPIWeb.Business
         {
             using var conn = new NpgsqlConnection(_cs);
             using var cmd = new NpgsqlCommand(
-                "SELECT SourceFeedProductionBatchId FROM dbo.PoultryRawMaterialPurchases WHERE PoultryRawMaterialPurchaseId = @Id AND FarmId = @FarmId", conn);
+                "SELECT sourcefeedproductionbatchid FROM poultryrawmaterialpurchases WHERE poultryrawmaterialpurchaseid = @Id AND farmid = @FarmId", conn);
             cmd.Parameters.AddWithValue("@Id", id);
             cmd.Parameters.AddWithValue("@FarmId", farmId);
             await conn.OpenAsync();

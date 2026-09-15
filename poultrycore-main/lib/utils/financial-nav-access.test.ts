@@ -69,4 +69,16 @@ describe("isFinancialNavItemVisible", () => {
     expect(isFinancialNavItemVisible("/customers", access({ canViewCustomers: true }), false)).toBe(true)
     expect(isFinancialNavItemVisible("/supplier-balances", access({ canEnterExpenses: true }), false)).toBe(true)
   })
+
+  it("shows the two cost-explaining Expenses pages to an expense or finance reader", () => {
+    // Capital Investments and Deferred inventory cost both answer "what did
+    // this cost and what did it do to the P&L", so they ride the expense flag
+    // rather than the inventory one, plus canViewFinancial for a finance-only
+    // reader who needs the pages explaining their expense lines.
+    for (const href of ["/poultry-assets", "/poultry-deferred-costs"]) {
+      expect(isFinancialNavItemVisible(href, access({ canEnterExpenses: true }), false), href).toBe(true)
+      expect(isFinancialNavItemVisible(href, access({ canViewFinancial: true }), false), href).toBe(true)
+      expect(isFinancialNavItemVisible(href, access(), false), href).toBe(false)
+    }
+  })
 })

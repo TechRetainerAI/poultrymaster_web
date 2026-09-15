@@ -34,7 +34,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
-import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, AlertTriangle, Factory } from "lucide-react"
+import Link from "next/link"
+import { Plus, Pencil, Loader2, Box, ShoppingCart, Trash2, Wallet, AlertTriangle, Factory, History } from "lucide-react"
+import { feedItemKind } from "@/lib/utils/feed-item-ledger"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { cn } from "@/lib/utils"
 import { RAW_MATERIAL_UNITS } from "@/lib/units"
@@ -581,15 +583,33 @@ function PoultryRawMaterialsPageInner() {
                         <div className="text-base font-semibold text-slate-900">{gh(valuation.summary.operationalValue)}</div>
                         <div className="text-[11px] text-slate-500">{valuation.summary.itemsWithStock} item(s) in stock</div>
                       </div>
-                      <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
-                        <div className="text-[11px] uppercase tracking-wide text-amber-700" title={DEFERRED_INVENTORY_TOOLTIP}>Awaiting Profit &amp; Loss</div>
+                      {/* 288. The number is now explainable, so it is a link.
+                          Only when there IS something behind it: a zero on a
+                          farm that expenses at purchase leads to an empty page
+                          and would read as a broken link rather than a correct
+                          zero. */}
+                      <button
+                        type="button"
+                        disabled={valuation.summary.deferredValue <= 0}
+                        onClick={() => router.push("/poultry-deferred-costs")}
+                        className={cn(
+                          "rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-left w-full",
+                          valuation.summary.deferredValue > 0
+                            ? "hover:bg-amber-100 cursor-pointer transition-colors"
+                            : "cursor-default",
+                        )}
+                        title={valuation.summary.deferredValue > 0
+                          ? "See the purchases this is waiting on"
+                          : DEFERRED_INVENTORY_TOOLTIP}
+                      >
+                        <div className="text-[11px] uppercase tracking-wide text-amber-700">Deferred inventory cost</div>
                         <div className="text-base font-semibold text-amber-900">{gh(valuation.summary.deferredValue)}</div>
                         <div className="text-[11px] text-amber-700">
-                          {valuation.summary.itemsDeferring > 0
-                            ? `${valuation.summary.itemsDeferring} item(s) expense on use`
+                          {valuation.summary.deferredValue > 0
+                            ? `${valuation.summary.itemsDeferring} item(s) expense on use · view purchases`
                             : "Every item is expensed at purchase"}
                         </div>
-                      </div>
+                      </button>
                       <div className="rounded-md border border-slate-200 bg-white px-3 py-2">
                         <div className="text-[11px] uppercase tracking-wide text-slate-500">Cost layers</div>
                         <div className="text-base font-semibold text-slate-900">{valuation.summary.openLots.toLocaleString()}</div>
@@ -699,9 +719,21 @@ function PoultryRawMaterialsPageInner() {
                                 <>
                                   <div className="font-medium" title={OPERATIONAL_VALUE_TOOLTIP}>{gh(v.operationalValue)}</div>
                                   {v.deferredValue > 0 ? (
-                                    <div className="text-[11px] text-amber-700" title={DEFERRED_INVENTORY_TOOLTIP}>
-                                      {gh(v.deferredValue)} awaiting P&amp;L
-                                    </div>
+                                    // 288. Opens the deferred page filtered to
+                                    // this item, so the figure lands on the
+                                    // purchases that make it up rather than on
+                                    // the whole farm's list.
+                                    <button
+                                      type="button"
+                                      className="text-[11px] text-amber-700 underline decoration-dotted underline-offset-2 hover:text-amber-900"
+                                      title="See the purchases this is waiting on"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        router.push(`/poultry-deferred-costs?itemId=${i.poultryRawMaterialItemId}`)
+                                      }}
+                                    >
+                                      {gh(v.deferredValue)} deferred inventory cost
+                                    </button>
                                   ) : (
                                     <div className="text-[11px] text-slate-500" title={EXPENSED_AT_PURCHASE_TOOLTIP}>
                                       Already expensed
@@ -712,6 +744,16 @@ function PoultryRawMaterialsPageInner() {
                             })()}
                           </TableCell>
                           <TableCell className="text-right">
+                            {/* Feed items only: the tracker reads the two feed
+                                categories, so the link would open an empty page
+                                for packaging or a spare part. */}
+                            {feedItemKind(i.category) && (
+                              <Button asChild variant="ghost" size="sm" title="Track this item's movements">
+                                <Link href={`/feed-inventory-tracker?itemId=${i.poultryRawMaterialItemId}`}>
+                                  <History className="w-4 h-4 text-amber-700" />
+                                </Link>
+                              </Button>
+                            )}
                             <Button variant="ghost" size="sm" onClick={() => openEditItem(i)}><Pencil className="w-4 h-4" /></Button>
                             <Button variant="ghost" size="sm" onClick={() => setDeleteItemTarget(i)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
                           </TableCell>
@@ -727,6 +769,13 @@ function PoultryRawMaterialsPageInner() {
                           badge={!i.isActive ? <Badge variant="secondary">Inactive</Badge> : i.isLowStock ? <Badge className="bg-amber-100 text-amber-700">Low stock</Badge> : <Badge className="bg-green-100 text-green-700">OK</Badge>}
                           fields={[["Category", categoryLabel(i.category)], ["Purchase Unit", i.purchaseUnitOfMeasure ?? "—"], ["Production Unit", i.unitOfMeasure ?? "—"], ["In stock", i.currentQuantity.toLocaleString()], ["Min alert", i.minimumStockAlert.toLocaleString()], ["Cost recognised", `${methodShortLabel(i.effectiveCostRecognitionMethod)}${i.costRecognitionSource === "ItemOverride" ? " (override)" : ""}`]]}
                           actions={<>
+                            {feedItemKind(i.category) && (
+                              <Button asChild variant="ghost" size="sm" title="Track this item's movements">
+                                <Link href={`/feed-inventory-tracker?itemId=${i.poultryRawMaterialItemId}`}>
+                                  <History className="w-4 h-4 text-amber-700" />
+                                </Link>
+                              </Button>
+                            )}
                             <Button variant="ghost" size="sm" onClick={() => openEditItem(i)}><Pencil className="w-4 h-4" /></Button>
                             <Button variant="ghost" size="sm" onClick={() => setDeleteItemTarget(i)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
                           </>} />
@@ -810,9 +859,17 @@ function PoultryRawMaterialsPageInner() {
                                   {p.costRecognitionStatus}
                                 </Badge>
                                 {(p.deferredRemainingCost ?? 0) > 0 && (
-                                  <div className="mt-0.5 text-[11px] text-amber-700" title={DEFERRED_INVENTORY_TOOLTIP}>
-                                    {gh(p.deferredRemainingCost ?? 0)} awaiting P&amp;L
-                                  </div>
+                                  <button
+                                    type="button"
+                                    className="mt-0.5 block text-[11px] text-amber-700 underline decoration-dotted underline-offset-2 hover:text-amber-900 ml-auto"
+                                    title="See this purchase's recognition history"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      router.push(`/poultry-deferred-costs?itemId=${p.poultryRawMaterialItemId}`)
+                                    }}
+                                  >
+                                    {gh(p.deferredRemainingCost ?? 0)} deferred inventory cost
+                                  </button>
                                 )}
                               </>
                             ) : <span className="text-slate-400">—</span>}

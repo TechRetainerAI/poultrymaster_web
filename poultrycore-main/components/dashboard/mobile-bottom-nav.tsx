@@ -59,7 +59,7 @@ import {
   Repeat,
   CalendarClock,
   ArrowLeftRight,
-  HandCoins,
+  HandCoins, TrendingUp, Hourglass,
 } from "lucide-react"
 import {
   Sheet,
@@ -249,14 +249,21 @@ export function MobileBottomNav() {
               { href: "/water-payroll",           label: "Payroll",           icon: Banknote },
               { href: "/water-supplier-payments", label: "Supplier Payments", icon: Receipt },
               { href: "/water-supplier-balances", label: "Supplier Balances", icon: Truck },
+              // Stock cost that has not become an expense yet — filed beside
+              // the expenses it explains, matching the sidebar and top nav.
+              { href: "/water-deferred-costs",    label: "Deferred inventory cost", icon: Hourglass },
+              // 283-286. Present in the top nav and sidebar but never here, so
+              // a phone user could not reach it at all.
+              { href: "/water-assets",            label: "Capital Investments/Assets", icon: Building2 },
             ] as NavItem[]) },
             { title: "Money", items: gateWater([
               { href: "/water-cash-flow",           label: "Cash Flow",      icon: Wallet },
-              { href: "/water-cash-accounts",       label: "Cash accounts",  icon: Wallet },
-              { href: "/water-cash-reconciliation", label: "Reconcile cash", icon: Scale },
-              { href: "/water-cash-transfers",      label: "Cash Transfers", icon: ArrowLeftRight },
+              { href: "/water-reports/profit-loss", label: "Profit & Loss",  icon: TrendingUp },
               { href: "/water-owner-money",         label: "Owner Money",    icon: HandCoins },
               { href: "/water-loans",               label: "Loans",          icon: HandCoins },
+              { href: "/water-cash-accounts",       label: "Cash accounts",  icon: Wallet },
+              { href: "/water-cash-transfers",      label: "Cash Transfers", icon: ArrowLeftRight },
+              { href: "/water-cash-reconciliation", label: "Reconciliation", icon: Scale },
             ] as NavItem[]) },
           ]) },
           ...asSections([
@@ -282,6 +289,8 @@ export function MobileBottomNav() {
               ? [{ href: "/employees", label: "Users & Permissions", icon: UserCog }] : []),
             { href: "/profile",   label: "Account",   icon: User },
             { href: "/companies", label: "Companies", icon: Building2 },
+            // The account's own subscription, matching the sidebar and top nav.
+            { href: "/billing",   label: "Billing",   icon: CreditCard },
             ...(permissions.featureAccess.canViewActivityLog
               ? [{ href: "/audit-logs", label: "Activity Log", icon: Activity }] : []),
             { href: "/terms", label: "Terms & Conditions", icon: FileText },
@@ -367,6 +376,8 @@ export function MobileBottomNav() {
               ? [{ href: "/employees", label: "Users & Permissions", icon: UserCog }] : []),
             { href: "/profile",   label: "Account",   icon: User },
             { href: "/companies", label: "Companies", icon: Building2 },
+            // The account's own subscription, matching the sidebar and top nav.
+            { href: "/billing",   label: "Billing",   icon: CreditCard },
             ...(permissions.featureAccess.canViewActivityLog
               ? [{ href: "/audit-logs", label: "Activity Log", icon: Activity }] : []),
             { href: "/terms", label: "Terms & Conditions", icon: FileText },
@@ -433,6 +444,8 @@ export function MobileBottomNav() {
             { href: "/hotel-setup", label: "Setup",     icon: Settings },
             { href: "/profile",     label: "Account",   icon: User },
             { href: "/companies",   label: "Companies", icon: Building2 },
+            // The account's own subscription, not a guest folio (/hotel-billing).
+            { href: "/billing",     label: "Billing",   icon: CreditCard },
           ] as NavItem[] },
         ]),
       }

@@ -292,6 +292,8 @@ export default function WaterLoansPage() {
             </CardContent></Card>
           ) : (
             <MobileCardList
+              defaultOpen
+              striped
               items={pg.pageItems}
               getKey={(l) => l.waterLoanId}
               primary={(l) => `${l.loanNumber ?? `#${l.waterLoanId}`} · ${l.lenderName}`}
@@ -327,7 +329,7 @@ export default function WaterLoansPage() {
                   )}
                 </>
               )}
-              {...pg.paginationProps}
+              pagination={pg.paginationProps}
               desktopTable={
                 <div className="overflow-x-auto">
                   <Table>

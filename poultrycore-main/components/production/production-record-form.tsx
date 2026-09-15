@@ -55,6 +55,7 @@ import { FeedLines, computeFeedLines, emptyFeedLine, buildFeedCredit, type FeedL
 import type { ConsumptionCredit } from "@/lib/utils/raw-material-costing"
 import { getBirdsLeftFromRecord, getLatestRecordForFlock } from "@/lib/utils/production-records"
 import { EGG_GRADE_OPTIONS, EGG_GRADE_SELECT_VALUE_NONE, eggGradeFromApi, eggGradeToApi } from "@/lib/constants/egg-grade"
+import { isFinishedFeedCategory } from "@/lib/utils/feed-item-ledger"
 import { useToast } from "@/hooks/use-toast"
 import { toastFormGuide } from "@/lib/utils/validation-toast"
 import { FormSectionCard, CalcField, NumField } from "./production-record-fields"
@@ -65,7 +66,11 @@ import {
 } from "@/lib/production/production-record-calc"
 
 // Doc §4a: classify a raw-material item as Feed or Medication by its category.
-const isFeedCategory = (c?: string | null) => !!c && /feed/i.test(c)
+// Feed here means FINISHED feed only. /feed/i also matched "FeedIngredient", so
+// maize and soya were offered as something to feed a flock -- they are what
+// finished feed is MILLED FROM, and drawing them here bypasses the feed batch
+// that turns them into feed. isFinishedFeedCategory is the same test the feed
+// formula builder and the feed trackers use.
 const isMedicationCategory = (c?: string | null) => !!c && /(medic|vaccin|drug)/i.test(c)
 
 const FEED_TYPES = [
@@ -199,7 +204,21 @@ export function ProductionRecordForm({
     })()
   }, [])
 
-  const feedItems = useMemo(() => rawItems.filter((i) => isFeedCategory(i.category)), [rawItems])
+  // Only finished feed can be PICKED. A record saved before that rule may
+  // already reference an ingredient, so any item a line already points at is
+  // kept in the list: dropping it would blank the line on edit and hide which
+  // stock the record actually drew.
+  const referencedFeedIds = useMemo(
+    () => new Set(feedLines.map((l) => l.specificFeedUsedId).filter(Boolean)),
+    [feedLines],
+  )
+  const feedItems = useMemo(
+    () => rawItems.filter(
+      (i) => isFinishedFeedCategory(i.category)
+        || referencedFeedIds.has(String(i.poultryRawMaterialItemId)),
+    ),
+    [rawItems, referencedFeedIds],
+  )
   const medItems = useMemo(() => rawItems.filter((i) => isMedicationCategory(i.category)), [rawItems])
 
   // Client-side preview of the FIFO/LIFO/HIFO batch draw (mirrors the server's

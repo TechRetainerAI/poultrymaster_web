@@ -282,9 +282,13 @@ export default function PoultryOwnerMoneyPage() {
             </CardContent></Card>
           ) : (
             <MobileCardList
+              defaultOpen
+              striped
               items={pg.pageItems}
-              getKey={(o) => o.poultryOwnerMoneyId}
-              primary={(o) => o.transactionNumber ?? `#${o.poultryOwnerMoneyId}`}
+              // Keyed on source + id: a Cash-page row carries
+              // poultryOwnerMoneyId 0, and the two id spaces overlap anyway.
+              getKey={(o) => `${o.source}:${o.sourceId}`}
+              primary={(o) => o.transactionNumber ?? `#${o.sourceId}`}
               secondary={(o) => (
                 <>
                   <span>{new Date(o.transactionDate).toLocaleDateString()}</span>
@@ -316,15 +320,23 @@ export default function PoultryOwnerMoneyPage() {
               ]}
               actions={(o) => (
                 <>
-                  {o.status === "Posted" && (
+                  {/* Recorded on the Cash page, so it is edited and deleted
+                      there. Reversing from here would write a cash row that
+                      page knows nothing about. */}
+                  {o.status === "Posted" && o.source === "OwnerMoney" && (
                     <Button size="sm" variant="outline" className="flex-1 h-10"
                             onClick={() => { setReversing(o); setReason("") }}>
                       <Undo2 className="h-4 w-4 mr-1" /> Reverse
                     </Button>
                   )}
+                  {o.source === "CashAdjustment" && (
+                    <span className="flex-1 text-[11px] text-slate-500 self-center">
+                      Recorded on the Cash page â€” edit it there.
+                    </span>
+                  )}
                 </>
               )}
-              {...pg.paginationProps}
+              pagination={pg.paginationProps}
               desktopTable={
                 <div className="overflow-x-auto">
                   <Table>
@@ -344,12 +356,17 @@ export default function PoultryOwnerMoneyPage() {
                     </TableHeader>
                     <TableBody>
                       {pg.pageItems.map((o) => (
-                        <TableRow key={o.poultryOwnerMoneyId}>
+                        <TableRow key={`${o.source}:${o.sourceId}`}>
                           <TableCell className="whitespace-nowrap">
                             {new Date(o.transactionDate).toLocaleDateString()}
                           </TableCell>
                           <TableCell className="font-medium">
-                            {o.transactionNumber ?? `#${o.poultryOwnerMoneyId}`}
+                            {o.transactionNumber ?? `#${o.sourceId}`}
+                            {o.source === "CashAdjustment" && (
+                              <div className="text-[11px] font-normal text-slate-500">
+                                From the Cash page
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell>{o.ownerName ?? "–"}</TableCell>
                           <TableCell>
@@ -371,11 +388,16 @@ export default function PoultryOwnerMoneyPage() {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
-                            {o.status === "Posted" && (
+                            {o.status === "Posted" && o.source === "OwnerMoney" && (
                               <Button size="sm" variant="outline"
                                       onClick={() => { setReversing(o); setReason("") }}>
                                 <Undo2 className="h-3 w-3 mr-1" /> Reverse
                               </Button>
+                            )}
+                            {/* Editing and deleting these belongs to the Cash
+                                page, which is where they were recorded. */}
+                            {o.source === "CashAdjustment" && (
+                              <span className="text-[11px] text-slate-500">Cash page</span>
                             )}
                           </TableCell>
                         </TableRow>

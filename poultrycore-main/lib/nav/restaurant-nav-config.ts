@@ -134,6 +134,8 @@ export function buildRestaurantNavConfig(badges: RestaurantNavBadges = {}): Rest
         items: [
           { id: "profile",   title: "My Account", icon: User,      href: "/profile",   visible: true },
           { id: "companies", title: "Companies",  icon: Building2,  href: "/companies", visible: true },
+          // The account's own subscription.
+          { id: "billing",   title: "Billing",    icon: CreditCard, href: "/billing",   visible: true },
         ],
       },
     ],

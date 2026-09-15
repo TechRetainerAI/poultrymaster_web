@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { DataPagination } from "@/components/ui/data-pagination"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { usePagination } from "@/hooks/use-pagination"
 import { Plus, Building2, Bird, Droplets, Loader2, Check, UtensilsCrossed } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
@@ -19,6 +19,19 @@ import { useToast } from "@/hooks/use-toast"
 import { getMyCompanies, createCompany, sendCompanyWelcomeEmail, switchCompany, type Company, type CompanyType } from "@/lib/api/companies"
 import { BUSINESS_TYPES, findBusinessType, needsTemplate } from "@/lib/companies/business-types"
 import { useRouter } from "next/navigation"
+
+/** The business's own mark — same icon and colour wherever a company is named. */
+function CompanyIcon({ type }: { type: CompanyType }) {
+  const Icon = type === "Water" ? Droplets
+    : type === "Poultry" ? Bird
+    : type === "Restaurant" ? UtensilsCrossed
+    : Building2
+  const colour = type === "Water" ? "text-sky-500"
+    : type === "Hotel" ? "text-purple-500"
+    : type === "Restaurant" ? "text-rose-600"
+    : "text-orange-500"
+  return <Icon className={`h-5 w-5 shrink-0 ${colour}`} />
+}
 
 export default function CompaniesPage() {
   const { toast } = useToast()
@@ -123,46 +136,85 @@ export default function CompaniesPage() {
               ) : companies.length === 0 ? (
                 <div className="p-8 text-center text-slate-500">No companies yet.</div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead></TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead>Created</TableHead>
-                      <TableHead className="text-right"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pg.pageItems.map((c) => {
-                      const Icon = c.type === "Water" ? Droplets : c.type === "Poultry" ? Bird : c.type === "Hotel" ? Building2 : c.type === "Restaurant" ? UtensilsCrossed : Building2
-                      const isActive = c.farmId === activeFarmId
-                      return (
-                        <TableRow key={c.farmId}>
-                          <TableCell>
-                            <Icon className={`h-5 w-5 ${c.type === "Water" ? "text-sky-500" : c.type === "Hotel" ? "text-purple-500" : c.type === "Restaurant" ? "text-rose-600" : "text-orange-500"}`} />
-                          </TableCell>
-                          <TableCell className="font-medium">{c.name}</TableCell>
-                          <TableCell>{c.type}</TableCell>
-                          <TableCell>{c.role}</TableCell>
-                          <TableCell className="text-slate-500">{new Date(c.createdAt).toLocaleDateString()}</TableCell>
-                          <TableCell className="text-right">
-                            {isActive ? (
-                              <span className="inline-flex items-center gap-1 text-emerald-600 text-sm">
-                                <Check className="h-4 w-4" /> Active
-                              </span>
-                            ) : (
-                              <Button size="sm" variant="outline" onClick={() => switchTo(c)}>Switch</Button>
-                            )}
-                          </TableCell>
+                // Scorecards on a phone, the table on a desktop, and a "View
+                // table format" toggle between them — the pattern the rest of
+                // the app's lists use. Which company you are in is the one
+                // thing this page exists to tell you, so the active one is
+                // called out on the card itself, not only in a far-right
+                // column that a narrow screen pushes off the edge.
+                <MobileCardList
+                  defaultOpen
+                  striped
+                  items={pg.pageItems}
+                  pagination={pg.paginationProps}
+                  getKey={(c) => c.farmId}
+                  primary={(c) => (
+                    <span className="inline-flex items-center gap-2">
+                      <CompanyIcon type={c.type} />
+                      <span className="break-words">{c.name}</span>
+                    </span>
+                  )}
+                  secondary={(c) => (
+                    <>
+                      <span>{c.type}</span>
+                      <span>·</span>
+                      <span className="text-xs">{c.role}</span>
+                    </>
+                  )}
+                  trailing={(c) => c.farmId === activeFarmId ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                      <Check className="h-3.5 w-3.5" /> Active
+                    </span>
+                  ) : null}
+                  details={(c) => [
+                    { label: "Created", value: new Date(c.createdAt).toLocaleDateString() },
+                  ]}
+                  actions={(c) => c.farmId === activeFarmId ? (
+                    <p className="text-xs text-slate-500">You are working in this company.</p>
+                  ) : (
+                    <Button size="sm" variant="outline" className="h-10 flex-1 bg-white" onClick={() => switchTo(c)}>
+                      Switch to this company
+                    </Button>
+                  )}
+                  desktopTable={
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead></TableHead>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Role</TableHead>
+                          <TableHead>Created</TableHead>
+                          <TableHead className="text-right"></TableHead>
                         </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {pg.pageItems.map((c) => {
+                          const isActive = c.farmId === activeFarmId
+                          return (
+                            <TableRow key={c.farmId}>
+                              <TableCell><CompanyIcon type={c.type} /></TableCell>
+                              <TableCell className="font-medium">{c.name}</TableCell>
+                              <TableCell>{c.type}</TableCell>
+                              <TableCell>{c.role}</TableCell>
+                              <TableCell className="text-slate-500">{new Date(c.createdAt).toLocaleDateString()}</TableCell>
+                              <TableCell className="text-right">
+                                {isActive ? (
+                                  <span className="inline-flex items-center gap-1 text-emerald-600 text-sm">
+                                    <Check className="h-4 w-4" /> Active
+                                  </span>
+                                ) : (
+                                  <Button size="sm" variant="outline" onClick={() => switchTo(c)}>Switch</Button>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                  }
+                />
               )}
-              <DataPagination {...pg.paginationProps} />
             </CardContent>
           </Card>
         </main>
