@@ -22,7 +22,7 @@ import {
   listMenuItems, createMenuItem, updateMenuItem, deleteMenuItem, toggleMenuItemAvailability,
   listCombos, createCombo, updateCombo, deleteCombo,
   listComboItems, addComboItem, removeComboItem,
-  listMenuCategoryTypes, listMenuItemNames, listIngredients, listRecipe, upsertRecipe, deleteRecipe,
+  listMenuCategoryTypes, listMenuItemNames, createMenuItemName, listIngredients, listRecipe, upsertRecipe, deleteRecipe,
   type MenuCategory, type MenuCategoryInput, type MenuCategoryType, type MenuItemName,
   type MenuItem, type MenuItemInput, type Ingredient, type Recipe,
   type Combo, type ComboInput, type ComboItem, type ComboItemInput,
@@ -49,6 +49,10 @@ export default function RestaurantMenuPage() {
   const [categoryTypes, setCategoryTypes] = useState<MenuCategoryType[]>([])
   const [menuItemNames, setMenuItemNames] = useState<MenuItemName[]>([])
   const [itemNameSelection, setItemNameSelection] = useState("")
+  // Category can be an existing one or a brand new name typed inline.
+  // menuCategoryId cannot hold the "__new__" sentinel, so the mode is tracked apart.
+  const [categoryMode, setCategoryMode] = useState<"pick" | "new">("pick")
+  const [newCategoryName, setNewCategoryName] = useState("")
   const [allIngredients, setAllIngredients] = useState<Ingredient[]>([])
   const [itemRecipe, setItemRecipe] = useState<Recipe[]>([])
   const [recipeAddIng, setRecipeAddIng] = useState(0)
@@ -115,12 +119,42 @@ export default function RestaurantMenuPage() {
     }
     setRecipeAddIng(0); setRecipeAddQty(1); setRecipeAddUnit("kg"); setRecipeAddWaste(0)
     setItemNameSelection("")
+    setCategoryMode("pick"); setNewCategoryName("")
     setItemDialogOpen(true)
   }
   async function saveItem() {
     if (!itemForm.name.trim()) { toast({ title: "Item name required", variant: "destructive" }); return }
-    try { if (itemEditing) await updateMenuItem(itemEditing.menuItemId, itemForm); else await createMenuItem(itemForm)
+    if (categoryMode === "new" && !newCategoryName.trim()) {
+      toast({ title: "Category name required", description: "Type a name or pick an existing category.", variant: "destructive" }); return
+    }
+    try {
+      // A typed category becomes a real menu category first, so the item can be
+      // filed under it and it shows up in this dropdown from now on.
+      let form = itemForm
+      if (categoryMode === "new") {
+        const created = await createMenuCategory({ name: newCategoryName.trim(), isActive: true })
+        form = { ...itemForm, menuCategoryId: created.menuCategoryId }
+        setCategories(await listMenuCategories())
+      }
+
+      if (itemEditing) await updateMenuItem(itemEditing.menuItemId, form); else await createMenuItem(form)
       toast({ title: itemEditing ? "Item updated" : "Item created" }); setItemDialogOpen(false); setItems(await listMenuItems())
+
+      // Remember a name typed under "Other" so it is pickable next time. Deliberately
+      // non-fatal: the menu item is already saved, and failing to memorise the name
+      // must not surface as if the whole save failed.
+      if (itemNameSelection === "Other" && form.name.trim()) {
+        const pickedCategory = form.menuCategoryId
+          ? categories.find(c => c.menuCategoryId === form.menuCategoryId)?.name
+          : undefined
+        const categoryName = pickedCategory ?? (newCategoryName.trim() || null)
+        try {
+          await createMenuItemName(form.name.trim(), categoryName)
+          setMenuItemNames(await listMenuItemNames())
+        } catch (e: any) {
+          toast({ title: "Item saved, but the name was not remembered", description: e?.message })
+        }
+      }
     } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) }
   }
   async function deleteItem(id: number) { try { await deleteMenuItem(id); toast({ title: "Deleted" }); setItems(await listMenuItems()) } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) } }
@@ -172,7 +206,7 @@ export default function RestaurantMenuPage() {
       <DashboardSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <DashboardHeader />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="max-w-6xl mx-auto space-y-6">
             {/* Page Header */}
             <div className="flex items-center justify-between">
@@ -191,7 +225,7 @@ export default function RestaurantMenuPage() {
             </div>
 
             {/* Stats cards */}
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               {[
                 { label: "Total Items", value: items.length, color: "text-gray-900", bg: "bg-white" },
                 { label: "Available", value: availableCount, color: "text-green-700", bg: "bg-green-50" },
@@ -208,7 +242,7 @@ export default function RestaurantMenuPage() {
             </div>
 
             <Tabs defaultValue="items" className="space-y-4">
-              <TabsList className="bg-white border shadow-sm">
+              <TabsList className="bg-white border shadow-sm flex-wrap h-auto">
                 <TabsTrigger value="items" className="data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700">
                   <UtensilsCrossed className="h-4 w-4 mr-2" /> Menu Items
                   <Badge variant="secondary" className="ml-2 h-5 px-1.5">{items.length}</Badge>
@@ -512,7 +546,7 @@ export default function RestaurantMenuPage() {
             {/* Basic info */}
             <div>
               <h4 className="text-sm font-medium text-gray-500 mb-3">Basic Information</h4>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label>Item Name <span className="text-rose-500">*</span></Label>
                   <Select value={itemNameSelection || "__none__"} onValueChange={v => {
@@ -524,8 +558,21 @@ export default function RestaurantMenuPage() {
                     <SelectTrigger className="h-10"><SelectValue placeholder="Select or type a name" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__none__">Select item</SelectItem>
-                      {menuItemNames.map(n => <SelectItem key={n.restaurantMenuItemNameId} value={n.description}>{n.description}{n.category ? ` (${n.category})` : ""}</SelectItem>)}
-                      <SelectItem value="Other">Other (type custom name)</SelectItem>
+                      {/* There used to be two rows that did the same job: the seed
+                          list's own "Other" (printed as "Other (Other)") and a
+                          hardcoded "Other (type custom name)" below it. Any "Other"
+                          coming from the lookup is filtered out here and a single
+                          sentinel is rendered after the list instead — that way there
+                          is exactly one, and it is still there to select even if the
+                          lookup is empty or the request failed. */}
+                      {menuItemNames
+                        .filter(n => n.description.trim().toLowerCase() !== "other")
+                        .map(n => (
+                          <SelectItem key={n.restaurantMenuItemNameId} value={n.description}>
+                            {n.description}{n.category && n.category !== n.description ? ` (${n.category})` : ""}
+                          </SelectItem>
+                        ))}
+                      <SelectItem value="Other">Other</SelectItem>
                     </SelectContent>
                   </Select>
                   {(itemNameSelection === "Other" || itemEditing) && (
@@ -534,13 +581,23 @@ export default function RestaurantMenuPage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Category</Label>
-                  <Select value={itemForm.menuCategoryId ? String(itemForm.menuCategoryId) : "none"} onValueChange={v => setItemForm({ ...itemForm, menuCategoryId: v === "none" ? null : parseInt(v) })}>
+                  <Select
+                    value={categoryMode === "new" ? "__new__" : (itemForm.menuCategoryId ? String(itemForm.menuCategoryId) : "none")}
+                    onValueChange={v => {
+                      if (v === "__new__") { setCategoryMode("new"); setItemForm({ ...itemForm, menuCategoryId: null }) }
+                      else { setCategoryMode("pick"); setNewCategoryName(""); setItemForm({ ...itemForm, menuCategoryId: v === "none" ? null : parseInt(v) }) }
+                    }}>
                     <SelectTrigger className="h-10"><SelectValue placeholder="Uncategorized" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Uncategorized</SelectItem>
                       {categories.map(c => <SelectItem key={c.menuCategoryId} value={String(c.menuCategoryId)}>{c.name}</SelectItem>)}
+                      <SelectItem value="__new__">+ New category…</SelectItem>
                     </SelectContent>
                   </Select>
+                  {categoryMode === "new" && (
+                    <Input value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)}
+                      placeholder="Type a new category" className="h-10 mt-1.5" />
+                  )}
                 </div>
               </div>
               <div className="mt-3 space-y-1.5">
@@ -579,7 +636,7 @@ export default function RestaurantMenuPage() {
             {/* Pricing */}
             <div>
               <h4 className="text-sm font-medium text-gray-500 mb-3 flex items-center gap-1.5"><DollarSign className="h-3.5 w-3.5" /> Pricing</h4>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <Label>Selling Price <span className="text-rose-500">*</span></Label>
                   <div className="relative"><DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -602,7 +659,7 @@ export default function RestaurantMenuPage() {
             {/* Details */}
             <div>
               <h4 className="text-sm font-medium text-gray-500 mb-3 flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> Details</h4>
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="space-y-1.5">
                   <Label>Prep Time (min)</Label>
                   <Input type="number" min={0} value={itemForm.prepTime || 0} onChange={e => setItemForm({ ...itemForm, prepTime: parseInt(e.target.value) || 0 })} className="h-10" />
@@ -660,7 +717,8 @@ export default function RestaurantMenuPage() {
                   </span>
                 </h4>
                 {itemRecipe.length > 0 && (
-                  <table className="w-full text-xs mb-3">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs mb-3 min-w-[560px]">
                     <thead className="bg-gray-50 border-b"><tr><th className="text-left p-2">Ingredient</th><th className="text-right p-2">Qty</th><th className="text-left p-2">Unit</th><th className="text-right p-2">Waste %</th><th className="text-right p-2">Cost</th><th className="p-2"></th></tr></thead>
                     <tbody>
                       {itemRecipe.map(r => (
@@ -674,7 +732,8 @@ export default function RestaurantMenuPage() {
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                    </table>
+                  </div>
                 )}
                 <div className="flex gap-2 items-end flex-wrap">
                   <div className="flex-1 min-w-[140px]">

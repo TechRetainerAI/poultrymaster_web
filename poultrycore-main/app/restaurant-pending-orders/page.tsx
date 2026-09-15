@@ -127,7 +127,7 @@ export default function RestaurantPendingOrdersPage() {
       <DashboardSidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <DashboardHeader />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="mb-6 flex items-start justify-between gap-4">
             <div>
               <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900">

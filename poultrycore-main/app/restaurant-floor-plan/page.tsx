@@ -107,7 +107,7 @@ export default function RestaurantFloorPlanPage() {
       <DashboardSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <DashboardHeader />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="max-w-6xl mx-auto space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
@@ -138,7 +138,7 @@ export default function RestaurantFloorPlanPage() {
             {floors.length > 0 && (
               <div className="flex items-center gap-2">
                 <Tabs value={String(activeFloor || floors[0]?.floorId)} onValueChange={v => setActiveFloor(parseInt(v))}>
-                  <TabsList className="bg-white border shadow-sm">
+                  <TabsList className="bg-white border shadow-sm flex-wrap h-auto">
                     {floors.map(f => (
                       <TabsTrigger key={f.floorId} value={String(f.floorId)} className="data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700">
                         {f.name} <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 text-[10px]">{f.tableCount}</Badge>
@@ -222,11 +222,11 @@ export default function RestaurantFloorPlanPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>{tableEditing ? "Edit Table" : "Add Table"}</DialogTitle><DialogDescription>Configure table number, capacity and type</DialogDescription></DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5"><Label>Table Number <span className="text-rose-500">*</span></Label><Input value={tableForm.tableNumber} onChange={e => setTableForm({ ...tableForm, tableNumber: e.target.value })} placeholder="e.g. 1, A1" className="h-10" /></div>
               <div className="space-y-1.5"><Label>Display Name</Label><Input value={tableForm.tableName || ""} onChange={e => setTableForm({ ...tableForm, tableName: e.target.value })} placeholder="e.g. Window Seat" className="h-10" /></div>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <div className="space-y-1.5"><Label>Capacity</Label><Input type="number" min={1} value={tableForm.capacity || 4} onChange={e => setTableForm({ ...tableForm, capacity: parseInt(e.target.value) || 4 })} className="h-10" /></div>
               <div className="space-y-1.5"><Label>Shape</Label>
                 <Select value={tableForm.shape || "Square"} onValueChange={v => setTableForm({ ...tableForm, shape: v })}>
