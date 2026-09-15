@@ -2,6 +2,8 @@
 
 import { Suspense, useEffect, useState, type ReactNode } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { CostBreakdownDialog } from "@/components/poultry/cost-breakdown-dialog"
+import { NO_SECOND_PAYMENT_TOOLTIP } from "@/lib/poultry/cost-recognition"
 import { Button } from "@/components/ui/button"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -10,7 +12,7 @@ import { toastFormGuide } from "@/lib/utils/validation-toast"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
-import { Plus, Pencil, Trash2, Calendar, DollarSign, Search, FileText as FileTextIcon, Download, Loader2, Filter, ChevronDown, ChevronUp, ImageIcon, Banknote, History, Truck } from "lucide-react"
+import { Banknote, Calendar, ChevronDown, ChevronUp, DollarSign, Download, FileText as FileTextIcon, Filter, History, ImageIcon, Layers, Loader2, Pencil, Plus, Search, Trash2, Truck } from "lucide-react"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { getExpenses, getExpense, createExpense, updateExpense, deleteExpense, type Expense, type ExpenseInput } from "@/lib/api/expense"
 import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
@@ -137,6 +139,17 @@ function AddExpenseDescription({
   )
 }
 
+/**
+ * Migration 266 writes exactly these two source types for stock consumed, with
+ * sourceId set to the PRODUCTION RECORD. Matching on sourceType rather than on
+ * category or on the NonCash marker is deliberate: internal use (216) is also
+ * NonCash and is a different thing entirely.
+ */
+function isConsumptionExpense(e: any): boolean {
+  const t = e?.sourceType
+  return t === "PoultryFeedConsumption" || t === "PoultryMedicationConsumption"
+}
+
 export default function ExpensesPage() {
   // useSearchParams needs a Suspense boundary during prerender — same wrapper
   // /poultry-raw-materials uses for its ?purchaseId= deep link.
@@ -149,6 +162,9 @@ export default function ExpensesPage() {
 
 function ExpensesPageInner() {
   const router = useRouter()
+  // 288. Which consumption expense's cost breakdown is open. The value is the
+  // PRODUCTION RECORD id (expense.sourceId), not the expense id.
+  const [breakdownFor, setBreakdownFor] = useState<number | null>(null)
   // ?expenseId=N narrows the list to one bill, so a link from the Supplier
   // Payments ledger lands ON the expense that was paid rather than on the whole
   // list with the reader left to find the row. Same trick /poultry-raw-materials
@@ -1417,10 +1433,16 @@ function ExpensesPageInner() {
                         + Actions 160
                         = 1120 fixed, + 280 floor for Description = 1400.
 
-                      This drifted twice before: the comment claimed 720 and then
-                      1300 while the columns had grown to 1460, against a 1500 min
-                      width -- which left Description 40px and ran it into
-                      Category. */}
+                      This has drifted THREE times: the comment claimed 720, then
+                      1300 while the columns had grown to 1460 against a 1500 min
+                      width, and then 1120/1400 after Cost type (140) and Source
+                      (130) were added for 269/270 without being counted -- which
+                      left Description TEN pixels and ran it into Category.
+
+                      expenses-table-width.test.ts now parses these headers and
+                      fails if the sum and the min-width disagree, because three
+                      drifts is enough evidence that a comment asking to be kept
+                      true will not be. */}
                   <Table className="table-fixed w-full min-w-[1400px]">
                     <TableHeader>
                       <TableRow>
@@ -1522,6 +1544,15 @@ function ExpensesPageInner() {
                                   <Truck className="w-4 h-4" />
                                 </Button>
                               )}
+                              {/* 288. Stock cost reaching the P&L. sourceId is
+                                  the production record (migration 266). */}
+                              {isConsumptionExpense(expense) && (expense as any).sourceId ? (
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-sky-700 hover:bg-sky-50"
+                                  title={`Which purchases this cost came from. ${NO_SECOND_PAYMENT_TOOLTIP}`}
+                                  onClick={() => setBreakdownFor(Number((expense as any).sourceId))}>
+                                  <Layers className="w-4 h-4" />
+                                </Button>
+                              ) : null}
                               <Button variant="ghost" size="sm"
                                 onClick={() => openConfirmDelete((expense as any).expenseId ?? (expense as any).ExpenseId ?? (expense as any).id ?? (expense as any).Id, expense.farmId, stripReceiptSuffixFromDescription(expense.description || ""))}
                                 className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50">
@@ -1726,6 +1757,12 @@ function ExpensesPageInner() {
           onReversed={() => loadExpenses()}
         />
       )}
+
+      <CostBreakdownDialog
+        productionRecordId={breakdownFor}
+        title="What this expense is made of"
+        onClose={() => setBreakdownFor(null)}
+      />
     </div>
   )
 }

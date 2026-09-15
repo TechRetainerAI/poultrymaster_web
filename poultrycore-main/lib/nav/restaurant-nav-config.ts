@@ -7,7 +7,7 @@
 
 import {
   Activity, BarChart3, Bell, Boxes, Building2, CalendarDays, ClipboardList,
-  CreditCard, Crown, DollarSign, FileText, Gift, Globe, Heart, MapPin,
+  CreditCard, Crown, DollarSign, FileText, Gift, Globe, Heart, Inbox, MapPin,
   Megaphone, Package, PartyPopper, QrCode, Receipt, Settings, ShoppingBag,
   ShoppingCart, Star, Tag, Truck, User, UserCog, Users, UtensilsCrossed,
 } from "lucide-react"
@@ -23,7 +23,14 @@ export interface RestaurantNavConfig {
   system: MegaMenuGroup[]
 }
 
-export function buildRestaurantNavConfig(): RestaurantNavConfig {
+export interface RestaurantNavBadges {
+  /** Online orders nobody has had on screen yet. See lib/utils/online-order-alerts.ts. */
+  unseenOnlineOrders?: number
+  /** Online orders still waiting to be accepted or rejected. */
+  pendingGuestOrders?: number
+}
+
+export function buildRestaurantNavConfig(badges: RestaurantNavBadges = {}): RestaurantNavConfig {
   return {
     ordersKitchen: [
       {
@@ -31,7 +38,11 @@ export function buildRestaurantNavConfig(): RestaurantNavConfig {
         label: "Orders",
         items: [
           { id: "pos",    title: "POS / New Order", icon: ShoppingCart,  href: "/restaurant-pos",    visible: true },
-          { id: "orders", title: "All Orders",      icon: ClipboardList, href: "/restaurant-orders", visible: true },
+          // Guest QR orders wait here for staff to accept them before the kitchen sees them.
+          { id: "pending", title: "New Guest Orders", icon: Inbox,        href: "/restaurant-pending-orders", visible: true,
+            badge: badges.pendingGuestOrders },
+          { id: "orders", title: "All Orders",      icon: ClipboardList, href: "/restaurant-orders", visible: true,
+            badge: badges.unseenOnlineOrders },
         ],
       },
       {
@@ -123,6 +134,8 @@ export function buildRestaurantNavConfig(): RestaurantNavConfig {
         items: [
           { id: "profile",   title: "My Account", icon: User,      href: "/profile",   visible: true },
           { id: "companies", title: "Companies",  icon: Building2,  href: "/companies", visible: true },
+          // The account's own subscription.
+          { id: "billing",   title: "Billing",    icon: CreditCard, href: "/billing",   visible: true },
         ],
       },
     ],

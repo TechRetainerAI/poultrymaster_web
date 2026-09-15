@@ -1,4 +1,4 @@
-using PoultryFarmAPIWeb.Models;
+﻿using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
 {
@@ -34,5 +34,8 @@ namespace PoultryFarmAPIWeb.Business
         Task<int> ApplyDiscountToOrderAsync(string farmId, int orderId, int? discountId, string discountName, string discountType, decimal value, decimal appliedAmount);
         Task RemoveDiscountFromOrderAsync(int id, string farmId);
         Task<List<RestaurantOrderDiscountModel>> ListOrderDiscountsAsync(int orderId, string farmId);
+
+        // CRM
+        Task<LinkOrderCustomerResult> LinkOrderToCustomerAsync(int orderId, string farmId);
     }
 }

@@ -36,6 +36,15 @@ namespace PoultryFarmAPIWeb.Models
         public int? FourthPickCrates { get; set; }
         public int? FourthPickLooseEggs { get; set; }
         public int FourthPickTotal { get; set; }
+        // 5th and 6th picks (migration 251). Entered on the batch, split across
+        // flocks by the allocation, and written onto each generated production
+        // record — see spproductionbatchrecord_post.
+        public int? FifthPickCrates { get; set; }
+        public int? FifthPickLooseEggs { get; set; }
+        public int FifthPickTotal { get; set; }
+        public int? SixthPickCrates { get; set; }
+        public int? SixthPickLooseEggs { get; set; }
+        public int SixthPickTotal { get; set; }
 
         public int? BrokenEggs { get; set; }
         public int? MeatyEggs { get; set; }
@@ -119,6 +128,9 @@ namespace PoultryFarmAPIWeb.Models
         public int SecondPickEggs { get; set; }
         public int ThirdPickEggs { get; set; }
         public int FourthPickEggs { get; set; }
+        // This flock's share of the 5th and 6th picks (migration 251).
+        public int FifthPickEggs { get; set; }
+        public int SixthPickEggs { get; set; }
         public int? BrokenEggs { get; set; }
         public int? MeatyEggs { get; set; }
         public int? SoftEggs { get; set; }

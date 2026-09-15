@@ -299,11 +299,34 @@ namespace PoultryFarmAPIWeb.Controllers
             return NoContent();
         }
 
+        /// <summary>
+        /// Cancels a DRAFT. A draft moved no money, so there is nothing to put
+        /// back -- an approved transfer is undone with /reverse instead.
+        /// </summary>
         [HttpPost("{id:int}/cancel")]
         public async Task<IActionResult> Cancel(int id, [FromQuery] string farmId)
         {
             if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
             await _svc.CancelAsync(id, farmId);
+            return NoContent();
+        }
+
+        /// <summary>
+        /// Reverses an APPROVED transfer: two opposite ledger rows, both
+        /// accounts restored, the original rows kept.
+        ///
+        /// The reason travels in the body rather than the query string on
+        /// purpose -- it is free text a person types, it lands in the audit
+        /// trail, and query strings end up in access logs.
+        /// </summary>
+        [HttpPost("{id:int}/reverse")]
+        public async Task<IActionResult> Reverse(
+            int id, [FromQuery] string farmId, [FromQuery] string? reversedBy,
+            [FromBody] WaterCashTransferReverseRequest body)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            if (string.IsNullOrWhiteSpace(farmId)) return BadRequest("Company ID is required.");
+            await _svc.ReverseAsync(id, farmId, body.Reason, reversedBy);
             return NoContent();
         }
     }

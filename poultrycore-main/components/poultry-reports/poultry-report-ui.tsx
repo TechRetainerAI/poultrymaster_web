@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ReportDataTable, type ReportTableColumn, type ReportTableRow } from "@/components/poultry-reports/report-data-table"
 import { AlertCircle, Loader2, Inbox, Download, Printer, FileSpreadsheet, Mail } from "lucide-react"
+import { reportTotalsRow } from "@/lib/reports/poultry-report-defs"
 import type { Accent, BreakdownGroup, ColumnDef, FmtCtx } from "@/lib/reports/poultry-report-defs"
 
 // --- Status badge ------------------------------------------------------------
@@ -132,7 +133,11 @@ export function PoultryReportTable({
       sort: values,
     }
   })
-  return <ReportDataTable columns={cols} rows={tableRows} empty="No rows for this selection." />
+  // Totals over EVERY row the filters left, not the page on screen — a footer
+  // that changed when you turned the page would be a different number each
+  // time and none of them the total.
+  const footer = reportTotalsRow(columns, rows, ctx) ?? undefined
+  return <ReportDataTable columns={cols} rows={tableRows} empty="No rows for this selection." footer={footer} />
 }
 
 // --- Breakdown section (rendered below the detail table) ---------------------

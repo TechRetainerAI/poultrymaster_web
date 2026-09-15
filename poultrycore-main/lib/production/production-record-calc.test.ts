@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
-  EGGS_PER_CRATE, birdsLeft, cratesEquivalent, effectiveFeedKg, flockAge,
+  EGGS_PER_CRATE, birdsLeft, cratesEquivalent, effectiveFeedKg, eggsExceedBirdsLeft, flockAge,
   netSellableEggs, pickTotal, resolveAge, totalCostOfProduction, totalLosses,
 } from "./production-record-calc"
 
@@ -56,6 +56,29 @@ describe("egg losses", () => {
 
   it("never reports negative sellable eggs", () => {
     expect(netSellableEggs(5, 40)).toBe(0)
+  })
+})
+
+describe("eggsExceedBirdsLeft", () => {
+  it("flags more eggs than birds left to lay them", () => {
+    expect(eggsExceedBirdsLeft(1200, 960)).toBe(true)
+    expect(eggsExceedBirdsLeft(961, 960)).toBe(true)
+  })
+
+  it("stays quiet at or below one egg per bird", () => {
+    expect(eggsExceedBirdsLeft(960, 960)).toBe(false)
+    expect(eggsExceedBirdsLeft(700, 960)).toBe(false)
+  })
+
+  it("says nothing without eggs, or with no bird count to compare against", () => {
+    expect(eggsExceedBirdsLeft(0, 960)).toBe(false)
+    expect(eggsExceedBirdsLeft(500, null)).toBe(false)
+    expect(eggsExceedBirdsLeft(500, undefined)).toBe(false)
+    expect(eggsExceedBirdsLeft(NaN, NaN)).toBe(false)
+  })
+
+  it("flags eggs recorded against a flock the deaths wiped out", () => {
+    expect(eggsExceedBirdsLeft(40, 0)).toBe(true)
   })
 })
 

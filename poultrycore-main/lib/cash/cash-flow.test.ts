@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   buildCashFlowInsights, cashAccountsForPeriod, cashByAccount, cashFlowTotals, cashIdentity,
   categoryLabel, calculatedCashAtHand, excludeTransfers, flowLabel, groupByFlow, sourceTypeLabel,
+  ledgerTypeLabel,
   isInternalTransfer, ledgerFromParam, ledgerToParam, summariseTransfers, withinRange,
   type AccountStatusEntry, type CashAccountSeed, type LedgerEntry, type TransferEntry,
 } from "./cash-flow"
@@ -97,11 +98,51 @@ describe("excludeTransfers", () => {
   })
 })
 
+describe("ledgerTypeLabel", () => {
+  it("says what a ledger row is, in words", () => {
+    expect(ledgerTypeLabel("CashIn")).toBe("Money in")
+    expect(ledgerTypeLabel("TransferOut")).toBe("Transfer out")
+    expect(ledgerTypeLabel("OwnerContribution")).toBe("Owner contribution")
+    expect(ledgerTypeLabel("LoanRepayment")).toBe("Loan repayment")
+  })
+
+  it("distinguishes a correction from the movement it corrects", () => {
+    // On a reconciliation screen that difference is the whole question.
+    expect(ledgerTypeLabel("TransferReversalOut")).toBe("Transfer reversal out")
+    expect(ledgerTypeLabel("OwnerDrawReversal")).toBe("Owner draw reversed")
+    expect(ledgerTypeLabel("LoanRepaymentReversal")).toBe("Loan repayment reversed")
+  })
+
+  it("degrades readably for a type added later, and copes with nothing", () => {
+    expect(ledgerTypeLabel("SomeNewMovement")).toBe("Some New Movement")
+    expect(ledgerTypeLabel(null)).toBe("—")
+    expect(ledgerTypeLabel("")).toBe("—")
+  })
+})
+
 describe("flowLabel", () => {
   it("gives sourceTypes owner-facing names", () => {
     expect(flowLabel("Sale", null).label).toBe("Sales")
     expect(flowLabel("RawMaterialPurchase", null).label).toBe("Raw materials")
     expect(flowLabel("PoultrySupplierPayment", null).label).toBe("Supplier payments")
+  })
+
+  it("names what the money modules post (253/254)", () => {
+    // These arrive from the new cash-flow arms rather than the legacy
+    // adjustment table. Without explicit entries they fall through to
+    // titleCase and print "Owner Contribution" with a stray capital.
+    expect(flowLabel("OwnerContribution", null).label).toBe("Owner contribution")
+    expect(flowLabel("OwnerDraw", null).label).toBe("Owner draw")
+    expect(flowLabel("LoanReceived", null).label).toBe("Loan received")
+    // Says "total" because that is what the row is: principal, interest and
+    // fees together. Only the interest and fees are an expense, and they are
+    // counted as one.
+    expect(flowLabel("LoanRepayment", null).label).toBe("Loan repayment (total paid)")
+
+    // And the kind column agrees with the category column.
+    expect(sourceTypeLabel("OwnerContribution")).toBe("Owner contribution")
+    expect(sourceTypeLabel("OwnerDraw")).toBe("Owner draw")
+    expect(sourceTypeLabel("LoanRepayment")).toBe("Loan repayment")
   })
 
   it("sub-buckets an adjustment by its stored reason", () => {

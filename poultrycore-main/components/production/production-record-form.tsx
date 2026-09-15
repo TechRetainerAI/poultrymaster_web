@@ -55,17 +55,22 @@ import { FeedLines, computeFeedLines, emptyFeedLine, buildFeedCredit, type FeedL
 import type { ConsumptionCredit } from "@/lib/utils/raw-material-costing"
 import { getBirdsLeftFromRecord, getLatestRecordForFlock } from "@/lib/utils/production-records"
 import { EGG_GRADE_OPTIONS, EGG_GRADE_SELECT_VALUE_NONE, eggGradeFromApi, eggGradeToApi } from "@/lib/constants/egg-grade"
+import { isFinishedFeedCategory } from "@/lib/utils/feed-item-ledger"
 import { useToast } from "@/hooks/use-toast"
 import { toastFormGuide } from "@/lib/utils/validation-toast"
 import { FormSectionCard, CalcField, NumField } from "./production-record-fields"
 import {
   EGGS_PER_CRATE, birdsLeft as calcBirdsLeft, cratesEquivalent, effectiveFeedKg as calcEffectiveFeedKg,
-  flockAge as calcFlockAge, netSellableEggs as calcNetSellable, pickTotal, resolveAge,
+  eggsExceedBirdsLeft, flockAge as calcFlockAge, netSellableEggs as calcNetSellable, pickTotal, resolveAge,
   totalCostOfProduction as calcTotalCost, totalLosses as calcTotalLosses,
 } from "@/lib/production/production-record-calc"
 
 // Doc §4a: classify a raw-material item as Feed or Medication by its category.
-const isFeedCategory = (c?: string | null) => !!c && /feed/i.test(c)
+// Feed here means FINISHED feed only. /feed/i also matched "FeedIngredient", so
+// maize and soya were offered as something to feed a flock -- they are what
+// finished feed is MILLED FROM, and drawing them here bypasses the feed batch
+// that turns them into feed. isFinishedFeedCategory is the same test the feed
+// formula builder and the feed trackers use.
 const isMedicationCategory = (c?: string | null) => !!c && /(medic|vaccin|drug)/i.test(c)
 
 const FEED_TYPES = [
@@ -125,7 +130,7 @@ export function ProductionRecordForm({
   const isEdit = mode === "edit"
   const isModal = displayMode === "modal"
 
-  const { labels: pickLabelText, enableFourthPick } = usePickSettings()
+  const { labels: pickLabelText, enableFourthPick, enableFifthPick, enableSixthPick } = usePickSettings()
   const {
     batchOptions, selectedBatchId, setSelectedBatchId,
     allFlocks, flockOptions: flocksForSelect,
@@ -143,7 +148,7 @@ export function ProductionRecordForm({
   const [form, setForm] = useState({
     flockId: initialFlockId != null ? String(initialFlockId) : "",
     date: today,
-    morning: "", noon: "", evening: "", fourth: "",
+    morning: "", noon: "", evening: "", fourth: "", fifth: "", sixth: "",
     brokenEggs: "", meatyEggs: "", softEggs: "", lostEggs: "",
     feedKg: "", feedType: "",
     mortality: "", numBirds: "",
@@ -199,7 +204,21 @@ export function ProductionRecordForm({
     })()
   }, [])
 
-  const feedItems = useMemo(() => rawItems.filter((i) => isFeedCategory(i.category)), [rawItems])
+  // Only finished feed can be PICKED. A record saved before that rule may
+  // already reference an ingredient, so any item a line already points at is
+  // kept in the list: dropping it would blank the line on edit and hide which
+  // stock the record actually drew.
+  const referencedFeedIds = useMemo(
+    () => new Set(feedLines.map((l) => l.specificFeedUsedId).filter(Boolean)),
+    [feedLines],
+  )
+  const feedItems = useMemo(
+    () => rawItems.filter(
+      (i) => isFinishedFeedCategory(i.category)
+        || referencedFeedIds.has(String(i.poultryRawMaterialItemId)),
+    ),
+    [rawItems, referencedFeedIds],
+  )
   const medItems = useMemo(() => rawItems.filter((i) => isMedicationCategory(i.category)), [rawItems])
 
   // Client-side preview of the FIFO/LIFO/HIFO batch draw (mirrors the server's
@@ -232,6 +251,8 @@ export function ProductionRecordForm({
     noonCrates: 0, noonLoose: 0,
     eveningCrates: 0, eveningLoose: 0,
     fourthCrates: 0, fourthLoose: 0,
+    fifthCrates: 0, fifthLoose: 0,
+    sixthCrates: 0, sixthLoose: 0,
   })
   const setPick = (p: Partial<typeof picks>) => { setDirty(true); setPicks((prev) => ({ ...prev, ...p })) }
 
@@ -239,6 +260,8 @@ export function ProductionRecordForm({
   const noonTotal = pickTotal(picks.noonCrates, picks.noonLoose)
   const eveningTotal = pickTotal(picks.eveningCrates, picks.eveningLoose)
   const fourthTotal = pickTotal(picks.fourthCrates, picks.fourthLoose)
+  const fifthTotal = pickTotal(picks.fifthCrates, picks.fifthLoose)
+  const sixthTotal = pickTotal(picks.sixthCrates, picks.sixthLoose)
 
   // Crates/loose drive the stored per-pick egg counts. Guarded on change so
   // hydrating an edit (which sets the totals directly) is not overwritten by a
@@ -250,12 +273,16 @@ export function ProductionRecordForm({
       ...prev,
       morning: String(morningTotal), noon: String(noonTotal),
       evening: String(eveningTotal), fourth: String(fourthTotal),
+      fifth: String(fifthTotal), sixth: String(sixthTotal),
     }))
-  }, [morningTotal, noonTotal, eveningTotal, fourthTotal, isEdit])
+  }, [morningTotal, noonTotal, eveningTotal, fourthTotal, fifthTotal, sixthTotal, isEdit])
 
   const total =
     (parseInt(form.morning) || 0) + (parseInt(form.noon) || 0) +
-    (parseInt(form.evening) || 0) + (parseInt(form.fourth) || 0)
+    (parseInt(form.evening) || 0) + (parseInt(form.fourth) || 0) +
+    // A pick the farm has turned off is still summed if a record HOLDS one:
+    // hiding the input must not quietly subtract eggs somebody already counted.
+    (parseInt(form.fifth) || 0) + (parseInt(form.sixth) || 0)
   const { crates: totalCrates, pieces: totalPieces } = cratesEquivalent(total)
 
   const brokenEggs = parseInt(form.brokenEggs) || 0
@@ -272,6 +299,17 @@ export function ProductionRecordForm({
   const numBirdsNum = parseInt(form.numBirds) || 0
   const mortalityNum = parseInt(form.mortality) || 0
   const birdsLeft = calcBirdsLeft(numBirdsNum, mortalityNum)
+
+  // Advisory only. A hen lays at most one egg a day, so picking more eggs than
+  // there are birds left is nearly always a typo — but a pick can cover more
+  // than one day, or carry eggs over, so the save goes through either way. Same
+  // sentence under the picks and in the toast on save, so the two cannot drift.
+  // No bird count yet means nothing to compare against — the eggs are typed
+  // before the birds on this form, so comparing early would cry every time.
+  const eggsOverBirds = eggsExceedBirdsLeft(total, numBirdsNum > 0 ? birdsLeft : null)
+  const eggsOverBirdsMessage = eggsOverBirds
+    ? `${total.toLocaleString()} eggs against ${birdsLeft.toLocaleString()} bird${birdsLeft === 1 ? "" : "s"} left — more than one egg per bird. Check the crates and the bird count, or save anyway if that is right.`
+    : ""
 
   // ------------------------------------------------------------------- age
   const [manualAge, setManualAge] = useState(false)
@@ -310,13 +348,29 @@ export function ProductionRecordForm({
 
   // "Number of birds" is seeded from the flock's last record.
   //
-  // In edit mode this only ever reports the hint: the fill below is guarded on
-  // an EMPTY box, and an edit always arrives with the saved figure in it. So
-  // changing flock here surfaces that flock's last count for comparison without
-  // silently rewriting a number the user already saved.
+  // The count in the box always belongs to ONE flock, and this ref remembers
+  // which. Switching flock (or batch, which switches flock underneath) makes
+  // the figure in the box another flock's number, so it is replaced outright —
+  // not just filled when empty, which used to leave the old flock's count (and
+  // therefore the wrong "Birds left") sitting under the new flock. Hydration
+  // sets the ref too, so simply opening an edit is not treated as a switch and
+  // the saved figure survives.
+  const seededForFlockRef = useRef<string | null>(null)
+
   useEffect(() => {
     const run = async () => {
       if (!form.flockId || !form.date) { setPreviousBirdsLeft(null); return }
+      const flockSwitched = seededForFlockRef.current !== form.flockId
+      // Empty box: fill it. Switched flock: overwrite the stale count, and
+      // clear it when the new flock has nothing to seed from.
+      const applySeed = (value: number | null) => {
+        seededForFlockRef.current = form.flockId
+        if (flockSwitched) {
+          setForm((prev) => ({ ...prev, numBirds: value == null ? "" : String(value) }))
+        } else if (!form.numBirds && value != null && value > 0) {
+          setForm((prev) => ({ ...prev, numBirds: String(value) }))
+        }
+      }
       try {
         const { userId, farmId } = getUserContext()
         if (!userId || !farmId) return
@@ -331,16 +385,15 @@ export function ProductionRecordForm({
         if (mostRecent) {
           const lastBirdsLeft = getBirdsLeftFromRecord(mostRecent)
           setPreviousBirdsLeft(lastBirdsLeft)
-          if (!form.numBirds && lastBirdsLeft > 0) {
-            setForm((prev) => ({ ...prev, numBirds: String(lastBirdsLeft) }))
-          }
+          applySeed(lastBirdsLeft)
         } else {
           const flock = allFlocks.find((f) => f.flockId === flockIdNum)
           if (flock) {
             setPreviousBirdsLeft(flock.quantity || 0)
-            if (!form.numBirds) setForm((prev) => ({ ...prev, numBirds: String(flock.quantity || 0) }))
+            applySeed(flock.quantity || 0)
           } else {
             setPreviousBirdsLeft(null)
+            applySeed(null)
           }
         }
       } catch {
@@ -358,6 +411,9 @@ export function ProductionRecordForm({
     const r0 = rec as any
     const dateStr = new Date(rec.date).toISOString().split("T")[0]
     setLoadedRecord(rec)
+    // The saved bird count belongs to the record's own flock — mark it seeded
+    // so the seeding effect leaves it alone until the user changes flock.
+    seededForFlockRef.current = r0.flockId != null ? String(r0.flockId) : ""
     setForm({
       flockId: r0.flockId != null ? String(r0.flockId) : "",
       date: dateStr,
@@ -365,6 +421,8 @@ export function ProductionRecordForm({
       noon: String(rec.production12PM ?? 0),
       evening: String(rec.production4PM ?? 0),
       fourth: String(r0.production4thPick ?? 0),
+      fifth: String(r0.production5thPick ?? 0),
+      sixth: String(r0.production6thPick ?? 0),
       brokenEggs: String(r0.brokenEggs ?? 0),
       meatyEggs: r0.meatyEggs == null ? "" : String(r0.meatyEggs),
       softEggs: r0.softEggs == null ? "" : String(r0.softEggs),
@@ -388,6 +446,10 @@ export function ProductionRecordForm({
       eveningLoose: (rec.production4PM ?? 0) % EGGS_PER_CRATE,
       fourthCrates: Math.floor((r0.production4thPick ?? 0) / EGGS_PER_CRATE),
       fourthLoose: (r0.production4thPick ?? 0) % EGGS_PER_CRATE,
+      fifthCrates: Math.floor((r0.production5thPick ?? 0) / EGGS_PER_CRATE),
+      fifthLoose: (r0.production5thPick ?? 0) % EGGS_PER_CRATE,
+      sixthCrates: Math.floor((r0.production6thPick ?? 0) / EGGS_PER_CRATE),
+      sixthLoose: (r0.production6thPick ?? 0) % EGGS_PER_CRATE,
     })
 
     // Credit = what this record already consumed, so the edit preview reverses
@@ -565,6 +627,8 @@ export function ProductionRecordForm({
         production12PM: parseInt(form.noon) || 0,
         production4PM: parseInt(form.evening) || 0,
         production4thPick: parseInt(form.fourth) || 0,
+        production5thPick: parseInt(form.fifth) || 0,
+        production6thPick: parseInt(form.sixth) || 0,
         brokenEggs: parseInt(form.brokenEggs) || 0,
         meatyEggs: form.meatyEggs === "" ? null : parseInt(form.meatyEggs) || 0,
         softEggs: form.softEggs === "" ? null : parseInt(form.softEggs) || 0,
@@ -602,6 +666,13 @@ export function ProductionRecordForm({
       // flock + date — overwrote other records' rows for the same day and
       // created rows with no source link. The trigger is the writer.
 
+      // More eggs than birds is allowed, so it never blocked the save — but it
+      // is said once more here, after the fact, so an entry that went in on a
+      // typo does not pass silently.
+      if (eggsOverBirds) {
+        toast({ title: "Saved — check the egg count", description: eggsOverBirdsMessage, variant: "warning" })
+      }
+
       setDirty(false)
       onSaved?.(savedId)
     } catch (err: any) {
@@ -627,9 +698,21 @@ export function ProductionRecordForm({
       setC: (v: number | string) => setPick({ noonCrates: Number(v) || 0 }), setL: (v: number | string) => setPick({ noonLoose: Number(v) || 0 }), total: noonTotal },
     { key: "evening", label: pickLabelText.third, crates: picks.eveningCrates, loose: picks.eveningLoose,
       setC: (v: number | string) => setPick({ eveningCrates: Number(v) || 0 }), setL: (v: number | string) => setPick({ eveningLoose: Number(v) || 0 }), total: eveningTotal },
-    ...(enableFourthPick
+    // Each later pick is shown when the farm has enabled it (Business office →
+    // Egg pick settings) OR when this record already carries eggs for it —
+    // otherwise turning a pick off would hide eggs that are still in the total
+    // and still in the ledger, with no way to correct them.
+    ...(enableFourthPick || fourthTotal > 0
       ? [{ key: "fourth", label: pickLabelText.fourth, crates: picks.fourthCrates, loose: picks.fourthLoose,
            setC: (v: number | string) => setPick({ fourthCrates: Number(v) || 0 }), setL: (v: number | string) => setPick({ fourthLoose: Number(v) || 0 }), total: fourthTotal }]
+      : []),
+    ...(enableFifthPick || fifthTotal > 0
+      ? [{ key: "fifth", label: pickLabelText.fifth, crates: picks.fifthCrates, loose: picks.fifthLoose,
+           setC: (v: number | string) => setPick({ fifthCrates: Number(v) || 0 }), setL: (v: number | string) => setPick({ fifthLoose: Number(v) || 0 }), total: fifthTotal }]
+      : []),
+    ...(enableSixthPick || sixthTotal > 0
+      ? [{ key: "sixth", label: pickLabelText.sixth, crates: picks.sixthCrates, loose: picks.sixthLoose,
+           setC: (v: number | string) => setPick({ sixthCrates: Number(v) || 0 }), setL: (v: number | string) => setPick({ sixthLoose: Number(v) || 0 }), total: sixthTotal }]
       : []),
   ]
 
@@ -736,6 +819,12 @@ export function ProductionRecordForm({
             </b>
           </span>
         </div>
+        {eggsOverBirds && (
+          <div className="mt-2 flex items-start gap-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{eggsOverBirdsMessage}</span>
+          </div>
+        )}
       </FormSectionCard>
 
       {/* ------------------------------------------ Egg Losses/Quality */}

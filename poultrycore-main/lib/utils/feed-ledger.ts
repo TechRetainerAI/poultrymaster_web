@@ -4,6 +4,7 @@ import type {
   PoultryRawMaterialUsage,
   PoultryRawMaterialAdjustment,
 } from "@/lib/api/poultry-inventory"
+import { feedItemKind, productionQty, type FeedItemKind } from "@/lib/utils/feed-item-ledger"
 
 /**
  * Feed stock ledger — a view over the poultry RAW MATERIALS store.
@@ -32,9 +33,28 @@ import type {
  * for 22 of 27 feed items. The five that differ are on the two test farms and
  * predate this change (two of them already hold negative stock).
  *
- * Units: 23 of 27 feed items are stocked in Kilogram, 4 in Bag (all with a 1:1
- * conversion recorded). Quantities are summed as stored and each row states its
- * own unit, rather than pretending a bag is a kilogram.
+ * ONE HALF OF THE STORE AT A TIME
+ * -------------------------------
+ * The ledger used to pool finished feed and feed ingredients into a single
+ * balance. They are different things with different lives -- an ingredient is
+ * bought and milled away, finished feed is produced and eaten -- and a balance
+ * that mixes them answers neither question. `kind` now scopes every movement:
+ * /feed-tracker passes "FinishedFeed", /feed-ingredient-tracker "Ingredient".
+ * The two categories are matched by lib/utils/feed-item-ledger.ts, so all three
+ * feed pages agree on what an ingredient is.
+ *
+ * PURCHASE UNITS
+ * --------------
+ * A purchase is recorded in the unit it was BOUGHT in (a 50kg bag); stock is
+ * held in the unit it is USED in (kg). This summed the raw `quantity` and so
+ * undercounted every item whose two units differ -- 7 of 59 feed purchases on
+ * the live database, with factors up to 1000. It now goes through
+ * productionQty(), the same conversion migration 175 uses to maintain
+ * currentquantity. Do not put `p.quantity` back.
+ *
+ * Units: most feed items are stocked in Kilogram, a few in Bag or Sack.
+ * Quantities are summed as stored; a caller showing a total is responsible for
+ * saying which unit it is in, and for not adding two of them together.
  */
 
 export interface FeedLedgerRow {
@@ -45,6 +65,47 @@ export interface FeedLedgerRow {
   in: number
   out: number
   balance: number
+  /**
+   * Which feed this row moved, so the Breakdown can group by item as well as by
+   * movement type. Parsing it back out of `description` would work until an
+   * item name contains the separator.
+   *
+   * Undefined on this page's own kg corrections, which are entered against the
+   * farm's feed as a whole rather than against one item.
+   */
+  itemName?: string
+  /**
+   * Position in the ledger's own ascending order — by date, then by the
+   * within-day sequence the movements have to run in (purchases, then usage,
+   * then stock adjustments, then this page's own corrections). `balance` is
+   * accumulated in exactly this order.
+   *
+   * Sorting the Date column by this rather than by `date` is what lets "newest
+   * first" mean it: a day's movements all carry the same date, compare equal on
+   * it, and left to itself the table showed them oldest-first even under a
+   * descending sort.
+   */
+  seq: number
+
+  // Money, on the OUT lines only (migration 268). Two figures, because they
+  // answer different questions and a screen showing one alone misleads:
+  //
+  //   cost        what the stock drawn was worth. Always known.
+  //   recognized  only the part charged to Profit & Loss at this usage. Zero on
+  //               stock already expensed at purchase, which does not mean the
+  //               feed was free.
+  //
+  // Undefined on purchase and adjustment lines, and on any row from an API that
+  // predates 268 -- the tracker prints a dash there rather than a zero.
+  cost?: number
+  recognized?: number
+  /** Whether the draw crossed more than one purchase lot. */
+  costLayers?: number
+  /** Reversed usages keep their rows; their money must not be totalled twice. */
+  reversed?: boolean
+  /** 288. The record to ask for a cost breakdown. Absent on feed-production
+   *  draws and on adjustments, neither of which has a production record. */
+  productionRecordId?: number | null
 }
 
 type LineInput = {
@@ -55,6 +116,12 @@ type LineInput = {
   in: number
   out: number
   order: number
+  itemName?: string
+  cost?: number
+  recognized?: number
+  costLayers?: number
+  reversed?: boolean
+  productionRecordId?: number | null
 }
 
 /** Manual corrections from Feed tracker (API); kg — positive adds, negative removes. */
@@ -79,12 +146,11 @@ function formatFeedAdjustmentType(t: string): string {
   }
 }
 
-/** The raw-material categories that count as feed. */
+/** The raw-material categories that count as feed, either half. */
 export const FEED_CATEGORIES = ["FinishedFeed", "FeedIngredient"] as const
 
 export function isFeedItem(item: Pick<PoultryRawMaterialItem, "category">): boolean {
-  const c = (item.category || "").trim().toLowerCase()
-  return c === "finishedfeed" || c === "feedingredient"
+  return feedItemKind(item.category) != null
 }
 
 function iso(dateRaw: string | null | undefined): string {
@@ -94,12 +160,21 @@ function iso(dateRaw: string | null | undefined): string {
   return Number.isNaN(parsed.getTime()) ? new Date(0).toISOString() : parsed.toISOString()
 }
 
+/** Trims the float noise a unit conversion can leave (10 x 0.333). */
+const fmtQty = (n: number) => Math.round((n + Number.EPSILON) * 1000) / 1000
+
 const unitBit = (unit: string | null | undefined) => {
   const u = (unit || "").trim()
   return u ? ` ${u}` : ""
 }
 
 export interface FeedStockLedgerInput {
+  /**
+   * Which half of the feed store this ledger is for. Required rather than
+   * defaulted: a page that does not say pooled the two together, which is the
+   * bug this parameter exists to end.
+   */
+  kind: FeedItemKind
   items: PoultryRawMaterialItem[]
   purchases: PoultryRawMaterialPurchase[]
   usages: PoultryRawMaterialUsage[]
@@ -116,16 +191,25 @@ export interface FeedStockLedgerInput {
 export function buildFeedStockLedger(
   input: FeedStockLedgerInput,
 ): { rows: FeedLedgerRow[]; feedKgAtHand: number; lastUpdatedIso: string; totalInKg: number; totalOutKg: number } {
-  const { items, purchases, usages, adjustments, manualAdjustments = [] } = input
+  const { kind, items, purchases, usages, adjustments, manualAdjustments = [] } = input
 
-  // Which item ids are feed. The list endpoints already return itemName/category
-  // on each row, but the item list is the authority — a row's own category can
-  // be null on older records.
-  const feedItemIds = new Set(items.filter(isFeedItem).map((i) => i.poultryRawMaterialItemId))
+  // Which item ids are in scope. The list endpoints already return
+  // itemName/category on each row, but the item list is the authority — a row's
+  // own category can be null on older records, and falling back to it is what
+  // lets a movement be classified when the item has been deleted.
+  const feedItemIds = new Set(
+    items.filter((i) => feedItemKind(i.category) === kind).map((i) => i.poultryRawMaterialItemId),
+  )
   const itemById = new Map(items.map((i) => [i.poultryRawMaterialItemId, i]))
+  // An id that belongs to the OTHER half must be rejected outright, not fall
+  // through to the row's own category — otherwise a finished feed with a null
+  // category on its purchase row would land in the ingredient ledger.
+  const otherHalfIds = new Set(
+    items.filter((i) => { const k = feedItemKind(i.category); return k != null && k !== kind })
+      .map((i) => i.poultryRawMaterialItemId),
+  )
   const isFeed = (id: number, rowCategory?: string | null) =>
-    feedItemIds.has(id) ||
-    ["finishedfeed", "feedingredient"].includes((rowCategory || "").trim().toLowerCase())
+    feedItemIds.has(id) || (!otherHalfIds.has(id) && feedItemKind(rowCategory) === kind)
 
   const nameOf = (id: number, fallback?: string | null) =>
     itemById.get(id)?.itemName || fallback || `Item #${id}`
@@ -136,15 +220,24 @@ export function buildFeedStockLedger(
 
   for (const p of purchases) {
     if (!isFeed(p.poultryRawMaterialItemId, p.category)) continue
-    const qty = Number(p.quantity) || 0
+    // In STOCK units, not purchase units. See "Purchase units" in the header.
+    const qty = productionQty(p)
     if (qty <= 0) continue
     const unit = unitOf(p.poultryRawMaterialItemId, p.unitOfMeasure)
     const from = (p.supplierName || "").trim()
+    // Where the two units differ the row now shows a different number from the
+    // one that was typed in, so it says what it converted FROM. Without this a
+    // "10 bags" purchase silently reads as 500 and looks like a different record.
+    const factor = Number(p.productionUnitsPerPurchaseUnit) || 1
+    const bought = factor !== 1
+      ? ` — bought as ${fmtQty(Number(p.quantity) || 0)}${unitBit(itemById.get(p.poultryRawMaterialItemId)?.purchaseUnitOfMeasure)} × ${fmtQty(factor)}`
+      : ""
     lines.push({
       sortKey: `purchase_${p.poultryRawMaterialPurchaseId}`,
+      itemName: nameOf(p.poultryRawMaterialItemId, p.itemName),
       date: iso(p.purchaseDate),
       type: "Purchase IN",
-      description: `${nameOf(p.poultryRawMaterialItemId, p.itemName)} — purchased (${qty}${unitBit(unit)})${from ? ` from ${from}` : ""}`,
+      description: `${nameOf(p.poultryRawMaterialItemId, p.itemName)} — purchased (${fmtQty(qty)}${unitBit(unit)})${from ? ` from ${from}` : ""}${bought}`,
       in: qty,
       out: 0,
       order: 0,
@@ -163,12 +256,18 @@ export function buildFeedStockLedger(
       : " — used in production"
     lines.push({
       sortKey: `usage_${u.poultryRawMaterialUsageId}`,
+      itemName: nameOf(u.poultryRawMaterialItemId, u.itemName),
       date: iso(u.usedDate),
       type: "Usage OUT",
       description: `${nameOf(u.poultryRawMaterialItemId, u.itemName)}${via} (${qty}${unitBit(unit)})`,
       in: 0,
       out: qty,
       order: 1,
+      cost: u.operationalCost,
+      recognized: u.recognizedCost,
+      costLayers: u.costLayerCount,
+      reversed: u.isReversed,
+      productionRecordId: u.productionRecordId,
     })
   }
 
@@ -181,6 +280,7 @@ export function buildFeedStockLedger(
     const note = (a.note || "").trim()
     lines.push({
       sortKey: `stockadj_${a.poultryRawMaterialAdjustmentId}`,
+      itemName: nameOf(a.poultryRawMaterialItemId, a.itemName),
       date: iso(a.adjustedDate),
       type: "Adjustment",
       description: `${nameOf(a.poultryRawMaterialItemId, a.itemName)} — ${label}${note ? `: ${note}` : ""} (${Math.abs(qty)}${unitBit(unit)})`,
@@ -217,7 +317,7 @@ export function buildFeedStockLedger(
   let bal = 0
   let totalInKg = 0
   let totalOutKg = 0
-  const rows: FeedLedgerRow[] = lines.map((line) => {
+  const rows: FeedLedgerRow[] = lines.map((line, index) => {
     bal += line.in - line.out
     totalInKg += line.in
     totalOutKg += line.out
@@ -229,6 +329,13 @@ export function buildFeedStockLedger(
       in: line.in,
       out: line.out,
       balance: bal,
+      itemName: line.itemName,
+      seq: index,
+      cost: line.cost,
+      recognized: line.recognized,
+      costLayers: line.costLayers,
+      reversed: line.reversed,
+      productionRecordId: line.productionRecordId,
     }
   })
 

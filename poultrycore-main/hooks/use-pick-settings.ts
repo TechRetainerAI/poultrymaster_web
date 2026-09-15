@@ -1,7 +1,8 @@
 "use client"
 
-// Loads the active farm's egg-pick settings (times + enable-4th) for the
-// production entry forms. Falls back to defaults while loading / on error.
+// Loads the active farm's egg-pick settings (six times + the enable switches
+// for the 4th, 5th and 6th) for the production entry forms. Falls back to
+// defaults while loading / on error.
 import { useEffect, useState } from "react"
 import {
   DEFAULT_PICK_SETTINGS,
@@ -21,5 +22,11 @@ export function usePickSettings() {
     return () => { cancelled = true }
   }, [])
 
-  return { settings, labels: pickLabels(settings), enableFourthPick: settings.enableFourthPick }
+  return {
+    settings,
+    labels: pickLabels(settings),
+    enableFourthPick: settings.enableFourthPick,
+    enableFifthPick: settings.enableFifthPick,
+    enableSixthPick: settings.enableSixthPick,
+  }
 }

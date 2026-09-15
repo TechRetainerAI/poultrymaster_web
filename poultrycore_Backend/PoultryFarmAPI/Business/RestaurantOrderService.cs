@@ -1,4 +1,4 @@
-using Npgsql;
+﻿using Npgsql;
 using PoultryFarmAPIWeb.Models;
 
 namespace PoultryFarmAPIWeb.Business
@@ -125,6 +125,10 @@ namespace PoultryFarmAPIWeb.Business
             CustomerId          = r.IsDBNull(r.GetOrdinal("customerid")) ? null : r.GetInt32(r.GetOrdinal("customerid")),
             CustomerName        = r.IsDBNull(r.GetOrdinal("customername")) ? null : r.GetString(r.GetOrdinal("customername")),
             CustomerPhone       = r.IsDBNull(r.GetOrdinal("customerphone")) ? null : r.GetString(r.GetOrdinal("customerphone")),
+            // Optional guest email, exposed on these reads by migration 250. Read
+            // by name like the other optional columns, so an older database that
+            // has not had 250 applied simply yields null.
+            CustomerEmail       = Str(r, "customeremail"),
             Covers              = r.GetInt32(r.GetOrdinal("covers")),
             Subtotal            = r.GetDecimal(r.GetOrdinal("subtotal")),
             DiscountAmount      = r.GetDecimal(r.GetOrdinal("discountamount")),
@@ -142,7 +146,43 @@ namespace PoultryFarmAPIWeb.Business
             UpdatedAt           = r.IsDBNull(r.GetOrdinal("updatedat")) ? null : r.GetDateTime(r.GetOrdinal("updatedat")),
             CompletedAt         = r.IsDBNull(r.GetOrdinal("completedat")) ? null : r.GetDateTime(r.GetOrdinal("completedat")),
             ItemCount           = hasItemCount ? r.GetInt64(r.GetOrdinal("itemcount")) : 0,
+
+            // Guest/online provenance, returned by the list and get procs from
+            // migration 248 onward. Read defensively by column name: these procs
+            // are also what an un-migrated database will be missing, and a clear
+            // null beats an IndexOutOfRange from the data layer.
+            OnlineSource        = Str(r, "onlinesource"),
+            TrackingToken       = Str(r, "trackingtoken"),
+            QrCodeId            = Int(r, "qrcodeid"),
+            DeliveryAddress     = Str(r, "deliveryaddress"),
+            DeliveryFee         = Dec(r, "deliveryfee"),
+            PromoCode           = Str(r, "promocode"),
+            PromoDiscount       = Dec(r, "promodiscount"),
+            EstimatedReadyTime  = Date(r, "estimatedreadytime"),
+            ConfirmedAt         = Date(r, "confirmedat"),
+            ConfirmedBy         = Str(r, "confirmedby"),
+            GuestPaymentIntent  = Str(r, "guestpaymentintent"),
+            GuestPaymentAmount  = Has(r, "guestpaymentamount") && !r.IsDBNull(r.GetOrdinal("guestpaymentamount"))
+                                    ? r.GetDecimal(r.GetOrdinal("guestpaymentamount")) : null,
         };
+
+        // Column-optional readers. Every restaurant order read goes through
+        // ReadOrder, so if migration 248 has not been applied yet these keep the
+        // POS and the orders list working instead of throwing on every row.
+        private static bool Has(NpgsqlDataReader r, string col)
+        {
+            for (var i = 0; i < r.FieldCount; i++)
+                if (string.Equals(r.GetName(i), col, StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
+        }
+        private static string? Str(NpgsqlDataReader r, string col)
+            => Has(r, col) && !r.IsDBNull(r.GetOrdinal(col)) ? r.GetString(r.GetOrdinal(col)) : null;
+        private static int? Int(NpgsqlDataReader r, string col)
+            => Has(r, col) && !r.IsDBNull(r.GetOrdinal(col)) ? r.GetInt32(r.GetOrdinal(col)) : null;
+        private static decimal Dec(NpgsqlDataReader r, string col)
+            => Has(r, col) && !r.IsDBNull(r.GetOrdinal(col)) ? r.GetDecimal(r.GetOrdinal(col)) : 0m;
+        private static DateTime? Date(NpgsqlDataReader r, string col)
+            => Has(r, col) && !r.IsDBNull(r.GetOrdinal(col)) ? r.GetDateTime(r.GetOrdinal(col)) : null;
 
         // =====================================================================
         // ORDER ITEMS
@@ -464,6 +504,43 @@ namespace PoultryFarmAPIWeb.Business
                 CreatedAt       = r.GetDateTime(r.GetOrdinal("createdat")),
             });
             return list;
+        }
+
+        // =====================================================================
+        // CRM
+        // =====================================================================
+
+        /// <summary>
+        /// Saves an order's guest into the CRM and stamps the order with their id.
+        /// All four writes - find-or-create, link, count the visit, re-read the
+        /// segment - happen inside one stored procedure so the operation cannot
+        /// half-complete. Details come from the ORDER, never from the caller.
+        /// </summary>
+        public async Task<LinkOrderCustomerResult> LinkOrderToCustomerAsync(int orderId, string farmId)
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM sprestaurant_order_link_customer(p_orderid => @orderId::int, p_farmid => @farmId::text)", conn);
+            // Descriptive names on purpose: Npgsql matches parameter names
+            // case-insensitively, so @f and @F would collide.
+            cmd.Parameters.AddWithValue("@orderId", orderId);
+            cmd.Parameters.AddWithValue("@farmId", farmId);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            if (!await r.ReadAsync())
+                return new LinkOrderCustomerResult { Ok = false, Message = "Could not save that customer." };
+
+            return new LinkOrderCustomerResult
+            {
+                Ok          = r.GetBoolean(r.GetOrdinal("ok")),
+                CustomerId  = r.IsDBNull(r.GetOrdinal("customerid")) ? null : r.GetInt32(r.GetOrdinal("customerid")),
+                Created     = r.GetBoolean(r.GetOrdinal("created")),
+                Name        = r.IsDBNull(r.GetOrdinal("name")) ? null : r.GetString(r.GetOrdinal("name")),
+                Segment     = r.IsDBNull(r.GetOrdinal("segment")) ? null : r.GetString(r.GetOrdinal("segment")),
+                TotalVisits = r.IsDBNull(r.GetOrdinal("totalvisits")) ? null : r.GetInt32(r.GetOrdinal("totalvisits")),
+                TotalSpent  = r.IsDBNull(r.GetOrdinal("totalspent")) ? null : r.GetDecimal(r.GetOrdinal("totalspent")),
+                Message     = r.IsDBNull(r.GetOrdinal("message")) ? string.Empty : r.GetString(r.GetOrdinal("message")),
+            };
         }
     }
 }

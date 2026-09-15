@@ -60,7 +60,7 @@ namespace PoultryFarmAPIWeb.Business
             try
             {
                 using var conn = new NpgsqlConnection(_connectionString);
-                using var cmd = new NpgsqlCommand("SELECT * FROM speggproduction_insert(p_flockid => @FlockId::int, p_productiondate => @ProductionDate::date, p_eggcount => @EggCount::int, p_production9am => @Production9AM::int, p_production12pm => @Production12PM::int, p_production4pm => @Production4PM::int, p_production4thpick => @Production4thPick::int, p_brokeneggs => @BrokenEggs::int, p_notes => @Notes::text, p_userid => @UserId::text, p_farmid => @FarmId::text, p_egggrade => @EggGrade::text, p_specificfeedusedid => @SpecificFeedUsedId::int, p_specificfeedusedname => @SpecificFeedUsedName::text, p_feedunitcost => @FeedUnitCost::numeric, p_totalfeedconsumed => @TotalFeedConsumed::numeric, p_totalfeedcost => @TotalFeedCost::numeric, p_specificmedicationusedid => @SpecificMedicationUsedId::int, p_specificmedicationusedname => @SpecificMedicationUsedName::text, p_medicationunitcost => @MedicationUnitCost::numeric, p_totalmedicationconsumed => @TotalMedicationConsumed::numeric, p_totalmedicationcost => @TotalMedicationCost::numeric)", conn);
+                using var cmd = new NpgsqlCommand("SELECT * FROM speggproduction_insert(p_flockid => @FlockId::int, p_productiondate => @ProductionDate::date, p_eggcount => @EggCount::int, p_production9am => @Production9AM::int, p_production12pm => @Production12PM::int, p_production4pm => @Production4PM::int, p_production4thpick => @Production4thPick::int, p_brokeneggs => @BrokenEggs::int, p_notes => @Notes::text, p_userid => @UserId::text, p_farmid => @FarmId::text, p_egggrade => @EggGrade::text, p_specificfeedusedid => @SpecificFeedUsedId::int, p_specificfeedusedname => @SpecificFeedUsedName::text, p_feedunitcost => @FeedUnitCost::numeric, p_totalfeedconsumed => @TotalFeedConsumed::numeric, p_totalfeedcost => @TotalFeedCost::numeric, p_specificmedicationusedid => @SpecificMedicationUsedId::int, p_specificmedicationusedname => @SpecificMedicationUsedName::text, p_medicationunitcost => @MedicationUnitCost::numeric, p_totalmedicationconsumed => @TotalMedicationConsumed::numeric, p_totalmedicationcost => @TotalMedicationCost::numeric, p_production5thpick => @Production5thPick::int, p_production6thpick => @Production6thPick::int)", conn);
                 cmd.Parameters.Add("@FlockId", NpgsqlDbType.Integer).Value = model.FlockId;
                 cmd.Parameters.Add("@ProductionDate", NpgsqlDbType.Date).Value = model.ProductionDate;
                 cmd.Parameters.Add("@EggCount", NpgsqlDbType.Integer).Value = model.EggCount;
@@ -68,6 +68,8 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.Add("@Production12PM", NpgsqlDbType.Integer).Value = model.Production12PM;
                 cmd.Parameters.Add("@Production4PM", NpgsqlDbType.Integer).Value = model.Production4PM;
                 cmd.Parameters.Add("@Production4thPick", NpgsqlDbType.Integer).Value = model.Production4thPick;
+                cmd.Parameters.Add("@Production5thPick", NpgsqlDbType.Integer).Value = model.Production5thPick;
+                cmd.Parameters.Add("@Production6thPick", NpgsqlDbType.Integer).Value = model.Production6thPick;
                 cmd.Parameters.Add("@BrokenEggs", NpgsqlDbType.Integer).Value = (object?)model.BrokenEggs ?? DBNull.Value;
                 cmd.Parameters.Add("@Notes", NpgsqlDbType.Text, -1).Value = (object?)model.Notes ?? DBNull.Value;
                 cmd.Parameters.Add("@UserId", NpgsqlDbType.Text, -1).Value = model.UserId ?? (object)DBNull.Value;
@@ -100,7 +102,7 @@ namespace PoultryFarmAPIWeb.Business
             try
             {
                 using var conn = new NpgsqlConnection(_connectionString);
-                using var cmd = new NpgsqlCommand("SELECT * FROM speggproduction_update(p_productionid => @ProductionId::int, p_flockid => @FlockId::int, p_productiondate => @ProductionDate::date, p_eggcount => @EggCount::int, p_production9am => @Production9AM::int, p_production12pm => @Production12PM::int, p_production4pm => @Production4PM::int, p_production4thpick => @Production4thPick::int, p_brokeneggs => @BrokenEggs::int, p_notes => @Notes::text, p_userid => @UserId::text, p_farmid => @FarmId::text, p_egggrade => @EggGrade::text, p_specificfeedusedid => @SpecificFeedUsedId::int, p_specificfeedusedname => @SpecificFeedUsedName::text, p_feedunitcost => @FeedUnitCost::numeric, p_totalfeedconsumed => @TotalFeedConsumed::numeric, p_totalfeedcost => @TotalFeedCost::numeric, p_specificmedicationusedid => @SpecificMedicationUsedId::int, p_specificmedicationusedname => @SpecificMedicationUsedName::text, p_medicationunitcost => @MedicationUnitCost::numeric, p_totalmedicationconsumed => @TotalMedicationConsumed::numeric, p_totalmedicationcost => @TotalMedicationCost::numeric)", conn);
+                using var cmd = new NpgsqlCommand("SELECT * FROM speggproduction_update(p_productionid => @ProductionId::int, p_flockid => @FlockId::int, p_productiondate => @ProductionDate::date, p_eggcount => @EggCount::int, p_production9am => @Production9AM::int, p_production12pm => @Production12PM::int, p_production4pm => @Production4PM::int, p_production4thpick => @Production4thPick::int, p_brokeneggs => @BrokenEggs::int, p_notes => @Notes::text, p_userid => @UserId::text, p_farmid => @FarmId::text, p_egggrade => @EggGrade::text, p_specificfeedusedid => @SpecificFeedUsedId::int, p_specificfeedusedname => @SpecificFeedUsedName::text, p_feedunitcost => @FeedUnitCost::numeric, p_totalfeedconsumed => @TotalFeedConsumed::numeric, p_totalfeedcost => @TotalFeedCost::numeric, p_specificmedicationusedid => @SpecificMedicationUsedId::int, p_specificmedicationusedname => @SpecificMedicationUsedName::text, p_medicationunitcost => @MedicationUnitCost::numeric, p_totalmedicationconsumed => @TotalMedicationConsumed::numeric, p_totalmedicationcost => @TotalMedicationCost::numeric, p_production5thpick => @Production5thPick::int, p_production6thpick => @Production6thPick::int)", conn);
                 cmd.Parameters.AddWithValue("@ProductionId", model.ProductionId);
                 cmd.Parameters.AddWithValue("@FlockId", model.FlockId);
                 cmd.Parameters.AddWithValue("@ProductionDate", model.ProductionDate);
@@ -109,6 +111,8 @@ namespace PoultryFarmAPIWeb.Business
                 cmd.Parameters.AddWithValue("@Production12PM", model.Production12PM);
                 cmd.Parameters.AddWithValue("@Production4PM", model.Production4PM);
                 cmd.Parameters.AddWithValue("@Production4thPick", model.Production4thPick);
+                cmd.Parameters.AddWithValue("@Production5thPick", model.Production5thPick);
+                cmd.Parameters.AddWithValue("@Production6thPick", model.Production6thPick);
                 cmd.Parameters.AddWithValue("@BrokenEggs", (object?)model.BrokenEggs ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@Notes", (object?)model.Notes ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@UserId", model.UserId ?? (object)DBNull.Value);
@@ -150,6 +154,8 @@ namespace PoultryFarmAPIWeb.Business
                         Production12PM = reader.IsDBNull(reader.GetOrdinal("Production12PM")) ? 0 : reader.GetInt32(reader.GetOrdinal("Production12PM")),
                         Production4PM = reader.IsDBNull(reader.GetOrdinal("Production4PM")) ? 0 : reader.GetInt32(reader.GetOrdinal("Production4PM")),
                         Production4thPick = ReadOptionalInt32(reader, "Production4thPick") ?? 0,
+                        Production5thPick = ReadOptionalInt32(reader, "Production5thPick") ?? 0,
+                        Production6thPick = ReadOptionalInt32(reader, "Production6thPick") ?? 0,
                         BrokenEggs = reader.IsDBNull(reader.GetOrdinal("BrokenEggs"))
                             ? null
                             : reader.GetInt32(reader.GetOrdinal("BrokenEggs")),
@@ -165,7 +171,8 @@ namespace PoultryFarmAPIWeb.Business
                         UserId = reader.GetString(reader.GetOrdinal("UserId")),
                         FarmId = reader.IsDBNull(reader.GetOrdinal("FarmId")) ? null : reader.GetString(reader.GetOrdinal("FarmId"))
                     };
-                    model.TotalProduction = model.Production9AM + model.Production12PM + model.Production4PM + model.Production4thPick;
+                    model.TotalProduction = model.Production9AM + model.Production12PM + model.Production4PM
+                                          + model.Production4thPick + model.Production5thPick + model.Production6thPick;
                     return model;
                 }
                 return null;
@@ -194,6 +201,8 @@ namespace PoultryFarmAPIWeb.Business
                     var p12 = reader.IsDBNull(reader.GetOrdinal("Production12PM")) ? 0 : reader.GetInt32(reader.GetOrdinal("Production12PM"));
                     var p4 = reader.IsDBNull(reader.GetOrdinal("Production4PM")) ? 0 : reader.GetInt32(reader.GetOrdinal("Production4PM"));
                     var p4th = ReadOptionalInt32(reader, "Production4thPick") ?? 0;
+                    var p5th = ReadOptionalInt32(reader, "Production5thPick") ?? 0;
+                    var p6th = ReadOptionalInt32(reader, "Production6thPick") ?? 0;
                     var totalFromRow = ReadOptionalInt32(reader, "TotalProduction");
                     var ep = new EggProductionModel
                     {
@@ -206,7 +215,11 @@ namespace PoultryFarmAPIWeb.Business
                         Production12PM = p12,
                         Production4PM = p4,
                         Production4thPick = p4th,
-                        TotalProduction = totalFromRow ?? p9 + p12 + p4 + p4th,
+                        Production5thPick = p5th,
+                        Production6thPick = p6th,
+                        // The SP's own total when it sends one; the sum of every
+                        // pick when it does not.
+                        TotalProduction = totalFromRow ?? p9 + p12 + p4 + p4th + p5th + p6th,
                         BrokenEggs = reader.IsDBNull(reader.GetOrdinal("BrokenEggs"))
                             ? null
                             : reader.GetInt32(reader.GetOrdinal("BrokenEggs")),

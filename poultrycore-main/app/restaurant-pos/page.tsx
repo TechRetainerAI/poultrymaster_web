@@ -246,14 +246,14 @@ export default function RestaurantPOSPage() {
   if (loading) return <PageSkeleton />
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex min-h-screen lg:h-screen bg-gray-100">
       <DashboardSidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 min-w-0 flex flex-col lg:overflow-hidden">
         <DashboardHeader />
-        <main className="flex-1 overflow-hidden">
-          <div className="h-full flex">
+        <main className="flex-1 lg:overflow-hidden pb-20 lg:pb-0">
+          <div className="lg:h-full flex flex-col lg:flex-row">
             {/* LEFT: Menu items */}
-            <div className="flex-1 flex flex-col overflow-hidden bg-white">
+            <div className="flex-1 min-h-0 flex flex-col lg:overflow-hidden bg-white">
               {/* Category pills */}
               <div className="p-3 border-b flex gap-2 overflow-x-auto flex-shrink-0 bg-gray-50">
                 <Button variant={selectedCat === null ? "default" : "outline"} size="sm" onClick={() => setSelectedCat(null)} className={selectedCat === null ? "bg-rose-600 hover:bg-rose-700" : ""}>All</Button>
@@ -270,7 +270,7 @@ export default function RestaurantPOSPage() {
                 </div>
               </div>
               {/* Item grid */}
-              <div className="flex-1 overflow-y-auto p-3">
+              <div className="flex-1 lg:overflow-y-auto p-3">
                 {filteredItems.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-gray-400">
                     <UtensilsCrossed className="h-12 w-12 mb-3" />
@@ -281,12 +281,29 @@ export default function RestaurantPOSPage() {
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                     {filteredItems.map(item => (
                       <button key={item.menuItemId} onClick={() => addToCart(item)}
-                        className="text-left p-3 border rounded-xl hover:border-rose-300 hover:bg-rose-50/50 hover:shadow-sm transition-all group">
-                        <div className="font-medium text-sm text-gray-900 truncate group-hover:text-rose-700">{item.name}</div>
-                        <div className="text-xs text-muted-foreground truncate mt-0.5">{item.categoryName || "Uncategorized"}</div>
-                        <div className="flex items-center justify-between mt-2">
-                          <span className="font-bold text-rose-600">{item.price.toFixed(2)}</span>
-                          {item.prepTime > 0 && <span className="text-[10px] text-muted-foreground">{item.prepTime}m</span>}
+                        className="text-left border rounded-xl overflow-hidden hover:border-rose-300 hover:bg-rose-50/50 hover:shadow-sm transition-all group">
+                        {/* Photo. On a POS the picture is what staff scan for, so it gets
+                            the top of the tile. The icon sits underneath as a permanent
+                            backdrop, so items with no photo -- and images that fail to
+                            decode -- land on the same placeholder and every row in the
+                            grid keeps the same height. */}
+                        <div className="relative aspect-[4/3] w-full bg-gray-100 overflow-hidden">
+                          <div className="absolute inset-0 flex items-center justify-center text-gray-300">
+                            <UtensilsCrossed className="h-7 w-7" />
+                          </div>
+                          {item.imageUrl && (
+                            <img src={item.imageUrl} alt="" loading="lazy"
+                              className="relative w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                              onError={e => (e.currentTarget.style.display = "none")} />
+                          )}
+                        </div>
+                        <div className="p-3">
+                          <div className="font-medium text-sm text-gray-900 truncate group-hover:text-rose-700">{item.name}</div>
+                          <div className="text-xs text-muted-foreground truncate mt-0.5">{item.categoryName || "Uncategorized"}</div>
+                          <div className="flex items-center justify-between mt-2">
+                            <span className="font-bold text-rose-600">{item.price.toFixed(2)}</span>
+                            {item.prepTime > 0 && <span className="text-[10px] text-muted-foreground">{item.prepTime}m</span>}
+                          </div>
                         </div>
                       </button>
                     ))}
@@ -296,7 +313,7 @@ export default function RestaurantPOSPage() {
             </div>
 
             {/* RIGHT: Cart / Active Order */}
-            <div className="w-[400px] flex flex-col bg-white border-l shadow-lg">
+            <div className="w-full lg:w-[400px] shrink-0 flex flex-col bg-white border-t lg:border-t-0 lg:border-l shadow-lg">
               {activeOrder ? (
                 <div className="flex-1 flex flex-col">
                   <div className="p-4 border-b bg-green-50">

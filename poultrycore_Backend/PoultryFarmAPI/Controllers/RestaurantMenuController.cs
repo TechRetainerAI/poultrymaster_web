@@ -16,6 +16,46 @@ namespace PoultryFarmAPIWeb.Controllers
         public RestaurantMenuController(IRestaurantMenuService svc) => _svc = svc;
 
         // =====================================================================
+        // MENU ITEM NAMES
+        // =====================================================================
+        // The Add Menu Item form's name dropdown. Returns the shared system seed
+        // list plus any custom names this farm has added via POST below.
+        //
+        // These live here rather than on HotelSetupController (which exposes the
+        // unscoped system list at /Hotel/setup/menu-item-names and is what the
+        // Restaurant UI used to call). Hotel's endpoint and service are left
+        // exactly as they were; this is the Restaurant module's own door onto the
+        // same table, farm-scoped. See Migrations/287.
+
+        [HttpGet("item-names")]
+        public async Task<IActionResult> ListItemNames([FromQuery] string farmId)
+        {
+            var auth = HotelAuthHelper.VerifyFarmOwnership(User, farmId); if (auth != null) return auth;
+            return Ok(await _svc.ListItemNamesForFarmAsync(farmId));
+        }
+
+        public class MenuItemNameCreateRequest
+        {
+            public string FarmId { get; set; } = string.Empty;
+            public string Description { get; set; } = string.Empty;
+            public string? Category { get; set; }
+        }
+
+        [HttpPost("item-names")]
+        public async Task<IActionResult> CreateItemName([FromBody] MenuItemNameCreateRequest req)
+        {
+            var auth = HotelAuthHelper.VerifyFarmOwnership(User, req.FarmId); if (auth != null) return auth;
+            if (string.IsNullOrWhiteSpace(req.Description))
+                return BadRequest(new { message = "Item name is required." });
+            if (req.Description.Trim().Length > 150)
+                return BadRequest(new { message = "Item name cannot exceed 150 characters." });
+
+            var created = await _svc.InsertItemNameAsync(req.FarmId, req.Description.Trim(), req.Category);
+            if (created == null) return StatusCode(500, new { message = "Could not save the item name." });
+            return Ok(created);
+        }
+
+        // =====================================================================
         // CATEGORIES
         // =====================================================================
 

@@ -175,6 +175,8 @@ export default function BatchProductionDetailPage() {
                     <Field label="2nd Pick" value={batch.secondPickTotal} />
                     <Field label="3rd Pick" value={batch.thirdPickTotal} />
                     <Field label="4th Pick" value={batch.fourthPickTotal} />
+                    {(batch.fifthPickTotal || 0) > 0 && <Field label="5th Pick" value={batch.fifthPickTotal} />}
+                    {(batch.sixthPickTotal || 0) > 0 && <Field label="6th Pick" value={batch.sixthPickTotal} />}
                     <Field label="Broken" value={batch.brokenEggs ?? 0} />
                     <Field label="Meaty" value={batch.meatyEggs ?? 0} />
                     <Field label="Soft" value={batch.softEggs ?? 0} />
@@ -221,6 +223,8 @@ export default function BatchProductionDetailPage() {
                             <TableHead className="text-right">2nd</TableHead>
                             <TableHead className="text-right">3rd</TableHead>
                             <TableHead className="text-right">4th</TableHead>
+                            {(batch.fifthPickTotal || 0) > 0 && <TableHead className="text-right">5th</TableHead>}
+                            {(batch.sixthPickTotal || 0) > 0 && <TableHead className="text-right">6th</TableHead>}
                             <TableHead className="text-right">Broken</TableHead>
                             <TableHead className="text-right">Total</TableHead>
                             <TableHead className="text-right">Deaths</TableHead>
@@ -235,6 +239,8 @@ export default function BatchProductionDetailPage() {
                               <TableCell className="text-right">{a.secondPickEggs}</TableCell>
                               <TableCell className="text-right">{a.thirdPickEggs}</TableCell>
                               <TableCell className="text-right">{a.fourthPickEggs}</TableCell>
+                              {(batch.fifthPickTotal || 0) > 0 && <TableCell className="text-right">{a.fifthPickEggs}</TableCell>}
+                              {(batch.sixthPickTotal || 0) > 0 && <TableCell className="text-right">{a.sixthPickEggs}</TableCell>}
                               <TableCell className="text-right">{a.brokenEggs ?? 0}</TableCell>
                               <TableCell className="text-right font-medium">{a.totalEggs}</TableCell>
                               <TableCell className="text-right">{a.deaths}</TableCell>

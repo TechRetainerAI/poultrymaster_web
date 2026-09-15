@@ -4,9 +4,9 @@
 // Egg Pick Time Settings (/business-office/egg-pick-settings)
 //
 // Farms pick eggs at different times of day. Production records are labelled
-// generically (1st/2nd/3rd/4th Pick); this page configures the time each pick
-// represents (display/reporting only) and whether the 4th pick is enabled for
-// entry. Backed by FarmProductionSettings (migration 153).
+// generically (1st..6th Pick); this page configures the time each pick
+// represents (display/reporting only) and which of the later picks are enabled
+// for entry. Backed by FarmProductionSettings (migrations 153 and 248).
 // =============================================================================
 
 import { useEffect, useState } from "react"
@@ -64,6 +64,29 @@ export default function EggPickSettingsPage() {
     { key: "secondPickTime", label: "2nd Pick Time" },
     { key: "thirdPickTime", label: "3rd Pick Time" },
     { key: "fourthPickTime", label: "4th Pick Time" },
+    { key: "fifthPickTime", label: "5th Pick Time" },
+    { key: "sixthPickTime", label: "6th Pick Time" },
+  ]
+
+  // The three optional rounds, each with its own switch. One row per pick
+  // rather than one switch for "extra picks": a farm that collects five times
+  // should not have to enable a sixth to get the fifth.
+  const toggles: { key: "enableFourthPick" | "enableFifthPick" | "enableSixthPick"; label: string; hint: string }[] = [
+    {
+      key: "enableFourthPick",
+      label: "Enable 4th Pick",
+      hint: "When off, the 4th Pick input is hidden on entry forms. Records and reports still support it, so you can turn it on any time without losing data.",
+    },
+    {
+      key: "enableFifthPick",
+      label: "Enable 5th Pick",
+      hint: "Sets the time and the label. Production records cannot store a 5th pick yet, so entry forms will start using it once they can.",
+    },
+    {
+      key: "enableSixthPick",
+      label: "Enable 6th Pick",
+      hint: "Sets the time and the label. Production records cannot store a 6th pick yet, so entry forms will start using it once they can.",
+    },
   ]
 
   return (
@@ -85,7 +108,7 @@ export default function EggPickSettingsPage() {
                 <h1 className="text-2xl font-bold text-slate-900">Egg Pick Time Settings</h1>
                 <p className="text-sm text-slate-600">
                   Configure the time of day each egg pick represents for this farm. These times are used for display and
-                  reporting, while production records are labelled 1st Pick, 2nd Pick, 3rd Pick, and 4th Pick.
+                  reporting, while production records are labelled 1st Pick through 6th Pick.
                 </p>
               </div>
             </div>
@@ -115,19 +138,20 @@ export default function EggPickSettingsPage() {
                       ))}
                     </div>
 
-                    <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                      <Switch
-                        checked={form.enableFourthPick}
-                        onCheckedChange={(checked) => setForm({ ...form, enableFourthPick: checked })}
-                        disabled={saving}
-                      />
-                      <div className="min-w-0">
-                        <Label className="text-sm font-medium text-slate-700">Enable 4th Pick</Label>
-                        <p className="text-xs text-slate-500">
-                          When off, the 4th Pick input is hidden on entry forms. Records and reports still support it, so
-                          you can turn it on any time without losing data.
-                        </p>
-                      </div>
+                    <div className="space-y-2">
+                      {toggles.map((t) => (
+                        <div key={t.key} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <Switch
+                            checked={form[t.key]}
+                            onCheckedChange={(checked) => setForm({ ...form, [t.key]: checked })}
+                            disabled={saving}
+                          />
+                          <div className="min-w-0">
+                            <Label className="text-sm font-medium text-slate-700">{t.label}</Label>
+                            <p className="text-xs text-slate-500">{t.hint}</p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
 
                     <div className="flex justify-end gap-3 pt-2">

@@ -93,8 +93,33 @@ namespace PoultryFarmAPIWeb.Models
         public string? ApprovedBy { get; set; }
         public DateTime? ApprovedAt { get; set; }
 
+        /// <summary>TRF-2026-0001. Stamped by the insert SP from the identity.</summary>
+        [StringLength(40)] public string? TransferNumber { get; set; }
+        /// <summary>The bank's or wallet's own reference for the movement.</summary>
+        [StringLength(100)] public string? ReferenceNumber { get; set; }
+
+        public string? ReversedBy { get; set; }
+        public DateTime? ReversedAt { get; set; }
+        [StringLength(500)] public string? ReversalReason { get; set; }
+
+        /// <summary>The two ledger rows approval wrote. Null until approved.</summary>
+        public int? OutgoingCashTransactionId { get; set; }
+        public int? IncomingCashTransactionId { get; set; }
+
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
+    }
+
+    /// <summary>
+    /// Body for POST cash-transfers/{id}/reverse. The reason is required: a
+    /// reversal with no stated reason is indistinguishable from a mistake, and
+    /// it is what the audit trail carries.
+    /// </summary>
+    public class PoultryCashTransferReverseRequest
+    {
+        [Required(AllowEmptyStrings = false)]
+        [StringLength(500, MinimumLength = 3)]
+        public string Reason { get; set; } = string.Empty;
     }
 
     // Body for POST cash-accounts/{id}/adjust.

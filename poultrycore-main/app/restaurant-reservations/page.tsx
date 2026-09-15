@@ -102,7 +102,7 @@ export default function RestaurantReservationsPage() {
       <DashboardSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <DashboardHeader />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="max-w-6xl mx-auto space-y-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -112,7 +112,7 @@ export default function RestaurantReservationsPage() {
             </div>
 
             <Tabs defaultValue="reservations" className="space-y-4">
-              <TabsList className="bg-white border shadow-sm">
+              <TabsList className="bg-white border shadow-sm flex-wrap h-auto">
                 <TabsTrigger value="reservations" className="data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700">
                   <CalendarDays className="h-4 w-4 mr-2" /> Reservations
                   {resStats && <Badge variant="secondary" className="ml-2 h-5 px-1.5">{resStats.totalCount}</Badge>}
@@ -126,7 +126,7 @@ export default function RestaurantReservationsPage() {
               <TabsContent value="reservations" className="space-y-4">
                 {/* Date nav + stats */}
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => changeDate(-1)}><ChevronLeft className="h-4 w-4" /></Button>
                     <Input type="date" className="w-[170px] h-9" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} />
                     <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => changeDate(1)}><ChevronRight className="h-4 w-4" /></Button>
@@ -263,7 +263,7 @@ export default function RestaurantReservationsPage() {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader><DialogTitle>{resEditing ? "Edit Reservation" : "New Reservation"}</DialogTitle><DialogDescription>Book a table for your guest</DialogDescription></DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5"><Label>Guest Name <span className="text-rose-500">*</span></Label><Input value={resForm.guestName} onChange={e => setResForm({ ...resForm, guestName: e.target.value })} className="h-10" /></div>
               <div className="space-y-1.5"><Label>Phone</Label><Input value={resForm.guestPhone || ""} onChange={e => setResForm({ ...resForm, guestPhone: e.target.value })} className="h-10" /></div>
               <div className="space-y-1.5"><Label>Date</Label><Input type="date" value={resForm.reservationDate} onChange={e => setResForm({ ...resForm, reservationDate: e.target.value })} className="h-10" /></div>
@@ -298,7 +298,7 @@ export default function RestaurantReservationsPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Add to Waitlist</DialogTitle><DialogDescription>Walk-in guest waiting for a table</DialogDescription></DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5"><Label>Guest Name <span className="text-rose-500">*</span></Label><Input value={waitForm.guestName} onChange={e => setWaitForm({ ...waitForm, guestName: e.target.value })} className="h-10" /></div>
               <div className="space-y-1.5"><Label>Phone</Label><Input value={waitForm.guestPhone || ""} onChange={e => setWaitForm({ ...waitForm, guestPhone: e.target.value })} className="h-10" /></div>
               <div className="space-y-1.5"><Label>Party Size</Label><Input type="number" min={1} value={waitForm.partySize} onChange={e => setWaitForm({ ...waitForm, partySize: parseInt(e.target.value) || 2 })} className="h-10" /></div>

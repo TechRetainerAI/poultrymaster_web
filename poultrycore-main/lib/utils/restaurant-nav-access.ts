@@ -4,6 +4,9 @@ const RESTAURANT_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAd
   // --- POS & Orders --------------------------------------------------------
   "/restaurant-pos":              (f) => f.canViewRestaurantPOS,
   "/restaurant-orders":           (f) => f.canViewRestaurantPOS,
+  // Accepting a guest order puts it in the kitchen and takes a table, so it
+  // belongs with the POS permission rather than the read-only online settings.
+  "/restaurant-pending-orders":   (f) => f.canViewRestaurantPOS,
 
   // --- Kitchen -------------------------------------------------------------
   "/restaurant-kds":              (f) => f.canViewRestaurantKDS,
@@ -18,6 +21,7 @@ const RESTAURANT_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAd
   "/restaurant-reservations":     (f) => f.canViewRestaurantReservations,
 
   // --- Online Ordering -----------------------------------------------------
+  "/restaurant-qr-print":         (f) => f.canViewRestaurantOnlineOrders,
   "/restaurant-online-orders":    (f) => f.canViewRestaurantOnlineOrders,
   "/restaurant-order-online":     () => true, // public page
 

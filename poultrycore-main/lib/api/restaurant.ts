@@ -137,8 +137,38 @@ export interface MenuItemName {
   isActive: boolean
 }
 
+// Was /Hotel/setup/menu-item-names, which returns the system seed list only and
+// is shared with Hotel Setup. The Restaurant endpoint returns those same seeds
+// PLUS any custom names this farm has saved from the "Other" box on the Add Menu
+// Item form. Hotel's endpoint is untouched and still serves Hotel.
 export async function listMenuItemNames(): Promise<MenuItemName[]> {
-  return jget<MenuItemName[]>("/Hotel/setup/menu-item-names")
+  try {
+    return await jget<MenuItemName[]>("/Restaurant/menu/item-names")
+  } catch {
+    // The Restaurant route only exists once the Farm API has been redeployed with
+    // migration 287 applied. Until then fall back to the shared system seed list so
+    // the Item Name dropdown is never empty — pointing at the new route without this
+    // fallback blanked the whole list, because the caller swallows errors with
+    // .catch(() => []). Custom names start appearing once the new route is live.
+    return jget<MenuItemName[]>("/Hotel/setup/menu-item-names")
+  }
+}
+
+/**
+ * Save a custom dish name so it can be picked from the dropdown next time.
+ * Idempotent server-side: re-saving an existing name returns that row rather
+ * than creating a duplicate, so a double-submit is harmless.
+ */
+export async function createMenuItemName(
+  description: string,
+  category?: string | null,
+): Promise<MenuItemName> {
+  const farmId = activeFarmId()
+  return jsend<MenuItemName>("/Restaurant/menu/item-names", "POST", {
+    farmId,
+    description,
+    category: category ?? null,
+  })
 }
 
 // ----- Menu Categories -----
@@ -690,12 +720,28 @@ export interface Order {
   orderId: number; farmId: string; orderNumber: string; orderType: string; status: string
   tableId?: number | null; tableNumber?: string | null
   customerId?: number | null; customerName?: string | null; customerPhone?: string | null
+  /** Optional guest email. Returned by the order reads from migration 250 onward. */
+  customerEmail?: string | null
   covers: number; subtotal: number; discountAmount: number; taxAmount: number
   serviceChargeAmount: number; totalAmount: number; paidAmount: number
   paymentStatus: string; notes?: string | null; createdBy?: string | null; servedBy?: string | null
   cancelReason?: string | null; refundReason?: string | null
   createdAt: string; updatedAt?: string | null; completedAt?: string | null
   itemCount: number
+  // Guest/online provenance. Present on the wire from migration 248 onward;
+  // optional so an un-migrated backend simply omits them rather than breaking.
+  onlineSource?: string | null      // 'QR' | 'Web' | 'App'; absent = walk-in POS order
+  trackingToken?: string | null
+  qrCodeId?: number | null
+  deliveryAddress?: string | null
+  deliveryFee?: number
+  promoCode?: string | null
+  promoDiscount?: number
+  estimatedReadyTime?: string | null
+  confirmedAt?: string | null
+  confirmedBy?: string | null
+  guestPaymentIntent?: string | null
+  guestPaymentAmount?: number | null
 }
 export interface OrderCreateInput {
   orderType?: string; tableId?: number | null; tableNumber?: string | null
@@ -1092,6 +1138,10 @@ export interface OnlineOrderingSettings {
   deliveryFeeType: string; deliveryFeeAmount: number; freeDeliveryAbove?: number | null
   maxDeliveryDistanceKm: number; acceptingOrders: boolean; pausedReason?: string | null
   welcomeMessage?: string | null; termsAndConditions?: string | null
+  /** Origin printed into QR codes. Blank = use the browser's current origin. */
+  publicBaseUrl?: string | null
+  /** Per-table rate limit: max orders from one QR within qrSlotDurationMins. */
+  maxOrdersPerQrSlot?: number; qrSlotDurationMins?: number
   createdAt: string; updatedAt?: string | null
 }
 
@@ -1111,18 +1161,28 @@ export async function toggleAcceptingOrders(accepting: boolean, reason?: string)
 
 // ----- QR Codes -----
 
+export type QrCodeType = "Restaurant" | "Table"
+
 export interface QrCode {
   qrCodeId: number; farmId: string; tableId?: number | null; tableNumber: string
+  /** "Restaurant" = one code for the whole venue; "Table" = tied to one table. */
+  codeType?: QrCodeType
   qrToken: string; isActive: boolean; scanCount: number; lastScannedAt?: string | null; createdAt: string
 }
 
 export async function listQrCodes(): Promise<QrCode[]> {
   return jget<QrCode[]>("/Restaurant/online/qr-codes")
 }
-export async function generateQrCode(tableId: number, tableNumber: string): Promise<{ qrCodeId: number; qrToken: string }> {
+export async function generateQrCode(
+  tableId: number | null, tableNumber: string | null, codeType: QrCodeType = "Table",
+): Promise<{ qrCodeId: number; qrToken: string }> {
   const farmId = activeFarmId()
   const url = farmApiUrl(`/Restaurant/online/qr-codes?farmId=${encodeURIComponent(farmId)}`)
-  const res = await fetch(url, { method: "POST", headers: getAuthHeaders(), body: JSON.stringify({ tableId, tableNumber }) })
+  const res = await fetch(url, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ codeType, tableId, tableNumber }),
+  })
   if (!res.ok) throw new Error(await readApiError(res))
   return res.json()
 }
@@ -1177,6 +1237,10 @@ export interface OrderTracking {
   orderId: number; orderNumber: string; orderType: string; status: string
   tableNumber?: string | null; totalAmount: number; paymentStatus: string
   estimatedReadyTime?: string | null; createdAt: string; updatedAt?: string | null
+  /** 'QR' | 'Web' | 'App'. Present means the order still needs staff confirmation while status is 'Placed'. */
+  onlineSource?: string | null
+  cancelReason?: string | null
+  confirmedAt?: string | null
 }
 export interface PromoValidation {
   valid: boolean; promoCodeId: number; discountType: string; discountValue: number
@@ -1195,13 +1259,41 @@ export async function getPublicCategories(farmId: string): Promise<PublicCategor
   if (!res.ok) throw new Error(await readApiError(res))
   return res.json()
 }
+/**
+ * The restaurant's public identity for the guest ordering page: name, logo,
+ * cuisine, opening hours and — importantly — the currency, without which every
+ * price on the page is a bare number.
+ *
+ * Separate from `getPublicSettings` because it comes from `restaurantprofiles`,
+ * which a restaurant that has not finished setup may not have a row in. Callers
+ * should treat a null/absent name as "no profile yet" and fall back to a generic
+ * heading rather than showing the guest an error.
+ */
+export interface PublicRestaurantProfile {
+  restaurantName?: string | null
+  logoUrl?: string | null
+  description?: string | null
+  cuisineType?: string | null
+  city?: string | null
+  country?: string | null
+  phone?: string | null
+  openingTime?: string | null
+  closingTime?: string | null
+  defaultCurrency?: string | null
+}
+export async function getPublicProfile(farmId: string): Promise<PublicRestaurantProfile> {
+  const url = farmApiUrl(`/Restaurant/public/${farmId}/profile`)
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(await readApiError(res))
+  return res.json()
+}
 export async function getPublicSettings(farmId: string): Promise<any> {
   const url = farmApiUrl(`/Restaurant/public/${farmId}/settings`)
   const res = await fetch(url)
   if (!res.ok) throw new Error(await readApiError(res))
   return res.json()
 }
-export async function scanQrCode(token: string): Promise<{ farmId: string; tableId: number; tableNumber: string }> {
+export async function scanQrCode(token: string): Promise<{ qrCodeId: number; farmId: string; tableId: number | null; tableNumber: string; codeType?: QrCodeType }> {
   const url = farmApiUrl(`/Restaurant/public/qr/${token}`)
   const res = await fetch(url)
   if (!res.ok) throw new Error(await readApiError(res))
@@ -1219,6 +1311,44 @@ export async function placeOnlineOrder(farmId: string, input: any): Promise<{ or
   if (!res.ok) throw new Error(await readApiError(res))
   return res.json()
 }
+// ----- Guest order confirmation (staff) -----
+//
+// A QR order arrives at status 'Placed' and is deliberately hidden from the
+// kitchen display until someone accepts it here. See migration 248.
+
+export interface PendingOnlineOrder {
+  orderId: number; orderNumber: string; orderType: string
+  onlineSource?: string | null
+  tableId?: number | null; tableNumber?: string | null
+  customerName?: string | null; customerPhone?: string | null
+  /** Optional - the guest may not have given one. Added by migration 249. */
+  customerEmail?: string | null
+  guestPaymentIntent?: string | null
+  notes?: string | null
+  totalAmount: number
+  itemCount: number
+  /** e.g. "2 x Jollof Rice, 1 x Grilled Tilapia" - aggregated server-side. */
+  itemSummary?: string | null
+  createdAt: string
+  waitingMinutes: number
+}
+
+export async function listPendingOnlineOrders(): Promise<PendingOnlineOrder[]> {
+  return jget<PendingOnlineOrder[]>("/Restaurant/online/pending-orders")
+}
+
+export async function acceptOnlineOrder(orderId: number): Promise<{ message: string }> {
+  const farmId = activeFarmId()
+  return jsend<{ message: string }>(
+    `/Restaurant/online/orders/${orderId}/accept?farmId=${encodeURIComponent(farmId)}`, "POST")
+}
+
+export async function rejectOnlineOrder(orderId: number, reason?: string): Promise<{ message: string }> {
+  const farmId = activeFarmId()
+  return jsend<{ message: string }>(
+    `/Restaurant/online/orders/${orderId}/reject?farmId=${encodeURIComponent(farmId)}`, "POST", { reason })
+}
+
 export async function trackOrder(token: string): Promise<OrderTracking> {
   const url = farmApiUrl(`/Restaurant/public/track/${token}`)
   const res = await fetch(url)
@@ -1489,6 +1619,33 @@ export interface CustomerInput {
   anniversary?: string | null; dietaryPreferences?: string | null; allergies?: string | null
   favouriteItems?: string | null; segment?: string; notes?: string | null; isActive?: boolean
 }
+/**
+ * Saves an order's guest into the CRM and links the order to them.
+ *
+ * Sends no body on purpose: the name, phone and email are read from the order
+ * server-side. `created` tells the two outcomes apart - a brand-new record, or a
+ * match on phone number, which is how staff learn that a guest is a returning one.
+ */
+export interface LinkOrderCustomerResult {
+  ok: boolean
+  customerId?: number | null
+  created: boolean
+  name?: string | null
+  segment?: string | null
+  totalVisits?: number | null
+  totalSpent?: number | null
+  message: string
+}
+export async function linkOrderToCustomer(orderId: number): Promise<LinkOrderCustomerResult> {
+  // farmId goes in the query string, matching updateOrderStatus and the rest of
+  // the order endpoints - the controller reads it [FromQuery].
+  const farmId = activeFarmId()
+  const url = farmApiUrl(`/Restaurant/orders/${orderId}/link-customer?farmId=${encodeURIComponent(farmId)}`)
+  const res = await fetch(url, { method: "POST", headers: getAuthHeaders() })
+  if (!res.ok) throw new Error(await readApiError(res))
+  return res.json()
+}
+
 export async function listCustomers(segment?: string, search?: string): Promise<Customer[]> {
   let extra = ""; if (segment) extra += `&segment=${encodeURIComponent(segment)}`; if (search) extra += `&search=${encodeURIComponent(search)}`
   return jget<Customer[]>(`/Restaurant/crm/customers?_=1${extra}`)

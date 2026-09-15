@@ -30,6 +30,10 @@ export function FlowBreakdownCard({
   emptyText: string
 }) {
   const positive = direction === "in"
+  // One bucket is 100% of itself. The bar fills end to end and the percentage
+  // repeats the total in the header, so both are dropped and the row is left to
+  // say the one thing there is to say: what it was, and how much.
+  const single = buckets.length === 1
 
   return (
     <Card className="min-w-0">
@@ -63,6 +67,7 @@ export function FlowBreakdownCard({
                     {fmtMoney(b.amount)}
                   </span>
                 </div>
+                {!single && (
                 <div className="mt-1 flex items-center gap-2">
                   {/* The bar is scaled to the share of the total, so the eye and
                       the number say the same thing. */}
@@ -73,14 +78,17 @@ export function FlowBreakdownCard({
                     />
                   </div>
                   {/* Share of this card's total — stated, because a bare
-                      percentage next to a bar invites "percent of what?". */}
+                      percentage next to a bar invites "percent of what?". The
+                      hover names the card rather than saying "money": the Egg
+                      tracker shows the same card counting eggs. */}
                   <span
                     className="w-24 shrink-0 text-right text-[11px] tabular-nums text-slate-500"
-                    title={`${b.percent}% of ${positive ? "money in" : "money out"}`}
+                    title={`${b.percent}% of ${title}`}
                   >
                     {b.percent}% of total
                   </span>
                 </div>
+                )}
               </li>
             ))}
           </ul>

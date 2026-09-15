@@ -206,7 +206,7 @@ export default function RestaurantReportsPage() {
       <DashboardSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <DashboardHeader />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="max-w-6xl mx-auto space-y-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -216,7 +216,7 @@ export default function RestaurantReportsPage() {
             </div>
 
             <Tabs defaultValue="overview" className="space-y-4">
-              <TabsList className="bg-white border shadow-sm flex-wrap">
+              <TabsList className="bg-white border shadow-sm flex-wrap h-auto">
                 <TabsTrigger value="overview" className="data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700"><LayoutDashboard className="h-4 w-4 mr-2" />Overview</TabsTrigger>
                 <TabsTrigger value="daily" className="data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700"><DollarSign className="h-4 w-4 mr-2" />Daily Sales</TabsTrigger>
                 <TabsTrigger value="trends" className="data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700"><TrendingUp className="h-4 w-4 mr-2" />Trends</TabsTrigger>
@@ -321,7 +321,7 @@ export default function RestaurantReportsPage() {
 
               {/* Daily Sales */}
               <TabsContent value="daily" className="space-y-4">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => changeDate(-1)}><ChevronLeft className="h-4 w-4" /></Button>
                   <Input type="date" className="w-[170px] h-9" value={date} onChange={e => setDate(e.target.value)} />
                   <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => changeDate(1)}><ChevronRight className="h-4 w-4" /></Button>
@@ -371,7 +371,7 @@ export default function RestaurantReportsPage() {
 
               {/* Revenue Trends */}
               <TabsContent value="trends" className="space-y-4">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Label className="text-sm">From</Label><Input type="date" className="w-[150px] h-9" value={fromDate} onChange={e => setFromDate(e.target.value)} />
                   <Label className="text-sm">To</Label><Input type="date" className="w-[150px] h-9" value={toDate} onChange={e => setToDate(e.target.value)} />
                 </div>
@@ -397,7 +397,7 @@ export default function RestaurantReportsPage() {
 
               {/* Top Items */}
               <TabsContent value="items" className="space-y-4">
-                <div className="flex items-center gap-2"><Label className="text-sm">From</Label><Input type="date" className="w-[150px] h-9" value={fromDate} onChange={e => setFromDate(e.target.value)} />
+                <div className="flex items-center gap-2 flex-wrap"><Label className="text-sm">From</Label><Input type="date" className="w-[150px] h-9" value={fromDate} onChange={e => setFromDate(e.target.value)} />
                   <Label className="text-sm">To</Label><Input type="date" className="w-[150px] h-9" value={toDate} onChange={e => setToDate(e.target.value)} />
                   <div className="ml-auto"><Button variant="outline" size="sm" onClick={() => downloadReport("items")}><Download className="h-4 w-4 mr-2" />Download PDF</Button></div></div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -453,7 +453,7 @@ export default function RestaurantReportsPage() {
                   <CardContent>
                     {foodCost.length === 0 ? <p className="text-sm text-muted-foreground text-center py-8">No recipe data — add recipes to menu items to see food cost analysis</p> : (
                       <div className="space-y-1">
-                        <div className="grid grid-cols-6 gap-2 px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide border-b">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide border-b">
                           <span className="col-span-2">Item</span><span>Selling</span><span>Cost</span><span>Food Cost %</span><span>Margin</span>
                         </div>
                         {foodCost.map(f => (
@@ -473,7 +473,7 @@ export default function RestaurantReportsPage() {
 
               {/* Peak Hours — recharts BarChart */}
               <TabsContent value="hours" className="space-y-4">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => changeDate(-1)}><ChevronLeft className="h-4 w-4" /></Button>
                   <Input type="date" className="w-[170px] h-9" value={date} onChange={e => setDate(e.target.value)} />
                   <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => changeDate(1)}><ChevronRight className="h-4 w-4" /></Button>
@@ -502,7 +502,7 @@ export default function RestaurantReportsPage() {
 
               {/* Server Performance */}
               <TabsContent value="servers" className="space-y-4">
-                <div className="flex items-center gap-2"><Label className="text-sm">From</Label><Input type="date" className="w-[150px] h-9" value={fromDate} onChange={e => setFromDate(e.target.value)} />
+                <div className="flex items-center gap-2 flex-wrap"><Label className="text-sm">From</Label><Input type="date" className="w-[150px] h-9" value={fromDate} onChange={e => setFromDate(e.target.value)} />
                   <Label className="text-sm">To</Label><Input type="date" className="w-[150px] h-9" value={toDate} onChange={e => setToDate(e.target.value)} />
                   <div className="ml-auto"><Button variant="outline" size="sm" onClick={() => downloadReport("servers")}><Download className="h-4 w-4 mr-2" />Download PDF</Button></div></div>
                 <Card>

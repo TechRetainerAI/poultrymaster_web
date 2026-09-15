@@ -483,14 +483,29 @@ export interface WaterCashTransaction {
 export interface WaterCashTransfer {
   waterCashTransferId: number
   farmId: string
+  /** TRF-2026-0001. Stamped on insert; older rows were backfilled by 257. */
+  transferNumber?: string | null
   fromWaterCashAccountId: number
   fromAccountName?: string | null
   toWaterCashAccountId: number
   toAccountName?: string | null
   transferDate: string
   amount: number
-  status: "Draft" | "Approved" | "Cancelled" | string
+  status: "Draft" | "Approved" | "Cancelled" | "Reversed" | string
+  /** The bank's or wallet's own reference for the movement. */
+  referenceNumber?: string | null
   notes?: string | null
+  createdBy?: string | null
+  approvedBy?: string | null
+  approvedAt?: string | null
+  reversedBy?: string | null
+  reversedAt?: string | null
+  reversalReason?: string | null
+  /** The two ledger rows approval wrote. Null until approved. */
+  outgoingCashTransactionId?: number | null
+  incomingCashTransactionId?: number | null
+  createdAt?: string | null
+  updatedAt?: string | null
 }
 
 // ----- Expense categories
@@ -809,14 +824,264 @@ export const listWaterCashTransfers = (status?: string) => {
   return jget<WaterCashTransfer[]>(`/Water/cash-transfers?${qs.toString()}`)
 }
 
-export const createWaterCashTransfer = (input: { fromWaterCashAccountId: number; toWaterCashAccountId: number; amount: number; transferDate?: string; notes?: string | null }) =>
+export const createWaterCashTransfer = (input: {
+  fromWaterCashAccountId: number; toWaterCashAccountId: number; amount: number
+  transferDate?: string; notes?: string | null; referenceNumber?: string | null
+}) =>
   jsend<{ waterCashTransferId: number }>(`/Water/cash-transfers`, "POST", { ...input, farmId: activeFarmId(), createdBy: currentUserId() || null })
 
 export const approveWaterCashTransfer = (id: number) =>
   jsend<void>(`/Water/cash-transfers/${id}/approve?farmId=${encodeURIComponent(activeFarmId())}&approvedBy=${encodeURIComponent(currentUserId() || "")}`, "POST")
 
+/** A DRAFT moved no money. An approved transfer is undone with reverse. */
 export const cancelWaterCashTransfer = (id: number) =>
   jsend<void>(`/Water/cash-transfers/${id}/cancel?farmId=${encodeURIComponent(activeFarmId())}`, "POST")
+
+/**
+ * Undoes an APPROVED transfer. Two opposite ledger rows are written and both
+ * balances are restored; the original rows stay, because what happened
+ * happened. The reason is required and lands in the audit trail.
+ */
+export const reverseWaterCashTransfer = (id: number, reason: string) =>
+  jsend<void>(
+    `/Water/cash-transfers/${id}/reverse?farmId=${encodeURIComponent(activeFarmId())}&reversedBy=${encodeURIComponent(currentUserId() || "")}`,
+    "POST", { reason })
+
+// =============================================================================
+// Owner money (migration 258)
+//
+// What the owner put into the company and what they took out. Neither is
+// trading: a contribution is not revenue and a draw is not an expense, so
+// nothing here touches sales, expenses or supplier/customer payments.
+//
+// This is the capital record migration 236 flagged as a KNOWN GAP for water.
+// =============================================================================
+
+export type OwnerMoneyType = "Contribution" | "Draw"
+
+export interface WaterOwnerMoney {
+  waterOwnerMoneyId: number
+  farmId: string
+  /** OWN-2026-0001 for a contribution, OWD- for a draw. */
+  transactionNumber?: string | null
+  transactionDate: string
+  transactionType: OwnerMoneyType | string
+  /** Always POSITIVE — the direction lives in transactionType. */
+  amount: number
+  waterCashAccountId: number
+  accountName?: string | null
+  paymentMethod?: string | null
+  ownerUserId?: string | null
+  ownerName?: string | null
+  referenceNumber?: string | null
+  notes?: string | null
+  status: "Posted" | "Reversed" | string
+  waterCashTransactionId?: number | null
+  reversalCashTransactionId?: number | null
+  createdBy?: string | null
+  createdAt?: string | null
+  reversedBy?: string | null
+  reversedAt?: string | null
+  reversalReason?: string | null
+}
+
+export interface WaterOwnerMoneySummary {
+  totalContributions: number
+  totalDraws: number
+  /** Contributions less draws, all time. Reversed records count for nothing. */
+  netFunding: number
+  periodContributions: number
+  periodDraws: number
+  contributionCount: number
+  drawCount: number
+}
+
+export const listWaterOwnerMoney = (opts: {
+  type?: string | null; from?: string | null; to?: string | null; status?: string | null
+} = {}) => {
+  const q = new URLSearchParams({ farmId: activeFarmId() })
+  if (opts.type && opts.type !== "All") q.set("type", opts.type)
+  if (opts.status && opts.status !== "All") q.set("status", opts.status)
+  if (opts.from) q.set("from", opts.from)
+  if (opts.to) q.set("to", opts.to)
+  return jget<WaterOwnerMoney[]>(`/Water/owner-money?${q.toString()}`)
+}
+
+export const getWaterOwnerMoneySummary = (from?: string | null, to?: string | null) => {
+  const q = new URLSearchParams({ farmId: activeFarmId() })
+  if (from) q.set("from", from)
+  if (to) q.set("to", to)
+  return jget<WaterOwnerMoneySummary>(`/Water/owner-money/summary?${q.toString()}`)
+}
+
+/** One endpoint for both directions — they differ by a single field. */
+export const recordWaterOwnerMoney = (input: {
+  transactionType: OwnerMoneyType
+  amount: number
+  waterCashAccountId: number
+  transactionDate?: string | null
+  paymentMethod?: string | null
+  ownerName?: string | null
+  referenceNumber?: string | null
+  notes?: string | null
+}) =>
+  jsend<{ waterOwnerMoneyId: number }>(`/Water/owner-money`, "POST",
+    { ...input, farmId: activeFarmId(), createdBy: currentUserId() || null })
+
+/** Append-only: one opposite cash row, the original kept, the reason audited. */
+export const reverseWaterOwnerMoney = (id: number, reason: string) =>
+  jsend<void>(
+    `/Water/owner-money/${id}/reverse?farmId=${encodeURIComponent(activeFarmId())}&reversedBy=${encodeURIComponent(currentUserId() || "")}`,
+    "POST", { reason })
+
+// =============================================================================
+// Loans (migration 259)
+//
+// Three rules the server enforces, restated because they are what these shapes
+// are for: repaying principal is not an expense; a repayment moves cash exactly
+// once, for its total; a lender is never a supplier.
+// =============================================================================
+
+export interface WaterLoan {
+  waterLoanId: number
+  farmId: string
+  loanNumber?: string | null
+  lenderName: string
+  lenderType: string
+  accountNumber?: string | null
+  loanDate: string
+  /** What is OWED. May exceed amountReceived when the lender withheld a fee. */
+  originalPrincipal: number
+  /** What actually ARRIVED. This, not the principal, is the cash in. */
+  amountReceived: number
+  interestRate?: number | null
+  interestType?: string | null
+  termMonths?: number | null
+  paymentFrequency?: string | null
+  startDate: string
+  endDate?: string | null
+  nextPaymentDate?: string | null
+  waterCashAccountId?: number | null
+  accountName?: string | null
+  outstandingPrincipal: number
+  totalPrincipalRepaid: number
+  totalInterestPaid: number
+  totalFeesPaid: number
+  status: "Draft" | "Active" | "PaidOff" | "Overdue" | "Cancelled" | "Reversed" | string
+  /** Derived on read — nothing stamps it, because no scheduler exists. */
+  isOverdue: boolean
+  paymentCount: number
+  paidOffDate?: string | null
+  notes?: string | null
+  createdBy?: string | null
+  createdAt?: string | null
+  reversalReason?: string | null
+}
+
+export interface WaterLoanPayment {
+  waterLoanPaymentId: number
+  farmId: string
+  waterLoanId: number
+  loanNumber?: string | null
+  lenderName?: string | null
+  paymentNumber?: string | null
+  paymentDate: string
+  totalAmount: number
+  principalAmount: number
+  interestAmount: number
+  feeAmount: number
+  otherAmount: number
+  waterCashAccountId: number
+  accountName?: string | null
+  paymentMethod?: string | null
+  referenceNumber?: string | null
+  notes?: string | null
+  status: "Posted" | "Reversed" | string
+  /** The expense rows for the cost of borrowing. Null when that part was zero. */
+  interestExpenseId?: number | null
+  feeExpenseId?: number | null
+  createdBy?: string | null
+  createdAt?: string | null
+  reversedBy?: string | null
+  reversedAt?: string | null
+  reversalReason?: string | null
+}
+
+export interface WaterLoanSummary {
+  activeLoans: number
+  totalBorrowed: number
+  totalReceived: number
+  outstandingPrincipal: number
+  totalPrincipalRepaid: number
+  totalInterestPaid: number
+  totalFeesPaid: number
+  overdueLoans: number
+  nextPaymentDate?: string | null
+}
+
+export const listWaterLoans = (status?: string | null) =>
+  jget<WaterLoan[]>(`/Water/loans?farmId=${encodeURIComponent(activeFarmId())}${status && status !== "All" ? `&status=${encodeURIComponent(status)}` : ""}`)
+
+export const getWaterLoanSummary = () =>
+  jget<WaterLoanSummary>(`/Water/loans/summary?farmId=${encodeURIComponent(activeFarmId())}`)
+
+export const createWaterLoan = (input: {
+  lenderName: string
+  originalPrincipal: number
+  startDate: string
+  amountReceived?: number
+  waterCashAccountId?: number | null
+  lenderType?: string
+  accountNumber?: string | null
+  loanDate?: string | null
+  interestRate?: number | null
+  interestType?: string | null
+  termMonths?: number | null
+  paymentFrequency?: string | null
+  endDate?: string | null
+  nextPaymentDate?: string | null
+  status?: string
+  notes?: string | null
+}) =>
+  jsend<{ waterLoanId: number }>(`/Water/loans`, "POST",
+    { ...input, farmId: activeFarmId(), createdBy: currentUserId() || null })
+
+export const updateWaterLoan = (id: number, input: Record<string, unknown>) =>
+  jsend<void>(
+    `/Water/loans/${id}?farmId=${encodeURIComponent(activeFarmId())}&updatedBy=${encodeURIComponent(currentUserId() || "")}`,
+    "PUT", input)
+
+export const cancelWaterLoan = (id: number, reason: string) =>
+  jsend<void>(
+    `/Water/loans/${id}/cancel?farmId=${encodeURIComponent(activeFarmId())}&cancelledBy=${encodeURIComponent(currentUserId() || "")}`,
+    "POST", { reason })
+
+export const listWaterLoanPayments = (loanId?: number | null) =>
+  jget<WaterLoanPayment[]>(`/Water/loan-payments?farmId=${encodeURIComponent(activeFarmId())}${loanId ? `&loanId=${loanId}` : ""}`)
+
+/**
+ * One call, one cash movement. The split is sent as its parts and the server
+ * adds them up — a total sent from the browser could disagree with them.
+ */
+export const recordWaterLoanRepayment = (loanId: number, input: {
+  waterCashAccountId: number
+  principalAmount: number
+  interestAmount: number
+  feeAmount: number
+  otherAmount?: number
+  paymentDate?: string | null
+  paymentMethod?: string | null
+  referenceNumber?: string | null
+  notes?: string | null
+  nextPaymentDate?: string | null
+}) =>
+  jsend<{ waterLoanPaymentId: number }>(`/Water/loans/${loanId}/record-repayment`, "POST",
+    { ...input, waterLoanId: loanId, farmId: activeFarmId(), createdBy: currentUserId() || null })
+
+export const reverseWaterLoanPayment = (paymentId: number, reason: string) =>
+  jsend<void>(
+    `/Water/loan-payments/${paymentId}/reverse?farmId=${encodeURIComponent(activeFarmId())}&reversedBy=${encodeURIComponent(currentUserId() || "")}`,
+    "POST", { reason })
 
 // =============================================================================
 // W5: Company profile + setup

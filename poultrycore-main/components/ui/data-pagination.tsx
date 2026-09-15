@@ -28,9 +28,20 @@ import { cn } from "@/lib/utils"
 // pageSize is not one of the options.
 export const PAGE_SIZE_OPTIONS = [5, 10, 25, 50, 100]
 
-// The tracker pages (egg, birds-left, feed, medication) page at 15 by default,
-// so 15 has to be in their list or the Select renders blank on first paint.
+// The tracker pages (egg, birds-left, feed, medication, water inventory) all
+// start at TRACKER_PAGE_SIZE_DEFAULT, which has to be in this list or the
+// Select renders blank on first paint. 15 stays as a choice for anyone who was
+// used to it.
 export const TRACKER_PAGE_SIZE_OPTIONS = [5, 10, 15, 25, 50, 100]
+
+/**
+ * Rows a tracker's ledger shows before you change it.
+ *
+ * One constant rather than a copy per page: the trackers used to open at 15,
+ * 15, 15 and 20, so the same ledger looked a different length depending on
+ * which one you were on.
+ */
+export const TRACKER_PAGE_SIZE_DEFAULT = 10
 
 export interface DataPaginationProps {
   /** 1-based, already clamped. */

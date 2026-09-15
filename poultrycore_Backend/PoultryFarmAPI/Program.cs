@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using System.Configuration;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Configuration;
@@ -94,6 +94,8 @@ builder.Services.AddScoped<IPoultryBalanceService>(sp => new PoultryBalanceServi
 // Cash Flow: one service, both rails. Reads the transaction-sourced cash-flow
 // functions (migrations 235/236), never the cash-account ledger.
 builder.Services.AddScoped<ICashFlowService>(sp => new CashFlowService(connectionString));
+// Financial Activity (290) -- the bridge report between Cash Flow and P&L.
+builder.Services.AddScoped<IPoultryFinancialActivityService>(sp => new PoultryFinancialActivityService(connectionString));
 builder.Services.AddScoped<IWaterBalanceService>(sp => new WaterBalanceService(connectionString));
 
 builder.Services.AddScoped<IHouseService>(sp => new HouseService(connectionString));
@@ -192,12 +194,46 @@ builder.Services.AddScoped<IWaterCashAccountService>(sp => new WaterCashAccountS
 builder.Services.AddScoped<IWaterCashTransferService>(sp => new WaterCashTransferService(connectionString));
 builder.Services.AddScoped<IWaterCashReconciliationService>(sp => new WaterCashReconciliationService(connectionString));
 builder.Services.AddScoped<IWaterCustomerLedgerService>(sp => new WaterCustomerLedgerService(connectionString));
+// Owner money (258): contributions and draws, kept out of revenue and expense.
+// This is the capital record migration 236 recorded as a KNOWN GAP -- before it,
+// an owner injection could only be typed as a raw cash-account adjustment,
+// which the water cash flow does not read.
+builder.Services.AddScoped<IWaterOwnerMoneyService>(sp => new WaterOwnerMoneyService(connectionString));
+// Loans (259): borrowed money, repayments split into principal, interest and
+// fees, and exactly one cash movement per repayment.
+builder.Services.AddScoped<IWaterLoanService>(sp => new WaterLoanService(connectionString));
+// Financial settings (274): when inventory costs reach the P&L. Two independent
+// choices, packaging and treatment, resolved against item overrides by the SPs.
+// Also carries the per-item override read/write, which on the water side is its
+// own pair of SPs rather than columns on the item list -- see the service.
+builder.Services.AddScoped<IWaterFinancialSettingsService>(sp => new WaterFinancialSettingsService(connectionString));
+// Asset register + depreciation (283, 284): boreholes, machines, tanks and
+// vehicles the company owns, charged to the P&L over their useful life without
+// ever moving money.
+builder.Services.AddScoped<IWaterCapitalAssetService>(sp => new WaterCapitalAssetService(connectionString));
+// Deferred inventory costs (281): reads only -- which purchase lots still hold
+// cost that has not reached Profit & Loss, what drew it down, and why a lot can
+// sit still while stock is consumed. No writer; recognition happens on the
+// consumption rail.
+builder.Services.AddScoped<IWaterDeferredInventoryCostService>(sp => new WaterDeferredInventoryCostService(connectionString));
 
 // Poultry Cash Accounts (port of the Water cash module). Multi-account cash
 // management + signed ledger + paired transfers. Migrations 128 (schema) + 129 (SPs).
 builder.Services.AddScoped<IPoultryCashAccountService>(sp => new PoultryCashAccountService(connectionString));
 builder.Services.AddScoped<IPoultryCashReconciliationService>(sp => new PoultryCashReconciliationService(connectionString));
 builder.Services.AddScoped<IPoultryCashTransferService>(sp => new PoultryCashTransferService(connectionString));
+// Owner money (253): contributions and draws, kept out of revenue and expense.
+builder.Services.AddScoped<IPoultryOwnerMoneyService>(sp => new PoultryOwnerMoneyService(connectionString));
+// Loans (254): borrowed money, repayments split into principal, interest and
+// fees, and exactly one cash movement per repayment.
+builder.Services.AddScoped<IPoultryLoanService>(sp => new PoultryLoanService(connectionString));
+// Financial settings (261): when inventory costs reach the P&L. Two independent
+// choices, feed and medication, resolved against item overrides by the SPs.
+builder.Services.AddScoped<IPoultryFinancialSettingsService>(sp => new PoultryFinancialSettingsService(connectionString));
+builder.Services.AddScoped<IPoultryInventoryValuationService>(sp => new PoultryInventoryValuationService(connectionString));
+builder.Services.AddScoped<IPoultryDeferredInventoryCostService>(sp => new PoultryDeferredInventoryCostService(connectionString));
+builder.Services.AddScoped<IPoultryCapitalAssetService>(sp => new PoultryCapitalAssetService(connectionString));
+builder.Services.AddScoped<IPoultryProfitLossService>(sp => new PoultryProfitLossService(connectionString));
 
 // Poultry Staff + Attendance + Payroll (port of the Water W6 module). Payroll
 // approve upserts a linked dbo.Expense (Category 'Payroll'); mark-paid posts a
@@ -269,6 +305,20 @@ builder.Services.AddScoped<IGenericInventoryService>(sp => new GenericInventoryS
 builder.Services.AddScoped<IGenericCustomerService>(sp => new GenericCustomerService(connectionString));
 builder.Services.AddScoped<IGenericSaleService>(sp => new GenericSaleService(connectionString));
 builder.Services.AddScoped<IGenericCashTransactionService>(sp => new GenericCashTransactionService(connectionString));
+
+// Phase 5: business templates, service plans, subscriptions, billing runs and
+// Customer Balances (migrations 242-244). Billing is user-triggered on purpose:
+// there is no scheduler anywhere in this API.
+builder.Services.AddScoped<IGenericBusinessTemplateService>(sp => new GenericBusinessTemplateService(connectionString));
+builder.Services.AddScoped<IGenericSubscriptionService>(sp => new GenericSubscriptionService(connectionString));
+builder.Services.AddScoped<IGenericBillingService>(sp => new GenericBillingService(connectionString));
+builder.Services.AddScoped<IGenericBalanceService>(sp => new GenericBalanceService(connectionString));
+// Phase 6: the money-out side (migration 249) -- recurring expenses, staff
+// and contractor payments, and owner contributions and draws.
+builder.Services.AddScoped<IGenericMoneyOutService>(sp => new GenericMoneyOutService(connectionString));
+// Phase 7: the read side (migration 250) -- the subscription dashboard and the
+// reports that were not already answerable from an existing function.
+builder.Services.AddScoped<IGenericSubscriptionReportService>(sp => new GenericSubscriptionReportService(connectionString));
 
 // Phase 4: Suppliers + Purchases + Expenses + Cash Transfers (the money-out
 // side). Purchase_Approve mirrors Sale_Approve; Expense_Approve branches on

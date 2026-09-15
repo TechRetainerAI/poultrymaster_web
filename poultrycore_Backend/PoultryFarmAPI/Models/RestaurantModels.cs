@@ -1,10 +1,29 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace PoultryFarmAPIWeb.Models
 {
     // =========================================================================
     // Restaurant Management System Models — Phase R1: Setup + Menu
     // =========================================================================
+
+    /// <summary>
+    /// Upper bound for an image field.
+    ///
+    /// These columns are <c>TEXT</c> in Postgres (migration 216), so the old
+    /// <c>StringLength(500)</c> was not the schema talking - it was a leftover from
+    /// the SQL Server <c>NVARCHAR(500)</c> era. It rejected every menu-item photo,
+    /// because the picker stores the image as a base64 <c>data:</c> URI and any real
+    /// photo is far longer than 500 characters.
+    ///
+    /// 400 KB still bounds the row: the client downscales to a ~512px JPEG first
+    /// (see lib/utils/image-downscale.ts), which lands well under this. The cap only
+    /// exists so a malformed or hand-crafted request cannot push megabytes into a
+    /// column that every menu list query reads back.
+    /// </summary>
+    public static class RestaurantImageLimits
+    {
+        public const int DataUrl = 400_000;
+    }
 
     // ---- Profile ----
 
@@ -87,7 +106,7 @@ namespace PoultryFarmAPIWeb.Models
         [StringLength(500)]
         public string? Description { get; set; }
 
-        [StringLength(500)]
+        [StringLength(RestaurantImageLimits.DataUrl)]
         public string? ImageUrl { get; set; }
 
         public int SortOrder { get; set; }
@@ -120,7 +139,7 @@ namespace PoultryFarmAPIWeb.Models
         public decimal Price { get; set; }
         public decimal CostPrice { get; set; }
 
-        [StringLength(500)]
+        [StringLength(RestaurantImageLimits.DataUrl)]
         public string? ImageUrl { get; set; }
 
         public int PrepTime { get; set; }       // minutes
@@ -242,7 +261,7 @@ namespace PoultryFarmAPIWeb.Models
 
         public decimal Price { get; set; }
 
-        [StringLength(500)]
+        [StringLength(RestaurantImageLimits.DataUrl)]
         public string? ImageUrl { get; set; }
 
         public bool IsActive { get; set; } = true;
@@ -400,6 +419,9 @@ namespace PoultryFarmAPIWeb.Models
         public int? CustomerId { get; set; }
         public string? CustomerName { get; set; }
         public string? CustomerPhone { get; set; }
+
+        /// <summary>Optional guest email; NULL for walk-in POS orders.</summary>
+        public string? CustomerEmail { get; set; }
         public int Covers { get; set; } = 1;
         public decimal Subtotal { get; set; }
         public decimal DiscountAmount { get; set; }
@@ -417,6 +439,25 @@ namespace PoultryFarmAPIWeb.Models
         public DateTime? UpdatedAt { get; set; }
         public DateTime? CompletedAt { get; set; }
         public long ItemCount { get; set; }
+
+        // Guest/online provenance. These columns have existed on restaurantorders
+        // since migration 220 but were never returned, so staff had no way to tell
+        // a QR order from a walk-in. Migration 248 adds them to the list/get procs.
+        // Null OnlineSource means the order was rung up at the POS.
+        public string? OnlineSource { get; set; }
+        public string? TrackingToken { get; set; }
+        public int? QrCodeId { get; set; }
+        public string? DeliveryAddress { get; set; }
+        public decimal DeliveryFee { get; set; }
+        public string? PromoCode { get; set; }
+        public decimal PromoDiscount { get; set; }
+        public DateTime? EstimatedReadyTime { get; set; }
+        public DateTime? ConfirmedAt { get; set; }
+        public string? ConfirmedBy { get; set; }
+        /// <summary>How the guest said they intend to pay. Indicative only - no money moves through the app.</summary>
+        public string? GuestPaymentIntent { get; set; }
+        /// <summary>What the guest said they would hand over. Indicative only; not a payment.</summary>
+        public decimal? GuestPaymentAmount { get; set; }
     }
 
     // ---- Order Items ----
@@ -758,6 +799,50 @@ namespace PoultryFarmAPIWeb.Models
         public DateTime? UpdatedAt { get; set; }
     }
 
+    /// <summary>
+    /// One row in the staff "new guest orders" tray. Flattened on purpose: the
+    /// item summary is aggregated in SQL so the tray, which polls every 10s, does
+    /// not fan out an item fetch per order.
+    /// </summary>
+    /// <summary>
+    /// Outcome of saving an order's guest into the CRM. `Created` distinguishes a
+    /// brand-new record from one matched on phone number, which is the difference
+    /// staff care about: "new customer" versus "this is a regular".
+    /// </summary>
+    public class LinkOrderCustomerResult
+    {
+        public bool Ok { get; set; }
+        public int? CustomerId { get; set; }
+        public bool Created { get; set; }
+        public string? Name { get; set; }
+        public string? Segment { get; set; }
+        public int? TotalVisits { get; set; }
+        public decimal? TotalSpent { get; set; }
+        public string Message { get; set; } = string.Empty;
+    }
+
+    public class PendingOnlineOrderModel
+    {
+        public int OrderId { get; set; }
+        public string OrderNumber { get; set; } = string.Empty;
+        public string OrderType { get; set; } = "DineIn";
+        public string? OnlineSource { get; set; }
+        public int? TableId { get; set; }
+        public string? TableNumber { get; set; }
+        public string? CustomerName { get; set; }
+        public string? CustomerPhone { get; set; }
+        public string? CustomerEmail { get; set; }
+        public string? GuestPaymentIntent { get; set; }
+        public decimal? GuestPaymentAmount { get; set; }
+        public string? Notes { get; set; }
+        public decimal TotalAmount { get; set; }
+        public long ItemCount { get; set; }
+        /// <summary>e.g. "2 x Jollof Rice, 1 x Grilled Tilapia".</summary>
+        public string? ItemSummary { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public double WaitingMinutes { get; set; }
+    }
+
     public class RestaurantQrCodeModel
     {
         [Key] public int QrCodeId { get; set; }
@@ -765,6 +850,8 @@ namespace PoultryFarmAPIWeb.Models
         public int? TableId { get; set; }
         public string TableNumber { get; set; } = string.Empty;
         public string QrToken { get; set; } = string.Empty;
+        /// <summary>"Restaurant" (one code for the whole venue) or "Table".</summary>
+        public string CodeType { get; set; } = "Table";
         public bool IsActive { get; set; } = true;
         public int ScanCount { get; set; }
         public DateTime? LastScannedAt { get; set; }
@@ -844,8 +931,9 @@ namespace PoultryFarmAPIWeb.Models
         public bool IsGlutenFree { get; set; }
         public bool IsHalal { get; set; }
         public bool IsKosher { get; set; }
-        public int CategoryId { get; set; }
-        public string CategoryName { get; set; } = string.Empty;
+        /// <summary>Nullable: an item need not belong to a category.</summary>
+        public int? CategoryId { get; set; }
+        public string? CategoryName { get; set; }
     }
 
     public class PublicCategoryModel
@@ -873,30 +961,112 @@ namespace PoultryFarmAPIWeb.Models
 
     public class OnlineOrderCreateRequest
     {
-        [Required] public string FarmId { get; set; } = string.Empty;
+        /// <summary>
+        /// Set by the controller from the route, and then overwritten from the QR
+        /// token by the service. Deliberately NOT [Required]: the attribute made
+        /// [ApiController] reject every single order with "The FarmId field is
+        /// required" during model binding, before the controller ever got a chance
+        /// to fill it in from the URL.
+        /// </summary>
+        public string FarmId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// The scanned QR token. When present the server resolves it and OVERWRITES
+        /// FarmId/TableId/TableNumber from the database row, so a tampered body
+        /// cannot post an order into someone else's restaurant or onto a table the
+        /// guest is not sitting at. Required for DineIn.
+        /// </summary>
+        public string? QrToken { get; set; }
+
         public string OrderType { get; set; } = "Takeaway";
         public int? TableId { get; set; }
         public string? TableNumber { get; set; }
-        public string? CustomerName { get; set; }
-        public string? CustomerPhone { get; set; }
+
+        // A guest ordering from a table is the only contact the restaurant has,
+        // so both are mandatory - they used to be optional and arrived as null.
+        [Required(ErrorMessage = "Please enter your name.")]
+        [StringLength(120, ErrorMessage = "Name is too long.")]
+        public string CustomerName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Please enter your phone number.")]
+        [StringLength(32, ErrorMessage = "Phone number is too long.")]
+        public string CustomerPhone { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Optional. Deliberately not [Required]: plenty of guests do not have an
+        /// email to hand at a counter, and the phone number is already the contact
+        /// of record. [EmailAddress] still rejects a malformed value, so what is
+        /// stored is either nothing or something plausible - never "asdf".
+        /// Blank input is normalised to NULL inside the insert proc.
+        /// </summary>
+        [EmailAddress(ErrorMessage = "That email address does not look right.")]
+        [StringLength(200, ErrorMessage = "Email address is too long.")]
+        public string? CustomerEmail
+        {
+            get => _customerEmail;
+            // Normalise in the setter, which model binding runs BEFORE validation.
+            // [EmailAddress] treats null as valid but an empty string as INVALID, so
+            // a client that sent "customerEmail": "" for "the guest left it blank"
+            // got a 400 telling them their address looked wrong. Collapsing blank to
+            // null here makes "absent" and "empty" mean the same thing, which is what
+            // an optional field should mean, and matches the NULLIF in migration 249.
+            set => _customerEmail = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        }
+        private string? _customerEmail;
+
         public int Covers { get; set; } = 1;
-        public string? Notes { get; set; }
+        [StringLength(1000)] public string? Notes { get; set; }
         public string? OnlineSource { get; set; }
         public string? DeliveryAddress { get; set; }
         public decimal DeliveryFee { get; set; }
         public int? PromoCodeId { get; set; }
         public string? PromoCode { get; set; }
+
+        /// <summary>
+        /// Ignored. The discount is recomputed server-side against the real
+        /// subtotal in sprestaurant_online_order_finalize; this stays on the DTO
+        /// only so older clients keep deserialising.
+        /// </summary>
         public decimal PromoDiscount { get; set; }
+
+        /// <summary>
+        /// MobileMoney / CreditCard / Cash - what the guest picked at checkout.
+        /// Indicative only: no gateway is wired, nothing is charged, and the order
+        /// stays Unpaid until it is settled for real through the POS.
+        /// </summary>
+        [StringLength(20)] public string? GuestPaymentIntent { get; set; }
+
+        /// <summary>Amount the guest typed at checkout. Recorded, never treated as paid.</summary>
+        public decimal? GuestPaymentAmount { get; set; }
+
+        [Required(ErrorMessage = "Your order is empty.")]
+        [MinLength(1, ErrorMessage = "Your order is empty.")]
         public List<OnlineOrderItemRequest>? Items { get; set; }
     }
 
     public class OnlineOrderItemRequest
     {
         public int MenuItemId { get; set; }
+
+        /// <summary>
+        /// IGNORED by the server. Kept so existing clients keep deserialising.
+        /// The name is read from restaurantmenuitems - it used to be written
+        /// verbatim from the request body.
+        /// </summary>
         public string ItemName { get; set; } = string.Empty;
+
+        [Range(1, 200, ErrorMessage = "Quantity must be between 1 and 200.")]
         public int Quantity { get; set; } = 1;
+
+        /// <summary>
+        /// IGNORED by the server, and this is a security fix rather than tidying:
+        /// this value used to be written straight into restaurantorderitems, so a
+        /// guest could order anything at any price. The price now comes from the
+        /// menu table inside sprestaurant_online_orderitem_insert.
+        /// </summary>
         public decimal UnitPrice { get; set; }
-        public string? Notes { get; set; }
+
+        [StringLength(500)] public string? Notes { get; set; }
         public List<OrderItemModifierRequest>? Modifiers { get; set; }
     }
 }

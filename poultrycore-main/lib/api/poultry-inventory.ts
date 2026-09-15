@@ -1,6 +1,10 @@
 import { farmApiUrl, getAuthHeaders, getUserContext } from "./config"
 import { explainHttpError } from "@/lib/api/http-error"
 import { forceReauth } from "./session-expiry"
+import type {
+  CostRecognitionMethod, CostRecognitionOverride,
+  CostRecognitionSource, CostRecognitionGroup,
+} from "@/lib/poultry/cost-recognition"
 
 // Poultry inventory + raw materials API wrappers (mirror lib/api/water.ts).
 // Additive: new module; existing poultry API wrappers untouched. Calls hit
@@ -24,6 +28,17 @@ export interface PoultryRawMaterialItem {
   isLowStock?: boolean
   notes?: string | null
   usageMethod: RawMaterialUsageMethod
+
+  // ---- cost recognition (migrations 261-263) --------------------------------
+  /** This item's own choice, or null/absent to follow the farm default. */
+  costRecognitionOverride?: CostRecognitionOverride
+  /** Resolved by the server. Read-only: writing it has no effect. */
+  effectiveCostRecognitionMethod?: CostRecognitionMethod
+  /** FarmDefault | ItemOverride. Read-only. */
+  costRecognitionSource?: CostRecognitionSource
+  /** Which farm setting this item's category listens to, if any. Read-only. */
+  costRecognitionCategoryGroup?: CostRecognitionGroup
+
   createdAt: string
   updatedAt?: string | null
 }
@@ -37,6 +52,16 @@ export interface PoultryRawMaterialItemInput {
   isActive?: boolean
   notes?: string | null
   usageMethod?: RawMaterialUsageMethod
+
+  /** null means "follow the farm default"; it is a value, not an omission. */
+  costRecognitionOverride?: CostRecognitionOverride
+  /**
+   * Whether this write means to set the override at all. Because null is a
+   * real value, the server cannot tell "clear it" from "leave it alone" without
+   * being told. Omitted or false leaves an existing override untouched, so
+   * renaming an item or changing its category can never silently clear it.
+   */
+  setCostRecognitionOverride?: boolean
 }
 
 export interface PoultryRawMaterialPurchase {
@@ -69,6 +94,23 @@ export interface PoultryRawMaterialPurchase {
   feedProductionBatchNumber?: string | null
   /** "Produced" — the feed a batch made; "Purchased" — an ingredient it bought. */
   feedProductionRole?: "Produced" | "Purchased" | null
+
+  // ----- cost recognition (migrations 261-268), all read-only ----------------
+
+  /**
+   * The method snapshot taken when this lot was created — NOT today's farm
+   * setting. Changing the farm default never restates a lot already expensed.
+   */
+  costRecognitionMethod?: string | null
+  /** What this lot owed the P&L when it opened. 0 on an expense-at-purchase lot. */
+  deferredTotalCost?: number
+  /** What it still owes; falls pro rata as the stock is drawn. */
+  deferredRemainingCost?: number
+  /** Per PRODUCTION unit, so it is comparable with productionUnitCost. Null on an empty lot. */
+  deferredUnitCost?: number | null
+  /** "Expensed at purchase" | "Deferred - not yet expensed" | "Deferred - fully expensed". */
+  costRecognitionStatus?: string | null
+
   createdBy?: string | null
   createdAt: string
   updatedAt?: string | null
@@ -109,6 +151,29 @@ export interface PoultryRawMaterialUsage {
   feedProductionBatchNumber?: string | null
   /** The finished feed that batch produced. */
   feedProductionFeedName?: string | null
+  /** The production record this draw belongs to, when it came from one. */
+  productionRecordId?: number | null
+  /** Reversed draws are kept, not deleted (append-only ledger). */
+  isReversed?: boolean
+  reversedAt?: string | null
+
+  // ----- cost recognition (migration 268), all read-only ---------------------
+
+  /**
+   * What the stock drawn was worth. ALWAYS populated — this is what "what did
+   * that feed cost me" means, and what cost-per-bird is built on.
+   */
+  operationalCost?: number
+  /**
+   * Only the part that reached the P&L at THIS consumption. Zero on stock
+   * already expensed at purchase, which does not mean the feed was free.
+   */
+  recognizedCost?: number
+  /** How many purchase lots this single draw crossed. */
+  costLayerCount?: number
+  /** "Expensed at consumption" | "Already expensed at purchase" | "Reversed" | "No cost layers". */
+  costRecognitionStatus?: string | null
+
   createdAt: string
 }
 
@@ -148,6 +213,54 @@ async function jsend<T>(path: string, method: "POST" | "PUT" | "DELETE", body?: 
 }
 
 // ----- Raw material items -----
+// =============================================================================
+// Financial settings: cost recognition (migrations 261-263)
+//
+// Two independent choices -- feed and medication -- plus an optional
+// forward-dated activation. The server refuses a date in the past, because
+// backdating would claim to change how past purchases were treated while their
+// snapshots say otherwise.
+// =============================================================================
+
+export interface PoultryFinancialSettings {
+  farmId: string
+  feedCostRecognitionMethod: CostRecognitionMethod
+  medicationCostRecognitionMethod: CostRecognitionMethod
+  /** Forward-dated activation. Null means in force now. */
+  effectiveFromDate?: string | null
+  /**
+   * False when the farm has never chosen. The page says so rather than showing
+   * a default as though it were a decision somebody made.
+   */
+  isConfigured: boolean
+  createdBy?: string | null
+  createdAt?: string | null
+  updatedBy?: string | null
+  updatedAt?: string | null
+  /** Only on the PUT response, so a change can be audited from one round trip. */
+  previousFeedMethod?: CostRecognitionMethod | null
+  previousMedicationMethod?: CostRecognitionMethod | null
+}
+
+export const getPoultryFinancialSettings = () =>
+  jget<PoultryFinancialSettings>(
+    `/Poultry/financial-settings/cost-recognition?farmId=${encodeURIComponent(activeFarmId())}`)
+
+/**
+ * Both methods go together because the page presents them together: sending one
+ * without the other would make "unchanged" and "reset to default"
+ * indistinguishable.
+ */
+export const updatePoultryFinancialSettings = (input: {
+  feedCostRecognitionMethod: CostRecognitionMethod
+  medicationCostRecognitionMethod: CostRecognitionMethod
+  effectiveFromDate?: string | null
+}) =>
+  jsend<PoultryFinancialSettings>(
+    `/Poultry/financial-settings/cost-recognition?farmId=${encodeURIComponent(activeFarmId())}`,
+    "PUT",
+    { ...input, farmId: activeFarmId(), updatedBy: activeUserId() })
+
 export const listPoultryRawMaterialItems = () =>
   jget<PoultryRawMaterialItem[]>(`/Poultry/raw-material-items?farmId=${encodeURIComponent(activeFarmId())}`)
 
@@ -197,6 +310,64 @@ export const listPoultryRawMaterialUsageHistory = (opts?: { itemId?: number; fro
   if (opts?.toDate) qs.append("toDate", opts.toDate)
   return jget<PoultryRawMaterialUsage[]>(`/Poultry/raw-material-usage/history?${qs.toString()}`)
 }
+
+// ----- Inventory valuation (migrations 267/268) -----
+//
+// TWO values, never one. Operational value is what the stock cost; deferred
+// value is only the part still waiting to reach Profit & Loss, and it is zero
+// for stock bought under expense-at-purchase however much that stock is worth.
+// Showing the second alone would report a farm's whole store as worthless.
+
+export interface PoultryInventoryValuationItem {
+  poultryRawMaterialItemId: number
+  itemName?: string | null
+  category?: string | null
+  unitOfMeasure?: string | null
+  usageMethod?: string | null
+  effectiveMethod?: string | null
+  costRecognitionSource?: string | null
+  physicalQuantity: number
+  costLayerQuantity: number
+  /** Stock that left without drawing a lot. Reported, never silently repaired. */
+  quantityDrift: number
+  operationalValue: number
+  deferredValue: number
+  openLots: number
+  deferredLots: number
+}
+
+export interface PoultryInventoryValuationSummary {
+  itemsWithStock: number
+  operationalValue: number
+  deferredValue: number
+  itemsDeferring: number
+  openLots: number
+  deferredLots: number
+  itemsWithDrift: number
+  /** Zero on a healthy farm — the audit is silent when it has nothing to say. */
+  auditFindings: number
+}
+
+export interface PoultryCostLayerAuditRow {
+  finding?: string | null
+  /** Corrupt (numbers contradict themselves) | Stranded (money can't reach the P&L) | Drift. */
+  severity?: string | null
+  itemId?: number | null
+  itemName?: string | null
+  purchaseId?: number | null
+  amount?: number | null
+  detail?: string | null
+}
+
+export interface PoultryInventoryValuation {
+  summary: PoultryInventoryValuationSummary
+  items: PoultryInventoryValuationItem[]
+  /** Empty on a healthy farm. */
+  auditFindings: PoultryCostLayerAuditRow[]
+}
+
+export const getPoultryInventoryValuation = () =>
+  jget<PoultryInventoryValuation>(`/Poultry/inventory-valuation?farmId=${encodeURIComponent(activeFarmId())}`)
 
 // ----- Manual adjustments (increase/decrease a raw material / supply directly) -----
 export interface PoultryRawMaterialAdjustment {
@@ -486,3 +657,199 @@ export const reversePoultryDelivery = (id: number) =>
   jsend<void>(`/Poultry/deliveries/${id}/reverse?farmId=${encodeURIComponent(activeFarmId())}`, "POST")
 export const cancelPoultryDelivery = (id: number) =>
   jsend<void>(`/Poultry/deliveries/${id}/cancel?farmId=${encodeURIComponent(activeFarmId())}`, "POST")
+
+// ---------------------------------------------------------------------------
+// Deferred inventory costs (migration 288).
+//
+// The read side of cost recognition: which purchases still hold cost that has
+// not reached Profit & Loss, which consumptions moved it there, and how any one
+// consumption's cost was worked out.
+//
+// Read-only by design. What has been recognised is DERIVED from the cost layers
+// and their allocations -- there is no writer here, and adding one would create
+// a second answer that immediately disagreed with the P&L.
+// ---------------------------------------------------------------------------
+
+/**
+ * DEFERRED   cost still waiting to reach P&L. The default view.
+ * RECOGNIZED lots that WERE deferred and are now fully expensed. Deliberately
+ *            excludes expense-at-purchase lots: they were never deferred.
+ * EXCEPTION  rows whose two independent counts disagree, or with cost stranded
+ *            on a lot that has no stock left.
+ * ALL        every purchase, however it was recognised.
+ */
+export type DeferredCostScope = "DEFERRED" | "RECOGNIZED" | "EXCEPTION" | "ALL"
+
+export interface PoultryDeferredPurchase {
+  poultryRawMaterialPurchaseId: number
+  purchaseDate: string
+  poultryRawMaterialItemId: number
+  itemName?: string | null
+  category?: string | null
+  unitOfMeasure?: string | null
+  productionUnit?: string | null
+  supplierId?: number | null
+  supplierName?: string | null
+
+  /** All three in PRODUCTION units — the unit the stock is consumed in. */
+  purchasedQuantity: number
+  consumedQuantity: number
+  remainingQuantity: number
+
+  /** What the stock cost. NOT the deferred basis. */
+  operationalCost: number
+  /** What this lot deferred when it was created. */
+  deferredTotalCost: number
+  /** How much of that has reached P&L. Already net of reversals. */
+  recognizedCost: number
+  /** How much is still waiting. */
+  deferredRemainingCost: number
+  recognitionPercent: number
+
+  /** The same figure recounted from the individual allocations. */
+  allocatedRecognizedCost: number
+  /** Gap between the two counts. Non-zero ⇒ Exception. */
+  recognitionDrift: number
+
+  costRecognitionMethod?: string | null
+  recognitionMethodLabel?: string | null
+  /** Expensed at purchase | Not yet expensed | Partly expensed | Fully expensed | Exception */
+  status?: string | null
+  /** Plain-language reason, set only on Exception rows. */
+  exceptionReason?: string | null
+
+  sourceFeedProductionBatchId?: number | null
+  feedProductionBatchNumber?: string | null
+  /** Produced by feed production rather than bought — has a batch, not a supplier. */
+  isLotProduced: boolean
+
+  recognitionEvents: number
+  lastRecognitionDate?: string | null
+
+  // ---- 289: the consumption queue -----------------------------------------
+  /** FIFO | LIFO | HIFO — decides draw order, and therefore everything below. */
+  costingMethod?: string | null
+  /** Place in the queue for this item, 1 = drawn next. NULL when the lot has no
+   *  stock left, so it is not queued at all. */
+  queuePosition?: number | null
+  /** Stock (production units) consumed before this lot is reached. 0 = next.
+   *  This is why a deferred cost can sit still while stock is consumed. */
+  quantityAheadInQueue?: number | null
+}
+
+/** One consumption that drew on a purchase lot. */
+export interface PoultryDeferredRecognition {
+  poultryRawMaterialUsageId: number
+  usedDate: string
+  sourceType?: string | null
+  /** Ready-made label, built server-side so the UI never assembles one. */
+  sourceLabel?: string | null
+  productionRecordId?: number | null
+  poultryProductionBatchId?: number | null
+  productionBatchNumber?: string | null
+  flockId?: number | null
+  flockName?: string | null
+  poultryFeedProductionBatchId?: number | null
+  feedProductionBatchNumber?: string | null
+
+  itemName?: string | null
+  productionUnit?: string | null
+  quantityDrawn: number
+  unitCostAtDraw: number
+  operationalCost: number
+  /** THIS allocation's share. Zero on a lot expensed at purchase. */
+  recognizedCost: number
+  recognitionOutcome?: string | null
+
+  isReversed: boolean
+  reversedAt?: string | null
+  expenseId?: number | null
+  /** The whole record's expense, NOT this row's share. See recognizedCost. */
+  expenseAmount?: number | null
+  expenseStatus?: string | null
+}
+
+/** One cost layer a consumption drew from. */
+export interface PoultryConsumptionCostLayer {
+  poultryRawMaterialUsageId: number
+  poultryRawMaterialItemId: number
+  itemName?: string | null
+  category?: string | null
+  usedDate: string
+  totalQuantityUsed: number
+  productionUnit?: string | null
+
+  poultryRawMaterialPurchaseId: number
+  purchaseDate: string
+  supplierName?: string | null
+  sourceFeedProductionBatchId?: number | null
+  feedProductionBatchNumber?: string | null
+
+  quantityDrawn: number
+  unitCostAtDraw: number
+  operationalCost: number
+  recognizedCost: number
+  /** The LOT's snapshot, not the item's current setting. */
+  lotRecognitionMethod?: string | null
+  recognitionLabel?: string | null
+  isReversed: boolean
+}
+
+export interface PoultryDeferredCostSummary {
+  remainingDeferredCost: number
+  recognizedCost: number
+  deferredBasis: number
+  operationalCost: number
+  purchaseCount: number
+  deferredPurchases: number
+  fullyRecognized: number
+  notRecognized: number
+  exceptions: number
+  exceptionDrift: number
+  recognitionPercent: number
+  /** 289. Lots that cannot be reached yet because older stock is in front. */
+  blockedPurchases: number
+  blockedCost: number
+}
+
+export interface PoultryDeferredCostResponse {
+  summary: PoultryDeferredCostSummary
+  purchases: PoultryDeferredPurchase[]
+}
+
+export interface DeferredCostFilters {
+  scope?: DeferredCostScope
+  itemId?: number
+  supplierId?: number
+  category?: string
+  fromDate?: string
+  toDate?: string
+  search?: string
+}
+
+export const getPoultryDeferredCosts = (f?: DeferredCostFilters) => {
+  const qs = new URLSearchParams({ farmId: activeFarmId() })
+  qs.append("scope", f?.scope ?? "DEFERRED")
+  if (f?.itemId != null) qs.append("itemId", String(f.itemId))
+  if (f?.supplierId != null) qs.append("supplierId", String(f.supplierId))
+  if (f?.category) qs.append("category", f.category)
+  if (f?.fromDate) qs.append("fromDate", f.fromDate)
+  if (f?.toDate) qs.append("toDate", f.toDate)
+  if (f?.search) qs.append("search", f.search)
+  return jget<PoultryDeferredCostResponse>(`/Poultry/deferred-inventory-costs?${qs.toString()}`)
+}
+
+/** Every usage that drew on one purchase lot. Empty ⇒ nothing has drawn yet. */
+export const getPoultryDeferredCostHistory = (purchaseId: number) =>
+  jget<PoultryDeferredRecognition[]>(
+    `/Poultry/deferred-inventory-costs/${purchaseId}/history?farmId=${encodeURIComponent(activeFarmId())}`)
+
+/**
+ * How one production record's consumption cost was arrived at, lot by lot.
+ * Keyed on the production record rather than the usage row because editing a
+ * record rewrites its usage rows — the same reason migration 266 links its
+ * expense that way.
+ */
+export const getPoultryConsumptionCostBreakdown = (productionRecordId: number) =>
+  jget<PoultryConsumptionCostLayer[]>(
+    `/Poultry/deferred-inventory-costs/breakdown/${productionRecordId}?farmId=${encodeURIComponent(activeFarmId())}`)

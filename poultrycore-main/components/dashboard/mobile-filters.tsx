@@ -9,6 +9,22 @@ export const MOBILE_FILTER_SHEET_CONTENT_CLASS =
 
 export const MOBILE_FILTER_SELECT_CONTENT_CLASS = "z-[200] max-h-[min(70vh,24rem)]"
 
+/**
+ * For a select whose list is GROUPED — option groups with headings and
+ * separators between them.
+ *
+ * 24rem above is right for a flat list of a dozen-ish options. A grouped list
+ * spends height on things that are not options: six headings and five
+ * separators cost roughly 150px before a single choice is drawn, so the same
+ * ceiling leaves the Period picker scrolling with only half its presets
+ * visible. 44rem contains all sixteen.
+ *
+ * Still bounded by 85vh, so a short screen scrolls rather than the panel
+ * running off the bottom — the point is to stop cramping a list that FITS, not
+ * to let a panel grow without limit.
+ */
+export const GROUPED_SELECT_CONTENT_CLASS = "z-[200] max-h-[min(85vh,44rem)]"
+
 /** Wrap filter trigger + export actions; flex-wrap avoids cramped grids on narrow phones. */
 export const MOBILE_FILTERS_TOOLBAR_ROW_CLASS =
   "flex flex-wrap items-center gap-2 min-w-0 w-full"

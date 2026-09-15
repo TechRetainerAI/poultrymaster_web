@@ -14,7 +14,7 @@ import { DashboardHeader } from "@/components/dashboard/header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableFooter, TableHeader, TableRow } from "@/components/ui/table"
-import { TRACKER_PAGE_SIZE_OPTIONS } from "@/components/ui/data-pagination"
+import { TRACKER_PAGE_SIZE_DEFAULT, TRACKER_PAGE_SIZE_OPTIONS } from "@/components/ui/data-pagination"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
@@ -23,25 +23,37 @@ import { Pill, RefreshCw, Loader2, AlertTriangle, Boxes } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { useFmt } from "@/lib/currency"
+import { recognizedCostNote } from "@/lib/poultry/cost-recognition"
+import { CostBreakdownDialog } from "@/components/poultry/cost-breakdown-dialog"
 import {
   listPoultryRawMaterialItems, listPoultryRawMaterialPurchases, listPoultryRawMaterialUsageHistory,
   type PoultryRawMaterialItem, type PoultryRawMaterialPurchase, type PoultryRawMaterialUsage,
 } from "@/lib/api/poultry-inventory"
 
-const LEDGER_PAGE_SIZE_DEFAULT = 15
 
 // One IN or OUT event for a single medication, with the running per-med balance.
 type LedgerRow = {
   key: string; itemId: number; medication: string; unit: string
   date: string; type: "Purchase" | "Usage"; source: string
   inQty: number; outQty: number; balance: number
+  // Migration 268, OUT rows only. cost is what the stock drawn was worth;
+  // recognized is only the part charged to Profit & Loss at this usage, which is
+  // zero whenever the medication was expensed when it was bought. Both, because
+  // either alone misleads.
+  cost?: number; recognized?: number; reversed?: boolean
+  /** 288. The record to ask for a cost breakdown; absent on purchase rows. */
+  productionRecordId?: number | null
 }
 
 export default function MedicationTrackerPage() {
   const router = useRouter()
   const { toast } = useToast()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
+  const gh = useFmt()
 
+  // 288. Which production record's cost breakdown is open, if any.
+  const [breakdownFor, setBreakdownFor] = useState<number | null>(null)
   const [items, setItems] = useState<PoultryRawMaterialItem[]>([])
   const [purchases, setPurchases] = useState<PoultryRawMaterialPurchase[]>([])
   const [usage, setUsage] = useState<PoultryRawMaterialUsage[]>([])
@@ -59,7 +71,7 @@ export default function MedicationTrackerPage() {
   const [dateTo, setDateTo] = useState("")
   const [sort, setSort] = useState<{ key: string | null; direction: SortDirection }>({ key: "date", direction: "desc" })
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(LEDGER_PAGE_SIZE_DEFAULT)
+  const [pageSize, setPageSize] = useState(TRACKER_PAGE_SIZE_DEFAULT)
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Poultry") { router.replace("/dashboard"); return }
@@ -91,7 +103,12 @@ export default function MedicationTrackerPage() {
   const allLedger = useMemo<LedgerRow[]>(() => {
     const rows: LedgerRow[] = []
     for (const m of meds) {
-      const events = [
+      const events: Array<{
+        date: string; type: "Purchase" | "Usage"; source: string
+        inQty: number; outQty: number; key: string
+        cost?: number; recognized?: number; reversed?: boolean
+        productionRecordId?: number | null
+      }> = [
         ...purchases.filter((p) => p.poultryRawMaterialItemId === m.poultryRawMaterialItemId).map((p) => ({
           date: p.purchaseDate, type: "Purchase" as const,
           source: p.supplierName ? `Purchase — ${p.supplierName}` : "Purchase",
@@ -101,12 +118,14 @@ export default function MedicationTrackerPage() {
           date: u.usedDate, type: "Usage" as const,
           source: u.varianceReason ? `Production usage — ${u.varianceReason}` : "Production usage",
           inQty: 0, outQty: Math.abs(u.quantityUsed), key: `u${u.poultryRawMaterialUsageId}`,
+          cost: u.operationalCost, recognized: u.recognizedCost, reversed: u.isReversed,
+          productionRecordId: u.productionRecordId,
         })),
       ].sort((a, b) => (a.date || "").localeCompare(b.date || ""))
       let run = 0
       for (const e of events) {
         run += e.inQty - e.outQty
-        rows.push({ key: e.key, itemId: m.poultryRawMaterialItemId, medication: m.itemName, unit: m.unitOfMeasure ?? "", date: e.date, type: e.type, source: e.source, inQty: e.inQty, outQty: e.outQty, balance: run })
+        rows.push({ key: e.key, itemId: m.poultryRawMaterialItemId, medication: m.itemName, unit: m.unitOfMeasure ?? "", date: e.date, type: e.type, source: e.source, inQty: e.inQty, outQty: e.outQty, balance: run, cost: e.cost, recognized: e.recognized, reversed: e.reversed, productionRecordId: e.productionRecordId ?? null })
       }
     }
     return rows
@@ -180,6 +199,11 @@ export default function MedicationTrackerPage() {
   const byMedInTotal = useMemo(() => sortedByMed.reduce((s, b) => s + (Number(b.totalIn) || 0), 0), [sortedByMed])
   const byMedOutTotal = useMemo(() => sortedByMed.reduce((s, b) => s + (Number(b.totalOut) || 0), 0), [sortedByMed])
   const byMedLeftTotal = useMemo(() => sortedByMed.reduce((s, b) => s + (Number(b.left) || 0), 0), [sortedByMed])
+
+  const ledgerRecognizedTotal = useMemo(
+    () => sortedLedger.reduce((s, r) => s + (r.reversed ? 0 : Number(r.recognized) || 0), 0),
+    [sortedLedger]
+  )
 
   const totalPages = Math.max(1, Math.ceil(sortedLedger.length / pageSize))
   const safePage = Math.min(page, totalPages)
@@ -329,6 +353,7 @@ export default function MedicationTrackerPage() {
                       <SortableHeader label="In" sortKey="in" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
                       <SortableHeader label="Out" sortKey="out" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
                       <SortableHeader label="Balance" sortKey="balance" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
+                      <SortableHeader label="Cost recognised" sortKey="recognized" currentSort={cs} currentDirection={cd} onSort={onSort} className="text-right" />
                       </>) })()}
                     </TableRow></TableHeader>
                     <TableBody>
@@ -341,6 +366,37 @@ export default function MedicationTrackerPage() {
                           <TableCell className="text-right text-emerald-700 tabular-nums">{r.inQty > 0 ? fmt(r.inQty) : "—"}</TableCell>
                           <TableCell className="text-right text-red-600 tabular-nums">{r.outQty > 0 ? fmt(r.outQty) : "—"}</TableCell>
                           <TableCell className="text-right font-medium tabular-nums">{fmt(r.balance)} {r.unit}</TableCell>
+                          {/* Read-only. On a farm that expenses medication when
+                              it buys it -- the default -- every row here reads
+                              zero, and the sub-line is what stops that being read
+                              as free medication. */}
+                          <TableCell className="text-right tabular-nums">
+                            {r.type !== "Usage" || r.cost == null ? (
+                              <span className="text-slate-300">—</span>
+                            ) : r.reversed ? (
+                              <span className="text-slate-400">Reversed</span>
+                            ) : (
+                              <span title={recognizedCostNote(r.recognized ?? 0, r.cost ?? 0)}>
+                                <span className={(r.recognized ?? 0) > 0 ? "font-medium text-amber-700" : "text-slate-500"}>
+                                  {gh(r.recognized ?? 0)}
+                                </span>
+                                <span className="block text-[11px] text-slate-500">
+                                  {(r.recognized ?? 0) > 0
+                                    ? `of ${gh(r.cost ?? 0)} stock cost`
+                                    : `${gh(r.cost ?? 0)} expensed at purchase`}
+                                </span>
+                                {r.productionRecordId != null && (
+                                  <button
+                                    type="button"
+                                    className="block text-[11px] text-blue-600 underline decoration-dotted underline-offset-2 hover:text-blue-800 ml-auto"
+                                    onClick={() => setBreakdownFor(r.productionRecordId ?? null)}
+                                  >
+                                    View cost breakdown
+                                  </button>
+                                )}
+                              </span>
+                            )}
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -360,6 +416,9 @@ export default function MedicationTrackerPage() {
                           {ledgerMixedUnits ? <span className="font-normal text-slate-400">—</span> : fmt(ledgerOutTotal)}
                         </TableCell>
                         <TableCell />
+                        <TableCell className="text-right font-bold text-amber-700 tabular-nums">
+                          {gh(ledgerRecognizedTotal)}
+                        </TableCell>
                       </TableRow>
                     </TableFooter>
                   </Table></div>
@@ -385,6 +444,12 @@ export default function MedicationTrackerPage() {
               </CardContent></Card>
             </>
           )}
+
+          <CostBreakdownDialog
+            productionRecordId={breakdownFor}
+            title="Medication cost breakdown"
+            onClose={() => setBreakdownFor(null)}
+          />
         </main>
       </div>
     </div>

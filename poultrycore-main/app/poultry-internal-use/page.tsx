@@ -476,21 +476,31 @@ export default function PoultryInternalUsePage() {
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
                   defaultOpen
+                  striped
+                  stripeAccent="blue"
                   getKey={(r) => r.poultryInternalUsageId}
-                  primary={(r) => `${POULTRY_INTERNAL_USE_CATEGORY_LABELS[r.category] ?? r.category} · ${gh(r.totalCostValue ?? 0)}`}
+                  primary={(r) => POULTRY_INTERNAL_USE_CATEGORY_LABELS[r.category] ?? r.category}
                   secondary={(r) => (
                     <>
                       <span>{(r.usageDate || "").split("T")[0]}</span>
                       <Badge variant="outline" className={cn("border-0", STATUS_BADGE[r.status])}>{r.status}</Badge>
                     </>
                   )}
+                  highlights={(r) => [
+                    // The two numbers a record is about, in their own tinted
+                    // tiles, so a card answers "how much, and what did it
+                    // cost?" without being opened. The cost used to be stapled
+                    // to the category in the title, where it read as part of
+                    // the name; it has a tile of its own now, and the title is
+                    // the reason the stock left.
+                    { label: "Quantity", value: describeQty(r), accent: "blue" },
+                    { label: "Cost", value: gh(r.totalCostValue ?? 0), accent: "violet" },
+                  ]}
                   details={(r) => [
                     { label: "Date", value: (r.usageDate || "").split("T")[0] },
-                    { label: "Reason", value: POULTRY_INTERNAL_USE_CATEGORY_LABELS[r.category] ?? r.category },
                     { label: "Product", value: r.items?.[0]?.productName ?? "—" },
-                    { label: "Quantity", value: describeQty(r) },
-                    { label: "Cost", value: gh(r.totalCostValue ?? 0) },
                     { label: "Recipient", value: r.recipientName ?? "—" },
+                    { label: "Staff", value: r.staffCount ? r.staffCount.toLocaleString() : "—" },
                   ]}
                   actions={(r) => rowActions(r)}
                   desktopTable={(

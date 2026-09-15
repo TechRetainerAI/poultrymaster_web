@@ -21,6 +21,7 @@ import { Loader2, Plus, Users, Pencil, Trash2 } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
+import { useGenericModules } from "@/hooks/use-generic-modules"
 import { createCustomer, updateCustomer, deleteCustomer, getCustomers, type GenericCustomer } from "@/lib/api/generic"
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
@@ -36,6 +37,9 @@ export default function GenericCustomersPage() {
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const logout = useLogout()
   const { toast } = useToast()
+  // A gym has Members, a school has Students, a cleaning firm has Clients.
+  // Same page, same table, same API -- only the words change.
+  const { labels } = useGenericModules()
   const [rows, setRows] = useState<GenericCustomer[]>([])
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
@@ -85,7 +89,7 @@ export default function GenericCustomersPage() {
     try {
       setRows(await getCustomers())
     } catch (e: any) {
-      toast({ title: "Could not load customers", description: e?.message ?? String(e), variant: "destructive" })
+      toast({ title: `Could not load ${labels.customerPlural.toLowerCase()}`, description: e?.message ?? String(e), variant: "destructive" })
     } finally { setLoading(false) }
   }
 
@@ -125,7 +129,7 @@ export default function GenericCustomersPage() {
       }
       if (editingId != null) {
         await updateCustomer(editingId, payload)
-        toast({ title: `Customer updated.` })
+        toast({ title: `${labels.customer} updated.` })
       } else {
         const created = await createCustomer(payload)
         if (created) toast({ title: `Customer "${created.customerName}" created.` })
@@ -135,7 +139,7 @@ export default function GenericCustomersPage() {
       setEditingId(null)
       await load()
     } catch (e: any) {
-      toast({ title: editingId != null ? "Could not save changes" : "Could not create customer", description: e?.message ?? String(e), variant: "destructive" })
+      toast({ title: editingId != null ? "Could not save changes" : `Could not create ${labels.customer.toLowerCase()}`, description: e?.message ?? String(e), variant: "destructive" })
     } finally {
       setSaving(false)
     }
@@ -150,26 +154,26 @@ export default function GenericCustomersPage() {
           <div className="mb-4 flex items-center justify-between flex-wrap gap-2">
             <div>
               <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
-                <Users className="h-6 w-6 text-emerald-600" /> Customers
+                <Users className="h-6 w-6 text-emerald-600" /> {labels.customerPlural}
               </h1>
-              <p className="text-sm text-slate-500">{rows.length} customer(s)</p>
+              <p className="text-sm text-slate-500">{rows.length} {rows.length === 1 ? labels.customer.toLowerCase() : labels.customerPlural.toLowerCase()}</p>
             </div>
             <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setEditingId(null) }}>
               <DialogTrigger asChild>
-                <Button onClick={openNew} className="w-full sm:w-auto h-11 sm:h-10"><Plus className="h-4 w-4 mr-1" />New customer</Button>
+                <Button onClick={openNew} className="w-full sm:w-auto h-11 sm:h-10"><Plus className="h-4 w-4 mr-1" />New {labels.customer.toLowerCase()}</Button>
               </DialogTrigger>
               <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
                     {editingId != null
-                      ? <><Pencil className="w-5 h-5 text-blue-600" /> Edit customer</>
-                      : <><Users className="w-5 h-5 text-blue-600" /> New customer</>}
+                      ? <><Pencil className="w-5 h-5 text-blue-600" /> Edit {labels.customer.toLowerCase()}</>
+                      : <><Users className="w-5 h-5 text-blue-600" /> New {labels.customer.toLowerCase()}</>}
                   </DialogTitle>
                   <DialogDescription>Capture basic contact info, credit limit and any opening balance they already owe you.</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
                   <FormSection title="Personal information" color="indigo">
-                    <FormField label="Customer name *" full>
+                    <FormField label={`${labels.customer} name *`} full>
                       <Input value={form.customerName} onChange={(e) => setForm((f) => ({ ...f, customerName: e.target.value }))} maxLength={200} />
                     </FormField>
                     <FormField label="Type">
@@ -227,7 +231,7 @@ export default function GenericCustomersPage() {
           {loading ? (
             <div className="flex items-center gap-2 text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
           ) : rows.length === 0 ? (
-            <Card><CardContent className="py-8 text-center text-slate-500">No customers yet. Create your first one.</CardContent></Card>
+            <Card><CardContent className="py-8 text-center text-slate-500">No {labels.customerPlural.toLowerCase()} yet. Create your first one.</CardContent></Card>
           ) : (
             <>
             <ListFilters
@@ -332,12 +336,12 @@ export default function GenericCustomersPage() {
       <ConfirmDeleteDialog
         open={!!deleteTarget}
         onOpenChange={(o) => { if (!o) setDeleteTarget(null) }}
-        title="Delete customer?"
+        title={`Delete ${labels.customer.toLowerCase()}?`}
         itemLabel={deleteTarget?.customerName}
         description={deleteTarget && deleteTarget.currentBalance > 0
           ? `"${deleteTarget.customerName}" owes ${fmt(deleteTarget.currentBalance)}. Deleting may fail if there's an outstanding balance or sale history — backend will refuse if so.`
           : undefined}
-        successTitle="Customer deleted"
+        successTitle={`${labels.customer} deleted`}
         errorTitle="Delete failed"
         onConfirm={async () => {
           if (deleteTarget) {

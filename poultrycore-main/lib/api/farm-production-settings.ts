@@ -1,13 +1,19 @@
 import { buildApiUrl, getAuthHeaders, getUserContext } from './config'
 
-// Per-farm egg-pick configuration (migration 153). Times are 24h "HH:mm" strings.
+// Per-farm egg-pick configuration (migrations 153 and 248). Times are 24h
+// "HH:mm" strings. Six picks are configurable; the 4th, 5th and 6th are each
+// gated by their own switch so a farm only sees the rounds it actually collects.
 export interface FarmProductionSettings {
   farmId: string
   firstPickTime: string
   secondPickTime: string
   thirdPickTime: string
   fourthPickTime: string
+  fifthPickTime: string
+  sixthPickTime: string
   enableFourthPick: boolean
+  enableFifthPick: boolean
+  enableSixthPick: boolean
 }
 
 export const DEFAULT_PICK_SETTINGS: FarmProductionSettings = {
@@ -16,7 +22,13 @@ export const DEFAULT_PICK_SETTINGS: FarmProductionSettings = {
   secondPickTime: '12:00',
   thirdPickTime: '16:00',
   fourthPickTime: '18:00',
+  // No default hour for the two new rounds: a farm that has not asked for them
+  // should see "not set", not an invented time it never collects at.
+  fifthPickTime: '',
+  sixthPickTime: '',
   enableFourthPick: false,
+  enableFifthPick: false,
+  enableSixthPick: false,
 }
 
 function mapSettings(raw: any, farmId: string): FarmProductionSettings {
@@ -27,7 +39,13 @@ function mapSettings(raw: any, farmId: string): FarmProductionSettings {
     secondPickTime: raw.secondPickTime ?? raw.SecondPickTime ?? DEFAULT_PICK_SETTINGS.secondPickTime,
     thirdPickTime: raw.thirdPickTime ?? raw.ThirdPickTime ?? DEFAULT_PICK_SETTINGS.thirdPickTime,
     fourthPickTime: raw.fourthPickTime ?? raw.FourthPickTime ?? DEFAULT_PICK_SETTINGS.fourthPickTime,
+    // ?? not ||, and then ?? '' — an API that predates 248 sends neither field,
+    // and null has to land as a blank string rather than as the word "null".
+    fifthPickTime: raw.fifthPickTime ?? raw.FifthPickTime ?? '',
+    sixthPickTime: raw.sixthPickTime ?? raw.SixthPickTime ?? '',
     enableFourthPick: Boolean(raw.enableFourthPick ?? raw.EnableFourthPick ?? false),
+    enableFifthPick: Boolean(raw.enableFifthPick ?? raw.EnableFifthPick ?? false),
+    enableSixthPick: Boolean(raw.enableSixthPick ?? raw.EnableSixthPick ?? false),
   }
 }
 
@@ -59,7 +77,11 @@ export async function saveFarmProductionSettings(
       SecondPickTime: input.secondPickTime || null,
       ThirdPickTime: input.thirdPickTime || null,
       FourthPickTime: input.fourthPickTime || null,
+      FifthPickTime: input.fifthPickTime || null,
+      SixthPickTime: input.sixthPickTime || null,
       EnableFourthPick: input.enableFourthPick,
+      EnableFifthPick: input.enableFifthPick,
+      EnableSixthPick: input.enableSixthPick,
       UpdatedBy: ctx.userId || null,
     }
     const res = await fetch(buildApiUrl('/FarmProductionSettings'), {
@@ -102,5 +124,7 @@ export function pickLabels(s: FarmProductionSettings) {
     second: `2nd Pick${suffix(s.secondPickTime)}`,
     third: `3rd Pick${suffix(s.thirdPickTime)}`,
     fourth: `4th Pick${suffix(s.fourthPickTime)}`,
+    fifth: `5th Pick${suffix(s.fifthPickTime)}`,
+    sixth: `6th Pick${suffix(s.sixthPickTime)}`,
   }
 }

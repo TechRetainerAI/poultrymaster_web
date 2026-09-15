@@ -24,6 +24,7 @@ import { Plus, Pencil, Loader2, Wallet, RefreshCw, ArrowLeftRight, Eye, Trash2, 
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
+import { ledgerTypeLabel } from "@/lib/cash/cash-flow"
 import { useFmt } from "@/lib/currency"
 import {
   listWaterCashAccounts, getWaterCashAccountCountStatus, createWaterCashAccount, updateWaterCashAccount, deleteWaterCashAccount, reconcileWaterCashBalances,
@@ -514,7 +515,7 @@ export default function WaterCashAccountsPage() {
                   {txDlg.rows.map((r) => (
                     <TableRow key={r.waterCashTransactionId}>
                       <TableCell>{r.transactionDate.split("T")[0]}</TableCell>
-                      <TableCell>{r.transactionType}</TableCell>
+                      <TableCell>{ledgerTypeLabel(r.transactionType)}</TableCell>
                       <TableCell>{r.sourceType ?? "—"}</TableCell>
                       <TableCell className={`text-right tabular-nums ${r.amount < 0 ? "text-rose-600" : "text-green-700"}`}>{fmt(r.amount)}</TableCell>
                       <TableCell className="max-w-sm whitespace-normal break-words align-top">{r.description ?? "—"}</TableCell>

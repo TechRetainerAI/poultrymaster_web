@@ -187,6 +187,12 @@ namespace PoultryFarmAPIWeb.Business
         Task<List<PoultryCashTransferModel>> GetAllAsync(string farmId, string? status);
         Task<PoultryCashTransferModel?>      GetByIdAsync(int id, string farmId);
         Task<int>  InsertAsync(PoultryCashTransferModel m);
+        /// <summary>
+        /// Undoes an APPROVED transfer by writing two opposite ledger rows.
+        /// Cancel only ever worked on a Draft, and the page approves on create,
+        /// so before this there was no way back from a mistyped transfer.
+        /// </summary>
+        Task ReverseAsync(int id, string farmId, string reason, string? reversedBy);
         Task       ApproveAsync(int id, string farmId, string? approvedBy);
         Task       CancelAsync(int id, string farmId);
     }
@@ -223,7 +229,7 @@ namespace PoultryFarmAPIWeb.Business
         public async Task<int> InsertAsync(PoultryCashTransferModel m)
         {
             using var c = new NpgsqlConnection(_cs);
-            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrycashtransfer_insert(p_farmid => @FarmId::text, p_frompoultrycashaccountid => @FromPoultryCashAccountId::int, p_topoultrycashaccountid => @ToPoultryCashAccountId::int, p_amount => @Amount::numeric, p_transferdate => @TransferDate::timestamp, p_notes => @Notes::text, p_createdby => @CreatedBy::text)", c);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrycashtransfer_insert(p_farmid => @FarmId::text, p_frompoultrycashaccountid => @FromPoultryCashAccountId::int, p_topoultrycashaccountid => @ToPoultryCashAccountId::int, p_amount => @Amount::numeric, p_transferdate => @TransferDate::timestamp, p_notes => @Notes::text, p_createdby => @CreatedBy::text, p_referencenumber => @ReferenceNumber::text)", c);
             cmd.Parameters.AddWithValue("@FarmId", m.FarmId);
             cmd.Parameters.AddWithValue("@FromPoultryCashAccountId", m.FromPoultryCashAccountId);
             cmd.Parameters.AddWithValue("@ToPoultryCashAccountId",   m.ToPoultryCashAccountId);
@@ -232,6 +238,7 @@ namespace PoultryFarmAPIWeb.Business
                 m.TransferDate == default ? (object)DBNull.Value : m.TransferDate);
             cmd.Parameters.AddWithValue("@Notes", (object?)m.Notes ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@CreatedBy", (object?)m.CreatedBy ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ReferenceNumber", (object?)m.ReferenceNumber ?? DBNull.Value);
             await c.OpenAsync();
             return Convert.ToInt32(await cmd.ExecuteScalarAsync());
         }
@@ -257,6 +264,18 @@ namespace PoultryFarmAPIWeb.Business
             await cmd.ExecuteNonQueryAsync();
         }
 
+        public async Task ReverseAsync(int id, string farmId, string reason, string? reversedBy)
+        {
+            using var c = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand("SELECT * FROM sppoultrycashtransfer_reverse(p_poultrycashtransferid => @PoultryCashTransferId::int, p_farmid => @FarmId::text, p_reason => @Reason::text, p_reversedby => @ReversedBy::text)", c);
+            cmd.Parameters.AddWithValue("@PoultryCashTransferId", id);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@Reason", reason);
+            cmd.Parameters.AddWithValue("@ReversedBy", (object?)reversedBy ?? DBNull.Value);
+            await c.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
         private static PoultryCashTransferModel Read(NpgsqlDataReader r) => new()
         {
             PoultryCashTransferId    = r.GetInt32(r.GetOrdinal("PoultryCashTransferId")),
@@ -272,6 +291,13 @@ namespace PoultryFarmAPIWeb.Business
             CreatedBy                = r.IsDBNull(r.GetOrdinal("CreatedBy")) ? null : r.GetString(r.GetOrdinal("CreatedBy")),
             ApprovedBy               = r.IsDBNull(r.GetOrdinal("ApprovedBy")) ? null : r.GetString(r.GetOrdinal("ApprovedBy")),
             ApprovedAt               = r.IsDBNull(r.GetOrdinal("ApprovedAt")) ? null : r.GetDateTime(r.GetOrdinal("ApprovedAt")),
+            TransferNumber           = r.IsDBNull(r.GetOrdinal("TransferNumber")) ? null : r.GetString(r.GetOrdinal("TransferNumber")),
+            ReferenceNumber          = r.IsDBNull(r.GetOrdinal("ReferenceNumber")) ? null : r.GetString(r.GetOrdinal("ReferenceNumber")),
+            ReversedBy               = r.IsDBNull(r.GetOrdinal("ReversedBy")) ? null : r.GetString(r.GetOrdinal("ReversedBy")),
+            ReversedAt               = r.IsDBNull(r.GetOrdinal("ReversedAt")) ? null : r.GetDateTime(r.GetOrdinal("ReversedAt")),
+            ReversalReason           = r.IsDBNull(r.GetOrdinal("ReversalReason")) ? null : r.GetString(r.GetOrdinal("ReversalReason")),
+            OutgoingCashTransactionId = r.IsDBNull(r.GetOrdinal("OutgoingCashTransactionId")) ? null : r.GetInt32(r.GetOrdinal("OutgoingCashTransactionId")),
+            IncomingCashTransactionId = r.IsDBNull(r.GetOrdinal("IncomingCashTransactionId")) ? null : r.GetInt32(r.GetOrdinal("IncomingCashTransactionId")),
             CreatedAt                = r.GetDateTime(r.GetOrdinal("CreatedAt")),
             UpdatedAt                = r.IsDBNull(r.GetOrdinal("UpdatedAt")) ? null : r.GetDateTime(r.GetOrdinal("UpdatedAt")),
         };

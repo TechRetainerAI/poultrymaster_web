@@ -36,6 +36,13 @@ namespace PoultryFarmAPIWeb.Filters
         private static readonly string[] Exempt =
         {
             "iam", "chat", "email", "test", "weatherforecast", "announcements",
+            // Guest QR ordering. These endpoints are deliberately anonymous — the
+            // person scanning a table's QR code has no account and never will.
+            // Without this the IAM filter treats every one of them as an
+            // "anonymous request" and 401s the whole ordering flow the moment
+            // Iam:Enforced is switched on. Access is bounded instead by the QR
+            // token, the per-table throttle, and the staff confirmation gate.
+            "restaurant/public",
         };
 
         /// <summary>
@@ -76,7 +83,29 @@ namespace PoultryFarmAPIWeb.Filters
             ["poultry/reports"] = "poultry.reports",
             ["poultry/closing-report"] = "poultry.reports",
             ["poultry/cash-accounts"] = "poultry.cash",
-            ["poultry/cash-transfers"] = "poultry.cash",
+            // 255 gave these three their own resources. They all rode on
+            // poultry.cash until then, which meant anyone who could SEE cash
+            // could reverse a transfer, record an owner draw and take out a
+            // loan. 255 also copies every existing poultry.cash grant onto the
+            // new keys, so nobody lost access in the move.
+            //
+            // KNOWN QUIRK, recorded rather than papered over: ResolveAction
+            // treats /reverse as `approve` but NOT /cancel, so
+            // POST /loans/{id}/cancel resolves to poultry.loans.CREATE. Widening
+            // ApproveSegments would silently re-resolve every other /cancel
+            // route in the API, and an explicit [RequirePermission] would make
+            // this one of the first HARD-enforced endpoints while enforcement is
+            // still in shadow mode. Both are phase-3 calls; .create is seeded.
+            ["poultry/cash-transfers"] = "poultry.cash-transfers",
+            ["poultry/owner-money"] = "poultry.owner-money",
+            ["poultry/loans"] = "poultry.loans",
+            ["poultry/loan-payments"] = "poultry.loan-payments",
+            // 263. Its own resource rather than an action on office.settings,
+            // where farmproductionsettings sits: choosing when inventory costs
+            // reach Profit & Loss is a finance decision, and the people who
+            // maintain egg-pick times are not necessarily the people who should
+            // be making it. Seeded to whoever already holds poultry.reports.
+            ["poultry/financial-settings"] = "poultry.financial-settings",
             // Migration 223, mirroring 222 on the Water side. Its own resource
             // rather than an action on poultry.cash: *.cash has no `approve`, and
             // widening a shared resource would hand reconciliation rights to
@@ -97,6 +126,18 @@ namespace PoultryFarmAPIWeb.Filters
             ["poultry/raw-material-items"] = "poultry.raw-materials",
             ["poultry/raw-material-adjustments"] = "poultry.raw-materials",
             ["poultry/raw-material-purchases"] = "poultry.raw-materials",
+            // 268. A read-only view of the same stock, valued two ways. It is
+            // the raw materials it values, so it rides their resource rather
+            // than inventing a permission nobody has been granted.
+            ["poultry/inventory-valuation"] = "poultry.raw-materials",
+            // 273. Two resources, not one: recording a vehicle and charging the
+            // P&L for it are different decisions and belong to different people.
+            // The /reverse and /dispose segments resolve to approve and delete
+            // through ResolveAction with no extra wiring here.
+            ["poultry/assets"] = "poultry.assets",
+            ["poultry/asset-depreciation"] = "poultry.asset-depreciation",
+            // The structured P&L and its drilldowns are the reports resource.
+            ["poultry/profit-loss"] = "poultry.reports",
             ["poultry/raw-material-usage"] = "poultry.raw-materials",
             ["poultry/payments"] = "poultry.payments",
             ["poultry/products"] = "poultry.products",
@@ -151,7 +192,34 @@ namespace PoultryFarmAPIWeb.Filters
             ["water/expenses"] = "water.expenses",
             ["water/expense-categories"] = "water.expenses",
             ["water/cash-accounts"] = "water.cash",
-            ["water/cash-transfers"] = "water.cash",
+            // 260 gave these four their own resources, mirroring what 255 did on
+            // the poultry side. Cash Transfers rode on water.cash until then,
+            // and Owner Money and Loans would have inherited the same mapping
+            // the moment their routes appeared -- which would have meant anyone
+            // who could SEE cash could reverse a transfer, record an owner draw
+            // and take out a loan. 260 also copies every existing water.cash
+            // grant onto the new keys, so nobody lost access in the move.
+            //
+            // KNOWN QUIRK, recorded rather than papered over: ResolveAction
+            // treats /reverse as `approve` but NOT /cancel, so
+            // POST /loans/{id}/cancel resolves to water.loans.CREATE. Same
+            // trade-off, and same open decision, as the poultry note above.
+            ["water/cash-transfers"] = "water.cash-transfers",
+            ["water/owner-money"] = "water.owner-money",
+            ["water/loans"] = "water.loans",
+            ["water/loan-payments"] = "water.loan-payments",
+            // 276. Its own resource rather than an action on office.settings,
+            // where water/company and water/farm-settings sit: choosing when
+            // inventory costs reach Profit & Loss is a finance decision, and the
+            // people who maintain machine allocation are not necessarily the
+            // people who should be making it.
+            ["water/financial-settings"] = "water.financial-settings",
+            // 286. Two resources, not one: recording a delivery truck and
+            // charging the P&L for it are different decisions and belong to
+            // different people. The /reverse and /dispose segments resolve to
+            // approve and delete through ResolveAction with no extra wiring here.
+            ["water/assets"] = "water.assets",
+            ["water/asset-depreciation"] = "water.asset-depreciation",
             // Migration 222. Its own resource rather than an action on
             // water.cash: *.cash has no `approve`, and widening a shared
             // resource would hand reconciliation rights to everyone who can
@@ -202,6 +270,29 @@ namespace PoultryFarmAPIWeb.Filters
             ["generic-company/staff"] = "generic.staff",
             ["generic-company/staff-attendance"] = "generic.attendance",
             ["generic-company/payroll-runs"] = "generic.payroll",
+            ["generic-company/service-plans"] = "generic.subscription-plans",
+            ["generic-company/subscriptions"] = "generic.subscriptions",
+            ["generic-company/billing-runs"] = "generic.billing-runs",
+            ["generic-company/invoices"] = "generic.invoices",
+            ["generic-company/recurring-expenses"] = "generic.recurring-expenses",
+            ["generic-company/staff-payments"] = "generic.staff-payments",
+            ["generic-company/owner-entries"] = "generic.owner-entries",
+            ["generic-company/module-settings"] = "office.organization",
+            ["generic-company/business-settings"] = "office.organization",
+            ["generic-company/business-template"] = "office.organization",
+            // The balance endpoints sit one segment down from the older
+            // customer-payments document routes, which already exist and mean
+            // something else. Both prefixes are mapped so neither lands in the
+            // unmapped bucket -- the bare "generic-company" entry above would
+            // otherwise catch them and call them office.companies.
+            ["generic-company/balances"] = "generic.customer-balances",
+            ["generic-company/balances/customer-balances"] = "generic.customer-balances",
+            ["generic-company/balances/customer-payments"] = "generic.customer-payments",
+            ["generic-company/balances/customers"] = "generic.customer-statements",
+            ["generic-company/balances/supplier-balances"] = "generic.supplier-balances",
+            ["generic-company/balances/supplier-payments"] = "generic.supplier-payments",
+            ["generic-company/balances/suppliers"] = "generic.supplier-statements",
+            ["generic-company/customer-payments"] = "generic.customer-payments",
             ["business-categories"] = "office.organization",
 
             // ---- Business office ----------------------------------------------
@@ -235,11 +326,22 @@ namespace PoultryFarmAPIWeb.Filters
             return string.Join('/', segments).ToLowerInvariant();
         }
 
+        /// <summary>
+        /// Matches a whole route segment prefix, not just the first segment.
+        ///
+        /// This used to compare only <c>route.Split('/')[0]</c>, which meant a
+        /// multi-segment entry such as "restaurant/public" could never match
+        /// anything — it silently did nothing, so exempting one branch of a
+        /// controller family was impossible. Comparing on segment boundaries
+        /// keeps that from becoming an accidental wildcard: "restaurant/public"
+        /// exempts "restaurant/public/menu" but never "restaurant/publicity".
+        /// </summary>
         public static bool IsExempt(string normalizedRoute)
         {
             if (string.IsNullOrEmpty(normalizedRoute)) return true;
-            var first = normalizedRoute.Split('/')[0];
-            return Exempt.Contains(first, StringComparer.OrdinalIgnoreCase);
+            return Exempt.Any(e =>
+                normalizedRoute.Equals(e, StringComparison.OrdinalIgnoreCase) ||
+                normalizedRoute.StartsWith(e + "/", StringComparison.OrdinalIgnoreCase));
         }
 
         /// <summary>

@@ -78,7 +78,7 @@ export default function RestaurantDashboardPage() {
       <DashboardSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <DashboardHeader />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="max-w-6xl mx-auto space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
@@ -170,7 +170,7 @@ export default function RestaurantDashboardPage() {
                 </CardHeader>
                 <CardContent>
                   {kdsStats ? (
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                       <div className="text-center p-3 rounded-lg bg-blue-50">
                         <div className="text-2xl font-bold text-blue-700">{kdsStats.pendingCount}</div>
                         <div className="text-xs text-blue-600 font-medium">Pending</div>
@@ -209,7 +209,7 @@ export default function RestaurantDashboardPage() {
                 </CardHeader>
                 <CardContent>
                   {deliveryStats ? (
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                       <div className="text-center p-3 rounded-lg bg-green-50">
                         <div className="text-2xl font-bold text-green-700">{deliveryStats.availableDrivers}</div>
                         <div className="text-xs text-green-600 font-medium">Drivers Free</div>

@@ -161,6 +161,27 @@ export async function fetchWithTimeout(
   }
 }
 
+/**
+ * Flatten an ASP.NET validation `errors` bag into one readable sentence.
+ *
+ * Shape is `{ "ImageUrl": ["The field ImageUrl must be ..."] }`, or `"$.price"`
+ * for a JSON deserialisation failure. The field name is prepended only when the
+ * message doesn't already contain it, so we don't produce "ImageUrl: The field
+ * ImageUrl must be...".
+ */
+function flattenValidationErrors(errs: unknown): string {
+  if (Array.isArray(errs)) return errs.map(String).join(" ")
+  if (!errs || typeof errs !== "object") return ""
+  return Object.entries(errs as Record<string, unknown>)
+    .map(([field, messages]) => {
+      const text = (Array.isArray(messages) ? messages.map(String).join(" ") : String(messages)).trim()
+      const name = field.replace(/^\$\.?/, "").trim()
+      return name && text && !text.includes(name) ? `${name}: ${text}` : text
+    })
+    .filter(Boolean)
+    .join(" ")
+}
+
 // Extract the REAL backend error from a failed Response so callers surface it
 // instead of a generic "request failed" red card. The APIs return { message }
 // (BadRequest) or a validation errors bag; SqlException surfaces as { message }
@@ -173,12 +194,15 @@ export async function readApiError(res: Response, fallback = "Request failed"): 
     if (!t.startsWith("<")) {
       try {
         const d: any = JSON.parse(t)
-        const errs = d?.errors
+        // Order matters. An [ApiController] model-validation failure is a
+        // ValidationProblemDetails whose `title` is always the useless constant
+        // "One or more validation errors occurred." — the field that actually
+        // failed is only in `errors`. Reading `title` first threw that away and
+        // left users staring at a message that named nothing, so `errors` wins
+        // and `title` is the last resort.
         const msg = String(
-          d?.message ?? d?.Message ?? d?.title ?? d?.error ??
-          (Array.isArray(errs) ? errs.join(", ")
-            : errs && typeof errs === "object" ? Object.values(errs).flat().join(", ")
-            : "")
+          flattenValidationErrors(d?.errors) ||
+          d?.message || d?.Message || d?.error || d?.title || ""
         ).trim()
         if (msg) return msg
       } catch { return t }        // non-JSON, non-HTML → the text itself is the message

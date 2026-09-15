@@ -12,6 +12,18 @@ export interface EggLedgerRow {
   in: number
   out: number
   balance: number
+  /**
+   * Position in the ledger's own ascending order — by date, then by the
+   * within-day sequence a day's movements have to run in (eggs collected, then
+   * the non-saleable ones taken back out, then sales, then adjustments and
+   * stock moves). `balance` is accumulated in exactly this order.
+   *
+   * Sorting the Date column by this rather than by `date` is what lets
+   * "newest first" mean it: three movements all stamped the same day compare
+   * equal on `date`, so the table kept showing them oldest-first — the sale a
+   * farmer had just entered sat under the morning's collection.
+   */
+  seq: number
 }
 
 export function isEggSaleProduct(product: string | undefined | null): boolean {
@@ -69,6 +81,55 @@ export interface EggInventoryAdjustmentLedgerInput {
  * they are already derived from the production records and the sales list, and
  * pulling them in as well would double-count them.
  */
+/**
+ * Drops post-and-reverse pairs from a set of stock moves.
+ *
+ * The posting modules reverse a record by writing an equal and opposite row
+ * rather than deleting the original — that is what keeps `reversedby`,
+ * `reversedat` and the reason on the record, so it is right and it stays. But
+ * in a GROSS total it double-counts: an internal use of 450 eggs posted and
+ * reversed twice added 900 to "eggs in" and 900 to "eggs out" without an egg
+ * moving, and put four cancelling lines in the table.
+ *
+ * A reversal is matched to the posting it undoes by source record, size and
+ * opposite sign — not by reading the note, which is free text. Matching runs
+ * oldest-first like brackets, so post / reverse / post / reverse / post leaves
+ * the one live posting standing rather than dropping all five or none of them.
+ *
+ * Rows with no `relatedId` were posted by hand and have no record to be
+ * reversed against, so they never pair and always survive.
+ *
+ * The balance is untouched either way: every pair removed summed to zero.
+ */
+function netReversalPairs(moves: EggStockMoveLedgerInput[]): EggStockMoveLedgerInput[] {
+  const qtyOf = (m: EggStockMoveLedgerInput) => Math.round(Number(m.quantity) || 0)
+  const openByKey = new Map<string, EggStockMoveLedgerInput[]>()
+  const cancelled = new Set<number>()
+
+  const chronological = [...moves].sort(
+    (a, b) => new Date(a.createdDate).getTime() - new Date(b.createdDate).getTime(),
+  )
+
+  for (const m of chronological) {
+    if (m.relatedId == null) continue
+    const qty = qtyOf(m)
+    if (qty === 0) continue
+    const key = `${(m.txnType || "").trim()}|${m.relatedId}|${Math.abs(qty)}`
+    const open = openByKey.get(key) ?? []
+    const last = open[open.length - 1]
+    if (last && Math.sign(qtyOf(last)) === -Math.sign(qty)) {
+      open.pop()
+      cancelled.add(last.poultryStockTransactionId)
+      cancelled.add(m.poultryStockTransactionId)
+    } else {
+      open.push(m)
+    }
+    openByKey.set(key, open)
+  }
+
+  return moves.filter((m) => !cancelled.has(m.poultryStockTransactionId))
+}
+
 export interface EggStockMoveLedgerInput {
   poultryStockTransactionId: number
   createdDate: string
@@ -215,7 +276,7 @@ export function buildEggStockLedger(
     })
   }
 
-  for (const m of stockMoves) {
+  for (const m of netReversalPairs(stockMoves)) {
     const type = m.txnType?.trim()
     if (!type) continue
     // 'Production' and 'Sale' rows are normally the ledger's copy of a record
@@ -252,7 +313,7 @@ export function buildEggStockLedger(
   })
 
   let bal = 0
-  const rows: EggLedgerRow[] = lines.map((line) => {
+  const rows: EggLedgerRow[] = lines.map((line, index) => {
     bal += line.in - line.out
     return {
       sortKey: line.sortKey,
@@ -262,6 +323,7 @@ export function buildEggStockLedger(
       in: line.in,
       out: line.out,
       balance: bal,
+      seq: index,
     }
   })
 
@@ -287,6 +349,9 @@ export function buildEggStockLedger(
       in: unmatchedLedgerDelta > 0 ? unmatchedLedgerDelta : 0,
       out: unmatchedLedgerDelta < 0 ? -unmatchedLedgerDelta : 0,
       balance: authoritative,
+      // Last in the ascending order: it is what the rows above could not
+      // account for, so it can only be read after them.
+      seq: rows.length,
     })
   }
 

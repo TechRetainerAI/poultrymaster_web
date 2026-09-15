@@ -1,119 +1,115 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { PeriodSelect } from "@/components/ui/period-select"
-import { rangeToPeriod } from "@/lib/date-ranges"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { DashboardSidebar } from "@/components/dashboard/sidebar"
-import { DashboardHeader } from "@/components/dashboard/header"
-import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ArrowLeft, BarChart3, Loader2 } from "lucide-react"
-import { useAuthStore } from "@/lib/store/auth-store"
-import { useLogout } from "@/hooks/use-logout"
+// Report 5: the expense report.
+//
+// This page used to show only the category cut. The spec asks for three --
+// by category, by supplier, and the monthly trend -- so it now shows all three
+// from one request. The ROUTE is unchanged on purpose: it is linked from the
+// dashboard, from the reports hub and from anywhere anyone has bookmarked it,
+// and a second "expense report" page next to this one would have meant two
+// answers to "what did we spend".
+//
+// The category cut still comes from spgenericreport_expensesbycategory (037),
+// the same function it always did.
+
+import { BarChart3 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { getExpensesByCategoryReport, type GenericExpenseByCategoryRow } from "@/lib/api/generic"
+import { getExpenseReport, type GenericExpenseReport } from "@/lib/api/generic-reports"
+import {
+  GenericReportShell, ReportStat, ReportTable, currentMonthRange, fmtMonth, fmtMoney, fmtPct, useReport,
+} from "@/components/generic/report-shell"
 
-function fmt(n: number) {
-  return new Intl.NumberFormat(undefined, { style: "currency", currency: "GHS", maximumFractionDigits: 2 }).format(n)
-}
-
-function defaultMonthRange() {
-  const now = new Date()
-  return {
-    fromDate: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10),
-    toDate: now.toISOString().slice(0, 10),
-  }
-}
-
-export default function ExpensesByCategoryPage() {
-  const router = useRouter()
-  const activeFarmType = useAuthStore((s) => s.activeFarmType)
-  const logout = useLogout()
+export default function ExpenseReportPage() {
   const { toast } = useToast()
-  const [range, setRange] = useState(defaultMonthRange())
-  const [rows, setRows] = useState<GenericExpenseByCategoryRow[]>([])
-  const [loading, setLoading] = useState(false)
 
-  const load = async () => {
-    setLoading(true)
-    try { setRows(await getExpensesByCategoryReport(range.fromDate, range.toDate)) }
-    catch (e: any) { toast({ title: "Could not load report", description: e?.message ?? String(e), variant: "destructive" }) }
-    finally { setLoading(false) }
-  }
+  const { range, setRange, data, loading, run } = useReport<GenericExpenseReport>(
+    (r) => getExpenseReport(r.fromDate, r.toDate),
+    currentMonthRange(),
+    (message) => toast({ title: "Could not load report", description: message, variant: "destructive" }),
+  )
 
-  useEffect(() => {
-    if (activeFarmType && activeFarmType !== "Generic") { router.replace("/dashboard"); return }
-    load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeFarmType, router])
-
-  const total = rows.reduce((s, r) => s + r.totalAmount, 0)
+  const byCategory = data?.byCategory ?? []
+  const bySupplier = data?.bySupplier ?? []
+  const trend = data?.trend ?? []
+  const total = byCategory.reduce((s, r) => s + r.totalAmount, 0)
+  const count = byCategory.reduce((s, r) => s + r.expenseCount, 0)
+  const outstanding = bySupplier.reduce((s, r) => s + r.outstanding, 0)
+  const recurring = trend.reduce((s, r) => s + r.recurringAmount, 0)
 
   return (
-    <div className="flex h-screen bg-slate-50">
-      <DashboardSidebar onLogout={logout} />
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <DashboardHeader />
-        <main className="flex-1 overflow-auto p-4 md:p-6">
-          <Link href="/generic-reports" className="inline-flex items-center text-sm text-slate-500 hover:text-slate-700 mb-2">
-            <ArrowLeft className="h-3 w-3 mr-1" /> Back to reports
-          </Link>
-          <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2 mb-4">
-            <BarChart3 className="h-6 w-6 text-amber-600" /> Expenses by category
-          </h1>
-
-          <Card className="mb-4">
-            <CardContent className="flex flex-wrap items-end gap-3 pt-6">
-              <PeriodSelect value={rangeToPeriod(range.fromDate, range.toDate)} onChange={(_p, rg) => { if (rg) setRange({ fromDate: rg.from, toDate: rg.to }) }} />
-              <div><Label>From</Label><Input type="date" value={range.fromDate} onChange={(e) => setRange((r) => ({ ...r, fromDate: e.target.value }))} /></div>
-              <div><Label>To</Label><Input type="date" value={range.toDate} onChange={(e) => setRange((r) => ({ ...r, toDate: e.target.value }))} /></div>
-              <Button onClick={load} disabled={loading}>{loading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}Run</Button>
-            </CardContent>
-          </Card>
-
-          {loading ? (
-            <div className="flex items-center gap-2 text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
-          ) : rows.length === 0 ? (
-            <Card><CardContent className="py-8 text-center text-slate-500">No data for this range.</CardContent></Card>
-          ) : (
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Category</TableHead>
-                      <TableHead className="text-right">Count</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                      <TableHead className="text-right">% of total</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {rows.map((r) => (
-                      <TableRow key={r.genericExpenseCategoryId}>
-                        <TableCell className="font-medium">{r.categoryName}</TableCell>
-                        <TableCell className="text-right">{r.expenseCount}</TableCell>
-                        <TableCell className="text-right font-semibold">{fmt(r.totalAmount)}</TableCell>
-                        <TableCell className="text-right">{total > 0 ? `${((r.totalAmount / total) * 100).toFixed(1)}%` : "—"}</TableCell>
-                      </TableRow>
-                    ))}
-                    <TableRow className="font-semibold bg-slate-50">
-                      <TableCell>Total</TableCell>
-                      <TableCell className="text-right">{rows.reduce((s, r) => s + r.expenseCount, 0)}</TableCell>
-                      <TableCell className="text-right">{fmt(total)}</TableCell>
-                      <TableCell></TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          )}
-        </main>
+    <GenericReportShell
+      title="Expense report"
+      description="Where the money went — by category, by supplier, and month by month."
+      icon={BarChart3}
+      range={range}
+      onRangeChange={setRange}
+      onRun={() => run()}
+      loading={loading}
+    >
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <ReportStat title="Total spent" value={fmtMoney(total)} hint={`${count} expense(s)`} />
+        <ReportStat title="Still unpaid" value={fmtMoney(outstanding)} accent={outstanding > 0 ? "rose" : "slate"} hint="Bills with a balance" />
+        <ReportStat title="From recurring bills" value={fmtMoney(recurring)} hint={total > 0 ? fmtPct((recurring * 100) / total) + " of spend" : undefined} />
+        <ReportStat title="Categories used" value={byCategory.length} />
       </div>
-    </div>
+
+      <div className="space-y-4">
+        <ReportTable
+          title="By category"
+          rows={byCategory}
+          empty="No expenses in this period."
+          columns={[
+            { key: "c", header: "Category", render: (r) => r.categoryName },
+            { key: "n", header: "Count", align: "right", render: (r) => r.expenseCount },
+            { key: "t", header: "Amount", align: "right", className: "font-medium", render: (r) => fmtMoney(r.totalAmount) },
+            {
+              key: "p", header: "Share", align: "right",
+              render: (r) => (
+                <span className="inline-flex items-center gap-2 justify-end">
+                  <span className="hidden sm:block h-1.5 w-16 bg-slate-100 rounded">
+                    <span className="block h-1.5 bg-amber-500 rounded"
+                          style={{ width: `${total > 0 ? Math.min((r.totalAmount * 100) / total, 100) : 0}%` }} />
+                  </span>
+                  {total > 0 ? fmtPct((r.totalAmount * 100) / total) : "—"}
+                </span>
+              ),
+            },
+          ]}
+        />
+
+        <ReportTable
+          title="By supplier"
+          rows={bySupplier}
+          // Expenses with no supplier -- petrol, tips, one-off cash costs --
+          // are a real category and get their own row rather than vanishing.
+          empty="No expenses in this period."
+          columns={[
+            { key: "s", header: "Supplier", render: (r) => (r.genericSupplierId ? r.supplierName : <span className="text-slate-500">{r.supplierName}</span>) },
+            { key: "n", header: "Count", align: "right", render: (r) => r.expenseCount },
+            { key: "t", header: "Billed", align: "right", render: (r) => fmtMoney(r.totalAmount) },
+            { key: "p", header: "Paid", align: "right", render: (r) => fmtMoney(r.amountPaid) },
+            {
+              key: "o", header: "Outstanding", align: "right", className: "text-rose-600",
+              render: (r) => (r.outstanding > 0 ? fmtMoney(r.outstanding) : "—"),
+            },
+          ]}
+        />
+
+        <ReportTable
+          title="Month by month"
+          rows={trend}
+          empty="No months in this range."
+          columns={[
+            { key: "m", header: "Month", render: (r) => fmtMonth(r.monthStart) },
+            { key: "n", header: "Expenses", align: "right", render: (r) => r.expenseCount },
+            { key: "t", header: "Total", align: "right", className: "font-medium", render: (r) => fmtMoney(r.totalAmount) },
+            { key: "r", header: "Of which recurring", align: "right", render: (r) => (r.recurringAmount ? fmtMoney(r.recurringAmount) : "—") },
+            // Staff payments post their own expense, so this column is a
+            // breakdown of the same money, not an addition to it.
+            { key: "s", header: "Paid to people", align: "right", render: (r) => (r.staffAmount ? fmtMoney(r.staffAmount) : "—") },
+          ]}
+        />
+      </div>
+    </GenericReportShell>
   )
 }

@@ -5,12 +5,14 @@ import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
 import { usePermissions } from "@/hooks/use-permissions"
+import { useGenericModules } from "@/hooks/use-generic-modules"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
 import { filterWaterNavItems } from "@/lib/utils/water-nav-access"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useAlertsStore } from "@/lib/store/alerts-store"
 import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
-import { POULTRY_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
+import { POULTRY_REPORT_NAV_GROUPS, RESTAURANT_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
+import { buildRestaurantNavConfig } from "@/lib/nav/restaurant-nav-config"
 import { NAV_SURFACE } from "@/components/dashboard/nav/nav-surface"
 import type { MegaMenuGroup } from "@/lib/nav/nav-model"
 import {
@@ -54,6 +56,10 @@ import {
   Clock,
   Search,
   ChevronDown,
+  Repeat,
+  CalendarClock,
+  ArrowLeftRight,
+  HandCoins, TrendingUp, Hourglass,
 } from "lucide-react"
 import {
   Sheet,
@@ -156,6 +162,9 @@ export function MobileBottomNav() {
   const pathname = usePathname()
   const permissions = usePermissions()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
+  // Only the NEW Generic items are gated on this; everything already in the
+  // sheet stays where it is.
+  const genericModules = useGenericModules()
   // buildPoultryNavConfig wants these for its Alerts action row. That row has
   // no href so it is filtered out of the sheet, but the config still asks.
   const openAlerts = useAlertsStore((st) => st.open)
@@ -240,11 +249,21 @@ export function MobileBottomNav() {
               { href: "/water-payroll",           label: "Payroll",           icon: Banknote },
               { href: "/water-supplier-payments", label: "Supplier Payments", icon: Receipt },
               { href: "/water-supplier-balances", label: "Supplier Balances", icon: Truck },
+              // Stock cost that has not become an expense yet — filed beside
+              // the expenses it explains, matching the sidebar and top nav.
+              { href: "/water-deferred-costs",    label: "Deferred inventory cost", icon: Hourglass },
+              // 283-286. Present in the top nav and sidebar but never here, so
+              // a phone user could not reach it at all.
+              { href: "/water-assets",            label: "Capital Investments/Assets", icon: Building2 },
             ] as NavItem[]) },
             { title: "Money", items: gateWater([
               { href: "/water-cash-flow",           label: "Cash Flow",      icon: Wallet },
+              { href: "/water-reports/profit-loss", label: "Profit & Loss",  icon: TrendingUp },
+              { href: "/water-owner-money",         label: "Owner Money",    icon: HandCoins },
+              { href: "/water-loans",               label: "Loans",          icon: HandCoins },
               { href: "/water-cash-accounts",       label: "Cash accounts",  icon: Wallet },
-              { href: "/water-cash-reconciliation", label: "Reconcile cash", icon: Scale },
+              { href: "/water-cash-transfers",      label: "Cash Transfers", icon: ArrowLeftRight },
+              { href: "/water-cash-reconciliation", label: "Reconciliation", icon: Scale },
             ] as NavItem[]) },
           ]) },
           ...asSections([
@@ -270,6 +289,8 @@ export function MobileBottomNav() {
               ? [{ href: "/employees", label: "Users & Permissions", icon: UserCog }] : []),
             { href: "/profile",   label: "Account",   icon: User },
             { href: "/companies", label: "Companies", icon: Building2 },
+            // The account's own subscription, matching the sidebar and top nav.
+            { href: "/billing",   label: "Billing",   icon: CreditCard },
             ...(permissions.featureAccess.canViewActivityLog
               ? [{ href: "/audit-logs", label: "Activity Log", icon: Activity }] : []),
             { href: "/terms", label: "Terms & Conditions", icon: FileText },
@@ -286,20 +307,51 @@ export function MobileBottomNav() {
         palette: { inactive: "text-emerald-100/90 hover:text-white", activeText: "text-white" },
         activeBg: "bg-emerald-100 text-emerald-800",
         accent: "emerald" as const,
-        mainTabs: [
-          { href: "/generic-dashboard", label: "Home",      icon: Home },
-          { href: "/generic-products",  label: "Products",  icon: ShoppingBag },
-          { href: "/generic-sales",     label: "Sales",     icon: ShoppingCart },
-          { href: "/generic-purchases", label: "Purchases", icon: Package },
-        ] as NavItem[],
+        // Four tabs, and which four depends on the business. A gym owner's
+        // thumb should not land on Products and Purchases -- they have no
+        // stock. A shop's should.
+        mainTabs: (genericModules.showExisting("enableProducts")
+          ? [
+              { href: "/generic-dashboard", label: "Home",      icon: Home },
+              { href: "/generic-products",  label: "Products",  icon: ShoppingBag },
+              { href: "/generic-sales",     label: "Sales",     icon: ShoppingCart },
+              { href: "/generic-purchases", label: "Purchases", icon: Package },
+            ]
+          : [
+              { href: "/generic-dashboard",     label: "Home",                                    icon: Home },
+              { href: "/generic-subscriptions", label: genericModules.labels.subscriptionPlural,  icon: CalendarClock },
+              { href: "/generic-customers",     label: genericModules.labels.customerPlural,      icon: Users },
+              { href: "/generic-expenses",      label: "Expenses",                                icon: DollarSign },
+            ]) as NavItem[],
         moreGroups: asSections([
-          { title: "Inventory", items: [
-            { href: "/generic-inventory",         label: "Inventory",         icon: Boxes },
-            { href: "/generic-stock-adjustments", label: "Stock adjustments", icon: Boxes },
-            { href: "/generic-internal-use",      label: "Internal Use",      icon: PackageMinus },
-          ] as NavItem[] },
+          ...(genericModules.showNew("enableSubscriptions")
+            ? [{ title: "Subscriptions", items: [
+                { href: "/generic-service-plans", label: genericModules.labels.planPlural,         icon: Repeat },
+                { href: "/generic-subscriptions", label: genericModules.labels.subscriptionPlural, icon: CalendarClock },
+                { href: "/generic-billing-runs",  label: "Billing runs",                           icon: Receipt },
+              ] as NavItem[] }]
+            : []),
+          // The optional stock modules (spec section 5). The whole section
+          // disappears for a company that has none of them on.
+          ...((): { title: string; items: NavItem[] }[] => {
+            const items: NavItem[] = [
+              ...(genericModules.showExisting("enableInventory")
+                ? [{ href: "/generic-inventory", label: "Inventory", icon: Boxes }] : []),
+              ...(genericModules.showExisting("enableStockAdjustments")
+                ? [{ href: "/generic-stock-adjustments", label: "Stock adjustments", icon: Boxes }] : []),
+              ...(genericModules.showExisting("enableInternalUse")
+                ? [{ href: "/generic-internal-use", label: "Internal Use", icon: PackageMinus }] : []),
+            ]
+            return items.length ? [{ title: "Inventory", items }] : []
+          })(),
           { title: "Sales & Money", items: [
-            { href: "/generic-customer-payments", label: "Customer payments", icon: CreditCard },
+            ...(genericModules.showNew("enableInvoices")
+              ? [{ href: "/generic-invoices", label: genericModules.labels.invoicePlural, icon: FileText }]
+              : []),
+            ...(genericModules.showNew("enableCustomerBalances")
+              ? [{ href: "/generic-customer-balances", label: genericModules.labels.customerBalance, icon: Scale }]
+              : []),
+            { href: "/generic-customer-payments", label: genericModules.labels.paymentPlural, icon: CreditCard },
             { href: "/generic-supplier-payments", label: "Supplier payments", icon: CreditCard },
             { href: "/generic-expenses",          label: "Expenses",          icon: DollarSign },
             { href: "/generic-cash",              label: "Cash & Accounts",   icon: Wallet },
@@ -307,7 +359,7 @@ export function MobileBottomNav() {
             { href: "/generic-daily-closings",    label: "Daily Closing",     icon: FileText },
           ] as NavItem[] },
           { title: "Finance", items: [
-            { href: "/generic-customers", label: "Customers", icon: Users },
+            { href: "/generic-customers", label: genericModules.labels.customerPlural, icon: Users },
             { href: "/generic-suppliers", label: "Suppliers", icon: Truck },
           ] as NavItem[] },
           { title: "People", items: [
@@ -324,6 +376,8 @@ export function MobileBottomNav() {
               ? [{ href: "/employees", label: "Users & Permissions", icon: UserCog }] : []),
             { href: "/profile",   label: "Account",   icon: User },
             { href: "/companies", label: "Companies", icon: Building2 },
+            // The account's own subscription, matching the sidebar and top nav.
+            { href: "/billing",   label: "Billing",   icon: CreditCard },
             ...(permissions.featureAccess.canViewActivityLog
               ? [{ href: "/audit-logs", label: "Activity Log", icon: Activity }] : []),
             { href: "/terms", label: "Terms & Conditions", icon: FileText },
@@ -390,12 +444,32 @@ export function MobileBottomNav() {
             { href: "/hotel-setup", label: "Setup",     icon: Settings },
             { href: "/profile",     label: "Account",   icon: User },
             { href: "/companies",   label: "Companies", icon: Building2 },
+            // The account's own subscription, not a guest folio (/hotel-billing).
+            { href: "/billing",     label: "Billing",   icon: CreditCard },
           ] as NavItem[] },
         ]),
       }
     }
 
     if (activeFarmType === "Restaurant") {
+      // The sheet used to carry a hand-written copy of the restaurant menu and had
+      // drifted to 9 of the ~22 destinations the desktop nav shows (no Guest Orders,
+      // QR ordering, Inventory, Reports, Expenses, CRM, Loyalty, Events, Gift Cards,
+      // Notifications or Staff). Derive from buildRestaurantNavConfig — the same source
+      // the top nav and sidebar read — so the surfaces cannot drift apart again.
+      // Badges are deliberately not passed: useOnlineOrderCounts is a hook, this is an
+      // IIFE, and hoisting it would make every non-Restaurant company poll too.
+      const rnav = buildRestaurantNavConfig()
+      const restaurantMore = compactSections([
+        { title: "Orders & Kitchen",    groups: fromMegaMenu(rnav.ordersKitchen) },
+        { title: "Dining",              groups: fromMegaMenu(rnav.dining) },
+        { title: "Delivery & Online",   groups: fromMegaMenu(rnav.deliveryOnline) },
+        { title: "Inventory & Reports", groups: fromMegaMenu(rnav.inventoryReports) },
+        { title: "Reports",             groups: fromMegaMenu(RESTAURANT_REPORT_NAV_GROUPS) },
+        { title: "Growth",              groups: fromMegaMenu(rnav.growth) },
+        { title: "Setup",               groups: fromMegaMenu(rnav.setup) },
+        { title: "System",              groups: fromMegaMenu(rnav.system) },
+      ])
       return {
         bg: "bg-rose-600",
         borderTop: "border-rose-700",
@@ -408,23 +482,7 @@ export function MobileBottomNav() {
           { href: "/restaurant-orders",   label: "Orders",  icon: FileText },
           { href: "/restaurant-kds",      label: "Kitchen", icon: Factory },
         ] as NavItem[],
-        moreGroups: asSections([
-          { title: "Menu", items: [
-            { href: "/restaurant-menu",          label: "Menu Items",              icon: ShoppingBag },
-          ] as NavItem[] },
-          { title: "Dining", items: [
-            { href: "/restaurant-floor-plan",    label: "Floor Plan & Tables",     icon: Building2 },
-            { href: "/restaurant-reservations",  label: "Reservations & Waitlist", icon: CalendarDays },
-          ] as NavItem[] },
-          { title: "Delivery & Online", items: [
-            { href: "/restaurant-online-orders", label: "Online Settings",         icon: ShoppingBag },
-            { href: "/restaurant-delivery",      label: "Drivers & Dispatch",      icon: Truck },
-          ] as NavItem[] },
-          { title: "Setup", items: [
-            { href: "/restaurant-setup",         label: "Restaurant Setup",        icon: Settings },
-            { href: "/profile",                  label: "Account",                 icon: User },
-          ] as NavItem[] },
-        ]),
+        moreGroups: restaurantMore,
       }
     }
 
@@ -577,6 +635,19 @@ export function MobileBottomNav() {
               desktop panels. */}
           <SheetContent
             side="bottom"
+            /* Radix focuses the first focusable child when a sheet opens, which
+               here is the search box — so tapping "More" put a keyboard over
+               half the menu before anyone had asked to search. The menu is the
+               point; searching it is the exception. Focus goes to the panel
+               itself instead, which keeps the focus trap and the Escape key
+               working and leaves the field one tap away. */
+            /* -1 so the panel can take that focus programmatically without
+               joining the tab order. */
+            tabIndex={-1}
+            onOpenAutoFocus={(e) => {
+              e.preventDefault()
+              ;(e.currentTarget as HTMLElement | null)?.focus()
+            }}
             className={cn(
               "flex max-h-[85vh] flex-col gap-0 rounded-t-2xl p-0 pb-[env(safe-area-inset-bottom)] text-white",
               surface.panel,

@@ -37,6 +37,33 @@ export interface Expense {
   /** Which workflow created the row. Null means entered by hand. */
   sourceType?: string | null
   sourceId?: number | null
+
+  // ---- financial classification (migrations 269, 270), all read-only --------
+
+  /**
+   * OperatingExpense | InventoryPurchase | CapitalAsset | NonCashExpense |
+   * FinancingExpense. Always resolved by the API -- the stored value if a writer
+   * stated one, otherwise derived from the source workflow.
+   */
+  financialCostType?: string | null
+  /** Whether it was STATED on the row or inferred for it. */
+  costTypeIsStored?: boolean
+  /** The P&L line the row lands on: Feed, Payroll, Depreciation, ... */
+  plLine?: string | null
+  plLineLabel?: string | null
+  /**
+   * DirectCost | OperatingExpense | OtherCost | Excluded.
+   *
+   * "Excluded" means the row moves cash or opens a payable and is deliberately
+   * NOT charged against profit. Anything totalling expenses must respect it, or
+   * it will report a capital purchase as this month's cost.
+   */
+  plSection?: string | null
+  /** Which workflow produced the row, in words. */
+  sourceLabel?: string | null
+  /** The capital asset a capital cost belongs to. */
+  poultryCapitalAssetId?: number | null
+  capitalAssetName?: string | null
 }
 
 /** Generated in SQL from the amounts, so it cannot disagree with them. */
@@ -142,6 +169,14 @@ function normalizeExpense(x: any, fallbackUserId?: string): Expense {
     dueDate: (x.dueDate ?? x.DueDate) ?? null,
     sourceType: (x.sourceType ?? x.SourceType) ?? null,
     sourceId: (x.sourceId ?? x.SourceId) ?? null,
+    financialCostType: (x.financialCostType ?? x.FinancialCostType) ?? null,
+    costTypeIsStored: Boolean(x.costTypeIsStored ?? x.CostTypeIsStored),
+    plLine: (x.plLine ?? x.PlLine) ?? null,
+    plLineLabel: (x.plLineLabel ?? x.PlLineLabel) ?? null,
+    plSection: (x.plSection ?? x.PlSection) ?? null,
+    sourceLabel: (x.sourceLabel ?? x.SourceLabel) ?? null,
+    poultryCapitalAssetId: (x.poultryCapitalAssetId ?? x.PoultryCapitalAssetId) ?? null,
+    capitalAssetName: (x.capitalAssetName ?? x.CapitalAssetName) ?? null,
   }
 }
 

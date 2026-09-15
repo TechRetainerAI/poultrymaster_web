@@ -6,6 +6,7 @@ import { useMemo } from "react"
 import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
 import { usePermissions } from "@/hooks/use-permissions"
+import { useGenericModules } from "@/hooks/use-generic-modules"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useAlertsStore } from "@/lib/store/alerts-store"
 import { Droplets, ShoppingBag, PackageMinus,
@@ -17,6 +18,7 @@ import { buildWaterNavConfig } from "@/lib/nav/water-nav-config"
 import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
 import { buildHotelNavConfig } from "@/lib/nav/hotel-nav-config"
 import { buildRestaurantNavConfig } from "@/lib/nav/restaurant-nav-config"
+import { useOnlineOrderCounts } from "@/lib/utils/online-order-alerts"
 import { NavMegaMenu } from "./nav/nav-mega-menu"
 import { useNavPopover, NAV_TRIGGER_CLASS, NAV_TRIGGER_ACTIVE } from "./nav/use-nav-popover"
 import {
@@ -39,6 +41,10 @@ import {
   Factory,
   Heart,
   LineChart,
+  Repeat,
+  CalendarClock,
+  Receipt,
+  Scale,
 } from "lucide-react"
 
 function NavDropdown({ group, accent = "sky" }: { group: NavGroup; accent?: NavAccent }) {
@@ -196,15 +202,20 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
           groups={nav.salesMoney}
           /* Same treatment as the poultry rail: three columns sized to their
              OWN content (fitColumns), not to an equal share -- equal columns
-             would widen all three to "Customer Balances" and hang the
-             difference off the right edge as dead space. Measured in
-             Geist-Medium (the active row's weight): Sales' longest is
-             "Customer Balances" 132px, Expenses' is "Supplier Payments" 130px,
-             Money's is "Reconcile cash" 102px. Each column needs ~40px more for
-             the icon, gap and row padding, so the three are ~180, ~178 and
-             ~148px. 35rem = 560px covers those plus 2x16px grid gaps and 32px
-             of panel padding, with slack for font rendering. */
-          columns={3} widthRem={35} layout="grid" fitColumns
+             would widen all three to the widest and hang the difference off the
+             right edge as dead space.
+
+             Derived with the formula at the top of this rail, INCLUDING its
+             32px scrollbar gutter (the earlier version of this comment left the
+             gutter out and was 2rem short):
+               32 panel padding + 32 gutter + 2x16 grid gaps
+               + per column: 16 px-2 + 16 icon + 8 gap + ~7.6px per character
+             Sales "Customer Balances" 17ch=129 -> 169px; Expenses "Capital
+             Investments/Assets" 26ch=198 -> 238px; Money "Cash Transfers" /
+             "Reconciliation" 14ch=106 -> 146px. 96 + 169 + 238 + 146 = 649px,
+             so 41rem = 656px. Rows `truncate`, so err wide.
+             (Was 35rem when Expenses topped out at "Supplier Payments".) */
+          columns={3} widthRem={41} layout="grid" fitColumns
         />
 
         {/* Analytics is a menu, not a destination — there is no landing page,
@@ -267,13 +278,34 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
 // Generic sidebar groups (Catalog / Sales / Purchasing / Money / Admin); less
 // important items live in a More dropdown so the rail stays one line wide.
 function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePermissions> }) {
+  // Only the NEW items are gated. Everything already on this rail stays put.
+  const { showNew, showExisting, labels } = useGenericModules()
+
+  const subscriptionGroup: NavGroup = {
+    label: "Subscriptions",
+    items: [
+      { href: "/generic-service-plans", label: labels.planPlural,         icon: Repeat },
+      { href: "/generic-subscriptions", label: labels.subscriptionPlural, icon: CalendarClock },
+      { href: "/generic-billing-runs",  label: "Billing runs",            icon: Receipt },
+      ...(showNew("enableInvoices")
+        ? [{ href: "/generic-invoices", label: labels.invoicePlural, icon: FileText }]
+        : []),
+    ],
+  }
+
   const moreGroup: NavGroup = {
     label: "More",
     items: [
+      ...(showNew("enableCustomerBalances")
+        ? [{ href: "/generic-customer-balances", label: labels.customerBalance, icon: Scale }]
+        : []),
       // Generic has no Operations mega-menu, so Internal Use rides here beside
-      // the other stock pages rather than getting a menu of its own.
-      { href: "/generic-internal-use",       label: "Internal Use",       icon: PackageMinus },
-      { href: "/generic-customer-payments",  label: "Customer payments",  icon: CreditCard },
+      // the other stock pages rather than getting a menu of its own -- and it
+      // goes when the stock modules go.
+      ...(showExisting("enableInternalUse")
+        ? [{ href: "/generic-internal-use", label: "Internal Use", icon: PackageMinus }]
+        : []),
+      { href: "/generic-customer-payments",  label: labels.paymentPlural, icon: CreditCard },
       { href: "/generic-supplier-payments",  label: "Supplier payments",  icon: CreditCard },
       { href: "/generic-cash",               label: "Cash & Accounts",    icon: Wallet },
       { href: "/generic-cash-transfers",     label: "Cash transfers",     icon: Activity },
@@ -292,13 +324,22 @@ function GenericTopNav({ permissions }: { permissions: ReturnType<typeof usePerm
       <div className="flex items-center gap-1 px-4 pt-1.5 pb-2.5 nav-rail-scroll">
         <NavLink item={{ href: "/generic-dashboard",          label: "Dashboard",         icon: Home }} accent="emerald" />
         <div className="h-5 w-px bg-white/30 mx-1" />
-        <NavLink item={{ href: "/generic-products",           label: "Products",          icon: ShoppingBag }} accent="emerald" />
-        <NavLink item={{ href: "/generic-stock-adjustments",  label: "Stock adjustments", icon: Boxes }} accent="emerald" />
+        {/* The stock rail is optional (spec section 5): a SaaS company, a gym
+            and a school have no products to sell and no stock to buy. */}
+        {showExisting("enableProducts") && (
+          <NavLink item={{ href: "/generic-products", label: "Products", icon: ShoppingBag }} accent="emerald" />
+        )}
+        {showExisting("enableStockAdjustments") && (
+          <NavLink item={{ href: "/generic-stock-adjustments", label: "Stock adjustments", icon: Boxes }} accent="emerald" />
+        )}
         <NavLink item={{ href: "/generic-sales",              label: "Sales",             icon: ShoppingCart }} accent="emerald" />
-        <NavLink item={{ href: "/generic-customers",          label: "Customers",         icon: Users }} accent="emerald" />
+        <NavLink item={{ href: "/generic-customers",          label: labels.customerPlural, icon: Users }} accent="emerald" />
         <NavLink item={{ href: "/generic-suppliers",          label: "Suppliers",         icon: Truck }} accent="emerald" />
-        <NavLink item={{ href: "/generic-purchases",          label: "Purchases",         icon: Package }} accent="emerald" />
+        {showExisting("enablePurchases") && (
+          <NavLink item={{ href: "/generic-purchases", label: "Purchases", icon: Package }} accent="emerald" />
+        )}
         <NavLink item={{ href: "/generic-expenses",           label: "Expenses",          icon: DollarSign }} accent="emerald" />
+        {showNew("enableSubscriptions") && <NavDropdown group={subscriptionGroup} accent="emerald" />}
         <NavDropdown group={moreGroup} accent="emerald" />
         <div className="ml-auto flex items-center gap-1">
           <NavLink item={{ href: "/companies", label: "Companies", icon: Building2 }} accent="emerald" />
@@ -377,7 +418,15 @@ function HotelTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
 }
 
 function RestaurantTopNav() {
-  const nav = useMemo(() => buildRestaurantNavConfig(), [])
+  // This component only ever renders for a Restaurant company, so the hook is
+  // told so unconditionally. Nothing outside this function is touched.
+  const activeFarmId = useAuthStore((s) => s.activeFarmId)
+  const { unseen: unseenOnlineOrders, pending: pendingGuestOrders } =
+    useOnlineOrderCounts(activeFarmId, true)
+  const nav = useMemo(
+    () => buildRestaurantNavConfig({ unseenOnlineOrders, pendingGuestOrders }),
+    [unseenOnlineOrders, pendingGuestOrders],
+  )
 
   return (
     <div className="hidden lg:block bg-rose-600 border-b border-rose-700">
@@ -520,16 +569,22 @@ export function TopNavigation() {
             groups={nav.salesMoney}
             /* Three columns sized to their OWN content (fitColumns), not to an
                equal share: Sales' longest label is "Customer Balances",
-               Expenses' is "Supplier Payments" and Money's is "Reconcile cash",
-               and equal columns would widen ALL THREE to the first and hang the
-               difference off the right edge as dead space.
-               Measured in Geist-Medium (the active row's weight): Customer
-               Balances 132px, Supplier Payments 130px, Reconcile cash 102px.
-               Each column needs ~40px more for the icon, gap and row padding, so
-               the three are ~180, ~178 and ~148px. 35rem = 560px covers those
-               plus 2x16px grid gaps + 32px of panel padding, with slack for font
-               rendering. */
-            columns={3} widthRem={35} layout="grid" fitColumns accent="orange"
+               Expenses' is "Capital Investments/Assets" and Money's is
+               "Reconciliation", and equal columns would widen ALL THREE to the
+               widest and hang the difference off the right edge as dead space.
+
+               Derived with the formula documented on the water rail above --
+               INCLUDING its 32px scrollbar gutter, which the earlier version of
+               this comment left out:
+                 32 panel padding + 32 gutter + 2x16 grid gaps
+                 + per column: 16 px-2 + 16 icon + 8 gap + ~7.6px per character
+               Customer Balances 17ch=129 -> 169px; Capital Investments/Assets
+               26ch=198 -> 238px (it edges out "Deferred inventory cost" 23ch);
+               Reconciliation 14ch=106 -> 146px. 96 + 169 + 238 + 146 = 649px,
+               so 41rem = 656px. Rows use `truncate` -- too narrow silently eats
+               letters rather than reflowing -- so err wide.
+               (Was 35rem when Expenses topped out at "Supplier Payments".) */
+            columns={3} widthRem={41} layout="grid" fitColumns accent="orange"
           />
 
           <NavMegaMenu
@@ -565,11 +620,14 @@ export function TopNavigation() {
             title="Setup"
             blurb="Houses, flocks, products, delivery, customers and your team."
             groups={nav.setup}
-            /* 6 groups over 2 columns = a 3x2 block. "Users & Permissions" is
-               the longest label at 145px in Geist-Medium (the active row's
-               weight), so a column needs 185px:
-               64 + 2x185 + 16 = 450px. */
-            columns={2} widthRem={28.5} layout="grid" accent="orange"
+            /* 6 groups over 3 columns = a 2x3 block: Company | Delivery |
+               Production on the first row, Finance | Farm | People on the
+               second. The order lives in lib/nav/poultry-nav-config.ts and the
+               grid fills row by row, so the two must stay in step.
+               "Users & Permissions" is the longest label at 145px in
+               Geist-Medium (the active row's weight), so a column needs 185px:
+               64 + 3x185 + 2x16 = 651px. */
+            columns={3} widthRem={41} layout="grid" accent="orange"
           />
 
           <div className="ml-auto flex items-center gap-1">

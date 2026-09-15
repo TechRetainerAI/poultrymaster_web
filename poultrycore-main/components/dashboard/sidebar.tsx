@@ -6,11 +6,13 @@ import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { usePermissions } from "@/hooks/use-permissions"
+import { useGenericModules } from "@/hooks/use-generic-modules"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { 
   BarChart3, 
   Users, 
   Building2, 
+  Hourglass,
   User, 
   Settings, 	
   AlertTriangle,
@@ -55,11 +57,18 @@ import {
   UtensilsCrossed,
   History,
   Scale,
+  ArrowLeftRight,
+  Coins,
+  HandCoins,
+  Repeat,
+  CalendarClock, TrendingUp,
+  Inbox,
 } from "lucide-react"
 import { InventoryLogo } from "@/components/auth/logo"
 import { useAlertsStore, type AlertItem } from "@/lib/store/alerts-store"
 import { useSidebarStore } from "@/lib/store/sidebar-store"
 import { useAuthStore } from "@/lib/store/auth-store"
+import { useOnlineOrderCounts } from "@/lib/utils/online-order-alerts"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { isFinancialNavItemVisible } from "@/lib/utils/financial-nav-access"
 import { filterWaterNavItems } from "@/lib/utils/water-nav-access"
@@ -80,6 +89,13 @@ type SidebarItem = {
   isButton?: boolean
   onClick?: () => void
   badge?: number
+  /**
+   * Tint the whole row, not just the count pill, while the badge is above zero.
+   * A red dot on the right of a dark row is easy to miss on a rail this long;
+   * a row that has changed colour is not. Opt-in, because a badge that is
+   * merely informational (Alerts) should not repaint the sidebar.
+   */
+  alertOnBadge?: boolean
 }
 
 export function DashboardSidebar({ onLogout }: SidebarProps) {
@@ -95,11 +111,17 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const alerts = useAlertsStore((s: { alerts: AlertItem[]; open: () => void }) => s.alerts)
   const openAlerts = useAlertsStore((s: { alerts: AlertItem[]; open: () => void }) => s.open)
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
+  const activeFarmId = useAuthStore((s) => s.activeFarmId)
   const clearActiveCompany = useAuthStore((s) => s.clearActiveCompany)
   const isWater = activeFarmType === "Water"
   const isGeneric = activeFarmType === "Generic"
   const isHotel = activeFarmType === "Hotel"
   const isRestaurant = activeFarmType === "Restaurant"
+  // Online orders arrive without anyone touching a till. All Orders carries a
+  // count of the ones nobody has looked at yet; New Guest Orders carries the
+  // ones still waiting to be accepted. Returns zeroes for every other company
+  // type, so it is safe to call here rather than behind a branch.
+  const { unseen: unseenOnline, pending: pendingOnline } = useOnlineOrderCounts(activeFarmId, isRestaurant)
   const { isCollapsed, toggle, isMobileOpen, toggleMobile, setMobileOpen } = useSidebarStore()
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     farm: true,
@@ -186,7 +208,10 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
   const analyticsItems = [
     { href: "/egg-tracker", label: "Egg tracker", icon: BarChart3 },
+    // Finished feed, ingredients, then one item at a time.
     { href: "/feed-tracker", label: "Feed tracker", icon: Wheat },
+    { href: "/feed-ingredient-tracker", label: "Ingredients tracker", icon: Wheat },
+    { href: "/feed-inventory-tracker", label: "Feed inventory tracker", icon: History },
     { href: "/medication-tracker", label: "Medication tracker", icon: Pill },
     { href: "/birds-left-tracker", label: "Birds left tracker", icon: Bird },
     { href: "/weekly-report", label: "Analytical Report", icon: FileText },
@@ -255,14 +280,38 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     ...gateFinancial([
       { href: "/supplier-payments", label: "Supplier Payments", icon: Receipt },
       { href: "/supplier-balances", label: "Supplier Balances", icon: Truck },
+      // 288. Stock cost that has NOT become an expense yet, so it sits beside
+      // the expenses it explains rather than under Inventory.
+      { href: "/poultry-deferred-costs", label: "Deferred inventory cost", icon: Hourglass },
+      // 270-273. Recorded from where a major purchase is entered, but
+      // deliberately NOT an expense -- the page says so on every screen. The
+      // water sidebar has carried its equivalent row since 283; poultry's was
+      // only ever in the top nav, so it was invisible to sidebar users.
+      { href: "/poultry-assets", label: "Capital Investments/Assets", icon: Building2 },
     ]),
   ]
   const poultryMoneyItems = gateFinancial([
     { href: "/cash-flow", label: "Cash Flow", icon: Wallet },
-    { href: "/cash", label: "Cash", icon: History },
+    // The bridge between Cash Flow above and Profit & Loss below.
+    { href: "/poultry-financial-activity", label: "Financial Activity", icon: Activity },
+    // The same page as Reports > Profit & Loss, surfaced here because it is the
+    // number owners come looking for. Linked, not duplicated.
+    { href: "/poultry/reports/profit-loss", label: "Profit & Loss", icon: TrendingUp },
+    // Hidden alongside the same row in lib/nav/poultry-nav-config.ts: this
+    // pre-cash-account page counts EVERY sale and expense, so its total never
+    // matched the Cash Flow row directly above it. Route still works.
+    // { href: "/cash", label: "Cash", icon: History },
+    // 253. Funding in and out, kept away from sales and expenses.
+    { href: "/poultry-owner-money", label: "Owner Money", icon: Banknote },
+    // 254. Borrowed money: what is still owed, and what each repayment was for.
+    { href: "/poultry-loans", label: "Loans", icon: HandCoins },
+    // The accounts themselves and the two things you do TO them, kept together
+    // at the foot of the group. Transfers had a dialog on the Cash Accounts
+    // page but nowhere to see or undo them; the page is where reversal lives
+    // (252).
     { href: "/poultry-cash-accounts", label: "Cash Account", icon: Wallet },
-    { href: "/poultry-cash-reconciliation", label: "Reconcile cash", icon: Scale },
-    { href: "/billing", label: "Billing", icon: CreditCard },
+    { href: "/poultry-cash-transfers", label: "Cash Transfers", icon: ArrowLeftRight },
+    { href: "/poultry-cash-reconciliation", label: "Reconciliation", icon: Scale },
   ])
 
   // Finance — the two trading parties every receivable and payable hangs off.
@@ -355,11 +404,23 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/water-payroll",           label: "Payroll",           icon: Banknote },
     { href: "/water-supplier-payments", label: "Supplier Payments", icon: Receipt },
     { href: "/water-supplier-balances", label: "Supplier Balances", icon: Truck },
+    // Stock cost that has NOT become an expense yet, so it sits beside the
+    // expenses it explains rather than under Inventory. Same row, same place,
+    // same order as the poultry rail above.
+    { href: "/water-deferred-costs",    label: "Deferred inventory cost", icon: Hourglass },
+    // Migrations 283-286. Recorded from where a major purchase is entered, but
+    // deliberately NOT an expense -- the page says so on every screen.
+    { href: "/water-assets",            label: "Capital Investments/Assets", icon: Building2 },
   ])
   const waterMoneyItems = gateWater([
     { href: "/water-cash-flow",           label: "Cash Flow",      icon: Wallet },
+    { href: "/water-reports/profit-loss", label: "Profit & Loss",  icon: TrendingUp },
+    { href: "/water-owner-money",         label: "Owner Money",    icon: HandCoins },
+    { href: "/water-loans",               label: "Loans",          icon: HandCoins },
+    // Accounts, then the two things you do TO them -- same tail as poultry.
     { href: "/water-cash-accounts",       label: "Cash accounts",  icon: Wallet },
-    { href: "/water-cash-reconciliation", label: "Reconcile cash", icon: Scale },
+    { href: "/water-cash-transfers",      label: "Cash Transfers", icon: ArrowLeftRight },
+    { href: "/water-cash-reconciliation", label: "Reconciliation", icon: Scale },
   ])
   // Finance — Customers (was in Sales & money) and Suppliers (was buried in
   // Admin / Setup) now sit together: both are master data, and they're the two
@@ -394,42 +455,100 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const waterAdminItems = gateWater([
     { href: "/water-setup",         label: "Setup",         icon: Settings },
     { href: "/water-company-setup", label: "Company Setup", icon: Settings },
+    // Migrations 274 and 276. Configuration, but a FINANCE decision: it changes
+    // what the owner reads as profit. Its own IAM keys gate what you can do
+    // once inside.
+    { href: "/water-financial-settings", label: "Financial Settings", icon: Coins },
   ])
 
   // Generic Company nav items (shown when activeFarmType === "Generic")
+  // Module settings and the industry vocabulary, shared with the top nav and
+  // the mobile bar through one cached hook.
+  const genericModules = useGenericModules()
+
   // /generic-inventory is the new at-a-glance stock page (products + cards
   // + filters). /generic-stock-adjustments stays for actually changing stock.
+  //
+  // Every item here is one of the OPTIONAL modules in section 5 of the spec:
+  // a SaaS company, a gym and a school do not sell stock, and a template that
+  // turns them off must actually take them off the menu. showExisting rather
+  // than showNew, so a failed settings request leaves the menu as it was
+  // instead of emptying it.
   const genericCatalogItems = [
-    { href: "/generic-products",          label: "Products",          icon: ShoppingBag },
-    { href: "/generic-inventory",         label: "Inventory",         icon: Boxes },
-    { href: "/generic-stock-adjustments", label: "Stock adjustments", icon: Boxes },
-    { href: "/generic-internal-use",      label: "Internal Use",      icon: PackageMinus },
+    ...(genericModules.showExisting("enableProducts")
+      ? [{ href: "/generic-products", label: "Products", icon: ShoppingBag }] : []),
+    ...(genericModules.showExisting("enableInventory")
+      ? [{ href: "/generic-inventory", label: "Inventory", icon: Boxes }] : []),
+    ...(genericModules.showExisting("enableStockAdjustments")
+      ? [{ href: "/generic-stock-adjustments", label: "Stock adjustments", icon: Boxes }] : []),
+    ...(genericModules.showExisting("enableInternalUse")
+      ? [{ href: "/generic-internal-use", label: "Internal Use", icon: PackageMinus }] : []),
+  ]
+  // Only the NEW items are gated on module settings. Every item that existed
+  // before templates stays ungated -- retro-fitting a gate would take away
+  // access people have today.
+  const genericSubscriptionItems = [
+    ...(genericModules.showNew("enableSubscriptions")
+      ? [
+          { href: "/generic-service-plans",  label: genericModules.labels.planPlural,         icon: Repeat },
+          { href: "/generic-subscriptions",  label: genericModules.labels.subscriptionPlural, icon: CalendarClock },
+          { href: "/generic-billing-runs",   label: "Billing runs",                           icon: Receipt },
+        ]
+      : []),
   ]
   const genericSalesItems = [
     { href: "/generic-sales",              label: "Sales",             icon: ShoppingCart },
-    { href: "/generic-customers",          label: "Customers",         icon: Users },
-    { href: "/generic-customer-payments",  label: "Customer payments", icon: CreditCard },
+    ...(genericModules.showNew("enableInvoices")
+      ? [{ href: "/generic-invoices", label: genericModules.labels.invoicePlural, icon: FileText }]
+      : []),
+    { href: "/generic-customers",          label: genericModules.labels.customerPlural, icon: Users },
+    { href: "/generic-customer-payments",  label: genericModules.labels.paymentPlural, icon: CreditCard },
+    ...(genericModules.showNew("enableCustomerBalances")
+      ? [{ href: "/generic-customer-balances", label: genericModules.labels.customerBalance, icon: Scale }]
+      : []),
   ]
   const genericPurchasingItems = [
     { href: "/generic-suppliers",          label: "Suppliers",         icon: Truck },
-    { href: "/generic-purchases",          label: "Purchases",         icon: Package },
+    // Buying stock is optional too (section 5). A service business owes its
+    // vendors through expenses, and Supplier Balances below covers that.
+    ...(genericModules.showExisting("enablePurchases")
+      ? [{ href: "/generic-purchases", label: "Purchases", icon: Package }] : []),
     { href: "/generic-supplier-payments",  label: "Supplier payments", icon: CreditCard },
+    // 251 gave both of these a toggle of their own. Supplier balances no longer
+    // rides on Purchases: a service business owes vendors through expenses,
+    // which is exactly what 248's payables arm reads, so gating it on stock
+    // buying hid it from the companies that needed it most.
+    ...(genericModules.showExisting("enableSupplierBalances")
+      ? [{ href: "/generic-supplier-balances", label: "Supplier balances", icon: Scale }]
+      : []),
     { href: "/generic-expenses",           label: "Expenses",          icon: DollarSign },
+    ...(genericModules.showExisting("enableRecurringExpenses")
+      ? [{ href: "/generic-recurring-expenses", label: "Recurring expenses", icon: Repeat }]
+      : []),
   ]
   const genericMoneyItems = [
-    { href: "/generic-cash",           label: "Cash & Accounts", icon: Wallet },
-    { href: "/generic-cash-transfers", label: "Cash transfers",  icon: Activity },
+    ...(genericModules.showExisting("enableCashAccounts")
+      ? [
+          { href: "/generic-cash",           label: "Cash & Accounts", icon: Wallet },
+          { href: "/generic-cash-transfers", label: "Cash transfers",  icon: Activity },
+        ]
+      : []),
     { href: "/generic-daily-closings", label: "Daily Closing",   icon: FileText },
+    { href: "/generic-owner-money",    label: "Owner money",     icon: Wallet },
   ]
   // Generic — People (Phase 6: staff + attendance + payroll, migrations 055/056)
   const genericPeopleItems = [
     { href: "/generic-staff",       label: "Staff",      icon: Users2 },
     { href: "/generic-attendance",  label: "Attendance", icon: Activity },
     { href: "/generic-payroll",     label: "Payroll",    icon: Banknote },
+    { href: "/generic-staff-payments", label: "Staff payments", icon: Banknote },
   ]
   const genericAdminItems = [
-    { href: "/generic-reports", label: "Reports", icon: BarChart3 },
-    { href: "/generic-setup",   label: "Setup",   icon: Settings },
+    { href: "/generic-reports",  label: "Reports",  icon: BarChart3 },
+    { href: "/generic-setup",    label: "Setup",    icon: Settings },
+    // Setup is the company PROFILE; Settings is how the company works --
+    // which modules it has and what they default to (251).
+    { href: "/generic-settings", label: "Settings", icon: Cog },
   ]
 
   // Hotel company nav items (shown when activeFarmType === "Hotel")
@@ -498,7 +617,23 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
   const restaurantOrdersItems = gateRestaurant([
     { href: "/restaurant-pos",    label: "POS / New Order", icon: ShoppingCart },
-    { href: "/restaurant-orders", label: "All Orders",      icon: FileText },
+    // Guest QR orders wait here for staff to accept them before the kitchen sees
+    // them. The top-nav menu has always listed this; the sidebar did not, which
+    // left the rail with no route at all to the screen where online orders are
+    // accepted.
+    // A workload count, not a notification: it stays until the orders are
+    // actually accepted or rejected, and is deliberately NOT cleared by opening
+    // the screen the way the All Orders count is.
+    { href: "/restaurant-pending-orders", label: "New Guest Orders", icon: Inbox,
+      badge: pendingOnline || undefined, alertOnBadge: true },
+    // `|| undefined` rather than passing 0: the sidebar guards its pill with
+    // `{badge && badge > 0 && ...}`, and a leading `0 &&` short-circuits to the
+    // NUMBER 0 — which React happily renders as a visible "0". Handing it
+    // undefined instead means nothing is drawn when there is nothing to report.
+    // The same latent bug affects the shared Alerts row; see the note in
+    // plan/plan.md rather than a change here, which would touch four other modules.
+    { href: "/restaurant-orders", label: "All Orders",      icon: FileText,
+      badge: unseenOnline || undefined, alertOnBadge: true },
   ])
   const restaurantKitchenItems = gateRestaurant([
     { href: "/restaurant-kds",    label: "Kitchen Display", icon: Activity },
@@ -542,6 +677,12 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     ...((!isWater && !isGeneric && !isHotel && !isRestaurant) ? [{ href: "/resources", label: "Resources", icon: BookOpen }] : []),
     { href: "#", label: "Alerts", icon: Bell, isButton: true, onClick: openAlerts, badge: alerts.length },
     { href: "/companies", label: "Companies", icon: Building2 },
+    // Subscription billing is the ACCOUNT's own, not the company's trading
+    // money, so it sits beside Companies and Account rather than among Cash
+    // Flow and Loans. Same gate it had in the money group, carried across with
+    // it -- and because systemItems is shared, every company type now has a
+    // link to its own subscription instead of only Poultry.
+    ...gateFinancial([{ href: "/billing", label: "Billing", icon: CreditCard }]),
     ...(permissions.featureAccess.canViewActivityLog
       ? [{ href: "/audit-logs", label: "Activity Log", icon: Activity }] : []),
     // The poultry farm profile. Water, Generic and Hotel have their own setup links
@@ -550,6 +691,10 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     ...((!isWater && !isGeneric && !isHotel && !isRestaurant && permissions.featureAccess.canViewSettings)
       ? [{ href: "/poultry-setup", label: "Farm Setup", icon: Settings },
          { href: "/poultry-company-setup", label: "Company Setup", icon: Settings }] : []),
+    // Configuration, but a finance decision: it changes what the owner reads as
+    // profit, so it follows the financial flag rather than the settings one.
+    ...((!isWater && !isGeneric && !isHotel && !isRestaurant && permissions.featureAccess.canViewFinancial)
+      ? [{ href: "/poultry-financial-settings", label: "Financial Settings", icon: Coins }] : []),
     // /help is poultry-specific (flocks, eggs, vaccinations).
     ...((!isWater && !isGeneric && !isHotel && !isRestaurant) ? [{ href: "/help", label: "Help Center", icon: HelpCircle }] : []),
     { href: "/terms", label: "Terms & Conditions", icon: ListTodo },
@@ -560,11 +705,16 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     item: { href: string; label: string; icon: any },
     isButton = false,
     onClick?: () => void,
-    badge?: number
+    badge?: number,
+    alertOnBadge = false
   ) => {
     const isActive =
       pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`))
     const Icon = item.icon
+    // Something has arrived that nobody has looked at. Only ever applied to a
+    // row that asked for it, and never to the row you are already standing on —
+    // the active state is the stronger signal and they would fight each other.
+    const alerting = alertOnBadge && !!badge && badge > 0 && !isActive
 
     const content = (
       <div
@@ -572,11 +722,14 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
           "flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-md transition-colors relative",
           isActive
             ? "bg-slate-700 text-white border-l-[3px] border-blue-400 pl-[13px]"
-            : "text-slate-300 hover:bg-slate-800 hover:text-white border-l-[3px] border-transparent pl-[13px]",
+            : alerting
+              ? "bg-rose-950/50 text-rose-50 hover:bg-rose-900/50 border-l-[3px] border-rose-400 pl-[13px]"
+              : "text-slate-300 hover:bg-slate-800 hover:text-white border-l-[3px] border-transparent pl-[13px]",
           isCollapsed && !isMobile ? "justify-center px-2 pl-2" : ""
         )}
       >
-        <Icon className={cn("h-5 w-5 shrink-0", isActive ? "text-blue-400" : "text-slate-400")} />
+        <Icon className={cn("h-5 w-5 shrink-0",
+          isActive ? "text-blue-400" : alerting ? "text-rose-300" : "text-slate-400")} />
         {(!isCollapsed || isMobile) && (
           <span className="truncate">{item.label}</span>
         )}
@@ -584,6 +737,14 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
           <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 rounded-full bg-red-500 text-white text-[10px] font-bold px-1.5">
             {badge > 99 ? '99+' : badge}
           </span>
+        )}
+        {/* Collapsed rail: no room for the pill, and the tooltip needs a hover to
+            find. A dot on the icon is the only thing that still reads at 56px.
+            Gated on alertOnBadge rather than on badge alone, so this stays off
+            every other company type's rail — Alerts is badged on Poultry, Water,
+            Generic and Hotel, and none of them asked for a dot. */}
+        {alerting && isCollapsed && !isMobile && (
+          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-slate-900" />
         )}
       </div>
     )
@@ -637,7 +798,13 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
       return (
         <div className="space-y-0.5">
           {items.map((item) => (
-            <div key={item.href}>{renderNavItem(item)}</div>
+            // The badge was dropped here while the rail was collapsed, even though
+            // the collapsed tooltip below already renders one. Passed on only for
+            // rows that opted in, so the collapsed rail is unchanged for every
+            // other company type.
+            <div key={item.href}>{renderNavItem(
+              item, item.isButton, item.onClick,
+              item.alertOnBadge ? item.badge : undefined, item.alertOnBadge)}</div>
           ))}
         </div>
       )
@@ -660,7 +827,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         {isOpen && (
           <div className="space-y-0.5 mt-0.5">
             {items.map((item) => (
-              <div key={item.href}>{renderNavItem(item, item.isButton, item.onClick, item.badge)}</div>
+              <div key={item.href}>{renderNavItem(item, item.isButton, item.onClick, item.badge, item.alertOnBadge)}</div>
             ))}
           </div>
         )}
@@ -828,10 +995,24 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
           </>
         ) : isGeneric ? (
           <>
-            {/* Generic Company — Catalog */}
-            {renderGroup("Catalog", genericCatalogItems, "genericCatalog")}
+            {/* Generic Company — Catalog. Gone entirely for a company with no
+                stock modules on, rather than an empty heading. */}
+            {genericCatalogItems.length > 0 && (
+              <>
+                {renderGroup("Catalog", genericCatalogItems, "genericCatalog")}
 
-            <div className="border-t border-slate-800 mx-2" />
+                <div className="border-t border-slate-800 mx-2" />
+              </>
+            )}
+
+            {genericSubscriptionItems.length > 0 && (
+              <>
+                {/* Generic Company — Subscriptions (migrations 242-243) */}
+                {renderGroup("Subscriptions", genericSubscriptionItems, "genericSubscriptions")}
+
+                <div className="border-t border-slate-800 mx-2" />
+              </>
+            )}
 
             {/* Generic Company — Sales */}
             {renderGroup("Sales", genericSalesItems, "genericSales")}

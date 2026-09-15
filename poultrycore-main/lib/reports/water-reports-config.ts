@@ -12,7 +12,8 @@
 import {
   BarChart3, Receipt, DollarSign, Users, Factory, Boxes, Truck,
   Route as RouteIcon, TrendingDown, FileText, ShoppingCart, ShoppingBag,
-  PiggyBank, History, Layers, Wallet, Gauge, PieChart, Landmark, type LucideIcon,
+  PiggyBank, History, Layers, Wallet, Gauge, PieChart, Landmark, ArrowLeftRight,
+  type LucideIcon,
 } from "lucide-react"
 
 export type WaterReportStatus = "ready" | "stub"
@@ -63,6 +64,13 @@ export const WATER_REPORT_GROUPS: WaterReportGroup[] = [
       // closing figures are not expected to match — that gap is what
       // reconciliation exists to explain, and it is not a bug to be fixed.
       { slug: "cash-accounts",     title: "Cash Account Report",    description: "Per-account opening, in, out and closing, with drift and reconciliation status.",  icon: Landmark,     status: "ready" },
+      // Migrations 257-259. Transfers, owner money, loans and repayments
+      // read together, because "where did the money go" is rarely answered
+      // by only one of them. It sits after the cash reports because it
+      // explains the financing movements they show rather than repeating
+      // them -- and every section says what its numbers are NOT, which is
+      // what stops a 100,000 loan reading as a good month.
+      { slug: "money-movement",    title: "Money Movement",         description: "Cash transfers, owner contributions and draws, loans and repayments — none of it revenue or expense, except loan interest and fees.", icon: ArrowLeftRight, status: "ready" },
       { slug: "expense-report",    title: "Expense Report",         description: "Expenses grouped by category, source, payment method.",                           icon: Receipt,      status: "ready" },
       { slug: "supplier-activity", title: "Supplier Activity",      description: "Per-supplier purchases, expenses paid, outstanding balance, last activity.",      icon: Receipt,      status: "ready" },
     ],

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PoultryFarmAPIWeb.Business;
 using PoultryFarmAPIWeb.Helpers;
@@ -15,6 +15,20 @@ namespace PoultryFarmAPIWeb.Controllers
         public RestaurantOrderController(IRestaurantOrderService svc) => _svc = svc;
 
         // ===== ORDERS =====
+
+        /// <summary>
+        /// Save this order's guest into the CRM. Takes no body: the name, phone and
+        /// email are read from the order server-side, so staff cannot be tricked
+        /// into saving something the order does not actually say.
+        /// </summary>
+        [HttpPost("{id}/link-customer")]
+        public async Task<IActionResult> LinkCustomer(int id, [FromQuery] string farmId)
+        {
+            var auth = HotelAuthHelper.VerifyFarmOwnership(User, farmId); if (auth != null) return auth;
+            var result = await _svc.LinkOrderToCustomerAsync(id, farmId);
+            return result.Ok ? Ok(result) : BadRequest(result);
+        }
+
 
         [HttpGet]
         public async Task<IActionResult> ListOrders([FromQuery] string farmId, [FromQuery] string? status = null,
