@@ -441,6 +441,7 @@ export function MobileBottomNav() {
             { href: "/hotel-shift-handover", label: "Shift Handover", icon: FileText },
           ] as NavItem[] },
           { title: "System", items: [
+            { href: "/hotel-company-setup", label: "Company Setup", icon: Building2 },
             { href: "/hotel-setup", label: "Setup",     icon: Settings },
             { href: "/profile",     label: "Account",   icon: User },
             { href: "/companies",   label: "Companies", icon: Building2 },

@@ -607,6 +607,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/hotel-shift-handover", label: "Shift Handover", icon: FileText },
   ])
   const hotelAdminItems = gateHotel([
+    { href: "/hotel-company-setup", label: "Company Setup", icon: Building2 },
     { href: "/hotel-setup", label: "Setup", icon: Settings },
   ])
 

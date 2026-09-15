@@ -122,6 +122,7 @@ export function buildHotelNavConfig({ permissions }: HotelNavDeps): HotelNavConf
         key: "hotel-config",
         label: "Hotel",
         items: [
+          { id: "company-setup", title: "Company Setup", icon: Building2, href: "/hotel-company-setup", visible: vis("/hotel-company-setup") },
           { id: "setup", title: "Hotel Setup", icon: Settings, href: "/hotel-setup", visible: vis("/hotel-setup") },
         ],
       },

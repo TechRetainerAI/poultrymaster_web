@@ -29,9 +29,11 @@ export default function SettingsPage() {
   // profile, so it now goes to /poultry-company-setup like the other two.
   useEffect(() => {
     if (activeFarmType === null || activeFarmType === undefined) return
-    if (activeFarmType === "Water")        router.replace("/water-company-setup")
-    else if (activeFarmType === "Generic") router.replace("/generic-setup")
-    else                                   router.replace("/poultry-company-setup")
+    if (activeFarmType === "Water")           router.replace("/water-company-setup")
+    else if (activeFarmType === "Generic")    router.replace("/generic-setup")
+    else if (activeFarmType === "Hotel")      router.replace("/hotel-company-setup")
+    else if (activeFarmType === "Restaurant") router.replace("/restaurant-setup")
+    else                                      router.replace("/poultry-company-setup")
   }, [activeFarmType, router])
 
   const [isEditing, setIsEditing] = useState(true)
