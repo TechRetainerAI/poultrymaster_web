@@ -99,6 +99,15 @@ export interface MobileCardListProps<T> {
    */
   stripeAccent?: "amber" | "blue"
   /**
+   * Drop the card stack's own horizontal padding. The default 12px gutter is
+   * right when the list sits straight on the page; inside a Card it lands on
+   * top of CardContent's px-6, and the cards end up visibly narrower than the
+   * same cards on /poultry-daily-closing, which hang off <main> with nothing
+   * but its p-4. Callers that pass this cancel the CardContent padding
+   * themselves (-mx-6 lg:mx-0) so the two pages match on the same phone.
+   */
+  flushMobile?: boolean
+  /**
    * Spread usePagination()'s `paginationProps` here and pass the PAGE SLICE
    * (`pg.pageItems`) as both `items` and the array the `desktopTable` maps
    * over — the footer then sits below the cards and the table alike.
@@ -112,7 +121,7 @@ const STRIPE_TONES = {
 } as const
 
 export function MobileCardList<T>({
-  items, getKey, primary, secondary, details, highlights, actions, extra, desktopTable, emptyState, trailing, alwaysExpanded = false, defaultOpen = false, striped = false, stripeAccent = "amber", pagination,
+  items, getKey, primary, secondary, details, highlights, actions, extra, desktopTable, emptyState, trailing, alwaysExpanded = false, defaultOpen = false, striped = false, stripeAccent = "amber", pagination, flushMobile = false,
 }: MobileCardListProps<T>) {
   const [showTable, setShowTable] = useState(false)
 
@@ -139,7 +148,7 @@ export function MobileCardList<T>({
           app reads as one design language. */}
       <div className="lg:hidden">
         {!showTable ? (
-          <div className="space-y-2 p-3">
+          <div className={cn("space-y-2", flushMobile ? "py-3" : "p-3")}>
             {items.map((item, idx) => {
               const stripe = striped && idx % 2 === 0
               return (

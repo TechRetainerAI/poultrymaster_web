@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { MobileCardList } from "@/components/ui/mobile-card-list"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Loader2, Search, ShieldCheck, UserPlus, Building2, Check, Pencil, Trash2, Save } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
@@ -27,6 +28,10 @@ import {
   blankPermissionSnapshot, cacheEmployeePermissions, resolveEmployeePermissions,
   type EmployeePermissionSnapshot,
 } from "@/lib/employees/permissions-io"
+
+function fullName(e: OrgEmployee) {
+  return [e.firstName, e.lastName].filter(Boolean).join(" ") || e.userName
+}
 
 const TYPE_BADGE: Record<string, string> = {
   Poultry: "bg-amber-100 text-amber-700", Water: "bg-blue-100 text-blue-700", Generic: "bg-slate-100 text-slate-700",
@@ -187,7 +192,76 @@ export function UsersPermissionsPanel({ showHeading = true }: { showHeading?: bo
           <p className="text-sm">Add your first employee, then assign them to companies.</p>
         </CardContent></Card>
       ) : (
-        <Card><CardContent className="p-0 overflow-x-auto">
+        <Card><CardContent className="p-0">
+          {/* Phones open on scorecards — name, role and how many companies the
+              person can reach, visible without tapping; "View table format"
+              flips to the wide table for the columns the card leaves out. Same
+              pattern as /poultry-daily-closing and the tracker pages. */}
+          <MobileCardList
+            striped
+            stripeAccent="blue"
+            defaultOpen
+            items={filtered}
+            getKey={(e) => e.id}
+            primary={(e) => fullName(e)}
+            secondary={(e) => (
+              e.email
+                ? <span className="truncate">{e.email}</span>
+                : <span className="text-slate-400">No email on file</span>
+            )}
+            trailing={(e) => (
+              e.isAdmin
+                ? <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">{e.adminTitle || "Admin"}</Badge>
+                : <Badge variant="secondary">Staff</Badge>
+            )}
+            highlights={(e) => {
+              const n = (e.companies || []).length
+              return [{
+                label: "Company access",
+                // The count, not the names: the names are chips below, and a
+                // tile that says "3 companies" answers the question this page
+                // exists for — who can reach what — before anything is tapped.
+                value: n === 0 ? "None" : `${n} ${n === 1 ? "company" : "companies"}`,
+                accent: n === 0 ? "slate" : "violet",
+                wide: true,
+              }]
+            }}
+            details={(e) => [
+              // Email is already the card's subtitle; repeating it here only
+              // bought a second copy wrapping mid-word on a phone.
+              { label: "Username", value: e.userName },
+            ]}
+            extra={(e) => (
+              <div>
+                <div className="text-xs text-slate-500 mb-1">Companies</div>
+                <div className="flex flex-wrap gap-1">
+                  {(e.companies || []).length === 0 ? <span className="text-xs text-slate-400">No companies</span> :
+                    (e.companies || []).map((c) => (
+                      <span key={c.farmId} className={`text-[11px] px-2 py-0.5 rounded ${TYPE_BADGE[c.type] ?? "bg-slate-100 text-slate-700"}`}>{c.name}</span>
+                    ))}
+                </div>
+              </div>
+            )}
+            actions={(e) => (
+              <>
+                <Button variant="outline" size="sm" className="h-10 flex-1" onClick={() => { setEditingId(e.id); setEditOpen(true) }}>
+                  <Pencil className="h-4 w-4 mr-1.5" /> Edit
+                </Button>
+                <Button variant="outline" size="sm" className="h-10 flex-1" onClick={() => setManaged(e)}>
+                  <Building2 className="h-4 w-4 mr-1.5" /> Access
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-10 flex-1 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                  onClick={() => setDeleteTarget(e)}
+                >
+                  <Trash2 className="h-4 w-4 mr-1.5" /> Delete
+                </Button>
+              </>
+            )}
+            desktopTable={
+            <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide">
               <tr>
@@ -201,7 +275,7 @@ export function UsersPermissionsPanel({ showHeading = true }: { showHeading?: bo
               {filtered.map((e) => (
                 <tr key={e.id} className="hover:bg-slate-50/60">
                   <td className="px-4 py-3">
-                    <div className="font-medium text-slate-900">{[e.firstName, e.lastName].filter(Boolean).join(" ") || e.userName}</div>
+                    <div className="font-medium text-slate-900">{fullName(e)}</div>
                     <div className="text-xs text-slate-500">{e.email || e.userName}</div>
                   </td>
                   <td className="px-4 py-3">
@@ -236,6 +310,9 @@ export function UsersPermissionsPanel({ showHeading = true }: { showHeading?: bo
               ))}
             </tbody>
           </table>
+            </div>
+            }
+          />
         </CardContent></Card>
       )}
 
