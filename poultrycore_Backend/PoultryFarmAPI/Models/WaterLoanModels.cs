@@ -18,8 +18,13 @@ namespace PoultryFarmAPIWeb.Models
         /// <summary>LN-2026-0001.</summary>
         public string? LoanNumber { get; set; }
 
-        public string LenderName { get; set; } = string.Empty;
-        public string LenderType { get; set; } = "Other";
+        /// <summary>
+        /// NULL on a row that came from a Cash Flow "Loan received" adjustment
+        /// (290/291): there is no lender behind one, and inventing a placeholder
+        /// here would put a made-up name in front of the owner.
+        /// </summary>
+        public string? LenderName { get; set; }
+        public string? LenderType { get; set; }
         public string? AccountNumber { get; set; }
 
         public DateTime LoanDate { get; set; }
@@ -55,6 +60,15 @@ namespace PoultryFarmAPIWeb.Models
         public string? CreatedBy { get; set; }
         public DateTime CreatedAt { get; set; }
         public string? ReversalReason { get; set; }
+
+        /// <summary>
+        /// 'Loan' for a real loan record, 'CashAdjustment' for a borrowing
+        /// recorded on the Cash Flow page (290/291). The page keys rows on
+        /// (Source, SourceId) and hides Repay on a CashAdjustment row -- the
+        /// loan id is 0 on those, so it cannot be used as a key or a target.
+        /// </summary>
+        public string Source { get; set; } = "Loan";
+        public int SourceId { get; set; }
     }
 
     public class WaterLoanPaymentModel
@@ -103,6 +117,33 @@ namespace PoultryFarmAPIWeb.Models
         public decimal TotalFeesPaid { get; set; }
         public int OverdueLoans { get; set; }
         public DateTime? NextPaymentDate { get; set; }
+    }
+
+    /// <summary>
+    /// Turn a Cash Flow "Loan received" adjustment into a real, repayable loan
+    /// (292/293). There is no amount here on purpose: it comes from the
+    /// adjustment, and letting the caller restate it would let the debt and the
+    /// cash event disagree on day one.
+    ///
+    /// The conversion writes NO cash row -- the adjustment remains the cash
+    /// event -- so there is no cash account to choose either.
+    /// </summary>
+    public class WaterLoanFromAdjustmentRequest
+    {
+        [Required] public string FarmId { get; set; } = string.Empty;
+        [Range(1, int.MaxValue)] public int AdjustmentId { get; set; }
+        [Required(AllowEmptyStrings = false)] public string LenderName { get; set; } = string.Empty;
+
+        public string LenderType { get; set; } = "Other";
+        public string? AccountNumber { get; set; }
+        public decimal? InterestRate { get; set; }
+        public string? InterestType { get; set; }
+        public int? TermMonths { get; set; }
+        public string? PaymentFrequency { get; set; }
+        public DateTime? EndDate { get; set; }
+        public DateTime? NextPaymentDate { get; set; }
+        public string? Notes { get; set; }
+        public string? CreatedBy { get; set; }
     }
 
     public class WaterLoanCreateRequest

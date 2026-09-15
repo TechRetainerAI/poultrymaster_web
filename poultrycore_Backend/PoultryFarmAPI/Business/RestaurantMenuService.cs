@@ -751,5 +751,54 @@ namespace PoultryFarmAPIWeb.Business
             await conn.OpenAsync();
             await cmd.ExecuteNonQueryAsync();
         }
+
+        // =====================================================================
+        // MENU ITEM NAMES
+        // =====================================================================
+        // Reads sprestaurant_menuitemname_list_for_farm, which returns the shared
+        // system seed rows (farmid IS NULL) plus this farm's own custom names.
+        // Hotel Setup keeps calling the unscoped sprestaurant_menuitemname_list,
+        // which now returns system rows only — so a dish invented by one
+        // restaurant never leaks into another tenant's list or into Hotel.
+        // See Migrations/287_RestaurantCustomMenuItemNames.postgres.sql.
+
+        private static RestaurantMenuItemNameModel ReadItemName(NpgsqlDataReader r) => new()
+        {
+            RestaurantMenuItemNameId = r.GetInt32(r.GetOrdinal("restaurantmenuitemnameid")),
+            Code        = r.GetString(r.GetOrdinal("code")),
+            Description = r.GetString(r.GetOrdinal("description")),
+            Category    = r.IsDBNull(r.GetOrdinal("category")) ? null : r.GetString(r.GetOrdinal("category")),
+            SortOrder   = r.GetInt32(r.GetOrdinal("sortorder")),
+            IsActive    = r.GetBoolean(r.GetOrdinal("isactive")),
+        };
+
+        public async Task<List<RestaurantMenuItemNameModel>> ListItemNamesForFarmAsync(string farmId)
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM sprestaurant_menuitemname_list_for_farm(p_farmid => @FarmId::text)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            var list = new List<RestaurantMenuItemNameModel>();
+            while (await r.ReadAsync()) list.Add(ReadItemName(r));
+            return list;
+        }
+
+        public async Task<RestaurantMenuItemNameModel?> InsertItemNameAsync(string farmId, string description, string? category)
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM sprestaurant_menuitemname_insert(" +
+                "p_farmid => @FarmId::text, p_description => @Description::text, p_category => @Category::text)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", farmId);
+            cmd.Parameters.AddWithValue("@Description", description);
+            cmd.Parameters.AddWithValue("@Category", (object?)category ?? DBNull.Value);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            // The proc is idempotent: re-adding an existing name returns that row.
+            return await r.ReadAsync() ? ReadItemName(r) : null;
+        }
+
     }
 }

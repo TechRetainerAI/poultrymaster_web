@@ -946,7 +946,8 @@ export interface WaterLoan {
   waterLoanId: number
   farmId: string
   loanNumber?: string | null
-  lenderName: string
+  /** Null on a Cash-Flow row: a 'Loan received' adjustment records no lender. */
+  lenderName?: string | null
   lenderType: string
   accountNumber?: string | null
   loanDate: string
@@ -976,6 +977,24 @@ export interface WaterLoan {
   createdBy?: string | null
   createdAt?: string | null
   reversalReason?: string | null
+  /**
+   * Which record this row is (migration 291).
+   *
+   * `Loan` — a real loan record, repayable and cancellable here.
+   * `CashAdjustment` — a "Loan received" typed on the Cash or Cash Flow page.
+   * Read-only here: there is no loan behind it, so nothing on this page can
+   * repay, reverse or cancel it. The Cash Flow page edits and deletes it.
+   *
+   * A legacy row carries `waterLoanId` 0 and no lender, rate, term or next
+   * payment date; its repaid/interest/fee totals and payment count are 0 and
+   * its status is always 'Active'. It still counts towards outstanding debt.
+   */
+  source: "Loan" | "CashAdjustment" | string
+  /**
+   * The id WITHIN `source`. For a Cash-Flow row `waterLoanId` is 0 — the two
+   * id spaces overlap, so key rows on `source` + `sourceId`.
+   */
+  sourceId: number
 }
 
 export interface WaterLoanPayment {
@@ -1044,6 +1063,34 @@ export const createWaterLoan = (input: {
   notes?: string | null
 }) =>
   jsend<{ waterLoanId: number }>(`/Water/loans`, "POST",
+    { ...input, farmId: activeFarmId(), createdBy: currentUserId() || null })
+
+/**
+ * Turn a Cash Flow "Loan received" adjustment into a real, repayable loan
+ * (migrations 292/293).
+ *
+ * No amount and no cash account here on purpose: the amount comes from the
+ * adjustment, and the conversion writes NO cash row -- the adjustment stays the
+ * cash event and the loan is the debt record beside it. Nothing about cash
+ * moves; the borrowing simply becomes repayable.
+ *
+ * The server refuses a non-LoanReceived row, a negative amount (that is a
+ * correction, not a borrowing) and a second conversion.
+ */
+export const createWaterLoanFromAdjustment = (input: {
+  adjustmentId: number
+  lenderName: string
+  lenderType?: string
+  accountNumber?: string | null
+  interestRate?: number | null
+  interestType?: string | null
+  termMonths?: number | null
+  paymentFrequency?: string | null
+  endDate?: string | null
+  nextPaymentDate?: string | null
+  notes?: string | null
+}) =>
+  jsend<{ waterLoanId: number }>(`/Water/loans/from-adjustment`, "POST",
     { ...input, farmId: activeFarmId(), createdBy: currentUserId() || null })
 
 export const updateWaterLoan = (id: number, input: Record<string, unknown>) =>

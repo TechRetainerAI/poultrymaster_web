@@ -11,7 +11,8 @@ import { filterWaterNavItems } from "@/lib/utils/water-nav-access"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useAlertsStore } from "@/lib/store/alerts-store"
 import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
-import { POULTRY_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
+import { POULTRY_REPORT_NAV_GROUPS, RESTAURANT_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
+import { buildRestaurantNavConfig } from "@/lib/nav/restaurant-nav-config"
 import { NAV_SURFACE } from "@/components/dashboard/nav/nav-surface"
 import type { MegaMenuGroup } from "@/lib/nav/nav-model"
 import {
@@ -451,6 +452,24 @@ export function MobileBottomNav() {
     }
 
     if (activeFarmType === "Restaurant") {
+      // The sheet used to carry a hand-written copy of the restaurant menu and had
+      // drifted to 9 of the ~22 destinations the desktop nav shows (no Guest Orders,
+      // QR ordering, Inventory, Reports, Expenses, CRM, Loyalty, Events, Gift Cards,
+      // Notifications or Staff). Derive from buildRestaurantNavConfig — the same source
+      // the top nav and sidebar read — so the surfaces cannot drift apart again.
+      // Badges are deliberately not passed: useOnlineOrderCounts is a hook, this is an
+      // IIFE, and hoisting it would make every non-Restaurant company poll too.
+      const rnav = buildRestaurantNavConfig()
+      const restaurantMore = compactSections([
+        { title: "Orders & Kitchen",    groups: fromMegaMenu(rnav.ordersKitchen) },
+        { title: "Dining",              groups: fromMegaMenu(rnav.dining) },
+        { title: "Delivery & Online",   groups: fromMegaMenu(rnav.deliveryOnline) },
+        { title: "Inventory & Reports", groups: fromMegaMenu(rnav.inventoryReports) },
+        { title: "Reports",             groups: fromMegaMenu(RESTAURANT_REPORT_NAV_GROUPS) },
+        { title: "Growth",              groups: fromMegaMenu(rnav.growth) },
+        { title: "Setup",               groups: fromMegaMenu(rnav.setup) },
+        { title: "System",              groups: fromMegaMenu(rnav.system) },
+      ])
       return {
         bg: "bg-rose-600",
         borderTop: "border-rose-700",
@@ -463,23 +482,7 @@ export function MobileBottomNav() {
           { href: "/restaurant-orders",   label: "Orders",  icon: FileText },
           { href: "/restaurant-kds",      label: "Kitchen", icon: Factory },
         ] as NavItem[],
-        moreGroups: asSections([
-          { title: "Menu", items: [
-            { href: "/restaurant-menu",          label: "Menu Items",              icon: ShoppingBag },
-          ] as NavItem[] },
-          { title: "Dining", items: [
-            { href: "/restaurant-floor-plan",    label: "Floor Plan & Tables",     icon: Building2 },
-            { href: "/restaurant-reservations",  label: "Reservations & Waitlist", icon: CalendarDays },
-          ] as NavItem[] },
-          { title: "Delivery & Online", items: [
-            { href: "/restaurant-online-orders", label: "Online Settings",         icon: ShoppingBag },
-            { href: "/restaurant-delivery",      label: "Drivers & Dispatch",      icon: Truck },
-          ] as NavItem[] },
-          { title: "Setup", items: [
-            { href: "/restaurant-setup",         label: "Restaurant Setup",        icon: Settings },
-            { href: "/profile",                  label: "Account",                 icon: User },
-          ] as NavItem[] },
-        ]),
+        moreGroups: restaurantMore,
       }
     }
 

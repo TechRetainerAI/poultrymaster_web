@@ -159,7 +159,7 @@ export default function RestaurantStaffPage() {
       <DashboardSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <DashboardHeader />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="max-w-6xl mx-auto space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
@@ -241,7 +241,7 @@ export default function RestaurantStaffPage() {
                       <CardDescription>{filtered.length} staff {filterRole !== "all" ? `(${filterRole})` : ""}</CardDescription>
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input className="pl-9 h-9 w-[200px]" placeholder="Search staff..." value={search} onChange={e => setSearch(e.target.value)} />
@@ -308,7 +308,7 @@ export default function RestaurantStaffPage() {
             <DialogDescription>Add team members and assign their restaurant role</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5"><Label>First Name <span className="text-rose-500">*</span></Label><Input value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} className="h-10" /></div>
               <div className="space-y-1.5"><Label>Last Name</Label><Input value={form.lastName} onChange={e => setForm({ ...form, lastName: e.target.value })} className="h-10" /></div>
               <div className="space-y-1.5"><Label>Phone <span className="text-rose-500">*</span></Label><Input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className="h-10" /></div>
@@ -317,7 +317,7 @@ export default function RestaurantStaffPage() {
 
             <div className="space-y-1.5">
               <Label>Role</Label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {RESTAURANT_ROLES.map(r => (
                   <button key={r.value} type="button" onClick={() => setForm({ ...form, role: r.value })}
                     className={`flex items-center gap-2 p-2.5 rounded-lg border-2 text-left transition-all ${
@@ -333,7 +333,7 @@ export default function RestaurantStaffPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 pt-2 border-t">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t">
               <div className="space-y-1.5">
                 <Label>Pay Type</Label>
                 <Select value={form.salaryType || "Monthly"} onValueChange={v => setForm({ ...form, salaryType: v })}>

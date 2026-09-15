@@ -126,7 +126,7 @@ export default function RestaurantInventoryPage() {
       <DashboardSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <DashboardHeader />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="max-w-6xl mx-auto space-y-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -137,7 +137,7 @@ export default function RestaurantInventoryPage() {
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               {[
                 { label: "Total Ingredients", value: ingredients.length, color: "text-gray-900", icon: Package, iconBg: "bg-gray-100" },
                 { label: "Low Stock", value: lowStock.length, color: lowStock.length > 0 ? "text-red-700" : "text-green-700", icon: AlertTriangle, iconBg: lowStock.length > 0 ? "bg-red-100" : "bg-green-100" },
@@ -162,7 +162,7 @@ export default function RestaurantInventoryPage() {
             )}
 
             <Tabs defaultValue="ingredients" className="space-y-4">
-              <TabsList className="bg-white border shadow-sm">
+              <TabsList className="bg-white border shadow-sm flex-wrap h-auto">
                 <TabsTrigger value="ingredients" className="data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700"><Package className="h-4 w-4 mr-2" /> Ingredients <Badge variant="secondary" className="ml-2 h-5 px-1.5">{ingredients.length}</Badge></TabsTrigger>
                 <TabsTrigger value="waste" className="data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700"><TrendingDown className="h-4 w-4 mr-2" /> Waste Log <Badge variant="secondary" className="ml-2 h-5 px-1.5">{wasteLog.length}</Badge></TabsTrigger>
                 <TabsTrigger value="value" className="data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700"><DollarSign className="h-4 w-4 mr-2" /> Inventory Value</TabsTrigger>
@@ -172,7 +172,7 @@ export default function RestaurantInventoryPage() {
               <TabsContent value="ingredients">
                 <Card>
                   <CardHeader className="pb-4">
-                    <div className="flex gap-3">
+                    <div className="flex gap-3 flex-wrap">
                       <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input className="pl-9 h-10" placeholder="Search ingredients..." value={search} onChange={e => setSearch(e.target.value)} /></div>
                       <Select value={filterCat} onValueChange={setFilterCat}>
                         <SelectTrigger className="w-[160px] h-10"><SelectValue placeholder="All" /></SelectTrigger>
@@ -241,7 +241,7 @@ export default function RestaurantInventoryPage() {
                   </CardHeader>
                   <CardContent>
                     {wasteSummary.length > 0 && (
-                      <div className="grid grid-cols-3 gap-3 mb-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
                         {wasteSummary.map(ws => (
                           <Card key={ws.reason} className="bg-amber-50"><CardContent className="py-3 px-4">
                             <div className="font-bold text-amber-800">{ws.totalCost.toFixed(2)}</div>
@@ -312,7 +312,7 @@ export default function RestaurantInventoryPage() {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader><DialogTitle>{ingEditing ? "Edit Ingredient" : "Add Ingredient"}</DialogTitle><DialogDescription>Track raw materials and supplies</DialogDescription></DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5"><Label>Name <span className="text-rose-500">*</span></Label><Input value={ingForm.name} onChange={e => setIngForm({ ...ingForm, name: e.target.value })} className="h-10" /></div>
               <div className="space-y-1.5"><Label>Category</Label>
                 <Select value={ingForm.category || ""} onValueChange={v => setIngForm({ ...ingForm, category: v })}>
@@ -396,7 +396,7 @@ export default function RestaurantInventoryPage() {
                 <SelectTrigger className="h-10"><SelectValue placeholder="Select ingredient" /></SelectTrigger>
                 <SelectContent>{ingredients.map(i => <SelectItem key={i.ingredientId} value={String(i.ingredientId)}>{i.name} ({i.currentStock} {i.unit})</SelectItem>)}</SelectContent>
               </Select></div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5"><Label>Quantity</Label><Input type="number" step="0.01" value={wasteForm.quantity} onChange={e => setWasteForm({ ...wasteForm, quantity: parseFloat(e.target.value) || 0 })} className="h-10" /></div>
               <div className="space-y-1.5"><Label>Reason</Label>
                 <Select value={wasteForm.reason} onValueChange={v => setWasteForm({ ...wasteForm, reason: v })}>

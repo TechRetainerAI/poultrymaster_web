@@ -174,7 +174,7 @@ export default function RestaurantLoyaltyPage() {
         <DashboardSidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
           <DashboardHeader />
-          <main className="flex-1 overflow-y-auto p-6">
+          <main className="flex-1 overflow-y-auto p-4 md:p-6">
             <PageSkeleton statCards={4} listRows={5} />
           </main>
         </div>
@@ -187,7 +187,7 @@ export default function RestaurantLoyaltyPage() {
       <DashboardSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <DashboardHeader />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="max-w-6xl mx-auto space-y-6">
 
             <PageHeader icon={Crown} title="Loyalty & Rewards" subtitle="Points, tiers, and customer rewards program" />
@@ -216,7 +216,7 @@ export default function RestaurantLoyaltyPage() {
 
             {/* Tabs */}
             <Tabs defaultValue="settings" className="space-y-4">
-              <TabsList className="bg-white border shadow-sm">
+              <TabsList className="bg-white border shadow-sm flex-wrap h-auto">
                 <TabsTrigger value="settings" className="data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700">
                   <Settings className="h-4 w-4 mr-2" />Program Settings
                 </TabsTrigger>

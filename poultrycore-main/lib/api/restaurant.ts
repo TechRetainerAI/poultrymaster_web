@@ -137,8 +137,38 @@ export interface MenuItemName {
   isActive: boolean
 }
 
+// Was /Hotel/setup/menu-item-names, which returns the system seed list only and
+// is shared with Hotel Setup. The Restaurant endpoint returns those same seeds
+// PLUS any custom names this farm has saved from the "Other" box on the Add Menu
+// Item form. Hotel's endpoint is untouched and still serves Hotel.
 export async function listMenuItemNames(): Promise<MenuItemName[]> {
-  return jget<MenuItemName[]>("/Hotel/setup/menu-item-names")
+  try {
+    return await jget<MenuItemName[]>("/Restaurant/menu/item-names")
+  } catch {
+    // The Restaurant route only exists once the Farm API has been redeployed with
+    // migration 287 applied. Until then fall back to the shared system seed list so
+    // the Item Name dropdown is never empty — pointing at the new route without this
+    // fallback blanked the whole list, because the caller swallows errors with
+    // .catch(() => []). Custom names start appearing once the new route is live.
+    return jget<MenuItemName[]>("/Hotel/setup/menu-item-names")
+  }
+}
+
+/**
+ * Save a custom dish name so it can be picked from the dropdown next time.
+ * Idempotent server-side: re-saving an existing name returns that row rather
+ * than creating a duplicate, so a double-submit is harmless.
+ */
+export async function createMenuItemName(
+  description: string,
+  category?: string | null,
+): Promise<MenuItemName> {
+  const farmId = activeFarmId()
+  return jsend<MenuItemName>("/Restaurant/menu/item-names", "POST", {
+    farmId,
+    description,
+    category: category ?? null,
+  })
 }
 
 // ----- Menu Categories -----

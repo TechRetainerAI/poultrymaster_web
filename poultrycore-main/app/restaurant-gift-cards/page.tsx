@@ -224,7 +224,7 @@ export default function RestaurantGiftCardsPage() {
       <DashboardSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <DashboardHeader />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="max-w-6xl mx-auto space-y-6">
             {/* Header */}
             <PageHeader icon={Gift} title="Gift Cards" subtitle="Issue, manage, and redeem gift cards">
@@ -360,7 +360,7 @@ export default function RestaurantGiftCardsPage() {
               <Input type="number" step="0.01" min="0" placeholder="50.00" className="h-10"
                 value={issueForm.amount || ""} onChange={(e) => setIssueForm({ ...issueForm, amount: Number(e.target.value) })} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Purchaser Name</Label>
                 <Input className="h-10" value={issueForm.purchaserName ?? ""} onChange={(e) => setIssueForm({ ...issueForm, purchaserName: e.target.value })} />

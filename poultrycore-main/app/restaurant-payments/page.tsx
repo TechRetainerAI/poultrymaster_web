@@ -174,7 +174,7 @@ export default function RestaurantPaymentsPage() {
 
               {/* Detailed Tables */}
               <Tabs defaultValue="income">
-                <TabsList className="mb-4">
+                <TabsList className="mb-4 flex-wrap h-auto">
                   <TabsTrigger value="income">Income ({filteredOrders.length})</TabsTrigger>
                   <TabsTrigger value="expenses">Expenses ({filteredExpenses.length})</TabsTrigger>
                 </TabsList>
@@ -182,7 +182,8 @@ export default function RestaurantPaymentsPage() {
                 <TabsContent value="income">
                   <Card>
                     <CardContent className="p-0">
-                      <table className="w-full text-sm">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm min-w-[640px]">
                         <thead className="bg-gray-50 border-b">
                           <tr>
                             <th className="text-left p-3">Date</th>
@@ -208,7 +209,8 @@ export default function RestaurantPaymentsPage() {
                           ))}
                           {filteredOrders.length === 0 && <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">No paid orders in this period.</td></tr>}
                         </tbody>
-                      </table>
+                        </table>
+                      </div>
                     </CardContent>
                   </Card>
                 </TabsContent>
@@ -216,7 +218,8 @@ export default function RestaurantPaymentsPage() {
                 <TabsContent value="expenses">
                   <Card>
                     <CardContent className="p-0">
-                      <table className="w-full text-sm">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm min-w-[640px]">
                         <thead className="bg-gray-50 border-b">
                           <tr>
                             <th className="text-left p-3">Date</th>
@@ -240,7 +243,8 @@ export default function RestaurantPaymentsPage() {
                           ))}
                           {filteredExpenses.length === 0 && <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">No expenses in this period.</td></tr>}
                         </tbody>
-                      </table>
+                        </table>
+                      </div>
                     </CardContent>
                   </Card>
                 </TabsContent>
