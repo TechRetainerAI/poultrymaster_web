@@ -165,7 +165,7 @@ export default function RestaurantEventsPage() {
                       : "bg-white text-gray-600 border hover:bg-gray-50"
                   }`}
                 >
-                  {s === "InProgress" ? "In Progress" : s === "HolidayParty" ? "Holiday Party" : s}
+                  {s === "InProgress" ? "In Progress" : s}
                   {s !== "All" && (
                     <span className="ml-1.5 text-xs opacity-75">
                       ({events.filter((e) => e.status === s).length})
@@ -365,11 +365,11 @@ export default function RestaurantEventsPage() {
               </div>
               <div className="space-y-1.5">
                 <Label>Price per Head ($)</Label>
-                <Input type="number" step="0.01" min={0} className="h-10" value={form.pricePerHead ?? ""} onChange={(e) => setForm({ ...form, pricePerHead: parseFloat(e.target.value) || undefined })} />
+                <Input type="number" step="0.01" min={0} className="h-10" value={form.pricePerHead ?? ""} onChange={(e) => { const v = parseFloat(e.target.value); setForm({ ...form, pricePerHead: Number.isNaN(v) ? undefined : v }) }} />
               </div>
               <div className="space-y-1.5">
                 <Label>Deposit Amount ($)</Label>
-                <Input type="number" step="0.01" min={0} className="h-10" value={form.depositAmount ?? ""} onChange={(e) => setForm({ ...form, depositAmount: parseFloat(e.target.value) || undefined })} />
+                <Input type="number" step="0.01" min={0} className="h-10" value={form.depositAmount ?? ""} onChange={(e) => { const v = parseFloat(e.target.value); setForm({ ...form, depositAmount: Number.isNaN(v) ? undefined : v }) }} />
               </div>
               <div className="col-span-2 space-y-1.5">
                 <Label>Venue</Label>

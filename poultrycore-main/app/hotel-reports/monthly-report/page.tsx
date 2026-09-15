@@ -269,7 +269,8 @@ export default function MonthlyReportPage() {
                         </tbody>
                       </table>
                     ) : (
-                      <table className="w-full text-sm">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm min-w-[520px]">
                         <thead className="bg-slate-50 border-b">
                           <tr>
                             <th className="text-left p-3">Metric</th>
@@ -286,7 +287,8 @@ export default function MonthlyReportPage() {
                             <tr><td colSpan={2} className="p-8 text-center text-slate-400">No data found for this month.</td></tr>
                           )}
                         </tbody>
-                      </table>
+                        </table>
+                      </div>
                     )}
                   </div>
                 </CardContent>

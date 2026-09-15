@@ -242,7 +242,7 @@ export default function HotelCheckOutPage() {
               </div>
 
               {/* Late fee / damage */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><Label>Late Fee</Label><Input type="number" step="0.01" value={lateFee} onChange={(e) => setLateFee(Number(e.target.value))} /></div>
                 <div><Label>Damage Charges</Label><Input type="number" step="0.01" value={damageCharges} onChange={(e) => setDamageCharges(Number(e.target.value))} /></div>
               </div>

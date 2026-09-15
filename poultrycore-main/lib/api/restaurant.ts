@@ -1807,7 +1807,9 @@ export interface CateringEventInput {
   name: string; eventType: string; eventDate: string; startTime?: string | null; endTime?: string | null
   guestCount: number; venue?: string | null; contactName?: string | null
   contactPhone?: string | null; contactEmail?: string | null; packageName?: string | null
-  pricePerHead: number; depositAmount?: number; specialRequests?: string | null
+  // Optional to match the form and the API: an event can be created before a price
+  // is agreed. Was `pricePerHead: number` (required) while the form assigned undefined.
+  pricePerHead?: number; depositAmount?: number; specialRequests?: string | null
   dietaryNotes?: string | null; notes?: string | null
 }
 

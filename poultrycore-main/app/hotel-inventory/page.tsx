@@ -77,7 +77,7 @@ export default function HotelInventoryPage() {
           <Button onClick={openCreate} className="bg-violet-600 hover:bg-violet-700"><Plus className="h-4 w-4 mr-1" /> Add Item</Button>
         </div>
         {loading ? <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-violet-600" /></div> : (
-          <Card><CardContent className="p-0"><table className="w-full text-sm"><thead className="bg-slate-50 border-b"><tr><th className="text-left p-3">Name</th><th className="text-left p-3">Category</th><th className="text-left p-3">Unit</th><th className="text-right p-3">Stock</th><th className="text-right p-3">Reorder</th><th className="text-right p-3">Unit Cost</th></tr></thead>
+          <Card><CardContent className="p-0"><div className="overflow-x-auto"><table className="w-full text-sm min-w-[660px]"><thead className="bg-slate-50 border-b"><tr><th className="text-left p-3">Name</th><th className="text-left p-3">Category</th><th className="text-left p-3">Unit</th><th className="text-right p-3">Stock</th><th className="text-right p-3">Reorder</th><th className="text-right p-3">Unit Cost</th></tr></thead>
             <tbody>{items.map((i: any) => {
               const stock = Number(i.stockOnHand ?? i.stockonhand ?? 0); const reorder = Number(i.reorderLevel ?? i.reorderlevel ?? 0)
               return (<tr key={i.hotelInventoryItemId ?? i.hotelinventoryitemid} className="border-b hover:bg-slate-50"><td className="p-3 font-medium">{i.name}</td><td className="p-3"><Badge variant="outline">{i.category}</Badge></td><td className="p-3">{i.unit}</td>
@@ -85,7 +85,7 @@ export default function HotelInventoryPage() {
                 <td className="p-3 text-right">{reorder}</td><td className="p-3 text-right">{Number(i.unitCost ?? i.unitcost ?? 0).toFixed(2)}</td></tr>)
             })}
               {items.length === 0 && <tr><td colSpan={6} className="p-8 text-center text-slate-400">No inventory items. Add your hotel supplies.</td></tr>}
-            </tbody></table></CardContent></Card>
+            </tbody></table></div></CardContent></Card>
         )}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}><DialogContent><DialogHeader><DialogTitle>Add Supply Item</DialogTitle></DialogHeader>
           <div className="space-y-4">
@@ -132,7 +132,7 @@ export default function HotelInventoryPage() {
               <div><Label>Specify Item Name</Label><Input value={customName} onChange={(e) => { setCustomName(e.target.value); setForm({...form, name: e.target.value}) }} placeholder="e.g. Pool Chemicals, Room Keys" /></div>
             )}
             <div><Label>Unit</Label><Input value={form.unit} onChange={(e) => setForm({...form, unit: e.target.value})} placeholder="pcs, kg, litres" /></div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div><Label>Stock</Label><Input type="number" value={form.stockOnHand} onChange={(e) => setForm({...form, stockOnHand: Number(e.target.value)})} /></div>
               <div><Label>Reorder Level</Label><Input type="number" value={form.reorderLevel} onChange={(e) => setForm({...form, reorderLevel: Number(e.target.value)})} /></div>
               <div><Label>Unit Cost</Label><Input type="number" step="0.01" value={form.unitCost} onChange={(e) => setForm({...form, unitCost: Number(e.target.value)})} /></div>

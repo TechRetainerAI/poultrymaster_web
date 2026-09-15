@@ -203,7 +203,8 @@ export default function HotelGuestsPage() {
             <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-violet-600" /></div>
           ) : (
             <Card><CardContent className="p-0">
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[880px]">
                 <thead className="bg-slate-50 border-b"><tr><th className="text-left p-3">Name</th><th className="text-left p-3">Phone</th><th className="text-left p-3">Email</th><th className="text-left p-3">ID</th><th className="text-left p-3">Nationality</th><th className="text-center p-3">Stays</th><th className="text-left p-3">Last Stay</th><th className="text-right p-3">Actions</th></tr></thead>
                 <tbody>
                   {filtered.map((g) => (
@@ -224,7 +225,8 @@ export default function HotelGuestsPage() {
                   ))}
                   {filtered.length === 0 && <tr><td colSpan={8} className="p-8 text-center text-slate-400">No guests found.</td></tr>}
                 </tbody>
-              </table>
+                </table>
+              </div>
             </CardContent></Card>
           )}
 
@@ -251,7 +253,7 @@ export default function HotelGuestsPage() {
                     </div>
 
                     {/* Contact */}
-                    <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                       <div><span className="text-slate-500">Phone:</span> <strong>{profileGuest.phone ?? "—"}</strong></div>
                       <div><span className="text-slate-500">Email:</span> <strong>{profileGuest.email ?? "—"}</strong></div>
                       <div><span className="text-slate-500">ID:</span> <strong>{profileGuest.idType ? `${profileGuest.idType}: ${profileGuest.idNumber}` : "—"}</strong></div>
@@ -373,15 +375,15 @@ export default function HotelGuestsPage() {
             <DialogContent className="max-w-lg">
               <DialogHeader><DialogTitle>{editing ? "Edit Guest" : "Add Guest"}</DialogTitle></DialogHeader>
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><Label>First Name *</Label><Input value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} /></div>
                   <div><Label>Last Name *</Label><Input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} /></div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><Label>Phone</Label><Input value={form.phone ?? ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
                   <div><Label>Email</Label><Input value={form.email ?? ""} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><Label>ID Type</Label>
                     <Select value={idTypeSelection || "__none__"} onValueChange={(v) => {
                       const sel = v === "__none__" ? "" : v
@@ -401,7 +403,7 @@ export default function HotelGuestsPage() {
                 {idTypeSelection === "Other" && (
                   <div><Label>Specify ID Type *</Label><Input value={customIdType} onChange={(e) => { setCustomIdType(e.target.value); setForm({ ...form, idType: e.target.value }) }} placeholder="e.g. Company Badge, Travel Document" /></div>
                 )}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><Label>Nationality</Label><Input value={form.nationality ?? ""} onChange={(e) => setForm({ ...form, nationality: e.target.value })} /></div>
                   <div className="flex items-end gap-2"><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={form.isVIP ?? false} onChange={(e) => setForm({ ...form, isVIP: e.target.checked })} className="rounded" /><Star className="h-4 w-4 text-amber-500" /><span className="text-sm">VIP Guest</span></label></div>
                 </div>

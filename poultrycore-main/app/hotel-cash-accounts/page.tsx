@@ -171,7 +171,7 @@ export default function HotelCashAccountsPage() {
 
             {/* Summary Cards */}
             {!txnLoading && transactions.length > 0 && (
-              <div className="grid grid-cols-3 gap-3 mb-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-2">
                 <div className="p-3 bg-emerald-50 rounded-lg text-center">
                   <div className="flex items-center justify-center gap-1 text-xs text-emerald-600 mb-1"><TrendingUp className="h-3 w-3" /> Total In</div>
                   <div className="text-lg font-bold text-emerald-700">{totalCredits.toFixed(2)}</div>
@@ -193,7 +193,8 @@ export default function HotelCashAccountsPage() {
               ) : transactions.length === 0 ? (
                 <div className="text-center py-12 text-slate-400">No transactions yet for this account.</div>
               ) : (
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[520px]">
                   <thead className="bg-slate-50 border-b sticky top-0">
                     <tr>
                       <th className="text-left p-3">Date</th>
@@ -228,7 +229,8 @@ export default function HotelCashAccountsPage() {
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                  </table>
+                </div>
               )}
             </div>
           </DialogContent>

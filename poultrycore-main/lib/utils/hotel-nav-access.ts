@@ -38,6 +38,7 @@ const HOTEL_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAdmin: 
   // --- Reports / Setup -----------------------------------------------------
   "/hotel-reports":         (f) => f.canViewReports,
   "/hotel-setup":           (f) => f.canViewHotelSetup,
+  "/hotel-company-setup":   (f) => f.canViewHotelSetup,
 }
 
 export function isHotelNavItemVisible(

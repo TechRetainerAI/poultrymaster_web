@@ -43,7 +43,7 @@ export default function HotelInvoicesPage() {
         <div className="flex items-center gap-3 mb-6"><FileText className="h-6 w-6 text-violet-600" /><h1 className="text-2xl font-bold">Invoices</h1><span className="text-sm text-slate-500">({items.length})</span></div>
         <p className="text-sm text-slate-500 mb-4">Invoices are generated from the Billing page. Click an invoice to preview and print.</p>
         {loading ? <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-violet-600" /></div> : (
-          <Card><CardContent className="p-0"><table className="w-full text-sm"><thead className="bg-slate-50 border-b"><tr><th className="text-left p-3">Invoice #</th><th className="text-left p-3">Date</th><th className="text-right p-3">Subtotal</th><th className="text-right p-3">Tax</th><th className="text-right p-3">Total</th><th className="text-right p-3">Paid</th><th className="text-right p-3">Balance</th><th className="text-left p-3">Status</th><th className="text-right p-3">Actions</th></tr></thead>
+          <Card><CardContent className="p-0"><div className="overflow-x-auto"><table className="w-full text-sm min-w-[990px]"><thead className="bg-slate-50 border-b"><tr><th className="text-left p-3">Invoice #</th><th className="text-left p-3">Date</th><th className="text-right p-3">Subtotal</th><th className="text-right p-3">Tax</th><th className="text-right p-3">Total</th><th className="text-right p-3">Paid</th><th className="text-right p-3">Balance</th><th className="text-left p-3">Status</th><th className="text-right p-3">Actions</th></tr></thead>
             <tbody>{items.map((i: any, idx: number) => (
               <tr key={i.hotelInvoiceId ?? i.hotelinvoiceid ?? `inv-${idx}`} className="border-b hover:bg-slate-50">
                 <td className="p-3 font-mono font-semibold">{i.invoiceNumber ?? i.invoicenumber}</td>
@@ -58,7 +58,7 @@ export default function HotelInvoicesPage() {
               </tr>
             ))}
               {items.length === 0 && <tr><td colSpan={9} className="p-8 text-center text-slate-400">No invoices yet. Generate one from the Billing page.</td></tr>}
-            </tbody></table></CardContent></Card>
+            </tbody></table></div></CardContent></Card>
         )}
 
         {/* Print Preview Dialog */}
@@ -79,7 +79,8 @@ export default function HotelInvoicesPage() {
                   </div>
                 </div>
               </div>
-              <table className="w-full mb-6" style={{borderCollapse:"collapse"}}>
+              <div className="overflow-x-auto">
+                <table className="w-full mb-6 min-w-[550px]" style={{borderCollapse:"collapse"}}>
                 <tbody>
                   <tr style={{borderBottom:"1px solid #eee"}}><td className="py-2 text-slate-500" style={{padding:"8px"}}>Subtotal</td><td className="py-2 text-right font-semibold" style={{padding:"8px",textAlign:"right"}}>{Number(printInvoice?.subTotal ?? printInvoice?.subtotal ?? 0).toFixed(2)}</td></tr>
                   <tr style={{borderBottom:"1px solid #eee"}}><td className="py-2 text-slate-500" style={{padding:"8px"}}>Tax ({Number(printInvoice?.taxRate ?? printInvoice?.taxrate ?? 0)}%)</td><td className="py-2 text-right" style={{padding:"8px",textAlign:"right"}}>{Number(printInvoice?.taxAmount ?? printInvoice?.taxamount ?? 0).toFixed(2)}</td></tr>
@@ -88,7 +89,8 @@ export default function HotelInvoicesPage() {
                   <tr><td className="py-2 text-emerald-700" style={{padding:"8px"}}>Amount Paid</td><td className="py-2 text-right text-emerald-700" style={{padding:"8px",textAlign:"right"}}>-{Number(printInvoice?.amountPaid ?? printInvoice?.amountpaid ?? 0).toFixed(2)}</td></tr>
                   <tr style={{borderTop:"1px solid #eee"}}><td className="py-2 font-bold" style={{padding:"8px"}}>Balance</td><td className="py-2 text-right font-bold" style={{padding:"8px",textAlign:"right",color:Number(printInvoice?.balance ?? 0) > 0 ? "#dc2626" : "#16a34a"}}>{Number(printInvoice?.balance ?? 0).toFixed(2)}</td></tr>
                 </tbody>
-              </table>
+                </table>
+              </div>
               <div className="text-center text-sm text-slate-400 border-t pt-4">
                 <p>Thank you for staying with us!</p>
                 <p>{activeFarmName} — Generated on {new Date().toLocaleDateString()}</p>

@@ -73,7 +73,7 @@ export default function HotelMaintenancePage() {
         </div>
 
         {loading ? <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-violet-600" /></div> : (
-          <Card><CardContent className="p-0"><table className="w-full text-sm"><thead className="bg-slate-50 border-b"><tr><th className="text-left p-3">Room</th><th className="text-left p-3">Asset</th><th className="text-left p-3">Issue</th><th className="text-left p-3">Priority</th><th className="text-left p-3">Status</th><th className="text-right p-3">Est. Cost</th><th className="text-left p-3">Reported</th><th className="text-right p-3">Actions</th></tr></thead>
+          <Card><CardContent className="p-0"><div className="overflow-x-auto"><table className="w-full text-sm min-w-[880px]"><thead className="bg-slate-50 border-b"><tr><th className="text-left p-3">Room</th><th className="text-left p-3">Asset</th><th className="text-left p-3">Issue</th><th className="text-left p-3">Priority</th><th className="text-left p-3">Status</th><th className="text-right p-3">Est. Cost</th><th className="text-left p-3">Reported</th><th className="text-right p-3">Actions</th></tr></thead>
             <tbody>{filtered.map((m: any, idx: number) => (
               <tr key={m.hotelMaintenanceRequestId ?? m.hotelmaintenancerequestid ?? `mt-${idx}`} className="border-b hover:bg-slate-50">
                 <td className="p-3 font-semibold">{m.roomNumber ?? m.roomnumber ?? "General"}</td>
@@ -92,7 +92,7 @@ export default function HotelMaintenancePage() {
               </tr>
             ))}
               {filtered.length === 0 && <tr><td colSpan={8} className="p-8 text-center text-slate-400">No maintenance requests.</td></tr>}
-            </tbody></table></CardContent></Card>
+            </tbody></table></div></CardContent></Card>
         )}
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}><DialogContent><DialogHeader><DialogTitle>New Maintenance Request</DialogTitle></DialogHeader>
@@ -124,7 +124,7 @@ export default function HotelMaintenancePage() {
               <div><Label>Specify Asset / Area</Label><Input value={customAsset} onChange={(e) => { setCustomAsset(e.target.value); setForm({...form, assetDescription: e.target.value}) }} placeholder="e.g. Sauna heater, Parking gate" /></div>
             )}
             <div><Label>Issue Description *</Label><Input value={form.issueDescription} onChange={(e) => setForm({...form, issueDescription: e.target.value})} placeholder="Describe the problem in detail" /></div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div><Label>Priority</Label><Select value={form.priority} onValueChange={(v) => setForm({...form, priority: v})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Low">Low</SelectItem><SelectItem value="Normal">Normal</SelectItem><SelectItem value="High">High</SelectItem><SelectItem value="Critical">Critical</SelectItem></SelectContent></Select></div>
               <div><Label>Estimated Cost</Label><Input type="number" step="0.01" value={form.estimatedCost} onChange={(e) => setForm({...form, estimatedCost: Number(e.target.value)})} /></div>
             </div>

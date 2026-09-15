@@ -130,7 +130,8 @@ export default function HotelHKSchedulePage() {
 
           {loading ? <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-violet-600" /></div> : (
             <Card><CardContent className="p-0">
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[520px]">
                 <thead className="bg-slate-50 border-b">
                   <tr>
                     <th className="text-left p-3">Room</th>
@@ -173,7 +174,8 @@ export default function HotelHKSchedulePage() {
                   })}
                   {items.length === 0 && <tr><td colSpan={9} className="p-8 text-center text-slate-400">No schedule for this date. Click &quot;Schedule All Occupied&quot; to create today&apos;s roster.</td></tr>}
                 </tbody>
-              </table>
+                </table>
+              </div>
             </CardContent></Card>
           )}
 
@@ -193,7 +195,7 @@ export default function HotelHKSchedulePage() {
                   </Select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <Label>Task Type *</Label>
                     <Select value={taskSelection || "__none__"} onValueChange={(v) => {

@@ -157,7 +157,7 @@ export default function HotelBookingsPage() {
           </div>
 
           {/* Search and date filters */}
-          <div className="flex gap-3 mb-4">
+          <div className="flex gap-3 mb-4 flex-wrap">
             <Input placeholder="Search guest name or ref..." className="max-w-xs" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
             <Select value={filterStatus} onValueChange={setFilterStatus}>
               <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
@@ -174,7 +174,7 @@ export default function HotelBookingsPage() {
 
           {loading ? <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-violet-600" /></div> : (
             <Tabs defaultValue="table">
-              <TabsList className="mb-4">
+              <TabsList className="mb-4 flex-wrap h-auto">
                 <TabsTrigger value="table" className="gap-1"><List className="h-4 w-4" /> Table View</TabsTrigger>
                 <TabsTrigger value="calendar" className="gap-1"><Calendar className="h-4 w-4" /> Calendar View</TabsTrigger>
               </TabsList>
@@ -182,7 +182,8 @@ export default function HotelBookingsPage() {
               <TabsContent value="table">
                 <Card>
                   <CardContent className="p-0">
-                    <table className="w-full text-sm">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm min-w-[1100px]">
                       <thead className="bg-slate-50 border-b"><tr><th className="text-left p-3">Ref</th><th className="text-left p-3">Guest</th><th className="text-left p-3">Room</th><th className="text-left p-3">Booked On</th><th className="text-left p-3">Check-in</th><th className="text-left p-3">Check-out</th><th className="text-left p-3">Nights</th><th className="text-right p-3">Amount</th><th className="text-left p-3">Status</th><th className="text-right p-3">Actions</th></tr></thead>
                       <tbody>
                         {paginatedBookings.map((b) => {
@@ -207,7 +208,8 @@ export default function HotelBookingsPage() {
                         )})}
                         {filtered.length === 0 && <tr><td colSpan={10} className="p-8 text-center text-slate-400">No bookings found.</td></tr>}
                       </tbody>
-                    </table>
+                      </table>
+                    </div>
                     <PaginationControls page={page} pageSize={pageSize} total={filtered.length} onPageChange={(p) => setPage(p)} onPageSizeChange={(ps) => { setPageSize(ps); setPage(1) }} />
                   </CardContent>
                 </Card>
@@ -229,7 +231,7 @@ export default function HotelBookingsPage() {
                     <SelectContent>{guests.map((g) => <SelectItem key={g.hotelGuestId} value={String(g.hotelGuestId)}>{g.firstName} {g.lastName}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><Label>Room Type</Label>
                     <Select value={String(form.hotelRoomTypeId)} onValueChange={(v) => { const rt = roomTypes.find((r) => r.hotelRoomTypeId === Number(v)); setForm({ ...form, hotelRoomTypeId: Number(v), nightlyRate: rt?.baseRate ?? form.nightlyRate, totalAmount: calcTotal(form.checkInDate, form.checkOutDate, rt?.baseRate ?? form.nightlyRate) }) }}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
@@ -243,11 +245,11 @@ export default function HotelBookingsPage() {
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><Label>Check-in</Label><Input type="date" value={form.checkInDate} onChange={(e) => setForm({ ...form, checkInDate: e.target.value, totalAmount: calcTotal(e.target.value, form.checkOutDate, form.nightlyRate) })} /></div>
                   <div><Label>Check-out</Label><Input type="date" value={form.checkOutDate} onChange={(e) => setForm({ ...form, checkOutDate: e.target.value, totalAmount: calcTotal(form.checkInDate, e.target.value, form.nightlyRate) })} /></div>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div><Label>Nightly Rate</Label><Input type="number" step="0.01" value={form.nightlyRate} onChange={(e) => { const r = Number(e.target.value); setForm({ ...form, nightlyRate: r, totalAmount: calcTotal(form.checkInDate, form.checkOutDate, r) }) }} /></div>
                   <div><Label>Total</Label><Input type="number" step="0.01" value={form.totalAmount} readOnly className="bg-slate-50" /></div>
                   <div><Label>Source</Label>
@@ -257,7 +259,7 @@ export default function HotelBookingsPage() {
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div><Label>Adults</Label><Input type="number" min={1} value={form.adults ?? 1} onChange={(e) => setForm({ ...form, adults: Number(e.target.value), numberOfGuests: Number(e.target.value) + (form.children ?? 0) })} /></div>
                   <div><Label>Children</Label><Input type="number" min={0} value={form.children ?? 0} onChange={(e) => setForm({ ...form, children: Number(e.target.value), numberOfGuests: (form.adults ?? 1) + Number(e.target.value) })} /></div>
                   <div><Label>Total Guests</Label><Input type="number" value={form.numberOfGuests ?? 1} readOnly className="bg-slate-50" /></div>
@@ -300,7 +302,7 @@ export default function HotelBookingsPage() {
                       {/* Guest Details */}
                       <div>
                         <h4 className="font-semibold text-slate-700 mb-1">Guest Details</h4>
-                        <div className="grid grid-cols-2 gap-1 text-xs">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs">
                           <div><span className="text-slate-500">Name:</span> <strong>{guest?.firstName ?? b.guestFirstName} {guest?.lastName ?? b.guestLastName}</strong></div>
                           <div><span className="text-slate-500">Phone:</span> <strong>{guest?.phone ?? b.guestPhone ?? "—"}</strong></div>
                           <div><span className="text-slate-500">Email:</span> <strong>{guest?.email ?? b.guestEmail ?? "—"}</strong></div>
@@ -311,7 +313,7 @@ export default function HotelBookingsPage() {
                       {/* Reservation Details */}
                       <div>
                         <h4 className="font-semibold text-slate-700 mb-1">Reservation Details</h4>
-                        <div className="grid grid-cols-2 gap-1 text-xs">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs">
                           <div><span className="text-slate-500">Room Type:</span> <strong>{rt?.name ?? b.roomTypeName}</strong></div>
                           <div><span className="text-slate-500">Room:</span> <strong>{b.roomNumber ?? "To be assigned"}</strong></div>
                           <div><span className="text-slate-500">Check-in:</span> <strong>{b.checkInDate?.slice(0, 10)}</strong></div>
