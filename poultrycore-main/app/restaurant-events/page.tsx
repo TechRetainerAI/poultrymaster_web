@@ -359,7 +359,7 @@ export default function RestaurantEventsPage() {
                 <Label>Contact Phone</Label>
                 <Input className="h-10" value={form.contactPhone ?? ""} onChange={(e) => setForm({ ...form, contactPhone: e.target.value })} />
               </div>
-              <div className="col-span-2 space-y-1.5">
+              <div className="col-span-1 sm:col-span-2 space-y-1.5">
                 <Label>Contact Email</Label>
                 <Input type="email" className="h-10" placeholder="email@example.com" value={form.contactEmail ?? ""} onChange={(e) => setForm({ ...form, contactEmail: e.target.value })} />
               </div>
@@ -371,7 +371,7 @@ export default function RestaurantEventsPage() {
                 <Label>Deposit Amount ($)</Label>
                 <Input type="number" step="0.01" min={0} className="h-10" value={form.depositAmount ?? ""} onChange={(e) => { const v = parseFloat(e.target.value); setForm({ ...form, depositAmount: Number.isNaN(v) ? undefined : v }) }} />
               </div>
-              <div className="col-span-2 space-y-1.5">
+              <div className="col-span-1 sm:col-span-2 space-y-1.5">
                 <Label>Venue</Label>
                 <Select value={form.venue ?? "InHouse"} onValueChange={(v) => setForm({ ...form, venue: v })}>
                   <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>

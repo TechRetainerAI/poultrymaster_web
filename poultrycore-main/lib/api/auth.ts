@@ -34,6 +34,79 @@ export function getAuthenticationApiUrl(pathSegment: string): string {
  * in the login error toast. We now route this to console.error only — the
  * UI shows a short friendly message via friendlyLoginError() below.
  */
+/**
+ * Did this response come from Next's own 404 page rather than from the proxy?
+ *
+ * The proxy route handler at app/api/proxy/[...path]/route.ts always answers
+ * with the backend's response (JSON, or a JSON error it builds itself). An HTML
+ * 404 from our own origin therefore means Next did not match the request to the
+ * route handler at all and fell through to the page tree - so the request never
+ * reached the proxy, and nothing about the backend or its env is implicated.
+ *
+ * In local dev the cause is almost always a damaged Turbopack route table:
+ * .next/dev/types/routes.d.ts gets written over itself without being truncated,
+ * ending up with two generations interleaved (duplicate
+ * `export type { AppRoutes ... }` footers) and NO /api/* entries, so every
+ * /api/proxy/* call 404s while ordinary pages keep working. Hit 2026-09-15 and
+ * again 2026-09-16; see DEV_SETUP_AND_KNOWN_ISSUES.md Issue 5.
+ */
+function looksLikeNextRouteMiss(status: number, contentType: string, body: string): boolean {
+  if (status !== 404) return false
+  const isHtml =
+    contentType.includes("text/html") ||
+    body.startsWith("<!DOCTYPE") ||
+    body.startsWith("<html")
+  if (!isHtml) return false
+  // Next's not-found output carries one of these. Checking for them keeps a
+  // genuine HTML 404 from some upstream gateway out of this branch.
+  return (
+    body.includes("__next") ||
+    body.includes("_not-found") ||
+    body.includes("next-error") ||
+    body.includes("This page could not be found")
+  )
+}
+
+/**
+ * The route-table checklist, deliberately separate from the upstream one below.
+ *
+ * Pointing someone at Cloud Run logs and NEXT_PUBLIC_ADMIN_API_URL when Next
+ * 404s before the proxy even runs sends them the wrong way for an hour. That
+ * happened twice, so for this case the wrong advice is no longer printed.
+ */
+function routeMissDiagnostics(): string {
+  const local =
+    typeof window !== "undefined" &&
+    /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname)
+
+  const header =
+    "Next.js never routed this to /api/proxy - it answered with its own 404 page.\n" +
+    "So the proxy route handler is not in the route table, and the Login API and\n" +
+    "its env vars are NOT implicated. Do not go looking at Cloud Run for this.\n\n"
+
+  if (!local) {
+    return (
+      header +
+      "Checks (deployed):\n" +
+      "- Was the frontend built and deployed with app/api/proxy/[...path]/route.ts present?\n" +
+      "- Does the host rewrite or strip /api/* before it reaches Next?\n" +
+      "- Confirm the running image is the one you just built (a stale image loses the route)."
+    )
+  }
+
+  return (
+    header +
+    "This is local dev, so it is almost certainly the damaged Turbopack route table.\n\n" +
+    "Confirm it (exits 0 when healthy, 1 when damaged, changes nothing):\n" +
+    "  npm run dev:check\n\n" +
+    "Fix it:\n" +
+    "  npm run dev:reset\n\n" +
+    "That stops every stray next-dev process (Ctrl+C on Windows often leaves one\n" +
+    "orphaned still holding port 3000), deletes .next/dev, and starts a clean dev\n" +
+    "server. See DEV_SETUP_AND_KNOWN_ISSUES.md Issue 5."
+  )
+}
+
 function loginUpstreamDiagnostics(): string {
   const upstream = API_BASE_URL
   if (typeof window === "undefined") {
@@ -62,6 +135,9 @@ type LoginErrorReason =
   | "empty-body"
   | "invalid-json"
   | "non-json"
+  // Next answered with its own 404 page, so /api/proxy is not registered.
+  // Local-dev specific in practice - see looksLikeNextRouteMiss above.
+  | "route-miss"
   | "server-500"
   | "upstream-5xx"
 function friendlyLoginError(reason: LoginErrorReason): string {
@@ -70,6 +146,11 @@ function friendlyLoginError(reason: LoginErrorReason): string {
       return "The server is taking too long to respond. Please try again in a moment."
     case "network":
       return "Couldn't reach the login service. Please check your internet connection and try again."
+    case "route-miss":
+      // A developer-facing message on purpose: this failure only happens on a
+      // dev machine (or a mis-built deploy), never to a real end user, and the
+      // generic "try again in a minute" wording made people retry for an hour.
+      return "The app's own /api/proxy route isn't responding, so the login request never left the browser. See the console - if you're running locally, `npm run dev:reset` fixes it."
     case "empty-body":
     case "invalid-json":
     case "non-json":
@@ -462,6 +543,16 @@ export async function login(data: LoginData): Promise<ApiResponse> {
         logLoginDiagnostic(`Invalid JSON, HTTP ${response.status}`, { parseError, bodyPreview: trimmed.slice(0, 500) })
         return { success: false, message: friendlyLoginError("invalid-json") }
       }
+    } else if (looksLikeNextRouteMiss(response.status, contentType, trimmed)) {
+      // Print the route-table checklist instead of the upstream one. The user
+      // still gets a short toast; the console now names the real cause.
+      // eslint-disable-next-line no-console
+      console.error(
+        "[Login diagnostic] Next.js 404 - /api/proxy was never reached (route handler not registered)\n" +
+          routeMissDiagnostics(),
+        { contentType, bodyPreview: trimmed.slice(0, 200) },
+      )
+      return { success: false, message: friendlyLoginError("route-miss") }
     } else {
       logLoginDiagnostic(`Non-JSON response, HTTP ${response.status}`, { contentType, bodyPreview: trimmed.slice(0, 500) })
       return { success: false, message: friendlyLoginError("non-json") }

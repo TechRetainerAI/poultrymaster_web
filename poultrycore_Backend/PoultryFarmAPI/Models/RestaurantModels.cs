@@ -1069,4 +1069,80 @@ namespace PoultryFarmAPIWeb.Models
         [StringLength(500)] public string? Notes { get; set; }
         public List<OrderItemModifierRequest>? Modifiers { get; set; }
     }
+
+    // =========================================================================
+    // Guest feedback (QR self-ordering) — Migration 292
+    // =========================================================================
+
+    /// <summary>
+    /// What the guest ordering page is allowed to show for one tracking token:
+    /// whether the order exists, whether it is far enough along to be rated, and
+    /// whether this guest has already rated it.
+    /// </summary>
+    public class GuestFeedbackStatusModel
+    {
+        public bool Found { get; set; }
+        public string? OrderNumber { get; set; }
+        public string? OrderStatus { get; set; }
+        public bool CanRate { get; set; }
+        public bool AlreadyRated { get; set; }
+        public int? Rating { get; set; }
+        public string? Comment { get; set; }
+    }
+
+    /// <summary>
+    /// A guest rating arriving from the QR page. Deliberately carries no farmId,
+    /// orderId or customer details: those are read from the order behind the
+    /// tracking token, server-side. See Migrations/292.
+    /// </summary>
+    public class GuestFeedbackRequest
+    {
+        [Range(1, 5, ErrorMessage = "Rating must be between 1 and 5.")]
+        public int Rating { get; set; }
+
+        [Range(1, 5, ErrorMessage = "Food rating must be between 1 and 5.")]
+        public int? FoodRating { get; set; }
+
+        [Range(1, 5, ErrorMessage = "Service rating must be between 1 and 5.")]
+        public int? ServiceRating { get; set; }
+
+        [Range(1, 5, ErrorMessage = "Ambience rating must be between 1 and 5.")]
+        public int? AmbienceRating { get; set; }
+
+        [StringLength(1000, ErrorMessage = "Comment cannot exceed 1000 characters.")]
+        public string? Comment { get; set; }
+    }
+
+    // =========================================================================
+    // Custom option lists — Migration 291
+    // =========================================================================
+
+    /// <summary>
+    /// One value an operator typed into an "Other" box on a Restaurant dropdown,
+    /// remembered so it can be picked normally next time. `ListKey` says which
+    /// dropdown: IngredientCategory, WasteReason, ReservationOccasion, CuisineType.
+    /// The built-in options are NOT stored here — they stay as the hardcoded
+    /// arrays in the page files, so this table holds additions only.
+    /// </summary>
+    public class RestaurantCustomOptionModel
+    {
+        [Key]
+        public int CustomOptionId { get; set; }
+
+        [Required][StringLength(100)]
+        public string FarmId { get; set; } = string.Empty;
+
+        [Required][StringLength(60)]
+        public string ListKey { get; set; } = string.Empty;
+
+        [Required][StringLength(120)]
+        public string Value { get; set; } = string.Empty;
+
+        public int SortOrder { get; set; } = 500;
+        public bool IsActive { get; set; } = true;
+        public DateTime? CreatedAt { get; set; }
+
+        [StringLength(200)]
+        public string? CreatedBy { get; set; }
+    }
 }

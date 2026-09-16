@@ -45,5 +45,15 @@ namespace PoultryFarmAPIWeb.Business
         Task<(bool ok, string message)> AcceptOnlineOrderAsync(int orderId, string farmId, string confirmedBy);
         /// <summary>Reject a guest order; cancels the order and all its items.</summary>
         Task<(bool ok, string message)> RejectOnlineOrderAsync(int orderId, string farmId, string? reason, string by);
+
+        // --- Guest feedback (migration 292) ----------------------------------
+        /// <summary>Whether the order behind this token can be rated, and whether it already was.</summary>
+        Task<GuestFeedbackStatusModel> GetGuestFeedbackStatusAsync(string trackingToken);
+        /// <summary>
+        /// Record a guest rating against the order behind this token. Idempotent:
+        /// a second submission returns the existing feedback id with alreadyRated.
+        /// </summary>
+        Task<(int feedbackId, bool alreadyRated)> InsertGuestFeedbackAsync(
+            string trackingToken, int rating, int? food, int? service, int? ambience, string? comment);
     }
 }
