@@ -12,7 +12,7 @@ import { toastFormGuide } from "@/lib/utils/validation-toast"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
-import { Banknote, Calendar, ChevronDown, ChevronUp, DollarSign, Download, FileText as FileTextIcon, Filter, History, ImageIcon, Layers, Loader2, Pencil, Plus, Search, Trash2, Truck } from "lucide-react"
+import { Banknote, Calendar, ChevronDown, ChevronUp, DollarSign, Download, FileText as FileTextIcon, Filter, History, ImageIcon, Loader2, Pencil, Plus, Search, Trash2, Truck } from "lucide-react"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { getExpenses, getExpense, createExpense, updateExpense, deleteExpense, type Expense, type ExpenseInput } from "@/lib/api/expense"
 import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
@@ -1490,6 +1490,33 @@ function ExpensesPageInner() {
                                 )}
                               </div>
                               {expense.notes && <div className="text-sm text-slate-500">{expense.notes}</div>}
+                              {/* 288. A consumption expense is stock cost catching
+                                  up with the P&L, NOT a new bill -- it moved no
+                                  cash and created no payable. Saying so HERE, in
+                                  the row, is what stops it being read as a second
+                                  payment for feed that was already bought.
+                                  sourceId is the production record (266).
+
+                                  This was briefly reduced to an icon in the
+                                  actions column. The icon lost the caption
+                                  entirely and put the explanation behind a hover,
+                                  which is exactly backwards for the one row on
+                                  this page that most needs explaining. */}
+                              {isConsumptionExpense(expense) ? (
+                                <>
+                                  <div className="text-[10px] text-slate-500 mt-0.5"
+                                       title={NO_SECOND_PAYMENT_TOOLTIP}>
+                                    Inventory cost recognition
+                                  </div>
+                                  {(expense as any).sourceId ? (
+                                    <button type="button"
+                                            className="block text-[10px] text-sky-700 underline decoration-dotted underline-offset-2"
+                                            onClick={() => setBreakdownFor(Number((expense as any).sourceId))}>
+                                      View cost breakdown
+                                    </button>
+                                  ) : null}
+                                </>
+                              ) : null}
                             </div>
                           </TableCell>
                           {/* Badge is nowrap/shrink-0 by default, so a long category
@@ -1544,15 +1571,6 @@ function ExpensesPageInner() {
                                   <Truck className="w-4 h-4" />
                                 </Button>
                               )}
-                              {/* 288. Stock cost reaching the P&L. sourceId is
-                                  the production record (migration 266). */}
-                              {isConsumptionExpense(expense) && (expense as any).sourceId ? (
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-sky-700 hover:bg-sky-50"
-                                  title={`Which purchases this cost came from. ${NO_SECOND_PAYMENT_TOOLTIP}`}
-                                  onClick={() => setBreakdownFor(Number((expense as any).sourceId))}>
-                                  <Layers className="w-4 h-4" />
-                                </Button>
-                              ) : null}
                               <Button variant="ghost" size="sm"
                                 onClick={() => openConfirmDelete((expense as any).expenseId ?? (expense as any).ExpenseId ?? (expense as any).id ?? (expense as any).Id, expense.farmId, stripReceiptSuffixFromDescription(expense.description || ""))}
                                 className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50">

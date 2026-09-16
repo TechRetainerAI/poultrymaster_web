@@ -64,7 +64,10 @@ import { buildCashFlowAnalysis } from "@/lib/cash/cash-flow-analysis"
 import {
   createCashAdjustment, updateCashAdjustment, deleteCashAdjustment,
 } from "@/lib/api/cash"
-import { adjustWaterCashAccount, listWaterCashAccounts } from "@/lib/api/water"
+import {
+  adjustWaterCashAccount, listWaterCashAccounts, createWaterLoan,
+  recordWaterOwnerMoney,
+} from "@/lib/api/water"
 import {
   CashAdjustmentDialog, ADJUSTMENT_TYPES, adjustmentTypeFromLabel,
   type CashAdjustmentSeed,
@@ -110,7 +113,12 @@ export default function WaterCashFlowPage() {
   const [allTime, setAllTime] = useState<CashFlowSummary>(EMPTY_SUMMARY)
   const [customers, setCustomers] = useState<BalanceSummary | null>(null)
   const [suppliers, setSuppliers] = useState<BalanceSummary | null>(null)
-  const [accounts, setAccounts] = useState<{ accountId: number; accountName: string; isActive: boolean }[]>([])
+  // Balance and overdraft come along for the repayment dialog's overdraw guard;
+  // CashAdjustmentDialog reads the three fields it needs and ignores the rest.
+  const [accounts, setAccounts] = useState<{
+    accountId: number; accountName: string; isActive: boolean
+    currentBalance: number; allowNegativeBalance: boolean
+  }[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
@@ -186,6 +194,8 @@ export default function WaterCashFlowPage() {
             accountId: a.waterCashAccountId,
             accountName: a.accountName,
             isActive: a.isActive,
+            currentBalance: a.currentBalance ?? 0,
+            allowNegativeBalance: a.allowNegativeBalance ?? false,
           }))
         : [],
     )
@@ -659,7 +669,7 @@ export default function WaterCashFlowPage() {
         accounts={accounts}
         fmtMoney={gh}
         editing={editAdjustment}
-        onSubmit={async ({ accountId, adjustmentType, adjustmentDate, amount, description }) => {
+        onSubmit={async ({ accountId, adjustmentType, adjustmentDate, amount, description, lenderName, ownerName }) => {
           const { userId, farmId } = getUserContext()
 
           if (editAdjustment) {
@@ -668,6 +678,65 @@ export default function WaterCashFlowPage() {
               description: description || null,
             })
             if (!saved.success) throw new Error(saved.message ?? "Could not update the adjustment.")
+            return
+          }
+
+          // Borrowing is a loan, not an adjustment. Writing a bare
+          // cashadjustment row here left a cash event with no lender and
+          // nothing to repay against, so "Loan received" creates the real loan
+          // instead — the user already said it was one by picking the type.
+          //
+          // Nothing runs after this on purpose: the loan create writes its own
+          // cash row AND moves the chosen account's balance. Also calling
+          // createCashAdjustment or adjustWaterCashAccount would count the
+          // money twice.
+          //
+          // A NEGATIVE amount is not a borrowing — it is a correction to one
+          // that was over-stated, and the DB refuses a negative principal — so
+          // it falls through to the adjustment path below, unchanged.
+          if (adjustmentType === "LoanReceived" && amount > 0) {
+            await createWaterLoan({
+              lenderName: (lenderName ?? "").trim(),
+              originalPrincipal: amount,
+              amountReceived: amount,
+              startDate: adjustmentDate,
+              loanDate: adjustmentDate,
+              waterCashAccountId: accountId,
+              notes: description || null,
+            })
+            return
+          }
+
+          // Owner money is a record, not an adjustment — same correction as the
+          // loan above, and it matters more here. A bare cashadjustment row
+          // never reached the Water Owner Money page at all, so an injection
+          // typed on this page simply vanished from the capital record.
+          // Picking "Owner injection" or "Withdrawal" already says whose money
+          // this is, so it is recorded as owner money from the start.
+          //
+          // Nothing runs after this, for the loan's reason: the owner-money SP
+          // writes its own cash row AND moves the chosen account's balance.
+          // Also calling createCashAdjustment or adjustWaterCashAccount would
+          // count the money twice.
+          //
+          // Math.abs because the two records disagree about sign. The dialog's
+          // amount is SIGNED and Withdrawal is in its ALWAYS_OUT set, so a
+          // withdrawal arrives negative; an owner-money record stores a
+          // POSITIVE amount and carries the direction in transactionType, and
+          // its CHECK rejects anything else.
+          //
+          // Without an account there is no record to write — the dialog blocks
+          // save before this — so the guard is a belt-and-braces one.
+          if ((adjustmentType === "OwnerInjection" || adjustmentType === "Withdrawal")
+              && accountId != null && amount !== 0) {
+            await recordWaterOwnerMoney({
+              transactionType: adjustmentType === "OwnerInjection" ? "Contribution" : "Draw",
+              amount: Math.abs(amount),
+              waterCashAccountId: accountId,
+              transactionDate: adjustmentDate,
+              notes: description || null,
+              ownerName,
+            })
             return
           }
 

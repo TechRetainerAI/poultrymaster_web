@@ -225,12 +225,24 @@ export function CompaniesPanel({ showHeading = true }: { showHeading?: boolean }
         <DialogContent>
           <DialogHeader><DialogTitle>Create new company</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <div><Label>Business type *</Label>
+            {/* The trigger carries the LABEL only. Label + description is ~78
+                characters, and SelectTrigger is whitespace-nowrap: inside this
+                grid dialog that string became the column's min-content width and
+                dragged the title, every input and the close button out past the
+                right edge of a phone. The description belongs in the list, where
+                there is room to wrap it. min-w-0 keeps the field shrinkable if a
+                future label ever gets long. */}
+            <div className="min-w-0"><Label>Business type *</Label>
               <Select value={form.businessTypeId} onValueChange={(v) => setForm({ ...form, businessTypeId: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
+                <SelectTrigger className="w-full"><SelectValue>{chosen?.label}</SelectValue></SelectTrigger>
+                <SelectContent className="max-w-[calc(100vw-2rem)]">
                   {BUSINESS_TYPES.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>{t.label} — {t.description}</SelectItem>
+                    <SelectItem key={t.id} value={t.id} className="items-start">
+                      <span className="flex min-w-0 flex-col gap-0.5">
+                        <span className="font-medium">{t.label}</span>
+                        <span className="text-xs text-muted-foreground">{t.description}</span>
+                      </span>
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
