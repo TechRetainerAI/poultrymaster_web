@@ -352,19 +352,54 @@ export function PoultryProfitLossView() {
             <>
               {/* ---- the four numbers ------------------------------------ */}
               <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-                {/* Sentence case, matching the water reports (Income, Gross
-                    profit, Net profit). Both sides' tiles uppercase the label in
-                    CSS, so this is not a visible change -- it is the text that
-                    gets copied, exported and read aloud that now agrees across
-                    the two modules. */}
-                <Kpi label="Total revenue" value={gh(data.totalRevenue)} tone="slate" />
-                <Kpi label="Gross profit" value={gh(data.grossProfit)}
-                     hint={data.grossMarginPercent != null ? `${data.grossMarginPercent}% margin` : "No revenue this period"}
+                {/* Each tile is NAMED for what it is, and says what was taken
+                    off to get there -- "Gross profit" told an owner nothing
+                    about why it sat 189,000 below Revenue. The four read down
+                    as one sentence: what we sold, then what is left after each
+                    kind of cost.
+
+                    "MINUS", never "less". A statement says "Sales less feed"
+                    and an accountant reads it as a subtraction, but the first
+                    owner to read these tiles asked what it meant -- it parses
+                    as "fewer sales of feed". These tiles exist to avoid exactly
+                    that kind of word. "Then minus" on the last two, so the
+                    chain from one tile to the next is explicit.
+
+                    The hint carries the AMOUNT subtracted, not just the names
+                    of the costs. Without it the reader can see that 176,863
+                    became 184,523 but not what the 7,660 was or where to find
+                    it, and the next question is always "how did we get this?".
+                    The figure is the same total the matching section card
+                    below prints, so the tiles are checkable on their own and
+                    the card is where you go to see what is in it.
+
+                    The accounting term stays on the tile as the `term` line
+                    rather than being dropped. It is what an accountant, a bank
+                    or the exported PDF will ask for, and it is what the water
+                    reports still call the same figures. */}
+                <Kpi label="What we sold" term="Total revenue"
+                     value={gh(data.totalRevenue)} tone="slate"
+                     hint="Eggs, birds, manure and feed sold in this period" />
+                <Kpi label="Left after feed &amp; bird costs"
+                     term={data.grossMarginPercent != null
+                       ? `Gross profit · ${data.grossMarginPercent}% of sales`
+                       : "Gross profit · no sales this period"}
+                     value={gh(data.grossProfit)}
+                     hint={<Working
+                       from={gh(data.totalRevenue)} fromLabel="we sold"
+                       minus={gh(data.totalDirectCosts)} minusLabel="feed, medication, birds, direct labour" />}
                      tone={data.grossProfit >= 0 ? "emerald" : "red"} />
-                <Kpi label="Operating profit" value={gh(data.operatingProfit)}
-                     hint="After running costs, before depreciation and financing"
+                <Kpi label="Left after running costs" term="Operating profit"
+                     value={gh(data.operatingProfit)}
+                     hint={<Working
+                       from={gh(data.grossProfit)} fromLabel="left after feed & bird costs"
+                       minus={gh(data.totalOperatingExpenses)} minusLabel="running costs — payroll, utilities, transport, repairs, admin" />}
                      tone={data.operatingProfit >= 0 ? "emerald" : "red"} />
-                <Kpi label="Net profit" value={gh(data.netProfit)} hint={data.status}
+                <Kpi label="What is left in the end" term={`Net profit · ${data.status}`}
+                     value={gh(data.netProfit)}
+                     hint={<Working
+                       from={gh(data.operatingProfit)} fromLabel="left after running costs"
+                       minus={gh(data.totalOtherCosts)} minusLabel="wear on assets, loan interest, fees" />}
                      tone={data.netProfit > 0 ? "emerald" : data.netProfit < 0 ? "red" : "slate"} strong />
               </div>
 
@@ -667,8 +702,50 @@ export function PoultryProfitLossView() {
 
 // ----------------------------------------------------------------- pieces ---
 
-function Kpi({ label, value, hint, tone, strong }: {
-  label: string; value: string; hint?: string
+/**
+ * The two lines of a tile's arithmetic: where the figure started, and what came
+ * off it. The value printed above the tile is the answer, so the result is not
+ * repeated here -- it is the number the reader is already looking at.
+ *
+ * `from` names the PREVIOUS tile in the owner's words, not the accounting term,
+ * so the four tiles chain visibly: "we sold" -> "left after feed & bird costs"
+ * -> "left after running costs".
+ */
+function Working({ from, fromLabel, minus, minusLabel }: {
+  from: string; fromLabel: string; minus: string; minusLabel: string
+}) {
+  return (
+    <>
+      <div>
+        <span className="text-slate-400">from</span>{" "}
+        <span className="font-medium tabular-nums text-slate-600">{from}</span> {fromLabel}
+      </div>
+      <div>
+        <span className="text-slate-400">minus</span>{" "}
+        <span className="font-medium tabular-nums text-slate-600">{minus}</span> {minusLabel}
+      </div>
+    </>
+  )
+}
+
+function Kpi({ label, value, hint, term, tone, strong }: {
+  label: string; value: string
+  /**
+   * ReactNode, not string: the three derived tiles print TWO lines here --
+   * what the figure started from, and what was taken off it -- because one
+   * line naming only the subtraction ("minus 7,660") sits under a value of
+   * -184,523 and reconciles with nothing. The reader was being asked to
+   * remember the previous tile.
+   */
+  hint?: React.ReactNode
+  /**
+   * The accounting name for this figure, kept under the plain-English one.
+   * Both are needed and neither replaces the other: the owner reads the label,
+   * everyone the farm hands the report to reads this. It also carries the
+   * ratio or status that used to be the hint, since a margin and a "Loss" are
+   * accountant's shorthand rather than the plain explanation the hint now gives.
+   */
+  term?: string
   tone: "slate" | "emerald" | "red"; strong?: boolean
 }) {
   const ring = tone === "emerald" ? "border-emerald-200" : tone === "red" ? "border-red-200" : "border-slate-200"
@@ -678,7 +755,8 @@ function Kpi({ label, value, hint, tone, strong }: {
       <CardContent className="p-3">
         <div className="text-[11px] uppercase tracking-wide text-slate-500">{label}</div>
         <div className={cn("text-lg font-semibold tabular-nums", text)}>{value}</div>
-        {hint && <div className="text-[11px] text-slate-500">{hint}</div>}
+        {hint && <div className="text-[11px] leading-snug text-slate-500 space-y-0.5">{hint}</div>}
+        {term && <div className="text-[10px] leading-snug text-slate-400 mt-0.5">{term}</div>}
       </CardContent>
     </Card>
   )

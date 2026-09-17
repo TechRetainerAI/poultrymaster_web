@@ -20,6 +20,7 @@ export function FlowBreakdownCard({
   direction,
   fmtMoney,
   emptyText,
+  className,
 }: {
   title: string
   description?: string
@@ -28,6 +29,11 @@ export function FlowBreakdownCard({
   direction: "in" | "out"
   fmtMoney: (n: number) => string
   emptyText: string
+  /** For the caller's grid, not for restyling the card. The Feed tracker lays
+   *  five of these out as one uniform block and passes `h-full` so each fills
+   *  its stretched cell; a card with fewer buckets than its neighbour would
+   *  otherwise sit short inside a full-height cell. */
+  className?: string
 }) {
   const positive = direction === "in"
   // One bucket is 100% of itself. The bar fills end to end and the percentage
@@ -36,7 +42,7 @@ export function FlowBreakdownCard({
   const single = buckets.length === 1
 
   return (
-    <Card className="min-w-0">
+    <Card className={cn("min-w-0", className)}>
       <CardHeader className="pb-2">
         <div className="flex items-baseline justify-between gap-2">
           <CardTitle className="text-base">{title}</CardTitle>

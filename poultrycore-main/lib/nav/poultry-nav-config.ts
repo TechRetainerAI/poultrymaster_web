@@ -217,17 +217,19 @@ export function buildPoultryNavConfig(
       {
         key: "trackers",
         label: "Trackers",
+        // Row ORDER is the order the user asked for, not a derived one: what
+        // the farm looks at daily comes first (eggs, feed, then feed stock),
+        // then the birds and their medication, then the weekly Report.
+        // Ingredients only tracker trails the group -- it is the mill's own view,
+        // consulted far less often than the three above it.
         items: [
           { id: "egg-tracker",        title: "Egg tracker",        icon: BarChart3, href: "/egg-tracker" },
-          // Three lenses on the same feed movements, narrowing left to right:
-          // the finished feed a farm holds, the ingredients it mills from, and
-          // then one item at a time with its own opening and closing.
           { id: "feed-tracker",       title: "Feed tracker",       icon: Wheat,     href: "/feed-tracker" },
-          { id: "feed-ingredient-tracker", title: "Ingredients tracker", icon: Wheat, href: "/feed-ingredient-tracker" },
           { id: "feed-inventory-tracker", title: "Feed inventory tracker", icon: History, href: "/feed-inventory-tracker" },
-          { id: "medication-tracker", title: "Medication tracker", icon: Pill,      href: "/medication-tracker" },
           { id: "birds-left",         title: "Birds tracker",      icon: Bird,      href: "/birds-left-tracker" },
+          { id: "medication-tracker", title: "Medication tracker", icon: Pill,      href: "/medication-tracker" },
           { id: "weekly-report",      title: "Report",             icon: FileText,  href: "/weekly-report" },
+          { id: "feed-ingredient-tracker", title: "Ingredients only tracker", icon: Wheat, href: "/feed-ingredient-tracker" },
         ],
       },
     ],

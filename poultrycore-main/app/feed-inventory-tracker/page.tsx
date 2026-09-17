@@ -105,7 +105,11 @@ function FeedInventoryTrackerPageInner() {
   const [usages, setUsages] = useState<PoultryRawMaterialUsage[]>([])
   const [adjustments, setAdjustments] = useState<PoultryRawMaterialAdjustment[]>([])
 
-  const [kind, setKind] = useState<FeedItemKind>("Ingredient")
+  // Finished feed leads: it is the half the farm reads daily (what is left to
+  // feed the flocks), whereas ingredients are the mill's input. The ?itemId=
+  // deep link still wins over this -- the effect below sets kind from the
+  // matched item, whichever half it belongs to.
+  const [kind, setKind] = useState<FeedItemKind>("FinishedFeed")
   /** One item id, or ALL_ITEMS for this half rolled up. Null until data lands. */
   const [selection, setSelection] = useState<Selection | null>(null)
   /** Set once from ?itemId=, then never again — reselecting must stay sticky. */
@@ -363,7 +367,7 @@ function FeedInventoryTrackerPageInner() {
                     item, so they sit above them rather than in the filter grid. */}
                 <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white p-3">
                   <div className="inline-flex rounded-lg border border-slate-200 p-0.5">
-                    {(["Ingredient", "FinishedFeed"] as FeedItemKind[]).map((k) => (
+                    {(["FinishedFeed", "Ingredient"] as FeedItemKind[]).map((k) => (
                       <button
                         key={k}
                         type="button"

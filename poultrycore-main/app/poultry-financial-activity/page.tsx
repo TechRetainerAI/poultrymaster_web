@@ -329,28 +329,35 @@ function FinancialActivityPageInner() {
           {/* ---------------------------------------------------- summary */}
           {summary && (
             <>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* One row: the four cash tiles and the three profit tiles used
+                  to be two grids (4-up then 3-up) with the sentence below
+                  wedged between them, which made the seven read as two
+                  unrelated sets. They are one summary of one period.
+
+                  Seven across only from xl. Below that it steps 4-up and then
+                  2-up: at lg the content column is around 720px, and seven
+                  columns of ~93px cannot hold a money figure at this type size
+                  -- the 4-up fallback is what the cash group already used. */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3">
                 <Stat label="Money In"  value={gh(summary.moneyIn)}  tip={TIP.moneyIn}  tone="emerald" />
                 <Stat label="Money Out" value={gh(summary.moneyOut)} tip={TIP.moneyOut} tone="rose" />
                 <Stat label="Net Cash Flow" value={gh(summary.netCashFlow)} tone={summary.netCashFlow < 0 ? "rose" : "emerald"}
                       hint={`Opening ${gh(summary.openingCash)}`} />
                 <Stat label="Closing Cash" value={gh(summary.closingCash)} tip={TIP.runningCash} />
-              </div>
-
-              {/* The sentence that makes the two groups make sense together. */}
-              <p className="text-xs leading-relaxed text-slate-600">
-                <strong>Net Cash Flow and Net Profit are different</strong> because some cash movements are not
-                revenue or expenses, while some revenue or expenses may be recognised without cash moving at the
-                same time.
-              </p>
-
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                 <Stat label="Revenue"  value={gh(summary.revenue)} tip={TIP.revenue} tone="emerald" />
                 <Stat label="Expenses" value={gh(summary.expense)} tip={TIP.expense} tone="rose" />
                 <Stat label="Net Profit" value={gh(summary.netProfit)} tip={TIP.profit}
                       tone={summary.netProfit < 0 ? "rose" : "emerald"}
                       hint={`${summary.cashEvents} cash · ${summary.nonCashEvents} non-cash events`} />
               </div>
+
+              {/* The sentence that makes the two halves of that row make sense
+                  together. It sat between them when they were separate grids. */}
+              <p className="text-xs leading-relaxed text-slate-600">
+                <strong>Net Cash Flow and Net Profit are different</strong> because some cash movements are not
+                revenue or expenses, while some revenue or expenses may be recognised without cash moving at the
+                same time.
+              </p>
             </>
           )}
 
@@ -565,9 +572,19 @@ function Stat({ label, value, hint, tip, tone = "slate" }: {
 }) {
   const toneClass = tone === "emerald" ? "text-emerald-700" : tone === "rose" ? "text-rose-700" : "text-slate-900"
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" title={tip}>
+    <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 xl:p-3 2xl:p-4 shadow-sm" title={tip}>
       <div className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</div>
-      <div className={cn("mt-1 text-2xl font-bold tabular-nums", toneClass)}>{value}</div>
+      {/* whitespace-nowrap is NOT cosmetic. fmtMoney returns "<symbol> <amount>"
+          with a real space in it (lib/currency.ts), so a column narrower than
+          the figure breaks at that space and stacks the currency symbol on its
+          own line above the number. Wrapping a money figure is never the right
+          answer; shrinking the type is, which is what the steps below do.
+
+          The type ladder is sized to the 7-up row: at xl the content column is
+          ~129px per tile, at 2xl ~166px, so the figure gets text-base then
+          text-xl. Padding tightens at xl for the same reason and comes back at
+          2xl. Four-up and two-up keep the full text-2xl. */}
+      <div className={cn("mt-1 text-2xl xl:text-base 2xl:text-xl font-bold tabular-nums whitespace-nowrap", toneClass)}>{value}</div>
       {hint && <div className="mt-0.5 text-xs text-slate-400">{hint}</div>}
     </div>
   )

@@ -30,7 +30,7 @@ import { TRACKER_PAGE_SIZE_DEFAULT, TRACKER_PAGE_SIZE_OPTIONS } from "@/componen
 import { Badge } from "@/components/ui/badge"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { FlowBreakdownCard } from "@/components/cash/flow-breakdown-card"
-import { groupLedgerBy, groupLedgerByType, FEED_MOVE_LABELS } from "@/lib/utils/ledger-breakdown"
+import { groupLedgerBy, groupLedgerByNet, groupLedgerByType, FEED_MOVE_LABELS } from "@/lib/utils/ledger-breakdown"
 import { Input } from "@/components/ui/input"
 import { NumberInput } from "@/components/ui/number-input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -92,13 +92,13 @@ const COPY: Record<FeedItemKind, {
         <strong>Feed left</strong> (same idea as feed at hand) is the running difference:{" "}
         <strong>IN − OUT</strong>. <strong>IN</strong> = finished feed bought in or produced by a feed
         batch; <strong>OUT</strong> = feed fed to flocks. Feed ingredients are tracked separately on the{" "}
-        Ingredients tracker.
+        Ingredients only tracker.
       </>
     ),
     links: [
       { href: "/poultry-raw-materials", label: "Raw Materials (purchases)" },
       { href: "/feed-usage", label: "Feed usage (record OUT)" },
-      { href: "/feed-ingredient-tracker", label: "Ingredients tracker" },
+      { href: "/feed-ingredient-tracker", label: "Ingredients only tracker" },
     ],
     accentCard: "border-emerald-200 bg-emerald-50/40",
     accentIcon: "bg-emerald-100 text-emerald-800",
@@ -363,6 +363,22 @@ export function FeedStockTracker({ kind }: { kind: FeedItemKind }) {
   const feedOutByItem = useMemo(
     () => groupLedgerBy(feedLedgerAllRows, "out", (r) => r.itemName || "Not item-specific"),
     [feedLedgerAllRows]
+  )
+
+  // What is still HELD of each item — a net (in minus out), not one side of the
+  // flow, so it needs its own grouping rather than a third call to groupLedgerBy.
+  // This is the hero figure decomposed: the two cards above say how much moved,
+  // this one says how much of it is still there.
+  const feedLeftByItem = useMemo(
+    () => groupLedgerByNet(feedLedgerAllRows, (r) => r.itemName || "Not item-specific"),
+    [feedLedgerAllRows]
+  )
+  // Summed from the buckets, not taken from feedKgAtHand: the helper drops
+  // items that have gone negative, so the card must print the total of what it
+  // actually lists or its percentages would not add up to what it shows.
+  const feedLeftByItemTotal = useMemo(
+    () => feedLeftByItem.reduce((sum, b) => sum + b.amount, 0),
+    [feedLeftByItem]
   )
 
   // Column totals across the whole filtered set, not just the page on screen,
@@ -784,17 +800,77 @@ export function FeedStockTracker({ kind }: { kind: FeedItemKind }) {
                 </Card>
 
                 {/* Straight under the tiles, because it is the tiles it breaks
-                    apart: both cards total the whole ledger, which is what
+                    apart: every card totals the whole ledger, which is what
                     "Total IN" and "Total OUT" above them count. Side by side
-                    from lg up — in and out are meant to be read against each
-                    other, and this is a full-width page with the room. */}
+                    from lg up — these are meant to be read against each other,
+                    and this is a full-width page with the room.
+
+                    ONE UNIFORM BLOCK: every card is the same width and the
+                    same height, so the five read as one instrument rather than
+                    five differently sized ones.
+
+                      left by item | in by item | out by item
+                      in by source | out by use
+
+                    The first row is the item lens — what is there, what came
+                    in, what went out — so the three sit on one line where the
+                    eye can run across them. The second is the same totals by
+                    ROUTE rather than by item, and keeps in opposite out.
+
+                    HOW THE SIZING WORKS, all three parts needed:
+                      lg:grid-cols-3   equal column widths
+                      lg:auto-rows-fr  every row as tall as the tallest row,
+                                       not just as tall as its own content
+                      h-full per card  the Card fills its stretched cell; the
+                                       cell stretching is not enough on its own
+                    Dropping any one of them brings the ragged edges back. The
+                    cost is white space under the shorter cards, which is the
+                    trade a uniform block makes. */}
                 {(feedInBySource.length > 0 || feedOutByUse.length > 0) && (
                   <div className="space-y-3">
                     <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
                       Breakdown
                     </h2>
-                    <div className="grid items-start gap-3 lg:grid-cols-2">
+                    {/* Three across from lg up. Below that they stack, and
+                        auto-rows-fr is deliberately NOT applied there: one
+                        column of equal-height cards would pad every short card
+                        out to the tallest one and make the page scroll for
+                        nothing. */}
+                    <div className="grid gap-3 lg:grid-cols-3 lg:auto-rows-fr">
+                      {/* First of the three: it decomposes the hero figure,
+                          which is the question asked before either flow. */}
                       <FlowBreakdownCard
+                        className="h-full"
+                        title={`${copy.noun} left by item`}
+                        direction="in"
+                        buckets={feedLeftByItem}
+                        total={feedLeftByItemTotal}
+                        fmtMoney={(n) => n.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                        description={`What is still on hand, item by item — everything in minus everything out. Items with none left are not listed.`}
+                        emptyText={`No ${copy.noun.toLowerCase()} left on any item.`}
+                      />
+                      <FlowBreakdownCard
+                        className="h-full"
+                        title={`${copy.noun} in by item`}
+                        direction="in"
+                        buckets={feedInByItem}
+                        total={totalInKg}
+                        fmtMoney={(n) => n.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                        description={`${copy.noun} in, grouped by which item it was.`}
+                        emptyText={`No ${copy.noun.toLowerCase()} has come in yet.`}
+                      />
+                      <FlowBreakdownCard
+                        className="h-full"
+                        title={`${copy.noun} out by item`}
+                        direction="out"
+                        buckets={feedOutByItem}
+                        total={totalOutKg}
+                        fmtMoney={(n) => n.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                        description={`${copy.noun} out, grouped by which item it was — what is actually being used, and how fast.`}
+                        emptyText={`No ${copy.noun.toLowerCase()} has gone out yet.`}
+                      />
+                      <FlowBreakdownCard
+                        className="h-full"
                         title={`${copy.noun} in by source`}
                         direction="in"
                         buckets={feedInBySource}
@@ -804,30 +880,13 @@ export function FeedStockTracker({ kind }: { kind: FeedItemKind }) {
                         emptyText={`No ${copy.noun.toLowerCase()} has come in yet.`}
                       />
                       <FlowBreakdownCard
+                        className="h-full"
                         title={`${copy.noun} out by use`}
                         direction="out"
                         buckets={feedOutByUse}
                         total={totalOutKg}
                         fmtMoney={(n) => n.toLocaleString(undefined, { maximumFractionDigits: 1 })}
                         description={copy.outUse}
-                        emptyText={`No ${copy.noun.toLowerCase()} has gone out yet.`}
-                      />
-                      <FlowBreakdownCard
-                        title={`${copy.noun} in by item`}
-                        direction="in"
-                        buckets={feedInByItem}
-                        total={totalInKg}
-                        fmtMoney={(n) => n.toLocaleString(undefined, { maximumFractionDigits: 1 })}
-                        description={`The same ${copy.noun.toLowerCase()} in, by which item it was.`}
-                        emptyText={`No ${copy.noun.toLowerCase()} has come in yet.`}
-                      />
-                      <FlowBreakdownCard
-                        title={`${copy.noun} out by item`}
-                        direction="out"
-                        buckets={feedOutByItem}
-                        total={totalOutKg}
-                        fmtMoney={(n) => n.toLocaleString(undefined, { maximumFractionDigits: 1 })}
-                        description={`The same ${copy.noun.toLowerCase()} out, by which item it was — what is actually being used, and how fast.`}
                         emptyText={`No ${copy.noun.toLowerCase()} has gone out yet.`}
                       />
                     </div>
