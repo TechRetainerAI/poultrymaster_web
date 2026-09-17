@@ -2052,3 +2052,184 @@ export async function upsertReceiptTemplate(input: Partial<ReceiptTemplate>): Pr
   const farmId = activeFarmId()
   await jsend<void>("/Restaurant/expenses/receipt-template", "POST", { ...input, farmId })
 }
+
+// =============================================================================
+// REPORTS V2 — migration 298
+// =============================================================================
+// Appended as one block rather than filed beside the migration-223 report calls
+// above, so a diff shows exactly what the second reporting pass added.
+//
+// Every call here is (from, to) except stock-on-hand, which is a position rather
+// than a period. That uniformity is the point: one date-range control on the
+// report shell drives all eighteen with no special cases.
+//
+// `rq` exists because writing the same encodeURIComponent pair eighteen times is
+// eighteen chances to forget one.
+function rq(path: string, from: string, to: string): string {
+  return `/Restaurant/reports/${path}?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+}
+
+export interface SalesSummaryReport {
+  totalOrders: number; completedOrders: number; cancelledOrders: number
+  grossRevenue: number; discountTotal: number; taxTotal: number
+  serviceChargeTotal: number; netRevenue: number; avgTicket: number
+  coversTotal: number; revenuePerCover: number; tipsTotal: number
+  dineInCount: number; dineInRevenue: number
+  takeawayCount: number; takeawayRevenue: number
+  deliveryCount: number; deliveryRevenue: number
+  activeDays: number; avgDailyRevenue: number
+}
+export async function getSalesSummary(from: string, to: string): Promise<SalesSummaryReport> {
+  return jget<SalesSummaryReport>(rq("sales-summary", from, to))
+}
+
+export interface PaymentMethodRow {
+  methodName: string; txnCount: number; amountTotal: number
+  tipsTotal: number; sharePct: number; avgTxn: number
+}
+export async function getPaymentMethods(from: string, to: string): Promise<PaymentMethodRow[]> {
+  return jget<PaymentMethodRow[]>(rq("payment-methods", from, to))
+}
+
+export interface PnlSummary {
+  revenue: number; cogs: number; grossProfit: number; grossMarginPct: number
+  expensesTotal: number; netProfit: number; netMarginPct: number
+  foodCostPct: number; tipsTotal: number; orderCount: number
+}
+export async function getPnlSummary(from: string, to: string): Promise<PnlSummary> {
+  return jget<PnlSummary>(rq("pnl", from, to))
+}
+
+export interface PnlExpenseRow {
+  expenseCategory: string; entryCount: number; expenseTotal: number; sharePct: number
+}
+export async function getPnlExpenses(from: string, to: string): Promise<PnlExpenseRow[]> {
+  return jget<PnlExpenseRow[]>(rq("pnl-expenses", from, to))
+}
+
+export interface KitchenPerformanceRow {
+  stationName: string; itemsMade: number; avgQueueMins: number
+  avgPrepMins: number; avgTicketMins: number; maxTicketMins: number
+  overTargetCount: number; slowestItem: string
+}
+export async function getKitchenPerformance(from: string, to: string): Promise<KitchenPerformanceRow[]> {
+  return jget<KitchenPerformanceRow[]>(rq("kitchen-performance", from, to))
+}
+
+export interface TableTurnoverRow {
+  tableLabel: string; seatCapacity: number; orderCount: number; coversServed: number
+  revenueTotal: number; avgDwellMins: number; tradingDays: number
+  turnsPerDay: number; revenuePerCover: number
+}
+export async function getTableTurnover(from: string, to: string): Promise<TableTurnoverRow[]> {
+  return jget<TableTurnoverRow[]>(rq("table-turnover", from, to))
+}
+
+export interface TipsRow {
+  waiterName: string; orderCount: number; revenueTotal: number
+  tipsTotal: number; tipPct: number; avgTip: number; tippedOrders: number
+}
+export async function getTipsReport(from: string, to: string): Promise<TipsRow[]> {
+  return jget<TipsRow[]>(rq("tips", from, to))
+}
+
+export interface DeliveryPerformanceRow {
+  driverLabel: string; assignmentCount: number; deliveredCount: number; failedCount: number
+  avgActualMins: number; avgEstimatedMins: number; measuredCount: number
+  onTimePct: number; totalDistanceKm: number; feesTotal: number; avgRating: number
+}
+export async function getDeliveryPerformance(from: string, to: string): Promise<DeliveryPerformanceRow[]> {
+  return jget<DeliveryPerformanceRow[]>(rq("delivery-performance", from, to))
+}
+
+export interface DiscountRow {
+  discountLabel: string; discountKind: string; timesApplied: number; ordersAffected: number
+  discountTotal: number; avgDiscount: number; grossOnDiscounted: number; effectivePct: number
+}
+export async function getDiscountsReport(from: string, to: string): Promise<DiscountRow[]> {
+  return jget<DiscountRow[]>(rq("discounts", from, to))
+}
+
+export interface VoidRow {
+  voidKind: string; voidReason: string; voidCount: number
+  valueLost: number; coversLost: number; sharePct: number
+}
+export async function getVoidsReport(from: string, to: string): Promise<VoidRow[]> {
+  return jget<VoidRow[]>(rq("voids", from, to))
+}
+
+export interface StockOnHandRow {
+  ingredientName: string; ingredientCategory: string; stockUnit: string
+  onHand: number; parLevel: number; reorderPoint: number
+  unitCost: number; stockValue: number; supplierLabel: string
+  storageLabel: string; stockStatus: string
+}
+// No date range: a stock position is what sits in the store right now. The
+// report shell hides its date control for this one rather than offering a
+// filter that would change nothing.
+export async function getStockOnHand(): Promise<StockOnHandRow[]> {
+  return jget<StockOnHandRow[]>("/Restaurant/reports/stock-on-hand")
+}
+
+export interface WasteDetailRow {
+  wasteReason: string; itemLabel: string; wasteUnit: string
+  qtyTotal: number; costTotal: number; entryCount: number; sharePct: number
+}
+export async function getWasteDetail(from: string, to: string): Promise<WasteDetailRow[]> {
+  return jget<WasteDetailRow[]>(rq("waste-detail", from, to))
+}
+
+export interface ExpenseReportRow {
+  expenseCategory: string; supplierLabel: string; methodLabel: string
+  entryCount: number; expenseTotal: number; sharePct: number
+}
+export async function getExpenseReport(from: string, to: string): Promise<ExpenseReportRow[]> {
+  return jget<ExpenseReportRow[]>(rq("expenses", from, to))
+}
+
+export interface MenuEngineeringRow {
+  itemLabel: string; categoryLabel: string; qtySold: number; revenueTotal: number
+  unitCost: number; unitMargin: number; marginPct: number
+  popularityPct: number
+  /** Star, Plowhorse, Puzzle, Dog, No recipe, or Unclassified. */
+  menuClass: string
+}
+export async function getMenuEngineering(from: string, to: string): Promise<MenuEngineeringRow[]> {
+  return jget<MenuEngineeringRow[]>(rq("menu-engineering", from, to))
+}
+
+export interface CustomerRetentionReport {
+  identifiedCustomers: number; walkinOrders: number; newCustomers: number
+  returningCustomers: number; repeatRatePct: number; avgVisits: number
+  avgSpend: number; topSpend: number; lapsedCustomers: number; vipCustomers: number
+}
+export async function getCustomerRetention(from: string, to: string): Promise<CustomerRetentionReport> {
+  return jget<CustomerRetentionReport>(rq("customer-retention", from, to))
+}
+
+export interface ChannelRow {
+  platformLabel: string; orderCount: number; rejectedCount: number
+  grossTotal: number; commissionTotal: number; platformFeeTotal: number
+  netTotal: number; commissionPct: number; avgOrder: number
+}
+export async function getChannelReport(from: string, to: string): Promise<ChannelRow[]> {
+  return jget<ChannelRow[]>(rq("channel", from, to))
+}
+
+export interface EventsReportRow {
+  eventStatus: string; eventCount: number; guestTotal: number
+  contractedTotal: number; depositTotal: number; depositPaidTotal: number
+  balanceTotal: number; avgPerHead: number
+}
+export async function getEventsReport(from: string, to: string): Promise<EventsReportRow[]> {
+  return jget<EventsReportRow[]>(rq("events", from, to))
+}
+
+export interface FeedbackReportRow {
+  sourceLabel: string; responseCount: number; avgOverall: number
+  avgFood: number; avgService: number; avgAmbience: number
+  promoterCount: number; detractorCount: number; unansweredCount: number
+}
+export async function getFeedbackReport(from: string, to: string): Promise<FeedbackReportRow[]> {
+  return jget<FeedbackReportRow[]>(rq("feedback", from, to))
+}
