@@ -47,10 +47,15 @@ type DetailField = { label: string; value: ReactNode }
  * one or two numbers that matter sit above the fold in their own coloured
  * panel, so a collapsed card still answers "how much?" at a glance.
  */
-type HighlightAccent = "emerald" | "blue" | "violet" | "amber" | "rose" | "slate"
+export type HighlightAccent = "emerald" | "blue" | "violet" | "amber" | "rose" | "slate"
 type HighlightField = { label: string; value: ReactNode; accent?: HighlightAccent; /** Span both columns. */ wide?: boolean }
 
-const HIGHLIGHT_TONES: Record<HighlightAccent, { tile: string; label: string; value: string }> = {
+/**
+ * The house tile palette. Exported because dialogs re-use these exact tones --
+ * copying the hex-equivalents into each one is how two surfaces that are meant
+ * to match slowly stop matching.
+ */
+export const HIGHLIGHT_TONES: Record<HighlightAccent, { tile: string; label: string; value: string }> = {
   emerald: { tile: "bg-emerald-100 border-emerald-300", label: "text-emerald-900", value: "text-emerald-800" },
   blue: { tile: "bg-blue-100 border-blue-300", label: "text-blue-900", value: "text-blue-800" },
   violet: { tile: "bg-violet-100 border-violet-300", label: "text-violet-900", value: "text-violet-900" },
@@ -115,7 +120,8 @@ export interface MobileCardListProps<T> {
   pagination?: DataPaginationProps
 }
 
-const STRIPE_TONES = {
+/** Alternate-card tint. Same values the mobile lists stripe with. */
+export const STRIPE_TONES = {
   amber: "bg-amber-100 border-amber-300",
   blue: "bg-blue-100 border-blue-300",
 } as const

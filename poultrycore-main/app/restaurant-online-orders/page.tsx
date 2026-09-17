@@ -27,6 +27,7 @@ import { QrTableCard } from "@/components/restaurant/qr-table-card"
 import { buildQrOrderUrl } from "@/lib/utils/qr-order-url"
 import { QRCodeCanvas } from "qrcode.react"
 import { createRoot } from "react-dom/client"
+import { fmtDateTime, fmtInstant } from "@/lib/utils/company-datetime"
 
 export default function RestaurantOnlineOrdersPage() {
   const router = useRouter()
@@ -310,7 +311,7 @@ export default function RestaurantOnlineOrdersPage() {
                               <Badge variant={q.isActive ? "default" : "secondary"}>{q.isActive ? "Active" : "Inactive"}</Badge>
                               <span className="text-xs text-muted-foreground">
                                 {q.scanCount} scan{q.scanCount === 1 ? "" : "s"}
-                                {q.lastScannedAt && ` · last ${new Date(q.lastScannedAt).toLocaleDateString()}`}
+                                {q.lastScannedAt && ` · last ${fmtInstant(q.lastScannedAt)}`}
                               </span>
                             </div>
 
@@ -365,7 +366,7 @@ export default function RestaurantOnlineOrdersPage() {
                               <div className="text-xs text-muted-foreground">
                                 {p.description} | Uses: {p.currentUses}/{p.maxUses || "∞"}
                                 {p.channelRestriction && ` | ${p.channelRestriction} only`}
-                                {p.validUntil && ` | Expires: ${new Date(p.validUntil).toLocaleDateString()}`}
+                                {p.validUntil && ` | Expires: ${fmtDateTime(p.validUntil)}`}
                               </div>
                             </div>
                             <div className="flex gap-2 items-center">

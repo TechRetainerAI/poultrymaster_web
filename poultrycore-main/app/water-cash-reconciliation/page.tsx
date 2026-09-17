@@ -50,6 +50,7 @@ import {
   WATER_CASH_REASONS, WATER_CASH_REVERSAL_REASONS,
   type WaterCashAccount, type WaterCashAccountCountStatus, type WaterCashCount,
 } from "@/lib/api/water"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const COUNT_BADGE: Record<string, string> = {
   Draft: "bg-slate-100 text-slate-700",
@@ -450,7 +451,7 @@ function WaterCashReconciliationPageInner() {
                             pagination={pg.paginationProps}
                             getKey={(c) => c.waterCashReconciliationId}
                             primary={(c) => c.referenceNo ?? `#${c.waterCashReconciliationId}`}
-                            secondary={(c) => <span>{c.reconciliationDate.split("T")[0]}</span>}
+                            secondary={(c) => <span>{fmtDateTime(c.reconciliationDate, c)}</span>}
                             trailing={(c) => (
                               <Badge variant="outline" className={cn("border-0", COUNT_BADGE[c.status])}>{c.status}</Badge>
                             )}
@@ -493,7 +494,7 @@ function WaterCashReconciliationPageInner() {
                                 {pg.pageItems.map((c) => (
                                   <TableRow key={c.waterCashReconciliationId}>
                                     <TableCell className="font-medium">{c.referenceNo ?? `#${c.waterCashReconciliationId}`}</TableCell>
-                                    <TableCell className="whitespace-nowrap">{c.reconciliationDate.split("T")[0]}</TableCell>
+                                    <TableCell className="whitespace-nowrap">{fmtDateTime(c.reconciliationDate, c)}</TableCell>
                                     <TableCell className="text-right tabular-nums">{gh(c.systemBalance)}</TableCell>
                                     <TableCell className="text-right tabular-nums">{c.actualBalance != null ? gh(c.actualBalance) : "—"}</TableCell>
                                     <TableCell className={cn("text-right tabular-nums font-medium",

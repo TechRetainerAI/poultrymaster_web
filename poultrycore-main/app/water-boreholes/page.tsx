@@ -27,6 +27,7 @@ import {
   listWaterBoreholes, createWaterBorehole, updateWaterBorehole, deleteWaterBorehole,
   type WaterBorehole,
 } from "@/lib/api/water"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const STATUSES = ["Active", "Inactive", "UnderMaintenance"]
 const STATUS_COLOR: Record<string, string> = {
@@ -160,8 +161,8 @@ export default function WaterBoreholesPage() {
                     </>
                   )}
                   highlights={(b) => [
-                    { label: "Next maintenance", value: b.nextMaintenanceDate ? b.nextMaintenanceDate.split("T")[0] : "—", accent: "blue" },
-                    { label: "Quality test due", value: b.waterQualityTestDueDate ? b.waterQualityTestDueDate.split("T")[0] : "—", accent: "violet" },
+                    { label: "Next maintenance", value: b.nextMaintenanceDate ? fmtDateTime(b.nextMaintenanceDate) : "—", accent: "blue" },
+                    { label: "Quality test due", value: b.waterQualityTestDueDate ? fmtDateTime(b.waterQualityTestDueDate) : "—", accent: "violet" },
                   ]}
                   details={(b) => [
                     { label: "Location", value: b.location ?? "—" },
@@ -190,8 +191,8 @@ export default function WaterBoreholesPage() {
                             <TableCell className="font-medium">{b.boreholeName}</TableCell>
                             <TableCell>{b.location ?? "—"}</TableCell>
                             <TableCell>{b.waterTreatmentMethod ?? "—"}</TableCell>
-                            <TableCell>{b.nextMaintenanceDate ? b.nextMaintenanceDate.split("T")[0] : "—"}</TableCell>
-                            <TableCell>{b.waterQualityTestDueDate ? b.waterQualityTestDueDate.split("T")[0] : "—"}</TableCell>
+                            <TableCell>{b.nextMaintenanceDate ? fmtDateTime(b.nextMaintenanceDate) : "—"}</TableCell>
+                            <TableCell>{b.waterQualityTestDueDate ? fmtDateTime(b.waterQualityTestDueDate) : "—"}</TableCell>
                             <TableCell><Badge className={STATUS_COLOR[b.status] ?? ""}>{b.status}</Badge></TableCell>
                             <TableCell className="text-right">
                               <Button size="sm" variant="ghost" onClick={() => openEdit(b)}><Pencil className="h-4 w-4" /></Button>

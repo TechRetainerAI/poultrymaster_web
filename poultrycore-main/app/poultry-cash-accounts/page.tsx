@@ -35,6 +35,7 @@ import {
 } from "@/lib/api/poultry-finance"
 import { cashByAccount } from "@/lib/cash/cash-flow"
 import { RecordCashAdjustmentDialog } from "@/components/cash/record-cash-adjustment-dialog"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const ACCOUNT_TYPES = [...POULTRY_CASH_ACCOUNT_TYPES]
 
@@ -406,9 +407,9 @@ export default function PoultryCashAccountsPage() {
                   items={transfers.slice(0, 8)}
                   getKey={(t) => t.poultryCashTransferId}
                   primary={(t) => `${t.fromAccountName} → ${t.toAccountName}`}
-                  secondary={(t) => (<><span>{t.transferDate.split("T")[0]}</span><Badge variant="outline">{t.status}</Badge></>)}
+                  secondary={(t) => (<><span>{fmtDateTime(t.transferDate, t)}</span><Badge variant="outline">{t.status}</Badge></>)}
                   details={(t) => [
-                    { label: "Date", value: t.transferDate.split("T")[0] },
+                    { label: "Date", value: fmtDateTime(t.transferDate, t) },
                     { label: "From", value: t.fromAccountName },
                     { label: "To", value: t.toAccountName },
                     { label: "Amount", value: fmt(t.amount) },
@@ -433,7 +434,7 @@ export default function PoultryCashAccountsPage() {
                       <TableBody>
                         {transfers.slice(0, 8).map((t) => (
                           <TableRow key={t.poultryCashTransferId}>
-                            <TableCell>{t.transferDate.split("T")[0]}</TableCell>
+                            <TableCell>{fmtDateTime(t.transferDate, t)}</TableCell>
                             <TableCell>{t.fromAccountName}</TableCell>
                             <TableCell>{t.toAccountName}</TableCell>
                             <TableCell className="text-right tabular-nums">{fmt(t.amount)}</TableCell>
@@ -529,7 +530,7 @@ export default function PoultryCashAccountsPage() {
                 <TableBody>
                   {txDlg.rows.map((r) => (
                     <TableRow key={r.poultryCashTransactionId}>
-                      <TableCell>{r.transactionDate.split("T")[0]}</TableCell>
+                      <TableCell>{fmtDateTime(r.transactionDate, r)}</TableCell>
                       <TableCell>{ledgerTypeLabel(r.transactionType)}</TableCell>
                       <TableCell>{r.sourceType ?? "—"}</TableCell>
                       <TableCell className={`text-right tabular-nums ${r.amount < 0 ? "text-rose-600" : "text-green-700"}`}>{fmt(r.amount)}</TableCell>

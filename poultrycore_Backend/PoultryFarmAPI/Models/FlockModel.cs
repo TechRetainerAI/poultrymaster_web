@@ -17,6 +17,11 @@
         public string? Notes { get; set; }
         public string? BatchName { get; set; }
         public bool HasArrived { get; set; }
-    }
+    
+        /// <summary>When the row was created -- the clock time tables show
+        /// beside the business date (migration 301). Null on a database that
+        /// predates it.</summary>
+        public DateTime? CreatedAt { get; set; }
+}
 
 }

@@ -64,6 +64,7 @@ import {
   BOOK_VALUE_TOOLTIP, ORIGINAL_COST_TOOLTIP,
   DEPRECIATION_CONVENTION_NOTE, DEPRECIATION_NONCASH_NOTE,
 } from "@/lib/water/financial-classification"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const STATUSES = ["Draft", "Active", "FullyDepreciated", "Disposed", "Reversed"] as const
 
@@ -263,7 +264,7 @@ export default function WaterAssetsPage() {
                           {a.location && <div className="text-[11px] text-slate-500">{a.location}</div>}
                         </TableCell>
                         <TableCell className="text-sm">{a.categoryName ?? "—"}</TableCell>
-                        <TableCell className="whitespace-nowrap text-sm">{(a.acquisitionDate || "").split("T")[0]}</TableCell>
+                        <TableCell className="whitespace-nowrap text-sm">{fmtDateTime(a.acquisitionDate, a)}</TableCell>
                         <TableCell className="text-right tabular-nums">{gh(a.originalCost)}</TableCell>
                         <TableCell className="text-right tabular-nums text-amber-700">
                           {a.accumulatedDepreciation > 0 ? gh(a.accumulatedDepreciation) : "—"}
@@ -357,7 +358,7 @@ export default function WaterAssetsPage() {
                         {due.map((d) => (
                           <TableRow key={d.waterCapitalAssetId}>
                             <TableCell className="text-sm">{d.assetName}</TableCell>
-                            <TableCell className="text-sm whitespace-nowrap">{(d.nextPeriod || "").split("T")[0]}</TableCell>
+                            <TableCell className="text-sm whitespace-nowrap">{fmtDateTime(d.nextPeriod)}</TableCell>
                             <TableCell className="text-right text-sm">{d.monthsDue}</TableCell>
                             <TableCell className="text-right tabular-nums text-sm">{gh(d.amountDue)}</TableCell>
                           </TableRow>

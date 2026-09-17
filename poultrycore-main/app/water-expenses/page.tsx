@@ -38,6 +38,7 @@ import {
   type WaterExpense, type WaterExpenseInput, type WaterExpenseCategory, type WaterCashAccount,
   type WaterDeliveryExpense,
 } from "@/lib/api/water"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 // Migration 085 — unified Expenses ledger. The page now shows both regular
 // WaterExpenses ("Direct") and per-delivery WaterDeliveryExpenses ("Delivery")
@@ -411,7 +412,7 @@ export default function WaterExpensesPage() {
                     { label: "Amount", value: e.row.amount.toFixed(2), accent: "rose", wide: true },
                   ]}
                   details={(e) => e.kind === "Direct" ? [
-                    { label: "Date", value: e.row.expenseDate.split("T")[0] },
+                    { label: "Date", value: fmtDateTime(e.row.expenseDate, e.row) },
                     { label: "Category", value: e.row.categoryName ?? "—" },
                     { label: "Paid to", value: paidToLabel(e.row) },
                     { label: "Source",  value: <ExpenseSourceLink sourceType={e.row.sourceType} sourceId={e.row.sourceId} linkedWaterProductionBatchId={e.row.linkedWaterProductionBatchId} /> },
@@ -491,7 +492,7 @@ export default function WaterExpensesPage() {
                             const d = e.row
                             return (
                               <TableRow key={`exp-${d.waterExpenseId}`}>
-                                <TableCell className="whitespace-nowrap">{d.expenseDate.split("T")[0]}</TableCell>
+                                <TableCell className="whitespace-nowrap">{fmtDateTime(d.expenseDate, d)}</TableCell>
                                 <TableCell>{d.categoryName ?? "—"}</TableCell>
                                 {/* Wrap long descriptions instead of ellipsis-truncating. */}
                                 <TableCell className="max-w-sm whitespace-normal break-words align-top">{d.description ?? "—"}</TableCell>

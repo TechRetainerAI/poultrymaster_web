@@ -33,6 +33,7 @@ import { RecalculateStockButton } from "@/components/poultry/recalculate-stock-b
 import { SetProductStockButton } from "@/components/inventory/set-product-stock-button"
 import { ReconcileProductStockButton } from "@/components/inventory/reconcile-product-stock-button"
 import { exportTableToPdf, type PdfExportOptions } from "@/lib/utils/pdf-export"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 // Doc 5: movement types with sign. Positive = increase, negative = decrease.
 // Manual movements only. 'Production' and 'Sale' are RESERVED for the posting
@@ -350,7 +351,7 @@ export default function PoultryStockPage() {
                   {sortedMoves.length === 0 ? <TableRow><TableCell colSpan={9} className="text-center text-slate-500 py-6">No stock movements yet.</TableCell></TableRow>
                     : pg.pageItems.map((m) => (
                       <TableRow key={m.key}>
-                        <TableCell>{(m.date || "").split("T")[0]}</TableCell>
+                        <TableCell>{fmtDateTime(m.date, m)}</TableCell>
                         <TableCell className="font-medium">{m.item}</TableCell>
                         <TableCell><Badge className={m.parentType === "Finished Product" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-700"}>{m.parentType}</Badge></TableCell>
                         <TableCell><Badge className={MOVE_COLORS[m.movementType] ?? "bg-gray-100"}>{m.movementType}</Badge></TableCell>
@@ -369,7 +370,7 @@ export default function PoultryStockPage() {
                   : pg.pageItems.map((m) => (
                     <FieldCard key={m.key} title={m.item}
                       badge={<Badge className={MOVE_COLORS[m.movementType] ?? "bg-gray-100"}>{m.movementType}</Badge>}
-                      fields={[["Date", (m.date || "").split("T")[0]], ["Type", m.parentType], ["Qty", <span className={m.qty < 0 ? "text-red-600" : "text-green-700"}>{m.qty > 0 ? "+" : ""}{m.qty.toLocaleString()}</span>], ["Unit price", m.unitCost != null ? gh(m.unitCost) : "—"], ["Total", m.total != null ? gh(m.total) : "—"], ["Source", m.source]]} />
+                      fields={[["Date", fmtDateTime(m.date, m)], ["Type", m.parentType], ["Qty", <span className={m.qty < 0 ? "text-red-600" : "text-green-700"}>{m.qty > 0 ? "+" : ""}{m.qty.toLocaleString()}</span>], ["Unit price", m.unitCost != null ? gh(m.unitCost) : "—"], ["Total", m.total != null ? gh(m.total) : "—"], ["Source", m.source]]} />
                   ))}
               </div>
               {/* Sits after BOTH lists, so it reads as "below the table" in either

@@ -49,6 +49,7 @@ import {
   getPayment, listPayments, reversePayment,
   type BalanceModule, type PaymentAllocationRow, type PaymentHistoryRow,
 } from "@/lib/api/balances"
+import { fmtDateTime, fmtInstant } from "@/lib/utils/company-datetime"
 
 // Where the payment was taken. The raw codes are what the API stores; these are
 // what a person reads. Anything unrecognised falls through unchanged.
@@ -287,7 +288,10 @@ export function PaymentsReceivedPage({
     }
   }
 
-  const dateOf = (d: string) => (d ? new Date(d).toLocaleDateString() : "—")
+  // Takes the ROW as well as the date: the clock time lives on the row's
+  // creation column, so a bare string falls back to the business date, which is
+  // midnight on most payments.
+  const dateOf = (d: string, row?: unknown) => (d ? fmtDateTime(d, row as any) : "—")
 
   /**
    * The one-sale case as four values: the sale, its total, and the balance the
@@ -363,7 +367,7 @@ export function PaymentsReceivedPage({
                 {href ? <Link href={href} className="text-sky-700 hover:underline">#{a.documentId}</Link> : `#${a.documentId}`}
               </TableCell>
               <TableCell className="text-slate-600">{a.label ?? a.reference ?? "—"}</TableCell>
-              <TableCell className="whitespace-nowrap!">{dateOf(a.documentDate ?? "")}</TableCell>
+              <TableCell className="whitespace-nowrap!">{dateOf(a.documentDate ?? "", a)}</TableCell>
               <TableCell className="whitespace-nowrap! text-right">{fmt(a.documentTotal)}</TableCell>
               <TableCell className="whitespace-nowrap! text-right text-slate-500">{fmt(a.balanceBefore)}</TableCell>
               <TableCell className="whitespace-nowrap! text-right font-medium">{fmt(a.amountApplied)}</TableCell>
@@ -419,7 +423,7 @@ export function PaymentsReceivedPage({
               const rev = (pmt.status ?? "Posted") === "Reversed"
               return (
                 <TableRow key={pmt.paymentId} className={cn(isThis && "bg-indigo-50 font-medium", rev && "text-slate-400")}>
-                  <TableCell className="whitespace-nowrap!">{dateOf(pmt.paymentDate)}</TableCell>
+                  <TableCell className="whitespace-nowrap!">{dateOf(pmt.paymentDate, pmt)}</TableCell>
                   <TableCell className="whitespace-nowrap!">{paymentRef(pmt)}</TableCell>
                   <TableCell>{pmt.paymentMethod ?? "—"}</TableCell>
                   {/* Applied first, then where it left the sale -- the same
@@ -644,7 +648,7 @@ export function PaymentsReceivedPage({
                               </div>
                               <div className="mt-0.5 truncate text-sm text-slate-600">{row.partyName ?? "Walk-in"}</div>
                               <div className="mt-1 text-xs text-slate-500">
-                                {dateOf(row.paymentDate)} · {row.paymentMethod ?? "—"} ·{" "}
+                                {dateOf(row.paymentDate, row)} · {row.paymentMethod ?? "—"} ·{" "}
                                 {multi ? `${row.allocationCount} sales` : "1 sale"}
                               </div>
                             </div>
@@ -675,7 +679,7 @@ export function PaymentsReceivedPage({
                           {isReversed && row.reversalReason && (
                             <p className="mt-2 text-xs text-slate-500">
                               Reversed{row.reversedBy ? ` by ${row.reversedBy}` : ""}
-                              {row.reversedAt ? ` on ${dateOf(row.reversedAt)}` : ""}: {row.reversalReason}
+                              {row.reversedAt ? ` on ${fmtInstant(row.reversedAt)}` : ""}: {row.reversalReason}
                             </p>
                           )}
 
@@ -715,7 +719,7 @@ export function PaymentsReceivedPage({
                                         <div className="flex items-start justify-between gap-2">
                                           <span className="min-w-0 truncate font-medium text-slate-900">
                                             {paymentRef(pmt)}
-                                            <span className="ml-1.5 font-normal text-slate-500">{dateOf(pmt.paymentDate)}</span>
+                                            <span className="ml-1.5 font-normal text-slate-500">{dateOf(pmt.paymentDate, pmt)}</span>
                                           </span>
                                           <span className="shrink-0 font-semibold tabular-nums text-emerald-700">
                                             {pmt.allocationCount > 1
@@ -766,7 +770,7 @@ export function PaymentsReceivedPage({
                                   </div>
                                   {a.label ? <div className="truncate text-slate-500">{a.label}</div> : null}
                                   <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1 text-slate-500">
-                                    <span>{dateOf(a.documentDate ?? "")}</span>
+                                    <span>{dateOf(a.documentDate ?? "", a)}</span>
                                     <span className="text-right tabular-nums">Total {fmt(a.documentTotal)}</span>
                                     <span className="tabular-nums">Before {fmt(a.balanceBefore)}</span>
                                     <span className="text-right tabular-nums">After {fmt(a.balanceAfter)}</span>
@@ -841,7 +845,7 @@ export function PaymentsReceivedPage({
                                     </button>
                                   )}
                                 </TableCell>
-                                <TableCell className="whitespace-nowrap!">{dateOf(row.paymentDate)}</TableCell>
+                                <TableCell className="whitespace-nowrap!">{dateOf(row.paymentDate, row)}</TableCell>
                                 <TableCell className="whitespace-nowrap! font-medium text-slate-700" title={row.paymentId}>
                                   {paymentRef(row)}
                                 </TableCell>
@@ -918,7 +922,7 @@ export function PaymentsReceivedPage({
                                   <TableCell />
                                   <TableCell colSpan={10} className="py-1 text-xs text-slate-500">
                                     Reversed{row.reversedBy ? ` by ${row.reversedBy}` : ""}
-                                    {row.reversedAt ? ` on ${dateOf(row.reversedAt)}` : ""}: {row.reversalReason}
+                                    {row.reversedAt ? ` on ${fmtInstant(row.reversedAt)}` : ""}: {row.reversalReason}
                                   </TableCell>
                                 </TableRow>
                               )}

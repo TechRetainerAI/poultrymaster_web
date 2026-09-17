@@ -21,6 +21,7 @@ import {
   type BalanceModule, type BalanceSide, type PartyBalanceRow,
   type PaymentAllocationRow, type StatementLine,
 } from "@/lib/api/balances"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 // Where the payment was taken. "Counter" is this screen's own: a sale written
 // as already paid has no payment row behind it, so its credit comes from the
@@ -150,7 +151,7 @@ export function StatementDialog({ open, onOpenChange, module, side, party }: Pro
                     <Fragment key={i}>
                       <TableRow className={l.entryType === "OpeningBalance" ? "bg-slate-50 font-medium" : undefined}>
                         <TableCell className="whitespace-nowrap!">
-                          {l.entryDate ? new Date(l.entryDate).toLocaleDateString() : "—"}
+                          {l.entryDate ? fmtDateTime(l.entryDate, l) : "—"}
                         </TableCell>
                         <TableCell>{l.entryType === "OpeningBalance" ? "Opening" : l.entryType}</TableCell>
                         <TableCell className="whitespace-nowrap! font-medium">{l.reference ?? "—"}</TableCell>

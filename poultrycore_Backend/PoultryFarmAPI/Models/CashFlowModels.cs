@@ -28,7 +28,11 @@ namespace PoultryFarmAPIWeb.Models
         public decimal Amount { get; set; }
         public decimal Inflow { get; set; }
         public decimal Outflow { get; set; }
-    }
+    
+        /// <summary>When the row was created -- the clock time tables show beside
+        /// the business date (migration 302). Null on a database predating it.</summary>
+        public DateTime? CreatedAt { get; set; }
+}
 
     public class CashFlowSummary
     {

@@ -51,6 +51,7 @@ import {
   INTERNAL_USE_REVERSAL_REASONS, GENERIC_INTERNAL_USE_CATEGORIES, STAFF_BASED_CATEGORIES,
   type GenericInternalUsage, type InternalUseCategory, type InternalUseStatus,
 } from "@/lib/api/internal-use"
+import { fmtDateTime, fmtInstant } from "@/lib/utils/company-datetime"
 
 const gh = (n: number) => fmtMoney(n)
 
@@ -452,12 +453,12 @@ export default function GenericInternalUsePage() {
                   primary={(r) => `${INTERNAL_USE_CATEGORY_LABELS[r.category] ?? r.category} · ${gh(r.totalCostValue ?? 0)}`}
                   secondary={(r) => (
                     <>
-                      <span>{(r.usageDate || "").split("T")[0]}</span>
+                      <span>{fmtDateTime(r.usageDate, r)}</span>
                       <Badge variant="outline" className={cn("border-0", STATUS_BADGE[r.status])}>{r.status}</Badge>
                     </>
                   )}
                   details={(r) => [
-                    { label: "Date", value: (r.usageDate || "").split("T")[0] },
+                    { label: "Date", value: fmtDateTime(r.usageDate, r) },
                     { label: "Reason", value: INTERNAL_USE_CATEGORY_LABELS[r.category] ?? r.category },
                     { label: "Product", value: r.items?.[0]?.productName ?? "—" },
                     { label: "Quantity", value: describeQty(r) },
@@ -482,7 +483,7 @@ export default function GenericInternalUsePage() {
                         <TableBody>
                           {pg.pageItems.map((r) => (
                             <TableRow key={r.genericInternalUsageId}>
-                              <TableCell className="font-medium">{(r.usageDate || "").split("T")[0]}</TableCell>
+                              <TableCell className="font-medium">{fmtDateTime(r.usageDate, r)}</TableCell>
                               <TableCell>{INTERNAL_USE_CATEGORY_LABELS[r.category] ?? r.category}</TableCell>
                               <TableCell>{r.items?.[0]?.productName ?? "—"}</TableCell>
                               <TableCell>{describeQty(r)}</TableCell>
@@ -709,7 +710,7 @@ export default function GenericInternalUsePage() {
                 )}
               </div>
               <DialogDescription className="text-sm text-slate-500">
-                {(viewTarget?.usageDate || "").split("T")[0]}
+                {fmtDateTime(viewTarget?.usageDate, viewTarget)}
                 {viewTarget ? ` · ${INTERNAL_USE_CATEGORY_LABELS[viewTarget.category] ?? viewTarget.category}` : ""}
               </DialogDescription>
             </DialogHeader>
@@ -728,7 +729,7 @@ export default function GenericInternalUsePage() {
                         Reversed — {viewTarget.reversalReason || "no reason recorded"}
                       </p>
                       <p className="mt-1 text-xs text-amber-800">
-                        {(viewTarget.reversedAt || "").split("T")[0]}
+                        {fmtInstant(viewTarget.reversedAt)}
                       </p>
                     </div>
                   </div>

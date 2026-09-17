@@ -45,6 +45,7 @@ import {
 } from "@/lib/api/water"
 import { PromptDialog } from "@/components/ui/prompt-dialog"
 import { fmtMoney, useCurrency } from "@/lib/currency"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const gh = (n: number) => fmtMoney(n)
 
@@ -1098,7 +1099,7 @@ export default function WaterDriverReturnsPage() {
                       primary={(r) => `Delivery #${r.waterVehicleLoadingId} · ${r.vehicleName ?? "Vehicle —"} · ${r.bagsSold} bags sold`}
                       secondary={(r) => (
                         <>
-                          <span>{r.returnDate.split("T")[0]}</span>
+                          <span>{fmtDateTime(r.returnDate, r)}</span>
                           {r.driverName && <span>· {r.driverName}</span>}
                           {r.routeName && <span>· {r.routeName}</span>}
                           {(r.shortageAmount ?? 0) > 0 && <span className="text-rose-600">· Short {gh(r.shortageAmount ?? 0)}</span>}
@@ -1110,7 +1111,7 @@ export default function WaterDriverReturnsPage() {
                       ]}
                       details={(r) => [
                         { label: "Delivery #", value: r.waterVehicleLoadingId },
-                        { label: "Date", value: r.returnDate.split("T")[0] },
+                        { label: "Date", value: fmtDateTime(r.returnDate, r) },
                         { label: "Vehicle", value: r.vehicleName ?? "—" },
                         { label: "Driver", value: r.driverName ?? "—" },
                         { label: "Route", value: r.routeName ?? "—" },
@@ -1189,7 +1190,7 @@ export default function WaterDriverReturnsPage() {
                               {pgReturns.pageItems.map((r) => (
                             <TableRow key={r.waterDriverReturnId}>
                               <TableCell className="font-medium tabular-nums">#{r.waterVehicleLoadingId}</TableCell>
-                              <TableCell>{r.returnDate.split("T")[0]}</TableCell>
+                              <TableCell>{fmtDateTime(r.returnDate, r)}</TableCell>
                               <TableCell className="font-medium">{r.vehicleName ?? "—"}</TableCell>
                               <TableCell>{r.driverName ?? "—"}</TableCell>
                               <TableCell><Badge className={r.status === "Approved" ? "bg-green-100 text-green-700" : r.status === "Cancelled" ? "bg-slate-100 text-slate-600" : "bg-amber-100 text-amber-700"}>{r.status}</Badge></TableCell>
@@ -2615,7 +2616,7 @@ function DeliveriesTable({
       getKey={(l) => l.waterVehicleLoadingId}
       primary={(l) => (
         <Link href={`/water-driver-returns/${l.waterVehicleLoadingId}`} className="text-sky-700 hover:underline">
-          {l.driverName ?? "—"} · {l.loadDate.split("T")[0]}
+          {l.driverName ?? "—"} · {fmtDateTime(l.loadDate, l)}
         </Link>
       )}
       secondary={(l) => (
@@ -2629,7 +2630,7 @@ function DeliveriesTable({
         { label: `Expected${cur}`, value: gh(l.expectedCash ?? 0), accent: "emerald" },
       ]}
       details={(l) => [
-        { label: "Date", value: l.loadDate.split("T")[0] },
+        { label: "Date", value: fmtDateTime(l.loadDate, l) },
         { label: "Driver", value: l.driverName ?? "—" },
         { label: "Vehicle", value: l.vehicleName ?? "—" },
         { label: "Route", value: l.routeName ?? "—" },
@@ -2692,7 +2693,7 @@ function DeliveriesTable({
                 <TableRow key={l.waterVehicleLoadingId}>
                   <TableCell>
                     <Link href={`/water-driver-returns/${l.waterVehicleLoadingId}`} className="text-sky-700 hover:underline">
-                      {l.loadDate.split("T")[0]}
+                      {fmtDateTime(l.loadDate, l)}
                     </Link>
                   </TableCell>
                   <TableCell>{l.driverName ?? "—"}</TableCell>

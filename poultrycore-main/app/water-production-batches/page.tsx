@@ -35,6 +35,7 @@ import {
 } from "@/lib/api/water"
 import { planDraw, lotsForItem, type DrawPlan } from "@/lib/water-lot-draw"
 import { useFmt } from "@/lib/currency"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const STATUS_COLORS: Record<string, string> = {
   Draft: "bg-slate-100 text-slate-700",
@@ -503,7 +504,7 @@ export default function WaterProductionBatchesPage() {
                   primary={(b) => `${b.batchNumber ?? `#${b.waterProductionBatchId}`} · ${(b.goodBags ?? (b.bagsProduced - (b.damagedBags ?? 0))).toLocaleString()} good bags`}
                   secondary={(b) => (
                     <>
-                      <span>{b.productionDate ? b.productionDate.split("T")[0] : "—"}</span>
+                      <span>{b.productionDate ? fmtDateTime(b.productionDate, b) : "—"}</span>
                       {/* #19: surface the machine name on the production entry. */}
                       <Badge variant="outline">{b.machineScope === "AllMachines" ? "All Machines" : (b.machineName ?? "—")}</Badge>
                       <Badge className={STATUS_COLORS[b.status] ?? ""}>{b.status}</Badge>
@@ -517,7 +518,7 @@ export default function WaterProductionBatchesPage() {
                   details={(b) => {
                     const cpb = b.costPerBag ?? 0
                     return [
-                      { label: "Date", value: b.productionDate ? b.productionDate.split("T")[0] : "—" },
+                      { label: "Date", value: b.productionDate ? fmtDateTime(b.productionDate, b) : "—" },
                       { label: "Shift", value: b.shift ?? "—" },
                       { label: "Machine", value: b.machineScope === "AllMachines" ? "All Machines / Combined" : (b.machineName ?? "—") },
                       { label: "Damaged", value: b.damagedBags ?? 0 },
@@ -592,7 +593,7 @@ export default function WaterProductionBatchesPage() {
                             const good      = b.goodBags ?? (b.bagsProduced - (b.damagedBags ?? 0))
                             return (
                               <TableRow key={b.waterProductionBatchId}>
-                                <TableCell className="whitespace-nowrap">{b.productionDate ? b.productionDate.split("T")[0] : "—"}</TableCell>
+                                <TableCell className="whitespace-nowrap">{b.productionDate ? fmtDateTime(b.productionDate, b) : "—"}</TableCell>
                                 <TableCell>{b.shift ?? "—"}</TableCell>
                                 <TableCell className="max-w-[160px] truncate">
                                   {b.machineScope === "AllMachines"

@@ -24,6 +24,7 @@ import {
   listFeedProductionBatches, deleteFeedProductionBatch,
   type FeedProductionBatch, type FeedProductionStatus,
 } from "@/lib/api/poultry-feed-production"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const STATUS_BADGE: Record<FeedProductionStatus, { variant: "secondary" | "outline" | "default"; className?: string }> = {
   Draft: { variant: "secondary" },
@@ -154,7 +155,7 @@ export default function PoultryFeedProductionPage() {
                                       <Badge variant={badge.variant} className={badge.className}>{b.status}</Badge>
                                     </div>
                                     <div className="mt-0.5 truncate text-xs text-slate-500">
-                                      {b.productionDate ? new Date(b.productionDate).toLocaleDateString() : "—"}
+                                      {b.productionDate ? fmtDateTime(b.productionDate, b) : "—"}
                                       {b.finishedFeedItemName ? ` • ${b.finishedFeedItemName}` : ""}
                                     </div>
                                   </div>
@@ -246,7 +247,7 @@ export default function PoultryFeedProductionPage() {
                         return (
                           <TableRow key={b.poultryFeedProductionBatchId} className="cursor-pointer" onClick={() => router.push(`/poultry-feed-production/${b.poultryFeedProductionBatchId}`)}>
                             <TableCell className="font-medium">{b.batchNumber}</TableCell>
-                            <TableCell>{b.productionDate ? new Date(b.productionDate).toLocaleDateString() : "—"}</TableCell>
+                            <TableCell>{b.productionDate ? fmtDateTime(b.productionDate, b) : "—"}</TableCell>
                             <TableCell>{b.finishedFeedItemName ?? "—"}</TableCell>
                             <TableCell className="text-right tabular-nums">{b.quantityProduced.toLocaleString()}{b.outputUnit ? ` ${b.outputUnit}` : ""}</TableCell>
                             {showCost && <>

@@ -40,6 +40,7 @@ import {
   type WaterCashTransfer, type WaterOwnerMoney,
   type WaterLoan, type WaterLoanPayment,
 } from "@/lib/api/water"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 function monthStart() {
   const n = new Date()
@@ -183,7 +184,7 @@ export default function WaterMoneyReportPage() {
                     <TableBody>
                       {xf.map((r) => (
                         <TableRow key={r.waterCashTransferId}>
-                          <TableCell className="whitespace-nowrap">{new Date(r.transferDate).toLocaleDateString()}</TableCell>
+                          <TableCell className="whitespace-nowrap">{fmtDateTime(r.transferDate, r)}</TableCell>
                           <TableCell className="font-medium">{r.transferNumber ?? `#${r.waterCashTransferId}`}</TableCell>
                           <TableCell>{r.fromAccountName ?? "–"}</TableCell>
                           <TableCell className="flex items-center gap-1">
@@ -227,7 +228,7 @@ export default function WaterMoneyReportPage() {
                     <TableBody>
                       {om.map((r) => (
                         <TableRow key={r.waterOwnerMoneyId}>
-                          <TableCell className="whitespace-nowrap">{new Date(r.transactionDate).toLocaleDateString()}</TableCell>
+                          <TableCell className="whitespace-nowrap">{fmtDateTime(r.transactionDate, r)}</TableCell>
                           <TableCell className="font-medium">{r.transactionNumber ?? `#${r.waterOwnerMoneyId}`}</TableCell>
                           <TableCell>{r.ownerName ?? "–"}</TableCell>
                           <TableCell>{r.transactionType}</TableCell>
@@ -325,7 +326,7 @@ export default function WaterMoneyReportPage() {
                     <TableBody>
                       {rp.map((r) => (
                         <TableRow key={r.waterLoanPaymentId}>
-                          <TableCell className="whitespace-nowrap">{new Date(r.paymentDate).toLocaleDateString()}</TableCell>
+                          <TableCell className="whitespace-nowrap">{fmtDateTime(r.paymentDate, r)}</TableCell>
                           <TableCell className="font-medium">{r.paymentNumber ?? `#${r.waterLoanPaymentId}`}</TableCell>
                           <TableCell>{r.lenderName ?? "–"}</TableCell>
                           <TableCell className="text-right tabular-nums">{fmt(r.principalAmount)}</TableCell>

@@ -304,7 +304,11 @@ namespace PoultryFarmAPIWeb.Models
         public string Status { get; set; } = string.Empty;
         public string? Notes { get; set; }
         public string? CreatedBy { get; set; }
-    }
+    
+        /// <summary>When the row was created -- the clock time tables show beside
+        /// the business date (migration 301). Null on a database predating it.</summary>
+        public DateTime? CreatedAt { get; set; }
+}
 
     public class GenerateBillingRequest
     {

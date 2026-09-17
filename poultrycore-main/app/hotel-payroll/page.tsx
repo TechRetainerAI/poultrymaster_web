@@ -35,6 +35,7 @@ import {
   type HotelCashAccount,
   type HotelStaff,
 } from "@/lib/api/hotel"
+import { fmtDateTime, fmtInstant } from "@/lib/utils/company-datetime"
 
 const STATUS_BADGE: Record<string, string> = {
   Draft: "bg-slate-100 text-slate-700",
@@ -666,9 +667,9 @@ export default function HotelPayrollPage() {
 
                   {/* Audit info */}
                   <div className="text-xs text-slate-500 space-y-1 border-t pt-4">
-                    {detail.run.createdby && <p>Created by: {detail.run.createdby} on {detail.run.createdat?.slice(0, 10)}</p>}
-                    {detail.run.approvedby && <p>Approved by: {detail.run.approvedby} on {detail.run.approvedat?.slice(0, 10)}</p>}
-                    {detail.run.paidby && <p>Paid by: {detail.run.paidby} on {detail.run.paidat?.slice(0, 10)}</p>}
+                    {detail.run.createdby && <p>Created by: {detail.run.createdby} on {fmtInstant(detail.run.createdat)}</p>}
+                    {detail.run.approvedby && <p>Approved by: {detail.run.approvedby} on {fmtInstant(detail.run.approvedat)}</p>}
+                    {detail.run.paidby && <p>Paid by: {detail.run.paidby} on {fmtInstant(detail.run.paidat)}</p>}
                     {detail.run.cancelledby && <p>Cancelled by: {detail.run.cancelledby} — Reason: {detail.run.cancelreason ?? "N/A"}</p>}
                   </div>
                 </div>

@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast"
 import { getMyCompanies, createCompany, sendCompanyWelcomeEmail, switchCompany, type Company, type CompanyType } from "@/lib/api/companies"
 import { BUSINESS_TYPES, findBusinessType, needsTemplate } from "@/lib/companies/business-types"
 import { useRouter } from "next/navigation"
+import { fmtInstant } from "@/lib/utils/company-datetime"
 
 /** The business's own mark — same icon and colour wherever a company is named. */
 function CompanyIcon({ type }: { type: CompanyType }) {
@@ -167,7 +168,7 @@ export default function CompaniesPage() {
                     </span>
                   ) : null}
                   details={(c) => [
-                    { label: "Created", value: new Date(c.createdAt).toLocaleDateString() },
+                    { label: "Created", value: fmtInstant(c.createdAt) },
                   ]}
                   actions={(c) => c.farmId === activeFarmId ? (
                     <p className="text-xs text-slate-500">You are working in this company.</p>
@@ -197,7 +198,7 @@ export default function CompaniesPage() {
                               <TableCell className="font-medium">{c.name}</TableCell>
                               <TableCell>{c.type}</TableCell>
                               <TableCell>{c.role}</TableCell>
-                              <TableCell className="text-slate-500">{new Date(c.createdAt).toLocaleDateString()}</TableCell>
+                              <TableCell className="text-slate-500">{fmtInstant(c.createdAt)}</TableCell>
                               <TableCell className="text-right">
                                 {isActive ? (
                                   <span className="inline-flex items-center gap-1 text-emerald-600 text-sm">

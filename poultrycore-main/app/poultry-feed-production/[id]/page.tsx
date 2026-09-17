@@ -22,6 +22,7 @@ import { useFmt } from "@/lib/currency"
 import { usePermissions } from "@/hooks/use-permissions"
 import { FeedProductionBatchForm } from "@/components/feed-production/batch-form"
 import { getFeedProductionBatch, reverseFeedProductionBatch, postFeedProductionBatch, deleteFeedProductionBatch, getFeedProductionTraceability, type FeedProductionBatch, type FeedTraceabilityRow } from "@/lib/api/poultry-feed-production"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const SOURCE_LABELS: Record<string, string> = {
   FromInventory: "From inventory",
@@ -176,7 +177,7 @@ function ReadOnlyDetail({ batch, gh, onBack, onReverse, onRepost, onEdit, onDele
           <Line label="Finished feed" value={batch.finishedFeedItemName ?? "—"} />
           <Line label="Quantity" value={`${batch.quantityProduced.toLocaleString()}${batch.outputUnit ? ` ${batch.outputUnit}` : ""}`} />
           <Line label="Formula" value={batch.formulaName ?? "—"} />
-          <Line label="Date" value={batch.productionDate ? new Date(batch.productionDate).toLocaleDateString() : "—"} />
+          <Line label="Date" value={batch.productionDate ? fmtDateTime(batch.productionDate, batch) : "—"} />
         </CardContent></Card>
         <Card><CardContent className="p-4 space-y-1.5">
           <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cost</div>
@@ -302,7 +303,7 @@ function ReadOnlyDetail({ batch, gh, onBack, onReverse, onRepost, onEdit, onDele
               <TableBody>
                 {trace.map((t) => (
                   <TableRow key={t.poultryRawMaterialUsageId}>
-                    <TableCell>{t.usedDate ? new Date(t.usedDate).toLocaleDateString() : "—"}</TableCell>
+                    <TableCell>{t.usedDate ? fmtDateTime(t.usedDate, t) : "—"}</TableCell>
                     <TableCell>{t.productionRecordId ? `Record #${t.productionRecordId}` : "—"}</TableCell>
                     <TableCell className="text-right tabular-nums">{t.quantityDrawn.toLocaleString()}</TableCell>
                     <TableCell className="text-right tabular-nums">{gh(t.unitCostAtDraw)}</TableCell>

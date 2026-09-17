@@ -19,6 +19,7 @@ import {
   addStayCharge, generateInvoice, recordPayment,
   type HotelBooking, type HotelStayCharge, type HotelPayment,
 } from "@/lib/api/hotel"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const CHARGE_TYPES = ["Room", "RoomService", "Minibar", "Laundry", "Damage", "Restaurant", "Spa", "Transport", "Telephone", "Other"]
 
@@ -152,7 +153,7 @@ export default function HotelBillingPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <CardTitle className="text-lg">{selected.booking.guestFirstName} {selected.booking.guestLastName}</CardTitle>
-                        <div className="text-sm text-slate-500">Room {selected.booking.roomNumber ?? "TBD"} | {selected.booking.bookingRef} | {selected.booking.checkInDate?.slice(0,10)} to {selected.booking.checkOutDate?.slice(0,10)}</div>
+                        <div className="text-sm text-slate-500">Room {selected.booking.roomNumber ?? "TBD"} | {selected.booking.bookingRef} | {fmtDateTime(selected.booking.checkInDate)} to {fmtDateTime(selected.booking.checkOutDate)}</div>
                       </div>
                       <Badge variant="outline" className={selected.booking.status === "CheckedIn" ? "bg-emerald-50 text-emerald-700" : "bg-blue-50 text-blue-700"}>{selected.booking.status}</Badge>
                     </div>

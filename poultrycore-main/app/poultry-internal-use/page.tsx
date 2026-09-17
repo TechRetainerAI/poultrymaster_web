@@ -51,6 +51,7 @@ import {
   INTERNAL_USE_REVERSAL_REASONS, POULTRY_INTERNAL_USE_CATEGORIES, STAFF_BASED_CATEGORIES,
   type PoultryInternalUsage, type InternalUseCategory, type InternalUseStatus,
 } from "@/lib/api/internal-use"
+import { fmtDateTime, fmtInstant } from "@/lib/utils/company-datetime"
 
 const gh = (n: number) => fmtMoney(n)
 
@@ -482,7 +483,7 @@ export default function PoultryInternalUsePage() {
                   primary={(r) => POULTRY_INTERNAL_USE_CATEGORY_LABELS[r.category] ?? r.category}
                   secondary={(r) => (
                     <>
-                      <span>{(r.usageDate || "").split("T")[0]}</span>
+                      <span>{fmtDateTime(r.usageDate, r)}</span>
                       <Badge variant="outline" className={cn("border-0", STATUS_BADGE[r.status])}>{r.status}</Badge>
                     </>
                   )}
@@ -497,7 +498,7 @@ export default function PoultryInternalUsePage() {
                     { label: "Cost", value: gh(r.totalCostValue ?? 0), accent: "violet" },
                   ]}
                   details={(r) => [
-                    { label: "Date", value: (r.usageDate || "").split("T")[0] },
+                    { label: "Date", value: fmtDateTime(r.usageDate, r) },
                     { label: "Product", value: r.items?.[0]?.productName ?? "—" },
                     { label: "Recipient", value: r.recipientName ?? "—" },
                     { label: "Staff", value: r.staffCount ? r.staffCount.toLocaleString() : "—" },
@@ -520,7 +521,7 @@ export default function PoultryInternalUsePage() {
                         <TableBody>
                           {pg.pageItems.map((r) => (
                             <TableRow key={r.poultryInternalUsageId}>
-                              <TableCell className="font-medium">{(r.usageDate || "").split("T")[0]}</TableCell>
+                              <TableCell className="font-medium">{fmtDateTime(r.usageDate, r)}</TableCell>
                               <TableCell>{POULTRY_INTERNAL_USE_CATEGORY_LABELS[r.category] ?? r.category}</TableCell>
                               <TableCell>{r.items?.[0]?.productName ?? "—"}</TableCell>
                               <TableCell>{describeQty(r)}</TableCell>
@@ -773,7 +774,7 @@ export default function PoultryInternalUsePage() {
                 )}
               </div>
               <DialogDescription className="text-sm text-slate-500">
-                {(viewTarget?.usageDate || "").split("T")[0]}
+                {fmtDateTime(viewTarget?.usageDate, viewTarget)}
                 {viewTarget ? ` · ${POULTRY_INTERNAL_USE_CATEGORY_LABELS[viewTarget.category] ?? viewTarget.category}` : ""}
               </DialogDescription>
             </DialogHeader>
@@ -792,7 +793,7 @@ export default function PoultryInternalUsePage() {
                         Reversed — {viewTarget.reversalReason || "no reason recorded"}
                       </p>
                       <p className="mt-1 text-xs text-amber-800">
-                        {(viewTarget.reversedAt || "").split("T")[0]}
+                        {fmtInstant(viewTarget.reversedAt)}
                       </p>
                     </div>
                   </div>

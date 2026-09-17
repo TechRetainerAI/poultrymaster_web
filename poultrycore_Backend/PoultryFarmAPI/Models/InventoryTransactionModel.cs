@@ -10,5 +10,9 @@
         public decimal QuantityChange { get; set; }
         public string? TransactionType { get; set; }
         public string? Remarks { get; set; }
-    }
+    
+        /// <summary>When the row was created -- the clock time tables show beside
+        /// the business date (migration 303). Null on a database predating it.</summary>
+        public DateTime? CreatedAt { get; set; }
+}
 }

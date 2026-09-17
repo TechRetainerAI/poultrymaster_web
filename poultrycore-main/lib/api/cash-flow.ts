@@ -29,6 +29,8 @@ export interface CashFlowRow {
   /** What the money was for: expense category, "Sales", or the capital type. */
   category: string
   transactionDate: string
+  /** When the row was created — the clock time the table shows beside the date. */
+  createdAt: string | null
   description: string | null
   /** Informational only; Cash Flow never filters or totals by account. */
   cashAccountId: number | null
@@ -125,6 +127,11 @@ export async function getCashFlow(
           flowGroup: r.flowGroup ?? "",
           category: r.category ?? "Other",
           transactionDate: r.transactionDate ?? "",
+          // Must be carried through: this mapper builds a NEW object, so any
+          // field not listed here is invisible to the page. createdAt is where
+          // the clock time comes from -- without it the Cash Flow table falls
+          // back to the business date, which is midnight on most rows.
+          createdAt: r.createdAt ?? null,
           description: r.description ?? null,
           cashAccountId: r.cashAccountId == null ? null : num(r.cashAccountId),
           amount: num(r.amount),

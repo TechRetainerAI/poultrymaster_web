@@ -30,6 +30,7 @@ import {
   POULTRY_PAYMENT_METHODS,
   type PoultryPayrollRun, type PoultryCashAccount, type PoultryStaff,
 } from "@/lib/api/poultry-finance"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const today = () => new Date().toISOString().split("T")[0]
 const STATUS_STYLE: Record<string, string> = {
@@ -228,7 +229,7 @@ export default function PoultryPayrollPage() {
                     { label: "Deductions", value: gh(r.totalDeductions), accent: "rose" },
                   ]}
                   details={(r) => [
-                    { label: "Period", value: `${r.periodStart.split("T")[0]} → ${r.periodEnd.split("T")[0]}` },
+                    { label: "Period", value: `${fmtDateTime(r.periodStart, r)} → ${fmtDateTime(r.periodEnd, r)}` },
                     { label: "Gross", value: gh(r.totalGrossPay) },
                     { label: "Cash account", value: r.cashAccountName ?? "—" },
                     { label: "Status", value: r.status },
@@ -251,7 +252,7 @@ export default function PoultryPayrollPage() {
                         <TableBody>
                           {pg.pageItems.map((r) => (
                             <TableRow key={r.poultryPayrollRunId}>
-                              <TableCell className="whitespace-nowrap font-medium">{r.periodStart.split("T")[0]} → {r.periodEnd.split("T")[0]}</TableCell>
+                              <TableCell className="whitespace-nowrap font-medium">{fmtDateTime(r.periodStart, r)} → {fmtDateTime(r.periodEnd, r)}</TableCell>
                               <TableCell className="text-right tabular-nums">{gh(r.totalGrossPay)}</TableCell>
                               <TableCell className="text-right tabular-nums">{gh(r.totalDeductions)}</TableCell>
                               <TableCell className="text-right tabular-nums font-semibold">{gh(r.totalNetPay)}</TableCell>
