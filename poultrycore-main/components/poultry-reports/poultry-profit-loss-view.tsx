@@ -56,6 +56,39 @@ import {
 
 type DrillRow = { left: string; mid?: string; right?: string; amount: number; note?: string }
 
+type DrillKind = ReturnType<typeof drilldownKindFor>
+
+/**
+ * What the two text columns of a drilldown actually hold, per kind.
+ *
+ * They used to be headed "Detail" and "Source" whatever the line was, which
+ * told the reader nothing: behind Egg Sales they are a product and a customer,
+ * behind Feed Cost an item and where the cost came from, behind Depreciation an
+ * asset and its category. A column heading that names the wrong thing is worse
+ * than one that names nothing, and both are worse than the truth.
+ */
+const DRILL_COLUMNS: Record<DrillKind, { mid: string; right: string; blurb: string }> = {
+  revenue: { mid: "Product", right: "Customer", blurb: "Every sale behind this figure." },
+  inventory: { mid: "Item", right: "Source", blurb: "Every stock movement behind this figure, and when its cost was recognised." },
+  depreciation: { mid: "Asset", right: "Category", blurb: "Each asset's depreciation for the period." },
+  financing: { mid: "Detail", right: "Party", blurb: "Every entry behind this figure. None of it is profit." },
+  capital: { mid: "Asset", right: "Detail", blurb: "What was bought. It is an asset, not an expense." },
+  expenses: { mid: "Description", right: "Supplier", blurb: "Every expense behind this figure." },
+}
+
+/**
+ * "2026-09-02" reads as a database row; "2 Sep 2026" reads as a date. Anything
+ * that is not a date the server built (a "2026-09" depreciation period, a dash)
+ * is passed through untouched rather than guessed at.
+ */
+function drillDate(v: string) {
+  const m = /^(\d{4})-(\d{2})(?:-(\d{2}))?$/.exec(v ?? "")
+  if (!m) return v || "—"
+  const [, y, mo, d] = m
+  const month = new Date(Number(y), Number(mo) - 1, 1).toLocaleString(undefined, { month: "short" })
+  return d ? `${Number(d)} ${month} ${y}` : `${month} ${y}`
+}
+
 export function PoultryProfitLossView() {
   const router = useRouter()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
@@ -75,7 +108,7 @@ export function PoultryProfitLossView() {
   const [error, setError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
 
-  const [drill, setDrill] = useState<{ line: PoultryProfitLossLine; rows: DrillRow[] } | null>(null)
+  const [drill, setDrill] = useState<{ line: PoultryProfitLossLine; rows: DrillRow[]; kind: DrillKind } | null>(null)
   const [drillBusy, setDrillBusy] = useState(false)
 
   const load = useCallback(async () => {
@@ -111,10 +144,10 @@ export function PoultryProfitLossView() {
 
   // -------------------------------------------------------------- drilldown --
   const openDrill = useCallback(async (line: PoultryProfitLossLine) => {
-    setDrill({ line, rows: [] }); setDrillBusy(true)
+    const kind = drilldownKindFor(line.section, line.lineKey)
+    setDrill({ line, rows: [], kind }); setDrillBusy(true)
     const range = { startDate: filter.fromDate, endDate: filter.toDate }
     try {
-      const kind = drilldownKindFor(line.section, line.lineKey)
       let rows: DrillRow[] = []
       if (kind === "revenue") {
         rows = (await getPoultryPlRevenue({ ...range, lineKey: line.lineKey })).map((r) => ({
@@ -174,7 +207,7 @@ export function PoultryProfitLossView() {
           note: r.isLegacy ? "Placed by category (legacy record)" : undefined,
         }))
       }
-      setDrill({ line, rows })
+      setDrill({ line, rows, kind })
     } catch (e: any) {
       toast({ title: "Could not open the details", description: e?.message ?? String(e), variant: "destructive" })
       setDrill(null)
@@ -319,14 +352,19 @@ export function PoultryProfitLossView() {
             <>
               {/* ---- the four numbers ------------------------------------ */}
               <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-                <Kpi label="Total Revenue" value={gh(data.totalRevenue)} tone="slate" />
-                <Kpi label="Gross Profit" value={gh(data.grossProfit)}
+                {/* Sentence case, matching the water reports (Income, Gross
+                    profit, Net profit). Both sides' tiles uppercase the label in
+                    CSS, so this is not a visible change -- it is the text that
+                    gets copied, exported and read aloud that now agrees across
+                    the two modules. */}
+                <Kpi label="Total revenue" value={gh(data.totalRevenue)} tone="slate" />
+                <Kpi label="Gross profit" value={gh(data.grossProfit)}
                      hint={data.grossMarginPercent != null ? `${data.grossMarginPercent}% margin` : "No revenue this period"}
                      tone={data.grossProfit >= 0 ? "emerald" : "red"} />
-                <Kpi label="Operating Profit" value={gh(data.operatingProfit)}
+                <Kpi label="Operating profit" value={gh(data.operatingProfit)}
                      hint="After running costs, before depreciation and financing"
                      tone={data.operatingProfit >= 0 ? "emerald" : "red"} />
-                <Kpi label="Net Profit" value={gh(data.netProfit)} hint={data.status}
+                <Kpi label="Net profit" value={gh(data.netProfit)} hint={data.status}
                      tone={data.netProfit > 0 ? "emerald" : data.netProfit < 0 ? "red" : "slate"} strong />
               </div>
 
@@ -499,54 +537,125 @@ export function PoultryProfitLossView() {
             </>
           )}
 
-          {/* ---- drilldown ------------------------------------------------ */}
+          {/* ---- drilldown ------------------------------------------------
+              w-[95vw] paired with sm:max-w-3xl, NOT a bare max-w-3xl: an
+              unprefixed width replaces the dialog's own
+              max-w-[calc(100%-2rem)] -- costing the phone its side gutter --
+              while losing to the base sm:max-w-2xl above 640px, so the old
+              class made the dialog edge-to-edge on a phone AND narrower than
+              asked for on a desktop. See components/ui/dialog.tsx.
+
+              The four-column table is desktop only. On a phone the same rows
+              are stacked records: date and amount on the top line where they
+              are compared, detail and source underneath. A four-column table
+              on a 390px screen is a horizontal scrollbar wearing a table's
+              clothes. */}
           <Dialog open={!!drill} onOpenChange={(o) => { if (!o) setDrill(null) }}>
-            <DialogContent className="max-w-3xl">
-              <DialogHeader>
-                <DialogTitle>
-                  {drill?.line.lineLabel}
-                  <span className="ml-2 font-normal text-sm text-slate-500">{gh(drill?.line.amount ?? 0)}</span>
+            <DialogContent className="w-[95vw] sm:max-w-3xl">
+              <DialogHeader className="space-y-1">
+                <DialogTitle className="flex flex-wrap items-baseline gap-x-2 gap-y-1 pr-6 text-left">
+                  <span className="min-w-0 break-words">{drill?.line.lineLabel}</span>
+                  <span className="text-sm font-normal tabular-nums text-slate-500">
+                    {gh(drill?.line.amount ?? 0)}
+                  </span>
                 </DialogTitle>
+                {/* Say what the list IS and over what period, rather than
+                    leaving the reader to infer both from the rows. */}
+                <p className="text-left text-xs text-slate-500">
+                  {drill ? DRILL_COLUMNS[drill.kind].blurb : ""}
+                  {" "}
+                  {drillDate(filter.fromDate)} – {drillDate(filter.toDate)}
+                </p>
               </DialogHeader>
+
               {drillBusy ? (
-                <div className="py-10 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-slate-400" /></div>
+                <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-slate-400" /></div>
+              ) : (drill?.rows ?? []).length === 0 ? (
+                <p className="py-8 text-center text-sm text-slate-500">
+                  Nothing behind this figure in the selected period.
+                </p>
               ) : (
-                <div className="max-h-[60vh] overflow-y-auto">
-                  <Table>
-                    <TableHeader><TableRow>
-                      <TableHead>Date</TableHead><TableHead>Detail</TableHead>
-                      <TableHead>Source</TableHead><TableHead className="text-right">Amount</TableHead>
-                    </TableRow></TableHeader>
-                    <TableBody>
-                      {(drill?.rows ?? []).length === 0 ? (
-                        <TableRow><TableCell colSpan={4} className="text-center text-slate-500 py-6">
-                          Nothing behind this figure in the selected period.
-                        </TableCell></TableRow>
-                      ) : drill!.rows.map((r, i) => (
-                        <TableRow key={i}>
-                          <TableCell className="whitespace-nowrap text-sm">{r.left}</TableCell>
-                          <TableCell className="text-sm">
-                            {r.mid}
-                            {r.note && <div className="text-[11px] text-slate-500">{r.note}</div>}
-                          </TableCell>
-                          <TableCell className="text-sm text-slate-500">{r.right}</TableCell>
-                          <TableCell className="text-right tabular-nums text-sm">{gh(r.amount)}</TableCell>
-                        </TableRow>
+                <>
+                  <div className="-mx-2 max-h-[55vh] overflow-y-auto px-2 sm:mx-0 sm:max-h-[60vh] sm:px-0">
+                    {/* Phone: one record per block, each field labelled -- a
+                        column heading a reader has scrolled past is no heading
+                        at all. */}
+                    <ul className="divide-y divide-slate-100 sm:hidden">
+                      {drill!.rows.map((r, i) => (
+                        <li key={i} className="py-3">
+                          <div className="flex items-baseline justify-between gap-3">
+                            <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                              {drillDate(r.left)}
+                            </span>
+                            <span className="shrink-0 text-sm font-semibold tabular-nums text-slate-900">
+                              {gh(r.amount)}
+                            </span>
+                          </div>
+                          {r.mid && <div className="mt-1 break-words text-sm text-slate-900">{r.mid}</div>}
+                          {r.note && <div className="break-words text-[11px] text-slate-500">{r.note}</div>}
+                          {r.right && r.right !== "—" && (
+                            <div className="mt-1 break-words text-xs text-slate-500">
+                              <span className="text-slate-400">{DRILL_COLUMNS[drill!.kind].right}: </span>
+                              {r.right}
+                            </div>
+                          )}
+                        </li>
                       ))}
-                    </TableBody>
-                  </Table>
+                    </ul>
+
+                    {/* Desktop: the columns line up, so keep them -- but headed
+                        with what they actually hold for THIS line, and stuck to
+                        the top so they survive a long list.
+
+                        table-fixed with declared widths, so a long description
+                        or supplier name wraps inside its column instead of
+                        pushing Amount off the right edge and leaving the reader
+                        to scroll sideways for the one number they came for. */}
+                    <Table className="hidden table-fixed sm:table">
+                      <TableHeader className="sticky top-0 z-10 bg-white">
+                        <TableRow>
+                          <TableHead className="w-[116px]">Date</TableHead>
+                          <TableHead>{drill ? DRILL_COLUMNS[drill.kind].mid : "Detail"}</TableHead>
+                          <TableHead className="w-[26%]">{drill ? DRILL_COLUMNS[drill.kind].right : "Source"}</TableHead>
+                          <TableHead className="w-[124px] text-right">Amount</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      {/* [&>td]:align-top, not align-top on the row: TableCell
+                          carries align-middle, which wins over the row and
+                          leaves the date floating mid-way down a wrapped row. */}
+                      <TableBody>
+                        {drill!.rows.map((r, i) => (
+                          <TableRow key={i} className="[&>td]:align-top">
+                            <TableCell className="whitespace-nowrap text-sm text-slate-500">{drillDate(r.left)}</TableCell>
+                            {/* whitespace-normal: TableCell ships whitespace-nowrap,
+                                which is what was driving a long description straight
+                                through the next column. */}
+                            <TableCell className="text-sm break-words whitespace-normal">
+                              {r.mid}
+                              {r.note && <div className="text-[11px] text-slate-500">{r.note}</div>}
+                            </TableCell>
+                            <TableCell className="text-sm text-slate-500 break-words whitespace-normal">{r.right}</TableCell>
+                            <TableCell className="text-right text-sm font-medium tabular-nums">{gh(r.amount)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
                   {/* The total is asserted on screen, not just in the tests: a
                       drilldown that does not add up to the line above it is the
-                      first thing a sceptical owner checks. */}
-                  {(drill?.rows ?? []).length > 0 && (
-                    <div className="flex justify-end gap-4 border-t px-4 py-2 text-sm">
-                      <span className="text-slate-500">{drill!.rows.length} record(s)</span>
-                      <span className="font-semibold tabular-nums">
-                        {gh(drill!.rows.reduce((s, r) => s + r.amount, 0))}
-                      </span>
-                    </div>
-                  )}
-                </div>
+                      first thing a sceptical owner checks. It sits OUTSIDE the
+                      scroll box, so it is still there after scrolling -- which
+                      is the only moment anyone wants it. */}
+                  <div className="flex items-center justify-between gap-4 border-t pt-3 text-sm">
+                    <span className="text-slate-500">
+                      {drill!.rows.length} {drill!.rows.length === 1 ? "record" : "records"}
+                    </span>
+                    <span className="font-semibold tabular-nums">
+                      {gh(drill!.rows.reduce((s, r) => s + r.amount, 0))}
+                    </span>
+                  </div>
+                </>
               )}
             </DialogContent>
           </Dialog>
