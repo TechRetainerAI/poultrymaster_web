@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Trash2, Edit2, CalendarDays, Users, Clock, ChevronLeft, ChevronRight, Star, MapPin, Phone, AlertTriangle } from "lucide-react"
 import { PageSkeleton } from "@/components/restaurant/skeleton-loaders"
+import { OtherSelect } from "@/components/restaurant/other-select"
 import { Badge } from "@/components/ui/badge"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
@@ -26,7 +27,10 @@ import {
 } from "@/lib/api/restaurant"
 
 const STATUS_COLORS: Record<string, string> = { Pending: "bg-amber-100 text-amber-700", Confirmed: "bg-blue-100 text-blue-700", Seated: "bg-green-100 text-green-700", Completed: "bg-gray-100 text-gray-700", Cancelled: "bg-red-100 text-red-700", NoShow: "bg-red-200 text-red-800" }
-const OCCASIONS = ["", "Birthday", "Anniversary", "Business", "Date", "Celebration", "Other"]
+// No "" and no "Other": OtherSelect supplies its own None row and its own
+// Other row (which opens a text box). The old "" entry was mapped to the
+// sentinel "none", which then got stored verbatim as the occasion.
+const OCCASIONS = ["Birthday", "Anniversary", "Business", "Date", "Celebration"]
 const SOURCES = ["Phone", "WalkIn", "Online", "App"]
 
 export default function RestaurantReservationsPage() {
@@ -105,9 +109,9 @@ export default function RestaurantReservationsPage() {
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="max-w-6xl mx-auto space-y-6">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-rose-100 flex items-center justify-center"><CalendarDays className="h-5 w-5 text-rose-600" /></div>
-                <div><h1 className="text-2xl font-bold text-gray-900">Reservations & Waitlist</h1><p className="text-sm text-muted-foreground">Manage bookings and walk-in guests</p></div>
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="h-10 w-10 rounded-lg bg-rose-100 flex items-center justify-center flex-shrink-0"><CalendarDays className="h-5 w-5 text-rose-600" /></div>
+                <div className="min-w-0"><h1 className="text-xl sm:text-2xl font-bold text-gray-900">Reservations & Waitlist</h1><p className="text-sm text-muted-foreground">Manage bookings and walk-in guests</p></div>
               </div>
             </div>
 
@@ -125,21 +129,21 @@ export default function RestaurantReservationsPage() {
 
               <TabsContent value="reservations" className="space-y-4">
                 {/* Date nav + stats */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => changeDate(-1)}><ChevronLeft className="h-4 w-4" /></Button>
-                    <Input type="date" className="w-[170px] h-9" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} />
-                    <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => changeDate(1)}><ChevronRight className="h-4 w-4" /></Button>
-                    <Button variant="outline" size="sm" className="h-9" onClick={() => setSelectedDate(new Date().toISOString().split("T")[0])}>Today</Button>
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="icon" className="h-10 w-10 flex-shrink-0" onClick={() => changeDate(-1)}><ChevronLeft className="h-4 w-4" /></Button>
+                    <Input type="date" className="h-10 flex-1 lg:flex-none lg:w-[170px] min-w-0" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} />
+                    <Button variant="outline" size="icon" className="h-10 w-10 flex-shrink-0" onClick={() => changeDate(1)}><ChevronRight className="h-4 w-4" /></Button>
+                    <Button variant="outline" size="sm" className="h-10 flex-shrink-0" onClick={() => setSelectedDate(new Date().toISOString().split("T")[0])}>Today</Button>
                   </div>
                   {resStats && (
-                    <div className="flex gap-3 text-sm">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                       {[["Confirmed", resStats.confirmedCount, "text-blue-600"], ["Seated", resStats.seatedCount, "text-green-600"], ["Covers", resStats.totalCovers, "text-gray-900"],
                         ...(resStats.noShowCount > 0 ? [["No-Show", resStats.noShowCount, "text-red-600"]] : [])
                       ].map(([l, v, c]) => <span key={String(l)} className={String(c)}><strong>{String(v)}</strong> {l}</span>)}
                     </div>
                   )}
-                  <Button className="bg-rose-600 hover:bg-rose-700" onClick={() => openResDialog()}><Plus className="h-4 w-4 mr-2" /> New Reservation</Button>
+                  <Button className="bg-rose-600 hover:bg-rose-700 h-10 w-full lg:w-auto flex-shrink-0" onClick={() => openResDialog()}><Plus className="h-4 w-4 mr-2" /> New Reservation</Button>
                 </div>
 
                 <Card>
@@ -154,38 +158,43 @@ export default function RestaurantReservationsPage() {
                     ) : (
                       <div className="space-y-2">
                         {reservations.map(r => (
-                          <div key={r.reservationId} className="group flex items-center gap-4 p-4 border rounded-xl hover:border-rose-200 transition-all">
-                            <div className="text-center min-w-[65px] flex-shrink-0">
-                              <div className="font-bold text-xl text-gray-900">{r.reservationTime}</div>
-                              {r.endTime && <div className="text-[10px] text-muted-foreground">to {r.endTime}</div>}
-                            </div>
-                            <div className="h-10 w-px bg-gray-200 flex-shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="font-semibold text-gray-900">{r.guestName}</span>
-                                {r.isVip && <Badge className="text-[10px] h-4 bg-purple-100 text-purple-700 hover:bg-purple-100"><Star className="h-2.5 w-2.5 mr-0.5" />VIP</Badge>}
-                                <Badge className={`text-[10px] h-5 ${STATUS_COLORS[r.status] || "bg-gray-100 text-gray-700"} hover:${STATUS_COLORS[r.status]}`}>{r.status}</Badge>
+                          <div key={r.reservationId} className="group p-3 sm:p-4 border rounded-xl hover:border-rose-200 transition-all">
+                            <div className="flex items-start gap-3 sm:gap-4">
+                              <div className="text-center min-w-[58px] sm:min-w-[65px] flex-shrink-0">
+                                <div className="font-bold text-lg sm:text-xl text-gray-900 whitespace-nowrap">{r.reservationTime}</div>
+                                {r.endTime && <div className="text-[10px] text-muted-foreground">to {r.endTime}</div>}
                               </div>
-                              <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                                <span className="flex items-center gap-1"><Users className="h-3 w-3" />{r.partySize}</span>
-                                {r.tableNumber && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />Table {r.tableNumber}</span>}
-                                {r.occasion && <span>{r.occasion}</span>}
-                                {r.guestPhone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{r.guestPhone}</span>}
+                              <div className="hidden sm:block h-10 w-px bg-gray-200 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                  <span className="font-semibold text-gray-900 break-words">{r.guestName}</span>
+                                  {r.isVip && <Badge className="text-[10px] h-4 bg-purple-100 text-purple-700 hover:bg-purple-100"><Star className="h-2.5 w-2.5 mr-0.5" />VIP</Badge>}
+                                  <Badge className={`text-[10px] h-5 ${STATUS_COLORS[r.status] || "bg-gray-100 text-gray-700"} hover:${STATUS_COLORS[r.status]}`}>{r.status}</Badge>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground">
+                                  <span className="flex items-center gap-1"><Users className="h-3 w-3" />{r.partySize}</span>
+                                  {r.tableNumber && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />Table {r.tableNumber}</span>}
+                                  {r.occasion && <span>{r.occasion}</span>}
+                                  {r.guestPhone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{r.guestPhone}</span>}
+                                </div>
+                                {r.specialRequests && <div className="text-xs text-amber-700 mt-1 flex items-start gap-1"><AlertTriangle className="h-3 w-3 mt-0.5 flex-shrink-0" /><span className="break-words">{r.specialRequests}</span></div>}
                               </div>
-                              {r.specialRequests && <div className="text-xs text-amber-700 mt-1 flex items-center gap-1"><AlertTriangle className="h-3 w-3" />{r.specialRequests}</div>}
                             </div>
-                            <div className="flex items-center gap-1 flex-shrink-0">
-                              {r.status === "Pending" && <Button size="sm" className="h-7 text-xs bg-blue-600 hover:bg-blue-700" onClick={() => changeResStatus(r.reservationId, "Confirmed")}>Confirm</Button>}
-                              {r.status === "Confirmed" && <Button size="sm" className="h-7 text-xs bg-green-600 hover:bg-green-700" onClick={() => changeResStatus(r.reservationId, "Seated")}>Seat</Button>}
-                              {r.status === "Seated" && <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => changeResStatus(r.reservationId, "Completed")}>Complete</Button>}
+                            {/* Actions wrap onto their own row on a phone, and Edit/Delete
+                                are no longer hover-gated below sm -- a touch screen has no
+                                hover, so they were unreachable there. */}
+                            <div className="flex flex-wrap items-center gap-1 mt-3 pt-3 border-t sm:mt-2 sm:pt-0 sm:border-t-0 sm:justify-end">
+                              {r.status === "Pending" && <Button size="sm" className="h-8 sm:h-7 text-xs bg-blue-600 hover:bg-blue-700" onClick={() => changeResStatus(r.reservationId, "Confirmed")}>Confirm</Button>}
+                              {r.status === "Confirmed" && <Button size="sm" className="h-8 sm:h-7 text-xs bg-green-600 hover:bg-green-700" onClick={() => changeResStatus(r.reservationId, "Seated")}>Seat</Button>}
+                              {r.status === "Seated" && <Button size="sm" variant="outline" className="h-8 sm:h-7 text-xs" onClick={() => changeResStatus(r.reservationId, "Completed")}>Complete</Button>}
                               {(r.status === "Confirmed" || r.status === "Pending") && (
                                 <>
-                                  <Button size="sm" variant="ghost" className="h-7 text-xs text-red-600" onClick={() => changeResStatus(r.reservationId, "NoShow")}>No-Show</Button>
-                                  <Button size="sm" variant="ghost" className="h-7 text-xs text-red-500" onClick={() => changeResStatus(r.reservationId, "Cancelled")}>Cancel</Button>
+                                  <Button size="sm" variant="ghost" className="h-8 sm:h-7 text-xs text-red-600" onClick={() => changeResStatus(r.reservationId, "NoShow")}>No-Show</Button>
+                                  <Button size="sm" variant="ghost" className="h-8 sm:h-7 text-xs text-red-500" onClick={() => changeResStatus(r.reservationId, "Cancelled")}>Cancel</Button>
                                 </>
                               )}
-                              <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => openResDialog(r)}><Edit2 className="h-3 w-3" /></Button>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => removeRes(r.reservationId)}><Trash2 className="h-3 w-3 text-red-500" /></Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-7 sm:w-7 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100" onClick={() => openResDialog(r)}><Edit2 className="h-3 w-3" /></Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-7 sm:w-7 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100" onClick={() => removeRes(r.reservationId)}><Trash2 className="h-3 w-3 text-red-500" /></Button>
                             </div>
                           </div>
                         ))}
@@ -196,9 +205,9 @@ export default function RestaurantReservationsPage() {
               </TabsContent>
 
               <TabsContent value="waitlist" className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   {waitStats && (
-                    <div className="flex gap-4 text-sm">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                       <span className="text-amber-600"><strong>{waitStats.waitingCount}</strong> Waiting</span>
                       <span className="text-blue-600"><strong>{waitStats.notifiedCount}</strong> Notified</span>
                       {waitStats.avgWaitMins != null && <span>Avg: <strong>{Math.floor(waitStats.avgWaitMins)}m</strong></span>}
@@ -207,7 +216,7 @@ export default function RestaurantReservationsPage() {
                       )}
                     </div>
                   )}
-                  <Button className="bg-rose-600 hover:bg-rose-700" onClick={() => { setWaitForm({ guestName: "", partySize: 2, estimatedWaitMins: 15 }); setWaitDialogOpen(true) }}>
+                  <Button className="bg-rose-600 hover:bg-rose-700 h-10 w-full sm:w-auto flex-shrink-0" onClick={() => { setWaitForm({ guestName: "", partySize: 2, estimatedWaitMins: 15 }); setWaitDialogOpen(true) }}>
                     <Plus className="h-4 w-4 mr-2" /> Add to Waitlist
                   </Button>
                 </div>
@@ -223,28 +232,30 @@ export default function RestaurantReservationsPage() {
                     ) : (
                       <div className="space-y-2">
                         {waitlist.map((w, idx) => (
-                          <div key={w.waitlistId} className="flex items-center gap-4 p-4 border rounded-xl hover:border-rose-200 transition-all">
-                            <div className="h-10 w-10 rounded-xl bg-amber-100 flex items-center justify-center font-bold text-amber-700 flex-shrink-0">{idx + 1}</div>
-                            <div className="flex-1">
-                              <div className="font-semibold text-gray-900">{w.guestName}</div>
-                              <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
-                                <span className="flex items-center gap-1"><Users className="h-3 w-3" />{w.partySize}</span>
-                                {w.guestPhone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{w.guestPhone}</span>}
-                                <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{w.actualWaitMins != null ? `${Math.floor(w.actualWaitMins)}m` : "—"}</span>
-                                {w.quotedWaitMins && <span>(quoted {w.quotedWaitMins}m)</span>}
+                          <div key={w.waitlistId} className="p-3 sm:p-4 border rounded-xl hover:border-rose-200 transition-all">
+                            <div className="flex items-start gap-3 sm:gap-4">
+                              <div className="h-10 w-10 rounded-xl bg-amber-100 flex items-center justify-center font-bold text-amber-700 flex-shrink-0">{idx + 1}</div>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-semibold text-gray-900 break-words">{w.guestName}</div>
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5 text-xs text-muted-foreground">
+                                  <span className="flex items-center gap-1"><Users className="h-3 w-3" />{w.partySize}</span>
+                                  {w.guestPhone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{w.guestPhone}</span>}
+                                  <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{w.actualWaitMins != null ? `${Math.floor(w.actualWaitMins)}m` : "—"}</span>
+                                  {w.quotedWaitMins && <span>(quoted {w.quotedWaitMins}m)</span>}
+                                </div>
                               </div>
+                              <Badge className={`text-xs flex-shrink-0 ${w.status === "Waiting" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"} hover:bg-amber-100`}>{w.status}</Badge>
                             </div>
-                            <Badge className={`text-xs ${w.status === "Waiting" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"} hover:bg-amber-100`}>{w.status}</Badge>
-                            <div className="flex items-center gap-1 flex-shrink-0">
-                              {w.status === "Waiting" && <Button size="sm" className="h-7 text-xs bg-blue-600" onClick={() => changeWaitStatus(w.waitlistId, "Notified")}>Notify</Button>}
+                            <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t sm:mt-2 sm:pt-0 sm:border-t-0 sm:justify-end">
+                              {w.status === "Waiting" && <Button size="sm" className="h-8 sm:h-7 text-xs bg-blue-600" onClick={() => changeWaitStatus(w.waitlistId, "Notified")}>Notify</Button>}
                               {(w.status === "Waiting" || w.status === "Notified") && (
                                 <Select onValueChange={v => { const t = tables.find(t => t.tableId === parseInt(v)); if (t) changeWaitStatus(w.waitlistId, "Seated", t.tableId, t.tableNumber) }}>
-                                  <SelectTrigger className="w-[120px] h-7 text-xs"><SelectValue placeholder="Seat at..." /></SelectTrigger>
+                                  <SelectTrigger className="h-8 sm:h-7 text-xs flex-1 min-w-[120px] sm:flex-none sm:w-[120px]"><SelectValue placeholder="Seat at..." /></SelectTrigger>
                                   <SelectContent>{tables.filter(t => t.status === "Available").map(t => <SelectItem key={t.tableId} value={String(t.tableId)}>Table {t.tableNumber}</SelectItem>)}</SelectContent>
                                 </Select>
                               )}
-                              <Button variant="ghost" size="sm" className="h-7 text-xs text-red-500" onClick={() => changeWaitStatus(w.waitlistId, "Left")}>Left</Button>
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeWait(w.waitlistId)}><Trash2 className="h-3 w-3 text-red-500" /></Button>
+                              <Button variant="ghost" size="sm" className="h-8 sm:h-7 text-xs text-red-500" onClick={() => changeWaitStatus(w.waitlistId, "Left")}>Left</Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-7 sm:w-7" onClick={() => removeWait(w.waitlistId)}><Trash2 className="h-3 w-3 text-red-500" /></Button>
                             </div>
                           </div>
                         ))}
@@ -270,10 +281,14 @@ export default function RestaurantReservationsPage() {
               <div className="space-y-1.5"><Label>Time</Label><Input type="time" value={resForm.reservationTime} onChange={e => setResForm({ ...resForm, reservationTime: e.target.value })} className="h-10" /></div>
               <div className="space-y-1.5"><Label>Party Size</Label><Input type="number" min={1} value={resForm.partySize} onChange={e => setResForm({ ...resForm, partySize: parseInt(e.target.value) || 2 })} className="h-10" /></div>
               <div className="space-y-1.5"><Label>Occasion</Label>
-                <Select value={resForm.occasion || ""} onValueChange={v => setResForm({ ...resForm, occasion: v || undefined })}>
-                  <SelectTrigger className="h-10"><SelectValue placeholder="None" /></SelectTrigger>
-                  <SelectContent>{OCCASIONS.map(o => <SelectItem key={o || "none"} value={o || "none"}>{o || "None"}</SelectItem>)}</SelectContent>
-                </Select></div>
+                <OtherSelect
+                  listKey="ReservationOccasion"
+                  baseOptions={OCCASIONS}
+                  value={resForm.occasion || undefined}
+                  onChange={v => setResForm({ ...resForm, occasion: v })}
+                  placeholder="None"
+                  includeNone
+                /></div>
             </div>
             <div className="space-y-1.5">
               <Label>Table</Label>

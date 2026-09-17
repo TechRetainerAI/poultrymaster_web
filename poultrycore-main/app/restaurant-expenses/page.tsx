@@ -258,15 +258,23 @@ export default function RestaurantExpensesPage() {
             {/* Categories Tab */}
             {activeTab === "categories" && (
               <div className="space-y-4">
-                <div className="flex gap-2">
+                {/* Stacks on a phone. The old single flex row put a 320px
+                    input next to a ~150px button, so on a 360px screen the
+                    button sat off-screen and the input was cut in half --
+                    it looked like the form was missing rather than cramped. */}
+                <div className="flex flex-col sm:flex-row gap-2">
                   <Input
                     placeholder="New category name"
-                    className="max-w-xs h-9"
+                    className="w-full sm:max-w-xs h-10"
                     value={newCategoryName}
                     onChange={(e) => setNewCategoryName(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") handleAddCategory() }}
                   />
-                  <Button className="bg-rose-600 hover:bg-rose-700 h-9" onClick={handleAddCategory}>
+                  <Button
+                    className="bg-rose-600 hover:bg-rose-700 h-10 w-full sm:w-auto"
+                    onClick={handleAddCategory}
+                    disabled={!newCategoryName.trim()}
+                  >
                     <Plus className="h-4 w-4 mr-1" /> Add Category
                   </Button>
                 </div>

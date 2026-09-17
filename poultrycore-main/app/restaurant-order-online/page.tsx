@@ -33,7 +33,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import {
   Loader2, Plus, Minus, ShoppingBag, X, Check, Search, Tag, UtensilsCrossed,
   Clock, Truck, ChevronLeft, Banknote, CreditCard, Smartphone, MapPin, Phone,
-  CheckCircle2, AlertCircle, ChefHat, Store, History, UserCheck, Trash2,
+  CheckCircle2, AlertCircle, ChefHat, Store, History, UserCheck, Trash2, Star,
 } from "lucide-react"
 import {
   loadGuestProfile, saveGuestProfile, hasGuestProfile,
@@ -43,7 +43,9 @@ import {
 import {
   getPublicMenu, getPublicCategories, getPublicSettings, getPublicProfile, scanQrCode,
   validatePromoCode, placeOnlineOrder, trackOrder,
+  getGuestFeedbackStatus, submitGuestFeedback,
   type PublicMenuItem, type PublicCategory, type OrderTracking, type PublicRestaurantProfile,
+  type GuestFeedbackStatus,
 } from "@/lib/api/restaurant"
 
 interface CartItem {
@@ -322,6 +324,21 @@ function RestaurantOrderOnlineContent() {
   const [tracking, setTracking] = useState<OrderTracking | null>(null)
   const [trackingToken, setTrackingToken] = useState("")
 
+  /* -- Rating the visit (migration 292) --------------------------------- */
+  // Offered on the tracking card once the food has actually arrived, which is
+  // the only moment a guest has something to say. The server decides whether
+  // that moment has come (status Ready/Served/Completed and not already rated);
+  // this state only mirrors the answer.
+  const [fbStatus, setFbStatus] = useState<GuestFeedbackStatus | null>(null)
+  const [fbRating, setFbRating] = useState(0)
+  const [fbFood, setFbFood] = useState(0)
+  const [fbService, setFbService] = useState(0)
+  const [fbAmbience, setFbAmbience] = useState(0)
+  const [fbComment, setFbComment] = useState("")
+  const [fbSending, setFbSending] = useState(false)
+  const [fbError, setFbError] = useState<string | null>(null)
+  const [fbThanks, setFbThanks] = useState(false)
+
   useEffect(() => { init() }, [])
 
   // Prefill from this device. Runs once, before the menu finishes loading, so the
@@ -594,8 +611,197 @@ function RestaurantOrderOnlineContent() {
     return () => clearInterval(id)
   }, [trackingToken, tracking?.status, refreshTracking])
 
+  // Ask whether this order can be rated, and re-ask whenever its status moves,
+  // because "Preparing -> Ready" is exactly what turns the rating card on. The
+  // failure path is deliberately silent: an unreachable endpoint (or a Farm API
+  // that has not been redeployed with migration 292 yet) should leave the
+  // tracking card exactly as it was, not show a guest an error about a feature
+  // they never asked for.
+  useEffect(() => {
+    if (!trackingToken) { setFbStatus(null); return }
+    let alive = true
+    getGuestFeedbackStatus(trackingToken)
+      .then(st => { if (alive) setFbStatus(st) })
+      .catch(() => { if (alive) setFbStatus(null) })
+    return () => { alive = false }
+  }, [trackingToken, tracking?.status])
+
+  async function sendFeedback() {
+    if (!trackingToken || fbRating < 1) return
+    setFbSending(true)
+    setFbError(null)
+    try {
+      const res = await submitGuestFeedback(trackingToken, {
+        rating: fbRating,
+        // Only send a sub-rating the guest actually set. Zero is "not answered",
+        // and the server rejects anything outside 1-5.
+        foodRating: fbFood || undefined,
+        serviceRating: fbService || undefined,
+        ambienceRating: fbAmbience || undefined,
+        comment: fbComment.trim() || undefined,
+      })
+      setFbThanks(true)
+      // Re-read rather than trusting local state, so the card shows what was
+      // actually stored - including the first rating if this was a resubmit.
+      setFbStatus(await getGuestFeedbackStatus(trackingToken).catch(() => ({
+        found: true, canRate: false, alreadyRated: true, rating: fbRating,
+      } as GuestFeedbackStatus)))
+      void res
+    } catch (e: any) {
+      setFbError(e?.message || "We could not send your rating. Please try again.")
+    } finally {
+      setFbSending(false)
+    }
+  }
+
   /* -- Loading ---------------------------------------------------------- */
   if (loading) return <MenuSkeleton />
+
+  /* -- Rating the visit ------------------------------------------------- */
+  /**
+   * PLAIN FUNCTION, CALLED INLINE - not a component. See cartBody() above and
+   * the 2026-09-08 entry in plan/plan.md: a component declared inside this one
+   * is a new type on every render, so React unmounts and remounts it and the
+   * comment box loses focus after one keystroke.
+   *
+   * Three states, and the server decides which one:
+   *   already rated -> thank you, with their stars read back
+   *   can rate      -> the stars, opening into the details once one is tapped
+   *   neither       -> nothing at all (the food has not arrived yet)
+   *
+   * Progressive disclosure is the point. A guest standing up to leave will tap
+   * one star; only then do the optional breakdown and comment appear, so the
+   * card never starts life as a wall of form.
+   */
+  function starRow(
+    value: number,
+    onPick: (n: number) => void,
+    opts: { size?: "lg" | "sm"; label: string },
+  ) {
+    const big = opts.size !== "sm"
+    return (
+      <div className="flex items-center gap-1" role="group" aria-label={opts.label}>
+        {[1, 2, 3, 4, 5].map(n => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => onPick(n === value ? 0 : n)}
+            aria-label={`${n} star${n === 1 ? "" : "s"}`}
+            aria-pressed={value >= n}
+            className={`flex items-center justify-center rounded-xl transition-transform active:scale-90 ${
+              big ? "h-12 w-12" : "h-9 w-9"
+            }`}
+          >
+            <Star
+              className={`transition-colors ${big ? "h-8 w-8" : "h-5 w-5"} ${
+                value >= n ? "fill-amber-400 text-amber-400" : "fill-transparent text-stone-300"
+              }`}
+            />
+          </button>
+        ))}
+      </div>
+    )
+  }
+
+  function feedbackCard() {
+    if (!fbStatus?.found) return null
+
+    /* Already rated - on this device or another. Reading it back matters: it is
+       the proof their tap actually landed somewhere. */
+    if (fbStatus.alreadyRated) {
+      return (
+        <div className="rounded-2xl bg-amber-50 p-4 text-center ring-1 ring-amber-200/70">
+          <div className="flex items-center justify-center gap-1">
+            {[1, 2, 3, 4, 5].map(n => (
+              <Star
+                key={n}
+                className={`h-5 w-5 ${
+                  (fbStatus.rating ?? 0) >= n ? "fill-amber-400 text-amber-400" : "fill-transparent text-amber-200"
+                }`}
+              />
+            ))}
+          </div>
+          <p className="mt-2 text-sm font-semibold text-amber-900">
+            {fbThanks ? "Thank you - that means a lot." : "You rated this visit"}
+          </p>
+          {fbStatus.comment && (
+            <p className="mt-1 text-xs italic text-amber-800/80">&ldquo;{fbStatus.comment}&rdquo;</p>
+          )}
+        </div>
+      )
+    }
+
+    if (!fbStatus.canRate) return null
+
+    const detailRows: [string, number, (n: number) => void][] = [
+      ["Food", fbFood, setFbFood],
+      ["Service", fbService, setFbService],
+      ["Ambience", fbAmbience, setFbAmbience],
+    ]
+
+    return (
+      <div className="rounded-2xl bg-gradient-to-b from-amber-50 to-white p-5 ring-1 ring-amber-200/70">
+        <div className="text-center">
+          <p className="text-sm font-bold text-stone-900">How was everything?</p>
+          <p className="mt-0.5 text-xs text-stone-500">
+            {profile?.restaurantName ? `Tell ${profile.restaurantName} how they did` : "Your rating helps the team"}
+          </p>
+          <div className="mt-3 flex justify-center">
+            {starRow(fbRating, setFbRating, { label: "Overall rating" })}
+          </div>
+          {fbRating > 0 && (
+            <p className="mt-1 text-xs font-semibold text-amber-700">
+              {["", "Not good", "Could be better", "Fine", "Really good", "Excellent"][fbRating]}
+            </p>
+          )}
+        </div>
+
+        {/* Everything below appears only after the first tap. */}
+        {fbRating > 0 && (
+          <div className="mt-4 space-y-3 border-t border-amber-200/70 pt-4">
+            <p className="text-center text-[11px] font-medium uppercase tracking-wider text-stone-400">
+              Anything more? (optional)
+            </p>
+            {detailRows.map(([label, value, setter]) => (
+              <div key={label} className="flex items-center justify-between gap-2">
+                <span className="text-sm text-stone-600">{label}</span>
+                {starRow(value, setter, { size: "sm", label: `${label} rating` })}
+              </div>
+            ))}
+
+            {/* Native textarea: this card is hand-styled to match the rest of
+                the guest page rather than using the dashboard UI kit. */}
+            <textarea
+              value={fbComment}
+              onChange={e => setFbComment(e.target.value)}
+              maxLength={1000}
+              rows={3}
+              placeholder="Tell them what you loved, or what could be better..."
+              className="w-full resize-none rounded-xl border-0 bg-white p-3 text-sm text-stone-900 ring-1 ring-stone-200 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-rose-500"
+            />
+
+            {fbError && (
+              <div className="flex gap-2 rounded-xl bg-rose-50 p-3 text-left ring-1 ring-rose-200">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" />
+                <p className="text-xs text-rose-900">{fbError}</p>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={sendFeedback}
+              disabled={fbSending || fbRating < 1}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-rose-600 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-rose-700 active:scale-[0.99] disabled:opacity-60"
+            >
+              {fbSending
+                ? <><Loader2 className="h-4 w-4 animate-spin" /> Sending...</>
+                : <><Star className="h-4 w-4" /> Send my rating</>}
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   /* -- Tracking --------------------------------------------------------- */
   // A guest order sits at 'Placed' until staff accept it, so "Placed" means
@@ -730,6 +936,8 @@ function RestaurantOrderOnlineContent() {
                   </div>
                 )}
               </dl>
+
+              {feedbackCard()}
 
               <p className="text-center text-xs text-stone-400">This page updates automatically.</p>
 

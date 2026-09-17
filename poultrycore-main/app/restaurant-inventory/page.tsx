@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Trash2, Edit2, Package, AlertTriangle, Search, DollarSign, TrendingDown, Warehouse, ClipboardCheck } from "lucide-react"
 import { PageSkeleton } from "@/components/restaurant/skeleton-loaders"
+import { OtherSelect } from "@/components/restaurant/other-select"
 import { Badge } from "@/components/ui/badge"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
@@ -25,10 +26,11 @@ import {
   type WasteSummary, type InventoryValue, type RestaurantSupplier,
 } from "@/lib/api/restaurant"
 
-const CATEGORIES = ["Proteins", "Dairy", "Produce", "Dry Goods", "Spices", "Beverages", "Frozen", "Oils & Fats", "Bakery", "Sauces", "Other"]
+// "Other" is NOT listed here — OtherSelect appends its own, which opens a text box.
+const CATEGORIES = ["Proteins", "Dairy", "Produce", "Dry Goods", "Spices", "Beverages", "Frozen", "Oils & Fats", "Bakery", "Sauces"]
 const UNITS = ["kg", "g", "L", "mL", "pcs", "dozen", "bag", "box", "bottle", "can", "bunch"]
 const STORAGE_AREAS = ["Walk-in Cooler", "Freezer", "Dry Store", "Bar", "Kitchen Counter", "Pantry"]
-const WASTE_REASONS = ["Spoilage", "PrepWaste", "Returned", "Expired", "Spillage", "Overproduction", "Other"]
+const WASTE_REASONS = ["Spoilage", "PrepWaste", "Returned", "Expired", "Spillage", "Overproduction"]
 
 export default function RestaurantInventoryPage() {
   const router = useRouter()
@@ -116,6 +118,12 @@ export default function RestaurantInventoryPage() {
     if (search && !i.name.toLowerCase().includes(search.toLowerCase())) return false
     return true
   })
+  // The filter offers the built-in categories PLUS any category actually in use,
+  // which is how a category typed into the "Other" box becomes filterable without
+  // this component needing to fetch the remembered list itself.
+  const filterCategories = Array.from(
+    new Set([...CATEGORIES, ...ingredients.map(i => i.category).filter((c): c is string => !!c)])
+  ).sort((a, b) => a.localeCompare(b))
   const totalValue = invValue.reduce((s, v) => s + v.totalValue, 0)
   const totalWasteCost = wasteSummary.reduce((s, w) => s + w.totalCost, 0)
 
@@ -128,12 +136,12 @@ export default function RestaurantInventoryPage() {
         <DashboardHeader />
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="max-w-6xl mx-auto space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-rose-100 flex items-center justify-center"><Package className="h-5 w-5 text-rose-600" /></div>
-                <div><h1 className="text-2xl font-bold text-gray-900">Inventory & Recipes</h1><p className="text-sm text-muted-foreground">{ingredients.length} ingredients tracked</p></div>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="h-10 w-10 rounded-lg bg-rose-100 flex items-center justify-center flex-shrink-0"><Package className="h-5 w-5 text-rose-600" /></div>
+                <div className="min-w-0"><h1 className="text-xl sm:text-2xl font-bold text-gray-900">Inventory & Recipes</h1><p className="text-sm text-muted-foreground">{ingredients.length} ingredients tracked</p></div>
               </div>
-              <Button className="bg-rose-600 hover:bg-rose-700" onClick={() => openIngDialog()}><Plus className="h-4 w-4 mr-2" /> Add Ingredient</Button>
+              <Button className="bg-rose-600 hover:bg-rose-700 w-full sm:w-auto flex-shrink-0" onClick={() => openIngDialog()}><Plus className="h-4 w-4 mr-2" /> Add Ingredient</Button>
             </div>
 
             {/* Stats */}
@@ -172,13 +180,13 @@ export default function RestaurantInventoryPage() {
               <TabsContent value="ingredients">
                 <Card>
                   <CardHeader className="pb-4">
-                    <div className="flex gap-3 flex-wrap">
-                      <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input className="pl-9 h-10" placeholder="Search ingredients..." value={search} onChange={e => setSearch(e.target.value)} /></div>
+                    <div className="flex flex-wrap gap-2 sm:gap-3">
+                      <div className="relative basis-full sm:basis-auto sm:flex-1 sm:min-w-[200px]"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" /><Input className="pl-9 h-10 w-full" placeholder="Search ingredients..." value={search} onChange={e => setSearch(e.target.value)} /></div>
                       <Select value={filterCat} onValueChange={setFilterCat}>
-                        <SelectTrigger className="w-[160px] h-10"><SelectValue placeholder="All" /></SelectTrigger>
-                        <SelectContent><SelectItem value="all">All Categories</SelectItem>{CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                        <SelectTrigger className="flex-1 sm:flex-none sm:w-[160px] h-10"><SelectValue placeholder="All" /></SelectTrigger>
+                        <SelectContent><SelectItem value="all">All Categories</SelectItem>{filterCategories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
                       </Select>
-                      <Button variant="outline" onClick={() => { setWasteForm({ ingredientName: "", quantity: 0, unit: "kg", reason: "Spoilage" }); setWasteDialogOpen(true) }}><TrendingDown className="h-4 w-4 mr-2" /> Log Waste</Button>
+                      <Button variant="outline" className="h-10 flex-1 sm:flex-none" onClick={() => { setWasteForm({ ingredientName: "", quantity: 0, unit: "kg", reason: "Spoilage" }); setWasteDialogOpen(true) }}><TrendingDown className="h-4 w-4 mr-2" /> Log Waste</Button>
                     </div>
                   </CardHeader>
                   <CardContent>
@@ -192,32 +200,37 @@ export default function RestaurantInventoryPage() {
                     ) : (
                       <div className="space-y-2">
                         {filtered.map(i => (
-                          <div key={i.ingredientId} className={`group flex items-center gap-4 p-4 border rounded-xl transition-all hover:shadow-sm ${i.isLow ? "border-red-200 bg-red-50/50" : "hover:border-rose-200"}`}>
-                            <div className={`h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0 ${i.isLow ? "bg-red-100" : "bg-gray-100"}`}>
-                              <Package className={`h-5 w-5 ${i.isLow ? "text-red-600" : "text-gray-500"}`} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <h4 className="font-semibold text-gray-900">{i.name}</h4>
-                                {i.category && <Badge variant="outline" className="text-[10px] h-5">{i.category}</Badge>}
-                                {i.isLow && <Badge className="text-[10px] h-5 bg-red-100 text-red-700">Low Stock</Badge>}
-                                {i.storageArea && <Badge variant="outline" className="text-[10px] h-5 bg-blue-50">{i.storageArea}</Badge>}
+                          <div key={i.ingredientId} className={`group p-3 sm:p-4 border rounded-xl transition-all hover:shadow-sm ${i.isLow ? "border-red-200 bg-red-50/50" : "hover:border-rose-200"}`}>
+                            <div className="flex items-start gap-3 sm:gap-4">
+                              <div className={`h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0 ${i.isLow ? "bg-red-100" : "bg-gray-100"}`}>
+                                <Package className={`h-5 w-5 ${i.isLow ? "text-red-600" : "text-gray-500"}`} />
                               </div>
-                              <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                                <span>Stock: <strong>{i.currentStock} {i.unit}</strong></span>
-                                <span>Cost: {i.costPerUnit.toFixed(2)}/{i.unit}</span>
-                                {i.reorderPoint > 0 && <span>Reorder at: {i.reorderPoint}</span>}
-                                {i.supplierName && <span>Supplier: {i.supplierName}</span>}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                  <h4 className="font-semibold text-gray-900 break-words">{i.name}</h4>
+                                  {i.category && <Badge variant="outline" className="text-[10px] h-5">{i.category}</Badge>}
+                                  {i.isLow && <Badge className="text-[10px] h-5 bg-red-100 text-red-700">Low Stock</Badge>}
+                                  {i.storageArea && <Badge variant="outline" className="text-[10px] h-5 bg-blue-50">{i.storageArea}</Badge>}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground">
+                                  <span>Stock: <strong>{i.currentStock} {i.unit}</strong></span>
+                                  <span>Cost: {i.costPerUnit.toFixed(2)}/{i.unit}</span>
+                                  {i.reorderPoint > 0 && <span>Reorder at: {i.reorderPoint}</span>}
+                                  {i.supplierName && <span>Supplier: {i.supplierName}</span>}
+                                </div>
+                              </div>
+                              <div className="text-right flex-shrink-0">
+                                <div className="font-bold text-gray-900 whitespace-nowrap">{(i.currentStock * i.costPerUnit).toFixed(2)}</div>
+                                <div className="text-xs text-muted-foreground">value</div>
                               </div>
                             </div>
-                            <div className="text-right flex-shrink-0 min-w-[80px]">
-                              <div className="font-bold text-gray-900">{(i.currentStock * i.costPerUnit).toFixed(2)}</div>
-                              <div className="text-xs text-muted-foreground">value</div>
-                            </div>
-                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => { setAdjustId(i.ingredientId); setAdjustQty(0); setAdjustType("PurchaseIn"); setAdjustReason(""); setAdjustDialogOpen(true) }}>Adjust</Button>
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openIngDialog(i)}><Edit2 className="h-3 w-3" /></Button>
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => delIng(i.ingredientId)}><Trash2 className="h-3 w-3 text-red-500" /></Button>
+                            {/* Actions stay visible below sm. A touch screen has no hover, so
+                                gating them on group-hover hid Adjust/Edit/Delete completely
+                                on a phone -- that was a reachability bug, not just styling. */}
+                            <div className="flex gap-1 mt-3 pt-3 border-t sm:mt-0 sm:pt-0 sm:border-t-0 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity sm:justify-end">
+                              <Button variant="outline" size="sm" className="h-8 flex-1 sm:flex-none sm:h-7 text-xs" onClick={() => { setAdjustId(i.ingredientId); setAdjustQty(0); setAdjustType("PurchaseIn"); setAdjustReason(""); setAdjustDialogOpen(true) }}>Adjust</Button>
+                              <Button variant="outline" size="sm" className="h-8 flex-1 sm:flex-none sm:h-7 sm:w-7 sm:p-0 text-xs" onClick={() => openIngDialog(i)}><Edit2 className="h-3 w-3 mr-1 sm:mr-0" /><span className="sm:hidden">Edit</span></Button>
+                              <Button variant="outline" size="sm" className="h-8 flex-1 sm:flex-none sm:h-7 sm:w-7 sm:p-0 text-xs" onClick={() => delIng(i.ingredientId)}><Trash2 className="h-3 w-3 text-red-500 mr-1 sm:mr-0" /><span className="sm:hidden">Delete</span></Button>
                             </div>
                           </div>
                         ))}
@@ -315,10 +328,13 @@ export default function RestaurantInventoryPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5"><Label>Name <span className="text-rose-500">*</span></Label><Input value={ingForm.name} onChange={e => setIngForm({ ...ingForm, name: e.target.value })} className="h-10" /></div>
               <div className="space-y-1.5"><Label>Category</Label>
-                <Select value={ingForm.category || ""} onValueChange={v => setIngForm({ ...ingForm, category: v })}>
-                  <SelectTrigger className="h-10"><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>{CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                </Select></div>
+                <OtherSelect
+                  listKey="IngredientCategory"
+                  baseOptions={CATEGORIES}
+                  value={ingForm.category || undefined}
+                  onChange={v => setIngForm({ ...ingForm, category: v })}
+                  placeholder="Select"
+                /></div>
               <div className="space-y-1.5"><Label>Unit</Label>
                 <Select value={ingForm.unit || "kg"} onValueChange={v => setIngForm({ ...ingForm, unit: v })}>
                   <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
@@ -399,10 +415,13 @@ export default function RestaurantInventoryPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5"><Label>Quantity</Label><Input type="number" step="0.01" value={wasteForm.quantity} onChange={e => setWasteForm({ ...wasteForm, quantity: parseFloat(e.target.value) || 0 })} className="h-10" /></div>
               <div className="space-y-1.5"><Label>Reason</Label>
-                <Select value={wasteForm.reason} onValueChange={v => setWasteForm({ ...wasteForm, reason: v })}>
-                  <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                  <SelectContent>{WASTE_REASONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
-                </Select></div>
+                <OtherSelect
+                  listKey="WasteReason"
+                  baseOptions={WASTE_REASONS}
+                  value={wasteForm.reason || undefined}
+                  onChange={v => setWasteForm({ ...wasteForm, reason: v || "Spoilage" })}
+                  placeholder="Select a reason"
+                /></div>
             </div>
             <div className="space-y-1.5"><Label>Notes</Label><Input value={wasteForm.notes || ""} onChange={e => setWasteForm({ ...wasteForm, notes: e.target.value })} className="h-10" /></div>
           </div>

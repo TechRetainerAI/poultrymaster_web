@@ -708,6 +708,53 @@ namespace PoultryFarmAPIWeb.Business
             };
         }
 
+        // --- Guest feedback (migration 292) ----------------------------------
+        // Both of these are reached from the [AllowAnonymous] public controller.
+        // The tracking token is the only credential, and every stored value
+        // except the ratings themselves is resolved from the order inside the
+        // function -- nothing identifying comes from the request body.
+
+        public async Task<GuestFeedbackStatusModel> GetGuestFeedbackStatusAsync(string trackingToken)
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM sprestaurant_public_feedback_status(p_token => @T::text)", conn);
+            cmd.Parameters.AddWithValue("@T", trackingToken);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            if (!await r.ReadAsync()) return new GuestFeedbackStatusModel { Found = false };
+            return new GuestFeedbackStatusModel
+            {
+                Found        = r.GetBoolean(r.GetOrdinal("orderfound")),
+                OrderNumber  = r.IsDBNull(r.GetOrdinal("ordernumber")) ? null : r.GetString(r.GetOrdinal("ordernumber")),
+                OrderStatus  = r.IsDBNull(r.GetOrdinal("orderstatus")) ? null : r.GetString(r.GetOrdinal("orderstatus")),
+                CanRate      = r.GetBoolean(r.GetOrdinal("can_rate")),
+                AlreadyRated = r.GetBoolean(r.GetOrdinal("already_rated")),
+                Rating       = r.IsDBNull(r.GetOrdinal("rating")) ? null : r.GetInt32(r.GetOrdinal("rating")),
+                Comment      = r.IsDBNull(r.GetOrdinal("comment")) ? null : r.GetString(r.GetOrdinal("comment")),
+            };
+        }
+
+        public async Task<(int feedbackId, bool alreadyRated)> InsertGuestFeedbackAsync(
+            string trackingToken, int rating, int? food, int? service, int? ambience, string? comment)
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM sprestaurant_public_feedback_insert(" +
+                "p_token => @T::text, p_rating => @R::int, p_food => @F::int, " +
+                "p_service => @S::int, p_ambience => @A::int, p_comment => @C::text)", conn);
+            cmd.Parameters.AddWithValue("@T", trackingToken);
+            cmd.Parameters.AddWithValue("@R", rating);
+            cmd.Parameters.AddWithValue("@F", (object?)food ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@S", (object?)service ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@A", (object?)ambience ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@C", (object?)comment ?? DBNull.Value);
+            await conn.OpenAsync();
+            using var r = await cmd.ExecuteReaderAsync();
+            if (!await r.ReadAsync()) return (0, false);
+            return (r.GetInt32(r.GetOrdinal("feedbackid")), r.GetBoolean(r.GetOrdinal("alreadyrated")));
+        }
+
         public async Task<ThrottleCheckResult> CheckThrottleAsync(string farmId)
         {
             using var conn = new NpgsqlConnection(_cs);

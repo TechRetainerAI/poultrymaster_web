@@ -287,6 +287,56 @@ namespace PoultryFarmAPIWeb.Controllers
             return Ok(result);
         }
 
+        // --- Guest feedback (migration 292) ----------------------------------
+        // Keyed on the tracking token, not on farmId: possession of the token is
+        // what proves the caller actually placed this order. A farmId-keyed route
+        // would let anyone on the internet post invented reviews into a
+        // restaurant's CRM.
+
+        [HttpGet("feedback/{token}")]
+        public async Task<IActionResult> GuestFeedbackStatus(string token)
+        {
+            if (string.IsNullOrWhiteSpace(token)) return BadRequest(new { message = "Missing token." });
+            var status = await _svc.GetGuestFeedbackStatusAsync(token);
+            // A bad token is deliberately NOT a 404: the response shape is
+            // identical either way, so this endpoint cannot be used to probe
+            // which tokens exist.
+            return Ok(status);
+        }
+
+        [HttpPost("feedback/{token}")]
+        public async Task<IActionResult> SubmitGuestFeedback(string token, [FromBody] GuestFeedbackRequest req)
+        {
+            if (string.IsNullOrWhiteSpace(token)) return BadRequest(new { message = "Missing token." });
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+
+            try
+            {
+                var (feedbackId, already) = await _svc.InsertGuestFeedbackAsync(
+                    token, req.Rating, req.FoodRating, req.ServiceRating, req.AmbienceRating, req.Comment);
+
+                if (feedbackId == 0)
+                    return StatusCode(500, new { message = "Could not save your rating." });
+
+                return Ok(new
+                {
+                    feedbackId,
+                    alreadyRated = already,
+                    message = already
+                        ? "You have already rated this order. Thank you!"
+                        : "Thank you for your feedback!",
+                });
+            }
+            catch (Npgsql.PostgresException ex) when (ex.SqlState == "P0001")
+            {
+                // The function raises for: order not found, order not far enough
+                // along, rating out of range. Its messages are written to be shown
+                // to a guest, so they are passed through rather than swallowed
+                // into a generic 500 by GlobalExceptionMiddleware.
+                return BadRequest(new { message = ex.MessageText });
+            }
+        }
+
         [HttpPost("{farmId}/delivery-address")]
         public async Task<IActionResult> SaveAddress(string farmId, [FromBody] RestaurantDeliveryAddressModel m)
         {

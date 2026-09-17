@@ -229,7 +229,7 @@ export default function RestaurantReportsPage() {
               {/* Overview */}
               <TabsContent value="overview" className="space-y-4">
                 <div className="flex justify-end">
-                  <Button variant="outline" size="sm" onClick={() => downloadReport("overview")}><Download className="h-4 w-4 mr-2" />Download PDF</Button>
+                  <Button variant="outline" size="sm" className="h-10 w-full sm:w-auto" onClick={() => downloadReport("overview")}><Download className="h-4 w-4 mr-2" />Download PDF</Button>
                 </div>
                 {(() => {
                   const todayOrders = allOrders.filter(o => new Date(o.createdAt).toDateString() === new Date().toDateString())
@@ -321,12 +321,16 @@ export default function RestaurantReportsPage() {
 
               {/* Daily Sales */}
               <TabsContent value="daily" className="space-y-4">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => changeDate(-1)}><ChevronLeft className="h-4 w-4" /></Button>
-                  <Input type="date" className="w-[170px] h-9" value={date} onChange={e => setDate(e.target.value)} />
-                  <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => changeDate(1)}><ChevronRight className="h-4 w-4" /></Button>
-                  <Button variant="outline" size="sm" className="h-9" onClick={() => setDate(new Date().toISOString().split("T")[0])}>Today</Button>
-                  <div className="ml-auto"><Button variant="outline" size="sm" onClick={() => downloadReport("daily")}><Download className="h-4 w-4 mr-2" />Download PDF</Button></div>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="icon" className="h-10 w-10 flex-shrink-0" onClick={() => changeDate(-1)}><ChevronLeft className="h-4 w-4" /></Button>
+                    <Input type="date" className="h-10 flex-1 sm:flex-none sm:w-[170px] min-w-0" value={date} onChange={e => setDate(e.target.value)} />
+                    <Button variant="outline" size="icon" className="h-10 w-10 flex-shrink-0" onClick={() => changeDate(1)}><ChevronRight className="h-4 w-4" /></Button>
+                  </div>
+                  <div className="flex items-center gap-2 sm:ml-0">
+                    <Button variant="outline" size="sm" className="h-10 flex-1 sm:flex-none" onClick={() => setDate(new Date().toISOString().split("T")[0])}>Today</Button>
+                    <Button variant="outline" size="sm" className="h-10 flex-1 sm:flex-none sm:ml-auto" onClick={() => downloadReport("daily")}><Download className="h-4 w-4 mr-2" />Download PDF</Button>
+                  </div>
                 </div>
                 {dailySales && (
                   <>
@@ -371,9 +375,15 @@ export default function RestaurantReportsPage() {
 
               {/* Revenue Trends */}
               <TabsContent value="trends" className="space-y-4">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Label className="text-sm">From</Label><Input type="date" className="w-[150px] h-9" value={fromDate} onChange={e => setFromDate(e.target.value)} />
-                  <Label className="text-sm">To</Label><Input type="date" className="w-[150px] h-9" value={toDate} onChange={e => setToDate(e.target.value)} />
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm w-10 sm:w-auto flex-shrink-0">From</Label>
+                    <Input type="date" className="h-10 flex-1 sm:flex-none sm:w-[150px] min-w-0" value={fromDate} onChange={e => setFromDate(e.target.value)} />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm w-10 sm:w-auto flex-shrink-0">To</Label>
+                    <Input type="date" className="h-10 flex-1 sm:flex-none sm:w-[150px] min-w-0" value={toDate} onChange={e => setToDate(e.target.value)} />
+                  </div>
                 </div>
                 <Card>
                   <CardHeader className="pb-2"><CardTitle className="text-base">Revenue Trend</CardTitle><CardDescription>Daily revenue over selected period</CardDescription></CardHeader>
@@ -397,9 +407,17 @@ export default function RestaurantReportsPage() {
 
               {/* Top Items */}
               <TabsContent value="items" className="space-y-4">
-                <div className="flex items-center gap-2 flex-wrap"><Label className="text-sm">From</Label><Input type="date" className="w-[150px] h-9" value={fromDate} onChange={e => setFromDate(e.target.value)} />
-                  <Label className="text-sm">To</Label><Input type="date" className="w-[150px] h-9" value={toDate} onChange={e => setToDate(e.target.value)} />
-                  <div className="ml-auto"><Button variant="outline" size="sm" onClick={() => downloadReport("items")}><Download className="h-4 w-4 mr-2" />Download PDF</Button></div></div>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm w-10 sm:w-auto flex-shrink-0">From</Label>
+                    <Input type="date" className="h-10 flex-1 sm:flex-none sm:w-[150px] min-w-0" value={fromDate} onChange={e => setFromDate(e.target.value)} />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm w-10 sm:w-auto flex-shrink-0">To</Label>
+                    <Input type="date" className="h-10 flex-1 sm:flex-none sm:w-[150px] min-w-0" value={toDate} onChange={e => setToDate(e.target.value)} />
+                  </div>
+                  <Button variant="outline" size="sm" className="h-10 w-full sm:w-auto sm:ml-auto" onClick={() => downloadReport("items")}><Download className="h-4 w-4 mr-2" />Download PDF</Button>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Card><CardHeader className="pb-2"><CardTitle className="text-base">Top Selling Items</CardTitle></CardHeader>
                     <CardContent>{salesByItem.length === 0 ? <p className="text-sm text-muted-foreground text-center py-4">No data</p> :
@@ -439,8 +457,8 @@ export default function RestaurantReportsPage() {
 
               {/* Food Cost */}
               <TabsContent value="foodcost" className="space-y-4">
-                <div className="flex justify-end">
-                  <Button variant="outline" size="sm" onClick={() => downloadReport("foodcost")}><Download className="h-4 w-4 mr-2" />Download PDF</Button>
+                <div className="flex justify-stretch sm:justify-end">
+                  <Button variant="outline" size="sm" className="h-10 w-full sm:w-auto" onClick={() => downloadReport("foodcost")}><Download className="h-4 w-4 mr-2" />Download PDF</Button>
                 </div>
                 <Card className={avgFoodCost > 35 ? "border-red-200 bg-red-50" : avgFoodCost > 30 ? "border-amber-200 bg-amber-50" : ""}>
                   <CardContent className="py-3 flex items-center gap-3">
@@ -453,16 +471,18 @@ export default function RestaurantReportsPage() {
                   <CardContent>
                     {foodCost.length === 0 ? <p className="text-sm text-muted-foreground text-center py-8">No recipe data — add recipes to menu items to see food cost analysis</p> : (
                       <div className="space-y-1">
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide border-b">
+                        <div className="hidden lg:grid lg:grid-cols-6 gap-2 px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide border-b">
                           <span className="col-span-2">Item</span><span>Selling</span><span>Cost</span><span>Food Cost %</span><span>Margin</span>
                         </div>
                         {foodCost.map(f => (
-                          <div key={f.menuItemId} className={`grid grid-cols-6 gap-2 px-3 py-2 rounded-lg text-sm ${f.foodCostPercent > 35 ? "bg-red-50" : f.foodCostPercent > 30 ? "bg-amber-50" : ""}`}>
-                            <div className="col-span-2"><span className="font-medium">{f.itemName}</span><div className="text-xs text-muted-foreground">{f.categoryName}</div></div>
-                            <span>{f.sellingPrice.toFixed(2)}</span>
-                            <span>{f.recipeCost.toFixed(2)}</span>
-                            <span className={`font-bold ${f.foodCostPercent > 35 ? "text-red-700" : f.foodCostPercent > 30 ? "text-amber-700" : "text-green-700"}`}>{f.foodCostPercent.toFixed(1)}%</span>
-                            <span className="font-medium">{f.margin.toFixed(2)}</span>
+                          <div key={f.menuItemId} className={`px-3 py-2 rounded-lg text-sm border lg:border-0 lg:grid lg:grid-cols-6 lg:gap-2 ${f.foodCostPercent > 35 ? "bg-red-50" : f.foodCostPercent > 30 ? "bg-amber-50" : ""}`}>
+                            <div className="lg:col-span-2"><span className="font-medium">{f.itemName}</span><div className="text-xs text-muted-foreground">{f.categoryName}</div></div>
+                            <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 mt-1 lg:contents">
+                              <span className="lg:col-auto"><span className="text-xs text-muted-foreground lg:hidden">Selling: </span>{f.sellingPrice.toFixed(2)}</span>
+                              <span><span className="text-xs text-muted-foreground lg:hidden">Cost: </span>{f.recipeCost.toFixed(2)}</span>
+                              <span className={`font-bold ${f.foodCostPercent > 35 ? "text-red-700" : f.foodCostPercent > 30 ? "text-amber-700" : "text-green-700"}`}><span className="text-xs text-muted-foreground font-normal lg:hidden">Food cost: </span>{f.foodCostPercent.toFixed(1)}%</span>
+                              <span className="font-medium"><span className="text-xs text-muted-foreground font-normal lg:hidden">Margin: </span>{f.margin.toFixed(2)}</span>
+                            </div>
                           </div>
                         ))}
                       </div>

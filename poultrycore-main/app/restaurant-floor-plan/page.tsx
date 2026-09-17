@@ -110,17 +110,19 @@ export default function RestaurantFloorPlanPage() {
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="max-w-6xl mx-auto space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-rose-100 flex items-center justify-center"><MapPin className="h-5 w-5 text-rose-600" /></div>
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900">Restaurant Areas</h1>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="h-10 w-10 rounded-lg bg-rose-100 flex items-center justify-center flex-shrink-0"><MapPin className="h-5 w-5 text-rose-600" /></div>
+                <div className="min-w-0">
+                  <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Restaurant Areas</h1>
                   <p className="text-sm text-muted-foreground">Manage your dining areas and table layout. {tables.length} tables across {floors.length} areas.</p>
                 </div>
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => openFloorDialog()}><Plus className="h-4 w-4 mr-2" /> Add Area</Button>
-                <Button className="bg-rose-600 hover:bg-rose-700" onClick={() => openTableDialog()}><Plus className="h-4 w-4 mr-2" /> Add Table</Button>
+              {/* Was a non-wrapping row inside justify-between: "Add Table" measured
+                  450px out in a 375px viewport, i.e. off-screen and untappable. */}
+              <div className="flex gap-2 flex-shrink-0">
+                <Button variant="outline" className="h-10 flex-1 sm:flex-none" onClick={() => openFloorDialog()}><Plus className="h-4 w-4 mr-2" /> Add Area</Button>
+                <Button className="bg-rose-600 hover:bg-rose-700 h-10 flex-1 sm:flex-none" onClick={() => openTableDialog()}><Plus className="h-4 w-4 mr-2" /> Add Table</Button>
               </div>
             </div>
 
@@ -190,7 +192,7 @@ export default function RestaurantFloorPlanPage() {
                             {t.status === "NeedsCleaning" && <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 text-green-700 hover:bg-green-100" onClick={() => changeTableStatus(t.tableId, "Available")}><CheckCircle2 className="h-3 w-3 mr-0.5" />Clean</Button>}
                           </div>
                           {/* Edit/delete */}
-                          <div className="absolute top-1 right-1 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="absolute top-1 right-1 flex gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity">
                             <Button variant="ghost" size="icon" className="h-6 w-6 bg-white/80" onClick={() => openTableDialog(t)}><Edit2 className="h-3 w-3" /></Button>
                             <Button variant="ghost" size="icon" className="h-6 w-6 bg-white/80" onClick={() => removeTable(t.tableId)}><Trash2 className="h-3 w-3 text-red-500" /></Button>
                           </div>

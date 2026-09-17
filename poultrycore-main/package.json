@@ -8,6 +8,8 @@
     "test:watch": "vitest",
     "dev": "next dev",
     "dev:webpack": "next dev --webpack",
+    "dev:reset": "node scripts/dev-reset.mjs",
+    "dev:check": "node scripts/dev-reset.mjs --check",
     "verify": "next build",
     "lint": "npm run verify",
     "start": "node server.js",

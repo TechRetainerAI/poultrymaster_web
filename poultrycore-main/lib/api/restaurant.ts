@@ -89,6 +89,76 @@ export interface RestaurantProfileInput {
   seatingCapacity?: number
 }
 
+// =============================================================================
+// CUSTOM OPTION LISTS  (the "Other" boxes)  — Migration 291
+// =============================================================================
+// Four Restaurant dropdowns offer "Other". Picking it used to store the literal
+// word "Other"; now the operator types the real value and it becomes a normal
+// pickable option next time. The built-in options stay as the hardcoded arrays
+// in each page — this only carries what the operator added.
+
+export type CustomOptionListKey =
+  | "IngredientCategory"   // restaurant-inventory    -> Add Ingredient / Category
+  | "WasteReason"          // restaurant-inventory    -> Log Waste / Reason
+  | "ReservationOccasion"  // restaurant-reservations -> New Reservation / Occasion
+  | "CuisineType"          // restaurant-setup        -> Profile / Cuisine Type
+
+export interface CustomOption {
+  customOptionId: number
+  farmId: string
+  listKey: string
+  value: string
+  sortOrder: number
+  isActive: boolean
+  createdAt?: string | null
+  createdBy?: string | null
+}
+
+/**
+ * Values this farm has added to one dropdown.
+ *
+ * Returns [] rather than throwing when the endpoint is not there yet: the route
+ * only exists once the Farm API has been redeployed with migration 291 applied,
+ * and a dropdown that throws on mount would take the whole dialog down. An empty
+ * list degrades to exactly today's behaviour — built-in options only. This
+ * mirrors the fallback listMenuItemNames() needed for migration 287.
+ */
+export async function listCustomOptions(listKey: CustomOptionListKey): Promise<CustomOption[]> {
+  try {
+    return await jget<CustomOption[]>(`/Restaurant/custom-options?listKey=${encodeURIComponent(listKey)}`)
+  } catch {
+    return []
+  }
+}
+
+/** Every list for this farm, for a page with more than one "Other" dropdown. */
+export async function listAllCustomOptions(): Promise<CustomOption[]> {
+  try {
+    return await jget<CustomOption[]>("/Restaurant/custom-options")
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Remember a typed value. Idempotent server-side, so re-saving an existing value
+ * returns that row instead of creating a duplicate — a double-submit is harmless.
+ * Throws on a real failure so the caller can tell the operator it was not saved;
+ * callers still apply the typed value to the record either way.
+ */
+export async function createCustomOption(
+  listKey: CustomOptionListKey,
+  value: string,
+): Promise<CustomOption> {
+  const farmId = activeFarmId()
+  return jsend<CustomOption>("/Restaurant/custom-options", "POST", { farmId, listKey, value })
+}
+
+/** Stop offering a value. Soft delete — records already using it are untouched. */
+export async function deleteCustomOption(customOptionId: number): Promise<void> {
+  return jdelete(`/Restaurant/custom-options/${customOptionId}`)
+}
+
 // ----- Menu Categories -----
 
 // ----- Suppliers (per-farm) -----
@@ -1352,6 +1422,61 @@ export async function rejectOnlineOrder(orderId: number, reason?: string): Promi
 export async function trackOrder(token: string): Promise<OrderTracking> {
   const url = farmApiUrl(`/Restaurant/public/track/${token}`)
   const res = await fetch(url)
+  if (!res.ok) throw new Error(await readApiError(res))
+  return res.json()
+}
+
+// ----- Guest feedback (public, no auth) — migration 292 -----
+
+export interface GuestFeedbackStatus {
+  /** false when the token matches no order. Also false-y for a junk token, by design. */
+  found: boolean
+  orderNumber?: string | null
+  orderStatus?: string | null
+  /** The order has reached Ready/Served/Completed and has not been rated yet. */
+  canRate: boolean
+  alreadyRated: boolean
+  rating?: number | null
+  comment?: string | null
+}
+
+export interface GuestFeedbackInput {
+  rating: number
+  foodRating?: number
+  serviceRating?: number
+  ambienceRating?: number
+  comment?: string
+}
+
+/**
+ * Whether the guest holding this tracking token may rate their order.
+ *
+ * Public and unauthenticated, like trackOrder above — the token is the only
+ * credential, which is what stops anyone posting invented reviews into a
+ * restaurant's CRM. See Migrations/292.
+ */
+export async function getGuestFeedbackStatus(token: string): Promise<GuestFeedbackStatus> {
+  const url = farmApiUrl(`/Restaurant/public/feedback/${encodeURIComponent(token)}`)
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(await readApiError(res))
+  return res.json()
+}
+
+/**
+ * Submit a guest rating. Idempotent server-side: a second submission returns the
+ * first rating with `alreadyRated: true` rather than creating a duplicate, so a
+ * double tap or a retry on a flaky connection is harmless.
+ */
+export async function submitGuestFeedback(
+  token: string,
+  input: GuestFeedbackInput,
+): Promise<{ feedbackId: number; alreadyRated: boolean; message: string }> {
+  const url = farmApiUrl(`/Restaurant/public/feedback/${encodeURIComponent(token)}`)
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  })
   if (!res.ok) throw new Error(await readApiError(res))
   return res.json()
 }

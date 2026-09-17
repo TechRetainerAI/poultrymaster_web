@@ -285,7 +285,7 @@ export default function RestaurantStaffPage() {
                               {s.basePay > 0 && <span>{s.basePay.toFixed(0)}/{s.salaryType}</span>}
                             </div>
                           </div>
-                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity">
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openDialog(s)}><Edit2 className="h-3.5 w-3.5" /></Button>
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => remove(s.restaurantStaffId)}><Trash2 className="h-3.5 w-3.5 text-red-500" /></Button>
                           </div>

@@ -399,6 +399,8 @@ builder.Services.AddScoped<IRestaurantGiftCardService>(sp => new RestaurantGiftC
 builder.Services.AddScoped<IRestaurantExpenseService>(sp => new RestaurantExpenseService(connectionString));
 // Phase R15: Restaurant Staff
 builder.Services.AddScoped<IRestaurantStaffService>(sp => new RestaurantStaffService(connectionString));
+// Migration 291: per-farm custom values for the Restaurant dropdowns that offer "Other"
+builder.Services.AddScoped<IRestaurantCustomOptionService>(sp => new RestaurantCustomOptionService(connectionString));
 // =================================================================
 // =================================================================
 
