@@ -44,6 +44,7 @@ import {
 import { listPoultryProducts, ensurePoultryDefaults, type PoultryProduct } from "@/lib/api/poultry-inventory"
 import { PromptDialog } from "@/components/ui/prompt-dialog"
 import { fmtMoney } from "@/lib/currency"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const gh = (n: number) => fmtMoney(n)
 // Currency symbols belong on the *values* (driven by fmtMoney + the
@@ -886,7 +887,7 @@ export default function PoultryDriverReturnsPage() {
                       primary={(r) => `Delivery #${r.poultryVehicleLoadingId} · ${r.vehicleName ?? "Vehicle —"} · ${r.cratesSold} crates sold`}
                       secondary={(r) => (
                         <>
-                          <span>{r.returnDate.split("T")[0]}</span>
+                          <span>{fmtDateTime(r.returnDate, r)}</span>
                           {r.driverName && <span>· {r.driverName}</span>}
                           {r.routeName && <span>· {r.routeName}</span>}
                           {(r.shortageAmount ?? 0) > 0 && <span className="text-rose-600">· Short {gh(r.shortageAmount ?? 0)}</span>}
@@ -894,7 +895,7 @@ export default function PoultryDriverReturnsPage() {
                       )}
                       details={(r) => [
                         { label: "Delivery #", value: r.poultryVehicleLoadingId },
-                        { label: "Date", value: r.returnDate.split("T")[0] },
+                        { label: "Date", value: fmtDateTime(r.returnDate, r) },
                         { label: "Vehicle", value: r.vehicleName ?? "—" },
                         { label: "Driver", value: r.driverName ?? "—" },
                         { label: "Route", value: r.routeName ?? "—" },
@@ -968,7 +969,7 @@ export default function PoultryDriverReturnsPage() {
                               {pgReturns.pageItems.map((r) => (
                             <TableRow key={r.poultryDriverReturnId}>
                               <TableCell className="font-medium tabular-nums">#{r.poultryVehicleLoadingId}</TableCell>
-                              <TableCell>{r.returnDate.split("T")[0]}</TableCell>
+                              <TableCell>{fmtDateTime(r.returnDate, r)}</TableCell>
                               <TableCell className="font-medium">{r.vehicleName ?? "—"}</TableCell>
                               <TableCell>{r.driverName ?? "—"}</TableCell>
                               <TableCell><Badge className={r.status === "Approved" ? "bg-green-100 text-green-700" : r.status === "Cancelled" ? "bg-slate-100 text-slate-600" : "bg-amber-100 text-amber-700"}>{r.status}</Badge></TableCell>
@@ -2152,7 +2153,7 @@ function DeliveriesTable({
       getKey={(l) => l.poultryVehicleLoadingId}
       primary={(l) => (
         <Link href={`/poultry-driver-returns/${l.poultryVehicleLoadingId}`} className="text-sky-700 hover:underline">
-          {l.driverName ?? "—"} · {l.loadDate.split("T")[0]}
+          {l.driverName ?? "—"} · {fmtDateTime(l.loadDate, l)}
         </Link>
       )}
       secondary={(l) => (
@@ -2162,7 +2163,7 @@ function DeliveriesTable({
         </>
       )}
       details={(l) => [
-        { label: "Date", value: l.loadDate.split("T")[0] },
+        { label: "Date", value: fmtDateTime(l.loadDate, l) },
         { label: "Driver", value: l.driverName ?? "—" },
         { label: "Vehicle", value: l.vehicleName ?? "—" },
         { label: "Route", value: l.routeName ?? "—" },
@@ -2222,7 +2223,7 @@ function DeliveriesTable({
                 <TableRow key={l.poultryVehicleLoadingId}>
                   <TableCell>
                     <Link href={`/poultry-driver-returns/${l.poultryVehicleLoadingId}`} className="text-sky-700 hover:underline">
-                      {l.loadDate.split("T")[0]}
+                      {fmtDateTime(l.loadDate, l)}
                     </Link>
                   </TableCell>
                   <TableCell>{l.driverName ?? "—"}</TableCell>

@@ -11,6 +11,7 @@ import { usePagination } from "@/hooks/use-pagination"
 import { getWaterSupplierActivity, type WaterSupplierActivityRow } from "@/lib/api/water"
 import { useFmt } from "@/lib/currency"
 import { defaultReportRange } from "@/lib/date-ranges"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 function isoDate(d: Date) { return d.toISOString().split("T")[0] }
 function defaultFrom() { const d = new Date(); d.setDate(d.getDate() - 30); return isoDate(d) }
@@ -112,8 +113,8 @@ export default function SupplierActivityReportPage() {
               <TableCell className={`text-right tabular-nums ${(r.outstandingBalance ?? 0) > 0 ? "text-rose-600" : ""}`}>
                 {fmtMoney(r.outstandingBalance)}
               </TableCell>
-              <TableCell>{r.lastPurchaseDate ? r.lastPurchaseDate.split("T")[0] : "—"}</TableCell>
-              <TableCell>{r.lastExpenseDate  ? r.lastExpenseDate.split("T")[0]  : "—"}</TableCell>
+              <TableCell>{r.lastPurchaseDate ? fmtDateTime(r.lastPurchaseDate, r) : "—"}</TableCell>
+              <TableCell>{r.lastExpenseDate  ? fmtDateTime(r.lastExpenseDate, r)  : "—"}</TableCell>
             </TableRow>
           ))}
           {rows.length === 0 && !busy && (

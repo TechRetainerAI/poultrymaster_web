@@ -39,6 +39,7 @@ import {
   type WaterProductionLoss, type WaterProductionLinkedExpense,
   type WaterProductionLinkedStockTxn,
 } from "@/lib/api/water"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const STATUS_COLORS: Record<string, string> = {
   Draft: "bg-slate-100 text-slate-700",
@@ -266,7 +267,7 @@ export default function WaterProductionBatchDetailsPage() {
                           <div className="mt-1 grid grid-cols-2 gap-2 text-xs">
                             <div><span className="text-slate-500">Quantity:</span> <span className="tabular-nums">{t.quantity.toLocaleString()}</span></div>
                             <div><span className="text-slate-500">Unit cost:</span> <span className="tabular-nums">{t.unitCost != null ? gh(t.unitCost) : "—"}</span></div>
-                            <div className="col-span-2"><span className="text-slate-500">Date:</span> {t.createdAt.split("T")[0]}</div>
+                            <div className="col-span-2"><span className="text-slate-500">Date:</span> {fmtDateTime(t.createdAt, t)}</div>
                             {t.note && <div className="col-span-2 text-slate-600">{t.note}</div>}
                           </div>
                         </div>
@@ -292,7 +293,7 @@ export default function WaterProductionBatchDetailsPage() {
                               <TableCell className="text-right tabular-nums">{t.quantity.toLocaleString()}</TableCell>
                               <TableCell className="text-right tabular-nums">{t.unitCost != null ? gh(t.unitCost) : "—"}</TableCell>
                               <TableCell className="text-slate-600">{t.note ?? "—"}</TableCell>
-                              <TableCell className="whitespace-nowrap">{t.createdAt.split("T")[0]}</TableCell>
+                              <TableCell className="whitespace-nowrap">{fmtDateTime(t.createdAt, t)}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -318,7 +319,7 @@ export default function WaterProductionBatchDetailsPage() {
                           <div className="mt-1 grid grid-cols-2 gap-2 text-xs">
                             <div><span className="text-slate-500">Payment:</span> {e.paymentMethod ?? "—"}{e.cashAccountName ? ` · ${e.cashAccountName}` : ""}</div>
                             <div><span className="text-slate-500">Status:</span> {e.status ?? "—"}</div>
-                            <div className="col-span-2"><span className="text-slate-500">Date:</span> {e.expenseDate?.split("T")[0]}</div>
+                            <div className="col-span-2"><span className="text-slate-500">Date:</span> {fmtDateTime(e.expenseDate, e)}</div>
                             {e.description && <div className="col-span-2 text-slate-600">{e.description}</div>}
                           </div>
                         </div>
@@ -347,7 +348,7 @@ export default function WaterProductionBatchDetailsPage() {
                             </TableCell>
                             <TableCell className="text-right tabular-nums whitespace-nowrap">{gh(e.amount)}</TableCell>
                             <TableCell>{e.status ?? "—"}</TableCell>
-                            <TableCell className="whitespace-nowrap">{e.expenseDate?.split("T")[0]}</TableCell>
+                            <TableCell className="whitespace-nowrap">{fmtDateTime(e.expenseDate, e)}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -370,7 +371,7 @@ export default function WaterProductionBatchDetailsPage() {
                             <span className="shrink-0 font-semibold tabular-nums">{gh(l.totalValue)}</span>
                           </div>
                           <div className="mt-1 grid grid-cols-2 gap-2 text-xs">
-                            <div><span className="text-slate-500">Date:</span> {l.lossDate.split("T")[0]}</div>
+                            <div><span className="text-slate-500">Date:</span> {fmtDateTime(l.lossDate, l)}</div>
                             <div><span className="text-slate-500">Status:</span> {l.status}</div>
                             <div><span className="text-slate-500">Bags:</span> {l.bagsLost.toLocaleString()} ({gh(l.bagsLossValue)})</div>
                             <div><span className="text-slate-500">Sachets:</span> {l.sachetsLost.toLocaleString()} ({gh(l.sachetsLossValue)})</div>
@@ -395,7 +396,7 @@ export default function WaterProductionBatchDetailsPage() {
                       <TableBody>
                         {losses.map((l) => (
                           <TableRow key={l.waterProductionLossId}>
-                            <TableCell className="whitespace-nowrap">{l.lossDate.split("T")[0]}</TableCell>
+                            <TableCell className="whitespace-nowrap">{fmtDateTime(l.lossDate, l)}</TableCell>
                             <TableCell>{l.lossType}</TableCell>
                             <TableCell className="text-right tabular-nums">{l.bagsLost.toLocaleString()}</TableCell>
                             <TableCell className="text-right tabular-nums">{l.sachetsLost.toLocaleString()}</TableCell>

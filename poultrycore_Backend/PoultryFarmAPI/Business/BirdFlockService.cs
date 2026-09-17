@@ -122,6 +122,8 @@ namespace PoultryFarmAPIWeb.Business
                     {
                         flock = new FlockModel
                         {
+                            // 301: the time tables show beside the business date.
+                            CreatedAt = reader.OptionalDateTime("CreatedAt"),
                             FlockId = Convert.ToInt32(reader["FlockId"]),
                             Name = reader.IsDBNull(reader.GetOrdinal("Name")) ? string.Empty : reader.GetString(reader.GetOrdinal("Name")),
                             Breed = reader.IsDBNull(reader.GetOrdinal("Breed")) ? string.Empty : reader.GetString(reader.GetOrdinal("Breed")),
@@ -171,6 +173,8 @@ namespace PoultryFarmAPIWeb.Business
                     {
                         var flock = new FlockModel
                         {
+                            // 301: the time tables show beside the business date.
+                            CreatedAt = reader.OptionalDateTime("CreatedAt"),
                             FlockId = Convert.ToInt32(reader["FlockId"]),
                             Name = reader.IsDBNull(reader.GetOrdinal("Name")) ? string.Empty : reader.GetString(reader.GetOrdinal("Name")),
                             Breed = reader.IsDBNull(reader.GetOrdinal("Breed")) ? string.Empty : reader.GetString(reader.GetOrdinal("Breed")),

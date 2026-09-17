@@ -27,6 +27,8 @@ export interface EggProduction {
   notes: string
   /** Sort / size grade (Small, Medium, Large, XLarge, Jumbo, …). */
   eggGrade?: string | null
+  /** When the row was created — the clock time shown beside the date. */
+  createdAt?: string | null
 }
 
 export interface ApiResponse<T = unknown> {
@@ -90,6 +92,10 @@ function mapEggRow(raw: Record<string, unknown>): EggProduction {
     lostEggs: Number(raw.lostEggs ?? raw.LostEggs ?? 0),
     notes: String(raw.notes ?? raw.Notes ?? ""),
     eggGrade: g != null && String(g).trim() !== "" ? String(g).trim() : null,
+    // This mapper builds a NEW object, so anything not listed here never
+    // reaches the page. createdAt is where the table's clock time comes from.
+    createdAt: raw.createdAt != null ? String(raw.createdAt)
+             : raw.CreatedAt != null ? String(raw.CreatedAt) : null,
   }
 }
 

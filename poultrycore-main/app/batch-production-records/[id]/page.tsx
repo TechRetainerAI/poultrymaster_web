@@ -22,6 +22,7 @@ import {
   BATCH_STATUS_LABELS,
   type ProductionBatchRecord,
 } from "@/lib/api/production-batch"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -169,7 +170,7 @@ export default function BatchProductionDetailPage() {
                 <Card>
                   <CardHeader><CardTitle className="text-base">Batch totals</CardTitle></CardHeader>
                   <CardContent className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
-                    <Field label="Date" value={new Date(batch.productionDate).toLocaleDateString()} />
+                    <Field label="Date" value={fmtDateTime(batch.productionDate, batch)} />
                     <Field label="Age" value={batch.batchSelectionType === "SpecificBatch" ? batch.ageDisplay || "—" : "N/A"} />
                     <Field label="1st Pick" value={batch.firstPickTotal} />
                     <Field label="2nd Pick" value={batch.secondPickTotal} />

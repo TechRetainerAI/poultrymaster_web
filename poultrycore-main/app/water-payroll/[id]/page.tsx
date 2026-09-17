@@ -33,6 +33,7 @@ import {
   unapproveWaterPayrollRun, deleteWaterPayrollRun,
   type WaterPayrollRunDetails,
 } from "@/lib/api/water"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const STATUS_COLORS: Record<string, string> = {
   Draft:     "bg-slate-100 text-slate-700",
@@ -184,7 +185,7 @@ export default function WaterPayrollDetailsPage() {
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
                     <div className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5 text-slate-400" /><span className="text-slate-500">Period:</span> <span className="font-medium">{period}</span></div>
-                    <div><span className="text-slate-500">Pay date:</span> <span className="font-medium">{run.payDate?.split("T")[0] ?? "—"}</span></div>
+                    <div><span className="text-slate-500">Pay date:</span> <span className="font-medium">{fmtDateTime(run.payDate, run) ?? "—"}</span></div>
                     <div><span className="text-slate-500">Cash account:</span> <span className="font-medium">{run.cashAccountName ?? "—"}</span></div>
                     <div><span className="text-slate-500">Notes:</span> <span>{run.notes ?? "—"}</span></div>
                   </div>
@@ -203,9 +204,9 @@ export default function WaterPayrollDetailsPage() {
                   <CardContent className="p-4 space-y-2">
                     <div className="font-medium flex items-center gap-2"><FileText className="h-4 w-4 text-slate-400" /> History</div>
                     <ul className="text-sm text-slate-600 space-y-1">
-                      {run.createdBy && <li>Created by <span className="font-medium">{run.createdBy}</span> on {run.createdAt.split("T")[0]}</li>}
-                      {run.approvedBy && <li>Approved by <span className="font-medium">{run.approvedBy}</span>{run.approvedAt ? ` on ${run.approvedAt.split("T")[0]}` : ""}</li>}
-                      {run.paidBy && <li>Paid by <span className="font-medium">{run.paidBy}</span>{run.paidAt ? ` on ${run.paidAt.split("T")[0]}` : ""}</li>}
+                      {run.createdBy && <li>Created by <span className="font-medium">{run.createdBy}</span> on {fmtDateTime(run.createdAt, run)}</li>}
+                      {run.approvedBy && <li>Approved by <span className="font-medium">{run.approvedBy}</span>{run.approvedAt ? ` on ${fmtDateTime(run.approvedAt, run)}` : ""}</li>}
+                      {run.paidBy && <li>Paid by <span className="font-medium">{run.paidBy}</span>{run.paidAt ? ` on ${fmtDateTime(run.paidAt, run)}` : ""}</li>}
                       {run.reopenedBy && (
                         <li>
                           Reopened by <span className="font-medium">{run.reopenedBy}</span>
@@ -213,7 +214,7 @@ export default function WaterPayrollDetailsPage() {
                           {run.reopenReason ? <> — <span className="italic">"{run.reopenReason}"</span></> : null}
                         </li>
                       )}
-                      {run.reapprovedBy && <li>Re-approved by <span className="font-medium">{run.reapprovedBy}</span>{run.reapprovedAt ? ` on ${run.reapprovedAt.split("T")[0]}` : ""}</li>}
+                      {run.reapprovedBy && <li>Re-approved by <span className="font-medium">{run.reapprovedBy}</span>{run.reapprovedAt ? ` on ${fmtDateTime(run.reapprovedAt, run)}` : ""}</li>}
                     </ul>
                   </CardContent>
                 </Card>
@@ -320,7 +321,7 @@ export default function WaterPayrollDetailsPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
                       <div><span className="text-slate-500">Category:</span> {expense.categoryName ?? `#${expense.waterExpenseCategoryId}`}</div>
                       <div><span className="text-slate-500">Amount:</span> <span className="font-semibold tabular-nums">{expense.amount.toFixed(2)}</span></div>
-                      <div><span className="text-slate-500">Date:</span> {expense.expenseDate.split("T")[0]}</div>
+                      <div><span className="text-slate-500">Date:</span> {fmtDateTime(expense.expenseDate, expense)}</div>
                       <div><span className="text-slate-500">Status:</span> <Badge variant="outline">{expense.status ?? "—"}</Badge></div>
                       <div><span className="text-slate-500">Payment:</span> {expense.paymentMethod ?? "—"} {expense.cashAccountName ? `· ${expense.cashAccountName}` : ""}</div>
                       <div><span className="text-slate-500">Source:</span> {expense.sourceType} #{expense.sourceId}</div>

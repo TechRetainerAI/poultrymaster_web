@@ -156,6 +156,12 @@ export interface PaymentHistoryRow {
   partyId?: number | null
   partyName?: string | null
   paymentDate: string
+  /**
+   * When the payment was entered — the clock time the payments tables show
+   * beside the date (migration 304). For a grouped customer payment this is the
+   * earliest row in the group.
+   */
+  createdAt?: string | null
   totalAmount: number
   paymentMethod?: string | null
   reference?: string | null

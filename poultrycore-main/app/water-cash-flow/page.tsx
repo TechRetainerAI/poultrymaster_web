@@ -73,6 +73,7 @@ import {
   type CashAdjustmentSeed,
 } from "@/components/cash/cash-adjustment-dialog"
 import { CashFlowInsightsDialog } from "@/components/cash/cash-flow-insights-dialog"
+import { fmtDateTime, businessSortValue } from "@/lib/utils/company-datetime"
 
 const DEFAULT = defaultReportRange()
 
@@ -316,7 +317,7 @@ export default function WaterCashFlowPage() {
 
     return sortData(withRunning, sortKey, sortDir, (item: any, key: string) => {
       switch (key) {
-        case "date": return new Date(item.transactionDate)
+        case "date": return businessSortValue(item.transactionDate, item)
         case "type": return categoryLabel(item.category)
         case "category": return flowGroupLabel(item.flowGroup)
         case "description": return item.description ?? ""
@@ -515,7 +516,7 @@ export default function WaterCashFlowPage() {
                       pagination={pg.paginationProps}
                       getKey={(r: any) => `${r.rowSource}-${r.id}`}
                       primary={(r: any) => `${r.amount < 0 ? "−" : "+"}${gh(Math.abs(r.amount))} · ${categoryLabel(r.category)}`}
-                      secondary={(r: any) => `${(r.transactionDate ?? "").split("T")[0]} · ${flowGroupLabel(r.flowGroup)}`}
+                      secondary={(r: any) => `${fmtDateTime(r.transactionDate, r)} · ${flowGroupLabel(r.flowGroup)}`}
                       highlights={(r: any) => [
                         { label: "Running cash", value: gh(r.running), accent: "violet", wide: true },
                       ]}
@@ -562,7 +563,7 @@ export default function WaterCashFlowPage() {
                                 return (
                                   <TableRow key={`${r.rowSource}-${r.id}`} className={cn(capital && "bg-slate-50")}>
                                     <TableCell className="whitespace-nowrap">
-                                      {(r.transactionDate ?? "").split("T")[0]}
+                                      {fmtDateTime(r.transactionDate, r)}
                                     </TableCell>
                                     {/* Type is the DETAIL — Feed, Sales, Utilities. */}
                                     <TableCell className="whitespace-nowrap">

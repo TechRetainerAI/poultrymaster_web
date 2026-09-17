@@ -16,6 +16,7 @@ import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { listHotelPaymentsPaged, recordPayment, listHotelBookings, type HotelPayment, type HotelBooking } from "@/lib/api/hotel"
 import { PaginationControls } from "@/components/ui/pagination-controls"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const METHOD_COLOR: Record<string, string> = { Cash: "bg-emerald-100 text-emerald-700", Card: "bg-blue-100 text-blue-700", MobileMoney: "bg-amber-100 text-amber-700", BankTransfer: "bg-violet-100 text-violet-700" }
 
@@ -76,7 +77,7 @@ export default function HotelPaymentsPage() {
                       <div><span className="text-slate-500">Booking Ref</span><div className="font-mono font-semibold">{bk.bookingRef}</div></div>
                       <div><span className="text-slate-500">Room</span><div className="font-semibold">{bk.roomNumber ?? "—"} ({bk.roomTypeName ?? "—"})</div></div>
                       <div><span className="text-slate-500">Status</span><div><Badge variant="outline" className={bk.status === "CheckedIn" ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700"}>{bk.status}</Badge></div></div>
-                      <div><span className="text-slate-500">Dates</span><div>{bk.checkInDate?.slice(0, 10)} → {bk.checkOutDate?.slice(0, 10)} ({nights} night{nights > 1 ? "s" : ""})</div></div>
+                      <div><span className="text-slate-500">Dates</span><div>{fmtDateTime(bk.checkInDate)} → {fmtDateTime(bk.checkOutDate)} ({nights} night{nights > 1 ? "s" : ""})</div></div>
                       <div><span className="text-slate-500">Total Amount</span><div className="font-bold text-violet-700">{Number(bk.totalAmount ?? 0).toFixed(2)}</div></div>
                     </div>
                   </CardContent>

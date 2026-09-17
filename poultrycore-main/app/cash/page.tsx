@@ -34,6 +34,7 @@ import { SortableHeader, type SortDirection, sortData } from "@/components/ui/so
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
 import { entryTimestamp } from "@/lib/utils/date-key"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const ADJUSTMENT_TYPES = [
   { value: "OpeningBalance", label: "Opening Balance" },
@@ -705,7 +706,7 @@ export default function CashPage() {
                       {pg.pageItems.map((t, i) => (
                         <TableRow key={i}>
                           <TableCell className={cn("font-medium bg-white whitespace-nowrap", isMobile && "sticky-col-date")}>
-                            {t.date ? (isMobile ? formatDateShort(t.date) : new Date(t.date).toLocaleDateString()) : "-"}
+                            {t.date ? (isMobile ? formatDateShort(t.date) : fmtDateTime(t.date, t)) : "-"}
                           </TableCell>
                           <TableCell className="whitespace-nowrap">{t.type}</TableCell>
                           <TableCell className="whitespace-normal break-words align-top text-sm min-w-[160px] max-w-[320px]">

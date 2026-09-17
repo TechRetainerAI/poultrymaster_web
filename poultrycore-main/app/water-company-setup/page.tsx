@@ -20,6 +20,7 @@ import {
   type WaterCompanyProfile, type WaterCompanySetupInput,
 } from "@/lib/api/water"
 import { CurrencySelect } from "@/components/ui/currency-select"
+import { CompanyTimeZoneField } from "@/components/settings/company-timezone-field"
 import { fetchFarmSettings, updateFarmCurrency, useFarmSettingsStore } from "@/lib/currency"
 import { currencySymbolFor } from "@/lib/constants/currencies"
 
@@ -234,6 +235,7 @@ export default function WaterCompanySetupPage() {
                   <div><Label htmlFor="default-currency">Default currency</Label>
                     <CurrencySelect id="default-currency" value={form.defaultCurrency ?? "GHC"}
                       onChange={(o) => setForm({ ...form, defaultCurrency: o.code })} /></div>
+                  <CompanyTimeZoneField />
 
                   <div><Label>Sachets per bag</Label>
                     <NumberInput min={1} value={form.defaultBagSachetCount ?? 30} onChange={(e) => setForm({ ...form, defaultBagSachetCount: Number(e.target.value) || 30 })} /></div>

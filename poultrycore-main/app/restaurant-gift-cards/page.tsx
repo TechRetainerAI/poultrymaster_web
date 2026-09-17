@@ -23,6 +23,7 @@ import {
   redeemGiftCard, reloadGiftCard, getGiftCardTransactions,
   type GiftCard, type GiftCardTx, type GiftCardStats, type GiftCardRedeemResult, type GiftCardCreateInput,
 } from "@/lib/api/restaurant"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const STATUS_COLORS: Record<string, string> = {
   Active: "bg-green-100 text-green-700",
@@ -323,7 +324,7 @@ export default function RestaurantGiftCardsPage() {
                           <span>${card.initialBalance.toFixed(2)} &rarr; ${card.currentBalance.toFixed(2)}</span>
                           {card.purchaserName && <span>From: {card.purchaserName}</span>}
                           {card.recipientName && <span>To: {card.recipientName}</span>}
-                          {card.expiryDate && <span>Exp: {new Date(card.expiryDate).toLocaleDateString()}</span>}
+                          {card.expiryDate && <span>Exp: {fmtDateTime(card.expiryDate)}</span>}
                         </div>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">

@@ -25,6 +25,7 @@ import {
   type Feedback, type FeedbackInput, type FeedbackStats,
   type Campaign, type CampaignInput,
 } from "@/lib/api/restaurant"
+import { fmtInstant } from "@/lib/utils/company-datetime"
 
 const SEGMENTS = [{ v: "New", icon: "🆕", color: "bg-blue-100 text-blue-700" }, { v: "Regular", icon: "🔄", color: "bg-green-100 text-green-700" }, { v: "VIP", icon: "👑", color: "bg-purple-100 text-purple-700" }, { v: "Lapsed", icon: "😴", color: "bg-gray-100 text-gray-700" }]
 
@@ -242,7 +243,7 @@ export default function RestaurantCRMPage() {
                                 <Badge variant="outline" className="text-[10px] h-5">{f.source}</Badge>
                                 <Badge className={`text-[10px] h-5 ${f.status === "New" ? "bg-blue-100 text-blue-700" : f.status === "Responded" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"} hover:bg-inherit`}>{f.status}</Badge>
                               </div>
-                              <span className="text-xs text-muted-foreground">{new Date(f.createdAt).toLocaleDateString()}</span>
+                              <span className="text-xs text-muted-foreground">{fmtInstant(f.createdAt)}</span>
                             </div>
                             {f.comment && <p className="text-sm text-gray-700 mt-2">{f.comment}</p>}
                             {f.response && <div className="mt-2 p-2 bg-green-50 rounded-lg text-sm"><span className="font-medium text-green-700">Response:</span> {f.response}</div>}

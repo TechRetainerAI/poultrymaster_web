@@ -37,6 +37,7 @@ import {
   type GenericOwnerEntry, type OwnerEntryType,
 } from "@/lib/api/generic-money-out"
 import { getCashAccounts } from "@/lib/api/generic"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const today = () => new Date().toISOString().slice(0, 10)
 
@@ -331,7 +332,7 @@ export default function GenericOwnerMoneyPage() {
                     secondary={(r) => (
                       <>
                         <span>{fmt(r.amount)}</span>
-                        <span> · {new Date(r.entryDate).toLocaleDateString()}</span>
+                        <span> · {fmtDateTime(r.entryDate, r)}</span>
                       </>
                     )}
                     trailing={(r) =>
@@ -372,7 +373,7 @@ export default function GenericOwnerMoneyPage() {
                             {pg.pageItems.map((r) => (
                               <TableRow key={r.genericOwnerEntryId}
                                 className={r.status === "Reversed" ? "opacity-60" : ""}>
-                                <TableCell>{new Date(r.entryDate).toLocaleDateString()}</TableCell>
+                                <TableCell>{fmtDateTime(r.entryDate, r)}</TableCell>
                                 <TableCell>
                                   {r.status === "Reversed"
                                     ? <Badge className="bg-slate-200 text-slate-700 hover:bg-slate-200">Reversed</Badge>

@@ -344,6 +344,8 @@ namespace PoultryFarmAPIWeb.Business
             },
             r => new PaymentHistoryRow
             {
+                // 304: the time the payments tables show beside the date.
+                CreatedAt = r.OptionalDateTime("CreatedAt"),
                 // Guarded, not GetGuid: `paymentgroupid` is nullable with no default,
                 // and a writer that forgets it used to throw here -- which took the
                 // WHOLE ledger down over one bad row. Migration 245 stops the nulls
@@ -387,6 +389,8 @@ namespace PoultryFarmAPIWeb.Business
             },
             r => new PaymentHistoryRow
             {
+                // 304: the time the payments tables show beside the date.
+                CreatedAt = r.OptionalDateTime("CreatedAt"),
                 PaymentId = Int(r, "paymentid").ToString(),
                 PartyId = IntN(r, "supplierid"),
                 PartyName = Str(r, "suppliername"),

@@ -50,6 +50,7 @@ import {
 } from "@/lib/utils/production-records"
 import { flockCountsTowardBirdTotals } from "@/lib/utils/flock-eligibility"
 import { eggGradeFromApi, formatEggGradeLabel } from "@/lib/constants/egg-grade"
+import { fmtDateTime, businessSortValue } from "@/lib/utils/company-datetime"
 
 // A tap-to-read note beside a stat's label. Popover rather than Tooltip on
 // purpose: hover doesn't exist on a phone, and these notes were written for
@@ -314,7 +315,7 @@ export default function ProductionRecordsPage() {
         r.medication?.toLowerCase().includes(q) ||
         String(r.eggGrade ?? "").toLowerCase().includes(q) ||
         formatEggGradeLabel((r as any).eggGrade).toLowerCase().includes(q) ||
-        new Date(r.date).toLocaleDateString().toLowerCase().includes(q)
+        fmtDateTime(r.date, r).toLowerCase().includes(q)
       ))
     }
     if (dateFrom) list = list.filter((r) => toLocalDateKey(r.date) >= dateFrom)
@@ -417,7 +418,7 @@ export default function ProductionRecordsPage() {
   const sortedFiltered = useMemo(() => {
     return sortData(filtered, sortKey, sortDirection, (item: any, key: string) => {
       switch (key) {
-        case "date": return new Date(item.date)
+        case "date": return businessSortValue(item.date, item)
         case "flockId": return item.flockId ?? 0
         case "batchName": return resolveBatchLabel(item).toLowerCase()
         case "age": return item.ageInDays ?? 0
@@ -551,7 +552,7 @@ export default function ProductionRecordsPage() {
       "Total","Size","EggPercent","FeedKg","Birds","Deaths","Left","Medication"
     ]
     const rows = filtered.map((r: any) => [
-      new Date(r.date).toLocaleDateString(),
+      fmtDateTime(r.date, r),
       r.flockId ?? "",
       resolveBatchLabel(r),
       formatAge(r),
@@ -612,7 +613,7 @@ export default function ProductionRecordsPage() {
       const m = Number(r.mortality) || 0
       const eggPct = b ? ((t / b) * 100).toFixed(1) + "%" : "-"
       return [
-        new Date(r.date).toLocaleDateString(),
+        fmtDateTime(r.date, r),
         r.flockId != null ? `#${r.flockId}` : "-",
         resolveBatchLabel(r),
         formatAge(r),
@@ -1206,7 +1207,7 @@ export default function ProductionRecordsPage() {
                                 the row's own bg-slate-50/40 is translucent, so
                                 columns would scroll visibly through it. Match
                                 the stripe rather than always white. */}
-                            <TableCell className={cn("px-3 py-2 whitespace-nowrap min-w-[100px]", isMobile && (idx % 2 === 0 ? "sticky-col-date bg-white" : "sticky-col-date bg-slate-100"))}>{isMobile ? formatDateShort(r.date) : new Date(r.date).toLocaleDateString()}</TableCell>
+                            <TableCell className={cn("px-3 py-2 whitespace-nowrap min-w-[100px]", isMobile && (idx % 2 === 0 ? "sticky-col-date bg-white" : "sticky-col-date bg-slate-100"))}>{isMobile ? formatDateShort(r.date) : fmtDateTime(r.date, r)}</TableCell>
                             <TableCell className="px-3 py-2 whitespace-nowrap min-w-[120px] font-medium text-slate-800">{resolveFlockLabel(r)}</TableCell>
                             <TableCell className="px-3 py-2 whitespace-nowrap min-w-[120px] text-slate-600">{resolveBatchLabel(r)}</TableCell>
                             <TableCell className="px-3 py-2">{formatAge(r)}</TableCell>

@@ -30,6 +30,7 @@ import {
   listPoultryRawMaterialItems, listPoultryRawMaterialPurchases, listPoultryRawMaterialUsageHistory,
   type PoultryRawMaterialItem, type PoultryRawMaterialPurchase, type PoultryRawMaterialUsage,
 } from "@/lib/api/poultry-inventory"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 
 // One IN or OUT event for a single medication, with the running per-med balance.
@@ -359,7 +360,7 @@ export default function MedicationTrackerPage() {
                     <TableBody>
                       {pageRows.map((r) => (
                         <TableRow key={r.key}>
-                          <TableCell className="whitespace-nowrap">{(r.date || "").split("T")[0]}</TableCell>
+                          <TableCell className="whitespace-nowrap">{fmtDateTime(r.date, r)}</TableCell>
                           <TableCell className="font-medium">{r.medication}</TableCell>
                           <TableCell><Badge className={r.type === "Purchase" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}>{r.type === "Purchase" ? "In" : "Out"}</Badge></TableCell>
                           <TableCell className="text-slate-500 max-w-[260px] truncate" title={r.source}>{r.source}</TableCell>

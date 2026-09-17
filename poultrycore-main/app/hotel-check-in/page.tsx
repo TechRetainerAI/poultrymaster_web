@@ -20,6 +20,7 @@ import {
   listHotelBookings, listHotelRooms, processCheckIn, listStayCharges, listHotelPayments,
   type HotelBooking, type HotelRoom, type HotelStayCharge, type HotelPayment,
 } from "@/lib/api/hotel"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 interface GuestBalance {
   booking: HotelBooking
@@ -143,7 +144,7 @@ export default function HotelCheckInPage() {
                       <div className="text-sm text-slate-500">Ref: <span className="font-mono">{b.bookingRef}</span></div>
                       <div className="text-sm">Room Type: {b.roomTypeName}</div>
                       <div className="text-sm">Guests: {b.adults} adults{b.children > 0 ? `, ${b.children} children` : ""}</div>
-                      <div className="text-sm">Stay: {b.checkInDate?.slice(0,10)} to {b.checkOutDate?.slice(0,10)}</div>
+                      <div className="text-sm">Stay: {fmtDateTime(b.checkInDate)} to {fmtDateTime(b.checkOutDate)}</div>
                       <div className="text-sm font-semibold">Total: {Number(b.totalAmount ?? 0).toFixed(2)}</div>
                       <Button onClick={() => openCheckIn(b)} className="w-full mt-2 bg-violet-600 hover:bg-violet-700"><Key className="h-4 w-4 mr-1" /> Check In</Button>
                     </CardContent>

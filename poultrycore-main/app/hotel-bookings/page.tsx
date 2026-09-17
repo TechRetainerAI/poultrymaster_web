@@ -23,6 +23,7 @@ import {
 } from "@/lib/api/hotel"
 import { PaginationControls } from "@/components/ui/pagination-controls"
 import { BookingCalendar } from "@/components/hotel/booking-calendar"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const STATUS_COLORS: Record<string, string> = {
   Confirmed: "bg-blue-100 text-blue-700", CheckedIn: "bg-emerald-100 text-emerald-700",
@@ -316,8 +317,8 @@ export default function HotelBookingsPage() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs">
                           <div><span className="text-slate-500">Room Type:</span> <strong>{rt?.name ?? b.roomTypeName}</strong></div>
                           <div><span className="text-slate-500">Room:</span> <strong>{b.roomNumber ?? "To be assigned"}</strong></div>
-                          <div><span className="text-slate-500">Check-in:</span> <strong>{b.checkInDate?.slice(0, 10)}</strong></div>
-                          <div><span className="text-slate-500">Check-out:</span> <strong>{b.checkOutDate?.slice(0, 10)}</strong></div>
+                          <div><span className="text-slate-500">Check-in:</span> <strong>{fmtDateTime(b.checkInDate)}</strong></div>
+                          <div><span className="text-slate-500">Check-out:</span> <strong>{fmtDateTime(b.checkOutDate)}</strong></div>
                           <div><span className="text-slate-500">Nights:</span> <strong>{nights}</strong></div>
                           <div><span className="text-slate-500">Guests:</span> <strong>{b.adults ?? 1} Adult{(b.adults ?? 1) > 1 ? "s" : ""}{(b.children ?? 0) > 0 ? `, ${b.children} Child${b.children! > 1 ? "ren" : ""}` : ""}</strong></div>
                           <div><span className="text-slate-500">Source:</span> <strong>{b.source}</strong></div>

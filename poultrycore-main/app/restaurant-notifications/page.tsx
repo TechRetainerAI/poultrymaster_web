@@ -24,6 +24,7 @@ import {
   type RestaurantNotification,
   type NotificationSettings,
 } from "@/lib/api/restaurant"
+import { fmtInstant } from "@/lib/utils/company-datetime"
 
 function severityIcon(severity: string) {
   switch (severity?.toLowerCase()) {
@@ -49,7 +50,9 @@ function timeAgo(dateStr: string): string {
   if (hrs < 24) return `${hrs}h ago`
   const days = Math.floor(hrs / 24)
   if (days < 7) return `${days}d ago`
-  return new Date(dateStr).toLocaleDateString()
+  // The whole value is one instant (a notification timestamp), so its DATE
+  // should roll with the zone too.
+  return fmtInstant(dateStr)
 }
 
 export default function RestaurantNotificationsPage() {

@@ -27,6 +27,7 @@ import {
   type GenericCashAccount, type GenericSupplier, type GenericSupplierPayment,
 } from "@/lib/api/generic"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const STATUS_FILTERS = ["All", "Draft", "Approved", "Cancelled"] as const
 const PAY_METHODS = ["Cash", "MoMo", "Bank", "Card"]
@@ -236,14 +237,14 @@ function GenericSupplierPaymentsPageInner() {
                   primary={(p) => `#${p.genericSupplierPaymentId} · ${p.supplierName ?? "–"}`}
                   secondary={(p) => (
                     <>
-                      <span>{new Date(p.paymentDate).toLocaleDateString()}</span>
+                      <span>{fmtDateTime(p.paymentDate, p)}</span>
                       <span>·</span>
                       <span className="text-xs">{p.paymentMethod}</span>
                     </>
                   )}
                   trailing={(p) => <Badge className={badgeClass(p.status)}>{p.status}</Badge>}
                   details={(p) => [
-                    { label: "Date", value: new Date(p.paymentDate).toLocaleDateString() },
+                    { label: "Date", value: fmtDateTime(p.paymentDate, p) },
                     { label: "Supplier", value: p.supplierName ?? "–" },
                     { label: "Method", value: p.paymentMethod },
                     { label: "Amount", value: <span className="font-semibold text-rose-700">{fmt(p.amount)}</span> },
@@ -280,7 +281,7 @@ function GenericSupplierPaymentsPageInner() {
                         {visibleRows.map((p) => (
                           <TableRow key={p.genericSupplierPaymentId}>
                             <TableCell>#{p.genericSupplierPaymentId}</TableCell>
-                            <TableCell>{new Date(p.paymentDate).toLocaleDateString()}</TableCell>
+                            <TableCell>{fmtDateTime(p.paymentDate, p)}</TableCell>
                             <TableCell>{p.supplierName ?? "–"}</TableCell>
                             <TableCell className="text-xs text-slate-500">{p.paymentMethod}</TableCell>
                             <TableCell className="text-right font-semibold text-rose-700">{fmt(p.amount)}</TableCell>

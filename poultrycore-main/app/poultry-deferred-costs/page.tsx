@@ -59,6 +59,7 @@ import {
   type PoultryDeferredCostResponse, type PoultryDeferredPurchase,
   type PoultryDeferredRecognition, type DeferredCostScope,
 } from "@/lib/api/poultry-inventory"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const CATEGORY_LABELS: Record<string, string> = {
   FeedIngredient: "Feed Ingredient",
@@ -463,7 +464,7 @@ function DeferredCostsInner() {
                     primary={(p) => p.itemName ?? `Purchase #${p.poultryRawMaterialPurchaseId}`}
                     secondary={(p) => (
                       <span className="truncate">
-                        #{p.poultryRawMaterialPurchaseId} · {p.purchaseDate?.slice(0, 10)} · {categoryLabel(p.category)}
+                        #{p.poultryRawMaterialPurchaseId} · {fmtDateTime(p.purchaseDate, p)} · {categoryLabel(p.category)}
                       </span>
                     )}
                     trailing={(p) => (
@@ -556,7 +557,7 @@ function DeferredCostsInner() {
                                   <TableCell className="whitespace-nowrap">
                                     <div className="font-medium text-slate-900">#{id}</div>
                                     <div className="text-[11px] text-slate-500">
-                                      {p.purchaseDate?.slice(0, 10)}
+                                      {fmtDateTime(p.purchaseDate, p)}
                                     </div>
                                   </TableCell>
                                   <TableCell>
@@ -720,7 +721,7 @@ function HistoryPanel({
             {rows.map((r) => (
               <TableRow key={r.poultryRawMaterialUsageId}
                         className={cn(r.isReversed && "opacity-60")}>
-                <TableCell className="text-xs whitespace-nowrap">{r.usedDate?.slice(0, 10)}</TableCell>
+                <TableCell className="text-xs whitespace-nowrap">{fmtDateTime(r.usedDate, r)}</TableCell>
                 <TableCell className="text-xs">
                   <div className="text-slate-900">{r.sourceLabel}</div>
                   <div className="text-[11px] text-slate-500">{r.sourceType}</div>
@@ -864,7 +865,7 @@ function PurchaseDetailDialog({
                 {rows.map((r) => (
                   <div key={r.poultryRawMaterialUsageId}
                        className={cn("flex justify-between gap-2 text-xs", r.isReversed && "opacity-60 line-through")}>
-                    <span className="text-slate-500">{r.usedDate?.slice(0, 10)}</span>
+                    <span className="text-slate-500">{fmtDateTime(r.usedDate, r)}</span>
                     <span className="flex-1 text-slate-700 truncate">{r.sourceLabel}</span>
                     <span className="text-slate-500">{qtyFmt(r.quantityDrawn, r.productionUnit)}</span>
                     <span className="text-emerald-700">{r.recognizedCost > 0 ? gh(r.recognizedCost) : "—"}</span>

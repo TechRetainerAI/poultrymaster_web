@@ -27,6 +27,7 @@ import {
   getPayment, listPayments, reversePayment,
   type BalanceModule, type BalanceSide, type PaymentAllocationRow, type PaymentHistoryRow,
 } from "@/lib/api/balances"
+import { fmtDateTime, fmtInstant } from "@/lib/utils/company-datetime"
 
 interface Props {
   open: boolean
@@ -366,7 +367,7 @@ export function PaymentHistoryDialog({
                                 {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                               </button>
                             </TableCell>
-                            <TableCell className="whitespace-nowrap!">{new Date(row.paymentDate).toLocaleDateString()}</TableCell>
+                            <TableCell className="whitespace-nowrap!">{fmtDateTime(row.paymentDate, row)}</TableCell>
                             <TableCell className="whitespace-nowrap! font-medium text-slate-700" title={row.paymentId}>
                               {paymentRef(row)}
                             </TableCell>
@@ -394,7 +395,7 @@ export function PaymentHistoryDialog({
                               <TableCell />
                               <TableCell colSpan={9} className="py-1 text-xs text-slate-500">
                                 Reversed{row.reversedBy ? ` by ${row.reversedBy}` : ""}
-                                {row.reversedAt ? ` on ${new Date(row.reversedAt).toLocaleDateString()}` : ""}: {row.reversalReason}
+                                {row.reversedAt ? ` on ${fmtInstant(row.reversedAt)}` : ""}: {row.reversalReason}
                               </TableCell>
                             </TableRow>
                           )}
@@ -452,7 +453,7 @@ export function PaymentHistoryDialog({
                                               {a.reference ?? a.documentId}
                                             </TableCell>
                                             <TableCell className="text-slate-600">{a.label ?? "—"}</TableCell>
-                                            <TableCell className="whitespace-nowrap!">{a.documentDate ? new Date(a.documentDate).toLocaleDateString() : "—"}</TableCell>
+                                            <TableCell className="whitespace-nowrap!">{a.documentDate ? fmtDateTime(a.documentDate, a) : "—"}</TableCell>
                                             <TableCell className="whitespace-nowrap! text-right">{fmt(a.documentTotal)}</TableCell>
                                             <TableCell className="whitespace-nowrap! text-right text-slate-500">{fmt(a.balanceBefore)}</TableCell>
                                             {/* Applied is money that moved; the

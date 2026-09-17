@@ -30,6 +30,7 @@ import {
   deletePoultryCashAccount, setPoultryCashClearing, POULTRY_CASH_REASONS,
   type PoultryCashAccount, type PoultryCashTransaction, type PoultryClearingStatus,
 } from "@/lib/api/poultry-finance"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const CLEARING_BADGE: Record<string, string> = {
   Uncleared: "bg-slate-100 text-slate-600",
@@ -235,9 +236,9 @@ export default function PoultryCashAccountDetailPage() {
                       pagination={pg.paginationProps}
                       getKey={(r) => r.poultryCashTransactionId}
                       primary={(r) => `${r.amount < 0 ? "−" : "+"}${gh(Math.abs(r.amount))} · ${r.transactionType}`}
-                      secondary={(r) => (<><span>{r.transactionDate.split("T")[0]}</span><span>· Bal {gh(r.running)}</span></>)}
+                      secondary={(r) => (<><span>{fmtDateTime(r.transactionDate, r)}</span><span>· Bal {gh(r.running)}</span></>)}
                       details={(r) => [
-                        { label: "Date", value: r.transactionDate.split("T")[0] },
+                        { label: "Date", value: fmtDateTime(r.transactionDate, r) },
                         { label: "Type", value: r.transactionType },
                         // Through the shared vocabulary so a row reads the same
                         // here as on Cash Flow. Printing the raw sourceType was
@@ -266,7 +267,7 @@ export default function PoultryCashAccountDetailPage() {
                             <TableBody>
                               {pg.pageItems.map((r) => (
                                 <TableRow key={r.poultryCashTransactionId}>
-                                  <TableCell className="whitespace-nowrap">{r.transactionDate.split("T")[0]}</TableCell>
+                                  <TableCell className="whitespace-nowrap">{fmtDateTime(r.transactionDate, r)}</TableCell>
                                   <TableCell>{r.transactionType}</TableCell>
                                   <TableCell>{categoryLabel(r.sourceType)}</TableCell>
                                   <TableCell className="text-right tabular-nums text-green-700">{r.amount > 0 ? gh(r.amount) : "—"}</TableCell>

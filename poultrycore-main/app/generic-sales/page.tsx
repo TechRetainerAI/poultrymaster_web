@@ -18,6 +18,7 @@ import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { getSales, type GenericSale } from "@/lib/api/generic"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const STATUS_FILTERS = ["All", "Draft", "Approved", "Refunded", "Cancelled"] as const
 
@@ -125,14 +126,14 @@ function GenericSalesPageInner() {
                   )}
                   secondary={(s) => (
                     <>
-                      <span>{new Date(s.saleDate).toLocaleDateString()}</span>
+                      <span>{fmtDateTime(s.saleDate, s)}</span>
                       <span>·</span>
                       <span className="text-xs">{s.salesType}</span>
                     </>
                   )}
                   trailing={(s) => <Badge className={statusBadgeClass(s.status)}>{s.status}</Badge>}
                   details={(s) => [
-                    { label: "Date", value: new Date(s.saleDate).toLocaleDateString() },
+                    { label: "Date", value: fmtDateTime(s.saleDate, s) },
                     { label: "Customer", value: s.customerName ?? "Walk-in" },
                     { label: "Type", value: s.salesType },
                     { label: "Total", value: fmt(s.totalAmount) },
@@ -164,7 +165,7 @@ function GenericSalesPageInner() {
                         {visibleRows.map((s) => (
                           <TableRow key={s.genericSaleId}>
                             <TableCell><Link href={`/generic-sales/${s.genericSaleId}`} className="text-emerald-700 underline">#{s.genericSaleId}</Link></TableCell>
-                            <TableCell>{new Date(s.saleDate).toLocaleDateString()}</TableCell>
+                            <TableCell>{fmtDateTime(s.saleDate, s)}</TableCell>
                             <TableCell>{s.customerName ?? <span className="text-slate-500">Walk-in</span>}</TableCell>
                             <TableCell className="text-xs text-slate-500">{s.salesType}</TableCell>
                             <TableCell className="text-right">{fmt(s.totalAmount)}</TableCell>

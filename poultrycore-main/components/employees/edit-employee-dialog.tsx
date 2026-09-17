@@ -24,6 +24,7 @@ import {
   cacheEmployeePermissions,
   resolveEmployeePermissions,
 } from "@/lib/employees/permissions-io"
+import { fmtInstant } from "@/lib/utils/company-datetime"
 
 // #18 Phase 3: water job roles assignable per employee (a person can hold several).
 const WATER_JOB_ROLES = ["Driver", "MotorKingRider", "Salesperson", "Loader", "Supervisor", "Cashier", "Other"]
@@ -229,7 +230,7 @@ export function EditEmployeeDialog({
               <div className="p-4 bg-white space-y-3">
                 <div className="flex items-center gap-3 text-sm"><User className="w-4 h-4 text-slate-400" /><span className="text-slate-500 w-24">Username:</span><span className="font-medium text-slate-800">{editForm.userName ? `@${editForm.userName}` : "Not set"}</span></div>
                 <div className="flex items-center gap-3 text-sm"><User className="w-4 h-4 text-slate-400" /><span className="text-slate-500 w-24">Employee ID:</span><span className="font-mono text-xs text-slate-800">{employeeId}</span></div>
-                {editForm.createdDate && <div className="flex items-center gap-3 text-sm"><User className="w-4 h-4 text-slate-400" /><span className="text-slate-500 w-24">Created:</span><span className="text-slate-800">{new Date(editForm.createdDate).toLocaleDateString()}</span></div>}
+                {editForm.createdDate && <div className="flex items-center gap-3 text-sm"><User className="w-4 h-4 text-slate-400" /><span className="text-slate-500 w-24">Created:</span><span className="text-slate-800">{fmtInstant(editForm.createdDate)}</span></div>}
               </div>
             </div>
             <EmployeeAccessFields

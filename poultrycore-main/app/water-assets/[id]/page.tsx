@@ -31,6 +31,7 @@ import {
   DEPRECIATION_CONVENTION_NOTE, DEPRECIATION_NONCASH_NOTE,
   CAPITAL_NOT_EXPENSE_NOTE, DRAFT_ASSET_NOTE,
 } from "@/lib/water/financial-classification"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 export default function WaterAssetDetailPage() {
   const params = useParams<{ id: string }>()
@@ -167,7 +168,7 @@ export default function WaterAssetDetailPage() {
                   </TableCell></TableRow>
                 ) : costs.map((c) => (
                   <TableRow key={c.waterCapitalAssetCostId}>
-                    <TableCell className="whitespace-nowrap text-sm">{(c.costDate || "").split("T")[0]}</TableCell>
+                    <TableCell className="whitespace-nowrap text-sm">{fmtDateTime(c.costDate, c)}</TableCell>
                     <TableCell className="text-sm">{c.description ?? "—"}</TableCell>
                     <TableCell className="text-sm text-slate-500">{c.costCategory ?? c.sourceType ?? "—"}</TableCell>
                     <TableCell className="text-sm">{c.supplierName ?? "—"}</TableCell>
