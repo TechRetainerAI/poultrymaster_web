@@ -22,6 +22,7 @@ import {
   type HotelGuest, type HotelGuestInput, type HotelBooking, type HotelPayment,
   type HotelLoyaltyMember, type HotelLoyaltyTransaction, type HotelIdType,
 } from "@/lib/api/hotel"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 export default function HotelGuestsPage() {
   const router = useRouter()
@@ -259,7 +260,7 @@ export default function HotelGuestsPage() {
                       <div><span className="text-slate-500">ID:</span> <strong>{profileGuest.idType ? `${profileGuest.idType}: ${profileGuest.idNumber}` : "—"}</strong></div>
                       <div><span className="text-slate-500">Nationality:</span> <strong>{profileGuest.nationality ?? "—"}</strong></div>
                       <div><span className="text-slate-500">Address:</span> <strong>{profileGuest.address ?? "—"}</strong></div>
-                      <div><span className="text-slate-500">Last Stay:</span> <strong>{profileGuest.lastStayDate?.slice(0, 10) ?? "Never"}</strong></div>
+                      <div><span className="text-slate-500">Last Stay:</span> <strong>{fmtDateTime(profileGuest.lastStayDate, profileGuest) ?? "Never"}</strong></div>
                     </div>
 
                     {/* Lifetime value */}
@@ -277,7 +278,7 @@ export default function HotelGuestsPage() {
                             <div key={b.hotelBookingId} className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border text-sm">
                               <div>
                                 <div className="font-medium">{b.bookingRef} — Room {b.roomNumber ?? "TBD"}</div>
-                                <div className="text-xs text-slate-400">{b.checkInDate?.slice(0, 10)} to {b.checkOutDate?.slice(0, 10)} | {b.roomTypeName}</div>
+                                <div className="text-xs text-slate-400">{fmtDateTime(b.checkInDate)} to {fmtDateTime(b.checkOutDate)} | {b.roomTypeName}</div>
                               </div>
                               <div className="text-right">
                                 <div className="font-semibold">{Number(b.totalAmount ?? 0).toFixed(2)}</div>

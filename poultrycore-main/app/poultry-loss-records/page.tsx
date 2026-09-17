@@ -27,6 +27,7 @@ import {
   listPoultryLossRecords, createPoultryLossRecord, updatePoultryLossRecord, approvePoultryLossRecord, unapprovePoultryLossRecord, deletePoultryLossRecord,
   listPoultryProducts, type PoultryLossRecord, type PoultryProduct,
 } from "@/lib/api/poultry-inventory"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const LOSS_TYPES = ["Damage", "Mortality", "Theft", "Spoilage", "MissingStock", "Other"]
 const EMPTY = { lossDate: new Date().toISOString().split("T")[0], lossType: "Damage", poultryProductId: 0, quantity: 0, estimatedValue: 0, reason: "", notes: "" }
@@ -110,7 +111,7 @@ export default function PoultryLossRecordsPage() {
                           <div className="min-w-0">
                             <div className="pr-6">
                               <div className="flex flex-wrap items-center gap-2">
-                                <span className="font-semibold text-slate-900">{(l.lossDate || "").split("T")[0]}</span>
+                                <span className="font-semibold text-slate-900">{fmtDateTime(l.lossDate, l)}</span>
                                 {l.status === "Approved"
                                   ? <Badge className="bg-green-100 text-green-700">Approved</Badge>
                                   : <Badge className="bg-amber-100 text-amber-700">Pending</Badge>}
@@ -179,7 +180,7 @@ export default function PoultryLossRecordsPage() {
                   {rows.length === 0 ? <TableRow><TableCell colSpan={7} className="text-center text-slate-500 py-6">No loss records yet.</TableCell></TableRow>
                     : pg.pageItems.map((l) => (
                       <TableRow key={l.poultryLossRecordId}>
-                        <TableCell>{(l.lossDate || "").split("T")[0]}</TableCell>
+                        <TableCell>{fmtDateTime(l.lossDate, l)}</TableCell>
                         <TableCell>{l.lossType}</TableCell>
                         <TableCell>{l.productName ?? "—"}</TableCell>
                         <TableCell className="text-right">{l.quantity?.toLocaleString() ?? "—"}</TableCell>

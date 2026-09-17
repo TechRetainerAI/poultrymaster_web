@@ -27,6 +27,8 @@ namespace PoultryFarmAPIWeb.Business
             {
                 list.Add(new HouseModel
                 {
+                    // 301: the time tables show beside the business date.
+                    CreatedAt = reader.OptionalDateTime("CreatedAt"),
                     UserId = reader.GetString(0),
                     FarmId = reader.GetString(1),
                     HouseId = reader.GetInt32(2),
@@ -51,6 +53,8 @@ namespace PoultryFarmAPIWeb.Business
             {
                 return new HouseModel
                 {
+                    // 301: the time tables show beside the business date.
+                    CreatedAt = reader.OptionalDateTime("CreatedAt"),
                     UserId = reader.GetString(0),
                     FarmId = reader.GetString(1),
                     HouseId = reader.GetInt32(2),

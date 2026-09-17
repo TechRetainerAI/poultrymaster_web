@@ -13,6 +13,7 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { getCustomer, getCustomerLedger, type GenericCustomer, type GenericCustomerLedgerEntry } from "@/lib/api/generic"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 function fmt(n: number) {
   return new Intl.NumberFormat(undefined, { style: "currency", currency: "GHS", maximumFractionDigits: 2 }).format(n)
@@ -107,7 +108,7 @@ export default function CustomerLedgerPage() {
                       <TableBody>
                         {entries.map((e) => (
                           <TableRow key={e.genericCustomerLedgerId}>
-                            <TableCell>{new Date(e.transactionDate).toLocaleDateString()}</TableCell>
+                            <TableCell>{fmtDateTime(e.transactionDate, e)}</TableCell>
                             <TableCell><Badge className={`${TYPE_COLORS[e.transactionType] ?? "bg-slate-100 text-slate-800"} hover:opacity-90`}>{e.transactionType}</Badge></TableCell>
                             <TableCell className="max-w-md truncate" title={e.description ?? ""}>{e.description ?? "—"}</TableCell>
                             <TableCell className="text-xs text-slate-500">{e.saleId ? `Sale #${e.saleId}` : e.paymentId ? `Pay #${e.paymentId}` : "—"}</TableCell>

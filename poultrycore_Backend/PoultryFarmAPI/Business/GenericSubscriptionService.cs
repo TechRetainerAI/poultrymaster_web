@@ -552,6 +552,8 @@ namespace PoultryFarmAPIWeb.Business
                 Status = Str(r, "status") ?? string.Empty,
                 Notes = Str(r, "notes"),
                 CreatedBy = Str(r, "createdby"),
+                // 301: the time tables show beside the business date.
+                CreatedAt = r.OptionalDateTime("CreatedAt"),
             });
     }
 }

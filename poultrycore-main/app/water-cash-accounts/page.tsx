@@ -34,6 +34,7 @@ import {
 } from "@/lib/api/water"
 import { cashByAccount } from "@/lib/cash/cash-flow"
 import { RecordCashAdjustmentDialog } from "@/components/cash/record-cash-adjustment-dialog"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const ACCOUNT_TYPES = ["FactoryCashBox", "OwnerCash", "MoMoWallet", "BankAccount", "DriverCash", "PettyCash", "Other"]
 
@@ -386,7 +387,7 @@ export default function WaterCashAccountsPage() {
                   primary={(t) => `${t.fromAccountName} → ${t.toAccountName}`}
                   secondary={(t) => (
                     <>
-                      <span>{t.transferDate.split("T")[0]}</span>
+                      <span>{fmtDateTime(t.transferDate, t)}</span>
                       <Badge variant="outline">{t.status}</Badge>
                     </>
                   )}
@@ -394,7 +395,7 @@ export default function WaterCashAccountsPage() {
                     { label: "Amount", value: fmt(t.amount), accent: "violet", wide: true },
                   ]}
                   details={(t) => [
-                    { label: "Date", value: t.transferDate.split("T")[0] },
+                    { label: "Date", value: fmtDateTime(t.transferDate, t) },
                     { label: "From", value: t.fromAccountName },
                     { label: "To", value: t.toAccountName },
                     { label: "Status", value: t.status },
@@ -418,7 +419,7 @@ export default function WaterCashAccountsPage() {
                       <TableBody>
                         {transfers.slice(0, 8).map((t) => (
                           <TableRow key={t.waterCashTransferId}>
-                            <TableCell>{t.transferDate.split("T")[0]}</TableCell>
+                            <TableCell>{fmtDateTime(t.transferDate, t)}</TableCell>
                             <TableCell>{t.fromAccountName}</TableCell>
                             <TableCell>{t.toAccountName}</TableCell>
                             <TableCell className="text-right tabular-nums">{fmt(t.amount)}</TableCell>
@@ -514,7 +515,7 @@ export default function WaterCashAccountsPage() {
                 <TableBody>
                   {txDlg.rows.map((r) => (
                     <TableRow key={r.waterCashTransactionId}>
-                      <TableCell>{r.transactionDate.split("T")[0]}</TableCell>
+                      <TableCell>{fmtDateTime(r.transactionDate, r)}</TableCell>
                       <TableCell>{ledgerTypeLabel(r.transactionType)}</TableCell>
                       <TableCell>{r.sourceType ?? "—"}</TableCell>
                       <TableCell className={`text-right tabular-nums ${r.amount < 0 ? "text-rose-600" : "text-green-700"}`}>{fmt(r.amount)}</TableCell>

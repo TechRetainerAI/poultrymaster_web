@@ -60,6 +60,7 @@ import {
   listPoultryLoanPayments, recordPoultryLoanRepayment, reversePoultryLoanPayment,
   type PoultryCashAccount, type PoultryLoan, type PoultryLoanPayment, type PoultryLoanSummary,
 } from "@/lib/api/poultry-finance"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const LENDER_TYPES = ["Bank", "FinancialInstitution", "Individual", "Owner", "FamilyFriend", "Supplier", "Other"]
 const INTEREST_TYPES = ["Simple", "ReducingBalance", "Flat", "Unknown"]
@@ -149,7 +150,7 @@ function LoanRepaymentTable({ payments, fmt, onReverse }: {
           <TableBody>
             {payments.map((p) => (
               <TableRow key={p.poultryLoanPaymentId} className="bg-white">
-                <TableCell className="whitespace-nowrap">{new Date(p.paymentDate).toLocaleDateString()}</TableCell>
+                <TableCell className="whitespace-nowrap">{fmtDateTime(p.paymentDate, p)}</TableCell>
                 <TableCell className="font-medium">{p.paymentNumber ?? `#${p.poultryLoanPaymentId}`}</TableCell>
                 <TableCell className="text-right tabular-nums">{fmt(p.principalAmount)}</TableCell>
                 <TableCell className="text-right tabular-nums text-amber-700">{fmt(p.interestAmount)}</TableCell>
@@ -207,7 +208,7 @@ function LoanRepaymentList({ payments, fmt, onReverse }: {
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <div className="font-medium text-slate-900">
-                {new Date(p.paymentDate).toLocaleDateString()}
+                {fmtDateTime(p.paymentDate, p)}
               </div>
               <div className="text-[11px] text-slate-500 truncate">
                 {p.paymentNumber ?? `#${p.poultryLoanPaymentId}`}
@@ -438,7 +439,7 @@ export default function PoultryLoansPage() {
                   value={fmt((summary?.totalInterestPaid ?? 0) + (summary?.totalFeesPaid ?? 0))}
                   hint="Interest and fees — the only part that is an expense" accent="amber" />
             <Stat label="Next payment"
-                  value={summary?.nextPaymentDate ? new Date(summary.nextPaymentDate).toLocaleDateString() : "—"}
+                  value={summary?.nextPaymentDate ? fmtDateTime(summary.nextPaymentDate) : "—"}
                   hint={(summary?.overdueLoans ?? 0) > 0 ? `${summary!.overdueLoans} overdue` : undefined}
                   accent={(summary?.overdueLoans ?? 0) > 0 ? "rose" : "slate"} />
           </div>
@@ -472,7 +473,7 @@ export default function PoultryLoansPage() {
               )}
               secondary={(l) => (
                 <>
-                  <span>{new Date(l.startDate).toLocaleDateString()}</span>
+                  <span>{fmtDateTime(l.startDate, l)}</span>
                   <span>·</span>
                   <span className="text-xs">
                     {isFromCashFlow(l) ? "Recorded on Cash Flow" : l.lenderType}
@@ -492,7 +493,7 @@ export default function PoultryLoansPage() {
                 { label: "Interest paid", value: fmt(l.totalInterestPaid) },
                 { label: "Fees paid", value: fmt(l.totalFeesPaid) },
                 { label: "Rate", value: l.interestRate != null ? `${l.interestRate}% ${l.interestType ?? ""}` : "–" },
-                { label: "Next payment", value: l.nextPaymentDate ? new Date(l.nextPaymentDate).toLocaleDateString() : "–" },
+                { label: "Next payment", value: l.nextPaymentDate ? fmtDateTime(l.nextPaymentDate) : "–" },
                 { label: "Repayments", value: String(l.paymentCount) },
               ]}
               extra={(l) => (
@@ -567,7 +568,7 @@ export default function PoultryLoansPage() {
                           <TableCell className="text-right tabular-nums text-amber-700">{fmt(l.totalInterestPaid)}</TableCell>
                           <TableCell className="text-right tabular-nums text-amber-700">{fmt(l.totalFeesPaid)}</TableCell>
                           <TableCell className={l.isOverdue ? "text-rose-600" : ""}>
-                            {l.nextPaymentDate ? new Date(l.nextPaymentDate).toLocaleDateString() : "–"}
+                            {l.nextPaymentDate ? fmtDateTime(l.nextPaymentDate) : "–"}
                           </TableCell>
                           <TableCell><Badge className={statusClass(l)}>{l.isOverdue ? "Overdue" : l.status}</Badge></TableCell>
                           <TableCell className="text-right">
@@ -778,7 +779,7 @@ export default function PoultryLoansPage() {
                 <div className="text-sm">
                   <div className="font-medium">{reversing.paymentNumber ?? "#" + reversing.poultryLoanPaymentId}</div>
                   <div className="mt-1">
-                    {fmt(reversing.totalAmount)} on {new Date(reversing.paymentDate).toLocaleDateString()}
+                    {fmt(reversing.totalAmount)} on {fmtDateTime(reversing.paymentDate, reversing)}
                   </div>
                   <div className="text-xs text-slate-500 mt-1">
                     {fmt(reversing.principalAmount)} principal · {fmt(reversing.interestAmount)} interest ·{" "}

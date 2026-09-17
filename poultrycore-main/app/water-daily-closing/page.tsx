@@ -30,6 +30,7 @@ import {
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog"
 import { PromptDialog } from "@/components/ui/prompt-dialog"
 import { fmtMoney } from "@/lib/currency"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const gh = (n: number | null | undefined) => fmtMoney(n)
 
@@ -265,7 +266,7 @@ export default function WaterDailyClosingPage() {
                   items={pg.pageItems}
                   pagination={pg.paginationProps}
                   getKey={(c) => c.waterDailyClosingId}
-                  primary={(c) => c.closingDate.split("T")[0]}
+                  primary={(c) => fmtDateTime(c.closingDate, c)}
                   secondary={(c) => (
                     <>
                       <span>Cash {gh(c.cashAtHand)}</span>
@@ -278,7 +279,7 @@ export default function WaterDailyClosingPage() {
                     { label: "Cash at hand", value: gh(c.cashAtHand), accent: "violet", wide: true },
                   ]}
                   details={(c) => [
-                    { label: "Date", value: c.closingDate.split("T")[0] },
+                    { label: "Date", value: fmtDateTime(c.closingDate, c) },
                     { label: "Income", value: gh(c.totalIncome) },
                     { label: "Expenses", value: gh(c.totalExpenses) },
                     { label: "Status", value: c.status },
@@ -328,7 +329,7 @@ export default function WaterDailyClosingPage() {
                       <TableBody>
                         {pg.pageItems.map((c) => (
                           <TableRow key={c.waterDailyClosingId}>
-                            <TableCell className="font-medium">{c.closingDate.split("T")[0]}</TableCell>
+                            <TableCell className="font-medium">{fmtDateTime(c.closingDate, c)}</TableCell>
                             <TableCell className="text-right tabular-nums">{c.bagsProduced ?? 0}</TableCell>
                             <TableCell className="text-right tabular-nums">{c.bagsSold ?? 0}</TableCell>
                             <TableCell className="text-right tabular-nums">{gh(c.totalIncome)}</TableCell>
@@ -401,7 +402,7 @@ export default function WaterDailyClosingPage() {
               {view && (
                 <>
                   <FileText className="h-5 w-5 text-sky-600" />
-                  <span>Closing: {view.closingDate.split("T")[0]}{activeFarmName ? ` — ${activeFarmName}` : ""}</span>
+                  <span>Closing: {fmtDateTime(view.closingDate, view)}{activeFarmName ? ` — ${activeFarmName}` : ""}</span>
                   <Badge className={STATUS_COLORS[view.status]}>{view.status}</Badge>
                 </>
               )}
@@ -555,7 +556,7 @@ export default function WaterDailyClosingPage() {
         onOpenChange={(v) => { if (!v) setReopenTarget(null) }}
         title="Reopen this closing?"
         description={reopenTarget
-          ? <>The closing for <span className="font-medium">{reopenTarget.closingDate.split("T")[0]}</span> will be marked Reopened and stay in history. After reopening, click <span className="font-medium">Recreate closing</span> on the row to recalculate using current sales, expenses, production, payroll and cash for the same date.</>
+          ? <>The closing for <span className="font-medium">{fmtDateTime(reopenTarget.closingDate, reopenTarget)}</span> will be marked Reopened and stay in history. After reopening, click <span className="font-medium">Recreate closing</span> on the row to recalculate using current sales, expenses, production, payroll and cash for the same date.</>
           : undefined}
         label="Reason for reopening"
         placeholder="e.g. late expenses entered after closing"

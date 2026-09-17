@@ -27,6 +27,7 @@ import {
   type GenericCashAccount, type GenericCashTransfer,
 } from "@/lib/api/generic"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const STATUS_FILTERS = ["All", "Draft", "Approved", "Cancelled"] as const
 
@@ -220,10 +221,10 @@ function GenericCashTransfersPageInner() {
                   items={visibleRows}
                   getKey={(t) => t.genericCashTransferId}
                   primary={(t) => `#${t.genericCashTransferId} · ${t.fromAccountName ?? `#${t.fromGenericCashAccountId}`} → ${t.toAccountName ?? `#${t.toGenericCashAccountId}`}`}
-                  secondary={(t) => <span>{new Date(t.transferDate).toLocaleDateString()}</span>}
+                  secondary={(t) => <span>{fmtDateTime(t.transferDate, t)}</span>}
                   trailing={(t) => <Badge className={badgeClass(t.status)}>{t.status}</Badge>}
                   details={(t) => [
-                    { label: "Date", value: new Date(t.transferDate).toLocaleDateString() },
+                    { label: "Date", value: fmtDateTime(t.transferDate, t) },
                     { label: "From", value: t.fromAccountName ?? `#${t.fromGenericCashAccountId}` },
                     { label: "To", value: t.toAccountName ?? `#${t.toGenericCashAccountId}` },
                     { label: "Amount", value: <span className="font-semibold">{fmt(t.amount)}</span> },
@@ -261,7 +262,7 @@ function GenericCashTransfersPageInner() {
                         {visibleRows.map((t) => (
                           <TableRow key={t.genericCashTransferId}>
                             <TableCell>#{t.genericCashTransferId}</TableCell>
-                            <TableCell>{new Date(t.transferDate).toLocaleDateString()}</TableCell>
+                            <TableCell>{fmtDateTime(t.transferDate, t)}</TableCell>
                             <TableCell>{t.fromAccountName ?? `#${t.fromGenericCashAccountId}`}</TableCell>
                             <TableCell><ArrowRightLeft className="h-3 w-3 text-slate-400" /></TableCell>
                             <TableCell>{t.toAccountName ?? `#${t.toGenericCashAccountId}`}</TableCell>

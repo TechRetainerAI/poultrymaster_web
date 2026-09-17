@@ -32,6 +32,7 @@ import {
 import type { BalanceModule, BalanceSide, OpenDocumentRow, PartyBalanceRow } from "@/lib/api/balances"
 import { listOpenDocuments, recordPayment } from "@/lib/api/balances"
 import { entryTimestamp } from "@/lib/utils/date-key"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const PAYMENT_METHODS = ["Cash", "MoMo", "Bank Transfer", "Cheque", "Card", "Other"] as const
 
@@ -349,7 +350,7 @@ export function RecordPaymentDialog({
                         {d.label ?? <span className="text-slate-400">—</span>}
                       </TableCell>
                       <TableCell className="whitespace-nowrap">
-                        {new Date(d.documentDate).toLocaleDateString()}
+                        {fmtDateTime(d.documentDate, d)}
                         {d.isOverdue && (
                           <span className="ml-1.5 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
                             {d.ageDays}d

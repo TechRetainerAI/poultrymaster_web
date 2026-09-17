@@ -29,6 +29,7 @@ import {
   WATER_DAILY_PRODUCTION_STATUS_LABELS, waterMachineScopeLabel,
   type WaterDailyProduction,
 } from "@/lib/api/water"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const STATUS_BADGE: Record<string, string> = {
   Draft: "bg-slate-100 text-slate-700",
@@ -285,7 +286,7 @@ export default function WaterDailyProductionPage() {
                 primary={(r) => r.productionNumber || `#${r.waterDailyProductionId}`}
                 secondary={(r) => (
                   <>
-                    <span>{(r.productionDate || "").slice(0, 10)}</span>
+                    <span>{fmtDateTime(r.productionDate, r)}</span>
                     <span className="truncate">{r.productName ?? "—"}</span>
                   </>
                 )}
@@ -331,7 +332,7 @@ export default function WaterDailyProductionPage() {
                       <TableBody>
                         {pg.pageItems.map((r) => (
                           <TableRow key={r.waterDailyProductionId}>
-                            <TableCell className="whitespace-nowrap">{(r.productionDate || "").slice(0, 10)}</TableCell>
+                            <TableCell className="whitespace-nowrap">{fmtDateTime(r.productionDate, r)}</TableCell>
                             <TableCell className="font-medium">{r.productionNumber || `#${r.waterDailyProductionId}`}</TableCell>
                             <TableCell>{r.productName ?? "—"}</TableCell>
                             <TableCell className="text-xs text-slate-600">{waterMachineScopeLabel(r)}</TableCell>

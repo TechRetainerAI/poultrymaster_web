@@ -39,6 +39,7 @@ import { formatDateShort, cn } from "@/lib/utils"
 import { useFmt } from "@/lib/currency"
 import { toLocalDateKey } from "@/lib/utils/date-key"
 import { toastFormGuide } from "@/lib/utils/validation-toast"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 interface InventoryItem {
   id?: number
@@ -397,7 +398,7 @@ export default function InventoryPage() {
         fmt(value),
         it.supplier ?? "",
         it.location ?? "",
-        it.expiryDate ? new Date(it.expiryDate).toLocaleDateString() : "",
+        it.expiryDate ? fmtDateTime(it.expiryDate) : "",
       ]
     })
     return {
@@ -937,7 +938,7 @@ export default function InventoryPage() {
                           <TableCell>{item.quantity.toLocaleString()} {item.unit}</TableCell>
                           <TableCell>{fmt(item.unitPrice)}</TableCell>
                           <TableCell>{fmt(item.quantity * item.unitPrice)}</TableCell>
-                          <TableCell>{item.entryDate ? (isMobile ? formatDateShort(item.entryDate) : new Date(item.entryDate).toLocaleDateString()) : "-"}</TableCell>
+                          <TableCell>{item.entryDate ? (isMobile ? formatDateShort(item.entryDate) : fmtDateTime(item.entryDate, item)) : "-"}</TableCell>
                           <TableCell>{item.supplier || "-"}</TableCell>
                           <TableCell>{item.location || "-"}</TableCell>
                           <TableCell className={cn("text-right whitespace-nowrap bg-white", isMobile && "sticky-col-actions")}>

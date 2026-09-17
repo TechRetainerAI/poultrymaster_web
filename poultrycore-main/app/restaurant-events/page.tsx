@@ -23,6 +23,7 @@ import {
   listEvents, createEvent, updateEventStatus, deleteEvent,
   type CateringEvent, type CateringEventInput,
 } from "@/lib/api/restaurant"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const EVENT_TYPES = ["Corporate", "Wedding", "Birthday", "HolidayParty", "Buffet", "Cocktail", "Other"]
 const EVENT_STATUSES = ["All", "Inquiry", "Confirmed", "Deposit", "InProgress", "Completed", "Cancelled"] as const
@@ -216,7 +217,7 @@ export default function RestaurantEventsPage() {
                           <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-gray-600">
                             <span className="flex items-center gap-1.5">
                               <CalendarDays className="h-3.5 w-3.5" />
-                              {new Date(ev.eventDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
+                              {fmtDateTime(ev.eventDate, ev)}
                             </span>
                             {(ev.startTime || ev.endTime) && (
                               <span className="flex items-center gap-1.5">

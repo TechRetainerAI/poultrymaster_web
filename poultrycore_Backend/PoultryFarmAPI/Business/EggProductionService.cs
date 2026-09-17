@@ -146,6 +146,8 @@ namespace PoultryFarmAPIWeb.Business
                 {
                     var model = new EggProductionModel
                     {
+                        // 301: the time tables show beside the business date.
+                        CreatedAt = reader.OptionalDateTime("CreatedAt"),
                         ProductionId = reader.GetInt32(reader.GetOrdinal("ProductionId")),
                         FlockId = reader.GetInt32(reader.GetOrdinal("FlockId")),
                         ProductionDate = reader.GetDateTime(reader.GetOrdinal("ProductionDate")),
@@ -206,6 +208,8 @@ namespace PoultryFarmAPIWeb.Business
                     var totalFromRow = ReadOptionalInt32(reader, "TotalProduction");
                     var ep = new EggProductionModel
                     {
+                        // 301: the time tables show beside the business date.
+                        CreatedAt = reader.OptionalDateTime("CreatedAt"),
                         ProductionId = reader.GetInt32(reader.GetOrdinal("ProductionId")),
                         FlockId = reader.GetInt32(reader.GetOrdinal("FlockId")),
                         FlockName = ReadOptionalString(reader, "FlockName") ?? "Unknown Flock",
@@ -262,6 +266,8 @@ namespace PoultryFarmAPIWeb.Business
                 {
                     var ep = new EggProductionModel
                     {
+                        // 301: the time tables show beside the business date.
+                        CreatedAt = reader.OptionalDateTime("CreatedAt"),
                         ProductionId = reader.GetInt32(reader.GetOrdinal("ProductionId")),
                         FlockId = reader.GetInt32(reader.GetOrdinal("FlockId")),
                         ProductionDate = reader.GetDateTime(reader.GetOrdinal("ProductionDate")),

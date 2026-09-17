@@ -56,6 +56,7 @@ import {
   getPayment, listPayments, reversePayment,
   type BalanceModule, type PaymentAllocationRow, type PaymentHistoryRow,
 } from "@/lib/api/balances"
+import { fmtDateTime, fmtInstant } from "@/lib/utils/company-datetime"
 
 /** Where a payment was entered from. Matches the sourcetype values the SPs write. */
 const SOURCE_FILTERS = [
@@ -349,7 +350,7 @@ export function PaymentsLedgerPage({
       const a = soleAllocation(r)
       const multi = r.allocationCount > 1
       return [
-        new Date(r.paymentDate).toLocaleDateString(),
+        fmtDateTime(r.paymentDate, r),
         r.paymentId,
         r.partyName ?? "—",
         multi ? "Multiple" : (a?.reference ?? a?.documentId ?? "—"),
@@ -453,7 +454,7 @@ export function PaymentsLedgerPage({
                     </button>
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
-                    {new Date(row.paymentDate).toLocaleDateString()}
+                    {fmtDateTime(row.paymentDate, row)}
                   </TableCell>
                   <TableCell className="font-medium whitespace-nowrap">SPAY-{row.paymentId}</TableCell>
                   <TableCell className="whitespace-nowrap">
@@ -515,7 +516,7 @@ export function PaymentsLedgerPage({
                     <TableCell />
                     <TableCell colSpan={10} className="py-1 text-xs text-slate-500">
                       Reversed{row.reversedBy ? ` by ${row.reversedBy}` : ""}
-                      {row.reversedAt ? ` on ${new Date(row.reversedAt).toLocaleDateString()}` : ""}: {row.reversalReason}
+                      {row.reversedAt ? ` on ${fmtInstant(row.reversedAt)}` : ""}: {row.reversalReason}
                     </TableCell>
                   </TableRow>
                 )}
@@ -577,7 +578,7 @@ export function PaymentsLedgerPage({
                                   <TableCell>{payableTypeLabel(al.documentType)}</TableCell>
                                   <TableCell className="font-medium">{al.reference ?? `#${al.documentId}`}</TableCell>
                                   <TableCell className="text-slate-600">{al.label ?? "—"}</TableCell>
-                                  <TableCell>{al.documentDate ? new Date(al.documentDate).toLocaleDateString() : "—"}</TableCell>
+                                  <TableCell>{al.documentDate ? fmtDateTime(al.documentDate, al) : "—"}</TableCell>
                                   <TableCell className="text-right">{fmt(al.documentTotal)}</TableCell>
                                   <TableCell className="text-right text-slate-500">{fmt(al.balanceBefore)}</TableCell>
                                   <TableCell className="text-right font-medium">{fmt(al.amountApplied)}</TableCell>
@@ -840,7 +841,7 @@ export function PaymentsLedgerPage({
                   primary={(r) => `SPAY-${r.paymentId}`}
                   secondary={(r) => (
                     <>
-                      {r.partyName ?? "No supplier"} · {new Date(r.paymentDate).toLocaleDateString()}
+                      {r.partyName ?? "No supplier"} · {fmtDateTime(r.paymentDate, r)}
                     </>
                   )}
                   highlights={(r) => [

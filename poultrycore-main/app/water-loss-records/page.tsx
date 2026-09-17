@@ -30,6 +30,7 @@ import {
 import { fmtMoney, useCurrency } from "@/lib/currency"
 import { Pencil, Undo2 } from "lucide-react"
 import { PromptDialog } from "@/components/ui/prompt-dialog"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const gh = (n: number) => fmtMoney(n)
 
@@ -234,7 +235,7 @@ export default function WaterLossRecordsPage() {
                   primary={(l) => `${l.lossType} · ${gh(l.estimatedValue ?? 0)}`}
                   secondary={(l) => (
                     <>
-                      <span>{l.lossDate.split("T")[0]}</span>
+                      <span>{fmtDateTime(l.lossDate, l)}</span>
                       <Badge className={STATUS_COLOR[l.status ?? "Pending"] ?? ""}>{l.status ?? "Pending"}</Badge>
                     </>
                   )}
@@ -244,7 +245,7 @@ export default function WaterLossRecordsPage() {
                     { label: "Value", value: gh(l.estimatedValue ?? 0), accent: "violet", wide: true },
                   ]}
                   details={(l) => [
-                    { label: "Date", value: l.lossDate.split("T")[0] },
+                    { label: "Date", value: fmtDateTime(l.lossDate, l) },
                     { label: "Type", value: l.lossType },
                     { label: "Status", value: l.status ?? "Pending" },
                     { label: "Reason", value: l.reason ?? "—" },
@@ -280,7 +281,7 @@ export default function WaterLossRecordsPage() {
                       <TableBody>
                         {pg.pageItems.map((l) => (
                           <TableRow key={l.waterLossRecordId}>
-                            <TableCell>{l.lossDate.split("T")[0]}</TableCell>
+                            <TableCell>{fmtDateTime(l.lossDate, l)}</TableCell>
                             <TableCell><Badge variant="outline">{l.lossType}</Badge></TableCell>
                             <TableCell className="text-right tabular-nums">{l.quantityBags ?? 0}</TableCell>
                             <TableCell className="text-right tabular-nums">{l.quantitySachets ?? 0}</TableCell>

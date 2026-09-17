@@ -14,6 +14,7 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { listCheckInHistory, listCheckOutHistory, listHotelGuests, listHotelBookings, type HotelGuest, type HotelBooking } from "@/lib/api/hotel"
+import { fmtDateTime, fmtInstant } from "@/lib/utils/company-datetime"
 
 export default function HotelStayHistoryPage() {
   const router = useRouter(); const { toast } = useToast(); const logout = useLogout()
@@ -207,7 +208,7 @@ export default function HotelStayHistoryPage() {
                         <tbody>
                           {guestCheckins.map((ci: any, i: number) => (
                             <tr key={ci.hotelcheckinid ?? i} className="border-b">
-                              <td className="p-2">{ci.checkintime ? new Date(ci.checkintime).toLocaleDateString() : "—"}</td>
+                              <td className="p-2">{ci.checkintime ? fmtDateTime(ci.checkintime) : "—"}</td>
                               <td className="p-2">{ci.roomnumber ?? "—"}</td>
                               <td className="p-2">{ci.keycardnumber ?? "—"}</td>
                               <td className="p-2 text-right">{Number(ci.depositamount ?? 0).toFixed(2)}</td>
@@ -231,7 +232,7 @@ export default function HotelStayHistoryPage() {
                         <tbody>
                           {guestCheckouts.map((co: any, i: number) => (
                             <tr key={co.hotelcheckoutid ?? i} className="border-b">
-                              <td className="p-2">{co.checkouttime ? new Date(co.checkouttime).toLocaleDateString() : "—"}</td>
+                              <td className="p-2">{co.checkouttime ? fmtDateTime(co.checkouttime) : "—"}</td>
                               <td className="p-2">{co.roomnumber ?? "—"}</td>
                               <td className="p-2 text-right font-semibold">{Number(co.finalbillamount ?? 0).toFixed(2)}</td>
                               <td className="p-2 text-right">{Number(co.latefee ?? 0).toFixed(2)}</td>
@@ -246,8 +247,8 @@ export default function HotelStayHistoryPage() {
 
                 {/* Dates */}
                 <div className="text-xs text-slate-400 flex justify-between pt-2 border-t">
-                  <span>First registered: {selectedGuest.createdAt ? new Date(selectedGuest.createdAt).toLocaleDateString() : "—"}</span>
-                  {selectedGuest.lastStayDate && <span>Last stay: {new Date(selectedGuest.lastStayDate).toLocaleDateString()}</span>}
+                  <span>First registered: {selectedGuest.createdAt ? fmtInstant(selectedGuest.createdAt) : "—"}</span>
+                  {selectedGuest.lastStayDate && <span>Last stay: {fmtDateTime(selectedGuest.lastStayDate, selectedGuest)}</span>}
                 </div>
               </>
             )}

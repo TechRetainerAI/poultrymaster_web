@@ -46,6 +46,7 @@ import { formatDocumentAge } from "@/lib/balances/allocate"
 import { RecordPaymentDialog, type CashAccountOption } from "./record-payment-dialog"
 import { StatementDialog } from "./statement-dialog"
 import { PaymentHistoryDialog } from "./payment-history-dialog"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 export interface BalancesPageProps {
   module: BalanceModule
@@ -505,8 +506,8 @@ export function BalancesPage({
                             <div className="mt-4 space-y-2 border-t border-slate-200/70 pt-4 text-sm">
                               <div className="grid grid-cols-2 gap-2">
                                 <div><span className="text-slate-500">Open {docWord}s</span> <span className="font-medium tabular-nums">{party.openDocumentCount}</span></div>
-                                <div><span className="text-slate-500">Oldest</span> <span className="font-medium">{party.oldestDocumentDate ? new Date(party.oldestDocumentDate).toLocaleDateString() : "—"}</span></div>
-                                <div className="col-span-2"><span className="text-slate-500">Last payment</span> <span className="font-medium">{party.lastPaymentDate ? new Date(party.lastPaymentDate).toLocaleDateString() : "Never"}</span></div>
+                                <div><span className="text-slate-500">Oldest</span> <span className="font-medium">{party.oldestDocumentDate ? fmtDateTime(party.oldestDocumentDate, party) : "—"}</span></div>
+                                <div className="col-span-2"><span className="text-slate-500">Last payment</span> <span className="font-medium">{party.lastPaymentDate ? fmtDateTime(party.lastPaymentDate, party) : "Never"}</span></div>
                               </div>
                               {/* Two per row: labelled buttons overflow a 375px card on one flex line. */}
                               <div className="grid grid-cols-2 gap-2 pt-2">
@@ -549,8 +550,8 @@ export function BalancesPage({
                                           : <Badge variant="secondary" className="shrink-0">{d.status}</Badge>}
                                       </div>
                                       <div className="mt-2 grid grid-cols-2 gap-1.5 text-sm">
-                                        <div><span className="text-slate-500">Date</span> <span className="font-medium">{new Date(d.documentDate).toLocaleDateString()}</span></div>
-                                        <div><span className="text-slate-500">Due</span> <span className="font-medium">{d.dueDate ? new Date(d.dueDate).toLocaleDateString() : "—"}</span></div>
+                                        <div><span className="text-slate-500">Date</span> <span className="font-medium">{fmtDateTime(d.documentDate, d)}</span></div>
+                                        <div><span className="text-slate-500">Due</span> <span className="font-medium">{d.dueDate ? fmtDateTime(d.dueDate) : "—"}</span></div>
                                         <div><span className="text-slate-500">Total</span> <span className="font-medium tabular-nums">{fmt(d.totalAmount)}</span></div>
                                         <div><span className="text-slate-500">Paid</span> <span className="font-medium tabular-nums text-slate-500">{fmt(d.amountPaid)}</span></div>
                                         <div><span className="text-slate-500">Balance</span> <span className="font-semibold tabular-nums">{fmt(d.balance)}</span></div>
@@ -617,10 +618,10 @@ export function BalancesPage({
                               <TableCell className="text-right font-semibold">{fmt(party.totalBalance)}</TableCell>
                               <TableCell className="text-right">{party.openDocumentCount}</TableCell>
                               <TableCell className="whitespace-nowrap text-slate-500">
-                                {party.oldestDocumentDate ? new Date(party.oldestDocumentDate).toLocaleDateString() : "—"}
+                                {party.oldestDocumentDate ? fmtDateTime(party.oldestDocumentDate, party) : "—"}
                               </TableCell>
                               <TableCell className="whitespace-nowrap text-slate-500">
-                                {party.lastPaymentDate ? new Date(party.lastPaymentDate).toLocaleDateString() : "Never"}
+                                {party.lastPaymentDate ? fmtDateTime(party.lastPaymentDate, party) : "Never"}
                               </TableCell>
                               <TableCell className="text-right">
                                 {party.overdueAmount > 0
@@ -695,12 +696,12 @@ export function BalancesPage({
                                             <TableCell className="text-slate-600">
                                               {d.label ?? d.description ?? "—"}
                                             </TableCell>
-                                            <TableCell className="whitespace-nowrap">{new Date(d.documentDate).toLocaleDateString()}</TableCell>
+                                            <TableCell className="whitespace-nowrap">{fmtDateTime(d.documentDate, d)}</TableCell>
                                             <TableCell className="text-right">{fmt(d.totalAmount)}</TableCell>
                                             <TableCell className="text-right text-slate-500">{fmt(d.amountPaid)}</TableCell>
                                             <TableCell className="text-right font-medium">{fmt(d.balance)}</TableCell>
                                             <TableCell className="whitespace-nowrap text-slate-500">
-                                              {d.dueDate ? new Date(d.dueDate).toLocaleDateString() : "—"}
+                                              {d.dueDate ? fmtDateTime(d.dueDate) : "—"}
                                             </TableCell>
                                             <TableCell className="text-right whitespace-nowrap">{formatDocumentAge(d.ageDays)}</TableCell>
                                             <TableCell>

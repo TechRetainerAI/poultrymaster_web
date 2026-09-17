@@ -25,6 +25,7 @@ import {
   type PoultryDriverReturnCustomerSaleRow, type PoultryDriverDeliveryExpense,
 } from "@/lib/api/poultry-distribution"
 import { useFmt } from "@/lib/currency"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const LOAD_STATUS: Record<string, string> = {
   Loaded: "bg-blue-100 text-blue-700",
@@ -153,7 +154,7 @@ export default function PoultryDeliveryRunDetailsPage() {
                   </h1>
                   <div className="text-xs sm:text-sm text-slate-500 flex flex-wrap gap-2">
                     <Badge className={LOAD_STATUS[loading.status] ?? ""}>{loading.status}</Badge>
-                    <span>{loading.loadDate.split("T")[0]}</span>
+                    <span>{fmtDateTime(loading.loadDate, loading)}</span>
                     {loading.driverName && <span>· Driver: <strong>{loading.driverName}</strong></span>}
                     {loading.vehicleName && <span>· {loading.vehicleName}</span>}
                     {loading.routeName && <span>· {loading.routeName}</span>}
@@ -235,7 +236,7 @@ export default function PoultryDeliveryRunDetailsPage() {
                   <Section title="Return reconciliation" icon={<Receipt className="h-4 w-4 text-slate-500" />}>
                     <div className="mb-3 text-xs text-slate-600">
                       <Badge className={LOAD_STATUS[ret.status ?? ""] ?? ""}>{ret.status}</Badge>
-                      <span className="ml-2">Return date: {ret.returnDate.split("T")[0]}</span>
+                      <span className="ml-2">Return date: {fmtDateTime(ret.returnDate, ret)}</span>
                     </div>
                     {retItems.length > 0 ? (
                       <MobileCardList alwaysExpanded

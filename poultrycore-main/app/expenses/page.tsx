@@ -12,7 +12,7 @@ import { toastFormGuide } from "@/lib/utils/validation-toast"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
-import { Banknote, Calendar, ChevronDown, ChevronUp, DollarSign, Download, FileText as FileTextIcon, Filter, History, ImageIcon, Loader2, Pencil, Plus, Search, Trash2, Truck } from "lucide-react"
+import { Banknote, Calendar, ChevronDown, ChevronUp, DollarSign, Download, FileText as FileTextIcon, Filter, History, ImageIcon, Loader2, Pencil, Plus, Search, Trash2, Truck, Layers } from "lucide-react"
 import { SortableHeader, type SortDirection, toggleSort, sortData } from "@/components/ui/sortable-header"
 import { getExpenses, getExpense, createExpense, updateExpense, deleteExpense, type Expense, type ExpenseInput } from "@/lib/api/expense"
 import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
@@ -67,6 +67,8 @@ import { toLocalDateKey } from "@/lib/utils/date-key"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { formatDateShort, cn } from "@/lib/utils"
 import { exportTableToPdf } from "@/lib/utils/pdf-export"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
+import { DateTimeCell } from "@/components/ui/date-time-cell"
 
 // Sentinel for a farm-wide expense (flockId = null), matching /expenses/new.
 const ALL_FLOCKS = "ALL"
@@ -549,10 +551,6 @@ function ExpensesPageInner() {
     setConfirmOpen(true)
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' })
-  }
-
   const formatCurrency = (amount: number) => fmtCurrency(amount)
 
   /** Past its due date and still owing. A settled bill is never overdue. */
@@ -788,7 +786,7 @@ function ExpensesPageInner() {
     const fmt = (n: number) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     const rows = filteredExpenses.map((e: any) => [
       e.expenseId ?? e.ExpenseId ?? e.id ?? e.Id ?? '',
-      new Date(e.expenseDate).toLocaleDateString(),
+      fmtDateTime(e.expenseDate, e),
       e.category ?? '',
       stripReceiptSuffixFromDescription((e.description ?? '').toString()),
       fmt(Number(e.amount ?? 0)),
@@ -1464,7 +1462,7 @@ function ExpensesPageInner() {
                         const rowReceiptUrl = toReceiptViewUrl(rowReceiptPath, expense.farmId)
                         return (
                         <TableRow key={`${expense.expenseId || 'tmp'}-${idx}`}>
-                          <TableCell className={cn("font-medium bg-white", isMobile && "sticky-col-date")}>{isMobile ? formatDateShort(expense.expenseDate) : formatDate(expense.expenseDate)}</TableCell>
+                          <TableCell className={cn("font-medium bg-white align-top", isMobile && "sticky-col-date")}>{isMobile ? formatDateShort(expense.expenseDate) : <DateTimeCell value={expense.expenseDate} row={expense} />}</TableCell>
                           {/* whitespace-normal is doing the real work: TableCell's
                               base classes set whitespace-nowrap, which INHIBITS
                               overflow-wrap entirely -- so wrap-anywhere, min-w-0 and
@@ -1534,7 +1532,13 @@ function ExpensesPageInner() {
                           <TableCell className="align-top">{renderPaymentStatus(expense)}</TableCell>
                           <TableCell className="align-top"><Badge variant="outline">{expense.paymentMethod || "N/A"}</Badge></TableCell>
                           <TableCell className={cn("text-right whitespace-nowrap bg-white", isMobile && "sticky-col-actions")}>
-                            <div className="flex items-center justify-end gap-2 min-w-[80px]">
+                            {/* flex-wrap: a row can carry up to six actions (edit, pay, history,
+                                supplier, breakdown, delete) and six 32px buttons plus
+                                gaps exceed this 160px column. Without wrapping they
+                                spill left over the Method cell; widening the column
+                                instead would come out of Description, which
+                                expenses-table-width.test.ts exists to protect. */}
+                            <div className="flex flex-wrap items-center justify-end gap-2 min-w-[80px]">
                               {(() => {
                                 const eid = (expense as any).expenseId ?? (expense as any).ExpenseId ?? (expense as any).id ?? (expense as any).Id
                                 const idNum = Number(eid)
@@ -1564,6 +1568,19 @@ function ExpensesPageInner() {
                                   <History className="w-4 h-4" />
                                 </Button>
                               )}
+                              {/* Cost breakdown, ALONGSIDE the captioned link in the
+                                  description cell -- not instead of it. An icon here
+                                  is a shortcut for someone who already knows what
+                                  this row is; the caption below the description is
+                                  what tells everyone else. Reducing it to this icon
+                                  alone is the mistake that was reverted before. */}
+                              {isConsumptionExpense(expense) && (expense as any).sourceId ? (
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-sky-700 hover:bg-sky-50"
+                                  title="How this cost was worked out"
+                                  onClick={() => setBreakdownFor(Number((expense as any).sourceId))}>
+                                  <Layers className="w-4 h-4" />
+                                </Button>
+                              ) : null}
                               {expense.supplierId && (
                                 <Button variant="ghost" size="sm" className="h-8 w-8 p-0"
                                   title="Open this supplier's balance"

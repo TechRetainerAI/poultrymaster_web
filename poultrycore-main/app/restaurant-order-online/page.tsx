@@ -45,6 +45,7 @@ import {
   validatePromoCode, placeOnlineOrder, trackOrder,
   type PublicMenuItem, type PublicCategory, type OrderTracking, type PublicRestaurantProfile,
 } from "@/lib/api/restaurant"
+import { fmtInstant } from "@/lib/utils/company-datetime"
 
 interface CartItem {
   menuItemId: number; name: string; price: number; quantity: number; notes: string
@@ -1376,7 +1377,7 @@ function RestaurantOrderOnlineContent() {
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-mono text-sm font-bold text-stone-900">{o.orderNumber}</div>
                     <div className="mt-0.5 text-xs text-stone-500">
-                      {o.orderType} &middot; {new Date(o.placedAt).toLocaleDateString()} &middot;{" "}
+                      {o.orderType} &middot; {fmtInstant(o.placedAt)} &middot;{" "}
                       {new Date(o.placedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </div>
                     <div className="mt-1.5">

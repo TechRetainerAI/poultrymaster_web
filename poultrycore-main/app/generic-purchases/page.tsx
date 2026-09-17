@@ -19,6 +19,7 @@ import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { approvePurchase, getPurchases, type GenericPurchase } from "@/lib/api/generic"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const STATUS_FILTERS = ["All", "Draft", "Approved", "Cancelled"] as const
 
@@ -125,13 +126,13 @@ function GenericPurchasesPageInner() {
                   primary={(p) => `#${p.genericPurchaseId} · ${p.supplierName ?? "–"}`}
                   secondary={(p) => (
                     <>
-                      <span>{new Date(p.purchaseDate).toLocaleDateString()}</span>
+                      <span>{fmtDateTime(p.purchaseDate, p)}</span>
                       {p.invoiceNumber && <><span>·</span><span className="text-xs">Inv {p.invoiceNumber}</span></>}
                     </>
                   )}
                   trailing={(p) => <Badge className={badgeClass(p.status)}>{p.status}</Badge>}
                   details={(p) => [
-                    { label: "Date", value: new Date(p.purchaseDate).toLocaleDateString() },
+                    { label: "Date", value: fmtDateTime(p.purchaseDate, p) },
                     { label: "Supplier", value: p.supplierName ?? "–" },
                     { label: "Invoice", value: p.invoiceNumber ?? "–" },
                     { label: "Total", value: fmt(p.totalAmount) },
@@ -181,7 +182,7 @@ function GenericPurchasesPageInner() {
                         {visibleRows.map((p) => (
                           <TableRow key={p.genericPurchaseId}>
                             <TableCell>#{p.genericPurchaseId}</TableCell>
-                            <TableCell>{new Date(p.purchaseDate).toLocaleDateString()}</TableCell>
+                            <TableCell>{fmtDateTime(p.purchaseDate, p)}</TableCell>
                             <TableCell>{p.supplierName ?? "–"}</TableCell>
                             <TableCell>{p.invoiceNumber ?? "–"}</TableCell>
                             <TableCell className="text-right">{fmt(p.totalAmount)}</TableCell>

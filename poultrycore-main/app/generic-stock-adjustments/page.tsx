@@ -29,6 +29,7 @@ import {
   type GenericProduct, type GenericStockAdjustment,
 } from "@/lib/api/generic"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const STATUS_FILTERS = ["All", "Draft", "Submitted", "Approved", "Rejected"] as const
 
@@ -247,7 +248,7 @@ function GenericStockAdjustmentsPageInner() {
                   primary={(a) => `#${a.genericStockAdjustmentId} · ${a.productName ?? `#${a.genericProductId}`}`}
                   secondary={(a) => (
                     <>
-                      <span>{new Date(a.adjustmentDate).toLocaleDateString()}</span>
+                      <span>{fmtDateTime(a.adjustmentDate, a)}</span>
                       <span>·</span>
                       {a.adjustmentType === "Increase"
                         ? <span className="inline-flex items-center text-emerald-700"><ArrowUpCircle className="h-3 w-3 mr-1" />+{a.quantity}</span>
@@ -256,7 +257,7 @@ function GenericStockAdjustmentsPageInner() {
                   )}
                   trailing={(a) => <Badge className={badgeClass(a.status)}>{a.status}</Badge>}
                   details={(a) => [
-                    { label: "Date", value: new Date(a.adjustmentDate).toLocaleDateString() },
+                    { label: "Date", value: fmtDateTime(a.adjustmentDate, a) },
                     { label: "Product", value: a.productName ?? `#${a.genericProductId}` },
                     { label: "Type", value: a.adjustmentType === "Increase"
                       ? <span className="inline-flex items-center text-emerald-700"><ArrowUpCircle className="h-3 w-3 mr-1" />Increase</span>
@@ -300,7 +301,7 @@ function GenericStockAdjustmentsPageInner() {
                         {visibleRows.map((a) => (
                           <TableRow key={a.genericStockAdjustmentId}>
                             <TableCell>#{a.genericStockAdjustmentId}</TableCell>
-                            <TableCell>{new Date(a.adjustmentDate).toLocaleDateString()}</TableCell>
+                            <TableCell>{fmtDateTime(a.adjustmentDate, a)}</TableCell>
                             <TableCell>{a.productName ?? `#${a.genericProductId}`}</TableCell>
                             <TableCell>
                               {a.adjustmentType === "Increase"

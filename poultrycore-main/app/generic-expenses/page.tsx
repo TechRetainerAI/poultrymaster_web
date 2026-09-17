@@ -18,6 +18,7 @@ import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { approveExpense, getExpenses, type GenericExpense } from "@/lib/api/generic"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const STATUS_FILTERS = ["All", "Draft", "Approved", "Rejected"] as const
 
@@ -123,14 +124,14 @@ function GenericExpensesPageInner() {
                   primary={(e) => `#${e.genericExpenseId} · ${e.categoryName ?? e.description ?? "Expense"}`}
                   secondary={(e) => (
                     <>
-                      <span>{new Date(e.expenseDate).toLocaleDateString()}</span>
+                      <span>{fmtDateTime(e.expenseDate, e)}</span>
                       <span>·</span>
                       <span className="text-xs">{e.paymentMethod}</span>
                     </>
                   )}
                   trailing={(e) => <Badge className={badgeClass(e.status)}>{e.status}</Badge>}
                   details={(e) => [
-                    { label: "Date", value: new Date(e.expenseDate).toLocaleDateString() },
+                    { label: "Date", value: fmtDateTime(e.expenseDate, e) },
                     { label: "Category", value: e.categoryName ?? "–" },
                     { label: "Description", value: e.description ?? "–" },
                     { label: "Supplier", value: e.supplierName ?? "–" },
@@ -166,7 +167,7 @@ function GenericExpensesPageInner() {
                         {visibleRows.map((e) => (
                           <TableRow key={e.genericExpenseId}>
                             <TableCell>#{e.genericExpenseId}</TableCell>
-                            <TableCell>{new Date(e.expenseDate).toLocaleDateString()}</TableCell>
+                            <TableCell>{fmtDateTime(e.expenseDate, e)}</TableCell>
                             <TableCell>{e.categoryName ?? "–"}</TableCell>
                             <TableCell>{e.description ?? "–"}</TableCell>
                             <TableCell>{e.supplierName ?? "–"}</TableCell>

@@ -235,6 +235,8 @@ namespace PoultryFarmAPIWeb.Business
             },
             r => new PaymentHistoryRow
             {
+                // 304: the time the payments tables show beside the date.
+                CreatedAt = r.OptionalDateTime("CreatedAt"),
                 // An int, not a uuid: genericcustomerpayments already stores one
                 // row per payment, so there is no group to stand in for it.
                 // The DTO carries it as a string either way.
@@ -432,6 +434,8 @@ namespace PoultryFarmAPIWeb.Business
             },
             r => new PaymentHistoryRow
             {
+                // 304: the time the payments tables show beside the date.
+                CreatedAt = r.OptionalDateTime("CreatedAt"),
                 PaymentId = Int(r, "paymentid").ToString(),
                 PartyId = IntN(r, "partyid"),
                 PartyName = Str(r, "partyname"),

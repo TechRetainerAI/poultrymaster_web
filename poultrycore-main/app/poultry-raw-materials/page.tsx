@@ -51,6 +51,7 @@ import {
 import { listPoultryCashAccounts, type PoultryCashAccount } from "@/lib/api/poultry-finance"
 import { RecalculateStockButton } from "@/components/poultry/recalculate-stock-button"
 import { PoultryPurchaseDialog } from "@/components/raw-materials/poultry-purchase-dialog"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const CATEGORIES = ["FeedIngredient", "FinishedFeed", "Packaging", "Medication", "Vaccine", "Bedding", "Disinfectant", "Equipment", "SparePart", "Fuel", "Other"]
 // Readable labels for the camel-case category codes stored in the DB.
@@ -828,7 +829,7 @@ function PoultryRawMaterialsPageInner() {
                         <TableRow><TableCell colSpan={11} className="text-center text-slate-500 py-6">{focusPurchaseId !== null ? `Purchase #${focusPurchaseId} is not in this list.` : "No purchases yet."}</TableCell></TableRow>
                       ) : pgPurchases.pageItems.map((p) => (
                         <TableRow key={p.poultryRawMaterialPurchaseId}>
-                          <TableCell>{(p.purchaseDate || "").split("T")[0]}</TableCell>
+                          <TableCell>{fmtDateTime(p.purchaseDate, p)}</TableCell>
                           <TableCell className="font-medium">
                             {p.itemName}
                             {p.feedProductionRole && (
@@ -901,7 +902,7 @@ function PoultryRawMaterialsPageInner() {
                         <FieldCard key={p.poultryRawMaterialPurchaseId} title={p.itemName}
                           badge={p.feedProductionRole
                             ? <Badge variant="outline" className={cn("text-[10px] font-normal", p.feedProductionRole === "Produced" ? "border-emerald-300 text-emerald-700" : "border-indigo-300 text-indigo-700")}>{p.feedProductionRole === "Produced" ? "Produced" : "Bought for production"}{p.feedProductionBatchNumber ? ` · ${p.feedProductionBatchNumber}` : ""}</Badge>
-                            : <span className="text-xs text-slate-500">{(p.purchaseDate || "").split("T")[0]}</span>}
+                            : <span className="text-xs text-slate-500">{fmtDateTime(p.purchaseDate, p)}</span>}
                           fields={[["Supplier", p.supplierName ?? "—"], ["Purchase Qty", `${p.quantity.toLocaleString()} ${p.unitOfMeasure ?? ""}`], ["Production Qty", p.productionQuantity != null ? `${p.productionQuantity.toLocaleString()} ${p.productionUnit ?? ""}`.trim() : "—"], ["Unit Price", gh(p.unitCost)], ["Total", gh(p.totalCost)], ["Paid", gh(p.amountPaid)], ["Balance", p.balance > 0 ? <span className="text-amber-600 font-medium">{gh(p.balance)}</span> : gh(0)]]}
                           actions={p.sourceFeedProductionBatchId
                             ? <Button variant="ghost" size="sm" onClick={() => router.push(`/poultry-feed-production/${p.sourceFeedProductionBatchId}`)} title="Open the feed production batch"><Factory className="w-4 h-4 text-indigo-600" /></Button>
@@ -943,7 +944,7 @@ function PoultryRawMaterialsPageInner() {
                         <TableRow><TableCell colSpan={6} className="text-center text-slate-500 py-6">No usage recorded yet. Usage is created when production batches are approved (coming with the production slice).</TableCell></TableRow>
                       ) : pgUsage.pageItems.map((u) => (
                         <TableRow key={u.poultryRawMaterialUsageId}>
-                          <TableCell>{(u.usedDate || "").split("T")[0]}</TableCell>
+                          <TableCell>{fmtDateTime(u.usedDate, u)}</TableCell>
                           <TableCell className="font-medium">
                             {u.itemName}
                             {u.poultryFeedProductionBatchId && (
@@ -974,7 +975,7 @@ function PoultryRawMaterialsPageInner() {
                         <FieldCard key={u.poultryRawMaterialUsageId} title={u.itemName}
                           badge={u.poultryFeedProductionBatchId
                             ? <Badge variant="outline" className="text-[10px] font-normal border-indigo-300 text-indigo-700"><Factory className="w-3 h-3 mr-1" />Feed production{u.feedProductionBatchNumber ? ` · ${u.feedProductionBatchNumber}` : ""}</Badge>
-                            : <span className="text-xs text-slate-500">{(u.usedDate || "").split("T")[0]}</span>}
+                            : <span className="text-xs text-slate-500">{fmtDateTime(u.usedDate, u)}</span>}
                           fields={[["Used", `${u.quantityUsed.toLocaleString()} ${u.unitOfMeasure ?? ""}`], ["Expected", u.expectedQuantityUsed?.toLocaleString() ?? "—"], ["Variance", u.variance.toLocaleString()], ["Reason", u.varianceReason ?? (u.feedProductionFeedName ? `Mixed into ${u.feedProductionFeedName}` : "—")]]}
                           actions={u.poultryFeedProductionBatchId
                             ? <Button variant="ghost" size="sm" onClick={() => router.push(`/poultry-feed-production/${u.poultryFeedProductionBatchId}`)} title="Open the feed production batch"><Factory className="w-4 h-4 text-indigo-600" /></Button>
