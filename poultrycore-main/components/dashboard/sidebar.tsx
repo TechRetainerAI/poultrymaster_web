@@ -647,9 +647,13 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/restaurant-online-orders", label: "Online Settings",     icon: ShoppingBag },
     { href: "/restaurant-delivery",      label: "Drivers & Dispatch",  icon: Truck },
   ])
+  // Reports used to sit in this list, between Ingredients and Customers. That
+  // put the profit-and-loss screen inside a group headed "Inventory", while the
+  // top nav gave Reports a menu of its own -- the two navigations disagreed
+  // about where reporting lives. It now has its own group below, matching the
+  // top nav, and is gated on canViewReports in restaurant-nav-access.ts.
   const restaurantInventoryItems = gateRestaurant([
     { href: "/restaurant-inventory", label: "Ingredients & Stock", icon: Boxes },
-    { href: "/restaurant-reports",   label: "Reports & Analytics", icon: BarChart3 },
     { href: "/restaurant-crm",        label: "Customers & CRM",    icon: Users },
     { href: "/restaurant-loyalty",     label: "Loyalty & Rewards",  icon: CreditCard },
     { href: "/restaurant-events",      label: "Events & Catering",  icon: CalendarDays },
@@ -657,6 +661,11 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/restaurant-payments",    label: "Income & Expenses",  icon: Wallet },
     { href: "/restaurant-expenses",    label: "Expenses",           icon: DollarSign },
     { href: "/restaurant-notifications", label: "Notifications",    icon: Bell },
+  ])
+  // Its own group, mirroring the top nav's Reports mega-menu. The rail links to
+  // the catalog; the 24 individual reports live under it.
+  const restaurantReportsItems = gateRestaurant([
+    { href: "/restaurant-reports", label: "Reports", icon: BarChart3 },
   ])
   const restaurantMenuSetupItems = gateRestaurant([
     { href: "/restaurant-menu",   label: "Menu Items",      icon: UtensilsCrossed },
@@ -991,6 +1000,12 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
             {renderGroup("Delivery & Online", restaurantDeliveryOnlineItems, "restaurantDeliveryOnline")}
             <div className="border-t border-slate-800 mx-2" />
             {renderGroup("Inventory", restaurantInventoryItems, "restaurantInventory")}
+            {restaurantReportsItems.length > 0 && (
+              <>
+                <div className="border-t border-slate-800 mx-2" />
+                {renderGroup("Reports", restaurantReportsItems, "restaurantReports")}
+              </>
+            )}
             <div className="border-t border-slate-800 mx-2" />
             {renderGroup("Menu & Setup", restaurantMenuSetupItems, "restaurantMenuSetup")}
           </>

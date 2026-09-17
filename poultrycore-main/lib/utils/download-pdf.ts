@@ -17,6 +17,16 @@ export interface PdfReportConfig {
   hotelName?: string
   hotelAddress?: string
   hotelPhone?: string
+  /**
+   * Brand accent as an [r, g, b] triple. Defaults to violet-600, which is what
+   * every existing caller (hotel, water, poultry) rendered before this option
+   * existed -- so omitting it reproduces the previous output byte for byte.
+   *
+   * Restaurant passes rose-600 so an exported report matches the rose UI the
+   * operator just clicked Download in, rather than arriving in another module's
+   * colour.
+   */
+  accent?: [number, number, number]
 }
 
 function buildPdf(config: PdfReportConfig): jsPDF {
@@ -25,16 +35,17 @@ function buildPdf(config: PdfReportConfig): jsPDF {
   const ph = doc.internal.pageSize.getHeight()
   const now = new Date().toLocaleString()
   const name = config.hotelName ?? "Hotel"
+  const accent: [number, number, number] = config.accent ?? [109, 40, 217] // violet-600
   const contact = [config.hotelAddress, config.hotelPhone].filter(Boolean).join("  |  ")
 
   // === PAGE 1: COVER + SUMMARY ===
 
   // Top accent bar
-  doc.setFillColor(109, 40, 217) // violet-600
+  doc.setFillColor(...accent)
   doc.rect(0, 0, pw, 4, "F")
 
   // Hotel name (large, bold)
-  doc.setTextColor(109, 40, 217)
+  doc.setTextColor(...accent)
   doc.setFontSize(24)
   doc.setFont("helvetica", "bold")
   doc.text(name, 20, 22)
@@ -62,6 +73,10 @@ function buildPdf(config: PdfReportConfig): jsPDF {
   doc.setFontSize(10)
   doc.setFont("helvetica", "normal")
   doc.setTextColor(100, 116, 139) // slate-500
+  // Left as "Hotel Management Report" deliberately. It is only reached when a
+  // caller passes no subtitle, and every such caller today is a hotel report;
+  // generalising the wording would change those PDFs for no gain. Restaurant
+  // always passes its own subtitle, so it never sees this default.
   const subtitleText = config.subtitle ?? "Hotel Management Report"
   doc.text(subtitleText.toUpperCase(), 20, 50)
 
@@ -143,7 +158,7 @@ function buildPdf(config: PdfReportConfig): jsPDF {
   }
 
   // Record count badge
-  doc.setFillColor(109, 40, 217)
+  doc.setFillColor(...accent)
   doc.roundedRect(20, y, 36, 7, 1.5, 1.5, "F")
   doc.setFontSize(7)
   doc.setFont("helvetica", "bold")
@@ -163,7 +178,7 @@ function buildPdf(config: PdfReportConfig): jsPDF {
       lineWidth: 0.3,
     },
     headStyles: {
-      fillColor: [109, 40, 217],
+      fillColor: accent,
       textColor: 255,
       fontStyle: "bold",
       fontSize: 7,
@@ -179,11 +194,11 @@ function buildPdf(config: PdfReportConfig): jsPDF {
 
       // Top accent bar on subsequent pages
       if (pageNum > 1) {
-        doc.setFillColor(109, 40, 217)
+        doc.setFillColor(...accent)
         doc.rect(0, 0, pw, 3, "F")
         doc.setFontSize(9)
         doc.setFont("helvetica", "bold")
-        doc.setTextColor(109, 40, 217)
+        doc.setTextColor(...accent)
         doc.text(name, 20, 10)
         doc.setFontSize(8)
         doc.setFont("helvetica", "normal")
@@ -218,4 +233,23 @@ export function downloadPdf(config: PdfReportConfig) {
 export function getPdfPreviewUrl(config: PdfReportConfig): string {
   const doc = buildPdf(config)
   return doc.output("dataurlstring")
+}
+
+/**
+ * Same PDF as a blob: URL rather than a data: URL.
+ *
+ * WHY BOTH EXIST. `getPdfPreviewUrl` above returns a `data:` URI, and several
+ * hotel and water report pages already rely on it, so it is left exactly as it
+ * was. But a `data:` URI carries the whole document in the URL string, and
+ * browsers treat it as an opaque foreign origin: Firefox blocks it outright in
+ * an iframe, Safari is unreliable, and a large report can exceed the URL length
+ * a browser will accept. A `blob:` URL is same-origin and streams from memory,
+ * so it previews in far more places and costs nothing extra to make.
+ *
+ * The caller owns the returned URL and MUST call URL.revokeObjectURL on it when
+ * the preview closes, or the document stays in memory for the life of the tab.
+ */
+export function getPdfPreviewBlobUrl(config: PdfReportConfig): string {
+  const doc = buildPdf(config)
+  return URL.createObjectURL(doc.output("blob"))
 }

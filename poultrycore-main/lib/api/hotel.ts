@@ -896,3 +896,102 @@ export async function updateHKScheduleStatus(id: number, status: string): Promis
 export async function listShiftHandovers(): Promise<any[]> { return jget<any[]>("/Hotel/shift-handovers") }
 export async function createShiftHandover(input: { shiftDate?: string; shiftType: string; handoverBy: string; handoverTo?: string; keyMessages?: string; pendingItems?: string; vipGuests?: string; incidents?: string; cashBalance?: number }): Promise<any> { return jsend<any>("/Hotel/shift-handovers", "POST", { ...input, farmId: activeFarmId() }) }
 export async function acknowledgeShiftHandover(id: number, receivedBy: string): Promise<any> { return jsend<any>(`/Hotel/shift-handovers/${id}/acknowledge`, "POST", { farmId: activeFarmId(), receivedBy }) }
+
+// =============================================================================
+// SERVER-SIDE REPORTS — migration 299
+// =============================================================================
+// The first hotel reporting that aggregates in the DATABASE. Every existing
+// hotel report page calls one of the unfiltered list functions above, pulls the
+// whole table into the browser and sums it in JavaScript; these ten hand back
+// rows that are already aggregated and already filtered to a date range.
+//
+// All are (from, to) except the guest ledger, which is a position rather than a
+// period and so takes no dates at all.
+function hrq(path: string, from: string, to: string): string {
+  return `/Hotel/reports/${path}?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+}
+
+export interface SourceOfBusinessRow {
+  sourceLabel: string; bookingCount: number; roomNights: number; guestCount: number
+  revenueTotal: number; adr: number; sharePct: number; avgLeadDays: number
+}
+export async function getSourceOfBusiness(from: string, to: string): Promise<SourceOfBusinessRow[]> {
+  return jget<SourceOfBusinessRow[]>(hrq("source-of-business", from, to))
+}
+
+export interface BookingPaceRow {
+  leadBucket: string; bucketOrder: number; bookingCount: number; roomNights: number
+  revenueTotal: number; adr: number; sharePct: number
+}
+export async function getBookingPace(from: string, to: string): Promise<BookingPaceRow[]> {
+  return jget<BookingPaceRow[]>(hrq("booking-pace", from, to))
+}
+
+export interface RoomTypePerformanceRow {
+  typeLabel: string; roomsInType: number; bookingCount: number; roomNights: number
+  revenueTotal: number; adr: number; revpar: number; occupancyPct: number; sharePct: number
+}
+export async function getRoomTypePerformance(from: string, to: string): Promise<RoomTypePerformanceRow[]> {
+  return jget<RoomTypePerformanceRow[]>(hrq("room-type-performance", from, to))
+}
+
+export interface HotelPerformanceKpis {
+  daysCounted: number; availableRoomNights: number; occupiedRoomNights: number
+  occupancyPct: number; roomRevenue: number; fnbRevenue: number; otherRevenue: number
+  totalRevenue: number; totalExpenses: number; grossOperatingProfit: number
+  adr: number; revpar: number; trevpar: number; goppar: number; noshowCount: number
+}
+export async function getHotelPerformanceKpis(from: string, to: string): Promise<HotelPerformanceKpis> {
+  return jget<HotelPerformanceKpis>(hrq("performance-kpis", from, to))
+}
+
+export interface GuestLedgerRow {
+  invoiceRef: string; guestLabel: string; issuedOn: string; dueOn?: string | null
+  invoiceState: string; totalAmount: number; paidAmount: number; balanceDue: number
+  daysOutstanding: number; ageBucket: string
+}
+// No date range: a ledger is what is owed right now.
+export async function getGuestLedger(): Promise<GuestLedgerRow[]> {
+  return jget<GuestLedgerRow[]>("/Hotel/reports/guest-ledger")
+}
+
+export interface AncillaryRevenueRow {
+  chargeLabel: string; chargeCount: number; qtyTotal: number; revenueTotal: number
+  avgCharge: number; sharePct: number; staysTouched: number
+}
+export async function getAncillaryRevenue(from: string, to: string): Promise<AncillaryRevenueRow[]> {
+  return jget<AncillaryRevenueRow[]>(hrq("ancillary-revenue", from, to))
+}
+
+export interface HotelCancellationRow {
+  sourceLabel: string; cancelledCount: number; nightsLost: number; valueLost: number
+  sharePct: number; avgLeadDays: number; bookedCount: number; cancelRatePct: number
+}
+export async function getHotelCancellations(from: string, to: string): Promise<HotelCancellationRow[]> {
+  return jget<HotelCancellationRow[]>(hrq("cancellations", from, to))
+}
+
+export interface LengthOfStayRow {
+  losBucket: string; bucketOrder: number; bookingCount: number; roomNights: number
+  revenueTotal: number; adr: number; sharePct: number
+}
+export async function getLengthOfStay(from: string, to: string): Promise<LengthOfStayRow[]> {
+  return jget<LengthOfStayRow[]>(hrq("length-of-stay", from, to))
+}
+
+export interface HousekeepingProductivityRow {
+  attendantLabel: string; tasksTotal: number; tasksCompleted: number; timedCount: number
+  avgMinutes: number; fastestMinutes: number; slowestMinutes: number
+  roomsPerShift: number; inspectedCount: number
+}
+export async function getHousekeepingProductivity(from: string, to: string): Promise<HousekeepingProductivityRow[]> {
+  return jget<HousekeepingProductivityRow[]>(hrq("housekeeping-productivity", from, to))
+}
+
+export interface HotelLoyaltyRow {
+  tierLabel: string; memberCount: number; activeMembers: number; pointsBalance: number
+  lifetimePoints: number; earnedInPeriod: number; redeemedInPeriod: number; sharePct: number
+}
+export async function getHotelLoyaltyReport(from: string, to: string): Promise<HotelLoyaltyRow[]> {
+  return jget<HotelLoyaltyRow[]>(hrq("loyalty", from, to))
+}

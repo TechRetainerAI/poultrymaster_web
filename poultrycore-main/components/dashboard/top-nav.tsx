@@ -392,7 +392,15 @@ function HotelTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
           viewAll={{ href: "/hotel-reports", label: "View all reports →" }}
           triggerActiveHrefs={["/hotel-reports"]}
           groups={HOTEL_REPORT_NAV_GROUPS}
-          columns={4} widthRem={58} accent="violet"
+          // Same fix as the restaurant Reports menu, and for the same reason.
+          // The default layout is CSS multi-column; this panel has a definite
+          // height (`max-h-[70vh]`) and `overflow-x-hidden`, so content that
+          // overflows creates FURTHER columns sideways and they are clipped away
+          // rather than scrolled to. Hotel already had five groups against four
+          // column boxes, which silently hid Housekeeping & Inventory; adding
+          // Revenue Management makes six. A grid wraps to a second ROW instead,
+          // so six groups land as two clean rows of three and nothing is lost.
+          layout="grid" columns={3} widthRem={46} accent="violet"
         />
 
         <NavMegaMenu
@@ -471,11 +479,27 @@ function RestaurantTopNav() {
         <NavMegaMenu
           label="Reports" icon={BarChart3}
           title="Reports"
-          blurb="Sales, menu performance, operations and periodic reports."
+          blurb="Money, sales, menu, operations, guests and channels."
           viewAll={{ href: "/restaurant-reports", label: "View all reports →" }}
           triggerActiveHrefs={["/restaurant-reports"]}
           groups={RESTAURANT_REPORT_NAV_GROUPS}
-          columns={4} widthRem={58} accent="rose"
+          // layout="grid", NOT the default multi-column, and 3 columns for 5
+          // groups.
+          //
+          // The default layout is CSS multi-column, and this panel has a
+          // definite height (`max-h-[70vh]`). When multi-column content exceeds
+          // a definite height it does not wrap to a new row -- it creates
+          // FURTHER columns in the inline direction. The panel also sets
+          // `overflow-x-hidden`, so those extra columns are clipped rather than
+          // scrolled to. With four column boxes and five groups, the fifth
+          // group (Guests & Channels) was created off the right edge and then
+          // clipped out of existence: present in the DOM, unreachable on screen.
+          //
+          // A grid wraps to a second ROW instead, so every group stays visible.
+          // Three columns rather than five keeps the panel at ~46rem, which
+          // fits a 1366px laptop with room to spare; five would need ~72rem and
+          // would start colliding with the viewport clamp.
+          layout="grid" columns={3} widthRem={46} accent="rose"
         />
 
         <NavMegaMenu

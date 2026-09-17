@@ -89,7 +89,8 @@ export function buildRestaurantNavConfig(badges: RestaurantNavBadges = {}): Rest
         label: "Inventory",
         items: [
           { id: "ingredients", title: "Ingredients & Stock", icon: Boxes,     href: "/restaurant-inventory", visible: true },
-          { id: "reports",     title: "Reports & Analytics", icon: BarChart3, href: "/restaurant-reports",   visible: true },
+          // "Reports & Analytics" used to sit here too, duplicating the Reports
+          // mega-menu next to it. One home for reports; this menu is Inventory.
           { id: "expenses",    title: "Expenses",            icon: Receipt,   href: "/restaurant-expenses",  visible: true },
         ],
       },
