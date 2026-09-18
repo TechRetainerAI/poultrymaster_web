@@ -7,6 +7,7 @@ import {
   formatTimeInZone,
   businessSortValue,
   fmtDateTimeParts,
+  fmtMonthYear,
 } from "./company-datetime"
 
 const ACCRA = "Africa/Accra"      // UTC+0, no DST
@@ -208,5 +209,60 @@ describe("fmtDateTimeParts", () => {
 
   it("returns empty parts for a missing date", () => {
     expect(fmtDateTimeParts(null)).toEqual({ date: "", time: "" })
+  })
+})
+
+describe("fmtMonthYear", () => {
+  // The bug this guards: `new Date("2026-09-01")` is UTC midnight, so
+  // toLocaleDateString in a browser WEST of Greenwich renders AUGUST -- a
+  // depreciation period labelled "Aug 2026" for September's charge. Ghana and
+  // Nigeria are UTC+0/+1 and would never have seen it; one customer in the
+  // Americas would have seen every period label slip by a month.
+  //
+  // Note what the plain cases below do and do not prove. They pin the digits,
+  // but on a UTC+ runner (this one is Atlantic/Reykjavik) they would ALSO pass
+  // against the old Date-parsing implementation. The last test is the one that
+  // bites on any runner, because it compares the two approaches directly.
+  it("labels a period from its own digits, not the browser's clock", () => {
+    expect(fmtMonthYear("2026-09-01")).toBe("Sep 2026")
+    expect(fmtMonthYear("2026-01-01")).toBe("Jan 2026")
+    expect(fmtMonthYear("2026-12-31")).toBe("Dec 2026")
+  })
+
+  it("reads a timestamp the same way, in either wire shape", () => {
+    expect(fmtMonthYear("2026-09-30T00:00:00")).toBe("Sep 2026")
+    expect(fmtMonthYear("2026-09-30 23:59:59")).toBe("Sep 2026")
+  })
+
+  it("does not roll a first-of-month back into the month before", () => {
+    // The exact shape the old implementation got wrong.
+    expect(fmtMonthYear("2026-03-01T00:00:00")).toBe("Mar 2026")
+  })
+
+  it("does not drift with the viewer's timezone, the way Date parsing does", () => {
+    // Deterministic on every runner: an explicit timeZone stands in for a
+    // browser in the Americas, without depending on the process TZ (which Node
+    // on Windows ignores anyway).
+    const viaInstant = (tz: string) =>
+      new Date("2026-09-01").toLocaleDateString("en-GB", {
+        month: "short", year: "numeric", timeZone: tz,
+      })
+
+    // This is the failure mode, reproduced: parsing the period as an instant
+    // puts a September charge in August.
+    expect(viaInstant("America/New_York")).toContain("Aug")
+
+    // And this is the fix: the same input, labelled off its digits, is September
+    // for every viewer on earth.
+    expect(fmtMonthYear("2026-09-01")).toBe("Sep 2026")
+    expect(fmtMonthYear("2026-09-01")).not.toBe(viaInstant("America/New_York"))
+    expect(fmtMonthYear("2026-09-01")).not.toBe(viaInstant("America/Los_Angeles"))
+  })
+
+  it("is empty rather than 'Invalid Date' when there is nothing to label", () => {
+    expect(fmtMonthYear(null)).toBe("")
+    expect(fmtMonthYear(undefined)).toBe("")
+    expect(fmtMonthYear("")).toBe("")
+    expect(fmtMonthYear("nonsense")).toBe("")
   })
 })

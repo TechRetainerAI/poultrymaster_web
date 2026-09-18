@@ -107,6 +107,47 @@ namespace PoultryFarmAPIWeb.Controllers
         }
 
         /// <summary>
+        /// 313. Corrects the ORIGINAL acquisition cost -- the fix for a typed
+        /// 130,000 that should have been 13,000. This is not Add cost and not an
+        /// editable field: it appends a dated, authored, reasoned correction row
+        /// and amends the acquisition's own expense so cash and the supplier
+        /// balance follow, without a second document of any kind.
+        ///
+        /// PUT, and the segment is a NOUN, on purpose: it resolves to the
+        /// `edit` action and therefore to poultry.assets.edit, which exists and
+        /// is granted. A /correct verb would resolve to `create`, and a
+        /// /reverse-shaped one to an `approve` action this resource does not have.
+        /// </summary>
+        [HttpPut("{id:int}/original-cost")]
+        public async Task<ActionResult<int>> CorrectOriginalCost(
+            int id, [FromQuery] string farmId, [FromBody] PoultryCapitalAssetCorrectCostRequest body)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            body.FarmId = Farm(farmId, body.FarmId);
+            if (string.IsNullOrWhiteSpace(body.FarmId)) return BadRequest("Company ID is required.");
+            return Ok(await _svc.CorrectOriginalCostAsync(id, body));
+        }
+
+        /// <summary>
+        /// 313. Reverses ONE additional capitalised cost.
+        ///
+        /// DELETE is the verb because it resolves to poultry.assets.delete --
+        /// the right, and already-granted, permission for something that ends a
+        /// financial record's life. Nothing is deleted: the row is kept and
+        /// marked Reversed, and its cash and payable are unwound.
+        /// </summary>
+        [HttpDelete("{id:int}/costs/{costId:int}")]
+        public async Task<IActionResult> ReverseCost(
+            int id, int costId, [FromQuery] string farmId, [FromBody] PoultryReversalRequest body)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            body.FarmId = Farm(farmId, body.FarmId);
+            if (string.IsNullOrWhiteSpace(body.FarmId)) return BadRequest("Company ID is required.");
+            await _svc.ReverseCostAsync(id, costId, body);
+            return NoContent();
+        }
+
+        /// <summary>
         /// Proceeds reach CASH and are deliberately not revenue. Gain or loss on
         /// disposal is not computed -- see the note on the SP.
         /// </summary>

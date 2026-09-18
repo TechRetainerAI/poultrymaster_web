@@ -99,6 +99,21 @@ export function formatDateKey(key: string): string {
   return `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]} ${m[1]}`
 }
 
+/**
+ * "2026-09-01" (or the timestamp it arrived as) -> "Sep 2026".
+ *
+ * Built from the STRING, like formatDateKey, and deliberately not from
+ * `new Date(iso).toLocaleDateString(...)`. A date-only ISO string parses as UTC
+ * midnight, so a browser west of Greenwich renders the month BEFORE it -- a
+ * depreciation period labelled "Aug 2026" when the charge is September's. The
+ * period is a business fact, not an instant, so it is read as digits.
+ */
+export function fmtMonthYear(value: string | Date | null | undefined): string {
+  const key = businessDatePart(value)
+  const m = key.match(/^(\d{4})-(\d{2})/)
+  return m ? `${MONTHS[Number(m[2]) - 1]} ${m[1]}` : ""
+}
+
 /** The clock time of a real instant, in the company's zone. "" if unavailable. */
 export function formatTimeInZone(
   instant: Date | null,
