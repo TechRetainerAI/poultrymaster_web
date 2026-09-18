@@ -76,7 +76,7 @@ export function FormSection({
 }: {
   title: string
   color?: FormSectionColor
-  columns?: 1 | 2 | 3
+  columns?: 1 | 2 | 3 | 4
   /**
    * Opt this section out of the multi-column-on-mobile default below. Use it
    * where half a phone screen genuinely isn't enough for the control — long
@@ -93,6 +93,13 @@ export function FormSection({
   // get one row per field.
   const gridClass =
     columns === 1 ? "grid-cols-1" :
+    // Four is for a wide dialog with a lot of small fields -- eight money
+    // inputs land on two rows instead of three. It steps 2 -> 3 -> 4 rather
+    // than jumping straight to four, because four columns of Input at 640px
+    // are narrower than the numbers inside them.
+    columns === 4 ? (stackOnMobile
+      ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4"
+      : "grid-cols-2 md:grid-cols-3 xl:grid-cols-4") :
     columns === 3 ? (stackOnMobile ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3" : "grid-cols-2 md:grid-cols-3") :
     stackOnMobile ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-2"
 

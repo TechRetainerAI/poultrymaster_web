@@ -73,6 +73,10 @@ const ACTIVITY_FILTERS = [
   { value: "Capital",   label: "Capital activity" },
   { value: "Inventory", label: "Inventory / cost recognition" },
   { value: "Transfer",  label: "Internal transfers" },
+  // Migration 308. Without this the rows still render, but there is no way to
+  // ask "show me just the staff advances" -- which is the question the feature
+  // exists to answer.
+  { value: "EmployeeLoan", label: "Employee advances" },
 ] as const
 
 const CASH_FILTERS = [
@@ -571,21 +575,44 @@ function Stat({ label, value, hint, tip, tone = "slate" }: {
   tone?: "slate" | "emerald" | "rose"
 }) {
   const toneClass = tone === "emerald" ? "text-emerald-700" : tone === "rose" ? "text-rose-700" : "text-slate-900"
-  return (
-    <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 xl:p-3 2xl:p-4 shadow-sm" title={tip}>
-      <div className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</div>
-      {/* whitespace-nowrap is NOT cosmetic. fmtMoney returns "<symbol> <amount>"
-          with a real space in it (lib/currency.ts), so a column narrower than
-          the figure breaks at that space and stacks the currency symbol on its
-          own line above the number. Wrapping a money figure is never the right
-          answer; shrinking the type is, which is what the steps below do.
 
-          The type ladder is sized to the 7-up row: at xl the content column is
-          ~129px per tile, at 2xl ~166px, so the figure gets text-base then
-          text-xl. Padding tightens at xl for the same reason and comes back at
-          2xl. Four-up and two-up keep the full text-2xl. */}
-      <div className={cn("mt-1 text-2xl xl:text-base 2xl:text-xl font-bold tabular-nums whitespace-nowrap", toneClass)}>{value}</div>
-      {hint && <div className="mt-0.5 text-xs text-slate-400">{hint}</div>}
+  // THE FIGURE HAS TO SHRINK, because the other two ways out are both worse.
+  //
+  //   WRAP      fmtMoney returns "<symbol> <amount>" with a real space in it
+  //             (lib/currency.ts), so a tile narrower than the figure breaks at
+  //             that space and stacks the currency symbol on its own line above
+  //             the number. That was the first thing reported about these tiles.
+  //   TRUNCATE  clipping digits off money is never acceptable. "GH₵ 1,234,5…"
+  //             is not a smaller number, it is a wrong one.
+  //
+  // So `whitespace-nowrap` stays and the TYPE SIZE follows the length of what
+  // is actually being shown. Sized off the string rather than a breakpoint
+  // because the problem is the figure, not the screen: GH₵ 900.00 fits a narrow
+  // tile and GH₵ 1,234,567.89 does not fit a wide one.
+  //
+  // The xl step stays on top of it: that is where seven tiles share the row and
+  // every one of them is at its narrowest.
+  const n = value.length
+  const sizeClass =
+    n > 17 ? "text-sm  xl:text-xs   2xl:text-sm" :
+    n > 14 ? "text-base xl:text-xs  2xl:text-sm" :
+    n > 11 ? "text-lg  xl:text-sm   2xl:text-base" :
+             "text-2xl xl:text-base 2xl:text-xl"
+
+  return (
+    // overflow-hidden is the backstop, not the plan. If a currency ever turns
+    // up whose formatted figure still will not fit at text-xs, this is what
+    // keeps it inside its own card instead of printing over the tile beside it.
+    <div className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-4 xl:p-3 2xl:p-4 shadow-sm"
+         title={tip}>
+      <div className="truncate text-xs font-medium uppercase tracking-wide text-slate-500">{label}</div>
+      {/* title= so the full figure is always recoverable on hover, whatever
+          size it ended up at. */}
+      <div className={cn("mt-1 font-bold tabular-nums whitespace-nowrap", sizeClass, toneClass)}
+           title={value}>
+        {value}
+      </div>
+      {hint && <div className="mt-0.5 truncate text-xs text-slate-400" title={hint}>{hint}</div>}
     </div>
   )
 }

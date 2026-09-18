@@ -151,6 +151,11 @@ export function buildPoultryNavConfig(
           // rather than with staff master data in Setup > People. It is also the
           // one ungated row here, which keeps this column from ever vanishing.
           { id: "payroll",       title: "Payroll",      icon: Banknote,   href: "/poultry-payroll" },
+          // Directly below Payroll, because payroll deduction is how most
+          // advances are repaid -- but the page stands on its own: an advance
+          // can equally be repaid in cash, and exists whether or not the
+          // worker is on any payroll run. Migrations 305/306.
+          { id: "employee-loans", title: "Employee Loans & Advances", icon: HandCoins, href: "/poultry-employee-loans", visible: money("/poultry-employee-loans") },
           // The payables mirror of the two Sales rows: what we owe, and what
           // we've paid against it.
           { id: "supplier-payments", title: "Supplier Payments", icon: Receipt, href: "/supplier-payments", visible: money("/supplier-payments") },

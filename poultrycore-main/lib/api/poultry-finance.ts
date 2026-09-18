@@ -961,3 +961,392 @@ export const recordPoultryPayment = (input: PoultryPaymentInput) =>
     farmId: activeFarmId(),
     createdBy: currentUserId() || null,
   })
+
+// =============================================================================
+// Employee Loans & Advances (migrations 305/306)
+//
+// Money the company LENDS TO STAFF -- a receivable, and the mirror image of the
+// Loans section above, which is money the company borrowed. The two never share
+// a type: a lender is not a worker, and a liability is not an asset.
+//
+// Every financial rule lives in the SQL. This module sends parameters, and the
+// one thing it will not let you do is post a payroll repayment: those are
+// created by approving the payroll run, which is also the only thing that can
+// reverse them (spec sections 39 and 60).
+// =============================================================================
+
+export const EMPLOYEE_LOAN_TYPES = ["EmployeeLoan", "SalaryAdvance", "OtherAdvance"] as const
+export type EmployeeLoanType = (typeof EMPLOYEE_LOAN_TYPES)[number]
+
+export const EMPLOYEE_LOAN_TYPE_LABELS: Record<string, string> = {
+  EmployeeLoan: "Employee loan",
+  SalaryAdvance: "Salary advance",
+  OtherAdvance: "Other advance",
+}
+
+export const EMPLOYEE_LOAN_REPAYMENT_METHODS = [
+  "PayrollDeduction", "Cash", "MoMo", "Bank", "Mixed", "Other",
+] as const
+
+export const EMPLOYEE_LOAN_REPAYMENT_METHOD_LABELS: Record<string, string> = {
+  PayrollDeduction: "Payroll deduction",
+  Cash: "Cash",
+  MoMo: "MoMo",
+  Bank: "Bank",
+  Mixed: "Mixed",
+  Other: "Other",
+}
+
+/** How a repayment reached the company. "Payroll" is never chosen by a user. */
+export const EMPLOYEE_LOAN_REPAYMENT_SOURCES = ["ManualCash", "MoMo", "Bank", "Other"] as const
+
+export const EMPLOYEE_LOAN_SOURCE_LABELS: Record<string, string> = {
+  Payroll: "Payroll",
+  ManualCash: "Cash",
+  MoMo: "MoMo",
+  Bank: "Bank",
+  Other: "Other",
+}
+
+export const EMPLOYEE_LOAN_STATUS_LABELS: Record<string, string> = {
+  Draft: "Draft",
+  Active: "Active",
+  Paid: "Paid",
+  Cancelled: "Cancelled",
+  Reversed: "Reversed",
+  WrittenOff: "Written off",
+}
+
+export interface PoultryEmployeeLoan {
+  poultryEmployeeLoanId: number
+  farmId: string
+  poultryStaffId: number
+  staffName?: string | null
+  staffRole?: string | null
+  loanNumber?: string | null
+  loanType: string
+  principalAmount: number
+  interestEnabled: boolean
+  interestAmount: number
+  interestRate?: number | null
+  interestType?: string | null
+  /** Principal + interest: what the worker owes in total. */
+  totalRepayable: number
+  disbursementDate: string
+  repaymentMethod: string
+  defaultPayrollDeduction?: number | null
+  expectedStartDate?: string | null
+  expectedEndDate?: string | null
+  purpose?: string | null
+  description?: string | null
+  notes?: string | null
+  status: string
+  paidAt?: string | null
+  totalRepaid: number
+  totalPrincipalRepaid: number
+  totalInterestRepaid: number
+  outstandingBalance: number
+  repaymentCount: number
+  poultryCashAccountId?: number | null
+  cashAccountName?: string | null
+  paymentMethod?: string | null
+  referenceNumber?: string | null
+  poultryCashTransactionId?: number | null
+  disbursedBy?: string | null
+  disbursedAt?: string | null
+  createdBy?: string | null
+  createdAt: string
+  reversedBy?: string | null
+  reversedAt?: string | null
+  reversalReason?: string | null
+}
+
+export interface PoultryEmployeeLoanPage {
+  items: PoultryEmployeeLoan[]
+  totalCount: number
+}
+
+export interface PoultryEmployeeLoanRepayment {
+  poultryEmployeeLoanRepaymentId: number
+  poultryEmployeeLoanId: number
+  poultryStaffId: number
+  staffName?: string | null
+  repaymentNumber?: string | null
+  repaymentDate: string
+  amount: number
+  principalAmount: number
+  interestAmount: number
+  sourceType: string
+  poultryPayrollRunId?: number | null
+  payrollPeriodStart?: string | null
+  payrollPeriodEnd?: string | null
+  poultryPayrollItemId?: number | null
+  poultryPayrollDeductionId?: number | null
+  /** Always null for a payroll repayment: no money moved. */
+  poultryCashAccountId?: number | null
+  cashAccountName?: string | null
+  paymentMethod?: string | null
+  referenceNumber?: string | null
+  description?: string | null
+  notes?: string | null
+  balanceBefore: number
+  balanceAfter: number
+  status: string
+  poultryCashTransactionId?: number | null
+  reversalCashTransactionId?: number | null
+  createdBy?: string | null
+  createdAt: string
+  reversedBy?: string | null
+  reversedAt?: string | null
+  reversalReason?: string | null
+}
+
+export interface PoultryEmployeeLoanSummary {
+  outstandingTotal: number
+  disbursedInPeriod: number
+  repaidInPeriod: number
+  activeLoans: number
+  staffWithActiveLoans: number
+  paidLoans: number
+  draftLoans: number
+}
+
+export interface PoultryEmployeeLoanEligible {
+  poultryEmployeeLoanId: number
+  loanNumber?: string | null
+  loanType: string
+  outstandingBalance: number
+  defaultPayrollDeduction?: number | null
+  repaymentMethod?: string | null
+  disbursementDate: string
+}
+
+export interface PoultryEmployeeLoanFilter {
+  staffId?: number | null
+  loanType?: string | null
+  status?: string | null
+  repaymentMethod?: string | null
+  fromDate?: string | null
+  toDate?: string | null
+  search?: string | null
+  limit?: number
+  offset?: number
+}
+
+/** Server-side filtered and paged: never pull a farm's whole history. */
+export const listPoultryEmployeeLoans = (f: PoultryEmployeeLoanFilter = {}) => {
+  const q = new URLSearchParams({ farmId: activeFarmId() })
+  if (f.staffId) q.set("staffId", String(f.staffId))
+  if (f.loanType) q.set("loanType", f.loanType)
+  if (f.status) q.set("status", f.status)
+  if (f.repaymentMethod) q.set("repaymentMethod", f.repaymentMethod)
+  if (f.fromDate) q.set("fromDate", f.fromDate)
+  if (f.toDate) q.set("toDate", f.toDate)
+  if (f.search?.trim()) q.set("search", f.search.trim())
+  q.set("limit", String(f.limit ?? 50))
+  q.set("offset", String(f.offset ?? 0))
+  return jget<PoultryEmployeeLoanPage>(`/Poultry/employee-loans?${q.toString()}`)
+}
+
+export const getPoultryEmployeeLoanSummary = (fromDate?: string, toDate?: string) => {
+  const q = new URLSearchParams({ farmId: activeFarmId() })
+  if (fromDate) q.set("fromDate", fromDate)
+  if (toDate) q.set("toDate", toDate)
+  return jget<PoultryEmployeeLoanSummary>(`/Poultry/employee-loans/summary?${q.toString()}`)
+}
+
+export const getPoultryEmployeeLoan = (id: number) =>
+  jget<PoultryEmployeeLoan>(`/Poultry/employee-loans/${id}?farmId=${fid()}`)
+
+export const listPoultryEmployeeLoanRepayments = (loanId: number) =>
+  jget<PoultryEmployeeLoanRepayment[]>(
+    `/Poultry/employee-loans/${loanId}/repayments?farmId=${fid()}`)
+
+/**
+ * Which advances a deduction may be applied to for this worker. The dropdown
+ * shows what this returns; the server re-checks the same rules when the payroll
+ * is approved, so a hand-made id gets refused rather than posted.
+ */
+export const listEligiblePoultryEmployeeLoans = (staffId: number) =>
+  jget<PoultryEmployeeLoanEligible[]>(
+    `/Poultry/employee-loans/eligible?farmId=${fid()}&staffId=${staffId}`)
+
+export interface PoultryEmployeeLoanInput {
+  poultryStaffId: number
+  principalAmount: number
+  disbursementDate: string
+  loanType?: string
+  interestEnabled?: boolean
+  interestAmount?: number | null
+  interestRate?: number | null
+  interestType?: string | null
+  repaymentMethod?: string
+  defaultPayrollDeduction?: number | null
+  expectedStartDate?: string | null
+  expectedEndDate?: string | null
+  purpose?: string | null
+  description?: string | null
+  notes?: string | null
+  /** False records the agreement only: a Draft owes nothing and moves no cash. */
+  disburseNow?: boolean
+  poultryCashAccountId?: number | null
+  paymentMethod?: string | null
+  referenceNumber?: string | null
+}
+
+export const createPoultryEmployeeLoan = (input: PoultryEmployeeLoanInput) =>
+  jsend<{ poultryEmployeeLoanId: number }>(`/Poultry/employee-loans`, "POST", {
+    ...input,
+    farmId: activeFarmId(),
+    createdBy: currentUserId() || null,
+  })
+
+/** Terms only, once it is disbursed: the amount and the worker are history. */
+export const updatePoultryEmployeeLoan = (
+  id: number, input: Partial<PoultryEmployeeLoanInput>,
+) =>
+  jsend<void>(`/Poultry/employee-loans/${id}`, "PUT", {
+    ...input,
+    farmId: activeFarmId(),
+    updatedBy: currentUserId() || null,
+  })
+
+export const disbursePoultryEmployeeLoan = (
+  id: number,
+  input: {
+    poultryCashAccountId: number
+    paymentMethod?: string | null
+    referenceNumber?: string | null
+  },
+) =>
+  jsend<void>(`/Poultry/employee-loans/${id}/disburse`, "POST", {
+    ...input,
+    farmId: activeFarmId(),
+    disbursedBy: currentUserId() || null,
+  })
+
+export const cancelPoultryEmployeeLoan = (id: number, reason?: string | null) =>
+  jsend<void>(`/Poultry/employee-loans/${id}/cancel`, "POST", {
+    farmId: activeFarmId(), reason: reason ?? null, actionBy: currentUserId() || null,
+  })
+
+export const reversePoultryEmployeeLoan = (id: number, reason?: string | null) =>
+  jsend<void>(`/Poultry/employee-loans/${id}/reverse`, "POST", {
+    farmId: activeFarmId(), reason: reason ?? null, actionBy: currentUserId() || null,
+  })
+
+export interface PoultryEmployeeLoanRepaymentInput {
+  poultryEmployeeLoanId: number
+  amount: number
+  sourceType?: string
+  principalAmount?: number | null
+  interestAmount?: number | null
+  repaymentDate?: string | null
+  poultryCashAccountId?: number | null
+  paymentMethod?: string | null
+  referenceNumber?: string | null
+  description?: string | null
+  notes?: string | null
+}
+
+/** A repayment the worker actually made. Payroll deductions never come here. */
+export const recordPoultryEmployeeLoanRepayment = (input: PoultryEmployeeLoanRepaymentInput) =>
+  jsend<{ poultryEmployeeLoanRepaymentId: number }>(
+    `/Poultry/employee-loans/repayments`, "POST", {
+      ...input,
+      farmId: activeFarmId(),
+      createdBy: currentUserId() || null,
+    })
+
+/**
+ * Reverses a repayment the worker made directly. A payroll-created one is
+ * refused by the server with a message naming the run to reopen -- that is
+ * deliberate, not a gap.
+ */
+export const reversePoultryEmployeeLoanRepayment = (
+  repaymentId: number, reason?: string | null,
+) =>
+  jsend<void>(`/Poultry/employee-loans/repayments/${repaymentId}/reverse`, "POST", {
+    farmId: activeFarmId(), reason: reason ?? null, actionBy: currentUserId() || null,
+  })
+
+// -----------------------------------------------------------------------------
+// Structured payroll deductions (306)
+// -----------------------------------------------------------------------------
+export const PAYROLL_DEDUCTION_TYPES = [
+  "EmployeeLoanRepayment", "SalaryAdvanceRepayment", "OtherDeduction",
+] as const
+
+export const PAYROLL_DEDUCTION_TYPE_LABELS: Record<string, string> = {
+  EmployeeLoanRepayment: "Employee loan repayment",
+  SalaryAdvanceRepayment: "Salary advance repayment",
+  OtherDeduction: "Other deduction",
+}
+
+export interface PoultryPayrollDeduction {
+  /** Null on the legacy row: it is the unexplained remainder, not a record. */
+  poultryPayrollItemDeductionId?: number | null
+  poultryPayrollItemId: number
+  poultryStaffId: number
+  deductionType: string
+  amount: number
+  poultryEmployeeLoanId?: number | null
+  loanNumber?: string | null
+  loanType?: string | null
+  loanOutstanding?: number | null
+  poultryEmployeeLoanRepaymentId?: number | null
+  description?: string | null
+  reference?: string | null
+  status: string
+  isLegacy: boolean
+  createdBy?: string | null
+  createdAt?: string | null
+}
+
+export interface PoultryPayrollDeductionRunRow {
+  poultryPayrollItemId: number
+  poultryStaffId: number
+  staffName?: string | null
+  deductions: number
+  legacyDeductions: number
+  structuredTotal: number
+  structuredCount: number
+  loanRepaymentTotal: number
+  activeLoanCount: number
+  activeLoanOutstanding: number
+  /** What the worker's advances suggest. A suggestion: nothing posts from it. */
+  suggestedDeduction: number
+}
+
+/** The breakdown behind one payslip line. The rows always add up to its total. */
+export const listPoultryPayrollDeductions = (payrollItemId: number) =>
+  jget<PoultryPayrollDeduction[]>(
+    `/Poultry/payroll-deductions?farmId=${fid()}&payrollItemId=${payrollItemId}`)
+
+export const listPoultryPayrollDeductionsForRun = (runId: number) =>
+  jget<PoultryPayrollDeductionRunRow[]>(
+    `/Poultry/payroll-deductions/run/${runId}?farmId=${fid()}`)
+
+export interface PoultryPayrollDeductionInput {
+  poultryPayrollItemId: number
+  deductionType: string
+  amount: number
+  poultryEmployeeLoanId?: number | null
+  description?: string | null
+  reference?: string | null
+  poultryPayrollItemDeductionId?: number | null
+}
+
+/** Unapproved runs only. Nothing here moves a balance -- approval does that. */
+export const savePoultryPayrollDeduction = (input: PoultryPayrollDeductionInput) =>
+  jsend<{ poultryPayrollItemDeductionId: number }>(
+    `/Poultry/payroll-deductions`, "POST", {
+      ...input,
+      farmId: activeFarmId(),
+      savedBy: currentUserId() || null,
+    })
+
+export const deletePoultryPayrollDeduction = (deductionId: number) =>
+  jsend<void>(
+    `/Poultry/payroll-deductions/${deductionId}?farmId=${fid()}` +
+    `&deletedBy=${encodeURIComponent(currentUserId() || "")}`, "DELETE")
