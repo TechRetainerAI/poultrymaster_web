@@ -13,6 +13,13 @@ interface SortableHeaderProps {
   currentDirection: SortDirection
   onSort: (key: string) => void
   className?: string
+  /**
+   * Hover text explaining what the column means. Added for "Capitalised cost",
+   * where the heading alone cannot say that the figure is an acquisition plus
+   * everything capitalised into it since -- which is exactly the ambiguity that
+   * made the old "Cost" heading misleading.
+   */
+  title?: string
 }
 
 export function SortableHeader({
@@ -22,6 +29,7 @@ export function SortableHeader({
   currentDirection,
   onSort,
   className,
+  title,
 }: SortableHeaderProps) {
   const isActive = currentSort === sortKey
 
@@ -41,6 +49,7 @@ export function SortableHeader({
         className
       )}
       onClick={() => onSort(sortKey)}
+      title={title}
     >
       <div className={cn("flex items-center gap-1", justify)}>
         <span>{label}</span>

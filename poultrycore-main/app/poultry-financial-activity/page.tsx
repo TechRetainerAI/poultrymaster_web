@@ -217,7 +217,7 @@ function FinancialActivityPageInner() {
     const lines = [head.join(",")]
     for (const r of filtered) {
       lines.push([
-        formatActivityMoment(r.occurredAt), r.type, r.category, r.description ?? "",
+        formatActivityMoment(r.occurredAt, r.createdAt), r.type, r.category, r.description ?? "",
         r.moneyIn || "", r.moneyOut || "", r.revenue || "", r.expense || "",
         r.profitImpact || "", r.runningCash,
       ].map(esc).join(","))
@@ -276,7 +276,7 @@ function FinancialActivityPageInner() {
           {r.partyName && <span>Party: {r.partyName}</span>}
           {r.plLine && <span>P&amp;L line: {r.plLine}</span>}
           {r.status && r.status !== "Posted" && <span className="text-amber-700">Status: {r.status}</span>}
-          <span>Recorded {formatActivityMoment(r.occurredAt)}</span>
+          <span>Recorded {formatActivityMoment(r.occurredAt, r.createdAt)}</span>
           {(() => {
             const link = activitySourceLink(r)
             return link ? (
@@ -438,7 +438,7 @@ function FinancialActivityPageInner() {
                 getKey={(r) => r.eventKey}
                 primary={(r) => r.type}
                 secondary={(r) => (
-                  <span className="truncate">{formatActivityMoment(r.occurredAt)} · {r.category}</span>
+                  <span className="truncate">{formatActivityMoment(r.occurredAt, r.createdAt)} · {r.category}</span>
                 )}
                 highlights={(r) => [
                   { label: "Money in",  value: money(r.moneyIn),  accent: "emerald" },
@@ -489,7 +489,7 @@ function FinancialActivityPageInner() {
                                   {open ? <ChevronDown className="w-4 h-4 text-slate-400" />
                                         : <ChevronRight className="w-4 h-4 text-slate-400" />}
                                 </TableCell>
-                                <TableCell className="whitespace-nowrap text-sm">{formatActivityMoment(r.occurredAt)}</TableCell>
+                                <TableCell className="whitespace-nowrap text-sm">{formatActivityMoment(r.occurredAt, r.createdAt)}</TableCell>
                                 <TableCell className="whitespace-nowrap font-medium">
                                   {r.type}
                                   {r.isInternalTransfer && (
