@@ -24,6 +24,7 @@ import {
   type GenericDailyClosing,
 } from "@/lib/api/generic"
 import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 function fmt(n: number) {
   return new Intl.NumberFormat(undefined, { style: "currency", currency: "GHS", maximumFractionDigits: 2 }).format(n)
@@ -196,7 +197,7 @@ export default function GenericDailyClosingsPage() {
                 <MobileCardList
                   items={visibleRows}
                   getKey={(c) => c.genericDailyClosingId}
-                  primary={(c) => new Date(c.closingDate).toLocaleDateString()}
+                  primary={(c) => fmtDateTime(c.closingDate, c)}
                   secondary={(c) => (
                     <>
                       <span>Sales {fmt(c.totalSales)}</span>
@@ -261,7 +262,7 @@ export default function GenericDailyClosingsPage() {
                       <TableBody>
                         {visibleRows.map((c) => (
                           <TableRow key={c.genericDailyClosingId}>
-                            <TableCell>{new Date(c.closingDate).toLocaleDateString()}</TableCell>
+                            <TableCell>{fmtDateTime(c.closingDate, c)}</TableCell>
                             <TableCell className="text-right">{fmt(c.totalSales)}</TableCell>
                             <TableCell className="text-right">{fmt(c.totalExpenses)}</TableCell>
                             <TableCell className="text-right">{fmt(c.expectedCash)}</TableCell>

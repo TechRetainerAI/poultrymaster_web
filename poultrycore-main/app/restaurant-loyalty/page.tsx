@@ -24,6 +24,7 @@ import {
   getLoyaltyStats, earnPoints, redeemPoints, getLoyaltyTransactions,
   type LoyaltySettings, type LoyaltyAccount, type PointTransaction, type LoyaltyStats,
 } from "@/lib/api/restaurant"
+import { fmtInstant } from "@/lib/utils/company-datetime"
 
 const TIER_META: Record<string, { icon: string; bg: string }> = {
   Bronze:   { icon: "\u{1F949}", bg: "bg-amber-100 text-amber-700 border-amber-200" },
@@ -311,12 +312,12 @@ export default function RestaurantLoyaltyPage() {
               {/* ===== Members Tab ===== */}
               <TabsContent value="members">
                 <Card>
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
+                  <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="min-w-0">
                       <CardTitle className="text-lg">Loyalty Members</CardTitle>
                       <CardDescription>Customers enrolled in the loyalty program</CardDescription>
                     </div>
-                    <Button className="bg-rose-600 hover:bg-rose-700" onClick={() => { setEnrollName(""); setEnrollPhone(""); setEnrollCustomerId(""); setEnrollOpen(true) }}>
+                    <Button className="bg-rose-600 hover:bg-rose-700 w-full sm:w-auto flex-shrink-0" onClick={() => { setEnrollName(""); setEnrollPhone(""); setEnrollCustomerId(""); setEnrollOpen(true) }}>
                       <Plus className="h-4 w-4 mr-2" />Enroll Member
                     </Button>
                   </CardHeader>
@@ -332,33 +333,40 @@ export default function RestaurantLoyaltyPage() {
                     ) : (
                       <div className="border rounded-lg divide-y">
                         {members.map((m) => (
-                          <div key={m.loyaltyAccountId} className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-                            <div className="flex items-center gap-4">
-                              <div className="h-10 w-10 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 font-bold text-sm">
-                                {m.customerName.charAt(0).toUpperCase()}
+                          <div key={m.loyaltyAccountId} className="p-3 sm:p-4 hover:bg-gray-50 transition-colors">
+                            {/* Was one non-wrapping row. Avatar + name + tier + a
+                                min-w-[100px] points column + three buttons is wider
+                                than a phone, so the page scrolled sideways and the
+                                three action buttons were off-screen entirely. */}
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                                <div className="h-10 w-10 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 font-bold text-sm flex-shrink-0">
+                                  {m.customerName.charAt(0).toUpperCase()}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="font-medium text-gray-900 break-words">{m.customerName}</div>
+                                  {m.customerPhone && <div className="text-sm text-muted-foreground">{m.customerPhone}</div>}
+                                  <div className="mt-1 sm:hidden">{tierBadge(m.currentTier)}</div>
+                                </div>
                               </div>
-                              <div>
-                                <div className="font-medium text-gray-900">{m.customerName}</div>
-                                {m.customerPhone && <div className="text-sm text-muted-foreground">{m.customerPhone}</div>}
+                              <div className="flex items-center gap-4 flex-shrink-0">
+                                <div className="hidden sm:block">{tierBadge(m.currentTier)}</div>
+                                <div className="text-right">
+                                  <div className="font-semibold text-gray-900 whitespace-nowrap">{m.totalPoints.toLocaleString()} pts</div>
+                                  <div className="text-xs text-muted-foreground whitespace-nowrap">Lifetime: {m.lifetimePoints.toLocaleString()}</div>
+                                </div>
                               </div>
                             </div>
-                            <div className="flex items-center gap-4">
-                              {tierBadge(m.currentTier)}
-                              <div className="text-right min-w-[100px]">
-                                <div className="font-semibold text-gray-900">{m.totalPoints.toLocaleString()} pts</div>
-                                <div className="text-xs text-muted-foreground">Lifetime: {m.lifetimePoints.toLocaleString()}</div>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Button variant="ghost" size="sm" title="Earn Points" onClick={() => { setSelectedMember(m); setEarnPts(""); setEarnDesc(""); setEarnOrderId(""); setEarnOpen(true) }}>
-                                  <ArrowUpCircle className="h-4 w-4 text-green-600" />
-                                </Button>
-                                <Button variant="ghost" size="sm" title="Redeem Points" onClick={() => { setSelectedMember(m); setRedeemPts(""); setRedeemDesc(""); setRedeemOpen(true) }}>
-                                  <ArrowDownCircle className="h-4 w-4 text-red-500" />
-                                </Button>
-                                <Button variant="ghost" size="sm" title="History" onClick={() => openHistory(m)}>
-                                  <History className="h-4 w-4 text-gray-500" />
-                                </Button>
-                              </div>
+                            <div className="flex items-center gap-1 mt-2 pt-2 border-t sm:mt-0 sm:pt-0 sm:border-t-0 sm:justify-end">
+                              <Button variant="outline" size="sm" className="flex-1 sm:flex-none text-xs" title="Earn Points" onClick={() => { setSelectedMember(m); setEarnPts(""); setEarnDesc(""); setEarnOrderId(""); setEarnOpen(true) }}>
+                                <ArrowUpCircle className="h-4 w-4 text-green-600 sm:mr-0 mr-1" /><span className="sm:hidden">Earn</span>
+                              </Button>
+                              <Button variant="outline" size="sm" className="flex-1 sm:flex-none text-xs" title="Redeem Points" onClick={() => { setSelectedMember(m); setRedeemPts(""); setRedeemDesc(""); setRedeemOpen(true) }}>
+                                <ArrowDownCircle className="h-4 w-4 text-red-500 sm:mr-0 mr-1" /><span className="sm:hidden">Redeem</span>
+                              </Button>
+                              <Button variant="outline" size="sm" className="flex-1 sm:flex-none text-xs" title="History" onClick={() => openHistory(m)}>
+                                <History className="h-4 w-4 text-gray-500 sm:mr-0 mr-1" /><span className="sm:hidden">History</span>
+                              </Button>
                             </div>
                           </div>
                         ))}
@@ -452,7 +460,7 @@ export default function RestaurantLoyaltyPage() {
                       )}
                       <div>
                         <div className="text-sm font-medium">{tx.description || tx.transactionType}</div>
-                        <div className="text-xs text-muted-foreground">{new Date(tx.createdAt).toLocaleDateString()} {new Date(tx.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
+                        <div className="text-xs text-muted-foreground">{fmtInstant(tx.createdAt)} {new Date(tx.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
                       </div>
                     </div>
                     <div className={`font-semibold ${tx.transactionType === "Earn" ? "text-green-600" : "text-red-600"}`}>

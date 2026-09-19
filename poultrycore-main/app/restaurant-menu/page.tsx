@@ -329,7 +329,7 @@ export default function RestaurantMenuPage() {
                                 )}
                               </div>
                               {/* Actions */}
-                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                              <div className="flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity flex-shrink-0">
                                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggle86(i)} title={i.isAvailable ? "Mark 86'd" : "Back on menu"}>
                                   {i.isAvailable ? <EyeOff className="h-4 w-4 text-gray-500" /> : <Eye className="h-4 w-4 text-green-600" />}
                                 </Button>
@@ -385,7 +385,7 @@ export default function RestaurantMenuPage() {
                                 {c.description && <p className="text-sm text-muted-foreground mt-0.5 truncate">{c.description}</p>}
                                 <p className="text-xs text-muted-foreground mt-1">{count} item{count !== 1 ? "s" : ""}</p>
                               </div>
-                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity">
                                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openCatDialog(c)}><Edit2 className="h-3.5 w-3.5" /></Button>
                                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => deleteCat(c.menuCategoryId)}><Trash2 className="h-3.5 w-3.5 text-red-500" /></Button>
                               </div>
@@ -444,7 +444,7 @@ export default function RestaurantMenuPage() {
                                 </div>
                                 <div className="flex items-center gap-1">
                                   {expanded ? <ChevronDown className="h-4 w-4 text-gray-400" /> : <ChevronRight className="h-4 w-4 text-gray-400" />}
-                                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+                                  <div className="flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity" onClick={e => e.stopPropagation()}>
                                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openComboDialog(cb)}><Edit2 className="h-3.5 w-3.5" /></Button>
                                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => deleteComboFn(cb.comboId)}><Trash2 className="h-3.5 w-3.5 text-red-500" /></Button>
                                   </div>

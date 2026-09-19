@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition, useEffect } from "react"
+import { useState, useTransition, useEffect, Fragment } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -8,21 +8,17 @@ import { Button } from "@/components/ui/button"
 import { usePermissions } from "@/hooks/use-permissions"
 import { useGenericModules } from "@/hooks/use-generic-modules"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { 
-  BarChart3, 
-  Users, 
-  Building2, 
-  Hourglass,
-  User, 
-  Settings, 	
-  AlertTriangle,
+import {
+  BarChart3,
+  Users,
+  Building2,
+  User,
+  Settings,
   ChevronDown,
   Home,
   FileText,
-  Egg,
   Package,
   PackageMinus,
-  Bird,
   DollarSign,
   LogOut,
   ShoppingCart,
@@ -37,8 +33,6 @@ import {
   Wallet,
   Boxes,
   CreditCard,
-  Wheat,
-  Pill,
   Truck,
   Droplets,
   ShoppingBag,
@@ -46,22 +40,16 @@ import {
   Users2,
   Banknote,
   Wrench,
-  Factory,
   Cog,
-  Box,
-  Route as RouteIcon,
   Briefcase,
-  Clock,
   CalendarDays,
   Shield,
   UtensilsCrossed,
   History,
   Scale,
-  ArrowLeftRight,
   Coins,
-  HandCoins,
   Repeat,
-  CalendarClock, TrendingUp,
+  CalendarClock,
   Inbox,
 } from "lucide-react"
 import { InventoryLogo } from "@/components/auth/logo"
@@ -75,6 +63,60 @@ import { filterWaterNavItems } from "@/lib/utils/water-nav-access"
 import { filterHotelNavItems } from "@/lib/utils/hotel-nav-access"
 import { filterRestaurantNavItems } from "@/lib/utils/restaurant-nav-access"
 import { useLogout } from "@/hooks/use-logout"
+import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
+import { buildWaterNavConfig } from "@/lib/nav/water-nav-config"
+import type { MegaMenuGroup, NavGroup } from "@/lib/nav/nav-model"
+
+/** A titled, collapsible block of sidebar rows. */
+type SidebarGroup = { key: string; title: string; items: SidebarItem[] }
+
+/**
+ * Top-nav mega-menu groups -> sidebar groups.
+ *
+ * The Poultry and Water rails are built from lib/nav/*-nav-config.ts, and this
+ * rail now reads the SAME configs instead of keeping its own hand-written copy
+ * of every row. That copy is what let the two surfaces drift: rows the rail had
+ * and the sidebar did not, labels that said "Birds left tracker" in one place
+ * and "Birds tracker" in the other. There is one list now, and it is the rail's.
+ *
+ * What the conversion has to handle:
+ *   * `title` here is `label` there,
+ *   * `visible: false` rows are permission-gated out and must be dropped before
+ *     the empty-group check, not after,
+ *   * action rows (Alerts) carry an onClick and no href, which this rail
+ *     already supports via isButton — unlike the mobile sheet's version of this
+ *     adapter, which drops them.
+ *
+ * `titlePrefix` exists for Setup. Its columns include Delivery and Production,
+ * which collide with the Operations columns of the same name; in the rail they
+ * sit in different menus and cannot be confused, but this is one flat list.
+ */
+const fromMegaMenu = (
+  groups: MegaMenuGroup[],
+  keyPrefix: string,
+  titlePrefix = "",
+): SidebarGroup[] =>
+  groups
+    .map((g) => ({
+      key: `${keyPrefix}:${g.key}`,
+      title: `${titlePrefix}${g.label}`,
+      items: g.items
+        .filter((i) => i.visible !== false)
+        .map((i): SidebarItem => ({
+          // Action rows have no href. "#" is never navigated to — isButton
+          // renders a <button> — but it is what keys the row in renderGroup.
+          href: i.href ?? `#${i.id}`,
+          label: i.title,
+          icon: i.icon,
+          ...(i.onClick ? { isButton: true, onClick: i.onClick } : {}),
+          ...(i.badge !== undefined ? { badge: i.badge } : {}),
+        })),
+    }))
+    .filter((g) => g.items.length > 0)
+
+/** The rail's Quick Links is a plain NavGroup, not a mega-menu. */
+const fromNavGroup = (group: NavGroup): SidebarItem[] =>
+  group.items.map((i) => ({ href: i.href, label: i.label, icon: i.icon }))
 
 interface SidebarProps {
   onLogout?: () => void
@@ -174,80 +216,15 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     }
   }
 
-  // Navigation items
-  // Houses and Flock Groups moved to the Setup group below — they're master
-  // data you maintain, not a daily activity. Matches the top nav's
-  // Setup > Farm column (lib/nav/poultry-nav-config.ts).
-  const farmItems = [
-    { href: "/flock-batch", label: "Flock Purchases (Batches)", icon: Boxes },
-  ]
-
-  // Setup — the farm master data behind the daily flows. Mirrors the top nav's
-  // Setup > Farm column.
-  const poultrySetupItems = [
-    { href: "/houses", label: "Houses", icon: Building2 },
-    { href: "/flocks", label: "Flock Groups (Pens / Flocks)", icon: Bird },
-  ]
-
-  const productionItems = [
-    { href: "/production-records", label: "Production Records", icon: FileText },
-    { href: "/batch-production-records", label: "Batch Production", icon: Boxes },
-    { href: "/egg-production", label: "Egg sorting", icon: Egg },
-    { href: "/feed-usage", label: "Feed Usage", icon: Package },
-    // Feed Production is a production activity (producing finished feed from
-    // ingredients), so it lives under Production. Gated by canViewFeedProduction.
-    ...(permissions.featureAccess.canViewFeedProduction ? [
-      { href: "/poultry-feed-production", label: "Feed Production", icon: Factory },
-      { href: "/poultry-feed-formulas",   label: "Feed Formulas",  icon: Wheat },
-    ] : []),
-    { href: "/poultry-products", label: "Products", icon: Package },
-    // Egg pick times are a farm-level setup (admin only). The page renders in the
-    // standard poultry chrome, so it's fine to link straight to it from here.
-    ...(permissions.isAdmin ? [{ href: "/business-office/egg-pick-settings", label: "Egg Pick Times", icon: Clock }] : []),
-  ]
-
-  const analyticsItems = [
-    { href: "/egg-tracker", label: "Egg tracker", icon: BarChart3 },
-    // Finished feed, ingredients, then one item at a time.
-    { href: "/feed-tracker", label: "Feed tracker", icon: Wheat },
-    { href: "/feed-ingredient-tracker", label: "Ingredients tracker", icon: Wheat },
-    { href: "/feed-inventory-tracker", label: "Feed inventory tracker", icon: History },
-    { href: "/medication-tracker", label: "Medication tracker", icon: Pill },
-    { href: "/birds-left-tracker", label: "Birds left tracker", icon: Bird },
-    { href: "/weekly-report", label: "Analytical Report", icon: FileText },
-  ]
-
-  // Combined Inventory & Health — merges the former "Inventory & Health" and
-  // "Inventory & Production" groups into one, in the order below.
-  const poultryInventoryItems = [
-    { href: "/poultry-inventory", label: "Inventory", icon: Boxes },
-    { href: "/poultry-stock", label: "Stock movements", icon: Boxes },
-    { href: "/poultry-raw-materials", label: "Raw Materials & Supplies", icon: Box },
-    { href: "/supplies", label: "Supplies", icon: ShoppingCart },
-    { href: "/health", label: "Health Records", icon: AlertTriangle },
-    { href: "/poultry-internal-use", label: "Internal Use", icon: PackageMinus },
-    { href: "/poultry-loss-records", label: "Loss & Damage", icon: AlertTriangle },
-    { href: "/inventory", label: "Other Inventory", icon: Package },
-  ]
-
-  // Full driver / distribution suite for Poultry (ported from Water). Coexists
-  // with the simple /poultry-deliveries quick-delivery page above.
-  const poultryDeliveryItems = [
-    { href: "/poultry-driver-returns", label: "Deliveries",    icon: Truck },
-    { href: "/poultry-drivers",        label: "Drivers",       icon: Users2 },
-    { href: "/poultry-vehicles",       label: "Vehicles",      icon: Truck },
-    { href: "/poultry-routes",         label: "Routes",        icon: RouteIcon },
-    { href: "/poultry-driver-report",  label: "Driver report", icon: BarChart3 },
-  ]
-
-  // Quick Links — fast-access shortcuts (mirrors the Water side, minus
-  // Deliveries). Targets also live in their canonical groups below so
-  // navigation stays consistent.
-  const poultryQuickLinkItems = [
-    { href: "/poultry-daily-closing", label: "Daily Closing",     icon: FileText },
-    { href: "/production-records",    label: "Production Records", icon: Factory },
-    { href: "/sales",                 label: "Sales",             icon: ShoppingCart },
-  ]
+  // Navigation items.
+  //
+  // Poultry and Water no longer spell their rows out here. Both rails are
+  // generated from the same lib/nav/*-nav-config.ts the top nav is built from,
+  // and rendered in the top nav's own order, so the two surfaces cannot say
+  // different things about the same farm. See fromMegaMenu above.
+  //
+  // The other company types still carry their lists below; their configs are
+  // either built inline in top-nav.tsx (Generic) or not yet adopted here.
 
   const TEMP_SHOW_PAYMENTS_LINK = true
   // The financial allow-list is default-deny and keyed on href, so it has to
@@ -258,85 +235,6 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         tempShowPayments: TEMP_SHOW_PAYMENTS_LINK,
       })
     )
-
-  // The old single "Financial" group, split three ways by direction of the
-  // money: what comes IN, what goes OUT, and where the cash itself sits. Same
-  // rows, same gates, same split as the top nav's three columns
-  // (lib/nav/poultry-nav-config.ts) — the two surfaces must not disagree.
-  const poultrySalesItems = gateFinancial([
-    { href: "/sales", label: "Sales", icon: ShoppingCart },
-    { href: "/poultry-payments", label: "Payments received", icon: Wallet },
-    // "Who owes us what" — the collections control centre.
-    { href: "/customer-balances", label: "Customer Balances", icon: Users },
-  ])
-  const poultryExpenseItems = [
-    ...gateFinancial([{ href: "/expenses", label: "Expenses", icon: DollarSign }]),
-    // Payroll is money going out, so it sits with the other outflows here
-    // rather than under People, which is now staff master data only. It is
-    // ungated, exactly as it was in the People group.
-    { href: "/poultry-payroll", label: "Payroll", icon: Banknote },
-    // The payables mirror of the two Sales rows: what we owe, and what we've
-    // paid against it.
-    ...gateFinancial([
-      { href: "/supplier-payments", label: "Supplier Payments", icon: Receipt },
-      { href: "/supplier-balances", label: "Supplier Balances", icon: Truck },
-      // 288. Stock cost that has NOT become an expense yet, so it sits beside
-      // the expenses it explains rather than under Inventory.
-      { href: "/poultry-deferred-costs", label: "Deferred inventory cost", icon: Hourglass },
-      // 270-273. Recorded from where a major purchase is entered, but
-      // deliberately NOT an expense -- the page says so on every screen. The
-      // water sidebar has carried its equivalent row since 283; poultry's was
-      // only ever in the top nav, so it was invisible to sidebar users.
-      { href: "/poultry-assets", label: "Capital Investments/Assets", icon: Building2 },
-    ]),
-  ]
-  const poultryMoneyItems = gateFinancial([
-    { href: "/cash-flow", label: "Cash Flow", icon: Wallet },
-    // The bridge between Cash Flow above and Profit & Loss below.
-    { href: "/poultry-financial-activity", label: "Financial Activity", icon: Activity },
-    // The same page as Reports > Profit & Loss, surfaced here because it is the
-    // number owners come looking for. Linked, not duplicated.
-    { href: "/poultry/reports/profit-loss", label: "Profit & Loss", icon: TrendingUp },
-    // Hidden alongside the same row in lib/nav/poultry-nav-config.ts: this
-    // pre-cash-account page counts EVERY sale and expense, so its total never
-    // matched the Cash Flow row directly above it. Route still works.
-    // { href: "/cash", label: "Cash", icon: History },
-    // 253. Funding in and out, kept away from sales and expenses.
-    { href: "/poultry-owner-money", label: "Owner Money", icon: Banknote },
-    // 254. Borrowed money: what is still owed, and what each repayment was for.
-    { href: "/poultry-loans", label: "Loans", icon: HandCoins },
-    // The accounts themselves and the two things you do TO them, kept together
-    // at the foot of the group. Transfers had a dialog on the Cash Accounts
-    // page but nowhere to see or undo them; the page is where reversal lives
-    // (252).
-    { href: "/poultry-cash-accounts", label: "Cash Account", icon: Wallet },
-    { href: "/poultry-cash-transfers", label: "Cash Transfers", icon: ArrowLeftRight },
-    { href: "/poultry-cash-reconciliation", label: "Reconciliation", icon: Scale },
-  ])
-
-  // Finance — the two trading parties every receivable and payable hangs off.
-  // They're master data rather than part of the day's selling flow, so they get
-  // their own group instead of sitting among the money pages above. Same gate
-  // as before the split, so nobody gains or loses access. Mirrors the top nav's
-  // Setup > Finance column.
-  const poultryFinanceItems = [
-    { href: "/customers", label: "Customers", icon: Users },
-    { href: "/suppliers", label: "Suppliers", icon: Truck },
-  ].filter((item) =>
-    isFinancialNavItemVisible(item.href, permissions.featureAccess, permissions.isAdmin, {
-      tempShowPayments: TEMP_SHOW_PAYMENTS_LINK,
-    })
-  )
-
-  // Poultry People. Staff is admin/employee-gated like Water's. Payroll moved
-  // to Financial > Expenses with the other outflows, so this is staff master
-  // data only — and, being gated, the group now disappears for a staff member
-  // without the Employees permission rather than showing a lone Payroll row.
-  const poultryPeopleItems = [
-    ...((permissions.isAdmin || permissions.featureAccess.canSeeEmployees)
-      ? [{ href: "/poultry-staff", label: "Staff", icon: UserCog }]
-      : []),
-  ]
 
   // Water company nav items (shown when activeFarmType === "Water")
   // James (2026-06-02): regrouped to surface Delivery and Production as
@@ -352,113 +250,13 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   const gateWater = <T extends { href: string }>(items: T[]) =>
     filterWaterNavItems(items, permissions.featureAccess, permissions.isAdmin)
 
-  const waterQuickLinkItems = gateWater([
-    { href: "/water-daily-closing",      label: "Daily Closing",      icon: FileText },
-    { href: "/water-driver-returns",     label: "Deliveries",         icon: Truck },
-    { href: "/water-production-batches", label: "Production",          icon: Factory },
-    { href: "/water-sales",              label: "Sales",              icon: ShoppingCart },
-  ])
-  const waterDeliveryItems = gateWater([
-    { href: "/water-driver-returns", label: "Deliveries", icon: Truck },
-    { href: "/water-drivers",        label: "Drivers",    icon: Users2 },
-    { href: "/water-vehicles",       label: "Vehicles",   icon: Truck },
-    { href: "/water-routes",         label: "Routes",     icon: RouteIcon },
-    // The sidebar had no route to this page at all — the top nav and mobile
-    // sheet both carry it under Delivery.
-    { href: "/water-driver-report",  label: "Driver collection report", icon: BarChart3 },
-  ])
-  const waterProductionItems = gateWater([
-    // Mirrors the poultry Production group: "Production" is the per-machine
-    // record, "Batch Production" is the day-level entry that allocates across
-    // machines (poultry: Production Records / Batch Production).
-    { href: "/water-production-batches", label: "Production",         icon: Factory },
-    { href: "/water-daily-production",   label: "Batch Production",   icon: CalendarDays },
-    { href: "/water-products",           label: "Products",           icon: ShoppingBag },
-    { href: "/water-machines",           label: "Machines",           icon: Cog },
-    { href: "/water-boreholes",          label: "Boreholes",          icon: Droplets },
-    { href: "/water-maintenance",        label: "Maintenance",        icon: Wrench },
-  ])
-  // Inventory absorbs Raw materials & supplies; Products moved out into the
-  // Production group above.
-  const waterInventoryItems = gateWater([
-    { href: "/water-stock",             label: "Stock movement",           icon: Boxes },
-    { href: "/water-inventory",         label: "Inventory",                icon: Boxes },
-    { href: "/water-raw-materials",     label: "Raw materials & supplies", icon: Box },
-    { href: "/water-internal-use",      label: "Internal Use",             icon: PackageMinus },
-    { href: "/water-loss-records",      label: "Damages & loss",           icon: AlertTriangle },
-    { href: "/water-production-losses", label: "Production losses",        icon: AlertTriangle },
-  ])
-  // The old single "Sales & money" group, split three ways by direction of the
-  // money: what comes IN, what goes OUT, and where the cash itself sits. Same
-  // rows, same gates, same split as the top nav's three columns
-  // (lib/nav/water-nav-config.ts) — the two surfaces must not disagree.
-  const waterSalesItems = gateWater([
-    { href: "/water-sales",             label: "Sales",             icon: ShoppingCart },
-    { href: "/water-payments",          label: "Payments",          icon: CreditCard },
-    { href: "/water-customer-balances", label: "Customer Balances", icon: Users },
-  ])
-  const waterExpenseItems = gateWater([
-    { href: "/water-expenses",          label: "Expenses",          icon: Receipt },
-    // Payroll is money going out, so it sits with the other outflows here
-    // rather than under People, which is now staff master data only.
-    { href: "/water-payroll",           label: "Payroll",           icon: Banknote },
-    { href: "/water-supplier-payments", label: "Supplier Payments", icon: Receipt },
-    { href: "/water-supplier-balances", label: "Supplier Balances", icon: Truck },
-    // Stock cost that has NOT become an expense yet, so it sits beside the
-    // expenses it explains rather than under Inventory. Same row, same place,
-    // same order as the poultry rail above.
-    { href: "/water-deferred-costs",    label: "Deferred inventory cost", icon: Hourglass },
-    // Migrations 283-286. Recorded from where a major purchase is entered, but
-    // deliberately NOT an expense -- the page says so on every screen.
-    { href: "/water-assets",            label: "Capital Investments/Assets", icon: Building2 },
-  ])
-  const waterMoneyItems = gateWater([
-    { href: "/water-cash-flow",           label: "Cash Flow",      icon: Wallet },
-    { href: "/water-reports/profit-loss", label: "Profit & Loss",  icon: TrendingUp },
-    { href: "/water-owner-money",         label: "Owner Money",    icon: HandCoins },
-    { href: "/water-loans",               label: "Loans",          icon: HandCoins },
-    // Accounts, then the two things you do TO them -- same tail as poultry.
-    { href: "/water-cash-accounts",       label: "Cash accounts",  icon: Wallet },
-    { href: "/water-cash-transfers",      label: "Cash Transfers", icon: ArrowLeftRight },
-    { href: "/water-cash-reconciliation", label: "Reconciliation", icon: Scale },
-  ])
-  // Finance — Customers (was in Sales & money) and Suppliers (was buried in
-  // Admin / Setup) now sit together: both are master data, and they're the two
-  // trading parties every receivable and payable hangs off. Mirrors the top
-  // nav's Setup > Finance column (lib/nav/water-nav-config.ts).
-  const waterFinanceItems = gateWater([
-    { href: "/water-customers", label: "Customers", icon: Users },
-    { href: "/water-suppliers", label: "Suppliers", icon: Truck },
-  ])
-  // James: group Employees + Payroll under People and hide the Staff item.
-  // "Employees" points at the water staff page (/water-staff) — the global
-  // /employees page redirects water users to the dashboard. Admin-gated.
-  // The /water-staff gate now lives in the route map alongside every other
-  // water route rather than being spelled out here.
-  // Payroll moved to Sales & money > Expenses with the other outflows, so this
-  // is staff master data only.
-  const waterPeopleItems = gateWater([
-    { href: "/water-staff", label: "Staff", icon: UserCog },
-  ])
-  // Analytics sits beside Reports rather than inside it, mirroring the poultry
-  // rail's own Analytics group: a report prints a period, an analytic is
-  // explored on screen (drill from a closing balance into the movements).
-  const waterAnalyticsItems = gateWater([
-    { href: "/water-inventory-tracker", label: "Inventory tracker", icon: History },
-  ])
+  // Only the Reports row is still written out here. Everything else on the
+  // water rail comes from buildWaterNavConfig below. The rail reaches its
+  // report catalogue through the Reports menu's own trigger and "View all
+  // reports" link, neither of which survives as a config row, so the sidebar
+  // needs this one link of its own.
   const waterReportsItems = gateWater([
     { href: "/water-reports", label: "Reports", icon: BarChart3 },
-  ])
-  // Admin / Setup now only carries the genuinely rare-touch config — the
-  // delivery/production items moved into their own first-class groups, and
-  // Suppliers moved to Finance beside Customers.
-  const waterAdminItems = gateWater([
-    { href: "/water-setup",         label: "Setup",         icon: Settings },
-    { href: "/water-company-setup", label: "Company Setup", icon: Settings },
-    // Migrations 274 and 276. Configuration, but a FINANCE decision: it changes
-    // what the owner reads as profit. Its own IAM keys gate what you can do
-    // once inside.
-    { href: "/water-financial-settings", label: "Financial Settings", icon: Coins },
   ])
 
   // Generic Company nav items (shown when activeFarmType === "Generic")
@@ -607,6 +405,7 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/hotel-shift-handover", label: "Shift Handover", icon: FileText },
   ])
   const hotelAdminItems = gateHotel([
+    { href: "/hotel-company-setup", label: "Company Setup", icon: Building2 },
     { href: "/hotel-setup", label: "Setup", icon: Settings },
   ])
 
@@ -646,9 +445,13 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/restaurant-online-orders", label: "Online Settings",     icon: ShoppingBag },
     { href: "/restaurant-delivery",      label: "Drivers & Dispatch",  icon: Truck },
   ])
+  // Reports used to sit in this list, between Ingredients and Customers. That
+  // put the profit-and-loss screen inside a group headed "Inventory", while the
+  // top nav gave Reports a menu of its own -- the two navigations disagreed
+  // about where reporting lives. It now has its own group below, matching the
+  // top nav, and is gated on canViewReports in restaurant-nav-access.ts.
   const restaurantInventoryItems = gateRestaurant([
     { href: "/restaurant-inventory", label: "Ingredients & Stock", icon: Boxes },
-    { href: "/restaurant-reports",   label: "Reports & Analytics", icon: BarChart3 },
     { href: "/restaurant-crm",        label: "Customers & CRM",    icon: Users },
     { href: "/restaurant-loyalty",     label: "Loyalty & Rewards",  icon: CreditCard },
     { href: "/restaurant-events",      label: "Events & Catering",  icon: CalendarDays },
@@ -656,6 +459,11 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/restaurant-payments",    label: "Income & Expenses",  icon: Wallet },
     { href: "/restaurant-expenses",    label: "Expenses",           icon: DollarSign },
     { href: "/restaurant-notifications", label: "Notifications",    icon: Bell },
+  ])
+  // Its own group, mirroring the top nav's Reports mega-menu. The rail links to
+  // the catalog; the 24 individual reports live under it.
+  const restaurantReportsItems = gateRestaurant([
+    { href: "/restaurant-reports", label: "Reports", icon: BarChart3 },
   ])
   const restaurantMenuSetupItems = gateRestaurant([
     { href: "/restaurant-menu",   label: "Menu Items",      icon: UtensilsCrossed },
@@ -666,6 +474,28 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   // System — was a flat, unlabelled block at the bottom of the rail; now a real
   // collapsible group so it matches the top nav's System menu. Order and every
   // permission / farm-type guard are carried over unchanged from that block.
+  // ------------------------------------------------------------------ nav
+  // The rail's own config, for the two company types that have adopted it.
+  // Plain function calls, not hooks, so building one only for the active type
+  // cannot change hook order.
+  const poultryNav = (!isWater && !isGeneric && !isHotel && !isRestaurant)
+    ? buildPoultryNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount: alerts.length })
+    : null
+  const waterNav = isWater
+    ? buildWaterNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount: alerts.length })
+    : null
+
+  // Reports is a menu on the rail, not a config section: its contents come from
+  // lib/reports/*-reports-config.ts and run to dozens of rows, which would bury
+  // everything else in a vertical rail. Both surfaces get the same two ways in
+  // that the mobile sheet already uses — the dashboard and the catalogue.
+  const poultryReportsItems: SidebarItem[] = permissions.featureAccess.canViewReports
+    ? [
+        { href: "/reports",         label: "Reports Dashboard", icon: BarChart3 },
+        { href: "/poultry/reports", label: "All reports",       icon: BookOpen },
+      ]
+    : []
+
   const systemItems: SidebarItem[] = [
     ...((permissions.isAdmin || permissions.featureAccess.canSeeEmployees)
       ? [{ href: "/employees", label: "Users & Permissions", icon: UserCog }] : []),
@@ -835,6 +665,12 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     )
   }
 
+  /** renderGroup over a list of them. Fragment, not a wrapper div: the nav is a
+   *  flow of groups and dividers, and an extra element here would break the
+   *  spacing between them. */
+  const renderGroups = (groups: SidebarGroup[]) =>
+    groups.map((g) => <Fragment key={g.key}>{renderGroup(g.title, g.items, g.key)}</Fragment>)
+
   const sidebarContent = (
     <div className="flex h-full min-h-0 w-full flex-col">
       {/* Logo Header */}
@@ -912,50 +748,35 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
         {isWater ? (
           <>
-            {/* Water — Quick Links (shortcuts) → Delivery → Production →
-                Inventory → Sales & Money → Finance → People → Reports →
-                Admin/Setup. James 2026-06-02 reorg. */}
-            {renderGroup("Quick Links", waterQuickLinkItems, "waterQuickLinks")}
+            {/* Generated from buildWaterNavConfig, in the rail's own order:
+                Quick Links | Operations | Sales, Expenses & Money | Analytics |
+                Reports | Setup. Dividers fall where the rail has a separate
+                menu, so a cluster here is a menu up there. */}
+            {renderGroup("Quick Links", fromNavGroup(waterNav!.quickLinks), "waterQuickLinks")}
 
             <div className="border-t border-slate-800 mx-2" />
 
-            {renderGroup("Delivery", waterDeliveryItems, "waterDelivery")}
+            {renderGroups(fromMegaMenu(waterNav!.operations, "waterOps"))}
 
             <div className="border-t border-slate-800 mx-2" />
 
-            {renderGroup("Production", waterProductionItems, "waterProduction")}
+            {/* Three adjacent groups with no divider between them, so they
+                still read as the one "Sales, Expenses & Money" menu. */}
+            {renderGroups(fromMegaMenu(waterNav!.salesMoney, "waterMoney"))}
 
             <div className="border-t border-slate-800 mx-2" />
 
-            {renderGroup("Inventory", waterInventoryItems, "waterInventory")}
-
-            <div className="border-t border-slate-800 mx-2" />
-
-            {/* Sales & money, split three ways — see waterSalesItems. Rendered
-                as three adjacent groups with no divider between them so they
-                still read as one Sales & money block. */}
-            {renderGroup("Sales", waterSalesItems, "waterSales")}
-
-            {renderGroup("Expenses", waterExpenseItems, "waterExpenses")}
-
-            {renderGroup("Money", waterMoneyItems, "waterMoney")}
-
-            <div className="border-t border-slate-800 mx-2" />
-
-            {renderGroup("Finance", waterFinanceItems, "waterFinance")}
-
-            <div className="border-t border-slate-800 mx-2" />
-
-            {renderGroup("People", waterPeopleItems, "waterPeople")}
-
-            <div className="border-t border-slate-800 mx-2" />
-
-            {renderGroup("Analytics", waterAnalyticsItems, "waterAnalytics")}
+            {/* The rail's Analytics menu holds a single column labelled
+                "Stock", which says nothing on its own in a flat list — so the
+                MENU name is used here instead. Same for System at the foot. */}
+            {renderGroups(fromMegaMenu(waterNav!.analytics, "waterAnalytics").map(
+              (g) => ({ ...g, title: "Analytics" })
+            ))}
             {renderGroup("Reports", waterReportsItems, "waterReports")}
 
             <div className="border-t border-slate-800 mx-2" />
 
-            {renderGroup("Admin / Setup", waterAdminItems, "waterAdmin")}
+            {renderGroups(fromMegaMenu(waterNav!.setup, "waterSetup", "Setup · "))}
           </>
         ) : isHotel ? (
           <>
@@ -990,6 +811,12 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
             {renderGroup("Delivery & Online", restaurantDeliveryOnlineItems, "restaurantDeliveryOnline")}
             <div className="border-t border-slate-800 mx-2" />
             {renderGroup("Inventory", restaurantInventoryItems, "restaurantInventory")}
+            {restaurantReportsItems.length > 0 && (
+              <>
+                <div className="border-t border-slate-800 mx-2" />
+                {renderGroup("Reports", restaurantReportsItems, "restaurantReports")}
+              </>
+            )}
             <div className="border-t border-slate-800 mx-2" />
             {renderGroup("Menu & Setup", restaurantMenuSetupItems, "restaurantMenuSetup")}
           </>
@@ -1039,81 +866,76 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
           </>
         ) : (
           <>
-            {/* Quick Links (fast-access shortcuts) */}
-            {renderGroup("Quick Links", poultryQuickLinkItems, "poultryQuickLinks")}
+            {/* Generated from buildPoultryNavConfig, in the rail's own order:
+                Quick Links | Operations | Sales, Expenses & Money | Analytics |
+                Reports | Setup. Dividers fall where the rail has a separate
+                menu, so a cluster here is a menu up there.
 
-            {/* Divider */}
+                What moved, versus the hand-written lists this replaced:
+                Analytics dropped from third place to sit beside Reports where
+                the rail has it, Farm's lone row joined Operations > Purchase,
+                and Setup grew from two rows to the rail's six columns. */}
+            {renderGroup("Quick Links", fromNavGroup(poultryNav!.quickLinks), "poultryQuickLinks")}
+
             <div className="border-t border-slate-800 mx-2" />
 
-            {/* Farm Management */}
-            {renderGroup("Farm", farmItems, "farm")}
+            {renderGroups(fromMegaMenu(poultryNav!.operations, "poultryOps"))}
 
-            {/* Divider */}
             <div className="border-t border-slate-800 mx-2" />
 
-            {/* Production */}
-            {renderGroup("Production", productionItems, "production")}
+            {/* Three adjacent groups with no divider between them, so they
+                still read as the one "Sales, Expenses & Money" menu. */}
+            {renderGroups(fromMegaMenu(poultryNav!.salesMoney, "poultryMoney"))}
 
-            {/* Divider */}
             <div className="border-t border-slate-800 mx-2" />
 
-            {/* Analytics */}
-            {renderGroup("Analytics", analyticsItems, "analytics")}
+            {/* The rail's Analytics menu holds a single column labelled
+                "Trackers", which says nothing on its own in a flat list — so
+                the MENU name is used here. Same for System at the foot. */}
+            {renderGroups(fromMegaMenu(poultryNav!.analytics, "poultryAnalytics").map(
+              (g) => ({ ...g, title: "Analytics" })
+            ))}
+            {renderGroup("Reports", poultryReportsItems, "poultryReports")}
 
-            {/* Divider */}
             <div className="border-t border-slate-800 mx-2" />
 
-            {/* Inventory & Health (merged inventory + health) */}
-            {renderGroup("Inventory & Health", poultryInventoryItems, "poultryInventory")}
-
-            {/* Divider */}
-            <div className="border-t border-slate-800 mx-2" />
-
-            {/* Feed Production + Feed Formulas now live under the Production group above. */}
-
-            {/* Delivery (driver / vehicle / route suite, ported from Water) */}
-            {renderGroup("Delivery", poultryDeliveryItems, "poultryDelivery")}
-
-            {/* Divider */}
-            <div className="border-t border-slate-800 mx-2" />
-
-            {/* Financial, split three ways — see poultrySalesItems. Rendered as
-                three adjacent groups with no divider between them so they still
-                read as one Financial block. */}
-            {renderGroup("Sales", poultrySalesItems, "poultrySales")}
-
-            {renderGroup("Expenses", poultryExpenseItems, "poultryExpenses")}
-
-            {renderGroup("Money", poultryMoneyItems, "poultryMoney")}
-
-            {/* Divider */}
-            <div className="border-t border-slate-800 mx-2" />
-
-            {/* Finance — Customers + Suppliers (see poultryFinanceItems) */}
-            {poultryFinanceItems.length > 0 && renderGroup("Finance", poultryFinanceItems, "poultryFinance")}
-
-            {/* Divider */}
-            <div className="border-t border-slate-800 mx-2" />
-
-            {/* People (Staff + Payroll) */}
-            {renderGroup("People", poultryPeopleItems, "poultryPeople")}
-
-            {/* Divider */}
-            <div className="border-t border-slate-800 mx-2" />
-
-            {/* Setup — Houses + Flock Groups (see poultrySetupItems) */}
-            {renderGroup("Setup", poultrySetupItems, "poultrySetup")}
+            {renderGroups(fromMegaMenu(poultryNav!.setup, "poultrySetup", "Setup · "))}
           </>
         )}
 
         {/* Divider */}
         <div className="border-t border-slate-800 mx-2" />
 
-        {/* System — Users & Permissions (the /employees page creates employee
-            LOGIN accounts; it adapts to Water), account, alerts, companies,
-            audit log and legal. Mirrors the top nav's System menu. Contents are
-            built in systemItems above, guards and all. */}
-        {renderGroup("System", systemItems, "system")}
+        {/* System — alerts, activity, billing, terms and the rest of the
+            user's own context.
+
+            Poultry and Water take it from the rail's System menu like every
+            other group, which is what keeps Setup from being listed twice:
+            systemItems carries Farm Setup / Company Setup / Financial Settings
+            / Companies, and those same rows are in the rail's Setup > Company
+            column, now rendered above. The other company types keep
+            systemItems, guards and all. */}
+        {poultryNav || waterNav
+          ? renderGroups(fromMegaMenu((poultryNav ?? waterNav)!.system, "system").map(
+              (g, i) => ({
+                ...g,
+                title: "System",
+                // Account is `visible: false` in both configs, because the RAIL
+                // reaches /profile through the header avatar a few pixels away
+                // and a menu row there would have said the same thing twice.
+                // The sidebar is the opposite side of the screen from that
+                // avatar, so it gets the row back — added HERE rather than by
+                // unhiding it in the config, which would put it on the rail
+                // too. First row, which is where it sat in systemItems and
+                // where the config lists it. Only the first group: these two
+                // configs each have exactly one System column, and if a second
+                // is ever added, Account should not repeat in it.
+                items: i === 0
+                  ? [{ href: "/profile", label: "Account", icon: User }, ...g.items]
+                  : g.items,
+              })
+            ))
+          : renderGroup("System", systemItems, "system")}
       </nav>
 
       {/* Logout */}

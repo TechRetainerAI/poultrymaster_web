@@ -36,6 +36,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { flockCountsTowardBirdTotals, getFlockLifecycleStatus } from "@/lib/utils/flock-eligibility"
 import { batchStatusFromToggles, batchTogglesFromStatus } from "@/lib/utils/batch-status"
 import { Switch } from "@/components/ui/switch"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 function ScoreCard({
   label,
@@ -998,7 +999,7 @@ export default function FlockBatchesPage() {
                             </TableCell>
                             <TableCell className={cn("text-slate-600", hideBelow("xl"))}>
                               <div className="flex items-center gap-2">
-                                <span>{batch.startDate ? new Date(batch.startDate).toLocaleDateString() : "—"}</span>
+                                <span>{batch.startDate ? fmtDateTime(batch.startDate, batch) : "—"}</span>
                               </div>
                             </TableCell>
                             {/* Actions is deliberately NOT pinned: with Name
@@ -1159,7 +1160,7 @@ export default function FlockBatchesPage() {
                         <TableCell className="font-medium">{flock.name}</TableCell>
                         <TableCell>{flock.breed}</TableCell>
                         <TableCell>{flock.quantity.toLocaleString()} birds</TableCell>
-                        <TableCell>{new Date(flock.startDate).toLocaleDateString()}</TableCell>
+                        <TableCell>{fmtDateTime(flock.startDate, flock)}</TableCell>
                         <TableCell>
                           {life === "pending" ? (
                             <Badge variant="secondary" className="bg-amber-100 text-amber-900 border border-amber-200">

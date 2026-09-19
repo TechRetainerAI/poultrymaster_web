@@ -12,10 +12,16 @@
 
 import { farmApiUrl, getAuthHeaders, getUserContext } from "./config"
 import { explainHttpError } from "@/lib/api/http-error"
+import {
+  currentCompanyTimeZone, formatTimeInZone, parseServerTimestamp,
+} from "@/lib/utils/company-datetime"
 
 /** Operating | Financing | Owner | Capital | Inventory | Transfer. */
 export type FinancialActivityType =
   | "Operating" | "Financing" | "Owner" | "Capital" | "Inventory" | "Transfer"
+  // Migration 308. Its own activity rather than Financing: Financing is money
+  // the business RAISED, and an advance to a worker runs the other way.
+  | "EmployeeLoan"
 
 /**
  * Which asset, debt or capital balance an event moved. Not a chart of accounts —
@@ -41,6 +47,16 @@ export interface FinancialActivityRow {
    * it by the browser's offset.
    */
   occurredAt: string
+  /**
+   * 315. When the row was ENTERED, as a UTC instant. Null where no source could
+   * supply one.
+   *
+   * `occurredAt` is the business date and is midnight for anything entered as a
+   * plain day, which is why most rows on this report showed no time at all. This
+   * is the underlying record's creation timestamp and IS a real instant, so it
+   * is converted into the company's zone rather than read off as wall clock.
+   */
+  createdAt?: string | null
   activityType: FinancialActivityType | string
   type: string
   category: string
@@ -147,6 +163,7 @@ export async function getPoultryFinancialActivity(
           eventKey: r.eventKey ?? "",
           businessDate: r.businessDate ?? "",
           occurredAt: r.occurredAt ?? "",
+          createdAt: r.createdAt ?? null,
           activityType: r.activityType ?? "Operating",
           type: r.type ?? "",
           category: r.category ?? "",
@@ -196,6 +213,11 @@ export const POSITION_LABELS: Record<string, string> = {
   AccumulatedDepreciation: "Accumulated Depreciation",
   LoanLiability: "Loan Liability",
   OwnerCapital: "Owner Capital",
+  // Deliberately NOT folded into CustomerReceivable: money owed for something
+  // sold and money lent to staff are collected differently and mean different
+  // things, and an owner reading "Customer Receivable" should not find the
+  // storeman's advance inside it. Spec section 63, migration 308.
+  EmployeeLoanReceivable: "Employee Loan Receivable",
 }
 
 export const positionLabel = (t: string): string => POSITION_LABELS[t] ?? t
@@ -237,17 +259,39 @@ export function activitySourceLink(row: FinancialActivityRow): { href: string; l
  * move an evening entry to the previous day for anyone west of the farm, so the
  * string is sliced instead.
  */
-export function formatActivityMoment(occurredAt: string): string {
+export function formatActivityMoment(
+  occurredAt: string,
+  /**
+   * 315. The row's entry time, used ONLY when the business timestamp has no
+   * clock of its own. Pass the whole row.
+   */
+  createdAt?: string | null,
+): string {
   const s = (occurredAt || "").trim()
   if (!s) return "—"
   const [datePart, timePartRaw] = s.split("T")
   const [y, m, d] = (datePart || "").split("-")
   if (!y || !m || !d) return s
   const dayText = `${m}/${d}/${y}`
-  const timePart = (timePartRaw || "").slice(0, 5)
-  if (!timePart || timePart === "00:00") return dayText
-  const [hhStr, mm] = timePart.split(":")
+
+  // The business timestamp's own clock, where it has one. Sliced, not parsed:
+  // it is company-local wall clock in a `timestamp without time zone` column.
+  let hhmm = (timePartRaw || "").slice(0, 5)
+
+  // 315. Where it does not -- a business date entered as a plain day is stored
+  // at midnight, which was most of this report -- fall back to when the row was
+  // ENTERED. That one IS a real UTC instant, so it goes through the company-zone
+  // conversion rather than being sliced.
+  if (!hhmm || hhmm === "00:00") {
+    hhmm = formatTimeInZone(parseServerTimestamp(createdAt), currentCompanyTimeZone())
+  }
+
+  // Still nothing: show the day alone rather than a midnight nobody recorded.
+  if (!hhmm || hhmm === "00:00") return dayText
+
+  const [hhStr, mm] = hhmm.split(":")
   const hh = Number(hhStr)
+  if (!Number.isFinite(hh)) return dayText
   const suffix = hh >= 12 ? "PM" : "AM"
   const h12 = hh % 12 === 0 ? 12 : hh % 12
   return `${dayText} ${h12}:${mm} ${suffix}`

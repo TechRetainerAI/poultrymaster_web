@@ -14,6 +14,7 @@ import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { listCheckInHistory, listCheckOutHistory, listHotelGuests, listHotelBookings, type HotelGuest, type HotelBooking } from "@/lib/api/hotel"
+import { fmtDateTime, fmtInstant } from "@/lib/utils/company-datetime"
 
 export default function HotelStayHistoryPage() {
   const router = useRouter(); const { toast } = useToast(); const logout = useLogout()
@@ -78,9 +79,10 @@ export default function HotelStayHistoryPage() {
         <div className="mb-4 relative max-w-sm"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" /><Input placeholder="Search guest, ref, room..." className="pl-9" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} /></div>
         {loading ? <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-violet-600" /></div> : (
           <Tabs defaultValue="checkins">
-            <TabsList className="mb-4"><TabsTrigger value="checkins">Check-ins ({filteredCI.length})</TabsTrigger><TabsTrigger value="checkouts">Check-outs ({filteredCO.length})</TabsTrigger></TabsList>
+            <TabsList className="mb-4 flex-wrap h-auto"><TabsTrigger value="checkins">Check-ins ({filteredCI.length})</TabsTrigger><TabsTrigger value="checkouts">Check-outs ({filteredCO.length})</TabsTrigger></TabsList>
             <TabsContent value="checkins"><Card><CardContent className="p-0">
-              <table className="w-full text-sm"><thead className="bg-slate-50 border-b"><tr><th className="text-left p-3">Guest</th><th className="text-left p-3">Room</th><th className="text-left p-3">Booking Ref</th><th className="text-left p-3">Check-in Time</th><th className="text-left p-3">Key Card</th><th className="text-right p-3">Deposit</th></tr></thead>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[660px]"><thead className="bg-slate-50 border-b"><tr><th className="text-left p-3">Guest</th><th className="text-left p-3">Room</th><th className="text-left p-3">Booking Ref</th><th className="text-left p-3">Check-in Time</th><th className="text-left p-3">Key Card</th><th className="text-right p-3">Deposit</th></tr></thead>
                 <tbody>{pagedCI.map((ci: any, i) => (
                   <tr key={ci.hotelcheckinid ?? i} className="border-b hover:bg-violet-50 cursor-pointer transition-colors" onClick={() => openGuestDetail(ci)}>
                     <td className="p-3 font-semibold text-violet-700">{ci.firstname} {ci.lastname}</td>
@@ -91,11 +93,13 @@ export default function HotelStayHistoryPage() {
                     <td className="p-3 text-right">{Number(ci.depositamount ?? 0).toFixed(2)}</td>
                   </tr>
                 ))}{filteredCI.length === 0 && <tr><td colSpan={6} className="p-8 text-center text-slate-400">No check-in history.</td></tr>}</tbody>
-              </table>
+                </table>
+              </div>
               <PaginationControls page={page} pageSize={pageSize} total={filteredCI.length} onPageChange={setPage} />
             </CardContent></Card></TabsContent>
             <TabsContent value="checkouts"><Card><CardContent className="p-0">
-              <table className="w-full text-sm"><thead className="bg-slate-50 border-b"><tr><th className="text-left p-3">Guest</th><th className="text-left p-3">Room</th><th className="text-left p-3">Booking Ref</th><th className="text-left p-3">Check-out Time</th><th className="text-right p-3">Final Bill</th><th className="text-right p-3">Late Fee</th></tr></thead>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[660px]"><thead className="bg-slate-50 border-b"><tr><th className="text-left p-3">Guest</th><th className="text-left p-3">Room</th><th className="text-left p-3">Booking Ref</th><th className="text-left p-3">Check-out Time</th><th className="text-right p-3">Final Bill</th><th className="text-right p-3">Late Fee</th></tr></thead>
                 <tbody>{pagedCO.map((co: any, i) => (
                   <tr key={co.hotelcheckoutid ?? i} className="border-b hover:bg-violet-50 cursor-pointer transition-colors" onClick={() => openGuestDetail(co)}>
                     <td className="p-3 font-semibold text-violet-700">{co.firstname} {co.lastname}</td>
@@ -106,7 +110,8 @@ export default function HotelStayHistoryPage() {
                     <td className="p-3 text-right">{Number(co.latefee ?? 0).toFixed(2)}</td>
                   </tr>
                 ))}{filteredCO.length === 0 && <tr><td colSpan={6} className="p-8 text-center text-slate-400">No check-out history.</td></tr>}</tbody>
-              </table>
+                </table>
+              </div>
               <PaginationControls page={page} pageSize={pageSize} total={filteredCO.length} onPageChange={setPage} />
             </CardContent></Card></TabsContent>
           </Tabs>
@@ -136,7 +141,7 @@ export default function HotelStayHistoryPage() {
                 <Card className="border-violet-100">
                   <CardHeader className="pb-2"><CardTitle className="text-xs uppercase text-slate-500">Contact Information</CardTitle></CardHeader>
                   <CardContent className="space-y-2 text-sm">
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {selectedGuest.phone && <div className="flex items-center gap-2"><Phone className="h-4 w-4 text-slate-400" /><span>{selectedGuest.phone}</span></div>}
                       {selectedGuest.email && <div className="flex items-center gap-2"><Mail className="h-4 w-4 text-slate-400" /><span>{selectedGuest.email}</span></div>}
                       {selectedGuest.nationality && <div className="flex items-center gap-2"><Globe className="h-4 w-4 text-slate-400" /><span>{selectedGuest.nationality}</span></div>}
@@ -164,7 +169,8 @@ export default function HotelStayHistoryPage() {
                   <Card>
                     <CardHeader className="pb-2"><CardTitle className="text-xs uppercase text-slate-500">Booking History ({guestBookings.length})</CardTitle></CardHeader>
                     <CardContent className="p-0">
-                      <table className="w-full text-xs">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs min-w-[550px]">
                         <thead className="bg-slate-50 border-b"><tr><th className="text-left p-2">Ref</th><th className="text-left p-2">Room</th><th className="text-left p-2">Dates</th><th className="text-left p-2">Status</th><th className="text-right p-2">Amount</th></tr></thead>
                         <tbody>
                           {guestBookings.map((b) => (
@@ -185,7 +191,8 @@ export default function HotelStayHistoryPage() {
                             </tr>
                           ))}
                         </tbody>
-                      </table>
+                        </table>
+                      </div>
                     </CardContent>
                   </Card>
                 )}
@@ -195,19 +202,21 @@ export default function HotelStayHistoryPage() {
                   <Card>
                     <CardHeader className="pb-2"><CardTitle className="text-xs uppercase text-slate-500">Check-in History ({guestCheckins.length})</CardTitle></CardHeader>
                     <CardContent className="p-0">
-                      <table className="w-full text-xs">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs min-w-[520px]">
                         <thead className="bg-slate-50 border-b"><tr><th className="text-left p-2">Date</th><th className="text-left p-2">Room</th><th className="text-left p-2">Key Card</th><th className="text-right p-2">Deposit</th></tr></thead>
                         <tbody>
                           {guestCheckins.map((ci: any, i: number) => (
                             <tr key={ci.hotelcheckinid ?? i} className="border-b">
-                              <td className="p-2">{ci.checkintime ? new Date(ci.checkintime).toLocaleDateString() : "—"}</td>
+                              <td className="p-2">{ci.checkintime ? fmtDateTime(ci.checkintime) : "—"}</td>
                               <td className="p-2">{ci.roomnumber ?? "—"}</td>
                               <td className="p-2">{ci.keycardnumber ?? "—"}</td>
                               <td className="p-2 text-right">{Number(ci.depositamount ?? 0).toFixed(2)}</td>
                             </tr>
                           ))}
                         </tbody>
-                      </table>
+                        </table>
+                      </div>
                     </CardContent>
                   </Card>
                 )}
@@ -217,27 +226,29 @@ export default function HotelStayHistoryPage() {
                   <Card>
                     <CardHeader className="pb-2"><CardTitle className="text-xs uppercase text-slate-500">Check-out History ({guestCheckouts.length})</CardTitle></CardHeader>
                     <CardContent className="p-0">
-                      <table className="w-full text-xs">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs min-w-[520px]">
                         <thead className="bg-slate-50 border-b"><tr><th className="text-left p-2">Date</th><th className="text-left p-2">Room</th><th className="text-right p-2">Final Bill</th><th className="text-right p-2">Late Fee</th></tr></thead>
                         <tbody>
                           {guestCheckouts.map((co: any, i: number) => (
                             <tr key={co.hotelcheckoutid ?? i} className="border-b">
-                              <td className="p-2">{co.checkouttime ? new Date(co.checkouttime).toLocaleDateString() : "—"}</td>
+                              <td className="p-2">{co.checkouttime ? fmtDateTime(co.checkouttime) : "—"}</td>
                               <td className="p-2">{co.roomnumber ?? "—"}</td>
                               <td className="p-2 text-right font-semibold">{Number(co.finalbillamount ?? 0).toFixed(2)}</td>
                               <td className="p-2 text-right">{Number(co.latefee ?? 0).toFixed(2)}</td>
                             </tr>
                           ))}
                         </tbody>
-                      </table>
+                        </table>
+                      </div>
                     </CardContent>
                   </Card>
                 )}
 
                 {/* Dates */}
                 <div className="text-xs text-slate-400 flex justify-between pt-2 border-t">
-                  <span>First registered: {selectedGuest.createdAt ? new Date(selectedGuest.createdAt).toLocaleDateString() : "—"}</span>
-                  {selectedGuest.lastStayDate && <span>Last stay: {new Date(selectedGuest.lastStayDate).toLocaleDateString()}</span>}
+                  <span>First registered: {selectedGuest.createdAt ? fmtInstant(selectedGuest.createdAt) : "—"}</span>
+                  {selectedGuest.lastStayDate && <span>Last stay: {fmtDateTime(selectedGuest.lastStayDate, selectedGuest)}</span>}
                 </div>
               </>
             )}

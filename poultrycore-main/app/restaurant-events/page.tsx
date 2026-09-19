@@ -23,6 +23,7 @@ import {
   listEvents, createEvent, updateEventStatus, deleteEvent,
   type CateringEvent, type CateringEventInput,
 } from "@/lib/api/restaurant"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const EVENT_TYPES = ["Corporate", "Wedding", "Birthday", "HolidayParty", "Buffet", "Cocktail", "Other"]
 const EVENT_STATUSES = ["All", "Inquiry", "Confirmed", "Deposit", "InProgress", "Completed", "Cancelled"] as const
@@ -165,7 +166,7 @@ export default function RestaurantEventsPage() {
                       : "bg-white text-gray-600 border hover:bg-gray-50"
                   }`}
                 >
-                  {s === "InProgress" ? "In Progress" : s === "HolidayParty" ? "Holiday Party" : s}
+                  {s === "InProgress" ? "In Progress" : s}
                   {s !== "All" && (
                     <span className="ml-1.5 text-xs opacity-75">
                       ({events.filter((e) => e.status === s).length})
@@ -216,7 +217,7 @@ export default function RestaurantEventsPage() {
                           <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-gray-600">
                             <span className="flex items-center gap-1.5">
                               <CalendarDays className="h-3.5 w-3.5" />
-                              {new Date(ev.eventDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
+                              {fmtDateTime(ev.eventDate, ev)}
                             </span>
                             {(ev.startTime || ev.endTime) && (
                               <span className="flex items-center gap-1.5">
@@ -359,19 +360,19 @@ export default function RestaurantEventsPage() {
                 <Label>Contact Phone</Label>
                 <Input className="h-10" value={form.contactPhone ?? ""} onChange={(e) => setForm({ ...form, contactPhone: e.target.value })} />
               </div>
-              <div className="col-span-2 space-y-1.5">
+              <div className="col-span-1 sm:col-span-2 space-y-1.5">
                 <Label>Contact Email</Label>
                 <Input type="email" className="h-10" placeholder="email@example.com" value={form.contactEmail ?? ""} onChange={(e) => setForm({ ...form, contactEmail: e.target.value })} />
               </div>
               <div className="space-y-1.5">
                 <Label>Price per Head ($)</Label>
-                <Input type="number" step="0.01" min={0} className="h-10" value={form.pricePerHead ?? ""} onChange={(e) => setForm({ ...form, pricePerHead: parseFloat(e.target.value) || undefined })} />
+                <Input type="number" step="0.01" min={0} className="h-10" value={form.pricePerHead ?? ""} onChange={(e) => { const v = parseFloat(e.target.value); setForm({ ...form, pricePerHead: Number.isNaN(v) ? undefined : v }) }} />
               </div>
               <div className="space-y-1.5">
                 <Label>Deposit Amount ($)</Label>
-                <Input type="number" step="0.01" min={0} className="h-10" value={form.depositAmount ?? ""} onChange={(e) => setForm({ ...form, depositAmount: parseFloat(e.target.value) || undefined })} />
+                <Input type="number" step="0.01" min={0} className="h-10" value={form.depositAmount ?? ""} onChange={(e) => { const v = parseFloat(e.target.value); setForm({ ...form, depositAmount: Number.isNaN(v) ? undefined : v }) }} />
               </div>
-              <div className="col-span-2 space-y-1.5">
+              <div className="col-span-1 sm:col-span-2 space-y-1.5">
                 <Label>Venue</Label>
                 <Select value={form.venue ?? "InHouse"} onValueChange={(v) => setForm({ ...form, venue: v })}>
                   <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>

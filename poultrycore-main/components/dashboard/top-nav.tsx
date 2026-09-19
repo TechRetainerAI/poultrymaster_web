@@ -248,10 +248,15 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
           title="Setup"
           blurb="Company configuration, products, delivery, customers and your team."
           groups={nav.setup}
-          /* 5 groups over 2 columns = a 3x2 block with the last cell empty.
-             Denser than one wide row. Longest label "Terms & Conditions"
-             (18 chars ~= 137px): 64 + 2x(40+137) + 16 = 434px. */
-          columns={2} widthRem={28.5} layout="grid"
+          /* 6 groups over 3 columns = a 2x3 block: Company | Delivery |
+             Production on the first row, Finance | Plant | People on the
+             second. The order lives in lib/nav/water-nav-config.ts and the grid
+             fills row by row, so the two must stay in step. Same layout as the
+             poultry Setup panel.
+             "Users & Permissions" is the longest label at 145px in Geist-Medium
+             (the active row's weight), so a column needs 185px:
+             64 + 3x185 + 2x16 = 651px. */
+          columns={3} widthRem={41} layout="grid"
         />
 
         <div className="ml-auto flex items-center gap-1">
@@ -392,7 +397,15 @@ function HotelTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
           viewAll={{ href: "/hotel-reports", label: "View all reports →" }}
           triggerActiveHrefs={["/hotel-reports"]}
           groups={HOTEL_REPORT_NAV_GROUPS}
-          columns={4} widthRem={58} accent="violet"
+          // Same fix as the restaurant Reports menu, and for the same reason.
+          // The default layout is CSS multi-column; this panel has a definite
+          // height (`max-h-[70vh]`) and `overflow-x-hidden`, so content that
+          // overflows creates FURTHER columns sideways and they are clipped away
+          // rather than scrolled to. Hotel already had five groups against four
+          // column boxes, which silently hid Housekeeping & Inventory; adding
+          // Revenue Management makes six. A grid wraps to a second ROW instead,
+          // so six groups land as two clean rows of three and nothing is lost.
+          layout="grid" columns={3} widthRem={46} accent="violet"
         />
 
         <NavMegaMenu
@@ -471,11 +484,27 @@ function RestaurantTopNav() {
         <NavMegaMenu
           label="Reports" icon={BarChart3}
           title="Reports"
-          blurb="Sales, menu performance, operations and periodic reports."
+          blurb="Money, sales, menu, operations, guests and channels."
           viewAll={{ href: "/restaurant-reports", label: "View all reports →" }}
           triggerActiveHrefs={["/restaurant-reports"]}
           groups={RESTAURANT_REPORT_NAV_GROUPS}
-          columns={4} widthRem={58} accent="rose"
+          // layout="grid", NOT the default multi-column, and 3 columns for 5
+          // groups.
+          //
+          // The default layout is CSS multi-column, and this panel has a
+          // definite height (`max-h-[70vh]`). When multi-column content exceeds
+          // a definite height it does not wrap to a new row -- it creates
+          // FURTHER columns in the inline direction. The panel also sets
+          // `overflow-x-hidden`, so those extra columns are clipped rather than
+          // scrolled to. With four column boxes and five groups, the fifth
+          // group (Guests & Channels) was created off the right edge and then
+          // clipped out of existence: present in the DOM, unreachable on screen.
+          //
+          // A grid wraps to a second ROW instead, so every group stays visible.
+          // Three columns rather than five keeps the panel at ~46rem, which
+          // fits a 1366px laptop with room to spare; five would need ~72rem and
+          // would start colliding with the viewport clamp.
+          layout="grid" columns={3} widthRem={46} accent="rose"
         />
 
         <NavMegaMenu
@@ -592,10 +621,18 @@ export function TopNavigation() {
             title="Analytics"
             blurb="Day-to-day tracker"
             groups={nav.analytics}
-            /* "Medication tracker" is the longest label and sets the floor:
-               137px in Geist-Medium (the active row's weight) plus 40px of icon,
-               gap and row padding, plus the panel's 64px = 241px. */
-            columns={1} widthRem={15.5} layout="grid" accent="orange"
+            /* "Ingredients only tracker" is the longest label and sets the
+               floor, having just overtaken "Feed inventory tracker" (22 chars),
+               which in turn overtook the 18-char "Medication tracker" this
+               width was originally derived for. Each time, the rows' `truncate`
+               silently ate the end of the new label until the width followed.
+               24 chars ~= 182px in Geist-Medium (the active row's weight) plus
+               40px of icon, gap and row padding, plus the panel's 64px (32
+               padding + 32 scrollbar gutter) = 286px. 18rem = 288px would clear
+               it by under 2px, which is inside the error of the ~7.6px/char
+               estimate; 19rem = 304px keeps a real margin.
+               Rows truncate rather than reflow, so err wide. */
+            columns={1} widthRem={19} layout="grid" accent="orange"
           />
 
           {/* Sourced from lib/reports/poultry-reports-config.ts — the single

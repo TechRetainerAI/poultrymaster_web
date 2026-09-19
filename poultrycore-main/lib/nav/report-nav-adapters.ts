@@ -64,7 +64,11 @@ export const HOTEL_REPORT_NAV_GROUPS: MegaMenuGroup[] = HOTEL_REPORT_GROUPS.map(
 }))
 
 /**
- * Restaurant reports: same pattern. Links to /restaurant-reports with tab hash.
+ * Restaurant reports: same pattern as hotel above — one route per report.
+ *
+ * These used to be `/restaurant-reports?tab=<slug>`. The page never read that
+ * query string, so all fourteen menu entries opened the same default tab and no
+ * report was linkable. Pointing at the real route is what fixed that.
  */
 export const RESTAURANT_REPORT_NAV_GROUPS: MegaMenuGroup[] = RESTAURANT_REPORT_GROUPS.map((g) => ({
   key: g.key,
@@ -73,6 +77,6 @@ export const RESTAURANT_REPORT_NAV_GROUPS: MegaMenuGroup[] = RESTAURANT_REPORT_G
     id: `${g.key}:${r.slug}`,
     title: r.title,
     icon: r.icon,
-    href: `/restaurant-reports?tab=${r.slug}`,
+    href: `/restaurant-reports/${r.slug}`,
   })),
 }))

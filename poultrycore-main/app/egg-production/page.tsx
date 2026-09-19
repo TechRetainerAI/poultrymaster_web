@@ -44,6 +44,7 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { createProductionRecord, getProductionRecords, updateProductionRecord, type ProductionRecordInput } from "@/lib/api/production-record"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 export default function EggProductionsPage() {
   const router = useRouter()
@@ -902,7 +903,7 @@ export default function EggProductionsPage() {
                         {currentEggProductions.map((prod) => (
                           <TableRow key={prod.productionId} className="hover:bg-slate-50 transition-colors">
                             <TableCell className={cn("font-medium text-slate-900 bg-white", isMobile && "sticky-col-date")}>
-                              {isMobile ? formatDateShort(prod.productionDate) : new Date(prod.productionDate).toLocaleDateString()}
+                              {isMobile ? formatDateShort(prod.productionDate) : fmtDateTime(prod.productionDate, prod)}
                             </TableCell>
                             <TableCell>{getFlockName(prod)}</TableCell>
                             <TableCell className={cn("text-violet-900 font-medium", hideBelow("sm"))}>

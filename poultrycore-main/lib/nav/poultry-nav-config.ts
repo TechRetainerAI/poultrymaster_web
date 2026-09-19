@@ -151,6 +151,11 @@ export function buildPoultryNavConfig(
           // rather than with staff master data in Setup > People. It is also the
           // one ungated row here, which keeps this column from ever vanishing.
           { id: "payroll",       title: "Payroll",      icon: Banknote,   href: "/poultry-payroll" },
+          // Directly below Payroll, because payroll deduction is how most
+          // advances are repaid -- but the page stands on its own: an advance
+          // can equally be repaid in cash, and exists whether or not the
+          // worker is on any payroll run. Migrations 305/306.
+          { id: "employee-loans", title: "Employee Loans & Advances", icon: HandCoins, href: "/poultry-employee-loans", visible: money("/poultry-employee-loans") },
           // The payables mirror of the two Sales rows: what we owe, and what
           // we've paid against it.
           { id: "supplier-payments", title: "Supplier Payments", icon: Receipt, href: "/supplier-payments", visible: money("/supplier-payments") },
@@ -217,17 +222,19 @@ export function buildPoultryNavConfig(
       {
         key: "trackers",
         label: "Trackers",
+        // Row ORDER is the order the user asked for, not a derived one: what
+        // the farm looks at daily comes first (eggs, feed, then feed stock),
+        // then the birds and their medication, then the weekly Report.
+        // Ingredients only tracker trails the group -- it is the mill's own view,
+        // consulted far less often than the three above it.
         items: [
           { id: "egg-tracker",        title: "Egg tracker",        icon: BarChart3, href: "/egg-tracker" },
-          // Three lenses on the same feed movements, narrowing left to right:
-          // the finished feed a farm holds, the ingredients it mills from, and
-          // then one item at a time with its own opening and closing.
           { id: "feed-tracker",       title: "Feed tracker",       icon: Wheat,     href: "/feed-tracker" },
-          { id: "feed-ingredient-tracker", title: "Ingredients tracker", icon: Wheat, href: "/feed-ingredient-tracker" },
           { id: "feed-inventory-tracker", title: "Feed inventory tracker", icon: History, href: "/feed-inventory-tracker" },
-          { id: "medication-tracker", title: "Medication tracker", icon: Pill,      href: "/medication-tracker" },
           { id: "birds-left",         title: "Birds tracker",      icon: Bird,      href: "/birds-left-tracker" },
+          { id: "medication-tracker", title: "Medication tracker", icon: Pill,      href: "/medication-tracker" },
           { id: "weekly-report",      title: "Report",             icon: FileText,  href: "/weekly-report" },
+          { id: "feed-ingredient-tracker", title: "Ingredients only tracker", icon: Wheat, href: "/feed-ingredient-tracker" },
         ],
       },
     ],

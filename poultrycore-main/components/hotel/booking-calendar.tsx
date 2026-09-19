@@ -199,7 +199,14 @@ export function BookingCalendar({ bookings, rooms, onBookingClick, onBookingMove
       </div>
 
       {/* Calendar Grid */}
-      <div className="border rounded-lg overflow-hidden bg-white select-none" ref={gridRef}>
+      {/* A 14-day Gantt cannot shrink to phone width: a 112px room column plus 14 day
+          columns leaves ~20px per day at 393px, which is unreadable and makes the
+          drag-to-move bars unusable — and the inner overflow-hidden meant it crushed
+          rather than scrolled. Scroll horizontally instead, with a min-width that keeps
+          each day column ~56px. gridRef stays on the SAME element so the drag maths in
+          dayWidth() still measures the real grid width, not the viewport. */}
+      <div className="overflow-x-auto">
+      <div className="border rounded-lg overflow-hidden bg-white select-none min-w-[900px]" ref={gridRef}>
         {/* Date Headers */}
         <div className="flex border-b bg-slate-50">
           <div className="w-28 min-w-28 p-2 text-xs font-semibold text-slate-500 border-r flex items-center gap-1">
@@ -317,6 +324,7 @@ export function BookingCalendar({ bookings, rooms, onBookingClick, onBookingMove
             </div>
           ))
         )}
+      </div>
       </div>
 
       {/* Summary */}

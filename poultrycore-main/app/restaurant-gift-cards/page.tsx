@@ -23,6 +23,7 @@ import {
   redeemGiftCard, reloadGiftCard, getGiftCardTransactions,
   type GiftCard, type GiftCardTx, type GiftCardStats, type GiftCardRedeemResult, type GiftCardCreateInput,
 } from "@/lib/api/restaurant"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const STATUS_COLORS: Record<string, string> = {
   Active: "bg-green-100 text-green-700",
@@ -134,9 +135,30 @@ export default function RestaurantGiftCardsPage() {
   </div>
 </div></body></html>`
           const url = farmApiUrl("/Email/send-html")
-          await fetch(url, { method: "POST", headers: getAuthHeaders(), body: JSON.stringify({ to: issueForm.recipientEmail, subject: `You've Received a Gift Card — ${result.cardNumber}`, body: emailBody }) })
-          toast({ title: "Email sent", description: `Gift card emailed to ${issueForm.recipientEmail}` })
-        } catch { /* email is best-effort */ }
+          const resp = await fetch(url, { method: "POST", headers: getAuthHeaders(), body: JSON.stringify({ to: issueForm.recipientEmail, subject: `You've Received a Gift Card — ${result.cardNumber}`, body: emailBody }) })
+          // /api/Email/send-html answers HTTP 200 even when the send fails, putting the
+          // outcome in the body as { success, message }. The response was previously
+          // ignored entirely, so a rejected or undeliverable gift card still reported
+          // "Email sent" — the card was issued but the recipient never heard about it.
+          const payload = await resp.json().catch(() => null as any)
+          const sent = resp.ok && (payload?.success ?? true)
+          if (sent) {
+            toast({ title: "Email sent", description: `Gift card emailed to ${issueForm.recipientEmail}` })
+          } else {
+            toast({
+              title: "Card issued, but the email was not sent",
+              description: payload?.message || `Could not email ${issueForm.recipientEmail}. The card number is ${result.cardNumber}.`,
+              variant: "destructive",
+            })
+          }
+        } catch (e: any) {
+          // The card itself is already issued — never fail the whole flow over the email.
+          toast({
+            title: "Card issued, but the email was not sent",
+            description: e?.message || `Card number ${result.cardNumber}.`,
+            variant: "destructive",
+          })
+        }
       }
 
       setIssueOpen(false)
@@ -302,7 +324,7 @@ export default function RestaurantGiftCardsPage() {
                           <span>${card.initialBalance.toFixed(2)} &rarr; ${card.currentBalance.toFixed(2)}</span>
                           {card.purchaserName && <span>From: {card.purchaserName}</span>}
                           {card.recipientName && <span>To: {card.recipientName}</span>}
-                          {card.expiryDate && <span>Exp: {new Date(card.expiryDate).toLocaleDateString()}</span>}
+                          {card.expiryDate && <span>Exp: {fmtDateTime(card.expiryDate)}</span>}
                         </div>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">

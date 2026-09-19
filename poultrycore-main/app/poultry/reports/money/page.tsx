@@ -40,6 +40,7 @@ import {
   type PoultryCashTransfer, type PoultryOwnerMoney,
   type PoultryLoan, type PoultryLoanPayment,
 } from "@/lib/api/poultry-finance"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 function monthStart() {
   const n = new Date()
@@ -183,7 +184,7 @@ export default function PoultryMoneyReportPage() {
                     <TableBody>
                       {xf.map((r) => (
                         <TableRow key={r.poultryCashTransferId}>
-                          <TableCell className="whitespace-nowrap">{new Date(r.transferDate).toLocaleDateString()}</TableCell>
+                          <TableCell className="whitespace-nowrap">{fmtDateTime(r.transferDate, r)}</TableCell>
                           <TableCell className="font-medium">{r.transferNumber ?? `#${r.poultryCashTransferId}`}</TableCell>
                           <TableCell>{r.fromAccountName ?? "–"}</TableCell>
                           <TableCell className="flex items-center gap-1">
@@ -227,7 +228,7 @@ export default function PoultryMoneyReportPage() {
                     <TableBody>
                       {om.map((r) => (
                         <TableRow key={r.poultryOwnerMoneyId}>
-                          <TableCell className="whitespace-nowrap">{new Date(r.transactionDate).toLocaleDateString()}</TableCell>
+                          <TableCell className="whitespace-nowrap">{fmtDateTime(r.transactionDate, r)}</TableCell>
                           <TableCell className="font-medium">{r.transactionNumber ?? `#${r.poultryOwnerMoneyId}`}</TableCell>
                           <TableCell>{r.ownerName ?? "–"}</TableCell>
                           <TableCell>{r.transactionType}</TableCell>
@@ -273,10 +274,12 @@ export default function PoultryMoneyReportPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
+                      {/* Keyed on source + id: a loan synthesised from a Cash Flow
+                          "Loan received" carries a loan id of 0. */}
                       {loans.map((l) => (
-                        <TableRow key={l.poultryLoanId}>
+                        <TableRow key={`${l.source ?? "Loan"}:${l.sourceId ?? l.poultryLoanId}`}>
                           <TableCell className="font-medium">{l.loanNumber ?? `#${l.poultryLoanId}`}</TableCell>
-                          <TableCell>{l.lenderName}</TableCell>
+                          <TableCell>{l.lenderName ?? (l.source === "CashAdjustment" ? "Recorded on Cash Flow" : "–")}</TableCell>
                           <TableCell className="text-right tabular-nums">{fmt(l.originalPrincipal)}</TableCell>
                           <TableCell className="text-right tabular-nums">{fmt(l.amountReceived)}</TableCell>
                           <TableCell className="text-right tabular-nums">{fmt(l.totalPrincipalRepaid)}</TableCell>
@@ -323,7 +326,7 @@ export default function PoultryMoneyReportPage() {
                     <TableBody>
                       {rp.map((r) => (
                         <TableRow key={r.poultryLoanPaymentId}>
-                          <TableCell className="whitespace-nowrap">{new Date(r.paymentDate).toLocaleDateString()}</TableCell>
+                          <TableCell className="whitespace-nowrap">{fmtDateTime(r.paymentDate, r)}</TableCell>
                           <TableCell className="font-medium">{r.paymentNumber ?? `#${r.poultryLoanPaymentId}`}</TableCell>
                           <TableCell>{r.lenderName ?? "–"}</TableCell>
                           <TableCell className="text-right tabular-nums">{fmt(r.principalAmount)}</TableCell>

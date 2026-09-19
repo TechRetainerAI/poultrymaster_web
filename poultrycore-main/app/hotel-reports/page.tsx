@@ -50,7 +50,8 @@ export default function HotelReportsIndexPage() {
               <div>
                 <h1 className="text-2xl font-semibold text-slate-900">Reports</h1>
                 <p className="mt-0.5 text-sm text-slate-500">
-                  {TOTAL_REPORTS} reports — each with its own filters, summary cards and PDF export.
+                  {TOTAL_REPORTS} reports — filters, summary cards, and a PDF you can view before
+                  you download it.
                 </p>
               </div>
             </div>
@@ -79,10 +80,16 @@ export default function HotelReportsIndexPage() {
                           <div className="text-sm font-medium text-slate-900 truncate">{r.title}</div>
                           <div className="text-[11px] text-slate-500 truncate">{r.description}</div>
                         </div>
+                        {r.isNew && (
+                          <Badge className="bg-violet-100 text-violet-700 hover:bg-violet-100 text-[10px] shrink-0">New</Badge>
+                        )}
                         {r.status === "stub" && (
                           <Badge className="bg-amber-100 text-amber-700 text-[10px]">Soon</Badge>
                         )}
-                        <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 opacity-0 transition-opacity group-hover:opacity-100" />
+                        {/* Always visible, not opacity-0 until hover: a hover-only
+                            affordance never appears on a touch screen, which
+                            plan.md records as a recurring bug in this codebase. */}
+                        <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-violet-600" />
                       </Link>
                     ))}
                   </div>

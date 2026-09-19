@@ -195,7 +195,8 @@ export default function HotelRoomsPage() {
           ) : (
             <Card>
               <CardContent className="p-0">
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[520px]">
                   <thead className="bg-slate-50 border-b">
                     <tr>
                       <th className="text-left p-3">Room</th>
@@ -228,7 +229,8 @@ export default function HotelRoomsPage() {
                       <tr><td colSpan={8} className="p-8 text-center text-slate-400">No rooms match the filters.</td></tr>
                     )}
                   </tbody>
-                </table>
+                  </table>
+                </div>
               </CardContent>
             </Card>
           )}
@@ -243,7 +245,7 @@ export default function HotelRoomsPage() {
                     <RoomStatusBadge status={detailRoom.status} />
                     <span className="text-lg font-bold text-violet-700">{Number(detailRoom.baseRate ?? 0).toFixed(2)}/night</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                     <div><span className="text-slate-500">Type:</span> <strong>{detailRoom.roomTypeName}</strong></div>
                     <div><span className="text-slate-500">Floor:</span> <strong>{detailRoom.floorName ?? "—"}</strong></div>
                     <div><span className="text-slate-500">Bed:</span> <strong>{detailRoom.bedType ?? "—"}</strong></div>

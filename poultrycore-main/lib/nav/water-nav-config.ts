@@ -208,6 +208,15 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
       },
     ],
 
+    // Group ORDER is load-bearing: the panel is a 3-column grid filled row by
+    // row, so these six groups read as two rows --
+    //   Company | Delivery | Production   (the operating chain)
+    //   Finance | Plant    | People
+    // exactly mirroring the poultry rail, where Plant is water's counterpart of
+    // poultry's "Farm" column (the physical assets, as opposed to the catalogue
+    // you sell). Reordering here silently reshuffles the panel; keep the pairs
+    // of three together, and keep `columns={3}` on the Setup NavMegaMenu in
+    // components/dashboard/top-nav.tsx in step with it.
     setup: [
       {
         key: "company",
@@ -224,6 +233,26 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
         ],
       },
       {
+        key: "delivery-setup",
+        label: "Delivery",
+        items: [
+          { id: "drivers",  title: "Drivers",  icon: Users2,    href: "/water-drivers" },
+          { id: "vehicles", title: "Vehicles", icon: Truck,     href: "/water-vehicles" },
+          { id: "routes",   title: "Routes",   icon: RouteIcon, href: "/water-routes" },
+        ],
+      },
+      {
+        key: "production-setup",
+        label: "Production",
+        // Products is ungated, which keeps this column — and the Setup
+        // trigger — from ever disappearing. Machines and Boreholes used to sit
+        // here too; they moved to Plant so this column carries the catalogue
+        // you sell and nothing else, the way the poultry Production column does.
+        items: [
+          { id: "products",  title: "Products",  icon: ShoppingBag, href: "/water-products" },
+        ],
+      },
+      {
         // Customers sits beside Suppliers: both are master data maintained
         // here, not part of the day's selling flow — but they're the two
         // trading parties every receivable and payable hangs off, so they get
@@ -237,21 +266,14 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
         ],
       },
       {
-        key: "production-setup",
-        label: "Production",
+        // The physical plant — the water counterpart of the poultry rail's
+        // "Farm" column (Houses / Flock Groups). Equipment and sources, not
+        // things you sell.
+        key: "plant",
+        label: "Plant",
         items: [
-          { id: "products",  title: "Products",  icon: ShoppingBag, href: "/water-products" },
-          { id: "machines",  title: "Machines",  icon: Cog,         href: "/water-machines" },
-          { id: "boreholes", title: "Boreholes", icon: Droplets,    href: "/water-boreholes" },
-        ],
-      },
-      {
-        key: "delivery-setup",
-        label: "Delivery",
-        items: [
-          { id: "drivers",  title: "Drivers",  icon: Users2,    href: "/water-drivers" },
-          { id: "vehicles", title: "Vehicles", icon: Truck,     href: "/water-vehicles" },
-          { id: "routes",   title: "Routes",   icon: RouteIcon, href: "/water-routes" },
+          { id: "machines",  title: "Machines",  icon: Cog,      href: "/water-machines" },
+          { id: "boreholes", title: "Boreholes", icon: Droplets, href: "/water-boreholes" },
         ],
       },
       {

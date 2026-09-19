@@ -520,6 +520,8 @@ export interface CashFlowRowLike {
   transactionDate: string
   /** SIGNED: positive in, negative out. */
   amount: number
+  /** When the row was entered. Optional: older callers may not supply it. */
+  createdAt?: string | null
 }
 
 /** Buckets one direction's rows by what the money was FOR. */
@@ -564,7 +566,15 @@ export function withRunningBalance<T extends CashFlowRowLike>(
 ): Array<T & { running: number }> {
   const asc = [...rows].sort((a, b) => {
     const d = (a.transactionDate ?? "").localeCompare(b.transactionDate ?? "")
-    return d !== 0 ? d : a.id - b.id
+    if (d !== 0) return d
+    // Tie-break on when the row was ENTERED, so the running balance accumulates
+    // in the same order the table displays. `id` cannot do this: these rows come
+    // from different source tables (sale, expense, loan, adjustment), so
+    // comparing their ids across legs is meaningless -- id 12 from `sale` says
+    // nothing about id 12 from `expense`.
+    const ca = (a.createdAt ?? "").localeCompare(b.createdAt ?? "")
+    if (ca !== 0) return ca
+    return a.id - b.id
   })
   let running = Number(openingCash) || 0
   return asc.map((r) => {

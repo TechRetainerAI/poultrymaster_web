@@ -43,6 +43,7 @@ import { ReportDataTable } from "@/components/poultry-reports/report-data-table"
 import { exportMultiTablePdf, emailMultiTableAsPdf, type PdfExportColumn } from "@/lib/utils/pdf-export"
 import { formatCurrency, getSelectedCurrency } from "@/lib/utils/currency"
 import { getBirdsLeftForFlockFromRecords, sumLatestBirdsLeftByFlock } from "@/lib/utils/production-records"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 export type DashboardView = "production" | "financial" | "daily" | "insights"
 
@@ -208,7 +209,7 @@ export function usePoultryDashboardData() {
       .map((r: any) => {
         const total = r.totalProduction || 0
         return {
-          date: new Date(r.date).toLocaleDateString(),
+          date: fmtDateTime(r.date, r),
           rawDate: new Date(r.date).getTime(),
           flockName: r.flockName || (r.flockId ? `Flock #${r.flockId}` : "—"),
           m9: r.production9AM || 0,

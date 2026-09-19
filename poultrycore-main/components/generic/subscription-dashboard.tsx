@@ -28,6 +28,7 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { useGenericModules } from "@/hooks/use-generic-modules"
 import { getSubscriptionDashboard, type GenericSubDashboard } from "@/lib/api/generic-reports"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 function fmtMoney(n: number) {
   return new Intl.NumberFormat(undefined, {
@@ -87,7 +88,7 @@ export function GenericSubscriptionDashboard({ companyName }: { companyName?: st
 
   const k = data.kpis
   const a = data.alerts
-  const monthLabel = new Date(k.monthStart).toLocaleDateString(undefined, { month: "long", year: "numeric" })
+  const monthLabel = fmtDateTime(k.monthStart, k)
 
   return (
     <>

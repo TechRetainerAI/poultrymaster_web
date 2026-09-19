@@ -36,6 +36,17 @@ const RESTAURANT_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAd
 
   // --- Dashboard -----------------------------------------------------------
   "/restaurant-dashboard":        () => true,
+
+  // --- Reports -------------------------------------------------------------
+  // Reports expose revenue, margins, profit and per-waiter performance, so they
+  // follow the generic reporting flag rather than defaulting to visible.
+  //
+  // This entry is the fix for a real hole: unknown routes fall through to
+  // `true` below, and /restaurant-reports was never listed — so every waiter,
+  // driver and kitchen user could open the takings. The report pages check the
+  // same flag themselves, because hiding a nav row does not stop anyone typing
+  // the URL.
+  "/restaurant-reports":          (f) => f.canViewReports,
 }
 
 /**

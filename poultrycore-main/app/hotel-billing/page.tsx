@@ -19,6 +19,7 @@ import {
   addStayCharge, generateInvoice, recordPayment,
   type HotelBooking, type HotelStayCharge, type HotelPayment,
 } from "@/lib/api/hotel"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const CHARGE_TYPES = ["Room", "RoomService", "Minibar", "Laundry", "Damage", "Restaurant", "Spa", "Transport", "Telephone", "Other"]
 
@@ -113,7 +114,7 @@ export default function HotelBillingPage() {
         <div className="flex items-center gap-3 mb-6"><Receipt className="h-6 w-6 text-violet-600" /><h1 className="text-2xl font-bold">Billing</h1></div>
 
         {/* Summary */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           <Card><CardContent className="p-4"><div className="text-sm text-slate-500">Active Stays</div><div className="text-2xl font-bold text-violet-700">{bills.length}</div></CardContent></Card>
           <Card><CardContent className="p-4"><div className="text-sm text-slate-500">Total Collected</div><div className="text-2xl font-bold text-emerald-700">{totalRevenue.toFixed(2)}</div></CardContent></Card>
           <Card><CardContent className="p-4"><div className="text-sm text-slate-500">Outstanding</div><div className={`text-2xl font-bold ${totalOutstanding > 0 ? "text-red-700" : "text-emerald-700"}`}>{totalOutstanding.toFixed(2)}</div></CardContent></Card>
@@ -152,7 +153,7 @@ export default function HotelBillingPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <CardTitle className="text-lg">{selected.booking.guestFirstName} {selected.booking.guestLastName}</CardTitle>
-                        <div className="text-sm text-slate-500">Room {selected.booking.roomNumber ?? "TBD"} | {selected.booking.bookingRef} | {selected.booking.checkInDate?.slice(0,10)} to {selected.booking.checkOutDate?.slice(0,10)}</div>
+                        <div className="text-sm text-slate-500">Room {selected.booking.roomNumber ?? "TBD"} | {selected.booking.bookingRef} | {fmtDateTime(selected.booking.checkInDate)} to {fmtDateTime(selected.booking.checkOutDate)}</div>
                       </div>
                       <Badge variant="outline" className={selected.booking.status === "CheckedIn" ? "bg-emerald-50 text-emerald-700" : "bg-blue-50 text-blue-700"}>{selected.booking.status}</Badge>
                     </div>
@@ -175,7 +176,8 @@ export default function HotelBillingPage() {
                     {selected.charges.length > 0 && (
                       <div>
                         <h4 className="text-sm font-semibold text-slate-500 mb-2">Additional Charges</h4>
-                        <table className="w-full text-sm"><thead className="bg-slate-50 border-b"><tr><th className="text-left p-2">Type</th><th className="text-left p-2">Description</th><th className="text-right p-2">Qty</th><th className="text-right p-2">Price</th><th className="text-right p-2">Total</th></tr></thead>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm min-w-[550px]"><thead className="bg-slate-50 border-b"><tr><th className="text-left p-2">Type</th><th className="text-left p-2">Description</th><th className="text-right p-2">Qty</th><th className="text-right p-2">Price</th><th className="text-right p-2">Total</th></tr></thead>
                           <tbody>{selected.charges.map((c: any, idx: number) => (
                             <tr key={c.hotelStayChargeId ?? c.hotelstaychargeid ?? `ch-${idx}`} className="border-b">
                               <td className="p-2"><Badge variant="outline" className="text-xs">{c.chargeType ?? c.chargetype}</Badge></td>
@@ -185,7 +187,8 @@ export default function HotelBillingPage() {
                               <td className="p-2 text-right font-semibold">{Number(c.totalAmount ?? c.totalamount ?? 0).toFixed(2)}</td>
                             </tr>
                           ))}</tbody>
-                        </table>
+                          </table>
+                        </div>
                       </div>
                     )}
 
@@ -231,7 +234,7 @@ export default function HotelBillingPage() {
           <div className="space-y-4">
             <div><Label>Charge Type</Label><Select value={chargeForm.chargeType} onValueChange={(v) => setChargeForm({...chargeForm, chargeType: v})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CHARGE_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select></div>
             <div><Label>Description *</Label><Input value={chargeForm.description} onChange={(e) => setChargeForm({...chargeForm, description: e.target.value})} placeholder="e.g. Minibar drinks, Room service dinner" /></div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div><Label>Quantity</Label><Input type="number" min={1} value={chargeForm.quantity} onChange={(e) => setChargeForm({...chargeForm, quantity: Number(e.target.value)})} /></div>
               <div><Label>Unit Price</Label><Input type="number" step="0.01" value={chargeForm.unitPrice} onChange={(e) => setChargeForm({...chargeForm, unitPrice: Number(e.target.value)})} /></div>
             </div>

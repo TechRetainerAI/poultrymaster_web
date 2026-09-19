@@ -227,6 +227,8 @@ namespace PoultryFarmAPIWeb.Business
             },
             r => new GenericStaffPaymentRow
             {
+                // 301: the time tables show beside the business date.
+                CreatedAt = r.OptionalDateTime("CreatedAt"),
                 GenericStaffPaymentId = Int(r, "genericstaffpaymentid"),
                 GenericStaffId = Int(r, "genericstaffid"),
                 StaffName = Str(r, "staffname"),
@@ -300,6 +302,8 @@ namespace PoultryFarmAPIWeb.Business
             },
             r => new GenericOwnerEntryRow
             {
+                // 301: the time tables show beside the business date.
+                CreatedAt = r.OptionalDateTime("CreatedAt"),
                 GenericOwnerEntryId = Int(r, "genericownerentryid"),
                 EntryDate = Date(r, "entrydate"),
                 EntryType = Str(r, "entrytype") ?? string.Empty,

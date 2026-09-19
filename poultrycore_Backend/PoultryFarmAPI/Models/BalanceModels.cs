@@ -178,7 +178,12 @@ namespace PoultryFarmAPIWeb.Models
         public decimal? BalanceBefore { get; set; }
         public decimal? AmountApplied { get; set; }
         public decimal? BalanceAfter { get; set; }
-    }
+    
+        /// <summary>When the payment was entered -- the clock time the payments
+        /// tables show beside the date (migration 304). For a grouped payment this
+        /// is the earliest row in the group. Null on a database predating it.</summary>
+        public DateTime? CreatedAt { get; set; }
+}
 
     public class PaymentAllocationRow
     {

@@ -30,6 +30,20 @@ namespace PoultryFarmAPIWeb.Models
         /// </summary>
         public DateTime OccurredAt { get; set; }
 
+        /// <summary>
+        /// 315. WHEN THE ROW WAS ENTERED, as a UTC instant.
+        ///
+        /// Distinct from <see cref="OccurredAt"/>, which is the business date and
+        /// is stored at midnight for anything entered as a plain day -- which is
+        /// why most rows on this report had no time to show at all. This is the
+        /// creation timestamp of the underlying record, and unlike OccurredAt it
+        /// IS a real instant, so it is converted into the company's zone for
+        /// display rather than read off as wall clock.
+        ///
+        /// Null only where no source row could supply one.
+        /// </summary>
+        public DateTime? CreatedAt { get; set; }
+
         /// <summary>Operating | Financing | Owner | Capital | Inventory | Transfer.</summary>
         public string ActivityType { get; set; } = "";
 

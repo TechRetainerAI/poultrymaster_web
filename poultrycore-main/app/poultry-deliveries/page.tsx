@@ -23,6 +23,7 @@ import {
   listPoultryDeliveries, loadPoultryDelivery, reconcilePoultryDelivery, reversePoultryDelivery, cancelPoultryDelivery,
   listPoultryProducts, ensureDefaultPoultryEgg, type PoultryDelivery, type PoultryProduct,
 } from "@/lib/api/poultry-inventory"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const UNITS = ["Egg", "Tray", "Crate", "Dozen", "Piece", "Unit"]
 const STATUS_COLORS: Record<string, string> = { Loaded: "bg-indigo-100 text-indigo-700", Reconciled: "bg-green-100 text-green-700", Cancelled: "bg-amber-100 text-amber-700" }
@@ -110,7 +111,7 @@ export default function PoultryDeliveriesPage() {
                   {rows.length === 0 ? <TableRow><TableCell colSpan={10} className="text-center text-slate-500 py-6">No deliveries yet.</TableCell></TableRow>
                     : pg.pageItems.map((d) => (
                       <TableRow key={d.poultryDeliveryId}>
-                        <TableCell>{(d.deliveryDate || "").split("T")[0]}</TableCell>
+                        <TableCell>{fmtDateTime(d.deliveryDate, d)}</TableCell>
                         <TableCell>{d.driverName ?? "—"}{d.vehicleName ? ` / ${d.vehicleName}` : ""}</TableCell>
                         <TableCell className="text-right">{d.quantityLoaded.toLocaleString()} {d.unit ?? ""}</TableCell>
                         <TableCell className="text-right">{d.status === "Loaded" ? "—" : d.quantitySold.toLocaleString()}</TableCell>

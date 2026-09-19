@@ -162,7 +162,8 @@ export default function ExpenseReportPage() {
                 <Card className="mb-6">
                   <CardHeader><CardTitle className="text-base">By Category</CardTitle></CardHeader>
                   <CardContent className="p-0">
-                    <table className="w-full text-sm">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm min-w-[520px]">
                       <thead className="bg-slate-50 border-b">
                         <tr>
                           <th className="text-left p-3">Category</th>
@@ -179,7 +180,8 @@ export default function ExpenseReportPage() {
                           </tr>
                         ))}
                       </tbody>
-                    </table>
+                      </table>
+                    </div>
                   </CardContent>
                 </Card>
               )}

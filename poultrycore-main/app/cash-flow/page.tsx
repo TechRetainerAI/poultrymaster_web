@@ -62,12 +62,16 @@ import { buildCashFlowAnalysis } from "@/lib/cash/cash-flow-analysis"
 import {
   createCashAdjustment, updateCashAdjustment, deleteCashAdjustment,
 } from "@/lib/api/cash"
-import { adjustPoultryCashAccount, listPoultryCashAccounts } from "@/lib/api/poultry-finance"
+import {
+  adjustPoultryCashAccount, listPoultryCashAccounts, createPoultryLoan,
+  recordPoultryOwnerMoney,
+} from "@/lib/api/poultry-finance"
 import {
   CashAdjustmentDialog, ADJUSTMENT_TYPES, adjustmentTypeFromLabel,
   type CashAdjustmentSeed,
 } from "@/components/cash/cash-adjustment-dialog"
 import { CashFlowInsightsDialog } from "@/components/cash/cash-flow-insights-dialog"
+import { fmtDateTime, businessSortValue } from "@/lib/utils/company-datetime"
 
 const DEFAULT = defaultReportRange()
 
@@ -109,7 +113,12 @@ export default function CashFlowPage() {
   const [allTime, setAllTime] = useState<CashFlowSummary>(EMPTY_SUMMARY)
   const [customers, setCustomers] = useState<BalanceSummary | null>(null)
   const [suppliers, setSuppliers] = useState<BalanceSummary | null>(null)
-  const [accounts, setAccounts] = useState<{ accountId: number; accountName: string; isActive: boolean }[]>([])
+  // Balance and overdraft come along for the repayment dialog's overdraw guard;
+  // CashAdjustmentDialog reads the three fields it needs and ignores the rest.
+  const [accounts, setAccounts] = useState<{
+    accountId: number; accountName: string; isActive: boolean
+    currentBalance: number; allowNegativeBalance: boolean
+  }[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
@@ -187,6 +196,8 @@ export default function CashFlowPage() {
             accountId: a.poultryCashAccountId,
             accountName: a.accountName,
             isActive: a.isActive,
+            currentBalance: a.currentBalance ?? 0,
+            allowNegativeBalance: a.allowNegativeBalance ?? false,
           }))
         : [],
     )
@@ -309,7 +320,7 @@ export default function CashFlowPage() {
 
     return sortData(withRunning, sortKey, sortDir, (item: any, key: string) => {
       switch (key) {
-        case "date": return new Date(item.transactionDate)
+        case "date": return businessSortValue(item.transactionDate, item)
         case "type": return categoryLabel(item.category)
         case "category": return flowGroupLabel(item.flowGroup)
         case "description": return item.description ?? ""
@@ -381,6 +392,9 @@ export default function CashFlowPage() {
                   <Plus className="h-4 w-4 mr-1" /> Add Adjustment
                 </Button>
               )}
+              {/* Three buttons in a two-up grid leaves the third alone on its
+                  row, so it spans both cells rather than sitting beside a gap.
+                  (A fourth button briefly made this unnecessary; it is gone.) */}
               <Button asChild size="sm" variant="outline" className="col-span-2 w-full whitespace-nowrap sm:col-span-1 sm:ml-auto sm:w-auto">
                 <Link href="/poultry-cash-accounts">
                   <ExternalLink className="h-4 w-4 mr-1" /> View Cash Accounts
@@ -554,7 +568,7 @@ export default function CashFlowPage() {
                       pagination={pg.paginationProps}
                       getKey={(r: any) => `${r.rowSource}-${r.id}`}
                       primary={(r: any) => categoryLabel(r.category)}
-                      secondary={(r: any) => `${(r.transactionDate ?? "").split("T")[0]} · ${flowGroupLabel(r.flowGroup)}`}
+                      secondary={(r: any) => `${fmtDateTime(r.transactionDate, r)} · ${flowGroupLabel(r.flowGroup)}`}
                       highlights={(r: any) => [
                         // The movement, then where it left the balance. The
                         // amount used to be glued to the category in the title,
@@ -610,7 +624,7 @@ export default function CashFlowPage() {
                                 return (
                                   <TableRow key={`${r.rowSource}-${r.id}`} className={cn(capital && "bg-slate-50")}>
                                     <TableCell className="whitespace-nowrap">
-                                      {(r.transactionDate ?? "").split("T")[0]}
+                                      {fmtDateTime(r.transactionDate, r)}
                                     </TableCell>
                                     {/* Type is the DETAIL — Feed, Sales, Utilities. */}
                                     <TableCell className="whitespace-nowrap">
@@ -717,7 +731,7 @@ export default function CashFlowPage() {
         accounts={accounts}
         fmtMoney={gh}
         editing={editAdjustment}
-        onSubmit={async ({ accountId, adjustmentType, adjustmentDate, amount, description }) => {
+        onSubmit={async ({ accountId, adjustmentType, adjustmentDate, amount, description, lenderName, ownerName }) => {
           const { userId, farmId } = getUserContext()
 
           if (editAdjustment) {
@@ -726,6 +740,64 @@ export default function CashFlowPage() {
               description: description || null,
             })
             if (!saved.success) throw new Error(saved.message ?? "Could not update the adjustment.")
+            return
+          }
+
+          // Borrowing is a loan, not an adjustment. Writing a bare
+          // cashadjustment row here left a cash event with no lender and
+          // nothing to repay against, so "Loan received" creates the real loan
+          // instead — the user already said it was one by picking the type.
+          //
+          // Nothing runs after this on purpose: the loan create writes its own
+          // cash row AND moves the chosen account's balance. Also calling
+          // createCashAdjustment or adjustPoultryCashAccount would count the
+          // money twice.
+          //
+          // A NEGATIVE amount is not a borrowing — it is a correction to one
+          // that was over-stated, and the DB refuses a negative principal — so
+          // it falls through to the adjustment path below, unchanged.
+          if (adjustmentType === "LoanReceived" && amount > 0) {
+            await createPoultryLoan({
+              lenderName: (lenderName ?? "").trim(),
+              originalPrincipal: amount,
+              amountReceived: amount,
+              startDate: adjustmentDate,
+              loanDate: adjustmentDate,
+              poultryCashAccountId: accountId,
+              notes: description || null,
+            })
+            return
+          }
+
+          // Owner money is a record, not an adjustment — same correction as the
+          // loan above. Picking "Owner injection" or "Withdrawal" already says
+          // whose money this is, so record it as owner money from the start
+          // instead of writing a bare cashadjustment row the Owner Money page
+          // then has to go looking for.
+          //
+          // Nothing runs after this, for the loan's reason: the owner-money SP
+          // writes its own cash row AND moves the chosen account's balance.
+          // Also calling createCashAdjustment or adjustPoultryCashAccount would
+          // count the money twice.
+          //
+          // Math.abs because the two records disagree about sign. The dialog's
+          // amount is SIGNED and Withdrawal is in its ALWAYS_OUT set, so a
+          // withdrawal arrives negative; an owner-money record stores a
+          // POSITIVE amount and carries the direction in transactionType, and
+          // its CHECK rejects anything else.
+          //
+          // Without an account there is no record to write — the dialog blocks
+          // save before this — so the guard is a belt-and-braces one.
+          if ((adjustmentType === "OwnerInjection" || adjustmentType === "Withdrawal")
+              && accountId != null && amount !== 0) {
+            await recordPoultryOwnerMoney({
+              transactionType: adjustmentType === "OwnerInjection" ? "Contribution" : "Draw",
+              amount: Math.abs(amount),
+              poultryCashAccountId: accountId,
+              transactionDate: adjustmentDate,
+              notes: description || null,
+              ownerName,
+            })
             return
           }
 

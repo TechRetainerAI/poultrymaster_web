@@ -155,8 +155,6 @@ export const DEPRECIATION_NONCASH_NOTE =
 export const BOOK_VALUE_TOOLTIP =
   "What the asset is still worth on the books: what it cost, less the depreciation charged so far. It never falls below the residual value."
 
-export const ORIGINAL_COST_TOOLTIP =
-  "Everything capitalised into this asset — the purchase, plus any further costs added to it."
 
 /**
  * Why an asset that has been bought is not in this month's expenses. The single
@@ -171,3 +169,77 @@ export const CAPITAL_NOT_EXPENSE_NOTE =
  */
 export const DRAFT_ASSET_NOTE =
   "An asset stays out of service until it has both an in-service date and a useful life. Until then nothing is depreciated — which is what a half-drilled borehole should do."
+
+// ---------------------------------------------------------------------------
+// 314. The three cost numbers, and why there are three.
+//
+// Migration 283 named the SUM of an asset's cost rows "originalcost", and every
+// screen printed it as "Original cost". An asset bought for 100,000 and improved
+// twice therefore read as having been BOUGHT for 130,000, with nothing on the
+// page to say otherwise. These are the labels and the explanations that replace
+// that one misleading word -- and the reason they live here rather than being
+// typed into each dialog is that two screens disagreeing about what a number
+// means is exactly the bug being fixed.
+// ---------------------------------------------------------------------------
+
+export const ACQUISITION_COST_LABEL = "Original acquisition cost"
+export const ADDITIONAL_COST_LABEL = "Additional capitalised costs"
+export const TOTAL_CAPITALIZED_COST_LABEL = "Total capitalised cost"
+
+export const ACQUISITION_COST_TOOLTIP =
+  "What this asset was originally acquired for, including any correction made to that figure. It does not move when costs are added later."
+
+export const ADDITIONAL_COST_TOOLTIP =
+  "Everything capitalised into this asset after it was acquired — installation, improvements, upgrades. Reversed entries are excluded."
+
+export const TOTAL_CAPITALIZED_COST_TOOLTIP =
+  "Original acquisition cost plus any additional costs capitalised into this asset."
+
+/** @deprecated The name says "original" and the number is the total. Use TOTAL_CAPITALIZED_COST_TOOLTIP. */
+export const ORIGINAL_COST_TOOLTIP = TOTAL_CAPITALIZED_COST_TOOLTIP
+
+/**
+ * What a cost row IS, in words an owner uses. The stored vocabulary is
+ * Acquisition | AdditionalCost | OriginalCostCorrection; a row that carries its
+ * own cost type (Installation, Roofing, Labour) keeps it, because the person who
+ * typed it knew more than this function does.
+ */
+export function assetCostTypeLabel(sourceType?: string | null, costCategory?: string | null): string {
+  if (sourceType === "Acquisition") return "Original acquisition"
+  if (sourceType === "OriginalCostCorrection") return "Original cost correction"
+  const own = (costCategory ?? "").trim()
+  if (own && own.toLowerCase() !== "acquisition") return own
+  return "Additional cost"
+}
+
+export const isAssetCostCorrectionRow = (sourceType?: string | null) => sourceType === "OriginalCostCorrection"
+export const isAssetAcquisitionRow = (sourceType?: string | null) => sourceType === "Acquisition"
+
+/**
+ * Why correcting is not adding. Both change the total; only one of them is
+ * honest about an invoice that was misread.
+ */
+export const CORRECT_ORIGINAL_COST_NOTE =
+  "Use this to fix a mistake in what the asset was recorded as costing. It is not the same as Add cost, which records real extra money spent on it. The correction is kept on the record with its reason, and the money already recorded is adjusted — no second payment and no second expense are created."
+
+/**
+ * What a correction does to depreciation, said before it is confirmed. This is
+ * the question the dialog exists to answer.
+ */
+export const CORRECTION_DEPRECIATION_NOTE =
+  "Depreciation already posted is not changed — months that have been charged stay charged, and past profit stays as it was reported. Future months follow the corrected cost."
+
+/**
+ * The distinction Add cost cannot make for the user, in neutral words. No tax
+ * advice: what goes where is the owner's decision, and this only says what each
+ * choice DOES.
+ */
+export const COST_TREATMENT_NOTE =
+  "Capitalising adds the money to what the asset is worth and charges it to profit gradually through depreciation. Recording it as an operating expense charges the whole amount to this period's profit instead. Routine repairs, cleaning and servicing are usually operating expenses; installation, improvements and upgrades are usually capitalised."
+
+/**
+ * Why Add cost and Correct original cost both stop once a month has been
+ * charged. Shown instead of a button that would only ever return an error.
+ */
+export const COST_LOCKED_BY_DEPRECIATION_NOTE =
+  "Depreciation has already been posted for this asset, so its costs cannot be changed — every month already charged was worked out from them. Reverse the depreciation first."

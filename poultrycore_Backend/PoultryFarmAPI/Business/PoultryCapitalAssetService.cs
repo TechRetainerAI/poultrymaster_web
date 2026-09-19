@@ -27,6 +27,17 @@ namespace PoultryFarmAPIWeb.Business
         Task<int> CreateAsync(PoultryCapitalAssetCreateRequest r);
         Task UpdateAsync(int id, PoultryCapitalAssetUpdateRequest r);
         Task<int> AddCostAsync(int assetId, PoultryCapitalAssetCostRequest r);
+        /// <summary>
+        /// 313. Corrects the ORIGINAL acquisition cost by appending a signed
+        /// correction row and amending the acquisition's own expense. Never
+        /// writes a second expense, a second payment or a second cash movement.
+        /// </summary>
+        Task<int> CorrectOriginalCostAsync(int assetId, PoultryCapitalAssetCorrectCostRequest r);
+        /// <summary>
+        /// 313. Reverses ONE additional capitalised cost. The row is kept and
+        /// marked Reversed -- nothing is deleted.
+        /// </summary>
+        Task ReverseCostAsync(int assetId, int costId, PoultryReversalRequest r);
         Task DisposeAsync(int id, PoultryCapitalAssetDisposeRequest r);
         Task ReverseAsync(int id, PoultryReversalRequest r);
 
@@ -129,6 +140,10 @@ namespace PoultryFarmAPIWeb.Business
             Status = Str(r, "Status"),
             Notes = StrN(r, "Notes"),
             OriginalCost = Dec(r, "OriginalCost"),
+            // 313. The same total, split into the two halves that explain it.
+            AcquisitionCost = Dec(r, "AcquisitionCost"),
+            AdditionalCost = Dec(r, "AdditionalCost"),
+            TotalCapitalizedCost = Dec(r, "TotalCapitalizedCost"),
             ResidualValue = Dec(r, "ResidualValue"),
             DepreciableAmount = Dec(r, "DepreciableAmount"),
             UsefulLifeMonths = IntN(r, "UsefulLifeMonths"),
@@ -164,6 +179,13 @@ namespace PoultryFarmAPIWeb.Business
             PaymentStatus = StrN(r, "PaymentStatus"),
             AmountPaid = DecN(r, "AmountPaid"),
             Balance = DecN(r, "Balance"),
+            // 313. What "where did this money go?" actually needs, read off the
+            // expense the cost row already points at.
+            PaymentMethod = StrN(r, "PaymentMethod"),
+            DueDate = DateN(r, "DueDate"),
+            CashAccountName = StrN(r, "CashAccountName"),
+            ExpenseAmount = DecN(r, "ExpenseAmount"),
+            ExpenseCategory = StrN(r, "ExpenseCategory"),
             Status = Str(r, "Status"),
             CreatedBy = StrN(r, "CreatedBy"),
             CreatedAt = DateN(r, "CreatedAt"),
@@ -361,6 +383,47 @@ namespace PoultryFarmAPIWeb.Business
             cmd.Parameters.AddWithValue("@By", N(q.CreatedBy));
             await conn.OpenAsync();
             return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        public async Task<int> CorrectOriginalCostAsync(int assetId, PoultryCapitalAssetCorrectCostRequest q)
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            // Every guard -- reason required, supplier payments, residual value,
+            // the amount already being right -- is the SP's. Repeating any of
+            // them here would give two answers to the same question.
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM sppoultrycapitalasset_correctoriginalcost(p_farmid => @FarmId::text, " +
+                "p_assetid => @Id::int, p_newamount => @NewAmount::numeric, " +
+                "p_effectivedate => @EffectiveDate::date, p_reason => @Reason::text, " +
+                "p_createdby => @By::text)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", q.FarmId ?? string.Empty);
+            cmd.Parameters.AddWithValue("@Id", assetId);
+            cmd.Parameters.AddWithValue("@NewAmount", q.NewAmount);
+            cmd.Parameters.AddWithValue("@EffectiveDate", N(q.EffectiveDate?.Date));
+            cmd.Parameters.AddWithValue("@Reason", q.Reason ?? string.Empty);
+            cmd.Parameters.AddWithValue("@By", N(q.CreatedBy));
+            await conn.OpenAsync();
+            return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        }
+
+        public async Task ReverseCostAsync(int assetId, int costId, PoultryReversalRequest q)
+        {
+            using var conn = new NpgsqlConnection(_cs);
+            // assetId is passed even though the cost row knows its own asset:
+            // the cost id arrives from a URL, and a URL that says asset 7 must
+            // not be able to reverse asset 9's cost merely because both belong
+            // to the same company. The SP refuses the mismatch.
+            using var cmd = new NpgsqlCommand(
+                "SELECT * FROM sppoultrycapitalassetcost_reverse(p_farmid => @FarmId::text, " +
+                "p_costid => @CostId::int, p_reason => @Reason::text, p_createdby => @By::text, " +
+                "p_assetid => @AssetId::int)", conn);
+            cmd.Parameters.AddWithValue("@FarmId", q.FarmId ?? string.Empty);
+            cmd.Parameters.AddWithValue("@CostId", costId);
+            cmd.Parameters.AddWithValue("@AssetId", assetId);
+            cmd.Parameters.AddWithValue("@Reason", q.Reason ?? string.Empty);
+            cmd.Parameters.AddWithValue("@By", N(q.CreatedBy));
+            await conn.OpenAsync();
+            await cmd.ExecuteNonQueryAsync();
         }
 
         public async Task DisposeAsync(int id, PoultryCapitalAssetDisposeRequest q)

@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2, Plus, Trash2, Edit2, Settings, Clock, Utensils, Store, MapPin, Phone, Mail, Globe, DollarSign, Users, CheckCircle2, XCircle } from "lucide-react"
 import { PageSkeleton } from "@/components/restaurant/skeleton-loaders"
+import { OtherSelect } from "@/components/restaurant/other-select"
 import { Badge } from "@/components/ui/badge"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
@@ -30,6 +31,15 @@ import {
 const SERVICE_TYPES = ["DineIn", "Takeaway", "Delivery", "DriveThrough"] as const
 const SERVICE_LABELS: Record<string, string> = { DineIn: "Dine-In", Takeaway: "Takeaway", Delivery: "Delivery", DriveThrough: "Drive-Through" }
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+// "Other" is not in this list -- OtherSelect appends its own, which opens a
+// text box and remembers what gets typed. Module-level so the array keeps a
+// stable identity across renders.
+const CUISINE_TYPES = [
+  "Multi-Cuisine", "Italian", "Chinese", "Japanese", "Indian", "Mexican", "Thai",
+  "French", "Mediterranean", "American", "African", "Korean", "Middle Eastern",
+  "Seafood", "Steakhouse", "Vegetarian", "Vegan", "Fusion",
+] as const
 
 export default function RestaurantSetupPage() {
   const router = useRouter()
@@ -248,14 +258,13 @@ export default function RestaurantSetupPage() {
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-sm font-medium">Cuisine Type</Label>
-                        <Select value={profile.cuisineType || ""} onValueChange={v => setProfile({ ...profile, cuisineType: v })}>
-                          <SelectTrigger className="h-10"><SelectValue placeholder="Select cuisine type" /></SelectTrigger>
-                          <SelectContent>
-                            {["Multi-Cuisine", "Italian", "Chinese", "Japanese", "Indian", "Mexican", "Thai", "French", "Mediterranean", "American", "African", "Korean", "Middle Eastern", "Seafood", "Steakhouse", "Vegetarian", "Vegan", "Fusion", "Other"].map(c => (
-                              <SelectItem key={c} value={c}>{c}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <OtherSelect
+                          listKey="CuisineType"
+                          baseOptions={CUISINE_TYPES}
+                          value={profile.cuisineType || undefined}
+                          onChange={v => setProfile({ ...profile, cuisineType: v })}
+                          placeholder="Select cuisine type"
+                        />
                       </div>
                     </div>
                     <div className="space-y-1.5">
@@ -437,7 +446,7 @@ export default function RestaurantSetupPage() {
                                 </div>
                               )}
                             </div>
-                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity">
                               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openSchedDialog(s)}><Edit2 className="h-3.5 w-3.5" /></Button>
                               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => deleteSched(s.menuScheduleId)}><Trash2 className="h-3.5 w-3.5 text-red-500" /></Button>
                             </div>

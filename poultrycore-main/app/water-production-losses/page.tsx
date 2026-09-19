@@ -27,6 +27,7 @@ import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { useFmt } from "@/lib/currency"
 import { listWaterProductionLosses, type WaterProductionLoss } from "@/lib/api/water"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const STATUS_COLORS: Record<string, string> = {
   Approved: "bg-rose-100 text-rose-800",
@@ -132,7 +133,7 @@ export default function WaterProductionLossesPage() {
                   primary={(l) => `${l.batchNumber ?? `#${l.sourceId}`} · ${l.productName ?? "—"}`}
                   secondary={(l) => (
                     <>
-                      <span>{l.lossDate?.split("T")[0]}</span>
+                      <span>{fmtDateTime(l.lossDate, l)}</span>
                       <Badge className={STATUS_COLORS[l.status] ?? ""}>{l.status}</Badge>
                     </>
                   )}
@@ -176,7 +177,7 @@ export default function WaterProductionLossesPage() {
                         <TableBody>
                           {pg.pageItems.map((l) => (
                             <TableRow key={l.waterProductionLossId}>
-                              <TableCell className="whitespace-nowrap">{l.lossDate?.split("T")[0]}</TableCell>
+                              <TableCell className="whitespace-nowrap">{fmtDateTime(l.lossDate, l)}</TableCell>
                               <TableCell>{l.batchNumber ?? `#${l.sourceId}`}</TableCell>
                               <TableCell className="max-w-[180px] truncate">{l.productName ?? "—"}</TableCell>
                               <TableCell>{l.lossType}</TableCell>

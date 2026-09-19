@@ -50,6 +50,7 @@ import {
   type OwnerMoneyType, type PoultryCashAccount,
   type PoultryOwnerMoney, type PoultryOwnerMoneySummary,
 } from "@/lib/api/poultry-finance"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const PAYMENT_METHODS = ["Cash", "BankTransfer", "MoMo", "Cheque", "Card", "Other"]
 const TYPE_FILTERS = ["All", "Contribution", "Draw"] as const
@@ -291,7 +292,7 @@ export default function PoultryOwnerMoneyPage() {
               primary={(o) => o.transactionNumber ?? `#${o.sourceId}`}
               secondary={(o) => (
                 <>
-                  <span>{new Date(o.transactionDate).toLocaleDateString()}</span>
+                  <span>{fmtDateTime(o.transactionDate, o)}</span>
                   <span>·</span>
                   <span className="text-xs">{o.accountName ?? "–"}</span>
                 </>
@@ -358,7 +359,7 @@ export default function PoultryOwnerMoneyPage() {
                       {pg.pageItems.map((o) => (
                         <TableRow key={`${o.source}:${o.sourceId}`}>
                           <TableCell className="whitespace-nowrap">
-                            {new Date(o.transactionDate).toLocaleDateString()}
+                            {fmtDateTime(o.transactionDate, o)}
                           </TableCell>
                           <TableCell className="font-medium">
                             {o.transactionNumber ?? `#${o.sourceId}`}
@@ -537,7 +538,7 @@ export default function PoultryOwnerMoneyPage() {
                     {reversing.transactionNumber ?? "#" + reversing.poultryOwnerMoneyId} · {reversing.transactionType}
                   </div>
                   <div className="mt-1">
-                    {fmt(reversing.amount)} on {new Date(reversing.transactionDate).toLocaleDateString()}
+                    {fmt(reversing.amount)} on {fmtDateTime(reversing.transactionDate, reversing)}
                     {reversing.accountName ? " · " + reversing.accountName : ""}
                   </div>
                   <div className="text-xs text-slate-500 mt-2">

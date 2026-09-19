@@ -19,6 +19,7 @@ import { Egg, Loader2, Maximize2, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { ProductionRecord } from "@/lib/api/production-record"
 import { ProductionRecordForm, type ProductionRecordFormState } from "./production-record-form"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const FORM_ID = "production-record-form"
 
@@ -73,7 +74,7 @@ export function ProductionRecordModal({
 
   const contextLine = [
     state?.flockName,
-    state?.date ? new Date(state.date).toLocaleDateString() : null,
+    state?.date ? fmtDateTime(state.date, state) : null,
   ].filter(Boolean).join(" • ")
 
   const s = state?.summary

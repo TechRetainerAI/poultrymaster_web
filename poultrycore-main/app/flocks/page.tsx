@@ -52,6 +52,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { formatDateShort } from "@/lib/utils"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 export default function FlocksPage() {
   const router = useRouter()
@@ -1488,7 +1489,7 @@ export default function FlocksPage() {
                             <TableCell className="text-slate-600 hidden xl:table-cell">
                               <div className="flex items-center gap-2">
                                 <Calendar className="w-4 h-4 text-slate-400" />
-                                <span>{new Date(flock.startDate).toLocaleDateString()}</span>
+                                <span>{fmtDateTime(flock.startDate, flock)}</span>
                               </div>
                             </TableCell>
                             <TableCell className="text-slate-600 hidden xl:table-cell">

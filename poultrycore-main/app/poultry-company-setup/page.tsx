@@ -21,6 +21,7 @@ import {
   type PoultryCompanyProfile, type PoultryCompanySetupInput,
 } from "@/lib/api/poultry-company"
 import { CurrencySelect } from "@/components/ui/currency-select"
+import { CompanyTimeZoneField } from "@/components/settings/company-timezone-field"
 import { fetchFarmSettings, updateFarmCurrency, useFarmSettingsStore } from "@/lib/currency"
 import { currencySymbolFor } from "@/lib/constants/currencies"
 
@@ -222,6 +223,7 @@ export default function PoultryCompanySetupPage() {
                   <div><Label htmlFor="default-currency">Default currency</Label>
                     <CurrencySelect id="default-currency" value={form.defaultCurrency ?? "GHC"}
                       onChange={(o) => setForm({ ...form, defaultCurrency: o.code })} /></div>
+                  <CompanyTimeZoneField />
 
                   <div><Label>Eggs per crate</Label>
                     <NumberInput min={1} value={form.defaultCrateEggCount ?? 30}

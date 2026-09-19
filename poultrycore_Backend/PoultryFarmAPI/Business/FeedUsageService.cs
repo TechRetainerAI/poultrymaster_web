@@ -79,6 +79,8 @@ namespace PoultryFarmAPIWeb.Business
                 {
                     return new FeedUsageModel
                     {
+                        // 301: the time tables show beside the business date.
+                        CreatedAt = reader.OptionalDateTime("CreatedAt"),
                         FeedUsageId = reader.GetInt32(reader.GetOrdinal("FeedUsageId")),
                         FlockId = reader.GetInt32(reader.GetOrdinal("FlockId")),
                         UsageDate = reader.GetDateTime(reader.GetOrdinal("UsageDate")),
@@ -116,6 +118,8 @@ namespace PoultryFarmAPIWeb.Business
                 {
                     var usage = new FeedUsageModel
                     {
+                        // 301: the time tables show beside the business date.
+                        CreatedAt = reader.OptionalDateTime("CreatedAt"),
                         FeedUsageId = reader.GetInt32(reader.GetOrdinal("FeedUsageId")),
                         FlockId = reader.GetInt32(reader.GetOrdinal("FlockId")),
                         UsageDate = reader.GetDateTime(reader.GetOrdinal("UsageDate")),

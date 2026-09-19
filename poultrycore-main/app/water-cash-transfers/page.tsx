@@ -54,6 +54,7 @@ import {
   approveWaterCashTransfer, reverseWaterCashTransfer,
   type WaterCashAccount, type WaterCashTransfer,
 } from "@/lib/api/water"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const STATUS_FILTERS = ["All", "Approved", "Draft", "Reversed", "Cancelled"] as const
 
@@ -295,7 +296,7 @@ export default function WaterCashTransfersPage() {
               primary={(t) => t.transferNumber ?? `#${t.waterCashTransferId}`}
               secondary={(t) => (
                 <>
-                  <span>{new Date(t.transferDate).toLocaleDateString()}</span>
+                  <span>{fmtDateTime(t.transferDate, t)}</span>
                   <span>·</span>
                   <span className="text-xs">{t.fromAccountName} → {t.toAccountName}</span>
                 </>
@@ -343,7 +344,7 @@ export default function WaterCashTransfersPage() {
                       {pg.pageItems.map((t) => (
                         <TableRow key={t.waterCashTransferId}>
                           <TableCell className="whitespace-nowrap">
-                            {new Date(t.transferDate).toLocaleDateString()}
+                            {fmtDateTime(t.transferDate, t)}
                           </TableCell>
                           <TableCell className="font-medium">
                             {t.transferNumber ?? `#${t.waterCashTransferId}`}
@@ -501,7 +502,7 @@ export default function WaterCashTransfersPage() {
                   <div className="flex items-center gap-1 text-slate-600 mt-1">
                     {reversing.fromAccountName} <ArrowRight className="h-3 w-3" /> {reversing.toAccountName}
                   </div>
-                  <div className="mt-1">{fmt(reversing.amount)} on {new Date(reversing.transferDate).toLocaleDateString()}</div>
+                  <div className="mt-1">{fmt(reversing.amount)} on {fmtDateTime(reversing.transferDate, reversing)}</div>
                   <div className="text-xs text-slate-500 mt-2">
                     {fmt(reversing.amount)} comes back out of {reversing.toAccountName} and returns to{" "}
                     {reversing.fromAccountName}. If the destination no longer holds it and cannot go

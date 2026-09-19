@@ -39,6 +39,7 @@ import { usePagination } from "@/hooks/use-pagination"
 import { formatDateShort, cn } from "@/lib/utils"
 import { useFmt } from "@/lib/currency"
 import { toastFormGuide } from "@/lib/utils/validation-toast"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 type SupplyItem = Supply
 type SupplyFormData = {
@@ -809,7 +810,7 @@ export default function SuppliesPage() {
                           <TableCell>{item.quantity.toLocaleString()} {item.unit}</TableCell>
                           <TableCell>{fmt(item.cost)}</TableCell>
                           <TableCell>{item.supplier || "-"}</TableCell>
-                          <TableCell>{item.purchaseDate ? (isMobile ? formatDateShort(item.purchaseDate) : new Date(item.purchaseDate).toLocaleDateString()) : "-"}</TableCell>
+                          <TableCell>{item.purchaseDate ? (isMobile ? formatDateShort(item.purchaseDate) : fmtDateTime(item.purchaseDate, item)) : "-"}</TableCell>
                           <TableCell className={cn("text-right bg-white", isMobile && "sticky-col-actions")}>
                             <div className="flex items-center justify-end gap-2">
                               <Button variant="ghost" size="sm" onClick={() => openEditDialog(item)}>

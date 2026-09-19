@@ -227,7 +227,8 @@ export default function HotelNightAuditPage() {
                   <CardTitle className="text-base">Audit History</CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
-                  <table className="w-full text-sm">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm min-w-[520px]">
                     <thead className="bg-slate-50 border-b">
                       <tr>
                         <th className="text-left p-3">Date</th>
@@ -270,7 +271,8 @@ export default function HotelNightAuditPage() {
                         <tr><td colSpan={11} className="p-8 text-center text-slate-400">No audits yet. Click &quot;Run Night Audit&quot; to perform your first audit.</td></tr>
                       )}
                     </tbody>
-                  </table>
+                    </table>
+                  </div>
                 </CardContent>
               </Card>
             </>
@@ -330,7 +332,7 @@ export default function HotelNightAuditPage() {
                 const net = rev - exp
                 return (
                   <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                       <div className="p-3 bg-violet-50 rounded-lg">
                         <div className="text-xs text-slate-500">Occupancy</div>
                         <div className="text-lg font-bold text-violet-700">{Number(a.occupancyrate ?? a.occupancyRate ?? 0).toFixed(1)}%</div>
@@ -342,12 +344,12 @@ export default function HotelNightAuditPage() {
                         <div className="text-xs">Rev: {rev.toFixed(2)} | Exp: {exp.toFixed(2)}</div>
                       </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-3 text-sm text-center">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm text-center">
                       <div className="p-2 bg-slate-50 rounded"><div className="font-bold text-blue-700">{a.checkincount ?? a.checkinCount ?? 0}</div><div className="text-xs text-slate-500">Check-ins</div></div>
                       <div className="p-2 bg-slate-50 rounded"><div className="font-bold text-slate-700">{a.checkoutcount ?? a.checkoutCount ?? 0}</div><div className="text-xs text-slate-500">Check-outs</div></div>
                       <div className="p-2 bg-slate-50 rounded"><div className="font-bold text-amber-700">{a.noshowcount ?? a.noshowCount ?? 0}</div><div className="text-xs text-slate-500">No-shows</div></div>
                     </div>
-                    <div className="grid grid-cols-3 gap-3 text-sm text-center">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm text-center">
                       <div className="p-2 bg-slate-50 rounded"><div className="font-bold">{a.pendinghousetasks ?? a.pendingHouseTasks ?? 0}</div><div className="text-xs text-slate-500">Pending Housekeeping</div></div>
                       <div className="p-2 bg-slate-50 rounded"><div className="font-bold">{a.openmaintenance ?? a.openMaintenance ?? 0}</div><div className="text-xs text-slate-500">Open Maintenance</div></div>
                       <div className="p-2 bg-violet-50 rounded"><div className="font-bold text-violet-700">{a.roomchargesposted ?? 0}</div><div className="text-xs text-slate-500">Room Charges Posted</div></div>

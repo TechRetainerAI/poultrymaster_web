@@ -40,6 +40,7 @@ import {
 import { toLocalDateKey } from "@/lib/utils/date-key"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { formatDateShort, cn } from "@/lib/utils"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 export default function FeedUsagePage() {
   const router = useRouter()
@@ -297,7 +298,7 @@ export default function FeedUsagePage() {
     setIsDeleting(false); setDeleteDialogOpen(false); setDeletingId(null)
   }
 
-  const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString()
+  const formatDate = (dateString: string, row?: unknown) => fmtDateTime(dateString, row)
 
   const handleLogout = () => {
     localStorage.removeItem("auth_token"); localStorage.removeItem("refresh_token")
@@ -346,7 +347,7 @@ export default function FeedUsagePage() {
         (u.feedType || "").toLowerCase().includes(q) ||
         String(u.flockId || "").includes(q) ||
         String(u.quantityKg || "").includes(q) ||
-        new Date(u.usageDate).toLocaleDateString().toLowerCase().includes(q)
+        fmtDateTime(u.usageDate, u).toLowerCase().includes(q)
       )
     }
     if (dateFrom) list = list.filter((u) => toLocalDateKey(u.usageDate) >= dateFrom)
@@ -734,7 +735,7 @@ export default function FeedUsagePage() {
                         {currentUsages.map((usage) => (
                           <TableRow key={usage.feedUsageId} className="hover:bg-slate-50 transition-colors">
                             <TableCell className={cn("font-medium text-slate-900 bg-white", isMobile && "sticky-col-date")}>
-                              <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-blue-600" /><span>{isMobile ? formatDateShort(usage.usageDate) : formatDate(usage.usageDate)}</span></div>
+                              <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-blue-600" /><span>{isMobile ? formatDateShort(usage.usageDate) : formatDate(usage.usageDate, usage)}</span></div>
                             </TableCell>
                             <TableCell className="text-slate-600">
                               {(() => { const flock = allFlocks.find(f => f.flockId === usage.flockId); return flock ? flock.name : `Flock #${usage.flockId}` })()}

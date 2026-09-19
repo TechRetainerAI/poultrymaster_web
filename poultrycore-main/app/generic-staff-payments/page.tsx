@@ -39,6 +39,7 @@ import {
   type GenericStaffPayment,
 } from "@/lib/api/generic-money-out"
 import { getStaff, getCashAccounts, type GenericStaff } from "@/lib/api/generic"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 const today = () => new Date().toISOString().slice(0, 10)
 
@@ -329,7 +330,7 @@ export default function GenericStaffPaymentsPage() {
                     secondary={(r) => (
                       <>
                         <span>{fmt(r.amount)}</span>
-                        <span> · {new Date(r.paymentDate).toLocaleDateString()}</span>
+                        <span> · {fmtDateTime(r.paymentDate, r)}</span>
                       </>
                     )}
                     trailing={(r) =>
@@ -380,7 +381,7 @@ export default function GenericStaffPaymentsPage() {
                                   {r.staffRole && <span className="text-slate-500"> · {r.staffRole}</span>}
                                 </TableCell>
                                 <TableCell>{r.workerType ?? "Employee"}</TableCell>
-                                <TableCell>{new Date(r.paymentDate).toLocaleDateString()}</TableCell>
+                                <TableCell>{fmtDateTime(r.paymentDate, r)}</TableCell>
                                 <TableCell className="whitespace-nowrap text-xs text-slate-600">
                                   {r.periodStart && r.periodEnd ? `${r.periodStart} → ${r.periodEnd}` : "—"}
                                 </TableCell>

@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast"
 import { getMyCompanies, createCompany, sendCompanyWelcomeEmail, switchCompany, type Company, type CompanyType } from "@/lib/api/companies"
 import { BUSINESS_TYPES, findBusinessType, needsTemplate } from "@/lib/companies/business-types"
 import { useRouter } from "next/navigation"
+import { fmtInstant } from "@/lib/utils/company-datetime"
 
 /** The business's own mark — same icon and colour wherever a company is named. */
 function CompanyIcon({ type }: { type: CompanyType }) {
@@ -167,7 +168,7 @@ export default function CompaniesPage() {
                     </span>
                   ) : null}
                   details={(c) => [
-                    { label: "Created", value: new Date(c.createdAt).toLocaleDateString() },
+                    { label: "Created", value: fmtInstant(c.createdAt) },
                   ]}
                   actions={(c) => c.farmId === activeFarmId ? (
                     <p className="text-xs text-slate-500">You are working in this company.</p>
@@ -197,7 +198,7 @@ export default function CompaniesPage() {
                               <TableCell className="font-medium">{c.name}</TableCell>
                               <TableCell>{c.type}</TableCell>
                               <TableCell>{c.role}</TableCell>
-                              <TableCell className="text-slate-500">{new Date(c.createdAt).toLocaleDateString()}</TableCell>
+                              <TableCell className="text-slate-500">{fmtInstant(c.createdAt)}</TableCell>
                               <TableCell className="text-right">
                                 {isActive ? (
                                   <span className="inline-flex items-center gap-1 text-emerald-600 text-sm">
@@ -224,12 +225,20 @@ export default function CompaniesPage() {
         <DialogContent>
           <DialogHeader><DialogTitle>Create new company</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <div><Label>Type</Label>
+            {/* Label only in the trigger — see the note on the Business Office
+                copy of this dialog: the description made the nowrap trigger wider
+                than a phone and dragged the whole modal out with it. */}
+            <div className="min-w-0"><Label>Type</Label>
               <Select value={form.businessTypeId} onValueChange={(v) => setForm({ ...form, businessTypeId: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
+                <SelectTrigger className="w-full"><SelectValue>{chosen?.label}</SelectValue></SelectTrigger>
+                <SelectContent className="max-w-[calc(100vw-2rem)]">
                   {BUSINESS_TYPES.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>{t.label} — {t.description}</SelectItem>
+                    <SelectItem key={t.id} value={t.id} className="items-start">
+                      <span className="flex min-w-0 flex-col gap-0.5">
+                        <span className="font-medium">{t.label}</span>
+                        <span className="text-xs text-muted-foreground">{t.description}</span>
+                      </span>
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>

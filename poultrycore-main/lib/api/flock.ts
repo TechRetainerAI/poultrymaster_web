@@ -196,6 +196,9 @@ export async function getFlocks(userId?: string, farmId?: string): Promise<ApiRe
       
       return {
         flockId: flock.FlockId ?? flock.flockId,
+        // Carried through explicitly: this builds a new object, so an omitted
+        // field is invisible to the page.
+        createdAt: flock.createdAt ?? flock.CreatedAt ?? null,
         userId: extractedUserId,
         farmId: extractedFarmId || '', // Ensure farmId is never null/undefined
         name: flock.Name ?? flock.name ?? '',

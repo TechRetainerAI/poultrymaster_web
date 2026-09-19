@@ -147,7 +147,11 @@ namespace PoultryFarmAPIWeb.Models
         public string? ReversedBy { get; set; }
         public DateTime? ReversedAt { get; set; }
         public string? ReversalReason { get; set; }
-    }
+    
+        /// <summary>When the row was created -- the clock time tables show beside
+        /// the business date (migration 301). Null on a database predating it.</summary>
+        public DateTime? CreatedAt { get; set; }
+}
 
     public class RecordStaffPaymentRequest
     {
@@ -188,7 +192,11 @@ namespace PoultryFarmAPIWeb.Models
         public string? ReversedBy { get; set; }
         public DateTime? ReversedAt { get; set; }
         public string? ReversalReason { get; set; }
-    }
+    
+        /// <summary>When the row was created -- the clock time tables show beside
+        /// the business date (migration 301). Null on a database predating it.</summary>
+        public DateTime? CreatedAt { get; set; }
+}
 
     public class RecordOwnerEntryRequest
     {

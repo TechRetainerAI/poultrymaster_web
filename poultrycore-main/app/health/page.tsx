@@ -35,6 +35,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { DataPagination } from "@/components/ui/data-pagination"
 import { usePagination } from "@/hooks/use-pagination"
 import { isMedicationPhotoReferenceRecord } from "@/lib/utils/medication-photo"
+import { fmtDateTime } from "@/lib/utils/company-datetime"
 
 type HealthType = "flock" | "house" | "inventory"
 
@@ -1081,7 +1082,7 @@ export default function HealthPage() {
                     <TableBody>
                       {pg.pageItems.map((record, idx) => (
                         <TableRow key={record.id || idx}>
-                          <TableCell className={cn("bg-white", isMobile && "sticky-col-date")}>{record.recordDate ? (isMobile ? formatDateShort(record.recordDate) : new Date(record.recordDate).toLocaleDateString()) : "-"}</TableCell>
+                          <TableCell className={cn("bg-white", isMobile && "sticky-col-date")}>{record.recordDate ? (isMobile ? formatDateShort(record.recordDate) : fmtDateTime(record.recordDate, record)) : "-"}</TableCell>
                           {activeTab === "flock" && <TableCell>{getFlockName(record.flockId)}</TableCell>}
                           {activeTab === "house" && <TableCell>{getHouseName(record.houseId)}</TableCell>}
                           {activeTab === "inventory" && <TableCell>{getItemName(record.itemId)}</TableCell>}

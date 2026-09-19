@@ -35,6 +35,7 @@ import {
   type HotelCashAccount,
   type HotelStaff,
 } from "@/lib/api/hotel"
+import { fmtDateTime, fmtInstant } from "@/lib/utils/company-datetime"
 
 const STATUS_BADGE: Record<string, string> = {
   Draft: "bg-slate-100 text-slate-700",
@@ -335,7 +336,8 @@ export default function HotelPayrollPage() {
           ) : (
             <Card>
               <CardContent className="p-0">
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[520px]">
                   <thead className="bg-slate-50 border-b">
                     <tr>
                       <th className="text-left p-3">Period</th>
@@ -407,7 +409,8 @@ export default function HotelPayrollPage() {
                       </tr>
                     )}
                   </tbody>
-                </table>
+                  </table>
+                </div>
               </CardContent>
             </Card>
           )}
@@ -478,7 +481,7 @@ export default function HotelPayrollPage() {
               ) : detail ? (
                 <div className="space-y-6">
                   {/* Summary cards */}
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <Card>
                       <CardContent className="p-4">
                         <p className="text-xs text-slate-500 mb-1">Gross Pay</p>
@@ -502,7 +505,8 @@ export default function HotelPayrollPage() {
                   {/* Items table */}
                   <Card>
                     <CardContent className="p-0">
-                      <table className="w-full text-sm">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm min-w-[520px]">
                         <thead className="bg-slate-50 border-b">
                           <tr>
                             <th className="text-left p-3">Staff</th>
@@ -545,7 +549,8 @@ export default function HotelPayrollPage() {
                             </tr>
                           )}
                         </tbody>
-                      </table>
+                        </table>
+                      </div>
                     </CardContent>
                   </Card>
 
@@ -662,9 +667,9 @@ export default function HotelPayrollPage() {
 
                   {/* Audit info */}
                   <div className="text-xs text-slate-500 space-y-1 border-t pt-4">
-                    {detail.run.createdby && <p>Created by: {detail.run.createdby} on {detail.run.createdat?.slice(0, 10)}</p>}
-                    {detail.run.approvedby && <p>Approved by: {detail.run.approvedby} on {detail.run.approvedat?.slice(0, 10)}</p>}
-                    {detail.run.paidby && <p>Paid by: {detail.run.paidby} on {detail.run.paidat?.slice(0, 10)}</p>}
+                    {detail.run.createdby && <p>Created by: {detail.run.createdby} on {fmtInstant(detail.run.createdat)}</p>}
+                    {detail.run.approvedby && <p>Approved by: {detail.run.approvedby} on {fmtInstant(detail.run.approvedat)}</p>}
+                    {detail.run.paidby && <p>Paid by: {detail.run.paidby} on {fmtInstant(detail.run.paidat)}</p>}
                     {detail.run.cancelledby && <p>Cancelled by: {detail.run.cancelledby} — Reason: {detail.run.cancelreason ?? "N/A"}</p>}
                   </div>
                 </div>

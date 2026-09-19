@@ -90,7 +90,7 @@ export default function HotelDailyClosingPage() {
 
         {/* Closing History */}
         {loading ? <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-violet-600" /></div> : (
-          <Card><CardContent className="p-0"><table className="w-full text-sm"><thead className="bg-slate-50 border-b"><tr>
+          <Card><CardContent className="p-0"><div className="overflow-x-auto"><table className="w-full text-sm min-w-[990px]"><thead className="bg-slate-50 border-b"><tr>
             <th className="text-left p-3">Date</th><th className="text-right p-3">Revenue</th><th className="text-right p-3">Expenses</th><th className="text-right p-3">Net</th><th className="text-right p-3">Occupancy</th><th className="text-right p-3">Rooms</th><th className="text-right p-3">ADR</th><th className="text-right p-3">RevPAR</th><th className="text-left p-3">Notes</th>
           </tr></thead>
             <tbody>{items.map((i: any, idx: number) => {
@@ -110,7 +110,7 @@ export default function HotelDailyClosingPage() {
               </tr>)
             })}
               {items.length === 0 && <tr><td colSpan={9} className="p-8 text-center text-slate-400">No closings yet. Click "Close Today" to record today&apos;s snapshot.</td></tr>}
-            </tbody></table></CardContent></Card>
+            </tbody></table></div></CardContent></Card>
         )}
 
         {/* Close Day Dialog */}
@@ -118,7 +118,7 @@ export default function HotelDailyClosingPage() {
           <div className="space-y-4">
             <div className="p-4 bg-violet-50 rounded-lg space-y-2">
               <p className="text-sm font-semibold text-violet-700">This will auto-calculate and save today&apos;s snapshot:</p>
-              <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                 <div>Occupancy: <strong>{occRate}%</strong> ({liveStats.occupied}/{liveStats.totalRooms})</div>
                 <div>Revenue: <strong className="text-emerald-700">{liveStats.revenue.toFixed(2)}</strong></div>
                 <div>Expenses: <strong className="text-red-700">{liveStats.expenses.toFixed(2)}</strong></div>

@@ -63,7 +63,7 @@ export default function HotelTablesPage() {
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}><DialogContent><DialogHeader><DialogTitle>Add Table</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div><Label>Table Number *</Label><Input value={form.tableNumber} onChange={(e) => setForm({...form, tableNumber: e.target.value})} placeholder="e.g. T1, A1" /></div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div><Label>Capacity</Label><Input type="number" min={1} value={form.capacity} onChange={(e) => setForm({...form, capacity: Number(e.target.value)})} /></div>
               <div><Label>Location</Label>
                 <Select value={locSelection || "__none__"} onValueChange={(v) => {

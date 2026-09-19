@@ -1,10 +1,27 @@
 import { describe, expect, it } from "vitest"
 import {
-  buildCashFlowInsights, cashAccountsForPeriod, cashByAccount, cashFlowTotals, cashIdentity,
-  categoryLabel, calculatedCashAtHand, excludeTransfers, flowLabel, groupByFlow, sourceTypeLabel,
+  buildCashFlowInsights,
+  cashAccountsForPeriod,
+  cashByAccount,
+  cashFlowTotals,
+  cashIdentity,
+  categoryLabel,
+  calculatedCashAtHand,
+  excludeTransfers,
+  flowLabel,
+  groupByFlow,
+  sourceTypeLabel,
   ledgerTypeLabel,
-  isInternalTransfer, ledgerFromParam, ledgerToParam, summariseTransfers, withinRange,
-  type AccountStatusEntry, type CashAccountSeed, type LedgerEntry, type TransferEntry,
+  isInternalTransfer,
+  ledgerFromParam,
+  ledgerToParam,
+  summariseTransfers,
+  withinRange,
+  type AccountStatusEntry,
+  type CashAccountSeed,
+  type LedgerEntry,
+  type TransferEntry,
+  withRunningBalance,
 } from "./cash-flow"
 
 // Money is plain here so the assertions read as arithmetic, not formatting.
@@ -671,5 +688,29 @@ describe("withinRange", () => {
 
   it("handles a bare date with no time part", () => {
     expect(withinRange("2026-09-15", "2026-09-01", "2026-09-30")).toBe(true)
+  })
+})
+
+describe("withRunningBalance tie-breaking", () => {
+  it("accumulates same-day rows in the order they were ENTERED", () => {
+    // Every business date here is midnight, which is the normal case -- so
+    // without a tiebreaker these three rows tie and the running balance
+    // accumulates in whatever order they arrived.
+    const rows = [
+      { id: 9, category: "Sales", transactionDate: "2026-09-17T00:00:00", amount: 100, createdAt: "2026-09-17T18:20:00" },
+      { id: 3, category: "Sales", transactionDate: "2026-09-17T00:00:00", amount: 10,  createdAt: "2026-09-17T09:00:00" },
+      { id: 7, category: "Sales", transactionDate: "2026-09-17T00:00:00", amount: 1,   createdAt: "2026-09-17T12:00:00" },
+    ]
+    const out = withRunningBalance(rows, 0)
+    expect(out.map((r) => r.amount)).toEqual([10, 1, 100])
+    expect(out.map((r) => r.running)).toEqual([10, 11, 111])
+  })
+
+  it("still falls back to id when no entry time is available", () => {
+    const rows = [
+      { id: 2, category: "Sales", transactionDate: "2026-09-17T00:00:00", amount: 5 },
+      { id: 1, category: "Sales", transactionDate: "2026-09-17T00:00:00", amount: 3 },
+    ]
+    expect(withRunningBalance(rows, 0).map((r) => r.id)).toEqual([1, 2])
   })
 })

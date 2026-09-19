@@ -49,6 +49,7 @@ import { toLocalDateKey } from "@/lib/utils/date-key"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
+import { fmtDateTime, businessSortValue } from "@/lib/utils/company-datetime"
 
 const ALL_STATUSES: BatchStatus[] = ["Draft", "PendingAllocation", "Allocated", "Posted", "Reversed", "Cancelled"]
 
@@ -266,7 +267,7 @@ export default function BatchProductionRecordsPage() {
         batchNameLabel(r).toLowerCase().includes(q) ||
         batchScopeLabel(r).toLowerCase().includes(q) ||
         (BATCH_STATUS_LABELS[r.status] || "").toLowerCase().includes(q) ||
-        new Date(r.productionDate).toLocaleDateString().toLowerCase().includes(q)
+        fmtDateTime(r.productionDate, r).toLowerCase().includes(q)
       ))
     }
     if (dateFrom) list = list.filter((r) => toLocalDateKey(r.productionDate) >= dateFrom)
@@ -294,7 +295,7 @@ export default function BatchProductionRecordsPage() {
   const sortedFiltered = useMemo(() => {
     return sortData(filtered, sortKey, sortDirection, (item: ProductionBatchRecord, key: string) => {
       switch (key) {
-        case "date": return new Date(item.productionDate)
+        case "date": return businessSortValue(item.productionDate, item)
         case "batchName": return batchNameLabel(item).toLowerCase()
         case "age": return item.ageInDays ?? 0
         case "firstPickTotal": return Number(item.firstPickTotal) || 0
@@ -431,7 +432,7 @@ export default function BatchProductionRecordsPage() {
       "Broken", "Total", "Egg%", "Feed", "Birds", "Deaths", "Left", "Meds", "Status",
     ]
     const rows = filtered.map((r) => [
-      new Date(r.productionDate).toLocaleDateString(),
+      fmtDateTime(r.productionDate, r),
       batchNameLabel(r),
       batchScopeLabel(r),
       formatAge(r),
@@ -483,7 +484,7 @@ export default function BatchProductionRecordsPage() {
       "Broken", "Total", "Egg%", "Feed(kg)", "Birds", "Deaths", "Left", "Meds", "Status",
     ]
     const rows = filtered.map((r) => [
-      new Date(r.productionDate).toLocaleDateString(),
+      fmtDateTime(r.productionDate, r),
       batchNameLabel(r),
       formatAge(r),
       r.firstPickTotal ?? 0,
@@ -957,7 +958,7 @@ export default function BatchProductionRecordsPage() {
                                 the row's own bg-slate-50/40 is translucent, so
                                 columns would scroll visibly through it. Match
                                 the stripe rather than always white. */}
-                            <TableCell className={cn("px-3 py-2 whitespace-nowrap min-w-[100px]", isMobile && (idx % 2 === 0 ? "sticky-col-date bg-white" : "sticky-col-date bg-slate-100"))}>{isMobile ? formatDateShort(r.productionDate) : new Date(r.productionDate).toLocaleDateString()}</TableCell>
+                            <TableCell className={cn("px-3 py-2 whitespace-nowrap min-w-[100px]", isMobile && (idx % 2 === 0 ? "sticky-col-date bg-white" : "sticky-col-date bg-slate-100"))}>{isMobile ? formatDateShort(r.productionDate) : fmtDateTime(r.productionDate, r)}</TableCell>
                             <TableCell className="px-3 py-2 min-w-[180px]">
                               <div className="font-medium text-slate-800 truncate max-w-[220px]">{batchNameLabel(r)}</div>
                               <div className="text-xs text-slate-500 truncate max-w-[220px]">{batchScopeLabel(r)}</div>
