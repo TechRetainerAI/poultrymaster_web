@@ -148,10 +148,25 @@ export const FLOW_GROUP_LABELS: Record<string, string> = {
   OperatingOut: "Operating expense",
   FinancingIn: "Capital received",
   FinancingOut: "Capital withdrawn",
+  // Employee advances get their own pair rather than borrowing the Financing
+  // ones: money lent to a worker is neither capital the owner put in nor
+  // borrowing, and labelling an advance "Capital withdrawn" would misdescribe
+  // it on the one report an owner reads to find out where the cash went.
+  // Migration 307.
+  EmployeeLoanOut: "Employee advance",
+  EmployeeLoanIn: "Employee advance repaid",
 }
 
 export const flowGroupLabel = (g: string): string => FLOW_GROUP_LABELS[g] ?? g
 
-/** True when the group is money coming in. */
+/**
+ * True when the group is money coming in.
+ *
+ * Every new inflow group MUST be added here as well as to the labels above.
+ * A group that is missing from this list still renders its row and its
+ * amount -- it just silently stops counting towards the inflow total, which
+ * looks like a rounding error rather than a bug and is exactly the kind of
+ * thing nobody notices for a quarter.
+ */
 export const isInflowGroup = (g: string): boolean =>
-  g === "OperatingIn" || g === "FinancingIn"
+  g === "OperatingIn" || g === "FinancingIn" || g === "EmployeeLoanIn"

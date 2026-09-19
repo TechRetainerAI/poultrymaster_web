@@ -16,6 +16,9 @@ import { explainHttpError } from "@/lib/api/http-error"
 /** Operating | Financing | Owner | Capital | Inventory | Transfer. */
 export type FinancialActivityType =
   | "Operating" | "Financing" | "Owner" | "Capital" | "Inventory" | "Transfer"
+  // Migration 308. Its own activity rather than Financing: Financing is money
+  // the business RAISED, and an advance to a worker runs the other way.
+  | "EmployeeLoan"
 
 /**
  * Which asset, debt or capital balance an event moved. Not a chart of accounts —
@@ -196,6 +199,11 @@ export const POSITION_LABELS: Record<string, string> = {
   AccumulatedDepreciation: "Accumulated Depreciation",
   LoanLiability: "Loan Liability",
   OwnerCapital: "Owner Capital",
+  // Deliberately NOT folded into CustomerReceivable: money owed for something
+  // sold and money lent to staff are collected differently and mean different
+  // things, and an owner reading "Customer Receivable" should not find the
+  // storeman's advance inside it. Spec section 63, migration 308.
+  EmployeeLoanReceivable: "Employee Loan Receivable",
 }
 
 export const positionLabel = (t: string): string => POSITION_LABELS[t] ?? t

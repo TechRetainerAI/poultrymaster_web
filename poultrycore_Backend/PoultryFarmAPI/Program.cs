@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity;
 using System.Configuration;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Configuration;
@@ -227,6 +227,10 @@ builder.Services.AddScoped<IPoultryOwnerMoneyService>(sp => new PoultryOwnerMone
 // Loans (254): borrowed money, repayments split into principal, interest and
 // fees, and exactly one cash movement per repayment.
 builder.Services.AddScoped<IPoultryLoanService>(sp => new PoultryLoanService(connectionString));
+// Employee Loans & Advances (305/306) -- money lent TO staff, the mirror
+// of the line above. Also serves the structured payroll deductions, because
+// a loan repayment deduction is the reason that table exists.
+builder.Services.AddScoped<IPoultryEmployeeLoanService>(sp => new PoultryEmployeeLoanService(connectionString));
 // Financial settings (261): when inventory costs reach the P&L. Two independent
 // choices, feed and medication, resolved against item overrides by the SPs.
 builder.Services.AddScoped<IPoultryFinancialSettingsService>(sp => new PoultryFinancialSettingsService(connectionString));
