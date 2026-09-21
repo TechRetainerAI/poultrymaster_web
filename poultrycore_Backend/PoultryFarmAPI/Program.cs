@@ -245,6 +245,9 @@ builder.Services.AddScoped<IPoultryInventoryValuationService>(sp => new PoultryI
 builder.Services.AddScoped<IPoultryDeferredInventoryCostService>(sp => new PoultryDeferredInventoryCostService(connectionString));
 builder.Services.AddScoped<IPoultryCapitalAssetService>(sp => new PoultryCapitalAssetService(connectionString));
 builder.Services.AddScoped<IPoultryProfitLossService>(sp => new PoultryProfitLossService(connectionString));
+// 316. The water P&L's analytical layer. Reads spwaterreport_periodpnl through
+// spwaterreport_plsummary and never recomputes what it reports.
+builder.Services.AddScoped<IWaterProfitLossService>(sp => new WaterProfitLossService(connectionString));
 
 // Poultry Staff + Attendance + Payroll (port of the Water W6 module). Payroll
 // approve upserts a linked dbo.Expense (Category 'Payroll'); mark-paid posts a

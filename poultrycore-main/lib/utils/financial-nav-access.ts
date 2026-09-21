@@ -104,11 +104,15 @@ export function isFinancialNavItemVisible(
   if (href === "/billing") {
     return options?.tempShowPayments === true || isAdmin || f.canViewFinancial
   }
-  // Profit & Loss surfaced in the Money group, one row under Cash Flow. It is
-  // the same page as the report, so it reads to whoever can see EITHER the
-  // financial pages or the reports -- this list is default-deny, so without a
-  // rule here the row would silently never render.
-  if (href === "/poultry/reports/profit-loss") {
+  // Profit & Loss, both skins. /poultry-profit-loss is the Money row one under
+  // Cash Flow; /poultry/reports/profit-loss is the same statement in the report
+  // catalogue. They show the same figures, so they read to the same people:
+  // whoever can see EITHER the financial pages or the reports.
+  //
+  // This list is DEFAULT-DENY. Without a rule here the row silently never
+  // renders, which is exactly what would have happened when the Money row moved
+  // to its own route.
+  if (href === "/poultry-profit-loss" || href === "/poultry/reports/profit-loss") {
     return isAdmin || f.canViewFinancial || f.canViewReports
   }
   return false

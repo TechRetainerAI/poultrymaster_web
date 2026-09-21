@@ -19,11 +19,16 @@ This repo holds **both** the frontend and the backend services.
 ```bash
 npm run dev          # Next.js dev server (Turbopack)
 npm run dev:webpack  # fallback if Turbopack misbehaves
-npm run build        # production build (also aliased as `verify` and `lint`)
+npm run build        # production build, on its own
+npm run lint:hooks   # the react-hooks/rules-of-hooks gate (errors only)
+npm run verify       # lint:hooks, then the build. Aliased as `lint`
+npm test             # vitest
 npm start            # runs the standalone server via server.js (IISNode-compatible)
 ```
 
-There is **no test runner configured** — `npm run lint` is just `next build`. Playwright is installed for `npm run screenshots` only. Don't claim tests pass; there aren't any.
+`npm test` runs **vitest** (`lib/**/*.test.ts`). Playwright is installed for `npm run screenshots` only.
+
+`npm run lint:hooks` runs ESLint for ONE thing: `react-hooks/rules-of-hooks`, as an error. It exists because `TopNavigation` once called two hooks below its farm-type early returns and crashed every Water page with "Rendered fewer hooks than expected", and nothing caught it. `npm run verify` (and its alias `npm run lint`) now runs that gate before the build. `npm run lint:hooks:all` adds ~195 advisory `exhaustive-deps` warnings.
 
 Note: `next.config.mjs` sets `typescript.ignoreBuildErrors: true`, so `next build` will **not** catch TS errors. Run `npx tsc --noEmit` if you need real type checking.
 

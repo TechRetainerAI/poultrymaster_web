@@ -119,8 +119,11 @@ export function buildPoultryNavConfig(
           visible: money("/expenses") },
         { href: "/cash-flow",             label: "Cash Flow",          icon: Wallet,
           visible: money("/cash-flow") },
-        { href: "/poultry/reports/profit-loss", label: "Profit & Loss", icon: TrendingUp,
-          visible: money("/poultry/reports/profit-loss") },
+        // The Money-page skin, NOT the report route: this row is beside Cash
+        // Flow and Expenses, and a report's back button on it would offer to
+        // return you to a catalogue you never opened.
+        { href: "/poultry-profit-loss", label: "Profit & Loss", icon: TrendingUp,
+          visible: money("/poultry-profit-loss") },
         { href: "/poultry-daily-closing", label: "Daily Closing",      icon: FileText },
       ] as (NavItem & { visible?: boolean })[])
         .filter((i) => i.visible !== false)
@@ -265,10 +268,11 @@ export function buildPoultryNavConfig(
           // Between the two on purpose: it is the bridge between them, and it
           // reads the same functions both of them read.
           { id: "financial-activity", title: "Financial Activity", icon: Activity, href: "/poultry-financial-activity", visible: money("/poultry-financial-activity") },
-          // The same page as Reports > Profit & Loss. Surfaced beside Cash Flow
-          // because the two answer the pair of questions owners ask together:
-          // what did we earn, and where did the money go.
-          { id: "profit-loss",   title: "Profit & Loss", icon: TrendingUp, href: "/poultry/reports/profit-loss", visible: money("/poultry/reports/profit-loss") },
+          // The same STATEMENT as Reports > Profit & Loss, in the Money frame.
+          // Surfaced beside Cash Flow because the two answer the pair of
+          // questions owners ask together: what did we earn, and where did the
+          // money go.
+          { id: "profit-loss",   title: "Profit & Loss", icon: TrendingUp, href: "/poultry-profit-loss", visible: money("/poultry-profit-loss") },
           // The pre-cash-account page. HIDDEN from the menu: it counts EVERY
           // sale and expense while Cash Flow counts only what was linked to a
           // cash account, and two rows one above the other showing different

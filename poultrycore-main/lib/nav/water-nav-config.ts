@@ -222,8 +222,9 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount, qui
         label: "Money",
         items: [
           { id: "cash-flow",     title: "Cash Flow",       icon: Wallet,   href: "/water-cash-flow" },
-          // The same page as Reports > Profit & Loss, surfaced beside Cash Flow.
-          { id: "profit-loss",   title: "Profit & Loss",   icon: TrendingUp, href: "/water-reports/profit-loss" },
+          // The same STATEMENT as Reports > Profit & Loss, in the Money frame:
+          // no back button, because nothing sent you here but this sidebar.
+          { id: "profit-loss",   title: "Profit & Loss",   icon: TrendingUp, href: "/water-profit-loss" },
           // Migration 258. Owner funding in and out -- financing, never trading.
           { id: "owner-money", title: "Owner Money", icon: HandCoins, href: "/water-owner-money" },
           // Migration 259. Borrowing and repayments.

@@ -9,5 +9,7 @@
 import { PoultryProfitLossView } from "@/components/poultry-reports/poultry-profit-loss-view"
 
 export default function PoultryProfitLossReport() {
-  return <PoultryProfitLossView />
+  // The catalogue skin: report chrome, and a back button to the catalogue.
+  // The Money-page skin is the same component on /poultry-profit-loss.
+  return <PoultryProfitLossView chrome="report" />
 }

@@ -22,7 +22,6 @@
 // =============================================================================
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -32,9 +31,9 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { ArrowLeft, AlertTriangle, Info, Loader2, ChevronRight, Wallet, Building2, Banknote, Search, X } from "lucide-react"
+import { ArrowLeft, AlertTriangle, Info, Loader2, ChevronRight, TrendingUp, Wallet, Building2, Banknote, Search, X } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
-import { useFmt } from "@/lib/currency"
+import { useFmt, useFarmSettingsStore } from "@/lib/currency"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { defaultReportRange } from "@/lib/date-ranges"
@@ -42,6 +41,9 @@ import {
   PoultryReportFilter, type PoultryReportFilterValue,
 } from "@/components/poultry-reports/poultry-report-filter"
 import { PoultryReportExportButtons } from "@/components/poultry-reports/poultry-report-ui"
+// Was a local component here. Moved to components/reports so the water P&L can
+// wear the same panel rather than growing a near-identical one of its own.
+import { PlInfoSection as InfoSection } from "@/components/reports/pl-info-section"
 import { exportTableToPdf, emailTableAsPdf } from "@/lib/utils/pdf-export"
 import {
   getPoultryProfitLoss, getPoultryPlExpenses, getPoultryPlRevenue, getPoultryPlInventory,
@@ -128,10 +130,33 @@ function drillDate(v: string) {
   return d ? `${Number(d)} ${month} ${y}` : `${month} ${y}`
 }
 
-export function PoultryProfitLossView() {
-  const router = useRouter()
+/**
+ * WHERE THIS IS RENDERED, AND WHY IT HAS TWO SKINS
+ * ------------------------------------------------
+ * The same statement is reached from two places that mean different things:
+ *
+ *   "report"  /poultry/reports/profit-loss -- one of the Reports. It is listed
+ *             in the catalogue beside Cost per Egg and Cash Flow Detail, so it
+ *             wears their chrome (amber rule, white card, farm / period /
+ *             currency header) and keeps the back button to the catalogue you
+ *             came from.
+ *
+ *   "page"    /poultry-profit-loss -- a Money page, beside Cash Flow, Expenses
+ *             and Financial Activity. It is NOT a report, so it gets a plain
+ *             page header and NO back button: nothing sent you here but the
+ *             sidebar, which is still on screen.
+ *
+ * One component rather than two, because the thing that must never differ is the
+ * STATEMENT -- the figures, the drilldowns and the notes. Two copies of a P&L
+ * that could disagree is exactly the failure this module keeps designing around.
+ * Only the frame around it changes.
+ */
+export function PoultryProfitLossView({ chrome = "report" }: { chrome?: "report" | "page" } = {}) {
+  const isReport = chrome === "report"
+
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
   const farmName = useAuthStore((s) => s.activeFarmName)
+  const settings = useFarmSettingsStore((s) => s.settings)
   const gh = useFmt()
   const { toast } = useToast()
 
@@ -146,6 +171,14 @@ export function PoultryProfitLossView() {
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
+
+  // Both read the same way PoultryReportView reads them, so the header line on
+  // this page and on every other report cannot drift apart.
+  const currencyLabel = `${settings?.currencyCode ?? "GHS"} (${settings?.currencySymbol ?? "GHC"})`
+  // In an effect, not at render: toLocaleString() differs between the server and
+  // the browser and would hydrate-mismatch if it ran during the first paint.
+  const [generatedAt, setGeneratedAt] = useState("")
+  useEffect(() => { setGeneratedAt(new Date().toLocaleString()) }, [])
 
   const [drill, setDrill] = useState<{ line: PoultryProfitLossLine; rows: DrillRow[]; kind: DrillKind } | null>(null)
   const [drillBusy, setDrillBusy] = useState(false)
@@ -390,314 +423,360 @@ export function PoultryProfitLossView() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <DashboardHeader />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => router.push("/poultry/reports")}>
-              <ArrowLeft className="w-4 h-4 mr-1" /> Reports
-            </Button>
-            <div>
-              <h1 className="text-lg font-semibold text-slate-900">Profit &amp; Loss</h1>
-              <p className="text-xs text-slate-500">Did the business make money from its operations this period?</p>
-            </div>
-            <div className="ml-auto">
+          {isReport ? (
+            /* Back to the catalogue this report was opened from. The same markup
+               as PoultryReportView's, so the two sit identically on the page. */
+            <div className="flex items-center justify-between gap-2 flex-wrap print:hidden">
+              <Button asChild variant="outline" size="sm">
+                <Link href="/poultry/reports"><ArrowLeft className="h-4 w-4 mr-1" /> Poultry reports</Link>
+              </Button>
               <PoultryReportExportButtons onCsv={onCsv} onPdf={onPdf} onEmail={onEmail}
                                           busy={downloading} disabled={!data} />
             </div>
-          </div>
-
-          {/* Dates only. The other filters the shared engine offers -- flock,
-              customer, supplier -- do not apply: a P&L is a company statement,
-              and a flock-scoped one is a different report that already exists. */}
-          <PoultryReportFilter
-            value={filter}
-            onChange={setFilter}
-            onReset={() => setFilter({ ...filter, fromDate: initial.from, toDate: initial.to })}
-            show={{}}
-            flocks={[]}
-            customers={[]}
-          />
-
-          {busy && (
-            <div className="flex items-center gap-2 text-sm text-slate-500 py-10 justify-center">
-              <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+          ) : (
+            /* The Money-page header, matching Financial Activity and Cash Flow. */
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="w-10 h-10 shrink-0 rounded-lg bg-emerald-100 flex items-center justify-center">
+                  <TrendingUp className="w-5 h-5 text-emerald-700" />
+                </div>
+                <div className="min-w-0">
+                  <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Profit &amp; Loss</h1>
+                  <p className="text-sm text-slate-600">
+                    Did the business make money from its operations this period?
+                  </p>
+                </div>
+              </div>
+              <div className="shrink-0 print:hidden">
+                <PoultryReportExportButtons onCsv={onCsv} onPdf={onPdf} onEmail={onEmail}
+                                            busy={downloading} disabled={!data} />
+              </div>
             </div>
           )}
 
-          {error && (
-            <Card className="border-red-200 bg-red-50"><CardContent className="p-4 text-sm text-red-800">
-              {error}
-            </CardContent></Card>
-          )}
-
-          {data && !busy && (
-            <>
-              {/* ---- the headline numbers -------------------------------- */}
-              <div className="grid gap-3 grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-                {/* Each tile is NAMED for what it is, and says what was taken
-                    off to get there -- "Gross profit" told an owner nothing
-                    about why it sat 189,000 below Revenue. The four read down
-                    as one sentence: what we sold, then what is left after each
-                    kind of cost.
-
-                    Each one shows its FORMULA rather than describing itself
-                    in words. This was prose once -- "from 62,266.68 revenue /
-                    minus 139,030.00 feed, medication, birds, direct labour" --
-                    and it carried the same facts, but it had to be read as a
-                    sentence before it could be checked as a sum. See Formula
-                    below for the shape and why the terms carry no currency
-                    symbol.
-
-                    Every term is the same total the matching section card
-                    below prints, so a tile is checkable on its own and the
-                    card is where you go to see what is inside one. The terms
-                    chain: each tile starts from the one before it, which is
-                    what makes the row read as a statement rather than five
-                    unrelated figures.
-
-                    The long lists of what is IN each cost -- feed, medication,
-                    birds, direct labour -- moved to the tooltip. The formula
-                    needs the name of the term, not its contents, and the two
-                    together were what made the old hint a paragraph.
-
-                    The accounting term stays on the tile as the `term` line
-                    rather than being dropped. It is what an accountant, a bank
-                    or the exported PDF will ask for, and it is what the water
-                    reports still call the same figures. */}
-                <Kpi label="Total revenue" value={gh(data.totalRevenue)} tone="slate"
-                     term="Everything sold this period"
-                     tip="Eggs, birds, manure and feed sold in this period, whether or not the customer has paid yet. Money a customer still owes you is revenue; money they paid for a sale in an earlier period is not."
-                     hint="Eggs, birds, manure and feed sold" />
-                {/* TOTAL EXPENSES means EVERYTHING taken off -- the direct
-                    cost of producing, the cost of running the place, and
-                    depreciation and financing. Defined that way on purpose:
-                    it is what an owner means by the phrase, it includes the
-                    feed, and it makes the obvious equation true --
-                    revenue MINUS this IS net profit. Defining it as operating
-                    costs only would have left the feed out and quietly broken
-                    that sum for anyone who tried it. */}
-                <Kpi label="Total expenses"
-                     value={gh(totalExpenses)}
-                     term="Everything taken off revenue"
-                     tip="Every cost in this period: the direct cost of what you produced (feed, medication, birds, direct labour), the cost of running the business (payroll, utilities, transport, repairs, admin) and depreciation plus the interest and fees on borrowing. Revenue minus this figure is Net profit. It does NOT include owner draws, loan principal or capital purchases — those are money moving, not costs."
-                     hint={<Formula op="+" gh={gh} terms={[
-                       { label: "Direct costs", value: data.totalDirectCosts, tone: "direct" },
-                       { label: "Operating expenses", value: data.totalOperatingExpenses, tone: "operating" },
-                       { label: "Depreciation & financing", value: data.totalOtherCosts, tone: "other" },
-                     ]} />}
-                     tone="red" />
-                <Kpi label="Gross profit"
-                     value={gh(data.grossProfit)}
-                     term={data.grossMarginPercent != null
-                       ? `${data.grossMarginPercent}% of sales`
-                       : "No sales this period"}
-                     tip="What the FARMING made, before any of the cost of running a business. Revenue minus the direct cost of producing what you sold: feed, medication, the birds themselves and direct labour. Negative here means the flock cost more to feed than its output sold for."
-                     hint={<Formula op="−" gh={gh} terms={[
-                       { label: "Revenue", value: data.totalRevenue, tone: "revenue" },
-                       { label: "Direct costs", value: data.totalDirectCosts, tone: "direct" },
-                     ]} />}
-                     tone={data.grossProfit >= 0 ? "emerald" : "red"} />
-                <Kpi label="Operating profit"
-                     value={gh(data.operatingProfit)}
-                     term="Before depreciation and financing"
-                     tip="What the BUSINESS made. Gross profit minus the cost of running it: payroll, utilities, transport, repairs, admin and marketing. It stops short of wear on assets and the cost of borrowing, so it answers whether the operation itself pays for itself."
-                     hint={<Formula op="−" gh={gh} terms={[
-                       { label: "Gross profit", value: data.grossProfit, tone: "subtotal" },
-                       { label: "Operating expenses", value: data.totalOperatingExpenses, tone: "operating" },
-                     ]} />}
-                     tone={data.operatingProfit >= 0 ? "emerald" : "red"} />
-                {/* Named for what it IS on the day, not always "profit": a farm
-                    reading "Net profit -184,533" has to do a double take. */}
-                <Kpi label={data.netProfit < 0 ? "Net loss" : "Net profit"}
-                     value={gh(data.netProfit)}
-                     term={data.netMarginPercent != null
-                       ? `${data.netMarginPercent}% of sales`
-                       : data.status}
-                     tip="What is actually left. Operating profit minus depreciation — the wear on buildings, machines and equipment — and the interest and fees on borrowing. Owner money, loan principal and capital purchases are NOT in this figure; they are money moving, not profit, and they are shown separately below."
-                     hint={<Formula op="−" gh={gh} terms={[
-                       { label: "Operating profit", value: data.operatingProfit, tone: "subtotal" },
-                       { label: "Depreciation & financing", value: data.totalOtherCosts, tone: "other" },
-                     ]} />}
-                     tone={data.netProfit > 0 ? "emerald" : data.netProfit < 0 ? "red" : "slate"} strong />
-              </div>
-
-              {/* ---- how the costs were recognised ----------------------- */}
-              <Card><CardContent className="p-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
-                <span className="font-semibold uppercase tracking-wide text-slate-500">Cost recognition</span>
-                <span><span className="text-slate-500">Feed:</span>{" "}
-                  <span className="font-medium">{recognitionSummaryLine(data.feedRecognitionMethod, data.hasItemOverrides)}</span></span>
-                <span><span className="text-slate-500">Medication:</span>{" "}
-                  <span className="font-medium">{recognitionSummaryLine(data.medicationRecognitionMethod, data.hasItemOverrides)}</span></span>
-                <span><span className="text-slate-500">Capital assets:</span>{" "}
-                  <span className="font-medium">Depreciation</span></span>
-                {data.hasItemOverrides && (
-                  <Badge variant="outline" className="text-[10px] font-normal border-emerald-300 text-emerald-700"
-                         title={ITEM_OVERRIDE_TOOLTIP}>
-                    Some item overrides active
-                  </Badge>
-                )}
-                <Link href="/poultry-financial-settings" className="ml-auto text-sky-700 underline">Settings</Link>
-              </CardContent></Card>
-
-              {/* ---- the statement, as section cards ----------------------
-                  FOUR EQUAL CARDS, 2x2. This used to be three column STACKS,
-                  with Revenue and Depreciation sharing the first column so the
-                  two short ones sat on top of each other rather than each
-                  leaving a hole beside a tall neighbour. That packed better and
-                  read worse: four cards at four different sizes look like four
-                  different KINDS of thing, when they are four bands of one
-                  statement.
-
-                  ALL FOUR ON ONE ROW from xl, so the statement reads left to
-                  right in the order it is calculated: what came in, then each
-                  band of cost. Two-up at md and one column on a phone, where
-                  four columns would be four slivers.
-
-                  Three parts, all needed:
-                    xl:grid-cols-4     equal widths, one row
-                    auto-rows-fr       every row as tall as the tallest, which
-                                       still matters at the 2-up step
-                    h-full per card    the card fills its stretched cell; the
-                                       cell stretching is not enough on its own
-                  `items-start` had to go: it is the opposite instruction.
-
-                  The card body is a flex column with the line list taking the
-                  slack, so every TOTAL sits on the foot of its card and the four
-                  line up. Without that the cards are the same height but their
-                  totals are not, which is what made them look uneven.
-
-                  One column on a phone, in statement order, so `order` and the
-                  `contents` trick that positioned the old stacks are both gone.
-
-                  The running subtotals -- Gross, Operating and Net Profit -- are
-                  NOT repeated inside the cards. They are the tiles at the top of
-                  the page, and a figure printed twice invites a reader to add it
-                  twice. */}
-              <div className="grid gap-3 auto-rows-fr md:grid-cols-2 xl:grid-cols-4">
-                <SectionCard
-                  className="h-full"
-                  tone="emerald" title="Revenue" lines={bySection("Revenue")}
-                  totalLabel="Total Revenue" totalAmount={data.totalRevenue}
-                  onOpen={openDrill} gh={gh}
-                />
-                <SectionCard
-                  className="h-full"
-                  tone="rose" negative title="Direct Production Costs" lines={bySection("DirectCost")}
-                  totalLabel="Total Direct Production Costs" totalAmount={data.totalDirectCosts}
-                  onOpen={openDrill} gh={gh}
-                />
-                <SectionCard
-                  className="h-full"
-                  tone="amber" negative title="Operating Expenses" lines={bySection("OperatingExpense")}
-                  totalLabel="Total Operating Expenses" totalAmount={data.totalOperatingExpenses}
-                  onOpen={openDrill} gh={gh}
-                />
-                <SectionCard
-                  className="h-full"
-                  tone="violet" negative title="Depreciation & Financing Costs" lines={bySection("OtherCost")}
-                  totalLabel="Total Depreciation & Financing" totalAmount={data.totalOtherCosts}
-                  onOpen={openDrill} gh={gh}
-                />
-              </div>
-
-              {/* ---- informational: cash moved, profit did not ------------
-                  Side by side: three across on a wide screen, two on medium,
-                  stacked only on a phone. items-start is deliberately NOT set,
-                  so the cards share a row height and their notes line up
-                  instead of stepping.
-
-                  Owner money is its own card rather than sharing one with
-                  borrowing: they are both "not profit", but for different
-                  reasons, and one card had to describe both at once. */}
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <InfoSection
-                  icon={<Banknote className="w-4 h-4" />}
-                  title="Owner Contributions & Draws"
-                  subtitle="Excluded from profit"
-                  note={noteWithRule(OWNER_SECTION_NOTE, OWNER_SECTION_RULE)}
-                  lines={ownerLines}
-                  onOpen={openDrill}
-                  gh={gh}
-                  footer={
-                    <div className="text-xs text-slate-600">
-                      Net owner funding <strong>{gh(data.netOwnerFunding)}</strong>
-                    </div>
-                  }
-                  links={[
-                    { href: "/poultry-owner-money", label: "View Owner Money" },
-                    { href: "/cash-flow", label: "View Cash Flow" },
-                  ]}
-                />
-                <InfoSection
-                  icon={<Wallet className="w-4 h-4" />}
-                  title="Loans (Financing)"
-                  subtitle="Excluded from profit"
-                  note={noteWithRule(BORROWING_SECTION_NOTE, BORROWING_SECTION_RULE)}
-                  lines={borrowingLines}
-                  onOpen={openDrill}
-                  gh={gh}
-                  footer={
-                    <div className="text-xs text-slate-600">
-                      Net borrowing <strong>{gh(data.netBorrowing)}</strong>
-                    </div>
-                  }
-                  links={[
-                    { href: "/poultry-loans", label: "View Loans" },
-                    { href: "/cash-flow", label: "View Cash Flow" },
-                  ]}
-                />
-                <InfoSection
-                  icon={<Building2 className="w-4 h-4" />}
-                  title="Capital Investments"
-                  subtitle="Excluded from immediate operating expenses"
-                  note={noteWithRule(CAPITAL_SECTION_NOTE, CAPITAL_SECTION_RULE)}
-                  lines={bySection("CapitalInvestment")}
-                  onOpen={openDrill}
-                  gh={gh}
-                  footer={
-                    <div className="text-xs text-slate-600">
-                      Total capital investments <strong>{gh(data.totalCapitalInvestments)}</strong>
-                    </div>
-                  }
-                  links={[{ href: "/poultry-assets", label: "View Capital Investments/Assets" }]}
-                />
-              </div>
-
-              {/* ---- why the two numbers differ --------------------------- */}
-              <Card className="border-sky-200 bg-sky-50"><CardContent className="p-4 space-y-3">
-                <div className="flex items-start gap-2">
-                  <Info className="w-4 h-4 text-sky-700 mt-0.5 shrink-0" />
-                  <div>
-                    <div className="text-sm font-semibold text-sky-900">{PROFIT_VS_CASH_TITLE}</div>
-                    <p className="text-xs text-sky-900 mt-1">{PROFIT_VS_CASH_BODY}</p>
+          {/* The card is the REPORT's frame, so it is conditional. The statement
+              inside it is not, and is written once below. */}
+          <div className={isReport
+            ? "bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden print:border-0 print:shadow-none"
+            : undefined}>
+            {isReport && <div className="h-1.5 bg-gradient-to-r from-amber-500 to-amber-400 print:hidden" />}
+            <div className={isReport ? "p-4 sm:p-6 print:p-0 space-y-4" : "space-y-4"}>
+              {isReport && (
+                <header className="border-b border-slate-200 pb-4">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-amber-700">
+                    {farmName ?? "Poultry farm"}
                   </div>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2 text-xs text-sky-900">
-                  <div>
-                    <div className="font-medium">Cash out that is not this period&apos;s cost</div>
-                    <ul className="mt-1 space-y-0.5 list-disc pl-4">
-                      {CASH_NOT_PROFIT_EXAMPLES.map((x) => <li key={x}>{x}</li>)}
-                    </ul>
-                  </div>
-                  <div>
-                    <div className="font-medium">Costs that did not move cash this period</div>
-                    <ul className="mt-1 space-y-0.5 list-disc pl-4">
-                      {PROFIT_NOT_CASH_EXAMPLES.map((x) => <li key={x}>{x}</li>)}
-                    </ul>
-                  </div>
-                </div>
-                <Link href="/cash-flow" className="text-xs text-sky-800 underline">View Cash Flow</Link>
-              </CardContent></Card>
-
-              {/* ---- how the report classified itself --------------------- */}
-              <div className="text-[11px] text-slate-500 space-y-1">
-                <p>{PL_METHOD_NOTE}</p>
-                {legacy && (
-                  <p className="flex items-start gap-1.5 text-amber-700">
-                    <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />{legacy}
+                  <h1 className="text-2xl font-semibold text-slate-900 mt-0.5">Profit &amp; Loss</h1>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Did the business make money from its operations this period?
                   </p>
-                )}
-              </div>
-            </>
-          )}
+                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm text-slate-500">
+                    <div><span className="font-medium text-slate-600">Period:</span> {filter.fromDate} → {filter.toDate}</div>
+                    <div><span className="font-medium text-slate-600">Currency:</span> {currencyLabel}</div>
+                    <div><span className="font-medium text-slate-600">Generated:</span> {generatedAt}</div>
+                    {/* No "Records" count: the other reports list rows and this
+                        one is a single statement, so a count would always read 1
+                        and mean nothing. */}
+                  </div>
+                </header>
+              )}
+
+              {/* Dates only. The other filters the shared engine offers -- flock,
+                  customer, supplier -- do not apply: a P&L is a company statement,
+                  and a flock-scoped one is a different report that already exists. */}
+              <PoultryReportFilter
+                value={filter}
+                onChange={setFilter}
+                onReset={() => setFilter({ ...filter, fromDate: initial.from, toDate: initial.to })}
+                show={{}}
+                flocks={[]}
+                customers={[]}
+              />
+
+              {busy && (
+                <div className="flex items-center gap-2 text-sm text-slate-500 py-10 justify-center">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+                </div>
+              )}
+
+              {error && (
+                <Card className="border-red-200 bg-red-50"><CardContent className="p-4 text-sm text-red-800">
+                  {error}
+                </CardContent></Card>
+              )}
+
+              {data && !busy && (
+                <>
+                  {/* ---- the headline numbers -------------------------------- */}
+                  <div className="grid gap-3 grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                    {/* Each tile is NAMED for what it is, and says what was taken
+                        off to get there -- "Gross profit" told an owner nothing
+                        about why it sat 189,000 below Revenue. The four read down
+                        as one sentence: what we sold, then what is left after each
+                        kind of cost.
+
+                        Each one shows its FORMULA rather than describing itself
+                        in words. This was prose once -- "from 62,266.68 revenue /
+                        minus 139,030.00 feed, medication, birds, direct labour" --
+                        and it carried the same facts, but it had to be read as a
+                        sentence before it could be checked as a sum. See Formula
+                        below for the shape and why the terms carry no currency
+                        symbol.
+
+                        Every term is the same total the matching section card
+                        below prints, so a tile is checkable on its own and the
+                        card is where you go to see what is inside one. The terms
+                        chain: each tile starts from the one before it, which is
+                        what makes the row read as a statement rather than five
+                        unrelated figures.
+
+                        The long lists of what is IN each cost -- feed, medication,
+                        birds, direct labour -- moved to the tooltip. The formula
+                        needs the name of the term, not its contents, and the two
+                        together were what made the old hint a paragraph.
+
+                        The accounting term stays on the tile as the `term` line
+                        rather than being dropped. It is what an accountant, a bank
+                        or the exported PDF will ask for, and it is what the water
+                        reports still call the same figures. */}
+                    <Kpi label="Total revenue" value={gh(data.totalRevenue)} tone="slate"
+                         term="Everything sold this period"
+                         tip="Eggs, birds, manure and feed sold in this period, whether or not the customer has paid yet. Money a customer still owes you is revenue; money they paid for a sale in an earlier period is not."
+                         hint="Eggs, birds, manure and feed sold" />
+                    {/* TOTAL EXPENSES means EVERYTHING taken off -- the direct
+                        cost of producing, the cost of running the place, and
+                        depreciation and financing. Defined that way on purpose:
+                        it is what an owner means by the phrase, it includes the
+                        feed, and it makes the obvious equation true --
+                        revenue MINUS this IS net profit. Defining it as operating
+                        costs only would have left the feed out and quietly broken
+                        that sum for anyone who tried it. */}
+                    <Kpi label="Total expenses"
+                         value={gh(totalExpenses)}
+                         term="Everything taken off revenue"
+                         tip="Every cost in this period: the direct cost of what you produced (feed, medication, birds, direct labour), the cost of running the business (payroll, utilities, transport, repairs, admin) and depreciation plus the interest and fees on borrowing. Revenue minus this figure is Net profit. It does NOT include owner draws, loan principal or capital purchases — those are money moving, not costs."
+                         hint={<Formula op="+" gh={gh} terms={[
+                           { label: "Direct costs", value: data.totalDirectCosts, tone: "direct" },
+                           { label: "Operating expenses", value: data.totalOperatingExpenses, tone: "operating" },
+                           { label: "Depreciation & financing", value: data.totalOtherCosts, tone: "other" },
+                         ]} />}
+                         tone="red" />
+                    <Kpi label="Gross profit"
+                         value={gh(data.grossProfit)}
+                         term={data.grossMarginPercent != null
+                           ? `${data.grossMarginPercent}% of sales`
+                           : "No sales this period"}
+                         tip="What the FARMING made, before any of the cost of running a business. Revenue minus the direct cost of producing what you sold: feed, medication, the birds themselves and direct labour. Negative here means the flock cost more to feed than its output sold for."
+                         hint={<Formula op="−" gh={gh} terms={[
+                           { label: "Revenue", value: data.totalRevenue, tone: "revenue" },
+                           { label: "Direct costs", value: data.totalDirectCosts, tone: "direct" },
+                         ]} />}
+                         tone={data.grossProfit >= 0 ? "emerald" : "red"} />
+                    <Kpi label="Operating profit"
+                         value={gh(data.operatingProfit)}
+                         term="Before depreciation and financing"
+                         tip="What the BUSINESS made. Gross profit minus the cost of running it: payroll, utilities, transport, repairs, admin and marketing. It stops short of wear on assets and the cost of borrowing, so it answers whether the operation itself pays for itself."
+                         hint={<Formula op="−" gh={gh} terms={[
+                           { label: "Gross profit", value: data.grossProfit, tone: "subtotal" },
+                           { label: "Operating expenses", value: data.totalOperatingExpenses, tone: "operating" },
+                         ]} />}
+                         tone={data.operatingProfit >= 0 ? "emerald" : "red"} />
+                    {/* Named for what it IS on the day, not always "profit": a farm
+                        reading "Net profit -184,533" has to do a double take. */}
+                    <Kpi label={data.netProfit < 0 ? "Net loss" : "Net profit"}
+                         value={gh(data.netProfit)}
+                         term={data.netMarginPercent != null
+                           ? `${data.netMarginPercent}% of sales`
+                           : data.status}
+                         tip="What is actually left. Operating profit minus depreciation — the wear on buildings, machines and equipment — and the interest and fees on borrowing. Owner money, loan principal and capital purchases are NOT in this figure; they are money moving, not profit, and they are shown separately below."
+                         hint={<Formula op="−" gh={gh} terms={[
+                           { label: "Operating profit", value: data.operatingProfit, tone: "subtotal" },
+                           { label: "Depreciation & financing", value: data.totalOtherCosts, tone: "other" },
+                         ]} />}
+                         tone={data.netProfit > 0 ? "emerald" : data.netProfit < 0 ? "red" : "slate"} strong />
+                  </div>
+
+                  {/* ---- how the costs were recognised ----------------------- */}
+                  <Card><CardContent className="p-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs">
+                    <span className="font-semibold uppercase tracking-wide text-slate-500">Cost recognition</span>
+                    <span><span className="text-slate-500">Feed:</span>{" "}
+                      <span className="font-medium">{recognitionSummaryLine(data.feedRecognitionMethod, data.hasItemOverrides)}</span></span>
+                    <span><span className="text-slate-500">Medication:</span>{" "}
+                      <span className="font-medium">{recognitionSummaryLine(data.medicationRecognitionMethod, data.hasItemOverrides)}</span></span>
+                    <span><span className="text-slate-500">Capital assets:</span>{" "}
+                      <span className="font-medium">Depreciation</span></span>
+                    {data.hasItemOverrides && (
+                      <Badge variant="outline" className="text-[10px] font-normal border-emerald-300 text-emerald-700"
+                             title={ITEM_OVERRIDE_TOOLTIP}>
+                        Some item overrides active
+                      </Badge>
+                    )}
+                    <Link href="/poultry-financial-settings" className="ml-auto text-sky-700 underline">Settings</Link>
+                  </CardContent></Card>
+
+                  {/* ---- the statement, as section cards ----------------------
+                      FOUR EQUAL CARDS, 2x2. This used to be three column STACKS,
+                      with Revenue and Depreciation sharing the first column so the
+                      two short ones sat on top of each other rather than each
+                      leaving a hole beside a tall neighbour. That packed better and
+                      read worse: four cards at four different sizes look like four
+                      different KINDS of thing, when they are four bands of one
+                      statement.
+
+                      ALL FOUR ON ONE ROW from xl, so the statement reads left to
+                      right in the order it is calculated: what came in, then each
+                      band of cost. Two-up at md and one column on a phone, where
+                      four columns would be four slivers.
+
+                      Three parts, all needed:
+                        xl:grid-cols-4     equal widths, one row
+                        auto-rows-fr       every row as tall as the tallest, which
+                                           still matters at the 2-up step
+                        h-full per card    the card fills its stretched cell; the
+                                           cell stretching is not enough on its own
+                      `items-start` had to go: it is the opposite instruction.
+
+                      The card body is a flex column with the line list taking the
+                      slack, so every TOTAL sits on the foot of its card and the four
+                      line up. Without that the cards are the same height but their
+                      totals are not, which is what made them look uneven.
+
+                      One column on a phone, in statement order, so `order` and the
+                      `contents` trick that positioned the old stacks are both gone.
+
+                      The running subtotals -- Gross, Operating and Net Profit -- are
+                      NOT repeated inside the cards. They are the tiles at the top of
+                      the page, and a figure printed twice invites a reader to add it
+                      twice. */}
+                  <div className="grid gap-3 auto-rows-fr md:grid-cols-2 xl:grid-cols-4">
+                    <SectionCard
+                      className="h-full"
+                      tone="emerald" title="Revenue" lines={bySection("Revenue")}
+                      totalLabel="Total Revenue" totalAmount={data.totalRevenue}
+                      onOpen={openDrill} gh={gh}
+                    />
+                    <SectionCard
+                      className="h-full"
+                      tone="rose" negative title="Direct Production Costs" lines={bySection("DirectCost")}
+                      totalLabel="Total Direct Production Costs" totalAmount={data.totalDirectCosts}
+                      onOpen={openDrill} gh={gh}
+                    />
+                    <SectionCard
+                      className="h-full"
+                      tone="amber" negative title="Operating Expenses" lines={bySection("OperatingExpense")}
+                      totalLabel="Total Operating Expenses" totalAmount={data.totalOperatingExpenses}
+                      onOpen={openDrill} gh={gh}
+                    />
+                    <SectionCard
+                      className="h-full"
+                      tone="violet" negative title="Depreciation & Financing Costs" lines={bySection("OtherCost")}
+                      totalLabel="Total Depreciation & Financing" totalAmount={data.totalOtherCosts}
+                      onOpen={openDrill} gh={gh}
+                    />
+                  </div>
+
+                  {/* ---- informational: cash moved, profit did not ------------
+                      Side by side: three across on a wide screen, two on medium,
+                      stacked only on a phone. items-start is deliberately NOT set,
+                      so the cards share a row height and their notes line up
+                      instead of stepping.
+
+                      Owner money is its own card rather than sharing one with
+                      borrowing: they are both "not profit", but for different
+                      reasons, and one card had to describe both at once. */}
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    <InfoSection
+                      icon={<Banknote className="w-4 h-4" />}
+                      title="Owner Contributions & Draws"
+                      subtitle="Excluded from profit"
+                      note={noteWithRule(OWNER_SECTION_NOTE, OWNER_SECTION_RULE)}
+                      lines={ownerLines}
+                      onOpen={openDrill}
+                      gh={gh}
+                      footer={
+                        <div className="text-xs text-slate-600">
+                          Net owner funding <strong>{gh(data.netOwnerFunding)}</strong>
+                        </div>
+                      }
+                      links={[
+                        { href: "/poultry-owner-money", label: "View Owner Money" },
+                        { href: "/cash-flow", label: "View Cash Flow" },
+                      ]}
+                    />
+                    <InfoSection
+                      icon={<Wallet className="w-4 h-4" />}
+                      title="Loans (Financing)"
+                      subtitle="Excluded from profit"
+                      note={noteWithRule(BORROWING_SECTION_NOTE, BORROWING_SECTION_RULE)}
+                      lines={borrowingLines}
+                      onOpen={openDrill}
+                      gh={gh}
+                      footer={
+                        <div className="text-xs text-slate-600">
+                          Net borrowing <strong>{gh(data.netBorrowing)}</strong>
+                        </div>
+                      }
+                      links={[
+                        { href: "/poultry-loans", label: "View Loans" },
+                        { href: "/cash-flow", label: "View Cash Flow" },
+                      ]}
+                    />
+                    <InfoSection
+                      icon={<Building2 className="w-4 h-4" />}
+                      title="Capital Investments"
+                      subtitle="Excluded from immediate operating expenses"
+                      note={noteWithRule(CAPITAL_SECTION_NOTE, CAPITAL_SECTION_RULE)}
+                      lines={bySection("CapitalInvestment")}
+                      onOpen={openDrill}
+                      gh={gh}
+                      footer={
+                        <div className="text-xs text-slate-600">
+                          Total capital investments <strong>{gh(data.totalCapitalInvestments)}</strong>
+                        </div>
+                      }
+                      links={[{ href: "/poultry-assets", label: "View Capital Investments/Assets" }]}
+                    />
+                  </div>
+
+                  {/* ---- why the two numbers differ --------------------------- */}
+                  <Card className="border-sky-200 bg-sky-50"><CardContent className="p-4 space-y-3">
+                    <div className="flex items-start gap-2">
+                      <Info className="w-4 h-4 text-sky-700 mt-0.5 shrink-0" />
+                      <div>
+                        <div className="text-sm font-semibold text-sky-900">{PROFIT_VS_CASH_TITLE}</div>
+                        <p className="text-xs text-sky-900 mt-1">{PROFIT_VS_CASH_BODY}</p>
+                      </div>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2 text-xs text-sky-900">
+                      <div>
+                        <div className="font-medium">Cash out that is not this period&apos;s cost</div>
+                        <ul className="mt-1 space-y-0.5 list-disc pl-4">
+                          {CASH_NOT_PROFIT_EXAMPLES.map((x) => <li key={x}>{x}</li>)}
+                        </ul>
+                      </div>
+                      <div>
+                        <div className="font-medium">Costs that did not move cash this period</div>
+                        <ul className="mt-1 space-y-0.5 list-disc pl-4">
+                          {PROFIT_NOT_CASH_EXAMPLES.map((x) => <li key={x}>{x}</li>)}
+                        </ul>
+                      </div>
+                    </div>
+                    <Link href="/cash-flow" className="text-xs text-sky-800 underline">View Cash Flow</Link>
+                  </CardContent></Card>
+
+                  {/* ---- how the report classified itself --------------------- */}
+                  <div className="text-[11px] text-slate-500 space-y-1">
+                    <p>{PL_METHOD_NOTE}</p>
+                    {legacy && (
+                      <p className="flex items-start gap-1.5 text-amber-700">
+                        <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />{legacy}
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
 
           {/* ---- drilldown ------------------------------------------------
               w-[95vw] paired with sm:max-w-3xl, NOT a bare max-w-3xl: an
@@ -1153,45 +1232,3 @@ function noteWithRule(note: string, rule: string): React.ReactNode {
   )
 }
 
-function InfoSection({ icon, title, subtitle, note, lines, onOpen, gh, footer, links }: {
-  icon: React.ReactNode; title: string; subtitle: string; note: React.ReactNode
-  lines: PoultryProfitLossLine[]
-  onOpen: (l: PoultryProfitLossLine) => void
-  gh: (n: number) => string
-  footer?: React.ReactNode
-  links: { href: string; label: string }[]
-}) {
-  return (
-    <Card className="border-dashed"><CardContent className="p-4 space-y-3">
-      <div className="flex items-start gap-2">
-        <span className="text-slate-500 mt-0.5">{icon}</span>
-        <div>
-          <div className="text-sm font-semibold text-slate-900">{title}</div>
-          <div className="text-[11px] uppercase tracking-wide text-amber-700">{subtitle}</div>
-        </div>
-      </div>
-      <p className="text-xs text-slate-600">{note}</p>
-      {lines.length === 0 ? (
-        <p className="text-sm text-slate-400">None this period.</p>
-      ) : (
-        <div className="space-y-1">
-          {lines.map((l) => (
-            <button key={l.lineKey} type="button" onClick={() => onOpen(l)}
-                    className="flex w-full items-center justify-between text-sm hover:underline">
-              <span className="inline-flex items-center gap-1">
-                {l.lineLabel}<ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-              </span>
-              <span className="tabular-nums">{gh(l.amount)}</span>
-            </button>
-          ))}
-        </div>
-      )}
-      {footer}
-      <div className="flex flex-wrap gap-3 pt-1">
-        {links.map((l) => (
-          <Link key={l.href} href={l.href} className="text-xs text-sky-700 underline">{l.label}</Link>
-        ))}
-      </div>
-    </CardContent></Card>
-  )
-}

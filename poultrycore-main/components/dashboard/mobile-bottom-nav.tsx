@@ -298,7 +298,7 @@ export function MobileBottomNav() {
             ] as NavItem[]) },
             { title: "Money", items: gateWater([
               { href: "/water-cash-flow",           label: "Cash Flow",      icon: Wallet },
-              { href: "/water-reports/profit-loss", label: "Profit & Loss",  icon: TrendingUp },
+              { href: "/water-profit-loss",         label: "Profit & Loss",  icon: TrendingUp },
               { href: "/water-owner-money",         label: "Owner Money",    icon: HandCoins },
               { href: "/water-loans",               label: "Loans",          icon: HandCoins },
               { href: "/water-cash-accounts",       label: "Cash accounts",  icon: Wallet },

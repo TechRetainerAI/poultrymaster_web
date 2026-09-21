@@ -586,10 +586,23 @@ function RestaurantTopNav() {
 export function TopNavigation() {
   const permissions = usePermissions()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
-  // Must be read before the farm-type early returns below, or the hook order
-  // changes when the user switches company type.
+  // EVERY hook must be read before the farm-type early returns below, or the
+  // hook COUNT changes with the company type and React throws "Rendered fewer
+  // hooks than expected".
+  //
+  // That is not theoretical: activeFarmType comes from a PERSISTED store, so the
+  // first paint has it undefined and falls through to the Poultry path at the
+  // bottom -- six hooks -- and the moment rehydration sets it to "Water" this
+  // function returns at four. Two of these were moved up once for exactly that
+  // reason and the two below them were left behind, which crashed every Water
+  // page that renders DashboardHeader.
+  //
+  // The two poultry-only values are read unconditionally and simply go unused in
+  // the other branches. A hook is not free to skip.
   const openAlerts = useAlertsStore((s) => s.open)
   const alertCount = useAlertsStore((s) => s.alerts.length)
+  const quickLinkHrefs = useQuickLinkHrefs()
+  const [customiseOpen, setCustomiseOpen] = useState(false)
 
   // Water and Generic companies each get their own nav rail — falling through
   // to the Poultry layout below would show "Flocks / Houses / Egg sorting" on
@@ -611,8 +624,9 @@ export function TopNavigation() {
   // dropdowns collapse into grouped panels. Contents live in
   // lib/nav/poultry-nav-config.ts. The sidebar and mobile nav keep their own
   // copies and were left alone.
-  const quickLinkHrefs = useQuickLinkHrefs()
-  const [customiseOpen, setCustomiseOpen] = useState(false)
+  //
+  // quickLinkHrefs and customiseOpen are read at the top of the function, above
+  // the early returns — see the note there.
   const nav = buildPoultryNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount, quickLinkHrefs })
 
   return (
