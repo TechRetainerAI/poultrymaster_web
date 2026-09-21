@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
 import { usePermissions } from "@/hooks/use-permissions"
@@ -15,6 +15,8 @@ import { navPathActive, type NavAccent, type NavGroup, type NavItem } from "@/li
 import { NAV_SURFACE } from "./nav/nav-surface"
 import { WATER_REPORT_NAV_GROUPS, POULTRY_REPORT_NAV_GROUPS, HOTEL_REPORT_NAV_GROUPS, RESTAURANT_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
 import { buildWaterNavConfig } from "@/lib/nav/water-nav-config"
+import { useQuickLinkHrefs } from "@/lib/store/quick-links-store"
+import { QuickLinksDialog } from "@/components/dashboard/quick-links-dialog"
 import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
 import { buildHotelNavConfig } from "@/lib/nav/hotel-nav-config"
 import { buildRestaurantNavConfig } from "@/lib/nav/restaurant-nav-config"
@@ -47,7 +49,35 @@ import {
   Scale,
 } from "lucide-react"
 
-function NavDropdown({ group, accent = "sky" }: { group: NavGroup; accent?: NavAccent }) {
+/**
+ * "Customise" at the foot of the Quick Links panel (318).
+ *
+ * A BUTTON, not a row: it goes nowhere. It sits under a rule rather than among
+ * the shortcuts because a list of pages with one not-a-page in it is how a
+ * reader ends up clicking the wrong thing in a hurry.
+ */
+function CustomiseQuickLinksButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-slate-300 transition-colors hover:bg-slate-700 hover:text-white"
+    >
+      <Settings className="h-4 w-4 text-slate-400" />
+      Customise…
+    </button>
+  )
+}
+
+function NavDropdown({ group, accent = "sky", footer }: {
+  group: NavGroup
+  accent?: NavAccent
+  /**
+   * Pinned under the rows, inside the panel. Quick Links uses it for
+   * "Customise", which is not a destination and so is not a row.
+   */
+  footer?: React.ReactNode
+}) {
   const pathname = usePathname()
   // Width passed so a dropdown opened near the right edge can't run off-screen
   // (the pre-extraction copy had no clamp at all).
@@ -61,7 +91,9 @@ function NavDropdown({ group, accent = "sky" }: { group: NavGroup; accent?: NavA
   // After the hooks — bailing earlier would break the hook order. A group whose
   // rows were all permission-filtered would otherwise show as a trigger that
   // opens an empty panel.
-  if (group.items.length === 0) return null
+  // Not `return null` any more when empty: a user who removed every link
+  // would lose the only way back to the picker along with the last row.
+  if (group.items.length === 0 && !footer) return null
 
   return (
     <div
@@ -109,6 +141,11 @@ function NavDropdown({ group, accent = "sky" }: { group: NavGroup; accent?: NavA
               </Link>
             )
           })}
+          {footer && (
+            <div className="mt-1 border-t border-slate-700 pt-1">
+              {footer}
+            </div>
+          )}
         </div>,
         document.body
       )}
@@ -149,18 +186,25 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
   const openAlerts = useAlertsStore((s) => s.open)
   const alertCount = useAlertsStore((s) => s.alerts.length)
 
+  // The user's own Quick Links (318). null = never customised = the config's
+  // defaults, which is also what renders while it loads.
+  const quickLinkHrefs = useQuickLinkHrefs()
+  const [customiseOpen, setCustomiseOpen] = useState(false)
+
   const nav = useMemo(
-    () => buildWaterNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount }),
-    [permissions, openAlerts, alertCount],
+    () => buildWaterNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount, quickLinkHrefs }),
+    [permissions, openAlerts, alertCount, quickLinkHrefs],
   )
 
   return (
+    <>
     <div className="hidden lg:block bg-sky-600 border-b border-sky-700">
       <div className="flex items-center gap-1 px-4 pt-1.5 pb-2.5 nav-rail-scroll">
         <NavLink item={{ href: "/water-dashboard", label: "Dashboard", icon: Droplets }} />
         <div className="h-5 w-px bg-white/30 mx-1" />
 
-        <NavDropdown group={nav.quickLinks} />
+        <NavDropdown group={nav.quickLinks}
+                     footer={<CustomiseQuickLinksButton onClick={() => setCustomiseOpen(true)} />} />
 
         {/* Panel widths below are sized to the longest label each one carries,
             not picked by eye. NavMegaMenu's padding is shared with the poultry
@@ -218,11 +262,11 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
           columns={3} widthRem={41} layout="grid" fitColumns
         />
 
-        {/* Analytics is a menu, not a destination — there is no landing page,
+        {/* Trackers is a menu, not a destination — there is no landing page,
             so no viewAll. A report prints a period; an analytic is explored. */}
         <NavMegaMenu
-          label="Analytics" icon={LineChart}
-          title="Analytics"
+          label="Trackers" icon={LineChart}
+          title="Trackers"
           blurb="Explore where your stock actually moved."
           groups={nav.analytics}
           /* Longest label "Inventory tracker" (17 chars ~= 129px):
@@ -275,6 +319,8 @@ function WaterTopNav({ permissions }: { permissions: ReturnType<typeof usePermis
         </div>
       </div>
     </div>
+    <QuickLinksDialog open={customiseOpen} onOpenChange={setCustomiseOpen} nav={nav} />
+    </>
   )
 }
 
@@ -541,7 +587,9 @@ export function TopNavigation() {
   // dropdowns collapse into grouped panels. Contents live in
   // lib/nav/poultry-nav-config.ts. The sidebar and mobile nav keep their own
   // copies and were left alone.
-  const nav = buildPoultryNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount })
+  const quickLinkHrefs = useQuickLinkHrefs()
+  const [customiseOpen, setCustomiseOpen] = useState(false)
+  const nav = buildPoultryNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount, quickLinkHrefs })
 
   return (
     <>
@@ -550,7 +598,8 @@ export function TopNavigation() {
           <NavLink item={{ href: "/dashboard", label: "Dashboard", icon: Home }} accent="orange" />
           <div className="h-5 w-px bg-white/30 mx-1" />
 
-          <NavDropdown group={nav.quickLinks} accent="orange" />
+          <NavDropdown group={nav.quickLinks} accent="orange"
+                       footer={<CustomiseQuickLinksButton onClick={() => setCustomiseOpen(true)} />} />
 
           <NavMegaMenu
             label="Operations" icon={Factory}
@@ -593,8 +642,8 @@ export function TopNavigation() {
           />
 
           <NavMegaMenu
-            label="Analytics" icon={BarChart3}
-            title="Analytics"
+            label="Trackers" icon={BarChart3}
+            title="Trackers"
             blurb="Day-to-day tracker"
             groups={nav.analytics}
             /* "Ingredients only tracker" is the longest label and sets the
@@ -660,6 +709,8 @@ export function TopNavigation() {
           </div>
         </div>
       </div>
+
+      <QuickLinksDialog open={customiseOpen} onOpenChange={setCustomiseOpen} nav={nav} />
 
       {/* Mobile: top nav replaced by MobileBottomNav (bottom tab bar) */}
     </>
