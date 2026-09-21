@@ -1,8 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
-import { Check, Loader2, X } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
@@ -14,11 +12,20 @@ import {
 /**
  * A dropdown whose "Other" choice actually works.
  *
- * Picking "Other" reveals a text box; what gets typed is applied to the record
- * immediately and — on Save — remembered against this farm so it appears as a
- * normal option from then on. See Migrations/291 for the storage, and
- * lib/api/restaurant.ts `listCustomOptions` for why a missing endpoint is not an
- * error.
+ * Picking "Other" leaves the dropdown in place and reveals a text box beneath
+ * it; what gets typed is applied to the record as it is typed. Remembering it
+ * for next time happens when the surrounding form is submitted — the parent
+ * calls `remember()` on this component's ref after its own save succeeded.
+ *
+ * This mirrors Add Menu Item (app/restaurant-menu/page.tsx, Item Name and
+ * Category), which is the behaviour the operator asked every "Other" dropdown
+ * to copy. There are deliberately NO Save/Cancel buttons inside the field: two
+ * extra buttons inside a dialog that already has its own footer buttons read as
+ * a second, competing form. To back out of "Other", pick something else from
+ * the dropdown, which is still sitting right above the text box.
+ *
+ * See Migrations/291 for the storage, and lib/api/restaurant.ts
+ * `listCustomOptions` for why a missing endpoint is not an error.
  *
  * Used by: restaurant-inventory (ingredient category, waste reason),
  * restaurant-reservations (occasion), restaurant-setup (cuisine type).
@@ -32,6 +39,15 @@ import {
 const OTHER = "__other__"
 const NONE = "__none__"
 
+export interface OtherSelectHandle {
+  /**
+   * Persist whatever was typed under "Other" so it is a normal option next
+   * time. Always resolves: failing to memorise a value must never look like
+   * the record itself failed to save. A no-op unless "Other" is in use.
+   */
+  remember: () => Promise<void>
+}
+
 export interface OtherSelectProps {
   /** Which remembered list this dropdown draws from. */
   listKey: CustomOptionListKey
@@ -44,11 +60,13 @@ export interface OtherSelectProps {
   includeNone?: boolean
   /** Label for the "Other" row, e.g. "Other (type it)". */
   otherLabel?: string
+  /** Placeholder for the text box that "Other" reveals. */
+  typePlaceholder?: string
   className?: string
   disabled?: boolean
 }
 
-export function OtherSelect({
+export const OtherSelect = forwardRef<OtherSelectHandle, OtherSelectProps>(function OtherSelect({
   listKey,
   baseOptions,
   value,
@@ -56,14 +74,13 @@ export function OtherSelect({
   placeholder = "Select",
   includeNone = false,
   otherLabel = "Other (type your own)",
+  typePlaceholder = "Type your own",
   className,
   disabled,
-}: OtherSelectProps) {
+}, ref) {
   const { toast } = useToast()
   const [custom, setCustom] = useState<string[]>([])
   const [typing, setTyping] = useState(false)
-  const [draft, setDraft] = useState("")
-  const [saving, setSaving] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Remembered values for this list. Failure is silent by design — the dropdown
@@ -83,12 +100,13 @@ export function OtherSelect({
    * `value` is folded in even when it is in neither list: an existing record may
    * hold a value that was typed before this list existed, or one that has since
    * been removed. Without this the Select would render blank and silently drop
-   * that value when the form was saved.
+   * that value when the form was saved. While the operator is typing it is left
+   * out — a half-typed word has no business appearing as an option.
    */
   const options = useMemo(() => {
     const seen = new Set<string>()
     const out: string[] = []
-    for (const o of [...baseOptions, ...custom, ...(value ? [value] : [])]) {
+    for (const o of [...baseOptions, ...custom, ...(!typing && value ? [value] : [])]) {
       const v = (o ?? "").trim()
       if (!v || v.toLowerCase() === "other") continue
       const k = v.toLowerCase()
@@ -97,12 +115,12 @@ export function OtherSelect({
       out.push(v)
     }
     return out
-  }, [baseOptions, custom, value])
+  }, [baseOptions, custom, value, typing])
 
   function handleSelect(v: string) {
     if (v === OTHER) {
-      setDraft("")
       setTyping(true)
+      onChange(undefined)
       // Focus after the Radix select has closed, or it steals focus straight back.
       setTimeout(() => inputRef.current?.focus(), 60)
       return
@@ -111,79 +129,54 @@ export function OtherSelect({
     onChange(v === NONE ? undefined : v)
   }
 
-  async function save() {
-    const v = draft.trim()
-    if (!v) { setTyping(false); return }
-
-    // Apply it to the record first. Whether we manage to REMEMBER it is a
-    // separate concern from whether this form gets the value the operator typed.
-    onChange(v)
-    setSaving(true)
-    try {
-      await createCustomOption(listKey, v)
-      setCustom(prev =>
-        prev.some(p => p.toLowerCase() === v.toLowerCase()) ? prev : [...prev, v])
-      setTyping(false)
-      setDraft("")
-      toast({ title: "Saved", description: `"${v}" will be in the list next time.` })
-    } catch (e: any) {
-      // Keep the box open so the value is visibly still there, and say plainly
-      // that only the remembering failed.
-      toast({
-        title: "Applied, but not remembered",
-        description: e?.message ?? "Could not save it for next time. It still applies to this record.",
-        variant: "destructive",
-      })
-    } finally {
-      setSaving(false)
-    }
-  }
+  useImperativeHandle(ref, () => ({
+    async remember() {
+      if (!typing) return
+      const v = (value ?? "").trim()
+      if (!v) return
+      try {
+        await createCustomOption(listKey, v)
+        setCustom(prev =>
+          prev.some(p => p.toLowerCase() === v.toLowerCase()) ? prev : [...prev, v])
+        // Back to the dropdown, with the typed value now sitting in it as a
+        // normal option. Matters on restaurant-setup, where the field is on a
+        // page rather than in a dialog that unmounts on save.
+        setTyping(false)
+      } catch (e: any) {
+        toast({
+          title: "Saved, but the value was not remembered",
+          description: e?.message ?? "It applies to this record; it just will not be in the list next time.",
+        })
+      }
+    },
+  }), [typing, value, listKey, toast])
 
   return (
     <div className={className}>
-      {!typing ? (
-        <Select value={value || (includeNone ? NONE : "")} onValueChange={handleSelect} disabled={disabled}>
-          <SelectTrigger className="h-10 w-full"><SelectValue placeholder={placeholder} /></SelectTrigger>
-          <SelectContent>
-            {includeNone && <SelectItem value={NONE}>None</SelectItem>}
-            {options.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-            <SelectItem value={OTHER} className="text-rose-600 font-medium">{otherLabel}</SelectItem>
-          </SelectContent>
-        </Select>
-      ) : (
-        // Stacks on a phone so the text box gets the full width; the two buttons
-        // sit beside it from sm up.
-        <div className="flex flex-col sm:flex-row gap-2">
-          <Input
-            ref={inputRef}
-            className="h-10 flex-1"
-            placeholder="Type it, then Save"
-            value={draft}
-            onChange={e => { setDraft(e.target.value); onChange(e.target.value.trim() || undefined) }}
-            onKeyDown={e => {
-              // Enter must not reach an enclosing form and submit the dialog.
-              if (e.key === "Enter") { e.preventDefault(); save() }
-              if (e.key === "Escape") { e.preventDefault(); setTyping(false); setDraft(""); onChange(undefined) }
-            }}
-          />
-          <div className="flex gap-2">
-            <Button
-              type="button" onClick={save} disabled={saving || !draft.trim()}
-              className="h-10 flex-1 sm:flex-none bg-rose-600 hover:bg-rose-700"
-            >
-              {saving
-                ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Saving</>
-                : <><Check className="h-4 w-4 mr-1" /> Save</>}
-            </Button>
-            <Button
-              type="button" variant="outline" className="h-10 flex-1 sm:flex-none"
-              onClick={() => { setTyping(false); setDraft(""); onChange(undefined) }}
-            >
-              <X className="h-4 w-4 mr-1" /> Cancel
-            </Button>
-          </div>
-        </div>
+      <Select
+        value={typing ? OTHER : (value || (includeNone ? NONE : ""))}
+        onValueChange={handleSelect}
+        disabled={disabled}
+      >
+        <SelectTrigger className="h-10 w-full"><SelectValue placeholder={placeholder} /></SelectTrigger>
+        <SelectContent>
+          {includeNone && <SelectItem value={NONE}>None</SelectItem>}
+          {options.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+          <SelectItem value={OTHER} className="text-rose-600 font-medium">{otherLabel}</SelectItem>
+        </SelectContent>
+      </Select>
+      {typing && (
+        <Input
+          ref={inputRef}
+          className="h-10 mt-1.5"
+          placeholder={typePlaceholder}
+          value={value ?? ""}
+          onChange={e => onChange(e.target.value || undefined)}
+          // Enter must not reach an enclosing form and submit the dialog.
+          onKeyDown={e => { if (e.key === "Enter") e.preventDefault() }}
+          disabled={disabled}
+        />
       )}
     </div>
   )
-}
+})

@@ -30,6 +30,7 @@ import {
 import type { PdfReportConfig } from "@/lib/utils/download-pdf"
 import { ReportPdfPreview } from "@/components/reports/report-pdf-preview"
 import { downloadCsv } from "@/lib/utils/download-csv"
+import { ReportEmailButton } from "@/components/reports/report-email-dialog"
 import { printReport } from "@/lib/utils/print-report"
 import type { LucideIcon } from "lucide-react"
 
@@ -64,6 +65,7 @@ export interface ShellGroup {
  * components/reports/ when Hotel needed the same shell, so it is now module-
  * agnostic: everything module-specific arrives through props.
  */
+/** Paired with ReportEmailAccent in components/reports/report-email-dialog.tsx. */
 export type ReportAccent = "rose" | "violet"
 
 const ACCENTS: Record<ReportAccent, { pdf: [number, number, number]; button: string }> = {
@@ -146,13 +148,22 @@ export interface ReportShellProps {
   accent?: ReportAccent
   /** Where the "All reports" crumb goes. Defaults to the Restaurant catalog. */
   indexHref?: string
+  /**
+   * Adds an "Email" button that sends this report as a PDF or CSV attachment.
+   *
+   * OPT-IN ON PURPOSE. This shell is used by Hotel, Restaurant, Generic, Poultry
+   * and Water. Email was asked for on Hotel; defaulting it on would have put a
+   * new button on roughly thirty reports across four other modules that nobody
+   * requested. Turning it on elsewhere is this one prop.
+   */
+  enableEmail?: boolean
   children: React.ReactNode
 }
 
 export function ReportShell({
   report, group, range, onRangeChange, loading, exportData,
   propertyName, propertyAddress, propertyPhone, currency,
-  accent = "rose", indexHref = "/restaurant-reports", children,
+  accent = "rose", indexHref = "/restaurant-reports", enableEmail = false, children,
 }: ReportShellProps) {
   const theme = ACCENTS[accent]
   const Icon = report.icon
@@ -277,6 +288,21 @@ export function ReportShell({
           >
             <FileSpreadsheet className="h-4 w-4 mr-1.5" /> CSV
           </Button>
+          {enableEmail && (
+            <ReportEmailButton
+              className="h-9 flex-1 sm:flex-none"
+              disabled={!canExport}
+              getConfig={() => pdfConfig}
+              getCsv={() => exportData
+                ? { headers: exportData.headers, rows: exportData.rows, summaryCards: exportData.summaryCards }
+                : null}
+              title={report.title}
+              filename={filename}
+              periodLabel={periodLabel}
+              propertyName={propertyName}
+              accent={accent}
+            />
+          )}
           <Button
             variant="outline" size="sm" className="h-9 hidden sm:inline-flex"
             disabled={!canExport} onClick={doPrint}

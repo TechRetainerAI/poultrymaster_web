@@ -11,7 +11,7 @@ import { filterWaterNavItems } from "@/lib/utils/water-nav-access"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useAlertsStore } from "@/lib/store/alerts-store"
 import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
-import { POULTRY_REPORT_NAV_GROUPS, RESTAURANT_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
+import { HOTEL_REPORT_NAV_GROUPS, POULTRY_REPORT_NAV_GROUPS, RESTAURANT_REPORT_NAV_GROUPS } from "@/lib/nav/report-nav-adapters"
 import { buildRestaurantNavConfig } from "@/lib/nav/restaurant-nav-config"
 import { NAV_SURFACE } from "@/components/dashboard/nav/nav-surface"
 import type { MegaMenuGroup } from "@/lib/nav/nav-model"
@@ -399,7 +399,8 @@ export function MobileBottomNav() {
           { href: "/hotel-rooms",     label: "Rooms",    icon: Building2 },
           { href: "/hotel-guests",    label: "Guests",   icon: Users },
         ] as NavItem[],
-        moreGroups: asSections([
+        moreGroups: compactSections([
+          ...asSections([
           { title: "Front Desk", items: [
             { href: "/hotel-check-in",     label: "Check-in",     icon: Activity },
             { href: "/hotel-check-out",    label: "Check-out",    icon: Activity },
@@ -434,20 +435,48 @@ export function MobileBottomNav() {
             { href: "/hotel-staff",   label: "Staff",   icon: Users2 },
             { href: "/hotel-payroll", label: "Payroll", icon: Banknote },
           ] as NavItem[] },
-          { title: "Inventory & Reports", items: [
+          // Reports used to be one row inside "Inventory & Reports" and Setup one
+          // row inside "System". Both are now top-level sections of their own —
+          // the group here manages supplies and nothing else.
+          { title: "Inventory", items: [
             { href: "/hotel-inventory",   label: "Supplies",    icon: Boxes },
             { href: "/hotel-maintenance", label: "Maintenance", icon: Wrench },
-            { href: "/hotel-reports",     label: "Reports",     icon: BarChart3 },
             { href: "/hotel-shift-handover", label: "Shift Handover", icon: FileText },
           ] as NavItem[] },
+          ]),
+
+          // Reports is a SECTION, not a row buried in "Inventory & Reports".
+          // Opening it shows the six report categories as sub-headings — the
+          // "umbrella you can navigate into" rather than one link to an index
+          // page you then have to search. Derived from HOTEL_REPORT_NAV_GROUPS,
+          // the same source the desktop rail reads, so the two cannot drift.
+          {
+            title: "Reports",
+            groups: [
+              { title: "", items: [{ href: "/hotel-reports", label: "All Reports", icon: BarChart3 }] },
+              ...fromMegaMenu(HOTEL_REPORT_NAV_GROUPS),
+            ],
+          },
+
+          // Setup likewise leaves "System", which now holds only the account's
+          // own pages (profile, companies, subscription) — none of which are
+          // hotel configuration.
+          {
+            title: "Setup",
+            groups: [{ title: "", items: [
+              { href: "/hotel-company-setup", label: "Company Setup", icon: Building2 },
+              { href: "/hotel-setup",         label: "Hotel Setup",   icon: Settings },
+            ] as NavItem[] }],
+          },
+
+          ...asSections([
           { title: "System", items: [
-            { href: "/hotel-company-setup", label: "Company Setup", icon: Building2 },
-            { href: "/hotel-setup", label: "Setup",     icon: Settings },
             { href: "/profile",     label: "Account",   icon: User },
             { href: "/companies",   label: "Companies", icon: Building2 },
             // The account's own subscription, not a guest folio (/hotel-billing).
             { href: "/billing",     label: "Billing",   icon: CreditCard },
           ] as NavItem[] },
+          ]),
         ]),
       }
     }

@@ -71,13 +71,21 @@ export default function HotelCashAccountsPage() {
   return (
     <div className="flex h-screen bg-slate-50"><DashboardSidebar onLogout={logout} /><div className="flex-1 flex flex-col min-w-0 overflow-hidden"><DashboardHeader />
       <main className="flex-1 overflow-auto p-4 md:p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <Wallet className="h-6 w-6 text-violet-600" />
-            <h1 className="text-2xl font-bold">Cash Accounts</h1>
-            <Badge variant="outline" className="bg-violet-50 text-violet-700 text-sm font-semibold">{totalBalance.toFixed(2)} Total</Badge>
+        {/* Stacks on a phone. All four pieces on one row forced "Cash Accounts"
+            to wrap mid-heading while the total badge and Add Account fought over
+            what was left — the 2026-09-18 screenshot. The title keeps its own
+            row; the badge and the button share the next one.
+            flex-wrap rather than a hard stack, so a long total (six figures plus
+            a currency) drops the badge to its own line instead of overflowing. */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+          <div className="flex items-center gap-3 min-w-0">
+            <Wallet className="h-6 w-6 text-violet-600 shrink-0" />
+            <h1 className="text-xl sm:text-2xl font-bold break-words">Cash Accounts</h1>
           </div>
-          <Button onClick={() => { setForm({ accountName: "", accountType: "Cash", openingBalance: 0, purpose: "" }); setDialogOpen(true) }} className="bg-violet-600 hover:bg-violet-700"><Plus className="h-4 w-4 mr-1" /> Add Account</Button>
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
+            <Badge variant="outline" className="bg-violet-50 text-violet-700 text-sm font-semibold tabular-nums">{totalBalance.toFixed(2)} Total</Badge>
+            <Button onClick={() => { setForm({ accountName: "", accountType: "Cash", openingBalance: 0, purpose: "" }); setDialogOpen(true) }} className="h-10 flex-1 sm:flex-none bg-violet-600 hover:bg-violet-700"><Plus className="h-4 w-4 mr-1" /> Add Account</Button>
+          </div>
         </div>
 
         {loading ? <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-violet-600" /></div> : (

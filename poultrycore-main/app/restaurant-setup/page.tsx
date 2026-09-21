@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2, Plus, Trash2, Edit2, Settings, Clock, Utensils, Store, MapPin, Phone, Mail, Globe, DollarSign, Users, CheckCircle2, XCircle } from "lucide-react"
 import { PageSkeleton } from "@/components/restaurant/skeleton-loaders"
-import { OtherSelect } from "@/components/restaurant/other-select"
+import { OtherSelect, type OtherSelectHandle } from "@/components/restaurant/other-select"
 import { Badge } from "@/components/ui/badge"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
@@ -45,6 +45,9 @@ export default function RestaurantSetupPage() {
   const router = useRouter()
   const { toast } = useToast()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
+
+  // Handle on the Cuisine Type dropdown — see saveProfile.
+  const cuisineOther = useRef<OtherSelectHandle>(null)
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -111,6 +114,9 @@ export default function RestaurantSetupPage() {
     setSaving(true)
     try {
       await upsertRestaurantProfile(profile)
+      // A cuisine typed under "Other" joins the list once the profile holding
+      // it saved.
+      await cuisineOther.current?.remember()
       toast({ title: "Profile saved successfully" })
     } catch (e: any) {
       toast({ title: "Save failed", description: e?.message, variant: "destructive" })
@@ -259,6 +265,7 @@ export default function RestaurantSetupPage() {
                       <div className="space-y-1.5">
                         <Label className="text-sm font-medium">Cuisine Type</Label>
                         <OtherSelect
+                          ref={cuisineOther}
                           listKey="CuisineType"
                           baseOptions={CUISINE_TYPES}
                           value={profile.cuisineType || undefined}

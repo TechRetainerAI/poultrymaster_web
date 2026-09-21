@@ -11,6 +11,7 @@ import { downloadCsv } from "@/lib/utils/download-csv"
 import { downloadPdf, type PdfReportConfig } from "@/lib/utils/download-pdf"
 import { printReport, type PrintReportConfig } from "@/lib/utils/print-report"
 import { PdfPreviewDialog } from "@/components/reports/pdf-preview-dialog"
+import { ReportEmailButton } from "@/components/reports/report-email-dialog"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -141,10 +142,11 @@ export default function OccupancyReportPage() {
             <Link href="/hotel-reports" className="text-violet-600 hover:text-violet-800"><ArrowLeft className="h-5 w-5" /></Link>
             <Bed className="h-6 w-6 text-violet-600" />
             <h1 className="text-2xl font-bold">Occupancy Report</h1>
-            <div className="ml-auto flex gap-2">
+            <div className="ml-auto flex flex-wrap justify-end gap-2">
               <Button variant="outline" size="sm" onClick={handleDownload}><Download className="h-4 w-4 mr-1" />CSV</Button>
               <Button variant="outline" size="sm" onClick={() => downloadPdf(getPdfConfig())}><FileText className="h-4 w-4 mr-1" />PDF</Button>
               <Button variant="outline" size="sm" onClick={() => setPdfPreviewOpen(true)}><FileText className="h-4 w-4 mr-1" />Preview</Button>
+              <ReportEmailButton getConfig={getPdfConfig} title="Occupancy Report" filename="occupancy-report" propertyName={hotelName} compact />
               <Button variant="outline" size="sm" onClick={() => { const c = getPdfConfig(); printReport({ hotelName, hotelAddress, hotelPhone, hotelEmail, title: c.title, dateRange: c.dateRange, summaryCards: c.summaryCards, headers: c.headers, rows: c.rows, currency: "GH\u20B5" }) }}><Printer className="h-4 w-4 mr-1" />Print</Button>
             </div>
           </div>

@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -15,6 +15,7 @@ import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { listRestaurantTables, createRestaurantTable, listHotelTableLocations, type HotelRestaurantTable, type HotelTableLocation } from "@/lib/api/hotel"
+import { HotelOtherSelect, type HotelOtherSelectHandle } from "@/components/hotel/other-select"
 
 const STATUS_COLOR: Record<string, string> = { Available: "bg-emerald-100 text-emerald-700", Occupied: "bg-violet-100 text-violet-700", Reserved: "bg-blue-100 text-blue-700" }
 
@@ -24,9 +25,9 @@ export default function HotelTablesPage() {
   const [items, setItems] = useState<HotelRestaurantTable[]>([]); const [locations, setLocations] = useState<HotelTableLocation[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false); const [saving, setSaving] = useState(false)
+  // Handle on the Location dropdown -- see handleSave.
+  const locationOther = useRef<HotelOtherSelectHandle>(null)
   const [form, setForm] = useState({ tableNumber: "", capacity: 4, location: "" })
-  const [locSelection, setLocSelection] = useState("")
-  const [customLoc, setCustomLoc] = useState("")
 
   useEffect(() => { if (!activeFarmType) return; if (activeFarmType !== "Hotel") { router.replace("/dashboard"); return }; load() }, [activeFarmType, router])
   async function load() { setLoading(true); try { const [t, l] = await Promise.all([listRestaurantTables(), listHotelTableLocations().catch(() => [])]); setItems(t); setLocations(l) } catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) } finally { setLoading(false) } }
@@ -34,7 +35,12 @@ export default function HotelTablesPage() {
   async function handleSave() {
     if (!form.tableNumber.trim()) { toast({ title: "Table number required", variant: "destructive" }); return }
     setSaving(true)
-    try { await createRestaurantTable(form); toast({ title: "Table added" }); setDialogOpen(false); await load() }
+    try {
+      await createRestaurantTable(form)
+      // Before setDialogOpen(false): closing unmounts the field and nulls the ref.
+      await locationOther.current?.remember()
+      toast({ title: "Table added" }); setDialogOpen(false); await load()
+    }
     catch (e: any) { toast({ title: "Failed", description: e?.message, variant: "destructive" }) } finally { setSaving(false) }
   }
 
@@ -43,7 +49,7 @@ export default function HotelTablesPage() {
       <main className="flex-1 overflow-auto p-4 md:p-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3"><LayoutGrid className="h-6 w-6 text-violet-600" /><h1 className="text-2xl font-bold">Restaurant Tables</h1></div>
-          <Button onClick={() => { setForm({ tableNumber: "", capacity: 4, location: "" }); setLocSelection(""); setCustomLoc(""); setDialogOpen(true) }} className="bg-violet-600 hover:bg-violet-700"><Plus className="h-4 w-4 mr-1" /> Add Table</Button>
+          <Button onClick={() => { setForm({ tableNumber: "", capacity: 4, location: "" }); setDialogOpen(true) }} className="bg-violet-600 hover:bg-violet-700"><Plus className="h-4 w-4 mr-1" /> Add Table</Button>
         </div>
         {loading ? <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-violet-600" /></div> : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -66,23 +72,18 @@ export default function HotelTablesPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div><Label>Capacity</Label><Input type="number" min={1} value={form.capacity} onChange={(e) => setForm({...form, capacity: Number(e.target.value)})} /></div>
               <div><Label>Location</Label>
-                <Select value={locSelection || "__none__"} onValueChange={(v) => {
-                  const sel = v === "__none__" ? "" : v
-                  setLocSelection(sel)
-                  if (sel !== "Other") { setCustomLoc(""); setForm({...form, location: sel}) }
-                  else { setForm({...form, location: customLoc || ""}) }
-                }}>
-                  <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">None</SelectItem>
-                    {locations.map(l => <SelectItem key={l.hotelTableLocationId} value={l.description}>{l.description}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <HotelOtherSelect
+                  ref={locationOther}
+                  listKey="TableLocation"
+                  baseOptions={locations.map(l => l.description)}
+                  value={form.location}
+                  onChange={(v) => setForm({...form, location: v ?? ""})}
+                  placeholder="Select location"
+                  includeNone
+                  otherLabel="Other (type location)"
+                />
               </div>
             </div>
-            {locSelection === "Other" && (
-              <div><Label>Specify Location</Label><Input value={customLoc} onChange={(e) => { setCustomLoc(e.target.value); setForm({...form, location: e.target.value}) }} placeholder="e.g. Beachfront, Balcony" /></div>
-            )}
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button><Button onClick={handleSave} disabled={saving} className="bg-violet-600 hover:bg-violet-700">{saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Add</Button></DialogFooter>
         </DialogContent></Dialog>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Trash2, Edit2, CalendarDays, Users, Clock, ChevronLeft, ChevronRight, Star, MapPin, Phone, AlertTriangle } from "lucide-react"
 import { PageSkeleton } from "@/components/restaurant/skeleton-loaders"
-import { OtherSelect } from "@/components/restaurant/other-select"
+import { OtherSelect, type OtherSelectHandle } from "@/components/restaurant/other-select"
 import { Badge } from "@/components/ui/badge"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useToast } from "@/hooks/use-toast"
@@ -37,6 +37,9 @@ export default function RestaurantReservationsPage() {
   const router = useRouter()
   const { toast } = useToast()
   const activeFarmType = useAuthStore((s) => s.activeFarmType)
+
+  // Handle on the Occasion dropdown — see saveRes.
+  const resOccasionOther = useRef<OtherSelectHandle>(null)
 
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0])
@@ -79,6 +82,9 @@ export default function RestaurantReservationsPage() {
   async function saveRes() {
     if (!resForm.guestName.trim()) { toast({ title: "Guest name required", variant: "destructive" }); return }
     try { if (resEditing) await updateReservation(resEditing.reservationId, resForm); else await createReservation(resForm)
+      // An occasion typed under "Other" joins the list only once the
+      // reservation saved, and before the dialog unmounts the field.
+      await resOccasionOther.current?.remember()
       toast({ title: resEditing ? "Updated" : "Reservation created" }); setResDialogOpen(false)
       // Switch to the reservation's date so it's visible, then reload
       if (resForm.reservationDate && resForm.reservationDate !== selectedDate) setSelectedDate(resForm.reservationDate)
@@ -282,6 +288,7 @@ export default function RestaurantReservationsPage() {
               <div className="space-y-1.5"><Label>Party Size</Label><Input type="number" min={1} value={resForm.partySize} onChange={e => setResForm({ ...resForm, partySize: parseInt(e.target.value) || 2 })} className="h-10" /></div>
               <div className="space-y-1.5"><Label>Occasion</Label>
                 <OtherSelect
+                  ref={resOccasionOther}
                   listKey="ReservationOccasion"
                   baseOptions={OCCASIONS}
                   value={resForm.occasion || undefined}
