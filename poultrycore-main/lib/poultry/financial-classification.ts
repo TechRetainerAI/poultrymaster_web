@@ -139,16 +139,31 @@ export const PROFIT_NOT_CASH_EXAMPLES = [
  * and the combined wording ("owner funding, withdrawals or financing") is
  * vague precisely because it is covering two different things. Separated, each
  * card can say the one thing that is true of it.
+ *
+ * Each note also carries one sentence that IS the rule — the part an owner
+ * needs to walk away with. That clause is exported on its own so the P&L view
+ * can colour exactly it, and the note is then built from it: what the view
+ * highlights and what the note says cannot drift apart, because they are the
+ * same string.
  */
+export const OWNER_SECTION_RULE =
+  "putting money in is not income, and taking it out is not an expense."
+
 export const OWNER_SECTION_NOTE =
-  "Money the owner puts in or takes out. It changes company cash but is never profit: putting money in is not income, and taking it out is not an expense."
+  `Money the owner puts in or takes out. It changes company cash but is never profit: ${OWNER_SECTION_RULE}`
+
+export const BORROWING_SECTION_RULE =
+  "Borrowing is not income and repaying principal is not an expense"
 
 export const BORROWING_SECTION_NOTE =
-  "Money borrowed and principal repaid. Borrowing is not income and repaying principal is not an expense — only the interest and fees are a cost of borrowing, and those are already in the expenses above."
+  `Money borrowed and principal repaid. ${BORROWING_SECTION_RULE} — only the interest and fees are a cost of borrowing, and those are already in the expenses above.`
 
 /** Shown above Capital Investments. §44. */
+export const CAPITAL_SECTION_RULE =
+  "Their cost is recognised over time through depreciation."
+
 export const CAPITAL_SECTION_NOTE =
-  "Capital investments affect cash but are not charged against profit in the period they are bought. Their cost is recognised over time through depreciation."
+  `Capital investments affect cash but are not charged against profit in the period they are bought. ${CAPITAL_SECTION_RULE}`
 
 /**
  * Replaces the old "expenses by category keyword; anything unrecognised falls

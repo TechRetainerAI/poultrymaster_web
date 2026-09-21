@@ -65,6 +65,8 @@ import { filterRestaurantNavItems } from "@/lib/utils/restaurant-nav-access"
 import { useLogout } from "@/hooks/use-logout"
 import { buildPoultryNavConfig } from "@/lib/nav/poultry-nav-config"
 import { buildWaterNavConfig } from "@/lib/nav/water-nav-config"
+import { useQuickLinkHrefs } from "@/lib/store/quick-links-store"
+import { QuickLinksDialog } from "@/components/dashboard/quick-links-dialog"
 import type { MegaMenuGroup, NavGroup } from "@/lib/nav/nav-model"
 
 /** A titled, collapsible block of sidebar rows. */
@@ -165,6 +167,11 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   // type, so it is safe to call here rather than behind a branch.
   const { unseen: unseenOnline, pending: pendingOnline } = useOnlineOrderCounts(activeFarmId, isRestaurant)
   const { isCollapsed, toggle, isMobileOpen, toggleMobile, setMobileOpen } = useSidebarStore()
+  // 318. null = never customised = the config's defaults, which is also what
+  // renders while it loads.
+  const quickLinkHrefs = useQuickLinkHrefs()
+  const [customiseOpen, setCustomiseOpen] = useState(false)
+
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     farm: true,
     production: true,
@@ -479,11 +486,33 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
   // Plain function calls, not hooks, so building one only for the active type
   // cannot change hook order.
   const poultryNav = (!isWater && !isGeneric && !isHotel && !isRestaurant)
-    ? buildPoultryNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount: alerts.length })
+    ? buildPoultryNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount: alerts.length, quickLinkHrefs })
     : null
   const waterNav = isWater
-    ? buildWaterNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount: alerts.length })
+    ? buildWaterNavConfig({ permissions, onOpenAlerts: openAlerts, alertCount: alerts.length, quickLinkHrefs })
     : null
+
+  /**
+   * Quick Links, plus the row that opens the picker (318).
+   *
+   * An action row rather than a control bolted onto the group heading: the
+   * heading is the collapse toggle, and the rail already renders action rows
+   * (Alerts), so this needs nothing renderGroup does not already do -- it works
+   * collapsed, in the mobile drawer and with a keyboard for free.
+   *
+   * The pseudo-href is a key, never a destination; isButton is what decides
+   * this renders as a <button>.
+   */
+  const quickLinkItems = (nav: { quickLinks: NavGroup }): SidebarItem[] => [
+    ...fromNavGroup(nav.quickLinks),
+    {
+      href: "#customise-quick-links",
+      label: "Customise…",
+      icon: Settings,
+      isButton: true,
+      onClick: () => setCustomiseOpen(true),
+    },
+  ]
 
   // Reports is a menu on the rail, not a config section: its contents come from
   // lib/reports/*-reports-config.ts and run to dozens of rows, which would bury
@@ -749,10 +778,10 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         {isWater ? (
           <>
             {/* Generated from buildWaterNavConfig, in the rail's own order:
-                Quick Links | Operations | Sales, Expenses & Money | Analytics |
+                Quick Links | Operations | Sales, Expenses & Money | Trackers |
                 Reports | Setup. Dividers fall where the rail has a separate
                 menu, so a cluster here is a menu up there. */}
-            {renderGroup("Quick Links", fromNavGroup(waterNav!.quickLinks), "waterQuickLinks")}
+            {renderGroup("Quick Links", quickLinkItems(waterNav!), "waterQuickLinks")}
 
             <div className="border-t border-slate-800 mx-2" />
 
@@ -766,11 +795,11 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
             <div className="border-t border-slate-800 mx-2" />
 
-            {/* The rail's Analytics menu holds a single column labelled
+            {/* The rail's Trackers menu holds a single column labelled
                 "Stock", which says nothing on its own in a flat list — so the
                 MENU name is used here instead. Same for System at the foot. */}
             {renderGroups(fromMegaMenu(waterNav!.analytics, "waterAnalytics").map(
-              (g) => ({ ...g, title: "Analytics" })
+              (g) => ({ ...g, title: "Trackers" })
             ))}
             {renderGroup("Reports", waterReportsItems, "waterReports")}
 
@@ -867,15 +896,15 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
         ) : (
           <>
             {/* Generated from buildPoultryNavConfig, in the rail's own order:
-                Quick Links | Operations | Sales, Expenses & Money | Analytics |
+                Quick Links | Operations | Sales, Expenses & Money | Trackers |
                 Reports | Setup. Dividers fall where the rail has a separate
                 menu, so a cluster here is a menu up there.
 
                 What moved, versus the hand-written lists this replaced:
-                Analytics dropped from third place to sit beside Reports where
+                Trackers dropped from third place to sit beside Reports where
                 the rail has it, Farm's lone row joined Operations > Purchase,
                 and Setup grew from two rows to the rail's six columns. */}
-            {renderGroup("Quick Links", fromNavGroup(poultryNav!.quickLinks), "poultryQuickLinks")}
+            {renderGroup("Quick Links", quickLinkItems(poultryNav!), "poultryQuickLinks")}
 
             <div className="border-t border-slate-800 mx-2" />
 
@@ -889,11 +918,11 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
 
             <div className="border-t border-slate-800 mx-2" />
 
-            {/* The rail's Analytics menu holds a single column labelled
-                "Trackers", which says nothing on its own in a flat list — so
-                the MENU name is used here. Same for System at the foot. */}
+            {/* The rail's Trackers menu holds one column, itself labelled
+                "Trackers" — so the MENU name used here happens to be the same
+                word. Same treatment as System at the foot. */}
             {renderGroups(fromMegaMenu(poultryNav!.analytics, "poultryAnalytics").map(
-              (g) => ({ ...g, title: "Analytics" })
+              (g) => ({ ...g, title: "Trackers" })
             ))}
             {renderGroup("Reports", poultryReportsItems, "poultryReports")}
 
@@ -1016,6 +1045,17 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
       )}>
         {sidebarContent}
       </div>
+
+      {/* ONE dialog for the rail. sidebarContent is rendered twice -- the
+          mobile drawer and the desktop rail -- so a dialog inside it would be
+          mounted twice over one piece of open state. */}
+      {(poultryNav || waterNav) && (
+        <QuickLinksDialog
+          open={customiseOpen}
+          onOpenChange={setCustomiseOpen}
+          nav={(poultryNav ?? waterNav)!}
+        />
+      )}
     </>
   )
 }

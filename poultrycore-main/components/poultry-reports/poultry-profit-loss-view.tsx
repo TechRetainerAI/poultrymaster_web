@@ -21,7 +21,7 @@
 // figure was built from, so the two can never disagree.
 // =============================================================================
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
@@ -52,6 +52,7 @@ import {
   PROFIT_VS_CASH_TITLE, PROFIT_VS_CASH_BODY,
   CASH_NOT_PROFIT_EXAMPLES, PROFIT_NOT_CASH_EXAMPLES,
   OWNER_SECTION_NOTE, BORROWING_SECTION_NOTE, CAPITAL_SECTION_NOTE, PL_METHOD_NOTE, legacyNote,
+  OWNER_SECTION_RULE, BORROWING_SECTION_RULE, CAPITAL_SECTION_RULE,
   recognitionSummaryLine, ITEM_OVERRIDE_TOOLTIP,
 } from "@/lib/poultry/financial-classification"
 
@@ -437,20 +438,25 @@ export function PoultryProfitLossView() {
                     as one sentence: what we sold, then what is left after each
                     kind of cost.
 
-                    "MINUS", never "less". A statement says "Sales less feed"
-                    and an accountant reads it as a subtraction, but the first
-                    owner to read these tiles asked what it meant -- it parses
-                    as "fewer sales of feed". These tiles exist to avoid exactly
-                    that kind of word. "Then minus" on the last two, so the
-                    chain from one tile to the next is explicit.
+                    Each one shows its FORMULA rather than describing itself
+                    in words. This was prose once -- "from 62,266.68 revenue /
+                    minus 139,030.00 feed, medication, birds, direct labour" --
+                    and it carried the same facts, but it had to be read as a
+                    sentence before it could be checked as a sum. See Formula
+                    below for the shape and why the terms carry no currency
+                    symbol.
 
-                    The hint carries the AMOUNT subtracted, not just the names
-                    of the costs. Without it the reader can see that 176,863
-                    became 184,523 but not what the 7,660 was or where to find
-                    it, and the next question is always "how did we get this?".
-                    The figure is the same total the matching section card
-                    below prints, so the tiles are checkable on their own and
-                    the card is where you go to see what is in it.
+                    Every term is the same total the matching section card
+                    below prints, so a tile is checkable on its own and the
+                    card is where you go to see what is inside one. The terms
+                    chain: each tile starts from the one before it, which is
+                    what makes the row read as a statement rather than five
+                    unrelated figures.
+
+                    The long lists of what is IN each cost -- feed, medication,
+                    birds, direct labour -- moved to the tooltip. The formula
+                    needs the name of the term, not its contents, and the two
+                    together were what made the old hint a paragraph.
 
                     The accounting term stays on the tile as the `term` line
                     rather than being dropped. It is what an accountant, a bank
@@ -472,21 +478,11 @@ export function PoultryProfitLossView() {
                      value={gh(totalExpenses)}
                      term="Everything taken off revenue"
                      tip="Every cost in this period: the direct cost of what you produced (feed, medication, birds, direct labour), the cost of running the business (payroll, utilities, transport, repairs, admin) and depreciation plus the interest and fees on borrowing. Revenue minus this figure is Net profit. It does NOT include owner draws, loan principal or capital purchases — those are money moving, not costs."
-                     hint={
-                       <>
-                         <div>
-                           <span className="text-slate-400">direct</span>{" "}
-                           <span className="font-medium tabular-nums text-slate-600">{gh(data.totalDirectCosts)}</span>
-                           {" · "}
-                           <span className="text-slate-400">running</span>{" "}
-                           <span className="font-medium tabular-nums text-slate-600">{gh(data.totalOperatingExpenses)}</span>
-                         </div>
-                         <div>
-                           <span className="text-slate-400">depreciation &amp; financing</span>{" "}
-                           <span className="font-medium tabular-nums text-slate-600">{gh(data.totalOtherCosts)}</span>
-                         </div>
-                       </>
-                     }
+                     hint={<Formula op="+" gh={gh} terms={[
+                       { label: "Direct costs", value: data.totalDirectCosts, tone: "direct" },
+                       { label: "Operating expenses", value: data.totalOperatingExpenses, tone: "operating" },
+                       { label: "Depreciation & financing", value: data.totalOtherCosts, tone: "other" },
+                     ]} />}
                      tone="red" />
                 <Kpi label="Gross profit"
                      value={gh(data.grossProfit)}
@@ -494,17 +490,19 @@ export function PoultryProfitLossView() {
                        ? `${data.grossMarginPercent}% of sales`
                        : "No sales this period"}
                      tip="What the FARMING made, before any of the cost of running a business. Revenue minus the direct cost of producing what you sold: feed, medication, the birds themselves and direct labour. Negative here means the flock cost more to feed than its output sold for."
-                     hint={<Working
-                       from={gh(data.totalRevenue)} fromLabel="revenue"
-                       minus={gh(data.totalDirectCosts)} minusLabel="feed, medication, birds, direct labour" />}
+                     hint={<Formula op="−" gh={gh} terms={[
+                       { label: "Revenue", value: data.totalRevenue, tone: "revenue" },
+                       { label: "Direct costs", value: data.totalDirectCosts, tone: "direct" },
+                     ]} />}
                      tone={data.grossProfit >= 0 ? "emerald" : "red"} />
                 <Kpi label="Operating profit"
                      value={gh(data.operatingProfit)}
                      term="Before depreciation and financing"
                      tip="What the BUSINESS made. Gross profit minus the cost of running it: payroll, utilities, transport, repairs, admin and marketing. It stops short of wear on assets and the cost of borrowing, so it answers whether the operation itself pays for itself."
-                     hint={<Working
-                       from={gh(data.grossProfit)} fromLabel="gross profit"
-                       minus={gh(data.totalOperatingExpenses)} minusLabel="payroll, utilities, transport, repairs, admin" />}
+                     hint={<Formula op="−" gh={gh} terms={[
+                       { label: "Gross profit", value: data.grossProfit, tone: "subtotal" },
+                       { label: "Operating expenses", value: data.totalOperatingExpenses, tone: "operating" },
+                     ]} />}
                      tone={data.operatingProfit >= 0 ? "emerald" : "red"} />
                 {/* Named for what it IS on the day, not always "profit": a farm
                     reading "Net profit -184,533" has to do a double take. */}
@@ -514,9 +512,10 @@ export function PoultryProfitLossView() {
                        ? `${data.netMarginPercent}% of sales`
                        : data.status}
                      tip="What is actually left. Operating profit minus depreciation — the wear on buildings, machines and equipment — and the interest and fees on borrowing. Owner money, loan principal and capital purchases are NOT in this figure; they are money moving, not profit, and they are shown separately below."
-                     hint={<Working
-                       from={gh(data.operatingProfit)} fromLabel="operating profit"
-                       minus={gh(data.totalOtherCosts)} minusLabel="depreciation, loan interest, fees" />}
+                     hint={<Formula op="−" gh={gh} terms={[
+                       { label: "Operating profit", value: data.operatingProfit, tone: "subtotal" },
+                       { label: "Depreciation & financing", value: data.totalOtherCosts, tone: "other" },
+                     ]} />}
                      tone={data.netProfit > 0 ? "emerald" : data.netProfit < 0 ? "red" : "slate"} strong />
               </div>
 
@@ -613,7 +612,7 @@ export function PoultryProfitLossView() {
                   icon={<Banknote className="w-4 h-4" />}
                   title="Owner Contributions & Draws"
                   subtitle="Excluded from profit"
-                  note={OWNER_SECTION_NOTE}
+                  note={noteWithRule(OWNER_SECTION_NOTE, OWNER_SECTION_RULE)}
                   lines={ownerLines}
                   onOpen={openDrill}
                   gh={gh}
@@ -631,7 +630,7 @@ export function PoultryProfitLossView() {
                   icon={<Wallet className="w-4 h-4" />}
                   title="Loans (Financing)"
                   subtitle="Excluded from profit"
-                  note={BORROWING_SECTION_NOTE}
+                  note={noteWithRule(BORROWING_SECTION_NOTE, BORROWING_SECTION_RULE)}
                   lines={borrowingLines}
                   onOpen={openDrill}
                   gh={gh}
@@ -649,7 +648,7 @@ export function PoultryProfitLossView() {
                   icon={<Building2 className="w-4 h-4" />}
                   title="Capital Investments"
                   subtitle="Excluded from immediate operating expenses"
-                  note={CAPITAL_SECTION_NOTE}
+                  note={noteWithRule(CAPITAL_SECTION_NOTE, CAPITAL_SECTION_RULE)}
                   lines={bySection("CapitalInvestment")}
                   onOpen={openDrill}
                   gh={gh}
@@ -907,27 +906,86 @@ export function PoultryProfitLossView() {
 // ----------------------------------------------------------------- pieces ---
 
 /**
- * The two lines of a tile's arithmetic: where the figure started, and what came
- * off it. The value printed above the tile is the answer, so the result is not
- * repeated here -- it is the number the reader is already looking at.
+ * What colour a term in a formula wears.
  *
- * `from` names the PREVIOUS tile in the owner's words, not the accounting term,
- * so the four tiles chain visibly: "we sold" -> "left after feed & bird costs"
- * -> "left after running costs".
+ * NOT decoration, and not a per-tile accent: it is the SAME colour the section
+ * card holding that figure wears further down the page -- rose for the direct
+ * cost of producing, amber for the cost of running the place, violet for
+ * depreciation and financing, emerald for money in. So "Direct costs
+ * 139,030.00" in the Gross profit formula is visibly the rose card below, and
+ * an owner who wants to know what is inside the number knows where to look
+ * without being told.
+ *
+ * A term carried forward from the previous tile -- Gross profit, Operating
+ * profit -- is slate, because it is not a band of the statement; it is the
+ * answer the tile before it already gave. Colouring it by its sign was the
+ * alternative and it misleads: a red Gross profit term sitting beside rose
+ * Direct costs reads as another cost.
+ *
+ * 700 shades, both lines. These sit at 11px on white and a lighter tone would
+ * be decoration the reader cannot actually read.
  */
-function Working({ from, fromLabel, minus, minusLabel }: {
-  from: string; fromLabel: string; minus: string; minusLabel: string
+const FORMULA_TONES = {
+  revenue:   "text-emerald-700",
+  direct:    "text-rose-700",
+  operating: "text-amber-700",
+  other:     "text-violet-700",
+  subtotal:  "text-slate-700",
+} as const
+
+/**
+ * A tile's arithmetic, written as the formula it is.
+ *
+ * It used to be prose -- "from GH₵ 62,266.68 revenue / minus GH₵ 139,030.00
+ * feed, medication, birds, direct labour" -- which says the same thing but has
+ * to be read as a sentence before it can be checked as a sum. Two lines that
+ * line up term for term can be checked at a glance, and they are what an owner
+ * means when they ask how a figure was arrived at:
+ *
+ *     Revenue − Direct costs
+ *     62,266.68 − 139,030.00
+ *
+ * The names go ABOVE the numbers, because the names are the formula and the
+ * numbers are this period's instance of it. The result is still not printed:
+ * it is the value on the tile, which the reader is already looking at.
+ *
+ * NO CURRENCY SYMBOL on the terms. Three "GH₵" in one line is exactly the
+ * clutter that stops it reading as an equation, and the tile's own value
+ * carries the symbol two lines up.
+ *
+ * A NEGATIVE TERM IS PARENTHESISED, sign and all: "(−76,763.32) − 7,660.00".
+ * Accounting would drop the sign and let the brackets carry it, but these tiles
+ * exist for readers who do not read accounting, and "76,763.32 − 7,660.00"
+ * against a tile showing −84,423.32 looks like an error in the report.
+ */
+function Formula({ op, terms, gh }: {
+  op: "+" | "−"
+  terms: { label: string; value: number; tone: keyof typeof FORMULA_TONES }[]
+  gh: (n: number, opts?: { showSymbol?: boolean }) => string
 }) {
+  const money = (n: number) => {
+    const t = gh(n, { showSymbol: false })
+    return n < 0 ? `(${t})` : t
+  }
+  // One row of the formula. Built twice from the same terms -- names, then
+  // numbers -- so the two lines cannot fall out of step with each other.
+  const row = (cell: (t: (typeof terms)[number]) => string, className?: string) => (
+    <div className={className}>
+      {terms.map((t, i) => (
+        <Fragment key={t.label}>
+          {/* The operator stays grey. It is punctuation between the terms, not
+              a term, and colouring it would break the run of one colour that
+              ties a name to its number. */}
+          {i > 0 && <span className="text-slate-400">{` ${op} `}</span>}
+          <span className={FORMULA_TONES[t.tone]}>{cell(t)}</span>
+        </Fragment>
+      ))}
+    </div>
+  )
   return (
     <>
-      <div>
-        <span className="text-slate-400">from</span>{" "}
-        <span className="font-medium tabular-nums text-slate-600">{from}</span> {fromLabel}
-      </div>
-      <div>
-        <span className="text-slate-400">minus</span>{" "}
-        <span className="font-medium tabular-nums text-slate-600">{minus}</span> {minusLabel}
-      </div>
+      {row((t) => t.label)}
+      {row((t) => money(t.value), "font-medium tabular-nums")}
     </>
   )
 }
@@ -1065,8 +1123,38 @@ function SectionCard({
   )
 }
 
+/**
+ * Highlight the one clause in an info-card note that states the rule.
+ *
+ * These three cards all say the same difficult thing — this money moved but it
+ * is not profit — and in a grey paragraph the sentence that actually answers
+ * "why is this not in my expenses?" reads like the rest of the prose. Coloured,
+ * an owner can find it without reading the paragraph.
+ *
+ * Sky, matching the "Profit is not cash" explainer below, because it is the
+ * same point made twice: this is an explanation, not a warning, so it must not
+ * borrow the amber/rose the report uses for money it wants you to look at.
+ *
+ * The clause is passed in rather than matched by hand, and comes from the same
+ * constant the note is built from, so the split cannot silently miss. If a note
+ * is ever reworded without its rule, this falls back to plain text.
+ */
+function noteWithRule(note: string, rule: string): React.ReactNode {
+  const at = note.indexOf(rule)
+  if (at < 0) return note
+  return (
+    <>
+      {note.slice(0, at)}
+      <mark className="box-decoration-clone rounded bg-sky-100 px-1 py-0.5 font-medium text-sky-900">
+        {rule}
+      </mark>
+      {note.slice(at + rule.length)}
+    </>
+  )
+}
+
 function InfoSection({ icon, title, subtitle, note, lines, onOpen, gh, footer, links }: {
-  icon: React.ReactNode; title: string; subtitle: string; note: string
+  icon: React.ReactNode; title: string; subtitle: string; note: React.ReactNode
   lines: PoultryProfitLossLine[]
   onOpen: (l: PoultryProfitLossLine) => void
   gh: (n: number) => string

@@ -1,6 +1,10 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
+import {
+  PayrollDeductionsDialog, type PayrollDeductionTarget,
+} from "@/components/water/payroll-deductions-dialog"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/header"
@@ -17,7 +21,7 @@ import { ListFilters, filterByDateAndSearch } from "@/components/ui/list-filters
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { FormSection, FormField } from "@/components/ui/form-section"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Loader2, Banknote, CheckCircle2, XCircle, Trash2, ExternalLink } from "lucide-react"
+import { Plus, Loader2, Banknote, CheckCircle2, XCircle, Trash2, ExternalLink, HandCoins } from "lucide-react"
 import { useAuthStore } from "@/lib/store/auth-store"
 import { useLogout } from "@/hooks/use-logout"
 import { useToast } from "@/hooks/use-toast"
@@ -25,6 +29,10 @@ import { PromptDialog } from "@/components/ui/prompt-dialog"
 import {
   listWaterPayrollRuns, getWaterPayrollRun, createWaterPayrollRun,
   upsertWaterPayrollItem, deleteWaterPayrollItem,
+  listEligibleWaterEmployeeLoans, listWaterPayrollDeductions,
+  listWaterPayrollDeductionsForRun, type WaterPayrollDeductionRunRow,
+  saveWaterPayrollDeduction,
+  type WaterEmployeeLoanEligible,
   approveWaterPayrollRun, markWaterPayrollRunPaid, cancelWaterPayrollRun,
   unapproveWaterPayrollRun, deleteWaterPayrollRun,
   listWaterStaff, listWaterCashAccounts,
@@ -46,6 +54,25 @@ const STATUS_COLORS: Record<string, string> = {
 // corrections can be made after an Unapprove (Prompt 3 §1 + §5).
 const EDITABLE_STATUSES = new Set(["Draft", "Pending", "Reopened"])
 const isEditable = (r: WaterPayrollRun) => EDITABLE_STATUSES.has(r.status)
+
+/**
+ * What payroll will take off for one advance.
+ *
+ * ONE definition, shared by the panel that promises it before the item is
+ * saved, the Deductions box that is pre-filled with it, and the auto-add that
+ * actually posts it. Three copies would eventually promise one number and
+ * deduct another.
+ *
+ * Zero means nothing automatic: either the advance is repaid outside payroll,
+ * or no amount was ever suggested for it.
+ */
+function payrollDeductionFor(e: WaterEmployeeLoanEligible): number {
+  const byPayroll = e.repaymentMethod === "PayrollDeduction" || e.repaymentMethod === "Mixed"
+  if (!byPayroll) return 0
+  // Never more than is left: the server would refuse it, and the user would be
+  // reading an error about an amount they never chose.
+  return Math.min(e.defaultPayrollDeduction ?? 0, e.outstandingBalance)
+}
 
 export default function WaterPayrollPage() {
   const router = useRouter()
@@ -84,6 +111,20 @@ export default function WaterPayrollPage() {
   const [deleteTarget, setDeleteTarget] = useState<WaterPayrollRun | null>(null)
 
   const [editing, setEditing] = useState<WaterPayrollRun | null>(null)
+  // 314. Which payslip line's deduction breakdown is open, if any.
+  const [deductionsFor, setDeductionsFor] = useState<PayrollDeductionTarget | null>(null)
+  /** The advances of whoever is selected in the Add-an-item form. */
+  const [staffLoans, setStaffLoans] = useState<WaterEmployeeLoanEligible[]>([])
+  const [staffLoansBusy, setStaffLoansBusy] = useState(false)
+  /**
+   * Which lines have advances outstanding, keyed by payroll item.
+   *
+   * One request for the whole run rather than one per line: the function behind
+   * it already aggregates, and 30 staff would otherwise be 30 calls to draw a
+   * hint.
+   */
+  const [loanHints, setLoanHints] =
+    useState<Map<number, WaterPayrollDeductionRunRow>>(new Map())
   const [itemForm, setItemForm] = useState({ waterStaffId: 0, basicPay: 0, dailyWage: 0, commission: 0, bonus: 0, deductions: 0, paymentMethod: "Cash", notes: "" })
 
   useEffect(() => {
@@ -115,6 +156,7 @@ export default function WaterPayrollPage() {
     try {
       const full = await getWaterPayrollRun(r.waterPayrollRunId)
       setEditing(full)
+      void loadLoanHints(full.waterPayrollRunId)
     } catch (e: any) { toast({ title: "Load failed", description: e?.message, variant: "destructive" }) }
   }
 
@@ -123,17 +165,115 @@ export default function WaterPayrollPage() {
     try {
       const full = await getWaterPayrollRun(editing.waterPayrollRunId)
       setEditing(full)
+      await loadLoanHints(full.waterPayrollRunId)
     } catch { /* no-op */ }
+  }
+
+  async function loadLoanHints(runId: number) {
+    try {
+      const rows = await listWaterPayrollDeductionsForRun(runId)
+      setLoanHints(new Map(rows.map((r) => [r.waterPayrollItemId, r])))
+    } catch {
+      // A missing hint is a missing hint. It must never stop the payroll
+      // itself from opening.
+      setLoanHints(new Map())
+    }
+  }
+
+  /**
+   * Picking a member of staff fills in what is known about them.
+   *
+   * Basic comes from the staff record's basePay -- the figure already agreed
+   * with that person -- so the common case is "pick the name, press save".
+   * Leaving it at 0 meant every line had to be retyped from a number held
+   * somewhere else on the system, which is how a payslip ends up wrong.
+   *
+   * It is a starting point, not a lock: the box stays editable for the month
+   * someone is paid differently.
+   */
+  function prefillFromStaff(staffId: number) {
+    const m = staff.find((x) => x.waterStaffId === staffId)
+    setItemForm((f) => ({ ...f, waterStaffId: staffId, basicPay: m ? m.basePay : f.basicPay }))
+    void loadStaffLoans(staffId)
+  }
+
+  async function loadStaffLoans(staffId: number) {
+    if (!staffId) { setStaffLoans([]); return }
+    setStaffLoansBusy(true)
+    try {
+      const list = await listEligibleWaterEmployeeLoans(staffId)
+      setStaffLoans(list)
+      // Put the figure in the box, so the item shows what it will actually
+      // deduct rather than 0 followed by a number appearing after saving.
+      const auto = list.reduce((sum, e) => sum + payrollDeductionFor(e), 0)
+      setItemForm((f) => ({ ...f, deductions: auto }))
+    } catch {
+      // Not knowing about an advance must never stop an item being added.
+      setStaffLoans([])
+    } finally {
+      setStaffLoansBusy(false)
+    }
+  }
+
+  /**
+   * Put the worker's scheduled advance repayments on the item automatically
+   * (spec sections 36 and 37).
+   *
+   * DRAFT deductions. Nothing is repaid and no balance moves until the run is
+   * approved, which is what section 36 forbids doing silently -- making the
+   * user retype an amount they already set on the advance was not caution.
+   *
+   * Only advances the company said would be repaid BY PAYROLL, never more than
+   * is left, and never twice: upsert is called again every time a figure on the
+   * item is edited.
+   */
+  async function autoAddSuggestedDeductions(itemId: number, staffId: number): Promise<string[]> {
+    try {
+      const [eligible, existing] = await Promise.all([
+        listEligibleWaterEmployeeLoans(staffId),
+        listWaterPayrollDeductions(itemId),
+      ])
+      const already = new Set(
+        existing.filter((d) => d.waterEmployeeLoanId != null)
+                .map((d) => d.waterEmployeeLoanId as number))
+      const added: string[] = []
+      for (const e of eligible) {
+        if (already.has(e.waterEmployeeLoanId)) continue
+        const amount = payrollDeductionFor(e)
+        if (amount <= 0) continue
+        await saveWaterPayrollDeduction({
+          waterPayrollItemId: itemId,
+          deductionType: e.loanType === "SalaryAdvance"
+            ? "SalaryAdvanceRepayment" : "EmployeeLoanRepayment",
+          amount,
+          waterEmployeeLoanId: e.waterEmployeeLoanId,
+        })
+        added.push(`${e.loanNumber ?? `#${e.waterEmployeeLoanId}`} ${amount.toFixed(2)}`)
+      }
+      return added
+    } catch {
+      // The ITEM saved. Losing that because a convenience could not be applied
+      // would be the worse outcome; the deduction can still be added by hand.
+      return []
+    }
   }
 
   async function addItem() {
     if (!editing) return
     if (!itemForm.waterStaffId) return toast({ title: "Pick staff", variant: "destructive" })
     try {
-      await upsertWaterPayrollItem(editing.waterPayrollRunId, itemForm)
+      const saved = await upsertWaterPayrollItem(editing.waterPayrollRunId, itemForm)
+      const added = await autoAddSuggestedDeductions(
+        (saved as any).waterPayrollItemId, itemForm.waterStaffId)
       setItemForm({ waterStaffId: 0, basicPay: 0, dailyWage: 0, commission: 0, bonus: 0, deductions: 0, paymentMethod: "Cash", notes: "" })
+      setStaffLoans([])
       await refreshEditing(); await load()
-      toast({ title: "Item saved" })
+      toast({
+        title: "Item saved",
+        description: added.length > 0
+          ? `${added.join(", ")} — review before approving. Nothing is repaid until you approve.`
+          : undefined,
+      })
     } catch (e: any) { toast({ title: "Save failed", description: e?.message, variant: "destructive" }) }
   }
 
@@ -200,7 +340,17 @@ export default function WaterPayrollPage() {
             <h1 className="text-2xl font-semibold text-slate-900 flex items-center gap-2">
               <Banknote className="h-6 w-6 text-sky-600" /> Payroll
             </h1>
-            <Button onClick={() => setNewRunDlg(true)} className="w-full sm:w-auto h-11 sm:h-10"><Plus className="h-4 w-4 mr-1" /> New run</Button>
+            <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+              {/* Section 51. A shortcut only -- Employee Loans & Advances is
+                  where advances are created, disbursed and repaid. Nothing is
+                  duplicated here. */}
+              <Button variant="outline" asChild className="h-11 sm:h-10">
+                <Link href="/water-employee-loans">
+                  <HandCoins className="h-4 w-4 mr-1" /> Employee Loans &amp; Advances
+                </Link>
+              </Button>
+              <Button onClick={() => setNewRunDlg(true)} className="h-11 sm:h-10"><Plus className="h-4 w-4 mr-1" /> New run</Button>
+            </div>
           </div>
 
           <ListFilters
@@ -310,7 +460,7 @@ export default function WaterPayrollPage() {
 
       {/* New run */}
       <Dialog open={newRunDlg} onOpenChange={setNewRunDlg}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Banknote className="w-5 h-5 text-blue-600" /> New payroll run
@@ -351,8 +501,20 @@ export default function WaterPayrollPage() {
       </Dialog>
 
       {/* Open run / edit items */}
+      {/* 314. Opens on the Deductions figure. */}
+      <PayrollDeductionsDialog
+        target={deductionsFor}
+        onClose={() => setDeductionsFor(null)}
+        fmt={(n) => n.toFixed(2)}
+        onChanged={async () => {
+          // A deduction rewrites the item's total AND the run's totals, so both
+          // have to be re-read.
+          await refreshEditing(); await load()
+        }}
+      />
+
       <Dialog open={!!editing} onOpenChange={(v) => { if (!v) setEditing(null) }}>
-        <DialogContent className="w-[95vw] max-w-[1600px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] sm:max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>
             {editing && (<>Run: {editing.periodStart.split("T")[0]} → {editing.periodEnd.split("T")[0]} <Badge className={STATUS_COLORS[editing.status] ?? ""}>{editing.status}</Badge></>)}
           </DialogTitle></DialogHeader>
@@ -367,21 +529,108 @@ export default function WaterPayrollPage() {
               <div className="border-t pt-3">
                 <div className="font-medium mb-2">Items</div>
                 {editing.items && editing.items.length > 0 ? (
-                  <div className="overflow-x-auto">
+                  <>
+                  {/* Eight money columns do not fit a phone, and a table you can
+                      only read by dragging it sideways loses the staff name the
+                      moment you scroll to the net pay. Same rows, stacked,
+                      below lg -- which is where the table gets the room. */}
+                  <div className="space-y-2 lg:hidden">
+                    {editing.items.map((i) => (
+                      <div key={i.waterPayrollItemId} className="rounded-lg border bg-white p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="font-medium">
+                            {i.staffName ?? `#${i.waterStaffId}`}
+                            {(loanHints.get(i.waterPayrollItemId)?.activeLoanCount ?? 0) > 0 && (
+                              <span className="ml-2 rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-normal text-sky-700">
+                                {loanHints.get(i.waterPayrollItemId)!.activeLoanCount === 1
+                                  ? "active advance"
+                                  : `${loanHints.get(i.waterPayrollItemId)!.activeLoanCount} active advances`}
+                              </span>
+                            )}
+                          </div>
+                          {isEditable(editing) && (
+                            <Button size="sm" variant="ghost" onClick={() => removeItem(i)}>
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
+                          )}
+                        </div>
+                        <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                          <div><span className="text-slate-500">Basic</span> <span className="font-medium tabular-nums">{i.basicPay.toFixed(2)}</span></div>
+                          <div><span className="text-slate-500">Daily</span> <span className="font-medium tabular-nums">{i.dailyWage.toFixed(2)}</span></div>
+                          <div><span className="text-slate-500">Commission</span> <span className="font-medium tabular-nums">{i.commission.toFixed(2)}</span></div>
+                          <div><span className="text-slate-500">Bonus</span> <span className="font-medium tabular-nums">{i.bonus.toFixed(2)}</span></div>
+                          <div className="col-span-2">
+                            <span className="text-slate-500">Deductions</span>{" "}
+                            <button
+                              type="button"
+                              className="font-medium tabular-nums underline decoration-dotted underline-offset-2"
+                              onClick={() => setDeductionsFor({
+                                waterPayrollItemId: i.waterPayrollItemId,
+                                waterStaffId: i.waterStaffId,
+                                staffName: i.staffName ?? `#${i.waterStaffId}`,
+                                runStatus: editing.status,
+                              })}
+                            >
+                              {i.deductions.toFixed(2)}
+                            </button>
+                            <span className="ml-1 text-[11px] text-slate-400">view breakdown</span>
+                          </div>
+                          <div className="col-span-2 border-t pt-1">
+                            <span className="text-slate-500">Net</span>{" "}
+                            <span className="font-semibold tabular-nums">{i.netPay.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="hidden lg:block">
                   <Table>
                     <TableHeader>
-                      <TableRow><TableHead>Staff</TableHead><TableHead className="text-right">Basic</TableHead><TableHead className="text-right">Daily</TableHead><TableHead className="text-right">Commission</TableHead><TableHead className="text-right">Bonus</TableHead><TableHead className="text-right">Deductions</TableHead><TableHead className="text-right">Net</TableHead><TableHead /></TableRow>
+                      <TableRow><TableHead>Staff</TableHead><TableHead className="text-right px-2 whitespace-nowrap">Basic</TableHead><TableHead className="text-right px-2 whitespace-nowrap">Daily</TableHead><TableHead className="text-right px-2 whitespace-nowrap">Comm.</TableHead><TableHead className="text-right px-2 whitespace-nowrap">Bonus</TableHead><TableHead className="text-right px-2 whitespace-nowrap">Deduct</TableHead><TableHead className="text-right px-2 whitespace-nowrap">Net</TableHead><TableHead className="w-10" /></TableRow>
                     </TableHeader>
                     <TableBody>
                       {editing.items.map((i) => (
                         <TableRow key={i.waterPayrollItemId}>
-                          <TableCell>{i.staffName ?? i.waterStaffId}</TableCell>
-                          <TableCell className="text-right tabular-nums">{i.basicPay.toFixed(2)}</TableCell>
-                          <TableCell className="text-right tabular-nums">{i.dailyWage.toFixed(2)}</TableCell>
-                          <TableCell className="text-right tabular-nums">{i.commission.toFixed(2)}</TableCell>
-                          <TableCell className="text-right tabular-nums">{i.bonus.toFixed(2)}</TableCell>
-                          <TableCell className="text-right tabular-nums">{i.deductions.toFixed(2)}</TableCell>
-                          <TableCell className="text-right tabular-nums font-semibold">{i.netPay.toFixed(2)}</TableCell>
+                          <TableCell className="font-medium min-w-[9rem]">
+                            {i.staffName ?? i.waterStaffId}
+                            {/* Subtle on purpose: a prompt to open the
+                                breakdown, not a call to action. Nothing is
+                                deducted because an advance exists. */}
+                            {(loanHints.get(i.waterPayrollItemId)?.activeLoanCount ?? 0) > 0 && (
+                              <span
+                                className="ml-2 rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-normal text-sky-700"
+                                title={`${loanHints.get(i.waterPayrollItemId)!.activeLoanOutstanding.toFixed(2)} outstanding across ${loanHints.get(i.waterPayrollItemId)!.activeLoanCount} advance(s)`}
+                              >
+                                {loanHints.get(i.waterPayrollItemId)!.activeLoanCount === 1
+                                  ? "active advance"
+                                  : `${loanHints.get(i.waterPayrollItemId)!.activeLoanCount} active advances`}
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums px-2 whitespace-nowrap">{i.basicPay.toFixed(2)}</TableCell>
+                          <TableCell className="text-right tabular-nums px-2 whitespace-nowrap">{i.dailyWage.toFixed(2)}</TableCell>
+                          <TableCell className="text-right tabular-nums px-2 whitespace-nowrap">{i.commission.toFixed(2)}</TableCell>
+                          <TableCell className="text-right tabular-nums px-2 whitespace-nowrap">{i.bonus.toFixed(2)}</TableCell>
+                          <TableCell className="text-right tabular-nums px-2 whitespace-nowrap">
+                            {/* Still ONE column. The total is the way in to
+                                what it is made of, rather than a column per
+                                deduction type that no phone could hold. */}
+                            <button
+                              type="button"
+                              className="underline decoration-dotted underline-offset-2 hover:text-sky-700"
+                              title="What is this made of?"
+                              onClick={() => setDeductionsFor({
+                                waterPayrollItemId: i.waterPayrollItemId,
+                                waterStaffId: i.waterStaffId,
+                                staffName: i.staffName ?? `#${i.waterStaffId}`,
+                                runStatus: editing.status,
+                              })}
+                            >
+                              {i.deductions.toFixed(2)}
+                            </button>
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums font-semibold px-2 whitespace-nowrap">{i.netPay.toFixed(2)}</TableCell>
                           <TableCell>
                             {isEditable(editing) && <Button size="sm" variant="ghost" onClick={() => removeItem(i)}><Trash2 className="h-4 w-4 text-red-500" /></Button>}
                           </TableCell>
@@ -390,6 +639,7 @@ export default function WaterPayrollPage() {
                     </TableBody>
                   </Table>
                   </div>
+                  </>
                 ) : <div className="text-slate-500 text-sm">No items yet.</div>}
               </div>
 
@@ -425,7 +675,7 @@ export default function WaterPayrollPage() {
                   <div className="font-medium mb-2">Add / replace item</div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                     <div className="md:col-span-2"><Label>Staff</Label>
-                      <Select value={String(itemForm.waterStaffId)} onValueChange={(v) => setItemForm({ ...itemForm, waterStaffId: Number(v) })}>
+                      <Select value={String(itemForm.waterStaffId)} onValueChange={(v) => prefillFromStaff(Number(v))}>
                         <SelectTrigger><SelectValue placeholder="Pick staff" /></SelectTrigger>
                         <SelectContent>{staff.filter(s => s.isActive).map(s => <SelectItem key={s.waterStaffId} value={String(s.waterStaffId)}>{s.firstName} {s.lastName} ({s.role})</SelectItem>)}</SelectContent>
                       </Select></div>
@@ -439,6 +689,53 @@ export default function WaterPayrollPage() {
                       <NumberInput min={0} step="0.01" value={itemForm.bonus} onChange={(e) => setItemForm({ ...itemForm, bonus: Number(e.target.value) || 0 })} /></div>
                     <div><Label>Deductions</Label>
                       <NumberInput min={0} step="0.01" value={itemForm.deductions} onChange={(e) => setItemForm({ ...itemForm, deductions: Number(e.target.value) || 0 })} /></div>
+                    {/* What this person already owes, BEFORE the item is
+                        saved. The advance repayment is applied automatically on
+                        save, so without this the Deductions figure would be a
+                        number the user never typed and cannot account for. */}
+                    {itemForm.waterStaffId > 0 && (staffLoansBusy || staffLoans.length > 0) && (
+                      <div className="col-span-2 md:col-span-4 rounded-md border border-sky-200 bg-sky-50 p-3 text-sm">
+                        {staffLoansBusy ? (
+                          <span className="text-slate-500">Checking advances…</span>
+                        ) : (
+                          <>
+                            <div className="font-medium text-sky-900">
+                              {staffLoans.length === 1
+                                ? "1 active advance"
+                                : `${staffLoans.length} active advances`}
+                            </div>
+                            <ul className="mt-1.5 space-y-1">
+                              {staffLoans.map((e) => {
+                                const byPayroll = e.repaymentMethod === "PayrollDeduction"
+                                               || e.repaymentMethod === "Mixed"
+                                const willDeduct = payrollDeductionFor(e)
+                                return (
+                                  <li key={e.waterEmployeeLoanId}
+                                      className="flex flex-wrap items-baseline justify-between gap-x-3 text-sky-900">
+                                    <span>
+                                      {e.loanNumber}
+                                      <span className="text-sky-700/70"> · {e.outstandingBalance.toFixed(2)} outstanding</span>
+                                    </span>
+                                    <span className="text-xs">
+                                      {willDeduct > 0
+                                        ? <>will deduct <strong className="tabular-nums">{willDeduct.toFixed(2)}</strong></>
+                                        : byPayroll
+                                          ? "no amount set — add it by hand"
+                                          : `repaid by ${e.repaymentMethod?.toLowerCase()} — not deducted here`}
+                                    </span>
+                                  </li>
+                                )
+                              })}
+                            </ul>
+                            <p className="mt-2 text-[11px] text-sky-700/80">
+                              Added automatically when you save the item, and editable afterwards from the
+                              Deductions figure. Nothing is repaid until the payroll is approved.
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    )}
+
                     <div className="md:col-span-2 flex items-end">
                       <Button className="w-full" onClick={addItem}>Save item</Button>
                     </div>

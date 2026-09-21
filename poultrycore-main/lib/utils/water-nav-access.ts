@@ -76,6 +76,15 @@ const WATER_ROUTE_ACCESS: Record<string, (f: FeatureAccessPermissions, isAdmin: 
   // the page, on the keys migration 260 seeds.
   "/water-owner-money": (f) => f.canViewCashLedger,
   "/water-loans": (f) => f.canViewCashLedger,
+  // Migrations 313/314. Employee Loans & Advances is money the company LENT,
+  // the mirror of the line above, so it reads to the same audience and rides
+  // the same flag.
+  //
+  // Naming it here MATTERS even though this map defaults to allow: an
+  // unlisted route is visible to everyone, and a page that can disburse cash
+  // and reverse advances should not be. That is the opposite of the poultry
+  // allow-list, where omitting the href would have hidden it from everyone.
+  "/water-employee-loans": (f) => f.canViewCashLedger,
   "/water-payments": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canEnterSales,
   "/water-daily-closing": (f, isAdmin) => isAdmin || f.canViewFinancial || f.canViewCashLedger,
 

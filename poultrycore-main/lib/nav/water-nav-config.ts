@@ -22,6 +22,7 @@ import {
 import type { UserPermissions } from "@/hooks/use-permissions"
 import { isWaterNavItemVisible } from "@/lib/utils/water-nav-access"
 import type { MegaMenuGroup, NavGroup } from "./nav-model"
+import { resolveQuickLinks } from "./quick-links"
 
 export interface WaterNavDeps {
   permissions: UserPermissions
@@ -31,6 +32,12 @@ export interface WaterNavDeps {
    *  calls useAlertsStore.setAlerts yet, and only the poultry dashboard mounts
    *  the dialog, so on water pages this row opens nothing for the moment. */
   alertCount?: number
+  /**
+   * The user's own Quick Links, from migration 318. Undefined or null means
+   * they have never customised -- the defaults below stand. `[]` means they
+   * cleared the bar, which is a different answer and must survive as one.
+   */
+  quickLinkHrefs?: string[] | null
 }
 
 export interface WaterNavConfig {
@@ -49,7 +56,7 @@ export interface WaterNavConfig {
   system: MegaMenuGroup[]
 }
 
-export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: WaterNavDeps): WaterNavConfig {
+export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount, quickLinkHrefs }: WaterNavDeps): WaterNavConfig {
   // Same predicates the sidebar uses, so the two surfaces can't disagree about
   // who sees what. The top nav previously applied no gating at all.
   const canSeeStaff = permissions.isAdmin || permissions.featureAccess.canSeeEmployees
@@ -78,13 +85,23 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
   const config: WaterNavConfig = {
     quickLinks: {
       label: "Quick Links",
+      // WHAT EARNS A PLACE HERE: a page the company opens most days.
+      //
+      // Not "everything important" -- a shortcut list containing everything is
+      // not a shortcut, it is a second copy of the rail. Weekly and monthly
+      // work stays one click away in its own group.
+      //
+      // Ordered by the shape of a day: produce, deliver, sell, collect, then
+      // close. Labels match the ones the rail uses for the same pages -- one
+      // page, one name, so the two menus cannot look like two destinations.
       items: [
-        { href: "/water-daily-closing",      label: "Daily Closing", icon: FileText },
-        { href: "/water-driver-returns",     label: "Deliveries",    icon: Truck },
-        // Same label as Operations > Production > Water Production — one page,
-        // one name, so the two menus can't look like two destinations.
         { href: "/water-production-batches", label: "Water Production", icon: Factory },
-        { href: "/water-sales",              label: "Sales",         icon: ShoppingCart },
+        { href: "/water-daily-production",   label: "Batch Production", icon: CalendarDays },
+        { href: "/water-driver-returns",     label: "Deliveries",       icon: Truck },
+        { href: "/water-sales",              label: "Sales",            icon: ShoppingCart },
+        { href: "/water-payments",           label: "Payments",         icon: CreditCard },
+        { href: "/water-expenses",           label: "Expenses",         icon: Receipt },
+        { href: "/water-daily-closing",      label: "Daily Closing",    icon: FileText },
       ],
     },
 
@@ -113,7 +130,11 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
           { id: "stock",             title: "Stock movement",            icon: Boxes,         href: "/water-stock" },
           { id: "inventory",         title: "Inventory",                 icon: Boxes,         href: "/water-inventory" },
           { id: "raw-materials",     title: "Raw materials & supplies",  icon: Box,           href: "/water-raw-materials" },
-          { id: "internal-use",      title: "Internal Use",              icon: PackageMinus,  href: "/water-internal-use" },
+          // Internal Use moved to Sales, Expenses & Money > Expenses, matching
+          // the poultry rail. Stock the company consumes itself is a COST, not
+          // a stock count -- and migration 212 records it exactly that way, as
+          // an expense row with paymentmethod 'NonCash'. The menu now agrees
+          // with the books.
           { id: "loss-records",      title: "Damages & loss",            icon: AlertTriangle, href: "/water-loss-records" },
           { id: "production-losses", title: "Production losses",         icon: AlertTriangle, href: "/water-production-losses" },
         ],
@@ -161,9 +182,19 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
         label: "Expenses",
         items: [
           { id: "expenses",      title: "Expenses",        icon: Receipt,  href: "/water-expenses" },
+          // Second, right under Expenses itself: the two are the same kind of
+          // thing, one paid for in cash and one paid for in stock. Moved here
+          // from Operations > Inventory; ungated, exactly as it was there, so
+          // nobody loses a page they can reach today.
+          { id: "internal-use",  title: "Internal Use",    icon: PackageMinus, href: "/water-internal-use" },
           // Payroll is money going out, so it sits with the other outflows
           // rather than with the staff master data in Setup > People.
           { id: "payroll",       title: "Payroll",         icon: Banknote, href: "/water-payroll" },
+          // Directly below Payroll, because payroll deduction is how most
+          // advances are repaid -- but the page stands on its own: an advance
+          // can equally be repaid in cash, and exists whether or not the
+          // worker is on any payroll run. Migrations 313/314.
+          { id: "employee-loans", title: "Employee Loans & Advances", icon: HandCoins, href: "/water-employee-loans" },
           // The payables mirror of the two Sales rows: what we owe, and what
           // we've paid against it.
           { id: "supplier-payments", title: "Supplier Payments", icon: Receipt, href: "/water-supplier-payments" },
@@ -314,7 +345,10 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
     ],
   }
 
-  return {
+  // The gate runs FIRST and the user's choice second, over a gated config --
+  // so a pinned page this user may not see is dropped rather than revealed.
+  // See lib/nav/quick-links.ts.
+  const gated: WaterNavConfig = {
     ...config,
     quickLinks: { ...config.quickLinks, items: config.quickLinks.items.filter((i) => gate(i.href)) },
     operations: gateGroups(config.operations),
@@ -324,5 +358,10 @@ export function buildWaterNavConfig({ permissions, onOpenAlerts, alertCount }: W
     // `system` is company-neutral (account, alerts, activity log, terms) — no
     // /water-* route in it, so it carries its own gates unchanged.
     system: config.system,
+  }
+
+  return {
+    ...gated,
+    quickLinks: { ...gated.quickLinks, items: resolveQuickLinks(gated, quickLinkHrefs) },
   }
 }
