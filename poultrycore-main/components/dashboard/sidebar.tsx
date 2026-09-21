@@ -391,6 +391,8 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/hotel-payments",      label: "Payments",      icon: CreditCard },
     { href: "/hotel-expenses",      label: "Expenses",      icon: DollarSign },
     { href: "/hotel-cash-accounts", label: "Cash Accounts", icon: Wallet },
+    { href: "/hotel-cash-flow",    label: "Cash Flow",     icon: Activity },
+    { href: "/hotel-profit-loss", label: "Profit & Loss", icon: BarChart3 },
   ])
   const hotelPeopleItems = gateHotel([
     { href: "/hotel-staff",   label: "Staff",   icon: UserCog },
@@ -461,8 +463,10 @@ export function DashboardSidebar({ onLogout }: SidebarProps) {
     { href: "/restaurant-events",      label: "Events & Catering",  icon: CalendarDays },
     { href: "/restaurant-gift-cards",  label: "Gift Cards",         icon: CreditCard },
     { href: "/restaurant-payments",    label: "Income & Expenses",  icon: Wallet },
-    { href: "/restaurant-expenses",    label: "Expenses",           icon: DollarSign },
-    { href: "/restaurant-notifications", label: "Notifications",    icon: Bell },
+    { href: "/restaurant-expenses",      label: "Expenses",           icon: DollarSign },
+    { href: "/restaurant-cash-flow",    label: "Cash Flow",          icon: Activity },
+    { href: "/restaurant-profit-loss",  label: "Profit & Loss",      icon: BarChart3 },
+    { href: "/restaurant-notifications", label: "Notifications",     icon: Bell },
   ])
   // Its own group, mirroring the top nav's Reports mega-menu. The rail links to
   // the catalog; the 24 individual reports live under it.

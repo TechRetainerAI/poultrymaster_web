@@ -206,6 +206,7 @@ export default function CashFlowPage() {
 
   useEffect(() => {
     if (activeFarmType && activeFarmType !== "Poultry") { router.replace("/dashboard"); return }
+    if (!activeFarmId) return
     setLoading(true)
     void load()
   }, [activeFarmType, activeFarmId, router, load])
